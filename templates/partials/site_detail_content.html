@@ -144,17 +144,17 @@
       <table class="min-w-full text-left text-sm" id="query-table">
         <thead class="bg-slate-50 text-slate-600">
           <tr>
-            <th class="px-3 py-2 font-medium">Query</th>
-            <th class="px-3 py-2 font-medium">Clicks</th>
-            <th class="px-3 py-2 font-medium">Impressions</th>
-            <th class="px-3 py-2 font-medium">CTR</th>
-            <th class="px-3 py-2 font-medium">Position</th>
-            <th class="px-3 py-2 font-medium">Değişim</th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="query">Query <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="clicks">Clicks <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="impressions">Impressions <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="ctr">CTR <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="position">Position <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="delta">Değişim <span class="sort-arrow">⇅</span></th>
           </tr>
         </thead>
         <tbody>
           {% for row in top_queries %}
-            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}">
+            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}">
               <td class="px-3 py-2 font-medium text-slate-900">{{ row.query }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.clicks|round|int }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.impressions|round|int }}</td>
@@ -302,6 +302,50 @@
       rows.forEach(function (row) {
         const visible = !query || row.dataset.query.includes(query);
         row.style.display = visible ? '' : 'none';
+      });
+    });
+  })();
+
+  (function () {
+    const table = document.getElementById('query-table');
+    if (!table) return;
+
+    let sortState = {};
+
+    document.querySelectorAll('th.sortable').forEach(function (header) {
+      header.addEventListener('click', function () {
+        const sortKey = this.dataset.sort;
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr[data-query]'));
+
+        // Determine sort direction
+        const isAsc = sortState[sortKey] !== 'asc';
+        sortState = { [sortKey]: isAsc ? 'asc' : 'desc' };
+
+        // Update arrow indicators
+        document.querySelectorAll('th.sortable .sort-arrow').forEach(arrow => {
+          arrow.textContent = '⇅';
+        });
+        this.querySelector('.sort-arrow').textContent = isAsc ? '▲' : '▼';
+
+        // Sort rows
+        rows.sort(function (a, b) {
+          let aVal = a.dataset[sortKey];
+          let bVal = b.dataset[sortKey];
+
+          // Parse numeric values
+          if (sortKey !== 'query') {
+            aVal = parseFloat(aVal) || 0;
+            bVal = parseFloat(bVal) || 0;
+          }
+
+          if (aVal < bVal) return isAsc ? -1 : 1;
+          if (aVal > bVal) return isAsc ? 1 : -1;
+          return 0;
+        });
+
+        // Re-append sorted rows
+        rows.forEach(row => tbody.appendChild(row));
       });
     });
   })();
