@@ -162,29 +162,29 @@
         <!-- Diagnostic Details -->
         <div class="diagnostic-details hidden border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-4">
           <!-- Problem -->
-          {% if diagnostic.problem %}
+          {% if diagnostic.solution.problem %}
           <div>
             <h5 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-2">🔴 Problem</h5>
-            <p class="text-slate-700">{{ diagnostic.problem }}</p>
+            <p class="text-slate-700">{{ diagnostic.solution.problem }}</p>
           </div>
           {% endif %}
 
           <!-- Impact -->
-          {% if diagnostic.impact %}
+          {% if diagnostic.solution.impact %}
           <div class="rounded-lg bg-rose-50 border border-rose-200 p-3">
             <h5 class="text-sm font-semibold text-rose-900 flex items-center gap-2">
               <span>⚠️</span> Etkisi
             </h5>
-            <p class="text-sm text-rose-800 mt-2">{{ diagnostic.impact }}</p>
+            <p class="text-sm text-rose-800 mt-2">{{ diagnostic.solution.impact }}</p>
           </div>
           {% endif %}
 
           <!-- Solutions -->
-          {% if diagnostic.solution %}
+          {% if diagnostic.solution.solution %}
           <div>
             <h5 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">✅ Çözüm Adımları</h5>
             <div class="space-y-3">
-              {% for step in diagnostic.solution %}
+              {% for step in diagnostic.solution.solution %}
               <div class="rounded-lg border border-slate-200 bg-white p-3">
                 <div class="flex items-start gap-3">
                   <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-teal-100 text-teal-700 text-sm font-semibold flex-shrink-0">{{ loop.index }}</span>
@@ -208,12 +208,22 @@
           {% endif %}
 
           <!-- Expected Result -->
-          {% if diagnostic.expected_result %}
+          {% if diagnostic.solution.expected_result %}
           <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
             <h5 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
               <span>🎯</span> Beklenen Sonuç
             </h5>
-            <p class="text-sm text-emerald-800 mt-2">{{ diagnostic.expected_result }}</p>
+            <p class="text-sm text-emerald-800 mt-2">{{ diagnostic.solution.expected_result }}</p>
+          </div>
+          {% endif %}
+
+          <!-- Timeline -->
+          {% if diagnostic.solution.timeline %}
+          <div class="rounded-lg bg-blue-50 border border-blue-200 p-3">
+            <h5 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              <span>⏱️</span> Zaman Çerçevesi
+            </h5>
+            <p class="text-sm text-blue-800 mt-2">{{ diagnostic.solution.timeline }}</p>
           </div>
           {% endif %}
         </div>
