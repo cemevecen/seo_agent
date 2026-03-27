@@ -272,6 +272,7 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
             "position": float(row.get("position", 0)),
             "previous_position": previous_map.get(row.get("keys", [""])[0]),
             "delta": float(row.get("position", 0)) - previous_map.get(row.get("keys", [""])[0], float(row.get("position", 0))),
+            "device": row.get("device", "ALL"),
         }
         for row in rows
     ]
