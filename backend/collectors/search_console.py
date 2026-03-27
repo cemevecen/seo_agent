@@ -73,9 +73,62 @@ def _mock_search_console_response(domain: str = "") -> dict:
             {"keys": ["suç filmleri"], "clicks": 50.0, "impressions": 1180.0, "ctr": 0.042, "position": 3.7},
             {"keys": ["bilim kurgu klasikleri"], "clicks": 9.0, "impressions": 210.0, "ctr": 0.043, "position": 6.7},
         ]
+        # Dünkü pozisyonlar (değişken değerler - bazı queryler iyileşti, bazıları kötüleşti)
+        cinema_previous = [
+            {"keys": ["sinema seans saatleri"], "position": 3.1},  # -0.3 düşüş (iyileşti)
+            {"keys": ["yakındaki sinemalar"], "position": 3.9},  # -0.4 düşüş
+            {"keys": ["film uyarlaması"], "position": 5.8},  # -0.6 düşüş
+            {"keys": ["yeni filmler"], "position": 2.8},  # +0.3 artış (kötüleşti)
+            {"keys": ["sinema bilet fiyatları"], "position": 4.5},  # -0.3 düşüş
+            {"keys": ["çocuk filmleri"], "position": 5.2},  # -0.4 düşüş
+            {"keys": ["korku filmleri"], "position": 3.5},  # +0.4 artış
+            {"keys": ["aksiyon filmleri"], "position": 3.8},  # -0.3 düşüş
+            {"keys": ["romantik filmler"], "position": 5.4},  # -0.3 düşüş
+            {"keys": ["komedi filmleri"], "position": 4.8},  # -0.3 düşüş
+            {"keys": ["bilim kurgu filmleri"], "position": 5.1},  # -0.2 düşüş
+            {"keys": ["film izle"], "position": 2.0},  # +0.3 artış
+            {"keys": ["sinema kartı"], "position": 6.1},  # -0.3 düşüş
+            {"keys": ["imax sinema"], "position": 6.5},  # -0.3 düşüş
+            {"keys": ["3d sinema"], "position": 7.0},  # -0.5 düşüş
+            {"keys": ["sinema seansları"], "position": 3.5},  # -0.3 düşüş
+            {"keys": ["film önerileri"], "position": 4.9},  # -0.3 düşüş
+            {"keys": ["en iyi filmler"], "position": 4.1},  # -0.3 düşüş
+            {"keys": ["oscar kazanan filmler"], "position": 5.7},  # -0.3 düşüş
+            {"keys": ["türk filmleri"], "position": 5.0},  # -0.3 düşüş
+            {"keys": ["hollywood filmleri"], "position": 4.3},  # -0.3 düşüş
+            {"keys": ["sinema oyuncuları"], "position": 6.2},  # -0.3 düşüş
+            {"keys": ["film yönetmenleri"], "position": 6.4},  # -0.3 düşüş
+            {"keys": ["sinema haberleri"], "position": 5.5},  # -0.3 düşüş
+            {"keys": ["film fragmanları"], "position": 4.7},  # -0.3 düşüş
+            {"keys": ["film rezensyonları"], "position": 5.8},  # -0.3 düşüş
+            {"keys": ["imdb filmler"], "position": 6.3},  # -0.3 düşüş
+            {"keys": ["netflix filmler"], "position": 3.6},  # -0.3 düşüş
+            {"keys": ["amazon prime filmler"], "position": 5.1},  # -0.3 düşüş
+            {"keys": ["online film izle"], "position": 3.9},  # -0.3 düşüş
+            {"keys": ["sinema biletiyle"], "position": 6.6},  # -0.3 düşüş
+            {"keys": ["film talepleri"], "position": 6.8},  # -0.3 düşüş
+            {"keys": ["sinema promosyonları"], "position": 6.2},  # -0.3 düşüş
+            {"keys": ["film tahlili"], "position": 6.1},  # -0.3 düşüş
+            {"keys": ["sinema deneyimi"], "position": 6.5},  # -0.3 düşüş
+            {"keys": ["film kategorileri"], "position": 5.6},  # -0.3 düşüş
+            {"keys": ["sinema stillleri"], "position": 6.9},  # -0.3 düşüş
+            {"keys": ["animasyon filmleri"], "position": 4.2},  # -0.3 düşüş
+            {"keys": ["belgesel filmler"], "position": 5.9},  # -0.3 düşüş
+            {"keys": ["müzikli filmler"], "position": 5.2},  # -0.3 düşüş
+            {"keys": ["drama filmleri"], "position": 4.8},  # -0.3 düşüş
+            {"keys": ["gerilim filmleri"], "position": 4.6},  # -0.3 düşüş
+            {"keys": ["aile filmleri"], "position": 5.1},  # -0.3 düşüş
+            {"keys": ["macera filmleri"], "position": 4.5},  # -0.3 düşüş
+            {"keys": ["superkahaman filmleri"], "position": 3.7},  # -0.3 düşüş
+            {"keys": ["fantazi filmleri"], "position": 4.4},  # -0.3 düşüş
+            {"keys": ["tarihsel filmler"], "position": 6.4},  # -0.3 düşüş
+            {"keys": ["psikiyatrik filmler"], "position": 6.7},  # -0.3 düşüş
+            {"keys": ["suç filmleri"], "position": 4.0},  # -0.3 düşüş
+            {"keys": ["bilim kurgu klasikleri"], "position": 7.0},  # -0.3 düşüş
+        ]
         return {
             "rows": cinema_queries,
-            "previous_day": [{"keys": q["keys"], "position": q["position"] - 0.4} for q in cinema_queries[:50]],
+            "previous_day": cinema_previous,
         }
     
     # Varsayılan doviz.com mock data  - 50 query
@@ -131,9 +184,62 @@ def _mock_search_console_response(domain: str = "") -> dict:
         {"keys": ["elektrik fiyati"], "clicks": 63.0, "impressions": 1450.0, "ctr": 0.043, "position": 4.0},
         {"keys": ["dogalgaz fiyati"], "clicks": 61.0, "impressions": 1400.0, "ctr": 0.044, "position": 4.1},
     ]
+    # Dünkü pozisyonlar (değişken değerler - bazı query'ler iyileşti, bazıları kötüleşti)
+    finance_previous = [
+        {"keys": ["doviz kuru"], "position": 3.5},  # -0.3 düşüş (iyileşti)
+        {"keys": ["altin fiyatlari"], "position": 5.1},  # -0.4 düşüş
+        {"keys": ["dolar ne kadar"], "position": 8.3},  # -0.5 düşüş
+        {"keys": ["euro kuru"], "position": 4.5},  # -0.3 düşüş
+        {"keys": ["bitcoin fiyati"], "position": 3.2},  # +0.3 artış (kötüleşti)
+        {"keys": ["borsa istanbul"], "position": 5.4},  # -0.3 düşüş
+        {"keys": ["merkez bankasi"], "position": 6.1},  # -0.3 düşüş
+        {"keys": ["gumruk vergileri"], "position": 6.5},  # -0.3 düşüş
+        {"keys": ["hazine bonosu"], "position": 6.2},  # -0.3 düşüş
+        {"keys": ["piyasa analizi"], "position": 4.8},  # -0.3 düşüş
+        {"keys": ["kripto para"], "position": 4.6},  # -0.3 düşüş
+        {"keys": ["forex trading"], "position": 5.1},  # -0.3 düşüş
+        {"keys": ["yatirim stratejisi"], "position": 5.8},  # -0.3 düşüş
+        {"keys": ["emtia fiyatlari"], "position": 6.2},  # -0.3 düşüş
+        {"keys": ["petrol fiyati"], "position": 4.4},  # -0.3 düşüş
+        {"keys": ["donem sonu muhasebesi"], "position": 6.4},  # -0.3 düşüş
+        {"keys": ["vergi orani"], "position": 5.5},  # -0.3 düşüş
+        {"keys": ["faiz oranlari"], "position": 4.3},  # -0.3 düşüş
+        {"keys": ["ekonomik rapor"], "position": 6.1},  # -0.3 düşüş
+        {"keys": ["merkez bankasi karar"], "position": 4.9},  # -0.3 düşüş
+        {"keys": ["enflasyon orani"], "position": 4.5},  # -0.3 düşüş
+        {"keys": ["isizlik rakameri"], "position": 6.0},  # -0.3 düşüş
+        {"keys": ["gdp orani"], "position": 6.2},  # -0.3 düşüş
+        {"keys": ["dex index"], "position": 5.0},  # -0.3 düşüş
+        {"keys": ["pay alimi"], "position": 5.2},  # -0.3 düşüş
+        {"keys": ["sahibi olma"], "position": 5.7},  # -0.3 düşüş
+        {"keys": ["gayrimenkul yatirimi"], "position": 5.6},  # -0.3 düşüş
+        {"keys": ["emeklilik fonu"], "position": 5.9},  # -0.3 düşüş
+        {"keys": ["banka faizi"], "position": 4.9},  # -0.3 düşüş
+        {"keys": ["kredi kartı orani"], "position": 5.3},  # -0.3 düşüş
+        {"keys": ["ipotek kredisi"], "position": 5.5},  # -0.3 düşüş
+        {"keys": ["sigortai plani"], "position": 6.5},  # -0.3 düşüş
+        {"keys": ["investisyon fonu"], "position": 6.1},  # -0.3 düşüş
+        {"keys": ["dijital para"], "position": 4.4},  # -0.3 düşüş
+        {"keys": ["blokchain teknolojisi"], "position": 6.0},  # -0.3 düşüş
+        {"keys": ["akaryakit fiyati"], "position": 4.6},  # -0.3 düşüş
+        {"keys": ["doviztl artis"], "position": 6.6},  # -0.3 düşüş
+        {"keys": ["doviz degerleri"], "position": 4.2},  # -0.3 düşüş
+        {"keys": ["kac tl"], "position": 4.1},  # -0.3 düşüş
+        {"keys": ["dis ticaret"], "position": 6.3},  # -0.3 düşüş
+        {"keys": ["gumruk uzlastirmasi"], "position": 6.7},  # -0.3 düşüş
+        {"keys": ["uluslararasi ticaret"], "position": 6.4},  # -0.3 düşüş
+        {"keys": ["yatirim tesvikleri"], "position": 6.8},  # -0.3 düşüş
+        {"keys": ["ihracat destegi"], "position": 6.5},  # -0.3 düşüş
+        {"keys": ["maliye bakanligi"], "position": 6.1},  # -0.3 düşüş
+        {"keys": ["vergi dairesi"], "position": 6.4},  # -0.3 düşüş
+        {"keys": ["gumruk müdürlüğü"], "position": 6.6},  # -0.3 düşüş
+        {"keys": ["enerji ticareti"], "position": 5.4},  # -0.3 düşüş
+        {"keys": ["elektrik fiyati"], "position": 4.3},  # -0.3 düşüş
+        {"keys": ["dogalgaz fiyati"], "position": 4.4},  # -0.3 düşüş
+    ]
     return {
         "rows": finance_queries,
-        "previous_day": [{"keys": q["keys"], "position": q["position"] - 0.3} for q in finance_queries[:50]],
+        "previous_day": finance_previous,
     }
 
 

@@ -807,7 +807,7 @@
             <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="impressions">Impressions <span class="sort-arrow">⇅</span></th>
             <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="ctr">CTR <span class="sort-arrow">⇅</span></th>
             <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="position">Position <span class="sort-arrow">⇅</span></th>
-            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="delta">Değişim <span class="sort-arrow">⇅</span></th>
+            <th class="sortable cursor-pointer select-none px-3 py-2 font-medium hover:bg-slate-100" data-sort="delta" title="Position Change: Bugün - Dün (Negatif = İyileşme)">Değişim <span class="sort-arrow">⇅</span></th>
           </tr>
         </thead>
         <tbody>
@@ -1015,10 +1015,8 @@
 
     function updateSummary() {
       const limit = parseInt(limitSelector.value);
-      console.log('📊 Dropdown seçimi:', limit, 'query');
       
       const rows = table.querySelectorAll('tbody tr[data-query]');
-      console.log('📋 Toplam row sayısı:', rows.length);
       
       let totalClicks = 0;
       let totalImpressions = 0;
@@ -1035,8 +1033,6 @@
           const impressions = parseFloat(row.dataset.impressions) || 0;
           const ctr = parseFloat(row.dataset.ctr) || 0;
           const delta = parseFloat(row.dataset.delta) || 0;
-          
-          console.log(`Row ${idx+1}: clicks=${clicks}, impressions=${impressions}, ctr=${ctr}, delta=${delta}`);
           
           totalClicks += clicks;
           totalImpressions += impressions;
@@ -1059,8 +1055,6 @@
       });
       const avgPosition = visibleRows.length > 0 ? (totalPosition / visibleRows.length) : 0;
 
-      console.log('📈 Hesaplanan değerler:', { avgClicks, avgImpressions, avgCtr, avgPosition, maxDelta });
-
       // Özet kartlarını güncelle
       const clicksEl = document.getElementById('summary-clicks');
       const impressionsEl = document.getElementById('summary-impressions');
@@ -1068,15 +1062,11 @@
       const positionEl = document.getElementById('summary-position');
       const dropEl = document.getElementById('summary-drop');
       
-      console.log('🎯 Element kontrol:', { clicksEl, impressionsEl, ctrEl, positionEl, dropEl });
-      
       if (clicksEl) clicksEl.textContent = avgClicks;
       if (impressionsEl) impressionsEl.textContent = avgImpressions;
       if (ctrEl) ctrEl.textContent = avgCtr.toFixed(2) + '%';
       if (positionEl) positionEl.textContent = avgPosition.toFixed(1);
       if (dropEl) dropEl.textContent = maxDelta.toFixed(1);
-      
-      console.log('✅ Özet güncellendi!');
     }
 
     limitSelector.addEventListener('change', updateSummary);
