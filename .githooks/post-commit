@@ -1,0 +1,8 @@
+#!/bin/sh
+# Her commit sonrasinda canli site refresh tetiklenir.
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$repo_root" ]; then
+  exit 0
+fi
+python3 "$repo_root/scripts/refresh_live_site.py" commit >/dev/null 2>&1 || true
+exit 0
