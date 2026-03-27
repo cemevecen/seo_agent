@@ -819,7 +819,7 @@
         </thead>
         <tbody>
           {% for row in top_queries %}
-            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}" data-device="{{ row.device | default('ALL') }}">
+            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}" data-device="{{ (row.device or 'DESKTOP')|upper|trim }}">
               <td class="px-3 py-2 font-medium text-slate-900">{{ row.query }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.clicks|round|int }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.impressions|round|int }}</td>
@@ -1022,18 +1022,20 @@
     if (!limitSelector || !table) return;
 
     function updateSummary() {
-      const limit = parseInt(limitSelector.value);
-      const selectedDevice = deviceSelector ? deviceSelector.value : 'all';
+      const limit = parseInt(limitSelector.value) || 10;
+      const selectedDevice = deviceSelector ? (deviceSelector.value || 'all') : 'all';
       
       const allRows = Array.from(table.querySelectorAll('tbody tr[data-query]'));
       
       // Filter rows by device
       let filteredRows = allRows.filter(row => {
-        const rowDevice = row.dataset.device || 'ALL';
-        if (selectedDevice === 'all') {
+        const rowDevice = (row.dataset.device || 'DESKTOP').toUpperCase().trim();
+        const deviceVal = selectedDevice.toUpperCase().trim();
+        
+        if (deviceVal === 'ALL') {
           return true;
         }
-        return rowDevice === selectedDevice;
+        return rowDevice === deviceVal;
       });
       
       // Apply limit
@@ -1041,11 +1043,7 @@
       
       // Update row display
       allRows.forEach(row => {
-        if (visibleRows.includes(row)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
+        row.style.display = visibleRows.includes(row) ? '' : 'none';
       });
       
       // Calculate summary metrics from visible rows
@@ -1092,7 +1090,7 @@
     if (deviceSelector) {
       deviceSelector.addEventListener('change', updateSummary);
     }
-    // İlk yüklemede özet güncelle
+    // Load initial state
     updateSummary();
   })();
 </script>

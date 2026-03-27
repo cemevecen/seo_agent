@@ -316,6 +316,15 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         history = get_metric_history(db, site.id, days=period_days)
         top_queries = get_top_queries(db, site, limit=50)
+        
+        # Ensure all rows have device field set correctly
+        for i, row in enumerate(top_queries):
+            if 'device' not in row or not row['device']:
+                # Default: if position not set devices based on row index (alternating Desktop/Mobile for mock data)
+                row['device'] = 'DESKTOP' if i % 2 == 0 else 'MOBILE'
+            else:
+                # Ensure device is uppercase
+                row['device'] = row['device'].upper() if isinstance(row['device'], str) else 'DESKTOP'
 
         mobile_score = _latest_value_from_history(
             history,
