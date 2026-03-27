@@ -21,11 +21,20 @@ class Settings(BaseSettings):
 
     # Uygulama sadece localhost üzerinde dinlenecek şekilde varsayılanlanır.
     app_host: str = "127.0.0.1"
+    allowed_client_ips: str = ""
+    trust_proxy_headers: bool = False
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     mail_from: str = ""
     mail_to: str = ""
+
+    quota_guard_enabled: bool = True
+    quota_warning_ratio: float = 0.8
+    pagespeed_daily_limit: int = 80
+    pagespeed_monthly_limit: int = 1500
+    search_console_daily_limit: int = 80
+    search_console_monthly_limit: int = 1500
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False)
 

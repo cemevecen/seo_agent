@@ -11,6 +11,7 @@ from backend.models import Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.crypto import decrypt_text
 from backend.services.metric_store import save_metrics
+from backend.services.quota_guard import consume_api_quota
 
 
 def _mock_search_console_response() -> dict:
@@ -82,6 +83,16 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
     """Son 28 gün query/ranking özetini çıkarır ve veritabanına kaydeder."""
+    decision = consume_api_quota(db, site, provider="search_console", units=2)
+    if not decision.allowed:
+        return {
+            "site_id": site.id,
+            "rows": [],
+            "blocked": True,
+            "reason": decision.reason,
+            "summary": {},
+        }
+
     credential = (
         db.query(SiteCredential)
         .filter(SiteCredential.site_id == site.id, SiteCredential.credential_type == "search_console")

@@ -1,5 +1,6 @@
 """FastAPI uygulama giriş noktası."""
 
+from ipaddress import ip_address, ip_network
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -21,6 +22,7 @@ from backend.models import Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
+from backend.services.quota_guard import get_quota_status
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -32,6 +34,51 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+
+def _extract_client_ip(request: Request) -> str:
+    # Proxy arkasında çalışırken gerçek istemci IP'sini alır.
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for", "").strip()
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
+    # Tek IP ve CIDR formatlarını destekleyen allowlist kontrolü.
+    if not client_ip:
+        return False
+    for entry in allowlist:
+        try:
+            if "/" in entry:
+                if ip_address(client_ip) in ip_network(entry, strict=False):
+                    return True
+            elif client_ip == entry:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+@app.middleware("http")
+async def ip_allowlist_middleware(request: Request, call_next):
+    # ALLOWED_CLIENT_IPS doluysa sadece listedeki IP'lere erişim izni verir.
+    allowlist = [item.strip() for item in settings.allowed_client_ips.split(",") if item.strip()]
+    if not allowlist:
+        return await call_next(request)
+
+    client_ip = _extract_client_ip(request)
+    if _is_ip_allowed(client_ip, allowlist):
+        return await call_next(request)
+
+    return JSONResponse(
+        status_code=403,
+        content={
+            "detail": "IP erişim izni yok.",
+            "client_ip": client_ip,
+        },
+    )
 
 # Site yönetimi endpoint'leri JSON API altında toplanır.
 app.include_router(sites_router, prefix="/api")
@@ -275,6 +322,7 @@ def settings_page(request: Request):
             "site_name": "Ayarlar",
             "sites": get_sidebar_sites(),
             "alert_rules": get_alert_rules(db),
+            "quota_status": get_quota_status(db),
         }
     return templates.TemplateResponse("settings.html", {"request": request, **payload})
 

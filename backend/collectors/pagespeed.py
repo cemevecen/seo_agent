@@ -13,6 +13,7 @@ from backend.config import settings
 from backend.models import Site
 from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.metric_store import save_metrics
+from backend.services.quota_guard import consume_api_quota
 
 PAGESPEED_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
@@ -61,6 +62,14 @@ def _fetch_pagespeed(url: str, strategy: str) -> dict[str, float]:
 
 def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
     """Mobile ve desktop performans verilerini toplayıp Metric tablosuna kaydeder."""
+    decision = consume_api_quota(db, site, provider="pagespeed", units=2)
+    if not decision.allowed:
+        return {
+            "site_id": site.id,
+            "blocked": True,
+            "reason": decision.reason,
+        }
+
     target_url = _normalize_url(site.domain)
     mobile = _fetch_pagespeed(target_url, "mobile")
     desktop = _fetch_pagespeed(target_url, "desktop")

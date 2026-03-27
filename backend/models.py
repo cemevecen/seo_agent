@@ -28,6 +28,9 @@ class Site(Base):
     alerts: Mapped[list["Alert"]] = relationship(
         "Alert", back_populates="site", cascade="all, delete-orphan"
     )
+    api_usages: Mapped[list["ApiUsage"]] = relationship(
+        "ApiUsage", back_populates="site", cascade="all, delete-orphan"
+    )
 
 
 class SiteCredential(Base):
@@ -86,3 +89,19 @@ class AlertLog(Base):
     sent_mail: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     alert: Mapped["Alert"] = relationship("Alert", back_populates="logs")
+
+
+class ApiUsage(Base):
+    """Harici API kullanım sayaçlarını period bazında tutar."""
+
+    __tablename__ = "api_usages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    period_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # day | month
+    period_start: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    call_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="api_usages")

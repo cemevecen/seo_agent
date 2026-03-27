@@ -171,3 +171,50 @@ def get_alert_rules(db: Session) -> list[dict]:
         }
         for alert, site in rows
     ]
+
+
+def emit_custom_alert(
+    db: Session,
+    site: Site,
+    alert_type: str,
+    message: str,
+    dedupe_hours: int = 6,
+) -> AlertLog | None:
+    # Metric dışı güvenlik/operasyon olayları için alarm log kaydı üretir.
+    alert = db.query(Alert).filter(Alert.site_id == site.id, Alert.alert_type == alert_type).first()
+    if alert is None:
+        alert = Alert(site_id=site.id, alert_type=alert_type, threshold=0.0, is_active=True)
+        db.add(alert)
+        db.commit()
+        db.refresh(alert)
+
+    if not alert.is_active:
+        return None
+
+    now = datetime.utcnow()
+    last_log = (
+        db.query(AlertLog)
+        .filter(AlertLog.alert_id == alert.id)
+        .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+        .first()
+    )
+    if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=dedupe_hours):
+        return None
+
+    log = AlertLog(
+        alert_id=alert.id,
+        triggered_at=now,
+        message=message,
+        sent_mail=False,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+
+    subject = f"SEO Quota Alert: {site.domain}"
+    body = f"<h2>Quota Uyarisi</h2><p>{message}</p>"
+    if send_email(subject, body):
+        log.sent_mail = True
+        db.commit()
+        db.refresh(log)
+    return log
