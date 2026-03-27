@@ -254,9 +254,9 @@
       <div class="space-y-3">
         {% for issue in lighthouse_analysis.issues %}
           {% if issue.category == 'Accessibility' %}
-          <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div class="rounded-2xl bg-gradient-to-br from-slate-50 to-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             <!-- Issue Header -->
-            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
+            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/50 transition">
               <div class="flex-1 text-left">
                 <h5 class="font-semibold text-slate-900">{{ issue.title }}</h5>
                 <p class="text-xs text-slate-500 mt-1">Seviye: <span class="font-semibold">{{ issue.priority }}</span></p>
@@ -265,7 +265,7 @@
             </button>
 
             <!-- Issue Details -->
-            <div class="lighthouse-details hidden border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-4">
+            <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
               <!-- Problem -->
               {% if issue.problem %}
               <div>
@@ -276,7 +276,7 @@
 
               <!-- Impact -->
               {% if issue.impact %}
-              <div class="rounded-lg bg-rose-50 border border-rose-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-rose-900 flex items-center gap-2">
                   <span>⚠️</span> Etkisi
                 </h6>
@@ -290,9 +290,9 @@
                 <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">✅ Çözüm Adımları</h6>
                 <div class="space-y-3">
                   {% for step in issue.solution %}
-                  <div class="rounded-lg border border-slate-200 bg-white p-3">
+                  <div class="rounded-xl bg-gradient-to-br from-sky-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
                     <div class="flex items-start gap-3">
-                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-sky-100 text-sky-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
+                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-sky-200 to-sky-100 text-sky-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
                       <div class="flex-1">
                         <h6 class="font-semibold text-slate-900">{{ step.title }}</h6>
                         <p class="text-xs text-slate-500 mt-1">Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
@@ -314,7 +314,7 @@
 
               <!-- Expected Result -->
               {% if issue.expected_result %}
-              <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
                   <span>🎯</span> Beklenen Sonuç
                 </h6>
@@ -324,7 +324,7 @@
 
               <!-- Timeline -->
               {% if issue.timeline %}
-              <div class="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-blue-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
                   <span>⏱️</span> Zaman Çerçevesi
                 </h6>
@@ -346,9 +346,9 @@
       <div class="space-y-3">
         {% for issue in lighthouse_analysis.issues %}
           {% if issue.category == 'Best Practices' %}
-          <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div class="rounded-2xl bg-gradient-to-br from-slate-50 to-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             <!-- Issue Header -->
-            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
+            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/50 transition">
               <div class="flex-1 text-left">
                 <h5 class="font-semibold text-slate-900">{{ issue.title }}</h5>
                 <p class="text-xs text-slate-500 mt-1">Seviye: <span class="font-semibold">{{ issue.priority }}</span></p>
@@ -357,7 +357,7 @@
             </button>
 
             <!-- Issue Details -->
-            <div class="lighthouse-details hidden border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-4">
+            <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
               <!-- Problem -->
               {% if issue.problem %}
               <div>
@@ -368,7 +368,7 @@
 
               <!-- Impact -->
               {% if issue.impact %}
-              <div class="rounded-lg bg-rose-50 border border-rose-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-rose-900 flex items-center gap-2">
                   <span>⚠️</span> Etkisi
                 </h6>
@@ -382,9 +382,9 @@
                 <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">✅ Çözüm Adımları</h6>
                 <div class="space-y-3">
                   {% for step in issue.solution %}
-                  <div class="rounded-lg border border-slate-200 bg-white p-3">
+                  <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
                     <div class="flex items-start gap-3">
-                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
+                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-rose-200 to-rose-100 text-rose-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
                       <div class="flex-1">
                         <h6 class="font-semibold text-slate-900">{{ step.title }}</h6>
                         <p class="text-xs text-slate-500 mt-1">Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
@@ -406,7 +406,7 @@
 
               <!-- Expected Result -->
               {% if issue.expected_result %}
-              <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
                   <span>🎯</span> Beklenen Sonuç
                 </h6>
@@ -416,7 +416,7 @@
 
               <!-- Timeline -->
               {% if issue.timeline %}
-              <div class="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div class="rounded-xl bg-gradient-to-br from-blue-50 to-white p-3 shadow-xs">
                 <h6 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
                   <span>⏱️</span> Zaman Çerçevesi
                 </h6>
