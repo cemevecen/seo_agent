@@ -763,23 +763,23 @@
     <div class="mt-4 grid gap-4 md:grid-cols-5">
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Clicks 28d</p>
-        <p class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.clicks|round|int }}</p>
+        <p id="summary-clicks" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.clicks|round|int }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Impressions</p>
-        <p class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.impressions|round|int }}</p>
+        <p id="summary-impressions" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.impressions|round|int }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Avg CTR</p>
-        <p class="mt-2 text-2xl font-bold text-slate-900">{{ '%.2f'|format(search_summary.avg_ctr) }}%</p>
+        <p id="summary-ctr" class="mt-2 text-2xl font-bold text-slate-900">{{ '%.2f'|format(search_summary.avg_ctr) }}%</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Avg Position</p>
-        <p class="mt-2 text-2xl font-bold text-slate-900">{{ '%.1f'|format(search_summary.avg_position) }}</p>
+        <p id="summary-position" class="mt-2 text-2xl font-bold text-slate-900">{{ '%.1f'|format(search_summary.avg_position) }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Biggest Drop</p>
-        <p class="mt-2 text-2xl font-bold text-rose-600">{{ '%.1f'|format(search_summary.biggest_drop) }}</p>
+        <p id="summary-drop" class="mt-2 text-2xl font-bold text-rose-600">{{ '%.1f'|format(search_summary.biggest_drop) }}</p>
       </div>
     </div>
 
@@ -1011,15 +1011,58 @@
     const table = document.getElementById('query-table');
     if (!limitSelector || !table) return;
 
-    limitSelector.addEventListener('change', function () {
-      const limit = parseInt(this.value);
+    function updateSummary() {
+      const limit = parseInt(limitSelector.value);
       const rows = table.querySelectorAll('tbody tr[data-query]');
       let visibleCount = 0;
+      let totalClicks = 0;
+      let totalImpressions = 0;
+      let totalCtr = 0;
+      let maxDelta = 0;
+      let visibleRows = [];
 
       rows.forEach(function (row) {
         visibleCount++;
-        row.style.display = visibleCount <= limit ? '' : 'none';
+        if (visibleCount <= limit) {
+          row.style.display = '';
+          visibleRows.push(row);
+          
+          const clicks = parseFloat(row.dataset.clicks) || 0;
+          const impressions = parseFloat(row.dataset.impressions) || 0;
+          const ctr = parseFloat(row.dataset.ctr) || 0;
+          const delta = parseFloat(row.dataset.delta) || 0;
+          
+          totalClicks += clicks;
+          totalImpressions += impressions;
+          totalCtr += ctr;
+          maxDelta = Math.max(maxDelta, delta);
+        } else {
+          row.style.display = 'none';
+        }
       });
-    });
+
+      // Hesapla ve güncelle
+      const avgClicks = Math.round(totalClicks);
+      const avgImpressions = Math.round(totalImpressions);
+      const avgCtr = visibleRows.length > 0 ? (totalCtr / visibleRows.length) : 0;
+      
+      // Ortalama position (average of all visible positions)
+      let totalPosition = 0;
+      visibleRows.forEach(row => {
+        totalPosition += parseFloat(row.dataset.position) || 0;
+      });
+      const avgPosition = visibleRows.length > 0 ? (totalPosition / visibleRows.length) : 0;
+
+      // Özet kartlarını güncelle
+      document.getElementById('summary-clicks').textContent = avgClicks;
+      document.getElementById('summary-impressions').textContent = avgImpressions;
+      document.getElementById('summary-ctr').textContent = avgCtr.toFixed(2) + '%';
+      document.getElementById('summary-position').textContent = avgPosition.toFixed(1);
+      document.getElementById('summary-drop').textContent = maxDelta.toFixed(1);
+    }
+
+    limitSelector.addEventListener('change', updateSummary);
+    // İlk yüklemede özet güncelle
+    updateSummary();
   })();
 </script>
