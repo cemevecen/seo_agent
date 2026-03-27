@@ -19,9 +19,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _get_mock_queries_for_domain(domain: str) -> list[dict]:
-    """Domain'e göre standart test querylerini döndürür. Device ayrılımı ile (desktop/mobile)."""
-    if "sinema" in domain.lower():
-        base_queries = [
+    """Domain'e göre dinamik test querylerini döndürür. Device ayrılımı ile (desktop/mobile)."""
+    # Domain'i normalize et (www'siz, lowercase)
+    domain_key = domain.lower().replace("www.", "").split(".")[0]
+    
+    # Kategori-spesifik queryler
+    query_sets = {
+        "sinema": [
             {"query": "sinema seans saatleri", "clicks_desktop": 50.0, "clicks_mobile": 35.0, "impressions_desktop": 1200.0, "impressions_mobile": 900.0, "position_desktop": 2.5, "position_mobile": 3.2},
             {"query": "yakındaki sinemalar", "clicks_desktop": 38.0, "clicks_mobile": 24.0, "impressions_desktop": 950.0, "impressions_mobile": 650.0, "position_desktop": 3.2, "position_mobile": 4.1},
             {"query": "film uyarlaması", "clicks_desktop": 28.0, "clicks_mobile": 20.0, "impressions_desktop": 700.0, "impressions_mobile": 500.0, "position_desktop": 4.9, "position_mobile": 5.8},
@@ -37,9 +41,8 @@ def _get_mock_queries_for_domain(domain: str) -> list[dict]:
             {"query": "sinema kartı", "clicks_desktop": 16.0, "clicks_mobile": 12.0, "impressions_desktop": 360.0, "impressions_mobile": 260.0, "position_desktop": 5.6, "position_mobile": 6.2},
             {"query": "imax sinema", "clicks_desktop": 13.0, "clicks_mobile": 9.0, "impressions_desktop": 280.0, "impressions_mobile": 200.0, "position_desktop": 6.0, "position_mobile": 6.6},
             {"query": "3d sinema", "clicks_desktop": 11.0, "clicks_mobile": 8.0, "impressions_desktop": 240.0, "impressions_mobile": 180.0, "position_desktop": 6.3, "position_mobile": 6.9},
-        ]
-    else:
-        base_queries = [
+        ],
+        "doviz": [
             {"query": "doviz kuru", "clicks_desktop": 72.0, "clicks_mobile": 48.0, "impressions_desktop": 1500.0, "impressions_mobile": 1000.0, "position_desktop": 3.0, "position_mobile": 3.5},
             {"query": "altin fiyatlari", "clicks_desktop": 48.0, "clicks_mobile": 32.0, "impressions_desktop": 1100.0, "impressions_mobile": 700.0, "position_desktop": 4.5, "position_mobile": 5.1},
             {"query": "dolar ne kadar", "clicks_desktop": 39.0, "clicks_mobile": 26.0, "impressions_desktop": 900.0, "impressions_mobile": 600.0, "position_desktop": 7.6, "position_mobile": 8.2},
@@ -56,6 +59,14 @@ def _get_mock_queries_for_domain(domain: str) -> list[dict]:
             {"query": "emtia fiyatlari", "clicks_desktop": 22.0, "clicks_mobile": 15.0, "impressions_desktop": 510.0, "impressions_mobile": 340.0, "position_desktop": 5.7, "position_mobile": 6.3},
             {"query": "petrol fiyati", "clicks_desktop": 41.0, "clicks_mobile": 27.0, "impressions_desktop": 930.0, "impressions_mobile": 620.0, "position_desktop": 3.9, "position_mobile": 4.5},
         ]
+    }
+    
+    # Domain'e ait queryleri bul, yoksa varsayılan (doviz) seçimini yap
+    base_queries = query_sets.get(domain_key, query_sets.get("doviz", []))
+    
+    # Eğer hiç eşleşme yoksa, generic query'ler oluştur (herhangi bir domain için)
+    if not base_queries:
+        base_queries = query_sets["doviz"]  # Varsayılan olarak doviz
     
     return base_queries
 
@@ -64,6 +75,7 @@ def _mock_search_console_response(domain: str = "") -> dict:
     """
     Mock Search Console yanıtı - web ve mobile ayrılımı ile.
     Her query, desktop ve mobile verisi ile döner.
+    Device filterlemesi ve tüm domainler için dinamik.
     """
     base_queries = _get_mock_queries_for_domain(domain)
     
@@ -89,24 +101,16 @@ def _mock_search_console_response(domain: str = "") -> dict:
             "device": "MOBILE"
         })
     
-    # Dünkü pozisyonlar (aynı yapı)
-    position_deltas = {
-        0: -0.3, 1: +0.2,  # Desktop & mobile için query 0
-        2: -0.4, 3: +0.1,  # Query 1
-        4: -0.6, 5: +0.3,  # Query 2
-        6: +0.3, 7: -0.2,  # Query 3
-        8: -0.3, 9: +0.1,  # Query 4
-        10: -0.4, 11: +0.2, # Query 5
-        12: +0.4, 13: -0.1, # Query 6
-        14: -0.3, 15: +0.2, # Query 7
-        16: -0.3, 17: +0.1, # Query 8
-        18: -0.3, 19: +0.2, # Query 9
-        20: -0.2, 21: +0.3, # Query 10
-        22: -0.3, 23: +0.1, # Query 11
-        24: -0.3, 25: +0.2, # Query 12
-        26: -0.3, 27: +0.1, # Query 13
-        28: -0.3, 29: +0.2, # Query 14
-    }
+    # Dünkü pozisyonlar - dinamik delta değerleri oluştur
+    # Her device çifti için farklı delta değerleri
+    position_deltas = {}
+    for idx in range(0, len(current_queries), 2):
+        # Desktop için negatif delta (iyileşme) veya pozitif (kötüleşme)
+        desktop_delta = -0.3 - (idx // 6) * 0.1  # Vary by group of 6
+        # Mobile için farklı değer
+        mobile_delta = 0.2 + (idx // 6) * 0.05
+        position_deltas[idx] = desktop_delta
+        position_deltas[idx + 1] = mobile_delta
     
     previous_queries = []
     for idx, row in enumerate(current_queries):
@@ -122,25 +126,6 @@ def _mock_search_console_response(domain: str = "") -> dict:
         "rows": current_queries,
         "previous_day": previous_queries,
     }
-    
-    # Varsayılan doviz.com mock data  - 50 query
-    finance_queries = [
-        {"keys": ["doviz kuru"], "clicks": 120.0, "impressions": 2500.0, "ctr": 0.048, "position": 3.2},
-        {"keys": ["altin fiyatlari"], "clicks": 80.0, "impressions": 1800.0, "ctr": 0.044, "position": 4.7},
-        {"keys": ["dolar ne kadar"], "clicks": 65.0, "impressions": 1500.0, "ctr": 0.043, "position": 7.8},
-        {"keys": ["euro kuru"], "clicks": 58.0, "impressions": 1350.0, "ctr": 0.043, "position": 4.2},
-        {"keys": ["bitcoin fiyati"], "clicks": 75.0, "impressions": 1700.0, "ctr": 0.044, "position": 3.5},
-        {"keys": ["borsa istanbul"], "clicks": 52.0, "impressions": 1200.0, "ctr": 0.043, "position": 5.1},
-        {"keys": ["merkez bankasi"], "clicks": 45.0, "impressions": 1050.0, "ctr": 0.043, "position": 5.8},
-        {"keys": ["gumruk vergileri"], "clicks": 38.0, "impressions": 900.0, "ctr": 0.042, "position": 6.2},
-        {"keys": ["hazine bonosu"], "clicks": 32.0, "impressions": 750.0, "ctr": 0.043, "position": 5.9},
-        {"keys": ["piyasa analizi"], "clicks": 48.0, "impressions": 1100.0, "ctr": 0.044, "position": 4.5},
-        {"keys": ["kripto para"], "clicks": 62.0, "impressions": 1400.0, "ctr": 0.044, "position": 4.3},
-        {"keys": ["forex trading"], "clicks": 55.0, "impressions": 1250.0, "ctr": 0.044, "position": 4.8},
-        {"keys": ["yatirim stratejisi"], "clicks": 42.0, "impressions": 950.0, "ctr": 0.044, "position": 5.5},
-        {"keys": ["emtia fiyatlari"], "clicks": 37.0, "impressions": 850.0, "ctr": 0.044, "position": 5.9},
-        {"keys": ["petrol fiyati"], "clicks": 68.0, "impressions": 1550.0, "ctr": 0.044, "position": 4.1},
-    ]
 
 
 def _load_search_console_data(site: Site, credential: SiteCredential | None) -> dict:
@@ -252,7 +237,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
 
 
 def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
-    """Site detay ekranı için en iyi sorgu satırlarını döndürür."""
+    """Site detay ekranı için en iyi sorgu satırlarını döndürür - Device segmentasyonu ile."""
     credential = get_search_console_credentials_record(db, site.id)
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
@@ -260,14 +245,14 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
     
     # Device-specific previous map: (query, device) -> position
     previous_map = {
-        (row.get("keys", [""])[0], row.get("device", "ALL")): float(row.get("position", 0))
+        (row.get("keys", [""])[0], row.get("device", "DESKTOP").upper()): float(row.get("position", 0))
         for row in previous_day
     }
     
     result = []
-    for row in rows:
+    for idx, row in enumerate(rows):
         query = row.get("keys", [""])[0]
-        device = row.get("device", "ALL")
+        device = (row.get("device", "DESKTOP") or "DESKTOP").upper().strip()
         current_position = float(row.get("position", 0))
         previous_position = previous_map.get((query, device), current_position)
         delta = current_position - previous_position
