@@ -35,6 +35,7 @@ from backend.services.search_console_auth import build_oauth_flow, decode_oauth_
 from backend.services.technical_seo import run_technical_seo_audit
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
+from backend.services.lighthouse_analyzer import get_lighthouse_analysis
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -348,6 +349,9 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         # PageSpeed comprehensive analysis
         pagespeed_analysis = analyze_pagespeed_detailed(int(mobile_score), int(desktop_score))
         
+        # Lighthouse comprehensive analysis
+        lighthouse_analysis = get_lighthouse_analysis(accessible_score=81, practices_score=35, seo_score=92)
+        
         recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
         pagespeed_status_alerts = [
             alert["message"]
@@ -377,6 +381,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             },
             "crawler_checks": crawler_checks,
             "pagespeed_analysis": pagespeed_analysis,
+            "lighthouse_analysis": lighthouse_analysis,
             "site_alerts": recent_site_alerts,
             "top_queries": top_queries,
             "search_summary": {
