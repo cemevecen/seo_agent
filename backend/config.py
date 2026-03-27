@@ -13,6 +13,9 @@ ENV_PATH = BASE_DIR / ".env"
 class Settings(BaseSettings):
     # Güvenlik açısından zorunlu gizli alanlar yalnızca .env'den okunur.
     google_api_key: str
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_oauth_redirect_uri: str = "http://127.0.0.1:8012/api/search-console/oauth/callback"
     database_url: str
     secret_key: str
     smtp_password: str

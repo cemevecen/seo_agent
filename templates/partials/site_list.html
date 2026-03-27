@@ -7,6 +7,7 @@
           <th class="px-3 py-2 font-medium">Domain</th>
           <th class="px-3 py-2 font-medium">Görünen Ad</th>
           <th class="px-3 py-2 font-medium">Durum</th>
+          <th class="px-3 py-2 font-medium">Search Console</th>
           <th class="px-3 py-2 font-medium">İşlem</th>
         </tr>
       </thead>
@@ -24,15 +25,45 @@
               {% endif %}
             </td>
             <td class="px-3 py-2">
-              <button
-                type="button"
-                class="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
-                hx-delete="/api/sites/{{ site.id }}"
-                hx-swap="none"
-                hx-on::after-request="handleSiteDelete(event)"
-              >
-                Sil
-              </button>
+              <div class="flex items-center gap-2">
+                {% if site.search_console.connected %}
+                  <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.search_console.label }}</span>
+                {% else %}
+                  <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">{{ site.search_console.label }}</span>
+                {% endif %}
+                {% if site.search_console.method == 'oauth' %}
+                  <form hx-post="/api/search-console/oauth/disconnect/{{ site.id }}" hx-target="#site-list" hx-swap="innerHTML">
+                    <button
+                      type="submit"
+                      class="rounded-md border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                    >
+                      Kaldir
+                    </button>
+                  </form>
+                {% elif oauth_ready %}
+                  <a
+                    href="/api/search-console/oauth/start/{{ site.id }}"
+                    class="rounded-md border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"
+                  >
+                    Google ile Bagla
+                  </a>
+                {% else %}
+                  <span class="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500">OAuth ayari bekleniyor</span>
+                {% endif %}
+              </div>
+            </td>
+            <td class="px-3 py-2">
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                  hx-delete="/api/sites/{{ site.id }}"
+                  hx-swap="none"
+                  hx-on::after-request="handleSiteDelete(event)"
+                >
+                  Sil
+                </button>
+              </div>
             </td>
           </tr>
         {% endfor %}

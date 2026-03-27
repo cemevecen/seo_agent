@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
@@ -25,6 +26,7 @@ from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
+from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -138,6 +140,22 @@ def get_sidebar_sites() -> list[dict]:
     with SessionLocal() as db:
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
         return [{"domain": site.domain, "label": site.display_name} for site in sites]
+
+
+def _settings_sites_payload(db) -> list[dict]:
+    sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    rows: list[dict] = []
+    for site in sites:
+        rows.append(
+            {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "is_active": site.is_active,
+                "search_console": get_search_console_connection_status(db, site.id),
+            }
+        )
+    return rows
 
 
 def _metric_map(site_id: int) -> dict[str, object]:
@@ -464,6 +482,8 @@ def settings_page(request: Request):
             "sites": get_sidebar_sites(),
             "alert_rules": get_alert_rules(db),
             "quota_status": get_quota_status(db),
+            "oauth_ready": oauth_is_configured(),
+            "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         }
     return templates.TemplateResponse("settings.html", {"request": request, **payload})
 
@@ -472,8 +492,11 @@ def settings_page(request: Request):
 def settings_site_list(request: Request):
     # HTMX istekleri için sadece site listesini döner.
     with SessionLocal() as db:
-        sites = db.query(Site).order_by(Site.created_at.desc()).all()
-        return templates.TemplateResponse("partials/site_list.html", {"request": request, "sites": sites})
+        sites = _settings_sites_payload(db)
+        return templates.TemplateResponse(
+            "partials/site_list.html",
+            {"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
+        )
 
 
 @app.get("/settings/alert-thresholds")
@@ -482,6 +505,62 @@ def settings_alert_thresholds(request: Request):
     with SessionLocal() as db:
         alert_rules = get_alert_rules(db)
     return templates.TemplateResponse("partials/alert_thresholds.html", {"request": request, "alert_rules": alert_rules})
+
+
+@app.get("/api/search-console/oauth/start/{site_id}")
+def search_console_oauth_start(site_id: int):
+    if not oauth_is_configured():
+        return HTMLResponse("Google OAuth ayarlari eksik. GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET gerekli.", status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+
+    state = encode_oauth_state(site_id)
+    flow = build_oauth_flow(state=state)
+    authorization_url, _ = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
+    return RedirectResponse(authorization_url, status_code=302)
+
+
+@app.get("/api/search-console/oauth/callback")
+def search_console_oauth_callback(request: Request):
+    error = request.query_params.get("error")
+    if error:
+        return HTMLResponse(f"Google OAuth reddedildi: {error}", status_code=400)
+
+    state = request.query_params.get("state")
+    if not state:
+        return HTMLResponse("OAuth state eksik.", status_code=400)
+
+    try:
+        payload = decode_oauth_state(state)
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == int(payload["site_id"])).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+
+        flow = build_oauth_flow(state=state)
+        flow.fetch_token(authorization_response=str(request.url))
+        save_oauth_credentials(db, site.id, flow.credentials)
+    return RedirectResponse("/settings", status_code=302)
+
+
+@app.post("/api/search-console/oauth/disconnect/{site_id}")
+def search_console_oauth_disconnect(request: Request, site_id: int):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+        delete_oauth_credentials(db, site_id)
+        sites = _settings_sites_payload(db)
+    return templates.TemplateResponse(
+        "partials/site_list.html",
+        {"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
+    )
 
 
 @app.get("/health")

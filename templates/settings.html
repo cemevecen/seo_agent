@@ -73,6 +73,28 @@
     </div>
 
     <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
+      <div class="mb-3 flex items-center justify-between gap-4">
+        <div>
+          <h3 class="text-base font-semibold text-slate-900">Search Console OAuth</h3>
+          <p class="mt-1 text-sm text-slate-500">Google login ile site bazlı Search Console erişimi ver.</p>
+        </div>
+        {% if oauth_ready %}
+          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">OAuth hazir</span>
+        {% else %}
+          <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">OAuth ayari eksik</span>
+        {% endif %}
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
+        {% if not oauth_ready %}
+          <p class="mt-2 text-amber-700">.env icinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanimlaman gerekiyor.</p>
+        {% else %}
+          <p class="mt-2 text-slate-600">Baglan butonu site listesinde gorunur. Google Cloud OAuth client kaydinda bu redirect URI birebir tanimli olmali.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
         <h3 class="text-base font-semibold text-slate-900">Alert Eşikleri</h3>
         <button

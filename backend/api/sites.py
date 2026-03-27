@@ -10,6 +10,7 @@ from backend.database import get_db
 from backend.models import Site, SiteCredential
 from backend.rate_limiter import limiter
 from backend.services.crypto import encrypt_text
+from backend.services.search_console_auth import get_search_console_connection_status
 
 router = APIRouter(tags=["sites"])
 
@@ -30,7 +31,12 @@ def _site_to_dict(site: Site) -> dict:
 def list_sites(request: Request, db: Session = Depends(get_db)):
     # Tüm siteleri en yeni kayıt üstte olacak şekilde döndürür.
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
-    return {"items": [_site_to_dict(site) for site in sites]}
+    items = []
+    for site in sites:
+        item = _site_to_dict(site)
+        item["search_console"] = get_search_console_connection_status(db, site.id)
+        items.append(item)
+    return {"items": items}
 
 
 @router.post("/sites", status_code=status.HTTP_201_CREATED)

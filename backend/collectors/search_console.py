@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime, timedelta
 
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from sqlalchemy.orm import Session
 
 from backend.models import Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
-from backend.services.crypto import decrypt_text
+from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
 from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _mock_search_console_response() -> dict:
@@ -35,50 +39,59 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
     if credential is None:
         return _mock_search_console_response()
 
-    service_info = json.loads(decrypt_text(credential.encrypted_data))
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
     except ImportError:
         return _mock_search_console_response()
 
-    credentials = service_account.Credentials.from_service_account_info(
-        service_info,
-        scopes=["https://www.googleapis.com/auth/webmasters.readonly"],
-    )
-    service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
-    site_url = site.domain if site.domain.startswith("http") else f"sc-domain:{site.domain}"
-    end_date = date.today() - timedelta(days=1)
-    start_date = end_date - timedelta(days=27)
-    previous_date = end_date - timedelta(days=1)
+    try:
+        credential_data = load_google_credentials(credential)
+        if credential.credential_type == "search_console_oauth":
+            credentials = credential_data
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(GoogleAuthRequest())
+        else:
+            credentials = service_account.Credentials.from_service_account_info(
+                credential_data,
+                scopes=SEARCH_CONSOLE_SCOPES,
+            )
+        service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+        site_url = site.domain if site.domain.startswith("http") else f"sc-domain:{site.domain}"
+        end_date = date.today() - timedelta(days=1)
+        start_date = end_date - timedelta(days=27)
+        previous_date = end_date - timedelta(days=1)
 
-    current = (
-        service.searchanalytics()
-        .query(
-            siteUrl=site_url,
-            body={
-                "startDate": start_date.isoformat(),
-                "endDate": end_date.isoformat(),
-                "dimensions": ["query"],
-                "rowLimit": 50,
-            },
+        current = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body={
+                    "startDate": start_date.isoformat(),
+                    "endDate": end_date.isoformat(),
+                    "dimensions": ["query"],
+                    "rowLimit": 50,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
-    previous = (
-        service.searchanalytics()
-        .query(
-            siteUrl=site_url,
-            body={
-                "startDate": previous_date.isoformat(),
-                "endDate": previous_date.isoformat(),
-                "dimensions": ["query"],
-                "rowLimit": 50,
-            },
+        previous = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body={
+                    "startDate": previous_date.isoformat(),
+                    "endDate": previous_date.isoformat(),
+                    "dimensions": ["query"],
+                    "rowLimit": 50,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
-    return {"rows": current.get("rows", []), "previous_day": previous.get("rows", [])}
+        return {"rows": current.get("rows", []), "previous_day": previous.get("rows", [])}
+    except Exception as exc:
+        LOGGER.warning("Search Console fallback to mock for %s due to credential/API error: %s", site.domain, exc)
+        return _mock_search_console_response()
 
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
@@ -93,11 +106,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "summary": {},
         }
 
-    credential = (
-        db.query(SiteCredential)
-        .filter(SiteCredential.site_id == site.id, SiteCredential.credential_type == "search_console")
-        .first()
-    )
+    credential = get_search_console_credentials_record(db, site.id)
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
     previous_rows = payload.get("previous_day", [])
@@ -135,11 +144,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
 
 def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
     """Site detay ekranı için en iyi sorgu satırlarını döndürür."""
-    credential = (
-        db.query(SiteCredential)
-        .filter(SiteCredential.site_id == site.id, SiteCredential.credential_type == "search_console")
-        .first()
-    )
+    credential = get_search_console_credentials_record(db, site.id)
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])[:limit]
     previous_map = {
