@@ -741,9 +741,18 @@
 
   <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
     <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm text-slate-500">Search Console</p>
-        <h3 class="text-lg font-semibold text-slate-900">Top 10 Query</h3>
+      <div class="flex items-center gap-4">
+        <div>
+          <p class="text-sm text-slate-500">Search Console</p>
+          <div class="mt-1 flex items-center gap-3">
+            <h3 class="text-lg font-semibold text-slate-900">Top Queries</h3>
+            <select id="query-limit-selector" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-900 outline-none ring-slate-200 focus:ring">
+              <option value="10">Top 10</option>
+              <option value="30">Top 30</option>
+              <option value="50" selected>Top 50</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="text-right text-sm text-slate-500">
         <p>Mock veya canlı veri</p>
@@ -995,6 +1004,21 @@
 
         // Re-append sorted rows
         rows.forEach(row => tbody.appendChild(row));
+      });
+    });
+  (function () {
+    const limitSelector = document.getElementById('query-limit-selector');
+    const table = document.getElementById('query-table');
+    if (!limitSelector || !table) return;
+
+    limitSelector.addEventListener('change', function () {
+      const limit = parseInt(this.value);
+      const rows = table.querySelectorAll('tbody tr[data-query]');
+      let visibleCount = 0;
+
+      rows.forEach(function (row) {
+        visibleCount++;
+        row.style.display = visibleCount <= limit ? '' : 'none';
       });
     });
   })();
