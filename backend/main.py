@@ -1,6 +1,10 @@
 """FastAPI uygulama giriş noktası."""
+import os
 from ipaddress import ip_address, ip_network
 from pathlib import Path
+
+# Localhost development için insecure OAuth transport'u allow et
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
