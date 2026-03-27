@@ -1006,6 +1006,8 @@
         rows.forEach(row => tbody.appendChild(row));
       });
     });
+  })();
+
   (function () {
     const limitSelector = document.getElementById('query-limit-selector');
     const table = document.getElementById('query-table');
@@ -1013,17 +1015,19 @@
 
     function updateSummary() {
       const limit = parseInt(limitSelector.value);
+      console.log('📊 Dropdown seçimi:', limit, 'query');
+      
       const rows = table.querySelectorAll('tbody tr[data-query]');
-      let visibleCount = 0;
+      console.log('📋 Toplam row sayısı:', rows.length);
+      
       let totalClicks = 0;
       let totalImpressions = 0;
       let totalCtr = 0;
       let maxDelta = 0;
       let visibleRows = [];
 
-      rows.forEach(function (row) {
-        visibleCount++;
-        if (visibleCount <= limit) {
+      rows.forEach(function (row, idx) {
+        if (idx < limit) {
           row.style.display = '';
           visibleRows.push(row);
           
@@ -1031,6 +1035,8 @@
           const impressions = parseFloat(row.dataset.impressions) || 0;
           const ctr = parseFloat(row.dataset.ctr) || 0;
           const delta = parseFloat(row.dataset.delta) || 0;
+          
+          console.log(`Row ${idx+1}: clicks=${clicks}, impressions=${impressions}, ctr=${ctr}, delta=${delta}`);
           
           totalClicks += clicks;
           totalImpressions += impressions;
@@ -1053,12 +1059,24 @@
       });
       const avgPosition = visibleRows.length > 0 ? (totalPosition / visibleRows.length) : 0;
 
+      console.log('📈 Hesaplanan değerler:', { avgClicks, avgImpressions, avgCtr, avgPosition, maxDelta });
+
       // Özet kartlarını güncelle
-      document.getElementById('summary-clicks').textContent = avgClicks;
-      document.getElementById('summary-impressions').textContent = avgImpressions;
-      document.getElementById('summary-ctr').textContent = avgCtr.toFixed(2) + '%';
-      document.getElementById('summary-position').textContent = avgPosition.toFixed(1);
-      document.getElementById('summary-drop').textContent = maxDelta.toFixed(1);
+      const clicksEl = document.getElementById('summary-clicks');
+      const impressionsEl = document.getElementById('summary-impressions');
+      const ctrEl = document.getElementById('summary-ctr');
+      const positionEl = document.getElementById('summary-position');
+      const dropEl = document.getElementById('summary-drop');
+      
+      console.log('🎯 Element kontrol:', { clicksEl, impressionsEl, ctrEl, positionEl, dropEl });
+      
+      if (clicksEl) clicksEl.textContent = avgClicks;
+      if (impressionsEl) impressionsEl.textContent = avgImpressions;
+      if (ctrEl) ctrEl.textContent = avgCtr.toFixed(2) + '%';
+      if (positionEl) positionEl.textContent = avgPosition.toFixed(1);
+      if (dropEl) dropEl.textContent = maxDelta.toFixed(1);
+      
+      console.log('✅ Özet güncellendi!');
     }
 
     limitSelector.addEventListener('change', updateSummary);
