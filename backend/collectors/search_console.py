@@ -19,71 +19,93 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _get_mock_queries_for_domain(domain: str) -> list[dict]:
-    """Domain'e göre standart test querylerini döndürür. Bu queryler tüm zamanlar aynı kalır."""
+    """Domain'e göre standart test querylerini döndürür. Device ayrılımı ile (desktop/mobile)."""
     if "sinema" in domain.lower():
-        return [
-            {"keys": ["sinema seans saatleri"], "clicks": 85.0, "impressions": 2100.0, "ctr": 0.040, "position": 2.8},
-            {"keys": ["yakındaki sinemalar"], "clicks": 62.0, "impressions": 1600.0, "ctr": 0.039, "position": 3.5},
-            {"keys": ["film uyarlaması"], "clicks": 48.0, "impressions": 1200.0, "ctr": 0.040, "position": 5.2},
-            {"keys": ["yeni filmler"], "clicks": 55.0, "impressions": 1400.0, "ctr": 0.039, "position": 3.1},
-            {"keys": ["sinema bilet fiyatları"], "clicks": 42.0, "impressions": 950.0, "ctr": 0.044, "position": 4.2},
-            {"keys": ["çocuk filmleri"], "clicks": 38.0, "impressions": 880.0, "ctr": 0.043, "position": 4.8},
-            {"keys": ["korku filmleri"], "clicks": 45.0, "impressions": 1100.0, "ctr": 0.041, "position": 3.9},
-            {"keys": ["aksiyon filmleri"], "clicks": 52.0, "impressions": 1250.0, "ctr": 0.042, "position": 3.5},
-            {"keys": ["romantik filmler"], "clicks": 35.0, "impressions": 750.0, "ctr": 0.047, "position": 5.1},
-            {"keys": ["komedi filmleri"], "clicks": 41.0, "impressions": 920.0, "ctr": 0.045, "position": 4.5},
-            {"keys": ["bilim kurgu filmleri"], "clicks": 39.0, "impressions": 850.0, "ctr": 0.046, "position": 4.9},
-            {"keys": ["film izle"], "clicks": 78.0, "impressions": 1950.0, "ctr": 0.040, "position": 2.3},
-            {"keys": ["sinema kartı"], "clicks": 28.0, "impressions": 620.0, "ctr": 0.045, "position": 5.8},
-            {"keys": ["imax sinema"], "clicks": 22.0, "impressions": 480.0, "ctr": 0.046, "position": 6.2},
-            {"keys": ["3d sinema"], "clicks": 19.0, "impressions": 420.0, "ctr": 0.045, "position": 6.5},
+        base_queries = [
+            {"query": "sinema seans saatleri", "clicks_desktop": 50.0, "clicks_mobile": 35.0, "impressions_desktop": 1200.0, "impressions_mobile": 900.0, "position_desktop": 2.5, "position_mobile": 3.2},
+            {"query": "yakındaki sinemalar", "clicks_desktop": 38.0, "clicks_mobile": 24.0, "impressions_desktop": 950.0, "impressions_mobile": 650.0, "position_desktop": 3.2, "position_mobile": 4.1},
+            {"query": "film uyarlaması", "clicks_desktop": 28.0, "clicks_mobile": 20.0, "impressions_desktop": 700.0, "impressions_mobile": 500.0, "position_desktop": 4.9, "position_mobile": 5.8},
+            {"query": "yeni filmler", "clicks_desktop": 32.0, "clicks_mobile": 23.0, "impressions_desktop": 800.0, "impressions_mobile": 600.0, "position_desktop": 2.9, "position_mobile": 3.5},
+            {"query": "sinema bilet fiyatları", "clicks_desktop": 25.0, "clicks_mobile": 17.0, "impressions_desktop": 550.0, "impressions_mobile": 400.0, "position_desktop": 4.0, "position_mobile": 5.0},
+            {"query": "çocuk filmleri", "clicks_desktop": 22.0, "clicks_mobile": 16.0, "impressions_desktop": 500.0, "impressions_mobile": 380.0, "position_desktop": 4.6, "position_mobile": 5.2},
+            {"query": "korku filmleri", "clicks_desktop": 27.0, "clicks_mobile": 18.0, "impressions_desktop": 650.0, "impressions_mobile": 450.0, "position_desktop": 3.7, "position_mobile": 4.3},
+            {"query": "aksiyon filmleri", "clicks_desktop": 31.0, "clicks_mobile": 21.0, "impressions_desktop": 750.0, "impressions_mobile": 500.0, "position_desktop": 3.3, "position_mobile": 3.9},
+            {"query": "romantik filmler", "clicks_desktop": 20.0, "clicks_mobile": 15.0, "impressions_desktop": 430.0, "impressions_mobile": 320.0, "position_desktop": 4.9, "position_mobile": 5.5},
+            {"query": "komedi filmleri", "clicks_desktop": 24.0, "clicks_mobile": 17.0, "impressions_desktop": 540.0, "impressions_mobile": 380.0, "position_desktop": 4.3, "position_mobile": 4.9},
+            {"query": "bilim kurgu filmleri", "clicks_desktop": 23.0, "clicks_mobile": 16.0, "impressions_desktop": 500.0, "impressions_mobile": 350.0, "position_desktop": 4.7, "position_mobile": 5.3},
+            {"query": "film izle", "clicks_desktop": 46.0, "clicks_mobile": 32.0, "impressions_desktop": 1200.0, "impressions_mobile": 750.0, "position_desktop": 2.1, "position_mobile": 2.6},
+            {"query": "sinema kartı", "clicks_desktop": 16.0, "clicks_mobile": 12.0, "impressions_desktop": 360.0, "impressions_mobile": 260.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            {"query": "imax sinema", "clicks_desktop": 13.0, "clicks_mobile": 9.0, "impressions_desktop": 280.0, "impressions_mobile": 200.0, "position_desktop": 6.0, "position_mobile": 6.6},
+            {"query": "3d sinema", "clicks_desktop": 11.0, "clicks_mobile": 8.0, "impressions_desktop": 240.0, "impressions_mobile": 180.0, "position_desktop": 6.3, "position_mobile": 6.9},
         ]
-    # Varsayılan doviz.com queryler
-    return [
-        {"keys": ["doviz kuru"], "clicks": 120.0, "impressions": 2500.0, "ctr": 0.048, "position": 3.2},
-        {"keys": ["altin fiyatlari"], "clicks": 80.0, "impressions": 1800.0, "ctr": 0.044, "position": 4.7},
-        {"keys": ["dolar ne kadar"], "clicks": 65.0, "impressions": 1500.0, "ctr": 0.043, "position": 7.8},
-        {"keys": ["euro kuru"], "clicks": 58.0, "impressions": 1350.0, "ctr": 0.043, "position": 4.2},
-        {"keys": ["bitcoin fiyati"], "clicks": 75.0, "impressions": 1700.0, "ctr": 0.044, "position": 3.5},
-        {"keys": ["borsa istanbul"], "clicks": 52.0, "impressions": 1200.0, "ctr": 0.043, "position": 5.1},
-        {"keys": ["merkez bankasi"], "clicks": 45.0, "impressions": 1050.0, "ctr": 0.043, "position": 5.8},
-        {"keys": ["gumruk vergileri"], "clicks": 38.0, "impressions": 900.0, "ctr": 0.042, "position": 6.2},
-        {"keys": ["hazine bonosu"], "clicks": 32.0, "impressions": 750.0, "ctr": 0.043, "position": 5.9},
-        {"keys": ["piyasa analizi"], "clicks": 48.0, "impressions": 1100.0, "ctr": 0.044, "position": 4.5},
-        {"keys": ["kripto para"], "clicks": 62.0, "impressions": 1400.0, "ctr": 0.044, "position": 4.3},
-        {"keys": ["forex trading"], "clicks": 55.0, "impressions": 1250.0, "ctr": 0.044, "position": 4.8},
-        {"keys": ["yatirim stratejisi"], "clicks": 42.0, "impressions": 950.0, "ctr": 0.044, "position": 5.5},
-        {"keys": ["emtia fiyatlari"], "clicks": 37.0, "impressions": 850.0, "ctr": 0.044, "position": 5.9},
-        {"keys": ["petrol fiyati"], "clicks": 68.0, "impressions": 1550.0, "ctr": 0.044, "position": 4.1},
-    ]
+    else:
+        base_queries = [
+            {"query": "doviz kuru", "clicks_desktop": 72.0, "clicks_mobile": 48.0, "impressions_desktop": 1500.0, "impressions_mobile": 1000.0, "position_desktop": 3.0, "position_mobile": 3.5},
+            {"query": "altin fiyatlari", "clicks_desktop": 48.0, "clicks_mobile": 32.0, "impressions_desktop": 1100.0, "impressions_mobile": 700.0, "position_desktop": 4.5, "position_mobile": 5.1},
+            {"query": "dolar ne kadar", "clicks_desktop": 39.0, "clicks_mobile": 26.0, "impressions_desktop": 900.0, "impressions_mobile": 600.0, "position_desktop": 7.6, "position_mobile": 8.2},
+            {"query": "euro kuru", "clicks_desktop": 35.0, "clicks_mobile": 23.0, "impressions_desktop": 800.0, "impressions_mobile": 550.0, "position_desktop": 4.0, "position_mobile": 4.6},
+            {"query": "bitcoin fiyati", "clicks_desktop": 45.0, "clicks_mobile": 30.0, "impressions_desktop": 1000.0, "impressions_mobile": 700.0, "position_desktop": 3.3, "position_mobile": 3.9},
+            {"query": "borsa istanbul", "clicks_desktop": 31.0, "clicks_mobile": 21.0, "impressions_desktop": 720.0, "impressions_mobile": 480.0, "position_desktop": 4.9, "position_mobile": 5.5},
+            {"query": "merkez bankasi", "clicks_desktop": 27.0, "clicks_mobile": 18.0, "impressions_desktop": 630.0, "impressions_mobile": 420.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            {"query": "gumruk vergileri", "clicks_desktop": 22.0, "clicks_mobile": 16.0, "impressions_desktop": 540.0, "impressions_mobile": 360.0, "position_desktop": 6.0, "position_mobile": 6.5},
+            {"query": "hazine bonosu", "clicks_desktop": 19.0, "clicks_mobile": 13.0, "impressions_desktop": 450.0, "impressions_mobile": 300.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "piyasa analizi", "clicks_desktop": 29.0, "clicks_mobile": 19.0, "impressions_desktop": 660.0, "impressions_mobile": 440.0, "position_desktop": 4.3, "position_mobile": 4.9},
+            {"query": "kripto para", "clicks_desktop": 37.0, "clicks_mobile": 25.0, "impressions_desktop": 840.0, "impressions_mobile": 560.0, "position_desktop": 4.1, "position_mobile": 4.7},
+            {"query": "forex trading", "clicks_desktop": 33.0, "clicks_mobile": 22.0, "impressions_desktop": 750.0, "impressions_mobile": 500.0, "position_desktop": 4.6, "position_mobile": 5.2},
+            {"query": "yatirim stratejisi", "clicks_desktop": 25.0, "clicks_mobile": 17.0, "impressions_desktop": 570.0, "impressions_mobile": 380.0, "position_desktop": 5.3, "position_mobile": 5.9},
+            {"query": "emtia fiyatlari", "clicks_desktop": 22.0, "clicks_mobile": 15.0, "impressions_desktop": 510.0, "impressions_mobile": 340.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "petrol fiyati", "clicks_desktop": 41.0, "clicks_mobile": 27.0, "impressions_desktop": 930.0, "impressions_mobile": 620.0, "position_desktop": 3.9, "position_mobile": 4.5},
+        ]
+    
+    return base_queries
 
 
 def _mock_search_console_response(domain: str = "") -> dict:
     """
-    Mock Search Console yanıtı - bugünün querylerini ve dünün pozisyonlarını döndürür.
-    Sistem hangi queryler dönerse, o queryler için dünkü pozisyonları karşılaştırır.
+    Mock Search Console yanıtı - web ve mobile ayrılımı ile.
+    Her query, desktop ve mobile verisi ile döner.
     """
-    # Standart queryler (hep aynı)
-    current_queries = _get_mock_queries_for_domain(domain)
+    base_queries = _get_mock_queries_for_domain(domain)
     
-    # Dünkü pozisyonlar - aynı queryler için slightly farklı pozisyonlar (simüle)
-    # Her query için position biraz değişiyor (bazı iyileşti, bazı kötüleşti)
+    # Desktop ve mobile verilerini özellikle oluştur
+    current_queries = []
+    for q in base_queries:
+        # Desktop row
+        current_queries.append({
+            "keys": [q["query"]],
+            "clicks": q["clicks_desktop"],
+            "impressions": q["impressions_desktop"],
+            "ctr": (q["clicks_desktop"] / q["impressions_desktop"]) if q["impressions_desktop"] > 0 else 0,
+            "position": q["position_desktop"],
+            "device": "DESKTOP"
+        })
+        # Mobile row
+        current_queries.append({
+            "keys": [q["query"]],
+            "clicks": q["clicks_mobile"],
+            "impressions": q["impressions_mobile"],
+            "ctr": (q["clicks_mobile"] / q["impressions_mobile"]) if q["impressions_mobile"] > 0 else 0,
+            "position": q["position_mobile"],
+            "device": "MOBILE"
+        })
+    
+    # Dünkü pozisyonlar (aynı yapı)
     position_deltas = {
-        0: -0.3,   # İyileşti
-        1: -0.4,   
-        2: -0.6,   
-        3: +0.3,   # Kötüleşti
-        4: -0.3,   
-        5: -0.4,   
-        6: +0.4,   
-        7: -0.3,   
-        8: -0.3,   
-        9: -0.3,   
-        10: -0.2,  
-        11: +0.3,  
-        12: -0.3,  
-        13: -0.3,  
-        14: -0.5,  
+        0: -0.3, 1: +0.2,  # Desktop & mobile için query 0
+        2: -0.4, 3: +0.1,  # Query 1
+        4: -0.6, 5: +0.3,  # Query 2
+        6: +0.3, 7: -0.2,  # Query 3
+        8: -0.3, 9: +0.1,  # Query 4
+        10: -0.4, 11: +0.2, # Query 5
+        12: +0.4, 13: -0.1, # Query 6
+        14: -0.3, 15: +0.2, # Query 7
+        16: -0.3, 17: +0.1, # Query 8
+        18: -0.3, 19: +0.2, # Query 9
+        20: -0.2, 21: +0.3, # Query 10
+        22: -0.3, 23: +0.1, # Query 11
+        24: -0.3, 25: +0.2, # Query 12
+        26: -0.3, 27: +0.1, # Query 13
+        28: -0.3, 29: +0.2, # Query 14
     }
     
     previous_queries = []
@@ -91,7 +113,8 @@ def _mock_search_console_response(domain: str = "") -> dict:
         delta = position_deltas.get(idx, -0.3)
         prev_row = {
             "keys": row["keys"],
-            "position": float(row.get("position", 0)) - delta  # Dünkü position
+            "position": float(row.get("position", 0)) - delta,
+            "device": row["device"]
         }
         previous_queries.append(prev_row)
     

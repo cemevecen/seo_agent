@@ -746,11 +746,18 @@
           <p class="text-sm text-slate-500">Search Console</p>
           <div class="mt-1 flex items-center gap-3">
             <h3 class="text-lg font-semibold text-slate-900">Top Queries</h3>
-            <select id="query-limit-selector" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-900 outline-none ring-slate-200 focus:ring">
-              <option value="10">Top 10</option>
-              <option value="30">Top 30</option>
-              <option value="50" selected>Top 50</option>
-            </select>
+            <div class="flex gap-2">
+              <select id="device-selector" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-900 outline-none ring-slate-200 focus:ring">
+                <option value="all">All Devices</option>
+                <option value="DESKTOP">Desktop</option>
+                <option value="MOBILE">Mobile</option>
+              </select>
+              <select id="query-limit-selector" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-900 outline-none ring-slate-200 focus:ring">
+                <option value="10">Top 10</option>
+                <option value="30">Top 30</option>
+                <option value="50" selected>Top 50</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -812,7 +819,7 @@
         </thead>
         <tbody>
           {% for row in top_queries %}
-            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}">
+            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}" data-device="{{ row.device | default('ALL') }}">
               <td class="px-3 py-2 font-medium text-slate-900">{{ row.query }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.clicks|round|int }}</td>
               <td class="px-3 py-2 text-slate-700">{{ row.impressions|round|int }}</td>
@@ -1010,11 +1017,13 @@
 
   (function () {
     const limitSelector = document.getElementById('query-limit-selector');
+    const deviceSelector = document.getElementById('device-selector');
     const table = document.getElementById('query-table');
     if (!limitSelector || !table) return;
 
     function updateSummary() {
       const limit = parseInt(limitSelector.value);
+      const selectedDevice = deviceSelector ? deviceSelector.value : 'all';
       
       const rows = table.querySelectorAll('tbody tr[data-query]');
       
@@ -1023,11 +1032,17 @@
       let totalCtr = 0;
       let maxDelta = 0;
       let visibleRows = [];
+      let rowCount = 0;
 
-      rows.forEach(function (row, idx) {
-        if (idx < limit) {
+      rows.forEach(function (row) {
+        // Filter by device first
+        const rowDevice = row.dataset.device || 'ALL';
+        const deviceMatch = selectedDevice === 'all' || rowDevice === selectedDevice;
+        
+        if (deviceMatch && rowCount < limit) {
           row.style.display = '';
           visibleRows.push(row);
+          rowCount++;
           
           const clicks = parseFloat(row.dataset.clicks) || 0;
           const impressions = parseFloat(row.dataset.impressions) || 0;
@@ -1070,6 +1085,9 @@
     }
 
     limitSelector.addEventListener('change', updateSummary);
+    if (deviceSelector) {
+      deviceSelector.addEventListener('change', updateSummary);
+    }
     // İlk yüklemede özet güncelle
     updateSummary();
   })();
