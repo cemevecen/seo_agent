@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     search_console_daily_limit: int = 80
     search_console_monthly_limit: int = 1500
 
+    live_refresh_enabled: bool = True
+    live_refresh_method: str = "GET"
+    live_refresh_timeout: int = 8
+    live_refresh_urls: str = ""
+
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False)
 
     @model_validator(mode="after")
