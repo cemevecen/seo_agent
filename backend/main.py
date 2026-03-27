@@ -1,6 +1,4 @@
 """FastAPI uygulama giriş noktası."""
-
-from datetime import datetime
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -16,7 +14,10 @@ from slowapi import _rate_limit_exceeded_handler
 from backend.api.alerts import router as alerts_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
+from backend.collectors.crawler import collect_crawler_metrics
+from backend.collectors.pagespeed import collect_pagespeed_metrics
 from backend.collectors.search_console import get_top_queries
+from backend.collectors.search_console import collect_search_console_metrics
 from backend.config import settings
 from backend.database import SessionLocal, init_db
 from backend.models import Site
@@ -159,31 +160,65 @@ def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
         sites = db.query(Site).order_by(Site.created_at.desc()).all()
-        cards: list[dict] = []
-        for site in sites:
-            ensure_site_alerts(db, site)
-            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-            pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
-            crawler_checks = [
-                latest.get("crawler_robots_accessible"),
-                latest.get("crawler_sitemap_exists"),
-                latest.get("crawler_schema_found"),
-                latest.get("crawler_canonical_found"),
-            ]
-            available_metrics = [metric for metric in latest.values()]
-            last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
-            pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
-            cards.append(
-                {
-                    "domain": site.domain,
-                    "pagespeed_score": round(pagespeed_score),
-                    "pagespeed_color": _score_color(pagespeed_score),
-                    "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
-                    "check_count": len(available_metrics),
-                    "last_updated": last_updated.strftime("%d.%m.%Y %H:%M"),
-                }
-            )
-        return cards
+        return [_build_dashboard_card(db, site) for site in sites]
+
+
+def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> dict:
+    ensure_site_alerts(db, site)
+    latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+    pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
+    crawler_checks = [
+        latest.get("crawler_robots_accessible"),
+        latest.get("crawler_sitemap_exists"),
+        latest.get("crawler_schema_found"),
+        latest.get("crawler_canonical_found"),
+    ]
+    available_metrics = [metric for metric in latest.values()]
+    last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
+    pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
+    recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
+    pagespeed_status_alerts = [
+        alert["message"]
+        for alert in recent_site_alerts
+        if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
+    ]
+    return {
+        "id": site.id,
+        "domain": site.domain,
+        "pagespeed_score": round(pagespeed_score),
+        "pagespeed_color": _score_color(pagespeed_score),
+        "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
+        "check_count": len(available_metrics),
+        "last_updated": last_updated.strftime("%d.%m.%Y %H:%M"),
+        "pagespeed_status": {
+            "mobile_updated_at": _format_metric_timestamp(latest.get("pagespeed_mobile_score")),
+            "desktop_updated_at": _format_metric_timestamp(latest.get("pagespeed_desktop_score")),
+            "messages": pagespeed_status_alerts,
+        },
+        "flash_message": flash_message,
+    }
+
+
+def _summarize_manual_measurement(results: dict[str, dict]) -> str:
+    pagespeed_result = results.get("pagespeed", {})
+    crawler_result = results.get("crawler", {})
+    search_console_result = results.get("search_console", {})
+    parts: list[str] = []
+
+    if pagespeed_result.get("saved_metric_count"):
+        parts.append("PageSpeed olcumu tamamlandi")
+    elif pagespeed_result.get("errors"):
+        parts.append("PageSpeed kismi olarak guncellendi")
+
+    if crawler_result.get("metrics"):
+        parts.append("crawler kontrolleri yenilendi")
+
+    if search_console_result.get("blocked"):
+        parts.append("Search Console kota nedeniyle atlandi")
+    elif search_console_result.get("summary"):
+        parts.append("Search Console verisi yenilendi")
+
+    return ". ".join(parts) + "." if parts else "Olcum tetiklendi."
 
 
 def _dashboard_comparison_data(period_days: int) -> dict:
@@ -372,6 +407,26 @@ def dashboard(request: Request):
     with SessionLocal() as db:
         payload["recent_alerts"] = get_recent_alerts(db, limit=6)
     return templates.TemplateResponse("dashboard.html", {"request": request, **payload})
+
+
+@app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
+def dashboard_measure_site(request: Request, site_id: int):
+    period, _ = _resolve_period(request.query_params.get("period"))
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+
+        results = {
+            "pagespeed": collect_pagespeed_metrics(db, site),
+            "crawler": collect_crawler_metrics(db, site),
+            "search_console": collect_search_console_metrics(db, site),
+        }
+        card = _build_dashboard_card(db, site, flash_message=_summarize_manual_measurement(results))
+    return templates.TemplateResponse(
+        "partials/dashboard_site_card.html",
+        {"request": request, "card": card, "period": period},
+    )
 
 
 @app.get("/site/{domain}", response_class=HTMLResponse)
