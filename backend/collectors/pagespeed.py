@@ -53,11 +53,24 @@ def _extract_lighthouse_metrics(payload: dict) -> dict[str, float]:
     performance_score = categories.get("performance", {}).get("score") or 0
     lcp = (audits.get("largest-contentful-paint") or {}).get("numericValue") or 0
     cls = (audits.get("cumulative-layout-shift") or {}).get("numericValue") or 0
-    inp = (
-        (audits.get("interaction-to-next-paint") or {}).get("numericValue")
-        or (audits.get("experimental-interaction-to-next-paint") or {}).get("numericValue")
-        or 0
-    )
+    
+    # INP: Interaction to Next Paint - Check multiple possible audit names
+    # Google's PageSpeed API may use different names depending on version
+    inp = 0
+    for audit_name in ["interaction-to-next-paint", "experimental-interaction-to-next-paint",
+                       "experimental-interaction-to-next-paint-v2", "first-input-delay"]:
+        if audit_name in audits:
+            numeric_value = (audits.get(audit_name) or {}).get("numericValue")
+            if numeric_value is not None and numeric_value > 0:
+                inp = numeric_value
+                LOGGER.debug(f"Found INP value {inp} from audit '{audit_name}'")
+                break
+    
+    if inp == 0:
+        # If still zero, log all audit names for debugging
+        available_audits = list(audits.keys())
+        LOGGER.warning(f"INP value is 0. Available audits: {available_audits}")
+    
     return {
         "performance_score": float(performance_score) * 100,
         "lcp": float(lcp),
