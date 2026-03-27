@@ -18,8 +18,23 @@ from backend.services.quota_guard import consume_api_quota
 LOGGER = logging.getLogger(__name__)
 
 
-def _mock_search_console_response() -> dict:
-    # Credential yokken test edilebilir kalsın diye örnek veri döndürür.
+def _mock_search_console_response(domain: str = "") -> dict:
+    # Credential yokken test edilebilir kalsın diye örnek veri döndürür. Domain'e göre site-specific sorguları döner.
+    if "sinema" in domain.lower():
+        return {
+            "rows": [
+                {"keys": ["sinema seans saatleri"], "clicks": 85.0, "impressions": 2100.0, "ctr": 0.040, "position": 2.8},
+                {"keys": ["yakındaki sinemalar"], "clicks": 62.0, "impressions": 1600.0, "ctr": 0.039, "position": 3.5},
+                {"keys": ["film uyarlaması"], "clicks": 48.0, "impressions": 1200.0, "ctr": 0.040, "position": 5.2},
+            ],
+            "previous_day": [
+                {"keys": ["sinema seans saatleri"], "position": 2.4},
+                {"keys": ["yakındaki sinemalar"], "position": 3.1},
+                {"keys": ["film uyarlaması"], "position": 4.8},
+            ],
+        }
+    
+    # Varsayılan doviz.com mock data
     return {
         "rows": [
             {"keys": ["doviz kuru"], "clicks": 120.0, "impressions": 2500.0, "ctr": 0.048, "position": 3.2},
@@ -37,7 +52,7 @@ def _mock_search_console_response() -> dict:
 def _load_search_console_data(site: Site, credential: SiteCredential | None) -> dict:
     # Credential yoksa mock, varsa Search Console API cevabı üretir.
     if credential is None:
-        return _mock_search_console_response()
+        return _mock_search_console_response(site.domain)
 
     try:
         from google.oauth2 import service_account
@@ -91,7 +106,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         return {"rows": current.get("rows", []), "previous_day": previous.get("rows", [])}
     except Exception as exc:
         LOGGER.warning("Search Console fallback to mock for %s due to credential/API error: %s", site.domain, exc)
-        return _mock_search_console_response()
+        return _mock_search_console_response(site.domain)
 
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
