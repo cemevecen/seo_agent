@@ -68,11 +68,44 @@
       <h3 class="text-lg font-semibold text-slate-900">Teknik SEO Kontrolleri</h3>
       <div class="mt-4 space-y-3 text-sm">
         {% for item in crawler_checks %}
-          <div class="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-            <span class="text-slate-700">{{ item.label }}</span>
-            <span class="font-semibold {% if item.ok %}text-emerald-600{% else %}text-rose-600{% endif %}">
-              {% if item.ok %}✓{% else %}✗{% endif %}
-            </span>
+          <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <!-- Check Header -->
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
+              <div class="flex items-center gap-3">
+                <span class="text-xl {% if item.passed %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                  {% if item.passed %}✓{% else %}✗{% endif %}
+                </span>
+                <span class="font-semibold text-slate-900">{{ item.check }}</span>
+              </div>
+              <span class="text-slate-400">›</span>
+            </button>
+            
+            <!-- Details (collapsible) -->
+            <div class="hidden border-t border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
+              <!-- Status -->
+              <div>
+                <p class="text-xs font-semibold text-slate-500 uppercase">Durum</p>
+                <p class="mt-1 text-slate-800 font-medium">{{ item.status }}</p>
+              </div>
+              
+              <!-- Reason -->
+              <div>
+                <p class="text-xs font-semibold text-slate-500 uppercase">Sebep</p>
+                <p class="mt-1 text-slate-700">{{ item.reason }}</p>
+              </div>
+              
+              <!-- Impact -->
+              <div>
+                <p class="text-xs font-semibold text-slate-500 uppercase">Etkisi</p>
+                <p class="mt-1 text-slate-700">{{ item.impact }}</p>
+              </div>
+              
+              <!-- Action -->
+              <div class="rounded-lg bg-white p-3 border border-slate-200">
+                <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Sonuç / Çözüm</p>
+                <p class="text-slate-800 whitespace-pre-line">{{ item.action }}</p>
+              </div>
+            </div>
           </div>
         {% endfor %}
       </div>

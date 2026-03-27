@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
+import requests
 
 from backend.api.alerts import router as alerts_router
 from backend.api.metrics import router as metrics_router
@@ -31,6 +32,7 @@ from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, g
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
+from backend.services.technical_seo import run_technical_seo_audit
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -331,12 +333,16 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         search_position_history = history.get("search_console_avg_position_28d", [])
         search_trend_labels = [_format_trend_label(item["collected_at"], period) for item in search_clicks_history]
 
-        crawler_checks = [
-            {"label": "robots.txt", "ok": bool((latest.get("crawler_robots_accessible").value if latest.get("crawler_robots_accessible") else 0.0) >= 1)},
-            {"label": "sitemap.xml", "ok": bool((latest.get("crawler_sitemap_exists").value if latest.get("crawler_sitemap_exists") else 0.0) >= 1)},
-            {"label": "JSON-LD Schema", "ok": bool((latest.get("crawler_schema_found").value if latest.get("crawler_schema_found") else 0.0) >= 1)},
-            {"label": "Canonical Tag", "ok": bool((latest.get("crawler_canonical_found").value if latest.get("crawler_canonical_found") else 0.0) >= 1)},
-        ]
+        # Teknik SEO kontrolleri otomatik yapıl
+        page_html = ""
+        try:
+            resp = requests.get(f"https://{site.domain}", timeout=10)
+            page_html = resp.text if resp.status_code == 200 else ""
+        except:
+            pass
+        
+        crawler_checks = run_technical_seo_audit(site.domain, page_html)
+        
         recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
         pagespeed_status_alerts = [
             alert["message"]
