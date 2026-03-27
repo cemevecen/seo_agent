@@ -491,6 +491,41 @@ def site_detail(request: Request, domain: str):
     return templates.TemplateResponse("site_detail.html", {"request": request, **payload})
 
 
+@app.get("/api/site/{domain}/top-queries")
+def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
+    """API endpoint to get filtered top queries by device and limit."""
+    try:
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.domain == domain).first()
+            if site is None:
+                return JSONResponse({"error": "Site not found"}, status_code=404)
+            
+            queries = get_top_queries(db, site, limit=limit, device=device)
+            
+            # Calculate summary from returned queries
+            total_clicks = sum(float(q.get("clicks", 0)) for q in queries)
+            total_impressions = sum(float(q.get("impressions", 0)) for q in queries)
+            total_ctr = sum(float(q.get("ctr", 0)) for q in queries)
+            max_delta = max((float(q.get("delta", 0)) for q in queries), default=0.0)
+            total_position = sum(float(q.get("position", 0)) for q in queries)
+            
+            avg_ctr = (total_ctr / len(queries)) if queries else 0.0
+            avg_position = (total_position / len(queries)) if queries else 0.0
+            
+            return JSONResponse({
+                "queries": queries,
+                "summary": {
+                    "clicks": round(total_clicks),
+                    "impressions": round(total_impressions),
+                    "ctr": round(avg_ctr, 2),
+                    "position": round(avg_position, 1),
+                    "biggest_drop": round(max_delta, 1)
+                }
+            })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/alerts")
 def alerts_page(request: Request):
     # Son alarm kayıtlarını listeler.
