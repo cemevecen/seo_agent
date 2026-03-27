@@ -1,0 +1,40 @@
+<div class="overflow-x-auto">
+  <table class="min-w-full text-left text-sm">
+    <thead class="bg-slate-50 text-slate-600">
+      <tr>
+        <th class="px-3 py-2 font-medium">Site</th>
+        <th class="px-3 py-2 font-medium">Alert Türü</th>
+        <th class="px-3 py-2 font-medium">Eşik</th>
+        <th class="px-3 py-2 font-medium">Aktif</th>
+        <th class="px-3 py-2 font-medium">İşlem</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in alert_rules %}
+        <tr class="border-b border-slate-100">
+          <td class="px-3 py-2 font-medium text-slate-900">{{ item.domain }}</td>
+          <td class="px-3 py-2 text-slate-700">{{ item.alert_type }}</td>
+          <td class="px-3 py-2">
+            <input id="threshold-{{ item.id }}" type="number" step="0.1" value="{{ item.threshold }}" class="w-28 rounded-md border border-slate-300 px-2 py-1" />
+          </td>
+          <td class="px-3 py-2">
+            <input id="active-{{ item.id }}" type="checkbox" {% if item.is_active %}checked{% endif %} class="rounded border-slate-300" />
+          </td>
+          <td class="px-3 py-2">
+            <button
+              type="button"
+              class="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              onclick="updateAlertRule({{ item.id }})"
+            >
+              Kaydet
+            </button>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="5" class="px-3 py-6 text-center text-slate-500">Henüz alert kuralı yok.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

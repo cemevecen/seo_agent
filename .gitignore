@@ -1,0 +1,8 @@
+.env
+.compose.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.db
+seo-agent-*.json

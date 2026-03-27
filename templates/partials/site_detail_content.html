@@ -1,0 +1,275 @@
+<div class="space-y-6">
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-slate-500">PageSpeed Mobile</p>
+          <h3 class="mt-1 text-4xl font-bold {{ mobile_color }}">{{ mobile_score|round|int }}</h3>
+        </div>
+        <div class="text-right text-sm text-slate-500">
+          <p>LCP: {{ mobile_lcp|round|int }} ms</p>
+          <p>CLS: {{ '%.2f'|format(mobile_cls) }}</p>
+          <p>INP: {{ mobile_inp|round|int }} ms</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-slate-500">PageSpeed Desktop</p>
+          <h3 class="mt-1 text-4xl font-bold {{ desktop_color }}">{{ desktop_score|round|int }}</h3>
+        </div>
+        <div class="text-right text-sm text-slate-500">
+          <p>LCP: {{ desktop_lcp|round|int }} ms</p>
+          <p>CLS: {{ '%.2f'|format(desktop_cls) }}</p>
+          <p>INP: {{ desktop_inp|round|int }} ms</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-slate-500">PageSpeed Trend</p>
+          <h3 class="text-lg font-semibold text-slate-900">Son 7 Gün</h3>
+        </div>
+      </div>
+      <div id="pagespeed-trend-chart" class="mt-4 h-[320px]" data-trend='{{ trend_data|tojson }}'></div>
+    </div>
+
+    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <p class="text-sm text-slate-500">Crawler Sonuçları</p>
+      <h3 class="text-lg font-semibold text-slate-900">Teknik SEO Kontrolleri</h3>
+      <div class="mt-4 space-y-3 text-sm">
+        {% for item in crawler_checks %}
+          <div class="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+            <span class="text-slate-700">{{ item.label }}</span>
+            <span class="font-semibold {% if item.ok %}text-emerald-600{% else %}text-rose-600{% endif %}">
+              {% if item.ok %}✓{% else %}✗{% endif %}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="mt-5 rounded-2xl bg-slate-50 p-4">
+        <p class="text-sm font-semibold text-slate-900">Aktif Alert Özeti</p>
+        <div class="mt-3 space-y-2 text-sm">
+          {% for alert in site_alerts %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{{ alert.message }}</div>
+          {% else %}
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">Aktif alarm görünmüyor.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-slate-500">Search Console</p>
+        <h3 class="text-lg font-semibold text-slate-900">Top 10 Query</h3>
+      </div>
+      <div class="text-right text-sm text-slate-500">
+        <p>Mock veya canlı veri</p>
+        <p>Düşen sorgu: {{ search_summary.dropped_queries|round|int }}</p>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 md:grid-cols-5">
+      <div class="rounded-2xl bg-slate-50 px-4 py-3">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Clicks 28d</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.clicks|round|int }}</p>
+      </div>
+      <div class="rounded-2xl bg-slate-50 px-4 py-3">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Impressions</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.impressions|round|int }}</p>
+      </div>
+      <div class="rounded-2xl bg-slate-50 px-4 py-3">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Avg CTR</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ '%.2f'|format(search_summary.avg_ctr) }}%</p>
+      </div>
+      <div class="rounded-2xl bg-slate-50 px-4 py-3">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Avg Position</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ '%.1f'|format(search_summary.avg_position) }}</p>
+      </div>
+      <div class="rounded-2xl bg-slate-50 px-4 py-3">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Biggest Drop</p>
+        <p class="mt-2 text-2xl font-bold text-rose-600">{{ '%.1f'|format(search_summary.biggest_drop) }}</p>
+      </div>
+    </div>
+
+    <div class="mt-5 rounded-2xl border border-slate-200 p-4">
+      <p class="text-sm font-semibold text-slate-900">Search Console Trend (28d snapshots)</p>
+      <div id="search-trend-chart" class="mt-3 h-[320px]" data-trend='{{ search_trend_data|tojson }}'></div>
+    </div>
+
+    <div class="mt-4 flex items-center justify-between gap-3">
+      <input
+        id="query-filter"
+        type="text"
+        placeholder="Query filtrele..."
+        class="w-full max-w-md rounded-xl border border-slate-300 px-4 py-2 text-sm outline-none ring-slate-200 focus:ring"
+      />
+      <span class="text-xs text-slate-500">Top 10 sorgu canlı filtrelenir</span>
+    </div>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-left text-sm" id="query-table">
+        <thead class="bg-slate-50 text-slate-600">
+          <tr>
+            <th class="px-3 py-2 font-medium">Query</th>
+            <th class="px-3 py-2 font-medium">Clicks</th>
+            <th class="px-3 py-2 font-medium">Impressions</th>
+            <th class="px-3 py-2 font-medium">CTR</th>
+            <th class="px-3 py-2 font-medium">Position</th>
+            <th class="px-3 py-2 font-medium">Değişim</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_queries %}
+            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}">
+              <td class="px-3 py-2 font-medium text-slate-900">{{ row.query }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.clicks|round|int }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.impressions|round|int }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ '%.2f'|format(row.ctr) }}%</td>
+              <td class="px-3 py-2 text-slate-700">{{ '%.1f'|format(row.position) }}</td>
+              <td class="px-3 py-2">
+                <span class="rounded-full px-2 py-1 text-xs font-semibold {% if row.delta > 0.5 %}bg-rose-100 text-rose-700{% elif row.delta < -0.5 %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                  {{ '%+.1f'|format(row.delta) }}
+                </span>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="px-3 py-6 text-center text-slate-500">Query verisi bulunamadı.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const chartElement = document.getElementById('pagespeed-trend-chart');
+    if (!chartElement || typeof Plotly === 'undefined') {
+      return;
+    }
+
+    const trendData = JSON.parse(chartElement.dataset.trend || '{"labels":[],"mobile":[],"desktop":[]}');
+    Plotly.newPlot(
+      chartElement,
+      [
+        {
+          x: trendData.labels,
+          y: trendData.mobile,
+          mode: 'lines+markers',
+          name: 'Mobile',
+          line: { color: '#0f766e', width: 3 },
+          marker: { size: 8 }
+        },
+        {
+          x: trendData.labels,
+          y: trendData.desktop,
+          mode: 'lines+markers',
+          name: 'Desktop',
+          line: { color: '#ca8a04', width: 3 },
+          marker: { size: 8 }
+        }
+      ],
+      {
+        margin: { t: 10, r: 10, b: 40, l: 40 },
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { color: '#475569', rangemode: 'tozero' },
+        legend: { orientation: 'h', y: 1.12 }
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  })();
+
+  (function () {
+    const element = document.getElementById('search-trend-chart');
+    if (!element || typeof Plotly === 'undefined') {
+      return;
+    }
+
+    const trend = JSON.parse(element.dataset.trend || '{"labels":[],"clicks":[],"impressions":[],"avg_ctr":[],"avg_position":[]}');
+    Plotly.newPlot(
+      element,
+      [
+        {
+          x: trend.labels,
+          y: trend.clicks,
+          type: 'bar',
+          name: 'Clicks',
+          marker: { color: '#0f766e' },
+          yaxis: 'y'
+        },
+        {
+          x: trend.labels,
+          y: trend.impressions,
+          type: 'bar',
+          name: 'Impressions',
+          marker: { color: '#0369a1' },
+          yaxis: 'y'
+        },
+        {
+          x: trend.labels,
+          y: trend.avg_ctr,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Avg CTR %',
+          line: { color: '#ca8a04', width: 3 },
+          marker: { size: 7 },
+          yaxis: 'y2'
+        },
+        {
+          x: trend.labels,
+          y: trend.avg_position,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Avg Position',
+          line: { color: '#dc2626', width: 2, dash: 'dot' },
+          marker: { size: 7 },
+          yaxis: 'y3'
+        }
+      ],
+      {
+        margin: { t: 10, r: 60, b: 40, l: 50 },
+        barmode: 'group',
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { title: 'Clicks / Impressions', color: '#0f172a' },
+        yaxis2: { title: 'CTR %', overlaying: 'y', side: 'right', color: '#ca8a04', rangemode: 'tozero' },
+        yaxis3: { title: 'Position', overlaying: 'y', side: 'right', anchor: 'free', position: 1, color: '#dc2626' },
+        legend: { orientation: 'h', y: 1.14 }
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  })();
+
+  (function () {
+    const filterInput = document.getElementById('query-filter');
+    const table = document.getElementById('query-table');
+    if (!filterInput || !table) {
+      return;
+    }
+
+    filterInput.addEventListener('input', function () {
+      const query = filterInput.value.trim().toLowerCase();
+      const rows = table.querySelectorAll('tbody tr[data-query]');
+      rows.forEach(function (row) {
+        const visible = !query || row.dataset.query.includes(query);
+        row.style.display = visible ? '' : 'none';
+      });
+    });
+  })();
+</script>

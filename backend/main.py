@@ -1,0 +1,301 @@
+"""FastAPI uygulama giriş noktası."""
+
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
+
+from backend.api.alerts import router as alerts_router
+from backend.api.metrics import router as metrics_router
+from backend.api.sites import router as sites_router
+from backend.collectors.search_console import get_top_queries
+from backend.config import settings
+from backend.database import SessionLocal, init_db
+from backend.models import Site
+from backend.rate_limiter import limiter
+from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
+from backend.services.metric_store import get_latest_metrics, get_metric_history
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+app = FastAPI(title="SEO Agent Dashboard")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Site yönetimi endpoint'leri JSON API altında toplanır.
+app.include_router(sites_router, prefix="/api")
+app.include_router(metrics_router, prefix="/api")
+app.include_router(alerts_router, prefix="/api")
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    # Uygulama açılışında tablolar create_all ile hazırlanır.
+    init_db()
+
+
+def get_sidebar_sites() -> list[dict]:
+    # Sidebar için aktif siteler veritabanından okunur.
+    with SessionLocal() as db:
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
+        return [{"domain": site.domain, "label": site.display_name} for site in sites]
+
+
+def _metric_map(site_id: int) -> dict[str, object]:
+    # Son metric kayıtlarını hızlı erişim için sözlüğe dönüştürür.
+    with SessionLocal() as db:
+        latest = get_latest_metrics(db, site_id)
+        return {metric.metric_type: metric for metric in latest}
+
+
+def _score_color(score: float) -> str:
+    # PageSpeed skorunu renk sınıfına çevirir.
+    if score >= 90:
+        return "text-emerald-600"
+    if score >= 50:
+        return "text-amber-500"
+    return "text-rose-600"
+
+
+def _dashboard_cards() -> list[dict]:
+    # Dashboard için tüm site kartı özetlerini üretir.
+    with SessionLocal() as db:
+        sites = db.query(Site).order_by(Site.created_at.desc()).all()
+        cards: list[dict] = []
+        for site in sites:
+            ensure_site_alerts(db, site)
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
+            crawler_checks = [
+                latest.get("crawler_robots_accessible"),
+                latest.get("crawler_sitemap_exists"),
+                latest.get("crawler_schema_found"),
+                latest.get("crawler_canonical_found"),
+            ]
+            available_metrics = [metric for metric in latest.values()]
+            last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
+            pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
+            cards.append(
+                {
+                    "domain": site.domain,
+                    "pagespeed_score": round(pagespeed_score),
+                    "pagespeed_color": _score_color(pagespeed_score),
+                    "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
+                    "check_count": len(available_metrics),
+                    "last_updated": last_updated.strftime("%d.%m.%Y %H:%M"),
+                }
+            )
+        return cards
+
+
+def _dashboard_comparison_data() -> dict:
+    # Dashboard karşılaştırma grafikleri için çoklu site verisi üretir.
+    with SessionLocal() as db:
+        sites = db.query(Site).order_by(Site.created_at.asc()).all()
+        labels: list[str] = []
+        mobile_scores: list[float] = []
+        desktop_scores: list[float] = []
+        crawler_health: list[float] = []
+        search_clicks: list[float] = []
+        search_impressions: list[float] = []
+        search_ctr: list[float] = []
+        search_position: list[float] = []
+        for site in sites:
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            labels.append(site.domain)
+            mobile_scores.append(float((latest.get("pagespeed_mobile_score").value if latest.get("pagespeed_mobile_score") else 0.0)))
+            desktop_scores.append(float((latest.get("pagespeed_desktop_score").value if latest.get("pagespeed_desktop_score") else 0.0)))
+            crawler_values = [
+                float((latest.get("crawler_robots_accessible").value if latest.get("crawler_robots_accessible") else 0.0)),
+                float((latest.get("crawler_sitemap_exists").value if latest.get("crawler_sitemap_exists") else 0.0)),
+                float((latest.get("crawler_schema_found").value if latest.get("crawler_schema_found") else 0.0)),
+                float((latest.get("crawler_canonical_found").value if latest.get("crawler_canonical_found") else 0.0)),
+            ]
+            crawler_health.append(round(sum(crawler_values) / 4 * 100, 2))
+            search_clicks.append(float((latest.get("search_console_clicks_28d").value if latest.get("search_console_clicks_28d") else 0.0)))
+            search_impressions.append(float((latest.get("search_console_impressions_28d").value if latest.get("search_console_impressions_28d") else 0.0)))
+            search_ctr.append(float((latest.get("search_console_avg_ctr_28d").value if latest.get("search_console_avg_ctr_28d") else 0.0)))
+            search_position.append(float((latest.get("search_console_avg_position_28d").value if latest.get("search_console_avg_position_28d") else 0.0)))
+        return {
+            "labels": labels,
+            "mobile_scores": mobile_scores,
+            "desktop_scores": desktop_scores,
+            "crawler_health": crawler_health,
+            "search_clicks": search_clicks,
+            "search_impressions": search_impressions,
+            "search_ctr": search_ctr,
+            "search_position": search_position,
+        }
+
+
+def _dashboard_trend_data() -> dict:
+    # Çoklu site trend grafiği için son 7 mobile PageSpeed noktasını döndürür.
+    with SessionLocal() as db:
+        sites = db.query(Site).order_by(Site.domain.asc()).all()
+        series: list[dict] = []
+        for site in sites:
+            history = get_metric_history(db, site.id)
+            mobile_history = history.get("pagespeed_mobile_score", [])[-7:]
+            series.append(
+                {
+                    "name": site.domain,
+                    "x": [item["collected_at"][5:10] for item in mobile_history],
+                    "y": [item["value"] for item in mobile_history],
+                }
+            )
+        return {"series": series}
+
+
+def _site_detail_context(domain: str) -> dict:
+    # Site detay görünümü için gerekli tüm veriyi hazırlar.
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            raise ValueError("Site bulunamadı.")
+
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        history = get_metric_history(db, site.id)
+        top_queries = get_top_queries(db, site, limit=10)
+
+        mobile_score = float((latest.get("pagespeed_mobile_score").value if latest.get("pagespeed_mobile_score") else 0.0))
+        desktop_score = float((latest.get("pagespeed_desktop_score").value if latest.get("pagespeed_desktop_score") else 0.0))
+        trend_labels = [item["collected_at"][5:10] for item in history.get("pagespeed_mobile_score", [])][-7:]
+        mobile_trend = [item["value"] for item in history.get("pagespeed_mobile_score", [])][-7:]
+        desktop_trend = [item["value"] for item in history.get("pagespeed_desktop_score", [])][-7:]
+        search_clicks_history = history.get("search_console_clicks_28d", [])[-7:]
+        search_impressions_history = history.get("search_console_impressions_28d", [])[-7:]
+        search_ctr_history = history.get("search_console_avg_ctr_28d", [])[-7:]
+        search_position_history = history.get("search_console_avg_position_28d", [])[-7:]
+        search_trend_labels = [item["collected_at"][5:16] for item in search_clicks_history]
+
+        crawler_checks = [
+            {"label": "robots.txt", "ok": bool((latest.get("crawler_robots_accessible").value if latest.get("crawler_robots_accessible") else 0.0) >= 1)},
+            {"label": "sitemap.xml", "ok": bool((latest.get("crawler_sitemap_exists").value if latest.get("crawler_sitemap_exists") else 0.0) >= 1)},
+            {"label": "JSON-LD Schema", "ok": bool((latest.get("crawler_schema_found").value if latest.get("crawler_schema_found") else 0.0) >= 1)},
+            {"label": "Canonical Tag", "ok": bool((latest.get("crawler_canonical_found").value if latest.get("crawler_canonical_found") else 0.0) >= 1)},
+        ]
+        recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
+
+        return {
+            "site_name": site.display_name,
+            "sites": get_sidebar_sites(),
+            "domain": site.domain,
+            "mobile_score": mobile_score,
+            "mobile_color": _score_color(mobile_score),
+            "mobile_lcp": float((latest.get("pagespeed_mobile_lcp").value if latest.get("pagespeed_mobile_lcp") else 0.0)),
+            "mobile_cls": float((latest.get("pagespeed_mobile_cls").value if latest.get("pagespeed_mobile_cls") else 0.0)),
+            "mobile_inp": float((latest.get("pagespeed_mobile_inp").value if latest.get("pagespeed_mobile_inp") else 0.0)),
+            "desktop_score": desktop_score,
+            "desktop_color": _score_color(desktop_score),
+            "desktop_lcp": float((latest.get("pagespeed_desktop_lcp").value if latest.get("pagespeed_desktop_lcp") else 0.0)),
+            "desktop_cls": float((latest.get("pagespeed_desktop_cls").value if latest.get("pagespeed_desktop_cls") else 0.0)),
+            "desktop_inp": float((latest.get("pagespeed_desktop_inp").value if latest.get("pagespeed_desktop_inp") else 0.0)),
+            "crawler_checks": crawler_checks,
+            "site_alerts": recent_site_alerts,
+            "top_queries": top_queries,
+            "search_summary": {
+                "clicks": float((latest.get("search_console_clicks_28d").value if latest.get("search_console_clicks_28d") else 0.0)),
+                "impressions": float((latest.get("search_console_impressions_28d").value if latest.get("search_console_impressions_28d") else 0.0)),
+                "avg_ctr": float((latest.get("search_console_avg_ctr_28d").value if latest.get("search_console_avg_ctr_28d") else 0.0)),
+                "avg_position": float((latest.get("search_console_avg_position_28d").value if latest.get("search_console_avg_position_28d") else 0.0)),
+                "dropped_queries": float((latest.get("search_console_dropped_queries").value if latest.get("search_console_dropped_queries") else 0.0)),
+                "biggest_drop": float((latest.get("search_console_biggest_drop").value if latest.get("search_console_biggest_drop") else 0.0)),
+            },
+            "trend_data": {
+                "labels": trend_labels,
+                "mobile": mobile_trend,
+                "desktop": desktop_trend,
+            },
+            "search_trend_data": {
+                "labels": search_trend_labels,
+                "clicks": [item["value"] for item in search_clicks_history],
+                "impressions": [item["value"] for item in search_impressions_history],
+                "avg_ctr": [item["value"] for item in search_ctr_history],
+                "avg_position": [item["value"] for item in search_position_history],
+            },
+        }
+
+
+@app.get("/")
+def dashboard(request: Request):
+    # Jinja2 template'i başlangıç ekranını render eder.
+    payload = {
+        "site_name": "SEO Agent Dashboard",
+        "sites": get_sidebar_sites(),
+        "site_cards": _dashboard_cards(),
+        "comparison_data": _dashboard_comparison_data(),
+        "trend_data": _dashboard_trend_data(),
+    }
+    with SessionLocal() as db:
+        payload["recent_alerts"] = get_recent_alerts(db, limit=6)
+    return templates.TemplateResponse("dashboard.html", {"request": request, **payload})
+
+
+@app.get("/site/{domain}", response_class=HTMLResponse)
+def site_detail(request: Request, domain: str):
+    # Site detay ekranını HTMX ve tam sayfa modunda sunar.
+    try:
+        payload = _site_detail_context(domain)
+    except ValueError:
+        return HTMLResponse("Site bulunamadı.", status_code=404)
+
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse("partials/site_detail_content.html", {"request": request, **payload})
+    return templates.TemplateResponse("site_detail.html", {"request": request, **payload})
+
+
+@app.get("/alerts")
+def alerts_page(request: Request):
+    # Son alarm kayıtlarını listeler.
+    with SessionLocal() as db:
+        payload = {
+            "site_name": "Uyarılar",
+            "sites": get_sidebar_sites(),
+            "recent_alerts": get_recent_alerts(db, limit=30),
+        }
+    return templates.TemplateResponse("alerts.html", {"request": request, **payload})
+
+
+@app.get("/settings")
+def settings_page(request: Request):
+    # Settings ekranı site yönetimi arayüzünü gösterir.
+    with SessionLocal() as db:
+        payload = {
+            "site_name": "Ayarlar",
+            "sites": get_sidebar_sites(),
+            "alert_rules": get_alert_rules(db),
+        }
+    return templates.TemplateResponse("settings.html", {"request": request, **payload})
+
+
+@app.get("/settings/site-list")
+def settings_site_list(request: Request):
+    # HTMX istekleri için sadece site listesini döner.
+    with SessionLocal() as db:
+        sites = db.query(Site).order_by(Site.created_at.desc()).all()
+        return templates.TemplateResponse("partials/site_list.html", {"request": request, "sites": sites})
+
+
+@app.get("/settings/alert-thresholds")
+def settings_alert_thresholds(request: Request):
+    # HTMX ile alert threshold tablosunu yeniler.
+    with SessionLocal() as db:
+        alert_rules = get_alert_rules(db)
+    return templates.TemplateResponse("partials/alert_thresholds.html", {"request": request, "alert_rules": alert_rules})
+
+
+@app.get("/health")
+def health_check():
+    # Basit sağlık kontrol endpoint'i JSON döner.
+    return JSONResponse({"status": "ok", "host": settings.app_host})

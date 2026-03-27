@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ site_name or "SEO Agent Dashboard" }}</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- HTMX CDN -->
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <!-- Plotly CDN -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900">
+  <div class="flex min-h-screen">
+    <aside class="w-72 bg-slate-900 text-slate-100 p-5">
+      <h1 class="text-xl font-bold">SEO Agent</h1>
+      <p class="text-sm text-slate-300 mt-1">İzlenen Siteler</p>
+
+      <nav class="mt-6 space-y-2">
+        {% if sites %}
+          {% for site in sites %}
+            <a
+              href="/site/{{ site.domain }}"
+              class="block rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-700"
+              hx-get="/site/{{ site.domain }}"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-push-url="true"
+            >
+              {{ site.label }}
+            </a>
+          {% endfor %}
+        {% else %}
+          <span class="block rounded-md bg-slate-800 px-3 py-2 text-sm text-slate-300">
+            Henüz site eklenmedi.
+          </span>
+        {% endif %}
+      </nav>
+    </aside>
+
+    <main class="flex-1">
+      <header class="border-b border-slate-200 bg-white px-6 py-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">{{ site_name or "SEO Agent Dashboard" }}</h2>
+          <div class="flex items-center gap-3 text-sm">
+            <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
+            <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
+            <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
+          </div>
+        </div>
+      </header>
+
+      <section id="content" class="p-6">
+        {% block content %}{% endblock %}
+      </section>
+    </main>
+  </div>
+</body>
+</html>

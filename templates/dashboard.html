@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-end justify-between gap-4">
+    <div>
+      <p class="text-sm uppercase tracking-[0.18em] text-slate-500">SEO Monitoring</p>
+      <h3 class="text-3xl font-bold tracking-tight text-slate-900">Tüm Sitelerin Özet Durumu</h3>
+    </div>
+    <p class="max-w-xl text-sm text-slate-600">
+      Kartlara tıklayarak detay sayfasını HTMX ile tam sayfa yenilemeden açabilirsin.
+    </p>
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Karşılaştırma</p>
+          <h4 class="text-xl font-semibold text-slate-900">Site Bazlı PageSpeed ve Crawler Sağlığı</h4>
+        </div>
+      </div>
+      <div id="comparison-chart" class="mt-4 h-[320px]" data-comparison='{{ comparison_data|tojson }}'></div>
+    </div>
+
+    <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Aktif Alarm Akışı</p>
+          <h4 class="text-xl font-semibold text-slate-900">Son 6 Uyarı</h4>
+        </div>
+        <a href="/alerts" class="text-sm font-medium text-slate-600 hover:text-slate-900">Tümünü Gör</a>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        {% for alert in recent_alerts %}
+          <div class="rounded-2xl border border-slate-200 px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-slate-900">{{ alert.domain }}</p>
+                <p class="mt-1 text-sm text-slate-600">{{ alert.message }}</p>
+              </div>
+              <p class="text-xs text-slate-500">{{ alert.triggered_at }}</p>
+            </div>
+          </div>
+        {% else %}
+          <div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+            Şu an aktif alarm görünmüyor.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Trend</p>
+        <h4 class="text-xl font-semibold text-slate-900">Çoklu Site Mobile PageSpeed Trendi</h4>
+      </div>
+    </div>
+    <div id="multi-trend-chart" class="mt-4 h-[340px]" data-trend='{{ trend_data|tojson }}'></div>
+  </div>
+
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Search Console Senaryo</p>
+        <h4 class="text-xl font-semibold text-slate-900">Clicks, Impressions, CTR ve Position Karşılaştırması</h4>
+      </div>
+    </div>
+    <div id="search-console-comparison-chart" class="mt-4 h-[360px]" data-comparison='{{ comparison_data|tojson }}'></div>
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-2">
+    {% for card in site_cards %}
+      <a
+        href="/site/{{ card.domain }}"
+        class="group rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg"
+        hx-get="/site/{{ card.domain }}"
+        hx-target="#content"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm text-slate-500">Domain</p>
+            <h4 class="text-2xl font-semibold text-slate-900">{{ card.domain }}</h4>
+            <p class="mt-2 text-sm text-slate-500">Son güncelleme: {{ card.last_updated }}</p>
+          </div>
+          <span class="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">Detay</span>
+        </div>
+
+        <div class="mt-6 grid gap-4 md:grid-cols-3">
+          <div class="rounded-2xl bg-slate-50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">PageSpeed</p>
+            <p class="mt-2 text-3xl font-bold {{ card.pagespeed_color }}">{{ card.pagespeed_score }}</p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Crawler</p>
+            <p class="mt-2 text-lg font-semibold {% if card.crawler_ok %}text-emerald-600{% else %}text-rose-600{% endif %}">
+              {% if card.crawler_ok %}Sağlıklı{% else %}Kontrol Gerekli{% endif %}
+            </p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Aktif Kontrol</p>
+            <p class="mt-2 text-lg font-semibold text-slate-800">{{ card.check_count }} metrik</p>
+          </div>
+        </div>
+      </a>
+    {% else %}
+      <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500 xl:col-span-2">
+        Henüz görüntülenecek site bulunmuyor.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  (function () {
+    const element = document.getElementById('comparison-chart');
+    if (!element || typeof Plotly === 'undefined') {
+      return;
+    }
+
+    const data = JSON.parse(element.dataset.comparison || '{"labels":[],"mobile_scores":[],"desktop_scores":[],"crawler_health":[]}');
+    Plotly.newPlot(
+      element,
+      [
+        {
+          x: data.labels,
+          y: data.mobile_scores,
+          type: 'bar',
+          name: 'Mobile Score',
+          marker: { color: '#0f766e' }
+        },
+        {
+          x: data.labels,
+          y: data.desktop_scores,
+          type: 'bar',
+          name: 'Desktop Score',
+          marker: { color: '#ca8a04' }
+        },
+        {
+          x: data.labels,
+          y: data.crawler_health,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Crawler Health %',
+          yaxis: 'y2',
+          line: { color: '#7c3aed', width: 3 }
+        }
+      ],
+      {
+        margin: { t: 10, r: 20, b: 40, l: 40 },
+        barmode: 'group',
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { title: 'PageSpeed', color: '#475569', range: [0, 100] },
+        yaxis2: { title: 'Crawler %', overlaying: 'y', side: 'right', range: [0, 100], color: '#7c3aed' },
+        legend: { orientation: 'h', y: 1.12 }
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  })();
+
+  (function () {
+    const element = document.getElementById('search-console-comparison-chart');
+    if (!element || typeof Plotly === 'undefined') {
+      return;
+    }
+
+    const data = JSON.parse(element.dataset.comparison || '{"labels":[],"search_clicks":[],"search_impressions":[],"search_ctr":[],"search_position":[]}');
+    Plotly.newPlot(
+      element,
+      [
+        {
+          x: data.labels,
+          y: data.search_clicks,
+          type: 'bar',
+          name: 'Clicks',
+          marker: { color: '#0f766e' },
+          yaxis: 'y'
+        },
+        {
+          x: data.labels,
+          y: data.search_impressions,
+          type: 'bar',
+          name: 'Impressions',
+          marker: { color: '#0369a1' },
+          yaxis: 'y'
+        },
+        {
+          x: data.labels,
+          y: data.search_ctr,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Avg CTR %',
+          line: { color: '#ca8a04', width: 3 },
+          marker: { size: 8 },
+          yaxis: 'y2'
+        },
+        {
+          x: data.labels,
+          y: data.search_position,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Avg Position',
+          line: { color: '#dc2626', width: 3, dash: 'dot' },
+          marker: { size: 8 },
+          yaxis: 'y3'
+        }
+      ],
+      {
+        margin: { t: 10, r: 60, b: 40, l: 50 },
+        barmode: 'group',
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { title: 'Clicks / Impressions', color: '#0f172a' },
+        yaxis2: {
+          title: 'CTR %',
+          overlaying: 'y',
+          side: 'right',
+          color: '#ca8a04',
+          rangemode: 'tozero'
+        },
+        yaxis3: {
+          title: 'Position',
+          overlaying: 'y',
+          side: 'right',
+          anchor: 'free',
+          position: 1,
+          color: '#dc2626'
+        },
+        legend: { orientation: 'h', y: 1.14 }
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  })();
+
+  (function () {
+    const element = document.getElementById('multi-trend-chart');
+    if (!element || typeof Plotly === 'undefined') {
+      return;
+    }
+    const data = JSON.parse(element.dataset.trend || '{"series":[]}');
+    const traces = data.series.map(function (series, index) {
+      const colors = ['#0f766e', '#ca8a04', '#7c3aed', '#dc2626', '#2563eb'];
+      return {
+        x: series.x,
+        y: series.y,
+        mode: 'lines+markers',
+        name: series.name,
+        line: { width: 3, color: colors[index % colors.length] },
+        marker: { size: 8 }
+      };
+    });
+    Plotly.newPlot(
+      element,
+      traces,
+      {
+        margin: { t: 10, r: 20, b: 40, l: 40 },
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { color: '#475569', range: [0, 100] },
+        legend: { orientation: 'h', y: 1.12 }
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% if sites %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-left text-sm">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="px-3 py-2 font-medium">ID</th>
+          <th class="px-3 py-2 font-medium">Domain</th>
+          <th class="px-3 py-2 font-medium">Görünen Ad</th>
+          <th class="px-3 py-2 font-medium">Durum</th>
+          <th class="px-3 py-2 font-medium">İşlem</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for site in sites %}
+          <tr class="border-b border-slate-100">
+            <td class="px-3 py-2 text-slate-700">{{ site.id }}</td>
+            <td class="px-3 py-2 font-medium text-slate-900">{{ site.domain }}</td>
+            <td class="px-3 py-2 text-slate-700">{{ site.display_name }}</td>
+            <td class="px-3 py-2">
+              {% if site.is_active %}
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Aktif</span>
+              {% else %}
+                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">Pasif</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              <button
+                type="button"
+                class="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                hx-delete="/api/sites/{{ site.id }}"
+                hx-swap="none"
+                hx-on::after-request="handleSiteDelete(event)"
+              >
+                Sil
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+    Henüz kayıtlı site bulunmuyor.
+  </div>
+{% endif %}
