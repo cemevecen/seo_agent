@@ -237,7 +237,11 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
 
 
 def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
-    """Site detay ekranı için en iyi sorgu satırlarını döndürür - Device segmentasyonu ile."""
+    """Site detay ekranı için en iyi sorgu satırlarını döndürür - Device segmentasyonu ile.
+    
+    limit: Unique query count (not row count). Each query returns 2 rows (DESKTOP + MOBILE).
+    So limit=10 returns 10 queries × 2 devices = 20 rows.
+    """
     credential = get_search_console_credentials_record(db, site.id)
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
@@ -249,16 +253,21 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
         for row in previous_day
     }
     
-    result = []
-    for idx, row in enumerate(rows):
-        query = row.get("keys", [""])[0]
+    # Group rows by query name to get unique queries
+    queries_dict = {}
+    for row in rows:
+        query_name = row.get("keys", [""])[0]
         device = (row.get("device", "DESKTOP") or "DESKTOP").upper().strip()
+        
+        if query_name not in queries_dict:
+            queries_dict[query_name] = {}
+        
         current_position = float(row.get("position", 0))
-        previous_position = previous_map.get((query, device), current_position)
+        previous_position = previous_map.get((query_name, device), current_position)
         delta = current_position - previous_position
         
-        result.append({
-            "query": query,
+        queries_dict[query_name][device] = {
+            "query": query_name,
             "clicks": float(row.get("clicks", 0)),
             "impressions": float(row.get("impressions", 0)),
             "ctr": float(row.get("ctr", 0)) * 100.0 if "ctr" in row else (
@@ -270,6 +279,18 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
             "previous_position": previous_position,
             "delta": delta,
             "device": device,
-        })
+        }
+    
+    # Flatten back to list, limiting to unique query count
+    result = []
+    query_count = 0
+    for query_name in queries_dict:
+        if query_count >= limit:
+            break
+        # Add both DESKTOP and MOBILE rows for this query (if both exist)
+        for device in ["DESKTOP", "MOBILE"]:
+            if device in queries_dict[query_name]:
+                result.append(queries_dict[query_name][device])
+        query_count += 1
     
     return result
