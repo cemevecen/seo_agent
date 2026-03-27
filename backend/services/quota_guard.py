@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.models import ApiUsage, Site
-from backend.services.alert_engine import emit_custom_alert
+
 
 
 @dataclass(frozen=True)
@@ -94,19 +94,10 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
             f"Gunluk: {day_row.call_count}/{day_limit}, Aylik: {month_row.call_count}/{month_limit}. "
             f"Yeni API cagrisı bloke edildi."
         )
-        emit_custom_alert(db, site, f"quota_{provider}_hard_limit", message, dedupe_hours=2)
         db.commit()
         return QuotaDecision(allowed=False, reason=message)
 
-    # Kullanim warning bandina giriyorsa bir kez uyari logu olustur.
-    crossed_daily = day_row.call_count < int(day_limit * warning_ratio) <= next_day
-    crossed_monthly = month_row.call_count < int(month_limit * warning_ratio) <= next_month
-    if crossed_daily or crossed_monthly:
-        message = (
-            f"{site.domain} icin {provider} kota kullanimı warning seviyesine geldi. "
-            f"Gunluk: {next_day}/{day_limit}, Aylik: {next_month}/{month_limit}."
-        )
-        emit_custom_alert(db, site, f"quota_{provider}_warning", message, dedupe_hours=12)
+
 
     day_row.call_count = next_day
     day_row.updated_at = now

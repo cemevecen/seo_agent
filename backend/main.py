@@ -17,7 +17,6 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 import requests
 
-from backend.api.alerts import router as alerts_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -28,7 +27,6 @@ from backend.config import settings
 from backend.database import SessionLocal, init_db
 from backend.models import Site
 from backend.rate_limiter import limiter
-from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
@@ -203,12 +201,7 @@ def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> d
     available_metrics = [metric for metric in latest.values()]
     last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
     pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
-    recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
-    pagespeed_status_alerts = [
-        alert["message"]
-        for alert in recent_site_alerts
-        if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
-    ]
+    pagespeed_status_alerts = []
     return {
         "id": site.id,
         "domain": site.domain,
@@ -361,12 +354,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         # Lighthouse comprehensive analysis
         lighthouse_analysis = get_lighthouse_analysis(accessible_score=81, practices_score=35, seo_score=92)
         
-        recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
-        pagespeed_status_alerts = [
-            alert["message"]
-            for alert in recent_site_alerts
-            if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
-        ]
+        pagespeed_status_alerts = []
 
         return {
             "site_name": site.display_name,
@@ -391,7 +379,6 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             "crawler_checks": crawler_checks,
             "pagespeed_analysis": pagespeed_analysis,
             "lighthouse_analysis": lighthouse_analysis,
-            "site_alerts": recent_site_alerts,
             "top_queries": top_queries,
             "search_summary": {
                 "clicks": _latest_value_from_history(
@@ -453,7 +440,7 @@ def dashboard(request: Request):
         "trend_data": _dashboard_trend_data(period, period_days),
     }
     with SessionLocal() as db:
-        payload["recent_alerts"] = get_recent_alerts(db, limit=6)
+
     return templates.TemplateResponse("dashboard.html", {"request": request, **payload})
 
 
@@ -526,16 +513,7 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.get("/alerts")
-def alerts_page(request: Request):
-    # Son alarm kayıtlarını listeler.
-    with SessionLocal() as db:
-        payload = {
-            "site_name": "Uyarılar",
-            "sites": get_sidebar_sites(),
-            "recent_alerts": get_recent_alerts(db, limit=30),
-        }
-    return templates.TemplateResponse("alerts.html", {"request": request, **payload})
+
 
 
 @app.get("/settings")
@@ -545,7 +523,7 @@ def settings_page(request: Request):
         payload = {
             "site_name": "Ayarlar",
             "sites": get_sidebar_sites(),
-            "alert_rules": get_alert_rules(db),
+
             "quota_status": get_quota_status(db),
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
@@ -564,12 +542,7 @@ def settings_site_list(request: Request):
         )
 
 
-@app.get("/settings/alert-thresholds")
-def settings_alert_thresholds(request: Request):
-    # HTMX ile alert threshold tablosunu yeniler.
-    with SessionLocal() as db:
-        alert_rules = get_alert_rules(db)
-    return templates.TemplateResponse("partials/alert_thresholds.html", {"request": request, "alert_rules": alert_rules})
+
 
 
 @app.get("/api/search-console/oauth/start/{site_id}")
