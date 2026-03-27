@@ -33,6 +33,7 @@ from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 from backend.services.technical_seo import run_technical_seo_audit
+from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -343,6 +344,9 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         
         crawler_checks = run_technical_seo_audit(site.domain, page_html)
         
+        # PageSpeed alert analysis
+        pagespeed_analysis = analyze_pagespeed_alerts(int(mobile_score), int(desktop_score))
+        
         recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
         pagespeed_status_alerts = [
             alert["message"]
@@ -371,6 +375,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
                 "messages": pagespeed_status_alerts,
             },
             "crawler_checks": crawler_checks,
+            "pagespeed_analysis": pagespeed_analysis,
             "site_alerts": recent_site_alerts,
             "top_queries": top_queries,
             "search_summary": {
