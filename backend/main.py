@@ -310,7 +310,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         history = get_metric_history(db, site.id, days=period_days)
-        top_queries = get_top_queries(db, site, limit=10)
+        top_queries = get_top_queries(db, site, limit=50)
 
         mobile_score = _latest_value_from_history(
             history,
