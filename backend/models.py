@@ -25,6 +25,9 @@ class Site(Base):
     metrics: Mapped[list["Metric"]] = relationship(
         "Metric", back_populates="site", cascade="all, delete-orphan"
     )
+    alerts: Mapped[list["Alert"]] = relationship(
+        "Alert", back_populates="site", cascade="all, delete-orphan"
+    )
     api_usages: Mapped[list["ApiUsage"]] = relationship(
         "ApiUsage", back_populates="site", cascade="all, delete-orphan"
     )
@@ -57,7 +60,35 @@ class Metric(Base):
     site: Mapped["Site"] = relationship("Site", back_populates="metrics")
 
 
+class Alert(Base):
+    """Site bazlı alarm eşiklerini tutar."""
 
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="alerts")
+    logs: Mapped[list["AlertLog"]] = relationship(
+        "AlertLog", back_populates="alert", cascade="all, delete-orphan"
+    )
+
+
+class AlertLog(Base):
+    """Tetiklenen alarm kayıtlarını tutar."""
+
+    __tablename__ = "alert_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True)
+    triggered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_mail: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    alert: Mapped["Alert"] = relationship("Alert", back_populates="logs")
 
 
 class ApiUsage(Base):

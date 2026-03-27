@@ -2,6 +2,32 @@
 
 {% block content %}
 <div class="space-y-6">
-  <p class="text-slate-500">Bu özellik devre dışı bırakılmıştır.</p>
+  <div>
+    <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Alert Center</p>
+    <h3 class="text-3xl font-bold tracking-tight text-slate-900">Son Uyarılar</h3>
+  </div>
+
+  <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div class="space-y-3">
+      {% for alert in recent_alerts %}
+        <div class="rounded-2xl border border-slate-200 p-4">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ alert.domain }}</p>
+              <p class="mt-1 text-sm text-slate-600">{{ alert.message }}</p>
+            </div>
+            <div class="text-right text-xs text-slate-500">
+              <p>{{ alert.triggered_at }}</p>
+              <p>{% if alert.sent_mail %}Mail gönderildi{% else %}Mail bekliyor{% endif %}</p>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
+          Henüz alarm kaydı oluşmadı.
+        </div>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 {% endblock %}
