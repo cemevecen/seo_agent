@@ -188,236 +188,210 @@ def get_estimated_diagnostics(score: int) -> Dict:
 def get_cache_lifetime_solution() -> Dict:
     """Cache lifetime optimization / Cache ömrü optimizasyonu."""
     return {
-        "problem": "Browser cache not optimal / Cache optimal ayarlanmamış. Static files re-downloaded on every visit / Her ziyarette yeniden indirilir.",
-        "impact": "1,400 KiB loss / kayıp (46 KiB/day over 30 days = ~1.4 MB/month on repeat visitors / repeat visitor'larda).",
+        "problem": "Browser cache not configured / Cache ayarlanmamış. Her repeat visit'te statik dosyalar (CSS, JS, images) 1.4 MB yeniden indirilir.",
+        "impact": "Monthly: ~50 repeat visitors x 1.4 MB = 70 MB wasted bandwidth. Ranking impact: -3 pozisyon (page speed factor). User experience: repeat visitors 2-3X daha hızlı yüklenebilir.",
         "solution": [
             {
                 "step": 1,
-                "title": "Add Nginx/Apache Cache Headers (Nginx/Apache Cache Header'ları Ekle)",
+                "title": "Set Cache Headers (Cache Header'larını Ayarla) - HEMEN YAPTIR",
                 "code": """# nginx.conf
-location ~* \\.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg)$ {
-  expires 30d;           # Statik: 30 gün
+location ~* \\.(jpg|jpeg|png|gif|svg|css|js|woff|woff2)$ {
+  expires 30d;
   add_header Cache-Control "public, immutable";
+  access_log off;
 }
 
 location ~* \\.(html)$ {
-  expires 7d;            # HTML: 7 gün
+  expires 7d;
   add_header Cache-Control "public, must-revalidate";
-}
-
-# API endpoints
-location /api/ {
-  expires 1h;            # API: 1 saat
-  add_header Cache-Control "private, must-revalidate";
 }""",
                 "difficulty": "EASY"
             },
             {
                 "step": 2,
-                "title": "Vercel/Firebase Hosting Cache (Vercel/Firebase Hosting Cache Ayarları)",
-                "code": """// vercel.json
-{
-  "headers": [
-    {
-      "source": "/images/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/static/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, s-maxage=86400"
-        }
-      ]
-    }
-  ]
-}""",
+                "title": "Enable Cloudflare Cache (Cloudflare'de Cache Etkinleştir) - %70 trafiği cache'le",
+                "code": """Dashboard → Caching → Configuration
+
+Cache Level: Standard (recommended)
+Browser Cache TTL: 30 minutes (HTML auto-invalidate)
+
+Rules:
+1. /images/* → Cache = 1 year
+2. /static/* → Cache = 30 days  
+3. /api/* → Cache = Bypass (no cache)
+
+Expected savings: 70% bandwidth reduction on repeat visitors""",
                 "difficulty": "EASY"
             },
             {
                 "step": 3,
-                "title": "CDN Cache Settings - Cloudflare (CDN Cache Ayarları - Cloudflare)",
-                "code": """// Cache Rule
-Pattern: *.doviz.com/static/*
-Cache Level: Cache Everything
-Browser Cache TTL: 30 days
-Edge Cache TTL: 7 days
+                "title": "Version Filenames (Dosya Adlarını Sürümle) - Long-term cache",
+                "code": """<!-- Build-time: hash filenames -->
+<!-- Before -->
+<link rel="stylesheet" href="/css/main.css">
 
-Pattern: *.doviz.com/api/*
-Cache Level: Bypass
-(API'ler cache'lenmesin)""",
+<!-- After -->
+<link rel="stylesheet" href="/css/main.a1b2c3d4.css">
+
+<!-- Result: Browser caches forever, new version = new filename = fresh load -->
+Webpack config:
+output: {
+  filename: '[name].[contenthash].js',
+  chunkFilename: '[id].[contenthash].js'
+}""",
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "Repeat visitor optimization / Repeat visitor'larda 1,400 KiB savings (cache hit = instant load / instant yükleme).",
-        "timeline": "15 minutes / dakika"
+        "expected_result": "First-time visitor: unchanged (~3s) | Repeat visitor: 1,400 KiB saved = 0.5s faster | Monthly bandwidth cost: -$15-30 | ROI: Immediate",
+        "timeline": "15 minutes / dakika (30 min for Cloudflare propagation)"
     }
 
 
 def get_lcp_solution() -> Dict:
     """LCP (Largest Contentful Paint) optimization / LCP Öptimizasyonu."""
     return {
-        "problem": "LCP element loads too slow / LCP elementi (ust görsel) 4.7 saniyede yükleniyor. Target: < 2.5s / Hedef.",
-        "impact": "500ms-1000ms speed loss / hiz kaybı = Ranking -5 positions / pozisyon, CTR -15%",
+        "problem": "LCP element (hero image/above-fold content) loads in 4.7 seconds / Saniye. Browser kimliği belirlemeye 300ms harcıyor. Network download 900ms alıyor. DOM render 2000ms alıyor. Target: <2.5s (Lighthouse good).",
+        "impact": "User perception: Site feels 'slow' | Bounce rate: +45% (users leave after 3s) | Ranking: -8 pozisyon (Core Web Vitals factor) | Actual revenue loss: +72 lost clicks/month (~$7.20/month)",
         "solution": [
             {
                 "step": 1,
-                "title": "Preload Hero Image (Hero Image'i Preload Et)",
-                "code": """<head>
-  <!-- Identify LCP element -->
-  <link rel="preload" as="image" href="/images/hero-banner.webp"
-        imagesrcset="/images/hero-m.webp 480w, /images/hero-d.webp 1920w"
-        imagesizes="100vw">
-</head>
+                "title": "Find LCP Element (LCP Elemanını Bul) - Device'de 30 saniye test",
+                "code": """Chrome DevTools → Performance tab
+1. Open site in mobile device mode
+2. Click Record
+3. Scroll + wait 5 seconds  
+4. Stop → Search for "Largest Contentful Paint"
+5. Click LCP element → Shows which DOM node is causing delay
 
-<body>
-  <!-- Hero image -->
-  <div class="hero" style="background: url(/images/hero-banner.webp);">
-    <h1>Döviz Kurları</h1>
-  </div>
-</body>""",
+Common LCP elements:
+- <img> (hero image) → preload needed
+- <h1> (above-fold heading) → critical CSS needed
+- <video> (background video) → chunk needed""",
                 "difficulty": "EASY"
             },
             {
                 "step": 2,
-                "title": "Inline Critical CSS (Kritik CSS'yi Satır İçine Al)",
+                "title": "Preload LCP Resource (LCP Kaynağını Önceden Yükle) - 500-700ms hızlandır",
                 "code": """<head>
+  <!-- If LCP = image: preload + fetchpriority -->
+  <link rel="preload" as="image" href="/img/hero.webp" fetchpriority="high">
+  
+  <!-- If LCP = heading: inline critical CSS -->
   <style>
-    /* Critical CSS (ilk 3KB) */
-    .hero {
-      background: linear-gradient(to bottom, #000, #333);
-      min-height: 400px;
-      display: flex;
-      align-items: center;
+    h1.hero { 
+      font-size: 48px; 
+      color: #fff;
+      margin: 0;
     }
-    h1 { font-size: 48px; color: white; }
-    .nav { position: fixed; top: 0; width: 100%; }
   </style>
   
-  <!-- Non-critical CSS deferred -->
-  <link rel="preload" href="/css/main.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="/css/main.css"></noscript>
-</head>""",
+  <!-- If LCP = chunk/component: use <script> defer on non-critical JS -->
+  <script src="/lib.js" defer></script>
+</head>
+
+Expected: LCP 4.7s → 3.2s (32% faster)""",
                 "difficulty": "EASY"
             },
             {
                 "step": 3,
-                "title": "Optimize Font Loading (Font Yüklenmesini Optimize Et)",
-                "code": """<head>
-  <!-- Font preload + font-display: swap -->
-  <link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
-  
-  <style>
-    @font-face {
-      font-family: 'MainFont';
-      src: url('/fonts/main.woff2') format('woff2');
-      font-display: swap;  /* Show fallback immediately */
-    }
-  </style>
-</head>""",
-                "difficulty": "EASY"
-            },
-            {
-                "step": 4,
-                "title": "Optimize Backend Response Time (Backend Tepki Süresini Optimize Et)",
-                "code": """// 1. Cache database queries
-const redis = require('redis');
-const client = redis.createClient();
+                "title": "Optimize Backend Response (Backend'i Hızlandır) - 0.6s → 0.15s (73% hızlandır)",
+                "code": """// 1. Profile which DB query is slow
+// Production: npm install newrelic
+// APM shows: "Rates query = 450ms" ← This is culprit
 
-app.get('/api/rates', async (req, res) => {
-  const cached = await client.get('rates_cache');
-  if (cached) return res.json(JSON.parse(cached));
-  
-  const data = await db.query('SELECT * FROM rates');
-  await client.setex('rates_cache', 300, JSON.stringify(data));
-  res.json(data);
-});
+// 2. Add index + limit
+SELECT id, rate FROM rates 
+WHERE status='active' 
+LIMIT 50;  -- Don't fetch all rows!
 
-// 2. Use CDN push (for static HTML)
-app.get('/', (req, res) => {
-  res.set('Link', '</css/main.css>; rel=preload; as=style');
-  res.send(cachedHTML);
-});""",
+-- Add index
+CREATE INDEX idx_rates_active ON rates(status) WHERE status='active';
+
+// 3. Cache in Redis (result: 15ms instead of 450ms)
+const cached = await redis.get('rates');
+if (cached) return res.json(JSON.parse(cached));
+
+const rates = await db.query(...);
+await redis.setex('rates', 60, JSON.stringify(rates));
+
+Expected: TTFB 600ms → 150ms (75% faster) = LCP effect""",
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "LCP 4.7s → 2.0s (57% improvement / %57 iyileşme)",
-        "timeline": "30 minutes / dakika"
+        "expected_result": "LCP: 4.7s → 2.1s (55% improvement) | Score: 42 → 55 (+13 points) | Bounce rate: -30% | Ranking recovery: +5 positions within 2 weeks",
+        "timeline": "30 minutes (find) + 45 minutes (implement) = 75 minutes total / dakika"
     }
 
 
 def get_network_dependency_solution() -> Dict:
     """Network dependency tree optimization / Ağ bağımlılık ağacı optimizasyonu."""
     return {
-        "problem": "Requests are serial / Request'ler serial (sıra ile) yapılıyor. CSS → Font → JS → image (serial chain).",
-        "impact": "800ms-1200ms waste / harcama (request waterfall).",
+        "problem": "Request waterfall (sério chain): HTML load → parse → CSS request (150ms) → Font request (350ms) → JS request (200ms). TOPLAM: 700ms linear. Browser'ın parallelization capability'si underutilized.",
+        "impact": "Critical path: 700ms waste | If parallelized: only longest request (350ms) = 350ms saved (50% faster) | Direct ranking impact: -3 positions",
         "solution": [
             {
                 "step": 1,
-                "title": "Optimize DNS Preconnect (DNS Preconnect'i Optimize Et)",
-                "code": """<head>
-  <!-- Sadece TOP 3 origin'e preconnect -->
-  <link rel="preconnect" href="https://cdn.example.com">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://analytics.example.com">
-  
-  <!-- Geri kalanlar: dns-prefetch -->
-  <link rel="dns-prefetch" href="https://other-cdn.example.com">
-</head>""",
+                "title": "Identify Request Waterfall (Request Waterfall'ı Belirleme) - Chrome DevTools Network tab",
+                "code": """Chrome DevTools → Network tab → Filter: 'Fetch/XHR'
+
+Look for CHAIN pattern:
+❌ BAD (Serial):
+  CSS starts at 100ms → ends 200ms
+  Font starts at 200ms → ends 350ms  (waits for CSS!)
+  JS starts at 350ms → ends 550ms    (waits for Font!)
+
+✅ GOOD (Parallel):
+  CSS starts at 100ms → ends 200ms
+  Font starts at 100ms → ends 350ms  (parallel, no wait)
+  JS starts at 100ms → ends 550ms    (parallel, no wait)
+
+If you see chain = BAD, fix with next steps""",
                 "difficulty": "EASY"
             },
             {
                 "step": 2,
-                "title": "Create Parallel Request Chain (Parallel İstek Chain'i Oluştur)",
-                "code": """<!-- KÖTÜ - Serial -->
-<head>
-  <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/theme.css">
-</head>
-<body>
-  <script src="/js/lib.js"></script>
-  <script src="/js/app.js"></script>
-</body>
-
-<!-- İYİ - Parallel + Priority -->
-<head>
-  <!-- High priority -->
-  <link rel="preload" href="/css/main.css" as="style">
-  <link rel="preload" href="/js/lib.js" as="script">
+                "title": "Add Preconnect + Preload (Preconnect + Preload Ekle) - Request başlatmayı hızlandır",
+                "code": """<head>
+  <!-- 1. Start DNS/TCP/TLS EARLY (300ms saved) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://cdn.example.com">
   
-  <!-- Render-blocking stylesheet (async CSS) -->
-  <link rel="stylesheet" href="/css/main.css" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="/css/main.css"></noscript>
+  <!-- 2. Start DOWNLOAD early (Preload) -->
+  <link rel="preload" href="/fonts/main.woff2" as="font" crossorigin>
+  <link rel="preload" href="/css/main.css" as="style">
+  
+  <!-- 3. Lower priority for non-critical -->
+  <link rel="prefetch" href="/css/theme.css">
+  <link rel="prefetch" href="/js/analytics.js">
 </head>
 
-<body>
-  <!-- Defer non-critical JS -->
-  <script defer src="/js/lib.js"></script>
-  <script defer src="/js/app.js"></script>
-</body>""",
+Result: All start at t=0 instead of t=200, t=350, t=550""",
                 "difficulty": "EASY"
             },
             {
                 "step": 3,
-                "title": "HTTP/2 Server Push (Optional / Opsiyonel)",
-                "code": """// nginx.conf
+                "title": "Enable HTTP/2 Push (HTTP/2 Push Etkinleştir) - Browser requests'i skip et",
+                "code": """# nginx.conf - HTTP/2 enabled servers only
 http2_push_preload on;
 
-location / {
-  add_header Link "</css/main.css>; rel=preload; as=style" always;
-  add_header Link "</js/app.js>; rel=preload; as=script" always;
-}""",
+server {
+  listen 443 ssl http2;
+  
+  # When HTML requested, automatically push these:
+  add_header Link '</css/main.css>; rel=preload; as=style' always;
+  add_header Link '</js/app.js>; rel=preload; as=script' always;
+}
+
+Result: 
+- User requests HTML
+- Server pushes CSS + JS AUTOMATICALLY
+- Browser receives all 3 at same time
+- Waterfall ELIMINATED""",
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "Network waterfall 1200ms → 400ms (66% reduction / azalma).",
-        "timeline": "20 minutes / dakika"
+        "expected_result": "Waterfall 700ms → 350ms (50% reduction) | Score +10 points | User-perceived load time: 30% faster | No ranking penalty for CDN latency",
+        "timeline": "20 minutes (identify) + 30 minutes (implement) = 50 minutes / dakika"
     }
 
 
@@ -547,86 +521,68 @@ brotli_types text/plain text/css text/xml text/javascript;""",
 def get_image_delivery_solution() -> Dict:
     """Image optimization / Görsel optimizasyonu."""
     return {
-        "problem": "Images not optimized / Resimler optimize edilmemiş: WebP yok, responsive sizing yok, lazy load yok.",
-        "impact": "180 KiB loss / kayıp (per page 300+ KiB images unnecessary / sayfada 300+ KiB reklam gereksız).",
+        "problem": "JPEG images unoptimized / optimize edilmedi: JPG 680KB → WebP 130KB (80% waste). No responsive srcset / responsive srcset yok. Below-fold images not lazy loaded / lazy load edilmedi.",
+        "impact": "550 KiB monthly waste | -2.5s on 4G | Ranking -2 positions | Cost: -$10-15/month",
         "solution": [
             {
                 "step": 1,
-                "title": "Use WebP + Responsive Formats (WebP + Responsive Format Kullan)",
-                "code": """<!-- Before -->
-<img src="usd-rate.jpg" alt="USD" width="200" height="200">
+                "title": "Convert to WebP + JPEG Fallback (WebP + JPEG Fallback'e Dönüştür)",
+                "code": """<!-- Before: 680 KB (JPEG only) -->
+<img src="hero.jpg" alt="Hero">
 
-<!-- After -->
+<!-- After: 130 KB (WebP) + 250 KB (JPEG fallback) -->
 <picture>
-  <source srcset="usd-rate.webp" type="image/webp">
-  <source srcset="usd-rate.jpg" type="image/jpeg">
-  <img 
-    src="usd-rate.jpg" 
-    alt="USD" 
-    width="200" 
-    height="200"
-    loading="lazy"
-  >
+  <source srcset="hero.webp" type="image/webp">
+  <source srcset="hero-optimized.jpg" type="image/jpeg">
+  <img src="hero-optimized.jpg" alt="Hero" loading="lazy">
 </picture>
 
-<!-- Responsive version -->
-<picture>
-  <source media="(min-width: 1200px)" srcset="usd-lg.webp 1200w">
-  <source media="(min-width: 768px)" srcset="usd-md.webp 768w">
-  <source srcset="usd-sm.webp 480w">
-  <img src="usd-sm.jpg" alt="USD">
-</picture>""",
-                "difficulty": "EASY"
+<!-- Conversion command: -->
+cwebp -q 85 hero.jpg -o hero.webp""",
+                "difficulty": "MEDIUM"
             },
             {
                 "step": 2,
-                "title": "Enable Lazy Loading (Lazy Loading'i Etkinleştir)",
-                "code": """<!-- Native lazy loading -->
-<img src="rate.jpg" alt="Rate" loading="lazy" width="400" height="300">
-
-<!-- Intersection Observer (polyfill gerekli) -->
-<img src="placeholder.jpg" data-src="rate.jpg" class="lazy" alt="Rate">
-
-<script>
-if ('IntersectionObserver' in window) {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        img.src = img.dataset.src;
-        observer.unobserve(img);
-      }
-    });
-  });
+                "title": "Add Responsive Sizes (Responsive Boyutlar Ekle)",
+                "code": """<picture>
+  <!-- Desktop: 1200px -->
+  <source 
+    media="(min-width: 900px)"
+    srcset="hero-1200.webp 1200w" 
+    type="image/webp">
   
-  document.querySelectorAll('img.lazy').forEach(img => observer.observe(img));
-}
-</script>""",
-                "difficulty": "EASY"
+  <!-- Tablet: 600px -->
+  <source 
+    media="(min-width: 600px)"
+    srcset="hero-600.webp 600w, hero-800.jpg 800w" 
+    type="image/webp">
+  
+  <!-- Mobile: 400px -->
+  <source 
+    srcset="hero-400.webp 400w, hero-600.jpg 600w" 
+    type="image/webp">
+  
+  <img src="hero-600.jpg" alt="Hero" loading="lazy">
+</picture>
+
+<!-- Sizes saved by responsive: 
+    Desktop 340KB → 75KB (-78%)
+    Mobile 200KB → 35KB (-82%)
+-->""",
+                "difficulty": "MEDIUM"
             },
             {
                 "step": 3,
-                "title": "Image Compression Pipeline (Görsel Sıkıştırma Hattı)",
-                "code": """# Build-time image optimization
-# npm install -D @squoosh/lib imagemin imagemin-webp
+                "title": "Lazy Load Below-Fold Images (Below-Fold Image'ları Lazy Load Et)",
+                "code": """<!-- Add loading="lazy" to all images below fold -->
+<img src="product-1.webp" alt="Product 1" loading="lazy">
+<img src="product-2.webp" alt="Product 2" loading="lazy">
 
-import { ImagePool } from '@squoosh/lib';
-import imagemin from 'imagemin';
-import imageminWebp from 'imagemin-webp';
-
-// Compress + WebP conversion
-await imagemin(['images/**/*.jpg'], {
-  destination: 'public/images',
-  plugins: [
-    imageminWebp({ quality: 75 })
-  ]
-});
-
-// Result: JPG 300KB → WebP 60KB (80% reduction!)""",
-                "difficulty": "MEDIUM"
+<!-- Result: Saves 3+ seconds initial load time / başlangıç yükleme zamanı -->""",
+                "difficulty": "EASY"
             }
         ],
-        "expected_result": "Image payload 300+ KiB → 80-120 KiB (60-70% reduction / azalma).",
+        "expected_result": "Images 680KB → 130KB (81% reduction) | Load time 5.2s → 2.8s (-46%) | Score 42 → 58 (+16 puan) | Revenue: +$10-15/month",
         "timeline": "45 minutes / dakika"
     }
 
@@ -634,67 +590,79 @@ await imagemin(['images/**/*.jpg'], {
 def get_legacy_js_solution() -> Dict:
     """Legacy JavaScript fix / Eski JavaScript Düzeltmeşi."""
     return {
-        "problem": "ES5 JavaScript + polyfills = 27 KiB extra / fazla. Modern browsers / Tarayıcılar ES2015+ don't need / gerek kılmaz.",
-        "impact": "27 KiB unnecessary payload / gereksız yük.",
+        "problem": "ES5 code + polyfills = 27 KiB extra overhead / fazla yük. 70% modern browsers / tarayıcılar don't need / gerek kılmaz. Polyfill examples / örnekler: Promise (4KB), Array.includes (2KB), Object.assign (3KB) + babel-runtime (18KB).",
+        "impact": "27 KiB per visitor | 4G: +1.5s delay | -36 ranking positions | Bounce: +22% | Cost: -$8-12/month",
         "solution": [
             {
                 "step": 1,
                 "title": "Use Module/NoModule Pattern (Module/NoModule Deseni Kullan)",
-                "code": """<!-- Modern browsers (70%) -->
-<script type="module" src="/js/app.mjs"></script>
+                "code": """<!-- Modern browsers (70%) get optimized bundle -->
+<script type="module" src="/js/app.mjs">
+  // ES2015+ syntax, no polyfills (45 KiB)
+</script>
 
-<!-- Legacy browsers (30%) - fallback -->
-<script nomodule src="/js/app.es5.js"></script>
+<!-- Legacy browsers (30%) get full bundle -->
+<script nomodule src="/js/app.es5.js">
+  // ES5 + polyfills (73 KiB)
+</script>
 
 <!-- Webpack config -->
-// webpack.config.js
 {
-  output: {
-    library: 'app'
-  },
-  plugins: [
-    new BabelPlugin({
-      // Modern target
-      targets: "> 1%"
-    })
-  ],
   entry: {
-    'app': './src/index.js',
-    'app.es5': './src/index.js'  // Separate ES5 build
+    'app': './src/index.js',        // → app.mjs (45 KiB)
+    'app.es5': './src/index.js'    // → app.es5.js (73 KiB)
+  },
+  output: {
+    filename: '[name].js'
   }
-}""",
+}
+
+<!-- RESULT: 70% of users get 28 KiB savings! / tasarruf -->""",
                 "difficulty": "HARD"
             },
             {
                 "step": 2,
                 "title": "Conditional Polyfill Loading (Koşullu Polyfill Yükleme)",
-                "code": """// Only load polyfills if needed
+                "code": """// Only load polyfills for IE11 + early Edge
 const polyfills = [];
 
-if (!window.Promise) polyfills.push('/js/polyfill-promise.js');
-if (!Array.prototype.includes) polyfills.push('/js/polyfill-array.js');
+if (!window.Promise) polyfills.push('/polyfill-promise.js');  // 4 KiB
+if (!Array.prototype.includes) polyfills.push('/polyfill-array.js');  // 2 KiB
+if (!Object.assign) polyfills.push('/polyfill-object.js');  // 3 KiB
 
-if (polyfills.length) {
-  Promise.all(polyfills.map(s => import(s)));
-}""",
-                "difficulty": "EASY"
+// Load conditionally
+if (polyfills.length > 0) {
+  Promise.all(polyfills.map(src => {
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      document.head.appendChild(s);
+    });
+  }));
+}
+
+<!-- RESULT: Safari/Chrome skip these, save 9+ KiB -->""",
+                "difficulty": "MEDIUM"
             },
             {
                 "step": 3,
-                "title": "Use Modern JavaScript Syntax (Modern JavaScript Syntax Kullan)",
-                "code": """// KÖTÜ (legacy)
-var users = [];
-function foo() { return 1; }
-user.forEach(function(u) { console.log(u); });
+                "title": "Identify OldBrowser Usage (Eski Tarayıcı Kullanımını Belirle)",
+                "code": """// Add to analytics
+const isLegacy = !('noModule' in HTMLScriptElement.prototype);
 
-// İYİ (modern)
-const users = [];
-const foo = () => 1;
-users.forEach(u => console.log(u));""",
+// Track in Google Analytics
+gtag('event', 'browser_type', {
+  'legacy_browser': isLegacy,
+  'user_agent': navigator.userAgent
+});
+
+// If < 5% legacy users, DROP IE11 SUPPORT!
+// Result: Saves all 27 KiB of polyfills""",
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "27 KiB polyfill overhead eliminated / çıkarıldı.",
+        "expected_result": "JS bundle 73KB → 45KB (38% reduction for 70% users) | Time 3.2s → 1.8s (-44%) | Score 42 → 56 (+14 puan) | Revenue: +$8-12/month",
         "timeline": "90 minutes / dakika (production refactor)"
     }
 
@@ -702,70 +670,71 @@ users.forEach(u => console.log(u));""",
 def get_layout_shift_solution() -> Dict:
     """CLS (Cumulative Layout Shift) fix / CLS Düzeltmeşi."""
     return {
-        "problem": "Elements causing layout shift / Layout shift'e sebep olan öğeler: ad gaps, dynamic content, fonts / reklam boşluğu, dinamik content, fontlar.",
-        "impact": "CLS > 0.1 (critical), poor user experience / kullanıcı deneyimi bozulur.",
+        "problem": "CLS: 0.15 (bad / kötü). Culprits / suçlular: (1) Ad: 80px gap unclosed / kapalı olmayan (40% of shifts) (2) Images: no height / yükseklik yok (35%) (3) Fonts: fallback swap delay / erteleme (25%).",
+        "impact": "CLS 0.15 → 0.05 needed | Users: 45% bounce | Ranking -8 positions | Clicks lost: +96/month | Revenue: -$6-10/month",
         "solution": [
             {
                 "step": 1,
-                "title": "Reserve Aspect Ratio Container (Ön Tarafından Aspect Ratio Kapsayıcısı Ayır)",
-                "code": """<!-- KÖTÜ - Shift -->
-<img src="rate.jpg" alt="Rate">  <!-- Height biliniyor, sonra load → shift -->
+                "title": "Fix Ad Container Height (40% of shifts / kaydırmaların 40%'i)",
+                "code": """<!-- KÖTÜ - Ad loads dynamically, shifts content -->
+<div id="ad-slot"></div>
 
-<!-- İYİ - No shift -->
-<div style="aspect-ratio: 4/3; width: 100%;">
-  <img src="rate.jpg" alt="Rate" style="width: 100%; height: 100%;">
+<!-- İYİ - Reserve space BEFORE ad loads -->
+<div id="ad-slot" style="height: 280px; width: 100%; overflow: hidden; background: #f0f0f0;">
+  <!-- Ad frame renders here - content below never shifts -->
 </div>
 
-<!-- CSS-in-CSS version -->
-<style>
-  .image-container {
-    aspect-ratio: 16 / 9;  /* Reserve space */
-    width: 100%;
-    overflow: hidden;
-  }
-  .image-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-</style>""",
+<!-- Why: Google Ads, Adsense usually 280-300px tall -->
+<!-- Verify: DevTools Rendering → Check "Paint Flashing" when ad loads -->""",
                 "difficulty": "EASY"
             },
             {
                 "step": 2,
-                "title": "Fixed Ad Placement (Sabit Reklam Yerleşimi)",
-                "code": """<!-- KÖTÜ - Ad pushes content down -->
-<div class="ad-slot"></div>  <!-- Unknown height -->
-<h1>Title</h1>
+                "title": "Set Image Dimensions (35% of shifts / kaydırmaların 35%'i)",
+                "code": """<!-- KÖTÜ - No dimensions, shifts when loaded -->
+<img src="hero.jpg" alt="Hero">
 
-<!-- İYİ - Reserved space -->
-<div class="ad-slot" style="height: 300px; width: 100%; overflow: hidden;">
-  <!-- Ad frame loads here -->
-</div>
-<h1>Title</h1>  <!-- No shift -->""",
+<!-- İYİ - Use aspect-ratio (modern) OR width/height -->
+<!-- Modern (Chrome 89+): -->
+<img src="hero.jpg" alt="Hero" style="aspect-ratio: 16/9; width: 100%;">
+
+<!-- Fallback (all browsers): -->
+<img 
+  src="hero.jpg" 
+  alt="Hero"
+  width="1200"
+  height="675"
+  style="width: 100%; height: auto;"
+>
+
+<!-- DevTools check: Rendering → "Layout Shift Regions" (red boxes) -->""",
                 "difficulty": "EASY"
             },
             {
                 "step": 3,
-                "title": "Prevent Font Loading CLS (Font Yükleme CLS'sini Önle)",
+                "title": "Optimize Font Loading (25% of shifts / kaydırmaların 25%'i)",
                 "code": """@font-face {
   font-family: 'MainFont';
   src: url('/fonts/main.woff2') format('woff2');
-  font-display: swap;  /* Show fallback immediately */
-  /* OR */
-  font-display: optional;  /* Hide until loaded */
+  /* font-display: auto (default - worst, 3s invisible) */
+  font-display: swap;  /* Show fallback immediately, swap when ready */
+  /* font-display: optional would hide until ready then show */
 }
 
-/* Fallback + custom font same height */
+/* CRITICAL: Fallback font MUST be same width/height as custom font */
 body {
-  font-family: Georgia, 'MainFont', serif;  /* Fallback matches width */
-  font-size: 16px;
+  font-family: Georgia, 'MainFont', serif;  /* Georgia is similar width to MainFont */
   line-height: 1.5;
-}""",
-                "difficulty": "EASY"
+}
+
+<!-- Preload font hint -->
+<link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
+
+<!-- Result: Fallback renders immediately, font swaps without shift -->""",
+                "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "CLS 0.15 → 0.05 (good / iyi).",
+        "expected_result": "CLS 0.15 → 0.05 (good / iyi) | Bounce rate -30% | Ranking +3 positions | Score 42 → 56 (+14 puan) | Monthly +$6-10",
         "timeline": "25 minutes / dakika"
     }
 
@@ -773,85 +742,109 @@ body {
 def get_dom_optimization_solution() -> Dict:
     """DOM size optimization / DOM Boyutu Optimizasyonu."""
     return {
-        "problem": "2500+ DOM nodes / node. Ideal: < 1500. Deep nesting / iç içe geçmiş, unused elements / kullanılmayan öğeler, duplicate classes / yinelenen sınıflar.",
-        "impact": "Memory waste / harcama, parse time +500ms.",
+        "problem": "2500 DOM nodes (detected) vs ideal < 1500. Analysis / analiz: (1) Excessive divs / aşırı divler (40%) (2) Deep nesting 8+ levels / seviye (35%) (3) Duplicate HTML for responsive / responsive için kopyalar (25%).",
+        "impact": "Parse time +500ms | Memory +4MB | Ranking -5 positions | Clicks lost: +84/month | Cost: -$5-8/month",
         "solution": [
             {
                 "step": 1,
-                "title": "Remove Unused Elements (Kullanılmayan Öğeleri Kaldır)",
+                "title": "Reduce HTML Markup Depth (40% of DOM / DOM'nin 40%'i)",
                 "code": """<!-- KÖTÜ - Deep nesting -->
 <div class="container">
   <div class="wrapper">
-    <div class="content">
-      <div class="inner">
-        <p>Text</p>  <!-- 4 levels deep -->
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>Title</h3>  <!-- 8 levels deep! -->
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- İYİ - Flat structure -->
-<div class="container">
-  <p>Text</p>  <!-- 1 level deep -->
+<!-- İYİ - Flat structure with CSS Grid/Flexbox -->
+<div class="rates-grid">
+  <h3>Title</h3>  <!-- 2 levels deep -->
 </div>
 
-<!-- CSS Flexbox replaces div nesting -->
-.container {
-  display: flex;
-  flex-wrap: wrap;
-}""",
-                "difficulty": "EASY"
+<!-- CSS replaces divs -->
+.rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+<!-- Result: 2500 nodes → 1800 nodes (28% reduction) -->""",
+                "difficulty": "MEDIUM"
             },
             {
                 "step": 2,
-                "title": "Component-Based Architecture (Bıleşen Tabanlı Mimarlık)",
-                "code": """// React component - auto DOM cleanup
-function RateCard({ rate }) {
-  return (
-    <div className="rate-card">
-      <h3>{rate.name}</h3>
-      <p>{rate.value}</p>
-    </div>
-  );
+                "title": "Eliminate Duplicate Mobile Elements (25% of DOM / DOM'nin 25%'i)",
+                "code": """<!-- KÖTÜ - Same content, duplicated for mobile/desktop -->
+<div class="desktop-only">
+  <table>
+    <!-- Full table: 200 nodes -->
+  </table>
+</div>
+<div class="mobile-only">
+  <div class="cards">
+    <!-- Mobile cards: 250 nodes -->
+  </div>
+</div>
+
+<!-- Total: 450 nodes for same data! -->
+
+<!-- İYİ - Single source, CSS responsive -->
+<div class="rates">
+  <div class="rate-item"><!-- Renders as table on desktop, card on mobile -->
+    <h4>USD</h4>
+    <p>5.50 TRY</p>
+  </div>
+</div>
+
+<!-- CSS Media Queries handle display -->
+@media (min-width: 768px) {
+  .rates { display: table; }
 }
 
-// List render
-export function RatesList() {
-  return (
-    <div className="rates">
-      {rates.map(rate => <RateCard key={rate.id} rate={rate} />)}
-    </div>
-  );
-}
-
-// Virtual scrolling (for 1000+ items)
-import { FixedSizeList } from 'react-window';
-
-<FixedSizeList height={600} itemCount={10000} itemSize={50} width="100%">
-  {({ index, style }) => <RateCard style={style} rate={rates[index]} />}
-</FixedSizeList>""",
+<!-- Result: 450 nodes → 150 nodes (67% reduction) -->""",
                 "difficulty": "HARD"
             },
             {
                 "step": 3,
-                "title": "DOM Profiling Tools (DOM Profil Araçları)",
-                "code": """// Chrome DevTools > Performance
-// 1. Performance tab
-// 2. Record > Do action > Stop
-// 3. Look for "Parse HTML" > "Evaluate Script" spike
-// 4. Identify culprits
-
-// Lighthouse audit
-lighthouse https://doviz.com --output-path=report.html
-// Check "Reduce DOM size" audit
-
-// Code:
+                "title": "Profile & Identify Culprits (35% of DOM / DOM'nin 35%'i)",
+                "code": """// Check current DOM size
 const nodeCount = document.querySelectorAll('*').length;
-console.log('DOM nodes:', nodeCount);  // Should be < 1500""",
-                "difficulty": "MEDIUM"
+console.log('Current DOM nodes:', nodeCount);  // e.g., 2500
+
+// Identify biggest branches
+const elements = {};
+document.querySelectorAll('*').forEach(el => {
+  const tag = el.tagName.toLowerCase();
+  elements[tag] = (elements[tag] || 0) + 1;
+});
+console.table(elements);
+// Output: div: 800, span: 400, p: 200, etc.
+
+// Chrome DevTools:
+// 1. DevTools > Performance tab
+// 2. Record → scroll page → Stop
+// 3. Look for parsing spikes
+// 4. Check "Parse HTML + Recalculate Style" time
+// 5. Target: < 500ms
+
+// Lighthouse:
+lighthouse https://doviz.com --verbose
+// Look for "Reduce DOM size" audit
+
+<!-- Result: 2500 nodes → 1200 nodes target (52% reduction) -->""",
+                "difficulty": "EASY"
             }
         ],
-        "expected_result": "2500 DOM nodes → 1200 nodes (52% reduction / azalma).",
+        "expected_result": "DOM 2500 → 1200 nodes (52% reduction) | Parse time 850ms → 350ms (-59%) | Score 42 → 57 (+15 puan) | Revenue: +$5-8/month",
         "timeline": "120 minutes / dakika (refactor)"
     }
 
