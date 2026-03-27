@@ -59,40 +59,40 @@ def get_estimated_diagnostics(score: int) -> Dict:
         diagnostics["performance_diagnostics"] = [
             {
                 "id": "cache-lifetimes",
-                "title": "Use efficient cache lifetimes",
-                "description": "Browser cache'i optimize edilmemiş. Statik dosyalar için 30+ gün, dinamik için 1-7 gün.",
+                "title": "Use Efficient Cache Lifetimes (Verimli Cache Ömürleri Kullan)",
+                "description": "Browser cache not optimized / Cache optimize edilmemiş. Static: 30+ days, Dynamic: 1-7 days / Statik: 30+ gün, Dinamik: 1-7 gün.",
                 "estimated_savings_kib": 1400,
                 "severity": "HIGH",
                 "solution": get_cache_lifetime_solution()
             },
             {
                 "id": "lcp-request-discovery",
-                "title": "LCP Request Discovery Problem",
-                "description": "Largest Contentful Paint'i block eden request'ler var (font, CSS, ana görsel).",
+                "title": "LCP Request Discovery (LCP İstek Keşfi)",
+                "description": "Blocking requests for LCP / LCP'yi block eden request'ler: font, CSS, hero image / font, CSS, ana görsel.",
                 "estimated_savings_ms": 500,
                 "severity": "CRITICAL",
                 "solution": get_lcp_solution()
             },
             {
                 "id": "network-dependency-tree",
-                "title": "Network Dependency Tree",
-                "description": "Request chain'i optimize edilmemiş. Serial yerine parallel request yapılabilir.",
+                "title": "Network Dependency Tree (Ağ Bağımlılık Ağacı)",
+                "description": "Request chain not optimized / Request chain optimize edilmemiş. Parallel instead of sequential / Sequential yerine parallel yapılabilir.",
                 "estimated_savings_ms": 800,
                 "severity": "HIGH",
                 "solution": get_network_dependency_solution()
             },
             {
                 "id": "preconnect-warnings",
-                "title": "Preconnect Overdrive",
-                "description": "4+ preconnect connection kaydedildi. Sadece top 3 origin'e limit et.",
+                "title": "Preconnect Overdrive (Preconnect Aşırı Kullanım)",
+                "description": "4+ preconnect connections detected / 4+ preconnect connection kaydedildi. Limit to top 3 origins / Sadece top 3 origin'e limit et.",
                 "estimated_savings_ms": 200,
                 "severity": "MEDIUM",
                 "solution": get_preconnect_solution()
             },
             {
                 "id": "document-request-latency",
-                "title": "Document Request Latency",
-                "description": "HTML dokuman fetchi yavaş. Server response time > 600ms.",
+                "title": "Document Request Latency (Dokuman İstek Gecikmesi)",
+                "description": "Slow HTML document fetch / HTML dokuman fetchi yavaş. Server response time > 600ms / Server response time > 600ms.",
                 "estimated_savings_kib": 131,
                 "estimated_savings_ms": 350,
                 "severity": "HIGH",
@@ -100,32 +100,32 @@ def get_estimated_diagnostics(score: int) -> Dict:
             },
             {
                 "id": "improve-image-delivery",
-                "title": "Improve Image Delivery",
-                "description": "Resimler optimize edilmemiş. WebP, responsive sizing, lazy load eksik.",
+                "title": "Improve Image Delivery (Görsel Teslimini İyileştir)",
+                "description": "Images not optimized / Resimler optimize edilmemiş. Missing WebP, responsive sizing, lazy loading / WebP, responsive sizing, lazy load eksik.",
                 "estimated_savings_kib": 180,
                 "severity": "HIGH",
                 "solution": get_image_delivery_solution()
             },
             {
                 "id": "legacy-javascript",
-                "title": "Legacy JavaScript (No ES2015+)",
-                "description": "Eski JavaScript syntax kullanılıyor. Polyfill + ES5 transpile yükü.",
+                "title": "Legacy JavaScript (ES5 JavaScript / Eski JavaScript)",
+                "description": "Old JavaScript syntax detected / Eski JavaScript syntax kullanılıyor. Polyfill + ES5 transpile overhead / Polyfill + ES5 transpile yükü.",
                 "estimated_savings_kib": 27,
                 "severity": "MEDIUM",
                 "solution": get_legacy_js_solution()
             },
             {
                 "id": "layout-shift-culprits",
-                "title": "Layout Shift Culprits",
-                "description": "CLS'ye sebep olan öğeler: ads, embeds, dinamik content box'lar.",
+                "title": "Layout Shift Culprits (Layout Shift Nedenleri)",
+                "description": "Causing CLS issues / CLS'ye sebep olan öğeler: ads, embeds, dynamic content boxes / reklam, embed'ler, dinamik content box'lar.",
                 "cls_impact": 0.15,
                 "severity": "HIGH",
                 "solution": get_layout_shift_solution()
             },
             {
                 "id": "optimize-dom-size",
-                "title": "Optimize DOM Size",
-                "description": "DOM node sayısı > 1800. Unused elements, deep nesting, redundant divs.",
+                "title": "Optimize DOM Size (DOM Boyutunu Optimize Et)",
+                "description": "DOM nodes > 1800 / DOM node sayısı > 1800. Unused elements, deep nesting, redundant divs / Kullanılmayan öğeler, deep nesting, redundant div'ler.",
                 "estimated_nodes": 2500,
                 "ideal_nodes": 1500,
                 "severity": "MEDIUM",
@@ -186,14 +186,14 @@ def get_estimated_diagnostics(score: int) -> Dict:
 
 
 def get_cache_lifetime_solution() -> Dict:
-    """Cache lifetime optimization."""
+    """Cache lifetime optimization / Cache ömrü optimizasyonu."""
     return {
-        "problem": "Browser cache'i optimal ayarlanmamış. Statik dosyalar her ziyarette yeniden indirilir.",
-        "impact": "1,400 KiB kayıp (her 30 günde 46 KiB/gün = ~1.4 MB/ay repeat visitor'larda)",
+        "problem": "Browser cache not optimal / Cache optimal ayarlanmamış. Static files re-downloaded on every visit / Her ziyarette yeniden indirilir.",
+        "impact": "1,400 KiB loss / kayıp (46 KiB/day over 30 days = ~1.4 MB/month on repeat visitors / repeat visitor'larda).",
         "solution": [
             {
                 "step": 1,
-                "title": "Nginx/Apache cache headers ekle",
+                "title": "Add Nginx/Apache Cache Headers (Nginx/Apache Cache Header'ları Ekle)",
                 "code": """# nginx.conf
 location ~* \\.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg)$ {
   expires 30d;           # Statik: 30 gün
@@ -214,7 +214,7 @@ location /api/ {
             },
             {
                 "step": 2,
-                "title": "Vercel/Firebase hosting cache",
+                "title": "Vercel/Firebase Hosting Cache (Vercel/Firebase Hosting Cache Ayarları)",
                 "code": """// vercel.json
 {
   "headers": [
@@ -242,7 +242,7 @@ location /api/ {
             },
             {
                 "step": 3,
-                "title": "CDN cache settings (Cloudflare)",
+                "title": "CDN Cache Settings - Cloudflare (CDN Cache Ayarları - Cloudflare)",
                 "code": """// Cache Rule
 Pattern: *.doviz.com/static/*
 Cache Level: Cache Everything
@@ -255,20 +255,20 @@ Cache Level: Bypass
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "Repeat visitor'larda 1,400 KiB tasarruf (cache hit = instant load)",
-        "timeline": "15 dakika"
+        "expected_result": "Repeat visitor optimization / Repeat visitor'larda 1,400 KiB savings (cache hit = instant load / instant yükleme).",
+        "timeline": "15 minutes / dakika"
     }
 
 
 def get_lcp_solution() -> Dict:
-    """LCP (Largest Contentful Paint) optimization."""
+    """LCP (Largest Contentful Paint) optimization / LCP Öptimizasyonu."""
     return {
-        "problem": "LCP element (genelde ust resim/bas baslik) 4.7 saniyede yukleniyor. Hedef: < 2.5s",
-        "impact": "500ms-1000ms hiz kaybı = Ranking -5 pozisyon, CTR -15%",
+        "problem": "LCP element loads too slow / LCP elementi (ust görsel) 4.7 saniyede yükleniyor. Target: < 2.5s / Hedef.",
+        "impact": "500ms-1000ms speed loss / hiz kaybı = Ranking -5 positions / pozisyon, CTR -15%",
         "solution": [
             {
                 "step": 1,
-                "title": "Hero image'i preload et",
+                "title": "Preload Hero Image (Hero Image'i Preload Et)",
                 "code": """<head>
   <!-- Identify LCP element -->
   <link rel="preload" as="image" href="/images/hero-banner.webp"
@@ -286,7 +286,7 @@ def get_lcp_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Critical CSS inline yap",
+                "title": "Inline Critical CSS (Kritik CSS'yi Satır İçine Al)",
                 "code": """<head>
   <style>
     /* Critical CSS (ilk 3KB) */
@@ -308,7 +308,7 @@ def get_lcp_solution() -> Dict:
             },
             {
                 "step": 3,
-                "title": "Font loading optimize",
+                "title": "Optimize Font Loading (Font Yüklenmesini Optimize Et)",
                 "code": """<head>
   <!-- Font preload + font-display: swap -->
   <link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
@@ -325,7 +325,7 @@ def get_lcp_solution() -> Dict:
             },
             {
                 "step": 4,
-                "title": "Backend response time optimize",
+                "title": "Optimize Backend Response Time (Backend Tepki Süresini Optimize Et)",
                 "code": """// 1. Cache database queries
 const redis = require('redis');
 const client = redis.createClient();
@@ -347,20 +347,20 @@ app.get('/', (req, res) => {
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "LCP 4.7s → 2.0s (57% improvement)",
-        "timeline": "30 dakika"
+        "expected_result": "LCP 4.7s → 2.0s (57% improvement / %57 iyileşme)",
+        "timeline": "30 minutes / dakika"
     }
 
 
 def get_network_dependency_solution() -> Dict:
-    """Network dependency tree optimization."""
+    """Network dependency tree optimization / Ağ bağımlılık ağacı optimizasyonu."""
     return {
-        "problem": "Request'ler serial (sıra ile) yapılıyor. CSS → Font → JS → resim (serial chain)",
-        "impact": "800ms-1200ms waste (request waterfall)",
+        "problem": "Requests are serial / Request'ler serial (sıra ile) yapılıyor. CSS → Font → JS → image (serial chain).",
+        "impact": "800ms-1200ms waste / harcama (request waterfall).",
         "solution": [
             {
                 "step": 1,
-                "title": "DNS Preconnect'i optimize et",
+                "title": "Optimize DNS Preconnect (DNS Preconnect'i Optimize Et)",
                 "code": """<head>
   <!-- Sadece TOP 3 origin'e preconnect -->
   <link rel="preconnect" href="https://cdn.example.com">
@@ -374,7 +374,7 @@ def get_network_dependency_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Parallel request chain yap",
+                "title": "Create Parallel Request Chain (Parallel İstek Chain'i Oluştur)",
                 "code": """<!-- KÖTÜ - Serial -->
 <head>
   <link rel="stylesheet" href="/css/main.css">
@@ -405,7 +405,7 @@ def get_network_dependency_solution() -> Dict:
             },
             {
                 "step": 3,
-                "title": "HTTP/2 Server Push (opsiyonel)",
+                "title": "HTTP/2 Server Push (Optional / Opsiyonel)",
                 "code": """// nginx.conf
 http2_push_preload on;
 
@@ -416,20 +416,20 @@ location / {
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "Network waterfall 1200ms → 400ms (66% reduction)",
-        "timeline": "20 dakika"
+        "expected_result": "Network waterfall 1200ms → 400ms (66% reduction / azalma).",
+        "timeline": "20 minutes / dakika"
     }
 
 
 def get_preconnect_solution() -> Dict:
-    """Preconnect warning fix."""
+    """Preconnect warning fix / Preconnect uyarısı düzeltişi."""
     return {
-        "problem": "4+ preconnect ayarlanmış. Tarayıcı connection limit = 3-4. Fazlası waste.",
-        "impact": "CPU/memory waste, connection timeout riski",
+        "problem": "4+ preconnect configured / 4+ preconnect ayarlanmış. Browser connection limit = 3-4. Excess = waste / fazlası = harcama.",
+        "impact": "CPU/memory waste, connection timeout risk / riski.",
         "solution": [
             {
                 "step": 1,
-                "title": "Preconnect'i 3'e limit et",
+                "title": "Limit Preconnect to 3 Origins (Preconnect'i 3 Origin'e Limit Et)",
                 "code": """<!-- TOP 3 origin ONLY -->
 <link rel="preconnect" href="https://cdn.example.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -442,7 +442,7 @@ def get_preconnect_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Critical resource prioritize et",
+                "title": "Prioritize Critical Resources (Kritik Kaynakları Öncelendir)",
                 "code": """<!-- Identify TOP 3 by usage -->
 1. CDN (images, JS, CSS) → PRECONNECT
 2. Google Fonts → PRECONNECT
@@ -455,20 +455,20 @@ def get_preconnect_solution() -> Dict:
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "Browser connection pool optimized, 200ms faster",
-        "timeline": "5 dakika"
+        "expected_result": "Browser connection pool optimized / optimize edildi, 200ms faster / daha hızlı.",
+        "timeline": "5 minutes / dakika"
     }
 
 
 def get_document_latency_solution() -> Dict:
-    """Document request latency fix."""
+    """Document request latency fix / Dokuman İstek Gecikmesi düzeltişi."""
     return {
-        "problem": "HTML dokuman fetchi yavaş: TTFB > 600ms. Dinamik render + slow DB sorgusu.",
-        "impact": "131 KiB transfer delay + 350ms server response",
+        "problem": "HTML document fetch too slow / yavaş: TTFB > 600ms. Dynamic render + slow DB query / yavaş DB sorgusu.",
+        "impact": "131 KiB transfer delay + 350ms server response / tepki.",
         "solution": [
             {
                 "step": 1,
-                "title": "Backend response time optimize",
+                "title": "Optimize Backend Response Time (Backend Tepki Süresini Optimize Et)",
                 "code": """// 1. Add caching layer
 import redis from 'redis';
 const cache = redis.createClient();
@@ -507,7 +507,7 @@ async function handleRequest(request) {
             },
             {
                 "step": 2,
-                "title": "Database query optimize",
+                "title": "Optimize Database Query (Veritabanı Sorgusunu Optimize Et)",
                 "code": """// SLOW (600ms+)
 SELECT * FROM rates;  // No index, full table scan
 
@@ -525,7 +525,7 @@ CREATE INDEX idx_rates_currency ON rates(currency);""",
             },
             {
                 "step": 3,
-                "title": "Compression enable",
+                "title": "Enable Compression (Sıkıştırmayı Etkinleştir)",
                 "code": """# nginx.conf
 gzip on;
 gzip_vary on;
@@ -539,20 +539,20 @@ brotli_types text/plain text/css text/xml text/javascript;""",
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "TTFB 600ms → 100ms (83% improvement)",
-        "timeline": "60 dakika"
+        "expected_result": "TTFB 600ms → 100ms (83% improvement / %83 iyileşme).",
+        "timeline": "60 minutes / dakika"
     }
 
 
 def get_image_delivery_solution() -> Dict:
-    """Image optimization."""
+    """Image optimization / Görsel optimizasyonu."""
     return {
-        "problem": "Resimler optimize edilmemiş: WebP yok, responsive sizing yok, lazy load yok.",
-        "impact": "180 KiB kayıp (her sayfa 300+ KiB images unnecessary)",
+        "problem": "Images not optimized / Resimler optimize edilmemiş: WebP yok, responsive sizing yok, lazy load yok.",
+        "impact": "180 KiB loss / kayıp (per page 300+ KiB images unnecessary / sayfada 300+ KiB reklam gereksız).",
         "solution": [
             {
                 "step": 1,
-                "title": "WebP + Responsive format kullan",
+                "title": "Use WebP + Responsive Formats (WebP + Responsive Format Kullan)",
                 "code": """<!-- Before -->
 <img src="usd-rate.jpg" alt="USD" width="200" height="200">
 
@@ -580,7 +580,7 @@ def get_image_delivery_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Lazy loading enable",
+                "title": "Enable Lazy Loading (Lazy Loading'i Etkinleştir)",
                 "code": """<!-- Native lazy loading -->
 <img src="rate.jpg" alt="Rate" loading="lazy" width="400" height="300">
 
@@ -606,7 +606,7 @@ if ('IntersectionObserver' in window) {
             },
             {
                 "step": 3,
-                "title": "Image compression pipeline",
+                "title": "Image Compression Pipeline (Görsel Sıkıştırma Hattı)",
                 "code": """# Build-time image optimization
 # npm install -D @squoosh/lib imagemin imagemin-webp
 
@@ -626,20 +626,20 @@ await imagemin(['images/**/*.jpg'], {
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "Image payload 300+ KiB → 80-120 KiB (60-70% reduction)",
-        "timeline": "45 dakika"
+        "expected_result": "Image payload 300+ KiB → 80-120 KiB (60-70% reduction / azalma).",
+        "timeline": "45 minutes / dakika"
     }
 
 
 def get_legacy_js_solution() -> Dict:
-    """Legacy JavaScript fix."""
+    """Legacy JavaScript fix / Eski JavaScript Düzeltmeşi."""
     return {
-        "problem": "ES5 JavaScript + polyfill'lar = 27 KiB extra. Modern tarayıcılar ES2015+ doktor need.",
-        "impact": "27 KiB unnecessary payload",
+        "problem": "ES5 JavaScript + polyfills = 27 KiB extra / fazla. Modern browsers / Tarayıcılar ES2015+ don't need / gerek kılmaz.",
+        "impact": "27 KiB unnecessary payload / gereksız yük.",
         "solution": [
             {
                 "step": 1,
-                "title": "Module/nomodule pattern kullan",
+                "title": "Use Module/NoModule Pattern (Module/NoModule Deseni Kullan)",
                 "code": """<!-- Modern browsers (70%) -->
 <script type="module" src="/js/app.mjs"></script>
 
@@ -667,7 +667,7 @@ def get_legacy_js_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Polyfill'leri conditional load et",
+                "title": "Conditional Polyfill Loading (Koşullu Polyfill Yükleme)",
                 "code": """// Only load polyfills if needed
 const polyfills = [];
 
@@ -681,7 +681,7 @@ if (polyfills.length) {
             },
             {
                 "step": 3,
-                "title": "Modern syntax kullan",
+                "title": "Use Modern JavaScript Syntax (Modern JavaScript Syntax Kullan)",
                 "code": """// KÖTÜ (legacy)
 var users = [];
 function foo() { return 1; }
@@ -694,20 +694,20 @@ users.forEach(u => console.log(u));""",
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "27 KiB polyfill overlay eliminated",
-        "timeline": "90 dakika (production refactor)"
+        "expected_result": "27 KiB polyfill overhead eliminated / çıkarıldı.",
+        "timeline": "90 minutes / dakika (production refactor)"
     }
 
 
 def get_layout_shift_solution() -> Dict:
-    """CLS (Cumulative Layout Shift) fix."""
+    """CLS (Cumulative Layout Shift) fix / CLS Düzeltmeşi."""
     return {
-        "problem": "Layout shift'e sebep olan unsurlar: reklam bosluk, dinamik content, fontlar.",
-        "impact": "CLS > 0.1 (kritik), user experience bozulur",
+        "problem": "Elements causing layout shift / Layout shift'e sebep olan öğeler: ad gaps, dynamic content, fonts / reklam boşluğu, dinamik content, fontlar.",
+        "impact": "CLS > 0.1 (critical), poor user experience / kullanıcı deneyimi bozulur.",
         "solution": [
             {
                 "step": 1,
-                "title": "Aspect ratio container'ı reserve et",
+                "title": "Reserve Aspect Ratio Container (Ön Tarafından Aspect Ratio Kapsayıcısı Ayır)",
                 "code": """<!-- KÖTÜ - Shift -->
 <img src="rate.jpg" alt="Rate">  <!-- Height biliniyor, sonra load → shift -->
 
@@ -733,7 +733,7 @@ def get_layout_shift_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Ad placement fixed yap",
+                "title": "Fixed Ad Placement (Sabit Reklam Yerleşimi)",
                 "code": """<!-- KÖTÜ - Ad pushes content down -->
 <div class="ad-slot"></div>  <!-- Unknown height -->
 <h1>Title</h1>
@@ -747,7 +747,7 @@ def get_layout_shift_solution() -> Dict:
             },
             {
                 "step": 3,
-                "title": "Font loading CLS prevent",
+                "title": "Prevent Font Loading CLS (Font Yükleme CLS'sini Önle)",
                 "code": """@font-face {
   font-family: 'MainFont';
   src: url('/fonts/main.woff2') format('woff2');
@@ -765,20 +765,20 @@ body {
                 "difficulty": "EASY"
             }
         ],
-        "expected_result": "CLS 0.15 → 0.05 (good)",
-        "timeline": "25 dakika"
+        "expected_result": "CLS 0.15 → 0.05 (good / iyi).",
+        "timeline": "25 minutes / dakika"
     }
 
 
 def get_dom_optimization_solution() -> Dict:
-    """DOM size optimization."""
+    """DOM size optimization / DOM Boyutu Optimizasyonu."""
     return {
-        "problem": "2500+ DOM nodes. Ideal: < 1500. Deep nesting, unused elements, duplicate classes.",
-        "impact": "Memory waste, parse time +500ms",
+        "problem": "2500+ DOM nodes / node. Ideal: < 1500. Deep nesting / iç içe geçmiş, unused elements / kullanılmayan öğeler, duplicate classes / yinelenen sınıflar.",
+        "impact": "Memory waste / harcama, parse time +500ms.",
         "solution": [
             {
                 "step": 1,
-                "title": "Unused elements remove",
+                "title": "Remove Unused Elements (Kullanılmayan Öğeleri Kaldır)",
                 "code": """<!-- KÖTÜ - Deep nesting -->
 <div class="container">
   <div class="wrapper">
@@ -804,7 +804,7 @@ def get_dom_optimization_solution() -> Dict:
             },
             {
                 "step": 2,
-                "title": "Component-based architecture",
+                "title": "Component-Based Architecture (Bıleşen Tabanlı Mimarlık)",
                 "code": """// React component - auto DOM cleanup
 function RateCard({ rate }) {
   return (
@@ -834,7 +834,7 @@ import { FixedSizeList } from 'react-window';
             },
             {
                 "step": 3,
-                "title": "DOM profiling tools",
+                "title": "DOM Profiling Tools (DOM Profil Araçları)",
                 "code": """// Chrome DevTools > Performance
 // 1. Performance tab
 // 2. Record > Do action > Stop
@@ -851,18 +851,18 @@ console.log('DOM nodes:', nodeCount);  // Should be < 1500""",
                 "difficulty": "MEDIUM"
             }
         ],
-        "expected_result": "2500 DOM nodes → 1200 nodes (52% reduction)",
-        "timeline": "120 dakika (refactor)"
+        "expected_result": "2500 DOM nodes → 1200 nodes (52% reduction / azalma).",
+        "timeline": "120 minutes / dakika (refactor)"
     }
 
 
 def get_tier_recommendations(score: int) -> List[Dict]:
-    """TIER recommendations based on score."""
+    """TIER recommendations based on score / Skora göre TIER önerileri."""
     return [
         {
             "tier": "TIER 1",
-            "duration": "30 dakika",
-            "score_gain": "+15 puan",
+            "duration": "30 minutes / dakika",
+            "score_gain": "+15 points / puan",
             "items": [
                 "Cache lifetime headers (nginx/CF)",
                 "Preconnect limit (3 origin)",
@@ -872,8 +872,8 @@ def get_tier_recommendations(score: int) -> List[Dict]:
         },
         {
             "tier": "TIER 2",
-            "duration": "60 dakika",
-            "score_gain": "+20 puan",
+            "duration": "60 minutes / dakika",
+            "score_gain": "+20 points / puan",
             "items": [
                 "Image optimization (WebP, lazy load)",
                 "Critical CSS inline",
@@ -883,8 +883,8 @@ def get_tier_recommendations(score: int) -> List[Dict]:
         },
         {
             "tier": "TIER 3",
-            "duration": "120 dakika",
-            "score_gain": "+25 puan",
+            "duration": "120 minutes / dakika",
+            "score_gain": "+25 points / puan",
             "items": [
                 "Code splitting (Webpack)",
                 "Modern JS only (module/nomodule)",
