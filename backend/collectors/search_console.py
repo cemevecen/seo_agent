@@ -255,13 +255,25 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
     """Site detay ekranı için en iyi sorgu satırlarını döndürür."""
     credential = get_search_console_credentials_record(db, site.id)
     payload = _load_search_console_data(site, credential)
-    rows = payload.get("rows", [])[:limit]
+    rows = payload.get("rows", [])
+    previous_day = payload.get("previous_day", [])
+    
+    # Device-specific previous map: (query, device) -> position
     previous_map = {
-        row.get("keys", [""])[0]: float(row.get("position", 0)) for row in payload.get("previous_day", [])
+        (row.get("keys", [""])[0], row.get("device", "ALL")): float(row.get("position", 0))
+        for row in previous_day
     }
-    return [
-        {
-            "query": row.get("keys", [""])[0],
+    
+    result = []
+    for row in rows:
+        query = row.get("keys", [""])[0]
+        device = row.get("device", "ALL")
+        current_position = float(row.get("position", 0))
+        previous_position = previous_map.get((query, device), current_position)
+        delta = current_position - previous_position
+        
+        result.append({
+            "query": query,
             "clicks": float(row.get("clicks", 0)),
             "impressions": float(row.get("impressions", 0)),
             "ctr": float(row.get("ctr", 0)) * 100.0 if "ctr" in row else (
@@ -269,10 +281,10 @@ def get_top_queries(db: Session, site: Site, limit: int = 10) -> list[dict]:
                 if float(row.get("impressions", 0)) > 0
                 else 0.0
             ),
-            "position": float(row.get("position", 0)),
-            "previous_position": previous_map.get(row.get("keys", [""])[0]),
-            "delta": float(row.get("position", 0)) - previous_map.get(row.get("keys", [""])[0], float(row.get("position", 0))),
-            "device": row.get("device", "ALL"),
-        }
-        for row in rows
-    ]
+            "position": current_position,
+            "previous_position": previous_position,
+            "delta": delta,
+            "device": device,
+        })
+    
+    return result

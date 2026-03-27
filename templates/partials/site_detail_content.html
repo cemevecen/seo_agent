@@ -1025,52 +1025,56 @@
       const limit = parseInt(limitSelector.value);
       const selectedDevice = deviceSelector ? deviceSelector.value : 'all';
       
-      const rows = table.querySelectorAll('tbody tr[data-query]');
+      const allRows = Array.from(table.querySelectorAll('tbody tr[data-query]'));
       
-      let totalClicks = 0;
-      let totalImpressions = 0;
-      let totalCtr = 0;
-      let maxDelta = 0;
-      let visibleRows = [];
-      let rowCount = 0;
-
-      rows.forEach(function (row) {
-        // Filter by device first
+      // Filter rows by device
+      let filteredRows = allRows.filter(row => {
         const rowDevice = row.dataset.device || 'ALL';
-        const deviceMatch = selectedDevice === 'all' || rowDevice === selectedDevice;
-        
-        if (deviceMatch && rowCount < limit) {
+        if (selectedDevice === 'all') {
+          return true;
+        }
+        return rowDevice === selectedDevice;
+      });
+      
+      // Apply limit
+      let visibleRows = filteredRows.slice(0, limit);
+      
+      // Update row display
+      allRows.forEach(row => {
+        if (visibleRows.includes(row)) {
           row.style.display = '';
-          visibleRows.push(row);
-          rowCount++;
-          
-          const clicks = parseFloat(row.dataset.clicks) || 0;
-          const impressions = parseFloat(row.dataset.impressions) || 0;
-          const ctr = parseFloat(row.dataset.ctr) || 0;
-          const delta = parseFloat(row.dataset.delta) || 0;
-          
-          totalClicks += clicks;
-          totalImpressions += impressions;
-          totalCtr += ctr;
-          maxDelta = Math.max(maxDelta, delta);
         } else {
           row.style.display = 'none';
         }
       });
+      
+      // Calculate summary metrics from visible rows
+      let totalClicks = 0;
+      let totalImpressions = 0;
+      let totalCtr = 0;
+      let maxDelta = 0;
+      let totalPosition = 0;
 
-      // Hesapla ve güncelle
+      visibleRows.forEach(row => {
+        const clicks = parseFloat(row.dataset.clicks) || 0;
+        const impressions = parseFloat(row.dataset.impressions) || 0;
+        const ctr = parseFloat(row.dataset.ctr) || 0;
+        const delta = parseFloat(row.dataset.delta) || 0;
+        const position = parseFloat(row.dataset.position) || 0;
+        
+        totalClicks += clicks;
+        totalImpressions += impressions;
+        totalCtr += ctr;
+        totalPosition += position;
+        maxDelta = Math.max(maxDelta, delta);
+      });
+
+      // Update summary cards
       const avgClicks = Math.round(totalClicks);
       const avgImpressions = Math.round(totalImpressions);
       const avgCtr = visibleRows.length > 0 ? (totalCtr / visibleRows.length) : 0;
-      
-      // Ortalama position (average of all visible positions)
-      let totalPosition = 0;
-      visibleRows.forEach(row => {
-        totalPosition += parseFloat(row.dataset.position) || 0;
-      });
       const avgPosition = visibleRows.length > 0 ? (totalPosition / visibleRows.length) : 0;
 
-      // Özet kartlarını güncelle
       const clicksEl = document.getElementById('summary-clicks');
       const impressionsEl = document.getElementById('summary-impressions');
       const ctrEl = document.getElementById('summary-ctr');
