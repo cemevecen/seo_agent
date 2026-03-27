@@ -1,5 +1,6 @@
 """FastAPI uygulama giriş noktası."""
 
+from datetime import datetime
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -67,6 +68,12 @@ def _latest_value_from_history(history: dict[str, list[dict]], metric_type: str,
     if not items:
         return fallback
     return float(items[-1]["value"])
+
+
+def _format_metric_timestamp(metric) -> str:
+    if metric is None:
+        return "Henuz veri yok"
+    return metric.collected_at.strftime("%d.%m.%Y %H:%M")
 
 
 def _extract_client_ip(request: Request) -> str:
@@ -274,6 +281,11 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             {"label": "Canonical Tag", "ok": bool((latest.get("crawler_canonical_found").value if latest.get("crawler_canonical_found") else 0.0) >= 1)},
         ]
         recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
+        pagespeed_status_alerts = [
+            alert["message"]
+            for alert in recent_site_alerts
+            if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
+        ]
 
         return {
             "site_name": site.display_name,
@@ -290,6 +302,11 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             "desktop_lcp": float((latest.get("pagespeed_desktop_lcp").value if latest.get("pagespeed_desktop_lcp") else 0.0)),
             "desktop_cls": float((latest.get("pagespeed_desktop_cls").value if latest.get("pagespeed_desktop_cls") else 0.0)),
             "desktop_inp": float((latest.get("pagespeed_desktop_inp").value if latest.get("pagespeed_desktop_inp") else 0.0)),
+            "pagespeed_status": {
+                "mobile_updated_at": _format_metric_timestamp(latest.get("pagespeed_mobile_score")),
+                "desktop_updated_at": _format_metric_timestamp(latest.get("pagespeed_desktop_score")),
+                "messages": pagespeed_status_alerts,
+            },
             "crawler_checks": crawler_checks,
             "site_alerts": recent_site_alerts,
             "top_queries": top_queries,

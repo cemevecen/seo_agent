@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     quota_warning_ratio: float = 0.8
     pagespeed_daily_limit: int = 80
     pagespeed_monthly_limit: int = 1500
+    pagespeed_request_timeout: int = 75
+    pagespeed_max_retries: int = 2
+    pagespeed_retry_backoff_seconds: float = 2.0
     search_console_daily_limit: int = 80
     search_console_monthly_limit: int = 1500
 
