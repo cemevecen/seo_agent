@@ -1,4 +1,13 @@
 <div class="space-y-6">
+  <div class="flex items-center gap-3">
+    <label for="detail-period-filter" class="text-sm font-medium text-slate-700">Zaman Aralığı</label>
+    <select id="detail-period-filter" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+      <option value="daily" {% if period == 'daily' %}selected{% endif %}>Günlük</option>
+      <option value="weekly" {% if period == 'weekly' %}selected{% endif %}>Haftalık</option>
+      <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Aylık</option>
+    </select>
+  </div>
+
   <div class="grid gap-4 lg:grid-cols-2">
     <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between">
@@ -34,7 +43,7 @@
       <div class="flex items-center justify-between">
         <div>
           <p class="text-sm text-slate-500">PageSpeed Trend</p>
-          <h3 class="text-lg font-semibold text-slate-900">Son 7 Gün</h3>
+          <h3 class="text-lg font-semibold text-slate-900">Seçili Aralık Trendi</h3>
         </div>
       </div>
       <div id="pagespeed-trend-chart" class="mt-4 h-[320px]" data-trend='{{ trend_data|tojson }}'></div>
@@ -155,6 +164,16 @@
 </div>
 
 <script>
+  (function () {
+    const periodFilter = document.getElementById('detail-period-filter');
+    if (periodFilter) {
+      periodFilter.addEventListener('change', function () {
+        const next = '/site/{{ domain }}?period=' + encodeURIComponent(periodFilter.value);
+        window.location.href = next;
+      });
+    }
+  })();
+
   (function () {
     const chartElement = document.getElementById('pagespeed-trend-chart');
     if (!chartElement || typeof Plotly === 'undefined') {

@@ -35,6 +35,39 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+PERIOD_DAYS_MAP = {
+    "daily": 1,
+    "weekly": 7,
+    "monthly": 30,
+}
+
+
+def _resolve_period(raw_period: str | None) -> tuple[str, int]:
+    normalized = (raw_period or "monthly").strip().lower()
+    aliases = {
+        "day": "daily",
+        "week": "weekly",
+        "month": "monthly",
+        "daily": "daily",
+        "weekly": "weekly",
+        "monthly": "monthly",
+    }
+    period = aliases.get(normalized, "monthly")
+    return period, PERIOD_DAYS_MAP[period]
+
+
+def _format_trend_label(timestamp: str, period: str) -> str:
+    if period == "daily":
+        return timestamp[11:16]
+    return timestamp[5:10]
+
+
+def _latest_value_from_history(history: dict[str, list[dict]], metric_type: str, fallback: float = 0.0) -> float:
+    items = history.get(metric_type, [])
+    if not items:
+        return fallback
+    return float(items[-1]["value"])
+
 
 def _extract_client_ip(request: Request) -> str:
     # Proxy arkasında çalışırken gerçek istemci IP'sini alır.
@@ -146,7 +179,7 @@ def _dashboard_cards() -> list[dict]:
         return cards
 
 
-def _dashboard_comparison_data() -> dict:
+def _dashboard_comparison_data(period_days: int) -> dict:
     # Dashboard karşılaştırma grafikleri için çoklu site verisi üretir.
     with SessionLocal() as db:
         sites = db.query(Site).order_by(Site.created_at.asc()).all()
@@ -159,21 +192,21 @@ def _dashboard_comparison_data() -> dict:
         search_ctr: list[float] = []
         search_position: list[float] = []
         for site in sites:
-            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            history = get_metric_history(db, site.id, days=period_days)
             labels.append(site.domain)
-            mobile_scores.append(float((latest.get("pagespeed_mobile_score").value if latest.get("pagespeed_mobile_score") else 0.0)))
-            desktop_scores.append(float((latest.get("pagespeed_desktop_score").value if latest.get("pagespeed_desktop_score") else 0.0)))
+            mobile_scores.append(_latest_value_from_history(history, "pagespeed_mobile_score", 0.0))
+            desktop_scores.append(_latest_value_from_history(history, "pagespeed_desktop_score", 0.0))
             crawler_values = [
-                float((latest.get("crawler_robots_accessible").value if latest.get("crawler_robots_accessible") else 0.0)),
-                float((latest.get("crawler_sitemap_exists").value if latest.get("crawler_sitemap_exists") else 0.0)),
-                float((latest.get("crawler_schema_found").value if latest.get("crawler_schema_found") else 0.0)),
-                float((latest.get("crawler_canonical_found").value if latest.get("crawler_canonical_found") else 0.0)),
+                _latest_value_from_history(history, "crawler_robots_accessible", 0.0),
+                _latest_value_from_history(history, "crawler_sitemap_exists", 0.0),
+                _latest_value_from_history(history, "crawler_schema_found", 0.0),
+                _latest_value_from_history(history, "crawler_canonical_found", 0.0),
             ]
             crawler_health.append(round(sum(crawler_values) / 4 * 100, 2))
-            search_clicks.append(float((latest.get("search_console_clicks_28d").value if latest.get("search_console_clicks_28d") else 0.0)))
-            search_impressions.append(float((latest.get("search_console_impressions_28d").value if latest.get("search_console_impressions_28d") else 0.0)))
-            search_ctr.append(float((latest.get("search_console_avg_ctr_28d").value if latest.get("search_console_avg_ctr_28d") else 0.0)))
-            search_position.append(float((latest.get("search_console_avg_position_28d").value if latest.get("search_console_avg_position_28d") else 0.0)))
+            search_clicks.append(_latest_value_from_history(history, "search_console_clicks_28d", 0.0))
+            search_impressions.append(_latest_value_from_history(history, "search_console_impressions_28d", 0.0))
+            search_ctr.append(_latest_value_from_history(history, "search_console_avg_ctr_28d", 0.0))
+            search_position.append(_latest_value_from_history(history, "search_console_avg_position_28d", 0.0))
         return {
             "labels": labels,
             "mobile_scores": mobile_scores,
@@ -186,25 +219,25 @@ def _dashboard_comparison_data() -> dict:
         }
 
 
-def _dashboard_trend_data() -> dict:
+def _dashboard_trend_data(period: str, period_days: int) -> dict:
     # Çoklu site trend grafiği için son 7 mobile PageSpeed noktasını döndürür.
     with SessionLocal() as db:
         sites = db.query(Site).order_by(Site.domain.asc()).all()
         series: list[dict] = []
         for site in sites:
-            history = get_metric_history(db, site.id)
-            mobile_history = history.get("pagespeed_mobile_score", [])[-7:]
+            history = get_metric_history(db, site.id, days=period_days)
+            mobile_history = history.get("pagespeed_mobile_score", [])
             series.append(
                 {
                     "name": site.domain,
-                    "x": [item["collected_at"][5:10] for item in mobile_history],
+                    "x": [_format_trend_label(item["collected_at"], period) for item in mobile_history],
                     "y": [item["value"] for item in mobile_history],
                 }
             )
         return {"series": series}
 
 
-def _site_detail_context(domain: str) -> dict:
+def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
     # Site detay görünümü için gerekli tüm veriyi hazırlar.
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -212,19 +245,27 @@ def _site_detail_context(domain: str) -> dict:
             raise ValueError("Site bulunamadı.")
 
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-        history = get_metric_history(db, site.id)
+        history = get_metric_history(db, site.id, days=period_days)
         top_queries = get_top_queries(db, site, limit=10)
 
-        mobile_score = float((latest.get("pagespeed_mobile_score").value if latest.get("pagespeed_mobile_score") else 0.0))
-        desktop_score = float((latest.get("pagespeed_desktop_score").value if latest.get("pagespeed_desktop_score") else 0.0))
-        trend_labels = [item["collected_at"][5:10] for item in history.get("pagespeed_mobile_score", [])][-7:]
-        mobile_trend = [item["value"] for item in history.get("pagespeed_mobile_score", [])][-7:]
-        desktop_trend = [item["value"] for item in history.get("pagespeed_desktop_score", [])][-7:]
-        search_clicks_history = history.get("search_console_clicks_28d", [])[-7:]
-        search_impressions_history = history.get("search_console_impressions_28d", [])[-7:]
-        search_ctr_history = history.get("search_console_avg_ctr_28d", [])[-7:]
-        search_position_history = history.get("search_console_avg_position_28d", [])[-7:]
-        search_trend_labels = [item["collected_at"][5:16] for item in search_clicks_history]
+        mobile_score = _latest_value_from_history(
+            history,
+            "pagespeed_mobile_score",
+            float((latest.get("pagespeed_mobile_score").value if latest.get("pagespeed_mobile_score") else 0.0)),
+        )
+        desktop_score = _latest_value_from_history(
+            history,
+            "pagespeed_desktop_score",
+            float((latest.get("pagespeed_desktop_score").value if latest.get("pagespeed_desktop_score") else 0.0)),
+        )
+        trend_labels = [_format_trend_label(item["collected_at"], period) for item in history.get("pagespeed_mobile_score", [])]
+        mobile_trend = [item["value"] for item in history.get("pagespeed_mobile_score", [])]
+        desktop_trend = [item["value"] for item in history.get("pagespeed_desktop_score", [])]
+        search_clicks_history = history.get("search_console_clicks_28d", [])
+        search_impressions_history = history.get("search_console_impressions_28d", [])
+        search_ctr_history = history.get("search_console_avg_ctr_28d", [])
+        search_position_history = history.get("search_console_avg_position_28d", [])
+        search_trend_labels = [_format_trend_label(item["collected_at"], period) for item in search_clicks_history]
 
         crawler_checks = [
             {"label": "robots.txt", "ok": bool((latest.get("crawler_robots_accessible").value if latest.get("crawler_robots_accessible") else 0.0) >= 1)},
@@ -238,6 +279,7 @@ def _site_detail_context(domain: str) -> dict:
             "site_name": site.display_name,
             "sites": get_sidebar_sites(),
             "domain": site.domain,
+            "period": period,
             "mobile_score": mobile_score,
             "mobile_color": _score_color(mobile_score),
             "mobile_lcp": float((latest.get("pagespeed_mobile_lcp").value if latest.get("pagespeed_mobile_lcp") else 0.0)),
@@ -252,12 +294,36 @@ def _site_detail_context(domain: str) -> dict:
             "site_alerts": recent_site_alerts,
             "top_queries": top_queries,
             "search_summary": {
-                "clicks": float((latest.get("search_console_clicks_28d").value if latest.get("search_console_clicks_28d") else 0.0)),
-                "impressions": float((latest.get("search_console_impressions_28d").value if latest.get("search_console_impressions_28d") else 0.0)),
-                "avg_ctr": float((latest.get("search_console_avg_ctr_28d").value if latest.get("search_console_avg_ctr_28d") else 0.0)),
-                "avg_position": float((latest.get("search_console_avg_position_28d").value if latest.get("search_console_avg_position_28d") else 0.0)),
-                "dropped_queries": float((latest.get("search_console_dropped_queries").value if latest.get("search_console_dropped_queries") else 0.0)),
-                "biggest_drop": float((latest.get("search_console_biggest_drop").value if latest.get("search_console_biggest_drop") else 0.0)),
+                "clicks": _latest_value_from_history(
+                    history,
+                    "search_console_clicks_28d",
+                    float((latest.get("search_console_clicks_28d").value if latest.get("search_console_clicks_28d") else 0.0)),
+                ),
+                "impressions": _latest_value_from_history(
+                    history,
+                    "search_console_impressions_28d",
+                    float((latest.get("search_console_impressions_28d").value if latest.get("search_console_impressions_28d") else 0.0)),
+                ),
+                "avg_ctr": _latest_value_from_history(
+                    history,
+                    "search_console_avg_ctr_28d",
+                    float((latest.get("search_console_avg_ctr_28d").value if latest.get("search_console_avg_ctr_28d") else 0.0)),
+                ),
+                "avg_position": _latest_value_from_history(
+                    history,
+                    "search_console_avg_position_28d",
+                    float((latest.get("search_console_avg_position_28d").value if latest.get("search_console_avg_position_28d") else 0.0)),
+                ),
+                "dropped_queries": _latest_value_from_history(
+                    history,
+                    "search_console_dropped_queries",
+                    float((latest.get("search_console_dropped_queries").value if latest.get("search_console_dropped_queries") else 0.0)),
+                ),
+                "biggest_drop": _latest_value_from_history(
+                    history,
+                    "search_console_biggest_drop",
+                    float((latest.get("search_console_biggest_drop").value if latest.get("search_console_biggest_drop") else 0.0)),
+                ),
             },
             "trend_data": {
                 "labels": trend_labels,
@@ -277,12 +343,14 @@ def _site_detail_context(domain: str) -> dict:
 @app.get("/")
 def dashboard(request: Request):
     # Jinja2 template'i başlangıç ekranını render eder.
+    period, period_days = _resolve_period(request.query_params.get("period"))
     payload = {
         "site_name": "SEO Agent Dashboard",
         "sites": get_sidebar_sites(),
+        "period": period,
         "site_cards": _dashboard_cards(),
-        "comparison_data": _dashboard_comparison_data(),
-        "trend_data": _dashboard_trend_data(),
+        "comparison_data": _dashboard_comparison_data(period_days),
+        "trend_data": _dashboard_trend_data(period, period_days),
     }
     with SessionLocal() as db:
         payload["recent_alerts"] = get_recent_alerts(db, limit=6)
@@ -292,8 +360,9 @@ def dashboard(request: Request):
 @app.get("/site/{domain}", response_class=HTMLResponse)
 def site_detail(request: Request, domain: str):
     # Site detay ekranını HTMX ve tam sayfa modunda sunar.
+    period, period_days = _resolve_period(request.query_params.get("period"))
     try:
-        payload = _site_detail_context(domain)
+        payload = _site_detail_context(domain, period, period_days)
     except ValueError:
         return HTMLResponse("Site bulunamadı.", status_code=404)
 

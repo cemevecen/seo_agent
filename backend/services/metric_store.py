@@ -1,7 +1,7 @@
 """Metric kayıtlarını tutarlı biçimde yazmak ve okumak için yardımcı fonksiyonlar."""
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -42,9 +42,13 @@ def get_latest_metrics(db: Session, site_id: int) -> list[Metric]:
     return sorted(latest_by_type.values(), key=lambda item: item.metric_type)
 
 
-def get_metric_history(db: Session, site_id: int) -> dict[str, list[dict]]:
+def get_metric_history(db: Session, site_id: int, days: int | None = None) -> dict[str, list[dict]]:
     """Trend grafikleri için tüm metrikleri tür bazında gruplayarak döndürür."""
-    rows = db.query(Metric).filter(Metric.site_id == site_id).order_by(Metric.collected_at.asc(), Metric.id.asc()).all()
+    query = db.query(Metric).filter(Metric.site_id == site_id)
+    if days is not None and days > 0:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(Metric.collected_at >= cutoff)
+    rows = query.order_by(Metric.collected_at.asc(), Metric.id.asc()).all()
     grouped: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
         grouped[row.metric_type].append(

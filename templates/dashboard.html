@@ -12,6 +12,15 @@
     </p>
   </div>
 
+  <div class="flex items-center gap-3">
+    <label for="period-filter" class="text-sm font-medium text-slate-700">Zaman Aralığı</label>
+    <select id="period-filter" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+      <option value="daily" {% if period == 'daily' %}selected{% endif %}>Günlük</option>
+      <option value="weekly" {% if period == 'weekly' %}selected{% endif %}>Haftalık</option>
+      <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Aylık</option>
+    </select>
+  </div>
+
   <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
     <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between">
@@ -75,9 +84,9 @@
   <div class="grid gap-5 xl:grid-cols-2">
     {% for card in site_cards %}
       <a
-        href="/site/{{ card.domain }}"
+        href="/site/{{ card.domain }}?period={{ period }}"
         class="group rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg"
-        hx-get="/site/{{ card.domain }}"
+        hx-get="/site/{{ card.domain }}?period={{ period }}"
         hx-target="#content"
         hx-swap="innerHTML"
         hx-push-url="true"
@@ -117,6 +126,17 @@
 </div>
 
 <script>
+  (function () {
+    const periodFilter = document.getElementById('period-filter');
+    if (periodFilter) {
+      periodFilter.addEventListener('change', function () {
+        const params = new URLSearchParams(window.location.search);
+        params.set('period', periodFilter.value);
+        window.location.href = '/?' + params.toString();
+      });
+    }
+  })();
+
   (function () {
     const element = document.getElementById('comparison-chart');
     if (!element || typeof Plotly === 'undefined') {
