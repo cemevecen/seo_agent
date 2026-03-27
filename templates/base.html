@@ -13,11 +13,11 @@
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900">
   <div id="app-shell" class="flex min-h-screen">
-    <aside id="sidebar" class="w-72 shrink-0 bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
+    <aside id="sidebar" class="w-72 shrink-0 overflow-hidden bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
       <h1 id="sidebar-title" class="text-xl font-bold">SEO Agent</h1>
       <p id="sidebar-subtitle" class="text-sm text-slate-300 mt-1">İzlenen Siteler</p>
 
-      <nav class="mt-6 space-y-2">
+      <nav id="sidebar-nav" class="mt-6 space-y-2">
         {% if sites %}
           {% for site in sites %}
             <a
@@ -77,6 +77,7 @@
       const sidebar = document.getElementById('sidebar');
       const title = document.getElementById('sidebar-title');
       const subtitle = document.getElementById('sidebar-subtitle');
+      const nav = document.getElementById('sidebar-nav');
       const toggle = document.getElementById('sidebar-toggle');
       const icon = document.getElementById('sidebar-toggle-icon');
       const linkItems = document.querySelectorAll('.sidebar-link');
@@ -86,11 +87,13 @@
 
       function setCollapsed(collapsed) {
         sidebar.classList.toggle('w-72', !collapsed);
-        sidebar.classList.toggle('w-20', collapsed);
+        sidebar.classList.toggle('w-0', collapsed);
         sidebar.classList.toggle('px-5', !collapsed);
-        sidebar.classList.toggle('px-3', collapsed);
+        sidebar.classList.toggle('px-0', collapsed);
         sidebar.classList.toggle('py-5', !collapsed);
-        sidebar.classList.toggle('py-4', collapsed);
+        sidebar.classList.toggle('py-0', collapsed);
+        sidebar.classList.toggle('border-r', !collapsed);
+        sidebar.classList.toggle('border-slate-800', !collapsed);
 
         if (title) {
           title.classList.toggle('hidden', collapsed);
@@ -98,15 +101,12 @@
         if (subtitle) {
           subtitle.classList.toggle('hidden', collapsed);
         }
+        if (nav) {
+          nav.classList.toggle('hidden', collapsed);
+        }
         linkItems.forEach(function (item) {
-          item.classList.toggle('text-center', collapsed);
-          item.classList.toggle('px-2', collapsed);
-          item.classList.toggle('px-3', !collapsed);
-          if (collapsed) {
-            item.setAttribute('title', item.textContent.trim());
-          } else {
-            item.removeAttribute('title');
-          }
+          item.classList.toggle('px-3', true);
+          item.removeAttribute('title');
         });
 
         icon.classList.toggle('rotate-180', collapsed);
@@ -119,7 +119,7 @@
       setCollapsed(stored);
 
       toggle.addEventListener('click', function () {
-        const collapsed = sidebar.classList.contains('w-20');
+        const collapsed = sidebar.classList.contains('w-0');
         setCollapsed(!collapsed);
       });
     })();
