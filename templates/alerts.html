@@ -10,15 +10,89 @@
   <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
     <div class="space-y-3">
       {% for alert in recent_alerts %}
-        <div class="rounded-2xl border border-slate-200 p-4">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-slate-900">{{ alert.domain }}</p>
+        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}">
+          <!-- Alert Header (Clickable) -->
+          <div class="flex items-center justify-between gap-4 cursor-pointer alert-header hover:bg-slate-50 p-2 -m-2 rounded transition-colors">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
+                <span class="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 font-medium">Kritik</span>
+              </div>
               <p class="mt-1 text-sm text-slate-600">{{ alert.message }}</p>
             </div>
-            <div class="text-right text-xs text-slate-500">
-              <p>{{ alert.triggered_at }}</p>
-              <p>{% if alert.sent_mail %}Mail gönderildi{% else %}Mail bekliyor{% endif %}</p>
+            <div class="text-right">
+              <p class="text-xs text-slate-500">{{ alert.triggered_at }}</p>
+              <p class="text-xs mt-1 {% if alert.sent_mail %}text-green-600{% else %}text-amber-600{% endif %}">
+                {% if alert.sent_mail %}✓ Mail gönderildi{% else %}⧗ Mail bekliyor{% endif %}
+              </p>
+              <button class="mt-2 px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors toggle-details">
+                Detay
+              </button>
+            </div>
+          </div>
+
+          <!-- Alert Details (Collapsible) -->
+          <div class="alert-details hidden mt-4 pt-4 border-t border-slate-200 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Turkish Description -->
+              <div class="space-y-2">
+                <p class="text-xs uppercase font-bold text-slate-600">Ne Anlama Geliyor?</p>
+                <p id="what-means-{{ alert.id }}" class="text-sm text-slate-700 leading-relaxed">Detaylar yükleniyor...</p>
+              </div>
+
+              <!-- English Description -->
+              <div class="space-y-2">
+                <p class="text-xs uppercase font-bold text-slate-600">What Does This Mean?</p>
+                <p id="what-means-en-{{ alert.id }}" class="text-sm text-slate-700 leading-relaxed">Loading details...</p>
+              </div>
+            </div>
+
+            <!-- Detailed Description -->
+            <div class="space-y-2 bg-blue-50 p-3 rounded-lg">
+              <p class="text-xs uppercase font-bold text-blue-900">📋 Detaylı Açıklama</p>
+              <p id="description-{{ alert.id }}" class="text-sm text-blue-800 leading-relaxed">Yükleniyor...</p>
+            </div>
+
+            <!-- English Detailed Description -->
+            <div class="space-y-2 bg-blue-50 p-3 rounded-lg">
+              <p class="text-xs uppercase font-bold text-blue-900">📋 Detailed Description</p>
+              <p id="description-en-{{ alert.id }}" class="text-sm text-blue-800 leading-relaxed">Loading...</p>
+            </div>
+
+            <!-- Metrics Section -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg">
+              <div class="space-y-1">
+                <p class="text-xs text-slate-600 font-semibold">Mevcut Değer</p>
+                <p id="metric-current-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-600 font-semibold">Eşik Değeri</p>
+                <p id="metric-threshold-{{ alert.id }}" class="text-lg font-bold text-red-600">-</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-600 font-semibold">Min/Max</p>
+                <p id="metric-minmax-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-slate-600 font-semibold">Ortalama</p>
+                <p id="metric-avg-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
+              </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="space-y-2 bg-green-50 p-3 rounded-lg">
+              <p class="text-xs uppercase font-bold text-green-900">💡 Çözüm Önerileri</p>
+              <div id="recommendations-{{ alert.id }}" class="text-sm text-green-800 leading-relaxed space-y-2">
+                <p>Yükleniyor...</p>
+              </div>
+            </div>
+
+            <!-- Trend History -->
+            <div class="space-y-2">
+              <p class="text-xs uppercase font-bold text-slate-600">📊 Tetikleme Geçmişi</p>
+              <div id="trend-{{ alert.id }}" class="space-y-2 max-h-48 overflow-y-auto">
+                <p class="text-sm text-slate-600">Yükleniyor...</p>
+              </div>
             </div>
           </div>
         </div>
@@ -30,4 +104,85 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Alert kartlarını expand/collapse yap
+  document.querySelectorAll('.alert-header, .toggle-details').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const card = this.closest('.alert-card');
+      const details = card.querySelector('.alert-details');
+      const alertId = card.dataset.alertId;
+      
+      if (details.classList.contains('hidden')) {
+        // Aç ve detayları yükle
+        details.classList.remove('hidden');
+        loadAlertDetails(alertId, card);
+      } else {
+        // Kapat
+        details.classList.add('hidden');
+      }
+    });
+  });
+});
+
+async function loadAlertDetails(alertId, card) {
+  try {
+    const response = await fetch(`/api/alert-details/${alertId}`);
+    if (!response.ok) throw new Error('Failed to load alert details');
+    
+    const data = await response.json();
+    const rule = data.rule;
+    const metrics = data.metrics;
+    const trend = data.trend;
+
+    // Ne anlama geliyor (Türkçe)
+    document.getElementById(`what-means-${alertId}`).textContent = rule.description_short;
+    
+    // What does this mean (İngilizce)
+    document.getElementById(`what-means-en-${alertId}`).textContent = rule.description_short_en;
+    
+    // Detaylı açıklama
+    document.getElementById(`description-${alertId}`).textContent = rule.description_detailed_tr;
+    document.getElementById(`description-en-${alertId}`).textContent = rule.description_detailed_en;
+    
+    // Metrikler
+    document.getElementById(`metric-current-${alertId}`).textContent = 
+      metrics.current_value !== null ? metrics.current_value.toFixed(2) : 'N/A';
+    document.getElementById(`metric-threshold-${alertId}`).textContent = 
+      metrics.threshold_value.toFixed(2);
+    document.getElementById(`metric-minmax-${alertId}`).textContent = 
+      metrics.min_value !== null && metrics.max_value !== null 
+        ? `${metrics.min_value.toFixed(2)} - ${metrics.max_value.toFixed(2)}`
+        : 'N/A';
+    document.getElementById(`metric-avg-${alertId}`).textContent = 
+      metrics.avg_value !== null ? metrics.avg_value.toFixed(2) : 'N/A';
+    
+    // Öneriler
+    const recsHtml = rule.recommendations
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => `<p>${line}</p>`)
+      .join('');
+    document.getElementById(`recommendations-${alertId}`).innerHTML = recsHtml;
+    
+    // Trend
+    const trendHtml = trend
+      .map(log => `
+        <div class="text-xs p-2 bg-slate-100 rounded">
+          <p class="font-semibold">${log.triggered_at}</p>
+          <p class="text-slate-700 mt-1">${log.message}</p>
+          <p class="text-slate-500 mt-1">${log.sent_mail ? '✓ Mail' : '⧗ Bekliyor'}</p>
+        </div>
+      `)
+      .join('');
+    document.getElementById(`trend-${alertId}`).innerHTML = trendHtml || '<p class="text-sm text-slate-600">Trend verisi bulunamadı</p>';
+    
+  } catch (error) {
+    console.error('Error loading alert details:', error);
+    document.getElementById(`what-means-${alertId}`).textContent = 'Hata: Detaylar yüklenemedi';
+  }
+}
+</script>
 {% endblock %}
