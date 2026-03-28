@@ -31,9 +31,32 @@ print(f"\n✓ Total deleted: {total_deleted} old alert logs\n")
 
 # Regenerate fresh alerts with current data
 sites = db.query(Site).all()
+print(f"Found {len(sites)} active sites to process\n")
+
 for site in sites:
-    print(f"Regenerating alerts for {site.domain}...")
-    new_logs = evaluate_site_alerts(db, site)
-    print(f"  ✓ Generated {len(new_logs)} fresh alerts\n")
+    print(f"Processing: {site.domain} (Site ID: {site.id})...")
+    
+    # Check if site has Search Console alerts
+    site_alerts = db.query(Alert).filter(
+        Alert.site_id == site.id,
+        Alert.alert_type.in_(["search_console_dropped_queries", "search_console_biggest_drop"])
+    ).all()
+    print(f"  - Has {len(site_alerts)} Search Console alerts")
+    
+    # Try to get metrics for this site
+    from backend.services.metric_store import get_latest_metrics
+    metrics = get_latest_metrics(db, site.id)
+    print(f"  - Has {len(metrics)} latest metrics")
+    for m in metrics:
+        print(f"    - {m.metric_type}: {m.value}")
+    
+    try:
+        new_logs = evaluate_site_alerts(db, site)
+        print(f"  ✓ Generated {len(new_logs)} fresh alerts")
+    except Exception as e:
+        print(f"  ✗ ERROR: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    print()
 
 print("Done! UI now shows current query-specific data.")

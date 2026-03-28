@@ -203,6 +203,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                         
                         log = AlertLog(
                             alert_id=alert.id,
+                            domain=site.domain,
                             triggered_at=now,
                             message=message,
                             sent_mail=False,
@@ -223,6 +224,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                 if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
                     log = AlertLog(
                         alert_id=alert.id,
+                        domain=site.domain,
                         triggered_at=now,
                         message=message,
                         sent_mail=False,
@@ -243,6 +245,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
 
             log = AlertLog(
                 alert_id=alert.id,
+                domain=site.domain,
                 triggered_at=now,
                 message=message,
                 sent_mail=False,
@@ -280,9 +283,8 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
 def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
     rows = (
-        db.query(AlertLog, Alert, Site)
+        db.query(AlertLog, Alert)
         .join(Alert, AlertLog.alert_id == Alert.id)
-        .join(Site, Alert.site_id == Site.id)
         .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
         .limit(limit)
         .all()
@@ -290,14 +292,14 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     return [
         {
             "id": log.id,
-            "site_id": site.id,
-            "domain": site.domain,
+            "alert_id": alert.id,
+            "domain": log.domain,
             "alert_type": alert.alert_type,
             "message": log.message,
             "triggered_at": log.triggered_at.strftime("%d.%m.%Y %H:%M"),
             "sent_mail": log.sent_mail,
         }
-        for log, alert, site in rows
+        for log, alert in rows
     ]
 
 
@@ -346,6 +348,7 @@ def emit_custom_alert(
 
     log = AlertLog(
         alert_id=alert.id,
+        domain=site.domain,
         triggered_at=now,
         message=message,
         sent_mail=False,
