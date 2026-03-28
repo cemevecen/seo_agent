@@ -462,7 +462,7 @@ def dashboard(request: Request):
     }
     with SessionLocal() as db:
         payload["recent_alerts"] = get_recent_alerts(db, limit=6)
-    return templates.TemplateResponse("dashboard.html", context={"request": request, **payload})
+    return templates.TemplateResponse("dashboard.html", {"request": request, **payload})
 
 
 @app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
@@ -495,8 +495,8 @@ def site_detail(request: Request, domain: str):
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
     if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse("partials/site_detail_content.html", context={"request": request, **payload})
-    return templates.TemplateResponse("site_detail.html", context={"request": request, **payload})
+        return templates.TemplateResponse("partials/site_detail_content.html", {"request": request, **payload})
+    return templates.TemplateResponse("site_detail.html", {"request": request, **payload})
 
 
 @app.get("/api/site/{domain}/top-queries")
@@ -543,7 +543,7 @@ def alerts_page(request: Request):
             "sites": get_sidebar_sites(),
             "recent_alerts": get_recent_alerts(db, limit=30),
         }
-    return templates.TemplateResponse("alerts.html", context={"request": request, **payload})
+    return templates.TemplateResponse("alerts.html", {"request": request, **payload})
 
 
 @app.get("/settings")
@@ -558,7 +558,7 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         }
-    return templates.TemplateResponse("settings.html", context={"request": request, **payload})
+    return templates.TemplateResponse("settings.html", {"request": request, **payload})
 
 
 @app.get("/settings/site-list")
@@ -577,7 +577,7 @@ def settings_alert_thresholds(request: Request):
     # HTMX ile alert threshold tablosunu yeniler.
     with SessionLocal() as db:
         alert_rules = get_alert_rules(db)
-    return templates.TemplateResponse("partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
+    return templates.TemplateResponse("partials/alert_thresholds.html", {"request": request, "alert_rules": alert_rules})
 
 
 @app.get("/api/search-console/oauth/start/{site_id}")
