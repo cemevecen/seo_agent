@@ -44,6 +44,7 @@ from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
+    get_latest_search_console_rows,
     get_latest_url_inspection_snapshot,
     get_site_warehouse_summary,
 )
@@ -595,17 +596,18 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
     clicks_metric = latest.get("search_console_clicks_28d")
     has_metric = clicks_metric is not None
     is_stale = _metric_is_stale(latest, "search_console_clicks_28d") if has_metric else True
+    has_rows = bool(get_latest_search_console_rows(db, site_id=site_id, data_scope="current_28d"))
 
     if connection.get("connected") and has_metric and not is_stale:
         state = "live"
         label = "Live"
         badge_class = "border-emerald-200 bg-emerald-50 text-emerald-700"
         description = "Search Console canli veri"
-    elif connection.get("connected") and has_metric:
+    elif connection.get("connected") and (has_metric or has_rows):
         state = "stale"
         label = "Stale"
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
-        description = "Son basarili Search Console olcumu"
+        description = "Son basarili Search Console snapshot'i"
     else:
         state = "failed"
         label = "Failed"
@@ -619,6 +621,7 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
         "description": description,
         "updated_at": _format_metric_timestamp(clicks_metric),
         "connection_label": connection.get("label", "Baglanti yok"),
+        "has_rows": has_rows,
     }
 
 
@@ -941,8 +944,11 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
         search_console_status = _search_console_status(db, latest, site.id)
 
-        if search_console_status["state"] == "live":
-            top_queries = get_top_queries(db, site, limit=50, device="all")
+        top_queries = get_top_queries(db, site, limit=50, device="all") if search_console_status["state"] != "failed" or search_console_status.get("has_rows") else []
+        has_search_console_queries = bool(top_queries)
+        has_search_console_trend = bool(search_trend_labels)
+
+        if search_console_status["state"] != "failed" or has_search_console_queries or has_search_console_trend:
             search_summary = {
                 "clicks": _latest_value_from_history(
                     history,
@@ -982,6 +988,8 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
                 "avg_ctr": [item["value"] for item in search_ctr_history],
                 "avg_position": [item["value"] for item in search_position_history],
             }
+            has_search_console_queries = bool(top_queries)
+            has_search_console_trend = bool(search_trend_labels)
         else:
             top_queries = []
             search_summary = {
@@ -999,6 +1007,8 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
                 "avg_ctr": [],
                 "avg_position": [],
             }
+            has_search_console_queries = False
+            has_search_console_trend = False
 
         return {
             "site_name": site.display_name,
@@ -1065,6 +1075,8 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             "top_queries": top_queries,
             "search_console_status": search_console_status,
             "search_summary": search_summary,
+            "search_console_has_queries": has_search_console_queries,
+            "search_console_has_trend": has_search_console_trend,
             "trend_data": {
                 "labels": trend_labels,
                 "mobile": mobile_trend,
@@ -1150,7 +1162,9 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
 
             latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
             search_console_status = _search_console_status(db, latest, site.id)
-            if search_console_status["state"] != "live":
+            queries = get_top_queries(db, site, limit=limit, device=device)
+
+            if not queries and search_console_status["state"] == "failed":
                 return JSONResponse(
                     {
                         "queries": [],
@@ -1165,8 +1179,6 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
                     }
                 )
 
-            queries = get_top_queries(db, site, limit=limit, device=device)
-            
             # Calculate summary from returned queries
             total_clicks = sum(float(q.get("clicks", 0)) for q in queries)
             total_impressions = sum(float(q.get("impressions", 0)) for q in queries)

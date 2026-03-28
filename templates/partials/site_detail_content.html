@@ -737,7 +737,7 @@
 
     <div class="mt-5 rounded-2xl border border-slate-200 p-4">
       <p class="text-sm font-semibold text-slate-900">Search Console Trend (28d snapshots)</p>
-      {% if search_console_status.state == 'live' %}
+      {% if search_console_has_trend %}
       <div id="search-trend-chart" class="mt-3 h-[320px]" data-trend='{{ search_trend_data|tojson }}'></div>
       {% else %}
       <div class="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
@@ -752,13 +752,13 @@
         type="text"
         placeholder="Query filtrele..."
         class="w-full max-w-md rounded-xl border border-slate-300 px-4 py-2 text-sm outline-none ring-slate-200 focus:ring"
-        {% if search_console_status.state != 'live' %}disabled{% endif %}
+        {% if not search_console_has_queries %}disabled{% endif %}
       />
       <span class="text-xs text-slate-500">
-        {% if search_console_status.state == 'live' %}
-        Top 50 sorgu canli filtrelenir ve siralanir
+        {% if search_console_has_queries %}
+        Top 10 / 30 / 50 sorgu snapshot'tan filtrelenir ve siralanir
         {% else %}
-        Sorgu tablosu yalnizca canli Search Console verisi geldiginde gosterilir
+        Search Console query snapshot'i henuz bulunmuyor
         {% endif %}
       </span>
     </div>
@@ -1107,32 +1107,31 @@
         // Clear and rebuild table
         tbody.innerHTML = '';
         
+        if (!queries.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Query verisi bulunamadı.</td></tr>';
+        }
+
         queries.forEach((query, index) => {
           const row = document.createElement('tr');
-          row.className = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-          
-          const ctrDelta = query.ctr_delta || 0;
-          const ctrDeltaClass = ctrDelta >= 0 ? 'text-emerald-600' : 'text-red-600';
-          const ctrDeltaSymbol = ctrDelta >= 0 ? '+' : '';
-          
-          const positionDelta = query.position_delta || 0;
-          const positionDeltaClass = positionDelta <= 0 ? 'text-emerald-600' : 'text-red-600';
-          const positionDeltaSymbol = positionDelta > 0 ? '+' : '';
+          const delta = query.delta || 0;
+          row.className = 'border-b border-slate-100';
+          row.dataset.query = (query.query || '').toLowerCase();
+          row.dataset.clicks = Math.round(query.clicks || 0);
+          row.dataset.impressions = Math.round(query.impressions || 0);
+          row.dataset.ctr = query.ctr || 0;
+          row.dataset.position = query.position || 0;
+          row.dataset.delta = delta;
+          row.dataset.device = ((query.device || 'DESKTOP') + '').toUpperCase().trim();
           
           row.innerHTML = `
-            <td class="px-6 py-4 text-sm font-medium text-slate-900 max-w-xs truncate">${query.query || ''}</td>
-            <td class="px-6 py-4 text-sm text-slate-600 text-right">${Math.round(query.clicks || 0)}</td>
-            <td class="px-6 py-4 text-sm text-slate-600 text-right">${Math.round(query.impressions || 0)}</td>
-            <td class="px-6 py-4 text-sm text-slate-600 text-right">${(query.ctr || 0).toFixed(2)}%</td>
-            <td class="px-6 py-4 text-sm text-slate-600 text-right">${(query.position || 0).toFixed(1)}</td>
-            <td class="px-6 py-4 text-sm text-right">
-              <span class="${ctrDeltaClass}">
-                ${ctrDeltaSymbol}${(query.ctr_delta || 0).toFixed(2)}%
-              </span>
-            </td>
-            <td class="px-6 py-4 text-sm text-right">
-              <span class="${positionDeltaClass}">
-                ${positionDeltaSymbol}${(query.position_delta || 0).toFixed(1)}
+            <td class="px-3 py-2 font-medium text-slate-900">${query.query || ''}</td>
+            <td class="px-3 py-2 text-slate-700">${Math.round(query.clicks || 0)}</td>
+            <td class="px-3 py-2 text-slate-700">${Math.round(query.impressions || 0)}</td>
+            <td class="px-3 py-2 text-slate-700">${(query.ctr || 0).toFixed(2)}%</td>
+            <td class="px-3 py-2 text-slate-700">${(query.position || 0).toFixed(1)}</td>
+            <td class="px-3 py-2">
+              <span class="rounded-full px-2 py-1 text-xs font-semibold ${delta > 0.5 ? 'bg-rose-100 text-rose-700' : delta < -0.5 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}">
+                ${(delta >= 0 ? '+' : '') + delta.toFixed(1)}
               </span>
             </td>
           `;
