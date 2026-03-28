@@ -831,6 +831,18 @@
       return String(exact).startsWith('-') ? exact : `+${exact}`;
     }
 
+    const headerTitle = document.getElementById('header-site-title');
+    if (headerTitle) {
+      headerTitle.textContent = '{{ site_name|default("SEO Agent Dashboard")|e }}';
+    }
+
+    const explorerLink = document.getElementById('header-data-explorer-link');
+    if (explorerLink) {
+      explorerLink.setAttribute('href', '/data-explorer/{{ domain }}');
+    }
+
+    document.title = '{{ site_name|default("SEO Agent Dashboard")|e }}';
+
     if (!window.__seoDetailDelegatesBound) {
       window.__seoDetailDelegatesBound = true;
 

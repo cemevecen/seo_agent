@@ -55,12 +55,12 @@
                 <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
-            <h2 class="text-lg font-semibold">{{ site_name or "SEO Agent Dashboard" }}</h2>
+            <h2 id="header-site-title" class="text-lg font-semibold">{{ site_name or "SEO Agent Dashboard" }}</h2>
           </div>
           <div class="flex items-center gap-3 text-sm">
             <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
             {% if domain %}
-            <a href="/data-explorer/{{ domain }}" class="text-slate-600 hover:text-slate-900">Data Explorer</a>
+            <a id="header-data-explorer-link" href="/data-explorer/{{ domain }}" class="text-slate-600 hover:text-slate-900">Data Explorer</a>
             {% endif %}
             <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
             <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
