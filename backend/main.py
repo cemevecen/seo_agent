@@ -542,7 +542,7 @@ def alerts_page(request: Request):
         payload = {
             "site_name": "Uyarılar",
             "sites": get_sidebar_sites(),
-            "recent_alerts": get_recent_alerts(db, limit=30),
+            "recent_alerts": get_recent_alerts(db, limit=100),
         }
     return templates.TemplateResponse(request, "alerts.html", context={"request": request, **payload})
 
