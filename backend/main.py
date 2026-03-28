@@ -32,7 +32,6 @@ from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
     STRATEGY_METRIC_MAP,
     collect_pagespeed_metrics,
-    fetch_live_lighthouse_category_scores,
     get_latest_pagespeed_audit_snapshot,
 )
 from backend.collectors.search_console import get_top_queries
@@ -1062,19 +1061,8 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         latest_mobile_category_scores = _latest_pagespeed_category_scores(db, site.id, "mobile")
         latest_desktop_category_scores = _latest_pagespeed_category_scores(db, site.id, "desktop")
 
-        live_mobile_category_scores = {}
-        live_desktop_category_scores = {}
-        try:
-            live_mobile_category_scores = fetch_live_lighthouse_category_scores(site, "mobile")
-        except Exception:
-            live_mobile_category_scores = {}
-        try:
-            live_desktop_category_scores = fetch_live_lighthouse_category_scores(site, "desktop")
-        except Exception:
-            live_desktop_category_scores = {}
-
-        category_mobile_scores = live_mobile_category_scores or latest_mobile_category_scores
-        category_desktop_scores = live_desktop_category_scores or latest_desktop_category_scores
+        category_mobile_scores = latest_mobile_category_scores
+        category_desktop_scores = latest_desktop_category_scores
 
         mobile_lighthouse_performance = round(category_mobile_scores.get("performance", 0.0)) or round(mobile_score) or round(_analysis_category_score(mobile_lighthouse_analysis, "performance"))
         mobile_lighthouse_accessibility = round(category_mobile_scores.get("accessibility", 0.0)) or round(_metric_value(latest, "pagespeed_mobile_accessibility_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "accessibility"))
@@ -1250,7 +1238,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
                 "desktop": desktop_trend,
             },
             "search_trend_data": search_trend_data,
-            "should_background_refresh": settings.live_refresh_enabled and _site_detail_should_refresh(latest),
+            "should_background_refresh": False,
         }
 
 
