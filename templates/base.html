@@ -125,6 +125,38 @@
         const collapsed = sidebar.classList.contains('w-0');
         setCollapsed(!collapsed);
       });
+
+      function syncHeaderFromContent() {
+        const content = document.getElementById('content');
+        if (!content) {
+          return;
+        }
+        const siteRoot = content.querySelector('[data-site-domain]');
+        if (!siteRoot) {
+          return;
+        }
+
+        const siteDomain = siteRoot.getAttribute('data-site-domain');
+        const siteTitle = siteRoot.getAttribute('data-site-title') || 'SEO Agent Dashboard';
+        const headerTitle = document.getElementById('header-site-title');
+        const explorerLink = document.getElementById('header-data-explorer-link');
+
+        if (headerTitle) {
+          headerTitle.textContent = siteTitle;
+        }
+        if (explorerLink && siteDomain) {
+          explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);
+        }
+        document.title = siteTitle;
+      }
+
+      document.body.addEventListener('htmx:afterSwap', function (event) {
+        if (event.target && event.target.id === 'content') {
+          syncHeaderFromContent();
+        }
+      });
+
+      syncHeaderFromContent();
     })();
   </script>
 </body>

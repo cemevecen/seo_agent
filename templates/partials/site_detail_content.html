@@ -143,7 +143,7 @@
 {% endif %}
 {% endmacro %}
 
-<div class="space-y-6">
+<div class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('SEO Agent Dashboard')|e }}">
   <div class="flex items-center gap-3">
     <label for="detail-period-filter" class="text-sm font-medium text-slate-700">Zaman Aralığı</label>
     <select id="detail-period-filter" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
