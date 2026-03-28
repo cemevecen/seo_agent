@@ -129,20 +129,25 @@ def _is_triggered(metric_value: float, threshold: float, comparator: str) -> boo
     return metric_value > threshold
 
 
-def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition, query_name: str = None) -> str:
+def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition, query_name: str = None, query_data: dict = None) -> str:
     # Alarm log mesajını okunur halde üretir.
     
-    # Search Console uyarıları için query detayları ekle
-    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and query_name:
+    # Search Console uyarıları için query detayları ekle - her sorgu için kendi verilerini kullan
+    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and query_name and query_data:
         if alert.alert_type == "search_console_biggest_drop":
+            delta = query_data.get("delta", 0)
+            position = query_data.get("position", 0)
+            previous_position = query_data.get("previous_position", 0)
             return (
                 f"{site.domain} için Search Console sıralama düşüşü: '{query_name}'. "
-                f"Mevcut düşüş: {metric.value:.2f} pozisyon, eşik: {alert.threshold:.2f}."
+                f"Mevcut pozisyon: {position:.1f}, önceki: {previous_position:.1f}, düşüş: {delta:.2f} pozisyon, eşik: {alert.threshold:.2f}."
             )
         elif alert.alert_type == "search_console_dropped_queries":
+            # Bu query'nin bulunup bulunmadığını kontrol et
+            # query_data varsa, query halen var demek
             return (
                 f"{site.domain} için Düşen sorgu: '{query_name}'. "
-                f"Mevcut değer: {metric.value:.2f}, eşik: {alert.threshold:.2f}."
+                f"Mevcut pozisyon: {query_data.get('position', 0):.1f}."
             )
     
     return (
@@ -181,7 +186,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                         if not query_name:
                             continue
                         
-                        message = _build_message(site, alert, metric, rule, query_name)
+                        message = _build_message(site, alert, metric, rule, query_name, query_data=query)
                         
                         # Tekrar eden alert kontrol (mesaj bazlı)
                         last_log = (
