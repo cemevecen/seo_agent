@@ -693,13 +693,17 @@ def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: 
 def _format_crux_series(snapshot: dict | None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
+    current = summary.get("current") or {}
     formatted: dict[str, dict] = {}
-    for metric_key, item in series.items():
+    metric_keys = list(dict.fromkeys([*series.keys(), *current.keys()]))
+    for metric_key in metric_keys:
+        item = series.get(metric_key) or {}
+        current_item = current.get(metric_key) or {}
         points = item.get("points") or []
         formatted[metric_key] = {
-            "label": item.get("label") or metric_key.upper(),
-            "latest": item.get("latest"),
-            "good_share": item.get("good_share"),
+            "label": current_item.get("label") or item.get("label") or metric_key.upper(),
+            "latest": current_item.get("latest") if current_item.get("latest") is not None else item.get("latest"),
+            "good_share": current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share"),
             "chart": {
                 "x": [point.get("label") for point in points],
                 "y": [point.get("value") for point in points],
@@ -721,14 +725,14 @@ def _data_explorer_context(domain: str) -> dict:
 
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
-            "CrUX history canlı snapshot mevcut",
-            "Son başarılı CrUX history snapshot gösteriliyor",
+            "CrUX guncel kaydi ve history serisi mevcut",
+            "Son başarılı CrUX snapshot gösteriliyor",
             "CrUX history verisi henüz yok",
         )
         desktop_state = _data_state_badge(
             "live" if desktop_crux else "failed",
-            "CrUX history canlı snapshot mevcut",
-            "Son başarılı CrUX history snapshot gösteriliyor",
+            "CrUX guncel kaydi ve history serisi mevcut",
+            "Son başarılı CrUX snapshot gösteriliyor",
             "CrUX history verisi henüz yok",
         )
         inspection_state = _data_state_badge(
