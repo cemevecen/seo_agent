@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+import re
 
 from backend.database import get_db
 from backend.models import Alert, AlertLog, Site, Metric
@@ -12,7 +13,34 @@ from backend.services.alert_engine import DEFAULT_ALERT_RULES, ALERT_DESCRIPTION
 router = APIRouter(tags=["alerts"])
 
 
-def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered_at: datetime, comparison_type: str = "daily") -> dict:
+def _extract_query_details_from_message(message: str) -> dict:
+    """Alert message'den query detaylarını extract et.
+    
+    Message formatı: "[NEGATIVE] search_console_dropped_queries: 'query_name'. Position: 5.0->8.0"
+    """
+    details = {}
+    
+    # Query name extract et
+    query_match = re.search(r":\s*'([^']+)'", message)
+    if query_match:
+        details["query"] = query_match.group(1)
+    
+    # Position change extract et (5.0->8.0 formatında)
+    pos_match = re.search(r"Position:\s*([\d.]+)\s*->\s*([\d.]+)", message)
+    if pos_match:
+        details["old_position"] = float(pos_match.group(1))
+        details["new_position"] = float(pos_match.group(2))
+        details["change"] = details["new_position"] - details["old_position"]
+        details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
+    
+    # POSITIVE/NEGATIVE flag
+    details["is_negative"] = "[NEGATIVE]" in message
+    details["is_positive"] = "[POSITIVE]" in message
+    
+    return details
+
+
+def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered_at: datetime, comparison_type: str = "daily", alert_log_message: str = None) -> dict:
     """Metrikleri tarih bazında karşılaştırır (gün veya hafta bazında).
     
     Args:
@@ -59,6 +87,8 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
     past_value = sum(m.value for m in past_metrics) / len(past_metrics) if past_metrics else None
     
     # Mesaj oluştur
+    result = {}
+    
     if current_value is None or past_value is None:
         message = f"{comparison_label} ile karşılaştırma için yeterli veri yok."
     else:
@@ -72,7 +102,15 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
             f"Değişim: {direction} ({change:+.2f}, {change_pct:+.1f}%)"
         )
     
-    return {"message": message}
+    result["message"] = message
+    
+    # Search Console alertları için query details ekle
+    if alert_log_message and metric_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
+        query_details = _extract_query_details_from_message(alert_log_message)
+        if query_details:
+            result["query_details"] = query_details
+    
+    return result
 
 
 @router.get("/alerts")
@@ -191,7 +229,7 @@ def get_alert_details(request: Request, alert_log_id: int, comparison: str = "da
     }
     
     # Tarih karşılaştırması (gün veya hafta bazında)
-    comparison_data = _calculate_comparison(db, site.id, alert.alert_type, alert_log.triggered_at, comparison)
+    comparison_data = _calculate_comparison(db, site.id, alert.alert_type, alert_log.triggered_at, comparison, alert_log.message)
     
     return {
         "alert_log": {
