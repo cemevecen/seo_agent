@@ -32,6 +32,7 @@ from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
     STRATEGY_METRIC_MAP,
     collect_pagespeed_metrics,
+    fetch_live_lighthouse_category_scores,
     get_latest_pagespeed_audit_snapshot,
 )
 from backend.collectors.search_console import get_top_queries
@@ -1369,6 +1370,74 @@ def api_get_site_warehouse_summary(domain: str):
             {
                 "site": site.domain,
                 "warehouse": get_site_warehouse_summary(db, site_id=site.id),
+            }
+        )
+
+
+@app.get("/api/site/{domain}/lighthouse-live-scores")
+def api_get_live_lighthouse_scores(domain: str):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+
+        try:
+            mobile_scores = fetch_live_lighthouse_category_scores(site, "mobile")
+            desktop_scores = fetch_live_lighthouse_category_scores(site, "desktop")
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"Live Lighthouse fetch failed: {exc}"},
+                status_code=502,
+            )
+
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "mobile": {
+                    "performance": _build_lighthouse_score("performance", "Performance", "Performans", mobile_scores.get("performance", 0.0), "mobile"),
+                    "accessibility": _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", mobile_scores.get("accessibility", 0.0), "mobile"),
+                    "practices": _build_lighthouse_score("practices", "Best Practices", "En İyi Uygulamalar", mobile_scores.get("best_practices", 0.0), "mobile"),
+                    "seo": _build_lighthouse_score("seo", "SEO", "Arama Motoru", mobile_scores.get("seo", 0.0), "mobile"),
+                },
+                "desktop": {
+                    "performance": _build_lighthouse_score("performance", "Performance", "Performans", desktop_scores.get("performance", 0.0), "desktop"),
+                    "accessibility": _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", desktop_scores.get("accessibility", 0.0), "desktop"),
+                    "practices": _build_lighthouse_score("practices", "Best Practices", "En İyi Uygulamalar", desktop_scores.get("best_practices", 0.0), "desktop"),
+                    "seo": _build_lighthouse_score("seo", "SEO", "Arama Motoru", desktop_scores.get("seo", 0.0), "desktop"),
+                },
+            }
+        )
+
+
+@app.get("/api/site/{domain}/lighthouse-live-scores/{strategy}")
+def api_get_live_lighthouse_scores_by_strategy(domain: str, strategy: str):
+    normalized_strategy = (strategy or "").strip().lower()
+    if normalized_strategy not in {"mobile", "desktop"}:
+        return JSONResponse({"error": "Invalid strategy"}, status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+
+        try:
+            scores = fetch_live_lighthouse_category_scores(site, normalized_strategy)
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"Live Lighthouse fetch failed: {exc}"},
+                status_code=502,
+            )
+
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "strategy": normalized_strategy,
+                "scores": {
+                    "performance": _build_lighthouse_score("performance", "Performance", "Performans", scores.get("performance", 0.0), normalized_strategy),
+                    "accessibility": _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", scores.get("accessibility", 0.0), normalized_strategy),
+                    "practices": _build_lighthouse_score("practices", "Best Practices", "En İyi Uygulamalar", scores.get("best_practices", 0.0), normalized_strategy),
+                    "seo": _build_lighthouse_score("seo", "SEO", "Arama Motoru", scores.get("seo", 0.0), normalized_strategy),
+                },
             }
         )
 

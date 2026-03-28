@@ -99,6 +99,7 @@ def fetch_live_lighthouse_category_scores(site: Site, strategy: str) -> dict[str
     api_key = settings.google_api_key.strip()
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY tanimli degil")
+    request_timeout = min(max(settings.pagespeed_request_timeout, 1), 12)
     last_error: Exception | None = None
     for target_url in _candidate_pagespeed_target_urls(site, strategy):
         query = urlencode(
@@ -117,7 +118,7 @@ def fetch_live_lighthouse_category_scores(site: Site, strategy: str) -> dict[str
         try:
             raw_payload = _request_pagespeed_payload(
                 request_url,
-                timeout_seconds=settings.pagespeed_request_timeout,
+                timeout_seconds=request_timeout,
             )
             categories = ((raw_payload.get("lighthouseResult") or {}).get("categories") or {})
 
@@ -128,12 +129,15 @@ def fetch_live_lighthouse_category_scores(site: Site, strategy: str) -> dict[str
                     return 0.0
                 return float(score) * 100.0
 
-            return {
+            scores = {
                 "performance": _category_score("performance"),
                 "accessibility": _category_score("accessibility"),
                 "best_practices": _category_score("best-practices"),
                 "seo": _category_score("seo"),
             }
+            if not any(scores.values()):
+                raise RuntimeError(f"Empty Lighthouse categories returned for {target_url} ({strategy})")
+            return scores
         except Exception as exc:
             last_error = exc
             LOGGER.warning("Live Lighthouse category fetch failed for %s %s via %s: %s", site.domain, strategy, target_url, exc)
@@ -149,10 +153,10 @@ def _request_pagespeed_payload(request_url: str, *, timeout_seconds: int) -> dic
     except Exception:
         # Google PSI bazen urllib tarafinda beklemeye dusuyor; curl genellikle daha guvenilir donuyor.
         result = subprocess.run(
-            ["curl", "-sS", request_url],
+            ["curl", "-sS", "--max-time", str(timeout_seconds), request_url],
             capture_output=True,
             text=True,
-            timeout=timeout_seconds + 30,
+            timeout=timeout_seconds + 5,
             check=True,
         )
         return json.loads(result.stdout)

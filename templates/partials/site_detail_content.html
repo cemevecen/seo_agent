@@ -162,13 +162,13 @@
       </div>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
         {% for score in mobile_lighthouse_scores %}
-        <div class="flex flex-col items-center gap-3">
+        <div class="flex flex-col items-center gap-3" data-lighthouse-card data-lighthouse-scope="mobile" data-lighthouse-key="{{ score.key }}">
           <div class="relative inline-flex items-center justify-center w-20 h-20">
             <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round"></circle>
+              <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round" data-lighthouse-ring></circle>
             </svg>
-            <span class="absolute text-3xl font-bold {{ score.text_class }}">{{ score.value }}</span>
+            <span class="absolute text-3xl font-bold {{ score.text_class }}" data-lighthouse-value>{{ score.value }}</span>
           </div>
           <p class="font-semibold text-slate-900 text-sm">{{ score.label }}</p>
           <p class="text-xs text-slate-600">{{ score.subtitle }}</p>
@@ -184,13 +184,13 @@
       </div>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
         {% for score in desktop_lighthouse_scores %}
-        <div class="flex flex-col items-center gap-3">
+        <div class="flex flex-col items-center gap-3" data-lighthouse-card data-lighthouse-scope="desktop" data-lighthouse-key="{{ score.key }}">
           <div class="relative inline-flex items-center justify-center w-20 h-20">
             <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round"></circle>
+              <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round" data-lighthouse-ring></circle>
             </svg>
-            <span class="absolute text-3xl font-bold {{ score.text_class }}">{{ score.value }}</span>
+            <span class="absolute text-3xl font-bold {{ score.text_class }}" data-lighthouse-value>{{ score.value }}</span>
           </div>
           <p class="font-semibold text-slate-900 text-sm">{{ score.label }}</p>
           <p class="text-xs text-slate-600">{{ score.subtitle }}</p>
@@ -214,6 +214,45 @@
     }
 
     document.title = 'Lighthouse - {{ site_name|default("SEO Agent Dashboard")|e }}';
+  })();
+
+  (function () {
+    const updateCard = function (card, payload) {
+      if (!card || !payload) {
+        return;
+      }
+
+      const valueNode = card.querySelector('[data-lighthouse-value]');
+      const ringNode = card.querySelector('[data-lighthouse-ring]');
+      if (valueNode) {
+        valueNode.textContent = payload.value;
+        valueNode.className = 'absolute text-3xl font-bold ' + payload.text_class;
+      }
+      if (ringNode) {
+        ringNode.setAttribute('stroke', payload.stroke_color);
+        ringNode.setAttribute('stroke-dasharray', payload.dasharray);
+      }
+    };
+
+    ['mobile', 'desktop'].forEach(function (scope) {
+      fetch('/api/site/{{ domain }}/lighthouse-live-scores/' + scope)
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error(scope + ' live lighthouse fetch failed');
+          }
+          return response.json();
+        })
+        .then(function (payload) {
+          const section = payload.scores || {};
+          document.querySelectorAll('[data-lighthouse-card][data-lighthouse-scope="' + scope + '"]').forEach(function (card) {
+            const key = card.getAttribute('data-lighthouse-key');
+            updateCard(card, section[key]);
+          });
+        })
+        .catch(function (error) {
+          console.warn('Live Lighthouse sync failed:', error);
+        });
+    });
   })();
 
   (function () {
