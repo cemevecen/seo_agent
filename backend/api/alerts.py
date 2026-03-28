@@ -93,9 +93,9 @@ def get_alert_details(request: Request, alert_log_id: int, db: Session = Depends
         .filter(
             Metric.site_id == site.id,
             Metric.metric_type == alert.alert_type,
-            Metric.measured_at >= thirty_days_ago
+            Metric.collected_at >= thirty_days_ago
         )
-        .order_by(Metric.measured_at.desc())
+        .order_by(Metric.collected_at.desc())
         .limit(30)
         .all()
     )
