@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
@@ -83,6 +84,15 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
         day = last_date.get("day")
         labels.append(f"{year:04d}-{month:02d}-{day:02d}" if year and month and day else "")
 
+    def _safe_number(raw_value):
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+
     series: dict[str, list[dict]] = {}
     for metric_key, short_label in METRIC_LABELS.items():
         metric_payload = metrics.get(metric_key) or {}
@@ -96,16 +106,13 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
             first_bin = histogram_payload[0] or {}
             densities = first_bin.get("densities") or []
             if densities and isinstance(densities, list):
-                try:
-                    good_share = float(densities[-1]) * 100.0
-                except (TypeError, ValueError):
-                    good_share = None
+                density_value = _safe_number(densities[-1])
+                good_share = density_value * 100.0 if density_value is not None else None
 
         points: list[dict] = []
         for idx, raw_value in enumerate(values):
-            try:
-                value = float(raw_value)
-            except (TypeError, ValueError):
+            value = _safe_number(raw_value)
+            if value is None:
                 continue
             points.append(
                 {
