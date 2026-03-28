@@ -1,4 +1,5 @@
 """FastAPI uygulama giriş noktası."""
+import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -34,7 +35,7 @@ from backend.collectors.search_console import collect_search_console_metrics
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
-from backend.models import Site
+from backend.models import PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -690,20 +691,83 @@ def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: 
     }
 
 
-def _format_crux_series(snapshot: dict | None) -> dict[str, dict]:
+PAGESPEED_FIELD_METRIC_MAP = {
+    "LARGEST_CONTENTFUL_PAINT_MS": "largest_contentful_paint",
+    "INTERACTION_TO_NEXT_PAINT": "interaction_to_next_paint",
+    "CUMULATIVE_LAYOUT_SHIFT_SCORE": "cumulative_layout_shift",
+    "FIRST_CONTENTFUL_PAINT_MS": "first_contentful_paint",
+    "EXPERIMENTAL_TIME_TO_FIRST_BYTE": "experimental_time_to_first_byte",
+}
+
+
+def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str, dict]:
+    row = (
+        db.query(PageSpeedPayloadSnapshot)
+        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
+        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
+        .first()
+    )
+    if row is None:
+        return {}
+    try:
+        payload = json.loads(row.payload_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+
+    loading_metrics = (payload.get("loadingExperience") or {}).get("metrics") or {}
+    origin_metrics = (payload.get("originLoadingExperience") or {}).get("metrics") or {}
+    source_metrics = loading_metrics or origin_metrics
+    if not source_metrics:
+        return {}
+
+    output: dict[str, dict] = {}
+    for payload_key, metric_key in PAGESPEED_FIELD_METRIC_MAP.items():
+        metric_payload = source_metrics.get(payload_key) or {}
+        percentile = metric_payload.get("percentile")
+        if percentile is None:
+            continue
+        good_share = None
+        distributions = metric_payload.get("distributions") or []
+        if distributions and isinstance(distributions, list):
+            proportion = (distributions[0] or {}).get("proportion")
+            try:
+                good_share = float(proportion) * 100.0 if proportion is not None else None
+            except (TypeError, ValueError):
+                good_share = None
+
+        latest_value = float(percentile)
+        if payload_key == "CUMULATIVE_LAYOUT_SHIFT_SCORE":
+            latest_value = latest_value / 100.0
+
+        output[metric_key] = {
+            "latest": latest_value,
+            "good_share": good_share,
+        }
+    return output
+
+
+def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict] | None = None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
     current = summary.get("current") or {}
+    current_override = current_override or {}
     formatted: dict[str, dict] = {}
-    metric_keys = list(dict.fromkeys([*series.keys(), *current.keys()]))
+    metric_keys = list(dict.fromkeys([*series.keys(), *current.keys(), *current_override.keys()]))
     for metric_key in metric_keys:
         item = series.get(metric_key) or {}
         current_item = current.get(metric_key) or {}
+        override_item = current_override.get(metric_key) or {}
         points = item.get("points") or []
+        latest_value = override_item.get("latest")
+        if latest_value is None:
+            latest_value = current_item.get("latest") if current_item.get("latest") is not None else item.get("latest")
+        good_share = override_item.get("good_share")
+        if good_share is None:
+            good_share = current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share")
         formatted[metric_key] = {
             "label": current_item.get("label") or item.get("label") or metric_key.upper(),
-            "latest": current_item.get("latest") if current_item.get("latest") is not None else item.get("latest"),
-            "good_share": current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share"),
+            "latest": latest_value,
+            "good_share": good_share,
             "chart": {
                 "x": [point.get("label") for point in points],
                 "y": [point.get("value") for point in points],
@@ -721,6 +785,8 @@ def _data_explorer_context(domain: str) -> dict:
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        mobile_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "mobile")
+        desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
         inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
 
         mobile_state = _data_state_badge(
@@ -749,8 +815,8 @@ def _data_explorer_context(domain: str) -> dict:
             "warehouse_summary": warehouse,
             "crux_mobile": mobile_crux,
             "crux_desktop": desktop_crux,
-            "crux_mobile_series": _format_crux_series(mobile_crux),
-            "crux_desktop_series": _format_crux_series(desktop_crux),
+            "crux_mobile_series": _format_crux_series(mobile_crux, mobile_pagespeed_current),
+            "crux_desktop_series": _format_crux_series(desktop_crux, desktop_pagespeed_current),
             "url_inspection": inspection,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
