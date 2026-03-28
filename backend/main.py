@@ -29,7 +29,12 @@ from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
-from backend.collectors.pagespeed import STRATEGY_METRIC_MAP, collect_pagespeed_metrics, get_latest_pagespeed_audit_snapshot
+from backend.collectors.pagespeed import (
+    STRATEGY_METRIC_MAP,
+    collect_pagespeed_metrics,
+    fetch_live_lighthouse_category_scores,
+    get_latest_pagespeed_audit_snapshot,
+)
 from backend.collectors.search_console import get_top_queries
 from backend.collectors.search_console import collect_search_console_metrics
 from backend.collectors.url_inspection import collect_url_inspection
@@ -746,6 +751,36 @@ def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str
     return output
 
 
+def _latest_pagespeed_category_scores(db, site_id: int, strategy: str) -> dict[str, float]:
+    row = (
+        db.query(PageSpeedPayloadSnapshot)
+        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
+        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
+        .first()
+    )
+    if row is None:
+        return {}
+    try:
+        payload = json.loads(row.payload_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+
+    categories = ((payload.get("lighthouseResult") or {}).get("categories") or {})
+    output: dict[str, float] = {}
+    for payload_key, normalized_key in {
+        "performance": "performance",
+        "accessibility": "accessibility",
+        "best-practices": "best_practices",
+        "seo": "seo",
+    }.items():
+        category = categories.get(payload_key) or {}
+        score = category.get("score")
+        if score is None:
+            continue
+        output[normalized_key] = float(score) * 100.0
+    return output
+
+
 def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict] | None = None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
@@ -1024,15 +1059,32 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         )
         mobile_lighthouse_analysis = _normalize_lighthouse_issue_order(mobile_lighthouse_analysis)
         desktop_lighthouse_analysis = _normalize_lighthouse_issue_order(desktop_lighthouse_analysis)
-        mobile_lighthouse_performance = round(mobile_score) if mobile_score else round(_analysis_category_score(mobile_lighthouse_analysis, "performance"))
-        mobile_lighthouse_accessibility = round(_metric_value(latest, "pagespeed_mobile_accessibility_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "accessibility"))
-        mobile_lighthouse_best_practices = round(_metric_value(latest, "pagespeed_mobile_best_practices_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "best_practices"))
-        mobile_lighthouse_seo = round(_metric_value(latest, "pagespeed_mobile_seo_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "seo"))
+        latest_mobile_category_scores = _latest_pagespeed_category_scores(db, site.id, "mobile")
+        latest_desktop_category_scores = _latest_pagespeed_category_scores(db, site.id, "desktop")
 
-        desktop_lighthouse_performance = round(desktop_score) if desktop_score else round(_analysis_category_score(desktop_lighthouse_analysis, "performance"))
-        desktop_lighthouse_accessibility = round(_metric_value(latest, "pagespeed_desktop_accessibility_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "accessibility"))
-        desktop_lighthouse_best_practices = round(_metric_value(latest, "pagespeed_desktop_best_practices_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "best_practices"))
-        desktop_lighthouse_seo = round(_metric_value(latest, "pagespeed_desktop_seo_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "seo"))
+        live_mobile_category_scores = {}
+        live_desktop_category_scores = {}
+        try:
+            live_mobile_category_scores = fetch_live_lighthouse_category_scores(site, "mobile")
+        except Exception:
+            live_mobile_category_scores = {}
+        try:
+            live_desktop_category_scores = fetch_live_lighthouse_category_scores(site, "desktop")
+        except Exception:
+            live_desktop_category_scores = {}
+
+        category_mobile_scores = live_mobile_category_scores or latest_mobile_category_scores
+        category_desktop_scores = live_desktop_category_scores or latest_desktop_category_scores
+
+        mobile_lighthouse_performance = round(category_mobile_scores.get("performance", 0.0)) or round(mobile_score) or round(_analysis_category_score(mobile_lighthouse_analysis, "performance"))
+        mobile_lighthouse_accessibility = round(category_mobile_scores.get("accessibility", 0.0)) or round(_metric_value(latest, "pagespeed_mobile_accessibility_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "accessibility"))
+        mobile_lighthouse_best_practices = round(category_mobile_scores.get("best_practices", 0.0)) or round(_metric_value(latest, "pagespeed_mobile_best_practices_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "best_practices"))
+        mobile_lighthouse_seo = round(category_mobile_scores.get("seo", 0.0)) or round(_metric_value(latest, "pagespeed_mobile_seo_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "seo"))
+
+        desktop_lighthouse_performance = round(category_desktop_scores.get("performance", 0.0)) or round(desktop_score) or round(_analysis_category_score(desktop_lighthouse_analysis, "performance"))
+        desktop_lighthouse_accessibility = round(category_desktop_scores.get("accessibility", 0.0)) or round(_metric_value(latest, "pagespeed_desktop_accessibility_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "accessibility"))
+        desktop_lighthouse_best_practices = round(category_desktop_scores.get("best_practices", 0.0)) or round(_metric_value(latest, "pagespeed_desktop_best_practices_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "best_practices"))
+        desktop_lighthouse_seo = round(category_desktop_scores.get("seo", 0.0)) or round(_metric_value(latest, "pagespeed_desktop_seo_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "seo"))
 
         lighthouse_accessibility = round(
             _average_available([mobile_lighthouse_accessibility, desktop_lighthouse_accessibility])

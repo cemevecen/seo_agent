@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import socket
+import subprocess
 import time
 from datetime import datetime
 from urllib.parse import urlencode
@@ -60,6 +61,101 @@ def _normalize_url(domain: str) -> str:
     if domain.startswith("http://") or domain.startswith("https://"):
         return domain
     return f"https://{domain}"
+
+
+def resolve_pagespeed_target_url(site: Site, strategy: str) -> str:
+    # Site detail sayfasindaki skorlarin resmi PSI ekranina daha yakin hizalanmasi icin
+    # strateji bazli URL secimi yapar. Data Explorer tarafindaki akisa dokunmaz.
+    domain = (site.domain or "").strip().lower()
+
+    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com"}:
+        return "https://www.doviz.com"
+
+    if domain in {"sinemalar.com", "www.sinemalar.com", "m.sinemalar.com"}:
+        return "https://m.sinemalar.com" if strategy == "mobile" else "https://www.sinemalar.com"
+
+    return _normalize_url(site.domain)
+
+
+def _candidate_pagespeed_target_urls(site: Site, strategy: str) -> list[str]:
+    domain = (site.domain or "").strip().lower()
+
+    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com"}:
+        if strategy == "mobile":
+            return ["https://m.doviz.com", "https://www.doviz.com", "https://doviz.com"]
+        return ["https://www.doviz.com", "https://m.doviz.com", "https://doviz.com"]
+
+    if domain in {"sinemalar.com", "www.sinemalar.com", "m.sinemalar.com"}:
+        if strategy == "mobile":
+            return ["https://m.sinemalar.com", "https://www.sinemalar.com", "https://sinemalar.com"]
+        return ["https://www.sinemalar.com", "https://m.sinemalar.com", "https://sinemalar.com"]
+
+    return [resolve_pagespeed_target_url(site, strategy)]
+
+
+def fetch_live_lighthouse_category_scores(site: Site, strategy: str) -> dict[str, float]:
+    # Sadece site detail Lighthouse halkalari icin canli category score okur.
+    # Burada tam collector akisini degil, tek atimlik hafif bir PSI cagrisini kullaniriz.
+    api_key = settings.google_api_key.strip()
+    if not api_key:
+        raise RuntimeError("GOOGLE_API_KEY tanimli degil")
+    last_error: Exception | None = None
+    for target_url in _candidate_pagespeed_target_urls(site, strategy):
+        query = urlencode(
+            [
+                ("url", target_url),
+                ("strategy", strategy),
+                ("key", api_key),
+                ("category", "performance"),
+                ("category", "accessibility"),
+                ("category", "best-practices"),
+                ("category", "seo"),
+                ("fields", "id,lighthouseResult(categories)"),
+            ]
+        )
+        request_url = f"{PAGESPEED_ENDPOINT}?{query}"
+        try:
+            raw_payload = _request_pagespeed_payload(
+                request_url,
+                timeout_seconds=settings.pagespeed_request_timeout,
+            )
+            categories = ((raw_payload.get("lighthouseResult") or {}).get("categories") or {})
+
+            def _category_score(category_key: str) -> float:
+                category = categories.get(category_key) or {}
+                score = category.get("score")
+                if score is None:
+                    return 0.0
+                return float(score) * 100.0
+
+            return {
+                "performance": _category_score("performance"),
+                "accessibility": _category_score("accessibility"),
+                "best_practices": _category_score("best-practices"),
+                "seo": _category_score("seo"),
+            }
+        except Exception as exc:
+            last_error = exc
+            LOGGER.warning("Live Lighthouse category fetch failed for %s %s via %s: %s", site.domain, strategy, target_url, exc)
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"{site.domain} {strategy} icin canli Lighthouse category skoru alinamadi")
+
+
+def _request_pagespeed_payload(request_url: str, *, timeout_seconds: int) -> dict:
+    try:
+        with urlopen(request_url, timeout=timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except Exception:
+        # Google PSI bazen urllib tarafinda beklemeye dusuyor; curl genellikle daha guvenilir donuyor.
+        result = subprocess.run(
+            ["curl", "-sS", request_url],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds + 30,
+            check=True,
+        )
+        return json.loads(result.stdout)
 
 
 def _extract_lighthouse_metrics(payload: dict) -> dict[str, float]:
@@ -877,8 +973,10 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict, d
             ("fields", "loadingExperience,originLoadingExperience,lighthouseResult(categories,categoryGroups,audits)"),
         ]
     )
-    with urlopen(f"{PAGESPEED_ENDPOINT}?{query}", timeout=settings.pagespeed_request_timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    payload = _request_pagespeed_payload(
+        f"{PAGESPEED_ENDPOINT}?{query}",
+        timeout_seconds=settings.pagespeed_request_timeout,
+    )
     return _extract_lighthouse_metrics(payload), _build_lighthouse_analysis(payload, strategy), payload
 
 
@@ -992,7 +1090,6 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
             "reason": decision.reason,
         }
 
-    target_url = _normalize_url(site.domain)
     collected_at = datetime.utcnow()
     metrics: dict[str, float] = {}
     strategy_payloads: dict[str, dict[str, float] | None] = {"mobile": None, "desktop": None}
@@ -1006,10 +1103,11 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
             site_id=site.id,
             provider="pagespeed",
             strategy=strategy,
-            target_url=target_url,
+            target_url=resolve_pagespeed_target_url(site, strategy),
             requested_at=collected_at,
         )
         try:
+            target_url = resolve_pagespeed_target_url(site, strategy)
             payload, analysis, raw_payload = _fetch_pagespeed_with_retries(target_url, strategy)
             strategy_payloads[strategy] = payload
             strategy_analyses[strategy] = analysis
@@ -1095,7 +1193,7 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
 
     return {
         "site_id": site.id,
-        "url": target_url,
+        "url": _normalize_url(site.domain),
         "mobile": strategy_payloads["mobile"],
         "desktop": strategy_payloads["desktop"],
         "mobile_analysis": strategy_analyses["mobile"],
