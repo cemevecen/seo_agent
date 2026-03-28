@@ -39,7 +39,7 @@
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Veri Ambarı Gezgini</p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900">{{ domain }}</h3>
       <p class="mt-2 max-w-3xl text-sm text-slate-600">
-        CrUX History, URL Inspection ve biriken warehouse kayıtlarını tek ekranda gör.
+        CrUX History verilerini tek ekranda gör.
       </p>
     </div>
     <div class="flex items-center gap-3">
@@ -50,18 +50,9 @@
         class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
         data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
       >
-        CrUX + URL Inspection Yenile
+        Verileri Yenile
       </button>
     </div>
-  </div>
-
-  <div class="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-    {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tum collector calismalari") }}
-    {{ metric_tile("PS Payload'ları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed snapshot sayisi") }}
-    {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari") }}
-    {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari") }}
-    {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX history snapshot sayisi") }}
-    {{ metric_tile("İnceleme", warehouse_summary.url_inspection_snapshots, "URL Inspection snapshot sayisi") }}
   </div>
 
   <div class="grid gap-5 xl:grid-cols-2">
@@ -106,85 +97,6 @@
     </section>
   </div>
 
-  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">URL Inspection</p>
-        <h4 class="text-xl font-semibold text-slate-900">Index / Canonical / Crawl Durumu</h4>
-        <p class="mt-2 text-sm text-slate-600">{{ url_inspection_status.description }}</p>
-      </div>
-      <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ url_inspection_status.badge_class }}">{{ url_inspection_status.label }}</span>
-    </div>
-
-    {% if url_inspection and url_inspection.summary %}
-    {% set inspect = url_inspection.summary %}
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {{ metric_tile("Karar", inspect.verdict or "N/A", "Google index karari") }}
-      {{ metric_tile("Kapsam", inspect.coverage_state or "N/A", "Kapsam durumu") }}
-      {{ metric_tile("Dizine Ekleme", inspect.indexing_state or "N/A", "Dizine ekleme durumu") }}
-      {{ metric_tile("Getirme", inspect.page_fetch_state or "N/A", "Sayfa getirme durumu") }}
-    </div>
-    <div class="mt-5 grid gap-4 xl:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500">Canonical</p>
-        <p class="mt-3 text-sm font-semibold text-slate-900">Google Canonical</p>
-        <p class="mt-1 break-all text-sm text-slate-700">{{ inspect.google_canonical or "N/A" }}</p>
-        <p class="mt-4 text-sm font-semibold text-slate-900">Kullanıcı Canonical</p>
-        <p class="mt-1 break-all text-sm text-slate-700">{{ inspect.user_canonical or "N/A" }}</p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500">Tarama & Robots</p>
-        <p class="mt-3 text-sm"><span class="font-semibold text-slate-900">Robots:</span> <span class="text-slate-700">{{ inspect.robots_txt_state or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Son tarama:</span> <span class="text-slate-700">{{ inspect.last_crawl_time or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Zengin sonuçlar:</span> <span class="text-slate-700">{{ inspect.rich_results_verdict or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Mobil kullanılabilirlik:</span> <span class="text-slate-700">{{ inspect.mobile_usability_verdict or "N/A" }}</span></p>
-      </div>
-    </div>
-    {% else %}
-    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-      Henüz URL Inspection snapshot yok.
-    </div>
-    {% endif %}
-  </section>
-
-  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Collector Günlüğü</p>
-        <h4 class="text-xl font-semibold text-slate-900">Son Warehouse Çalışmaları</h4>
-      </div>
-    </div>
-    <div class="mt-5 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="text-left text-slate-500">
-          <tr>
-            <th class="py-2 pr-4">Kaynak</th>
-            <th class="py-2 pr-4">Strateji</th>
-            <th class="py-2 pr-4">Durum</th>
-            <th class="py-2 pr-4">Satır</th>
-            <th class="py-2 pr-4">İstek Zamanı</th>
-            <th class="py-2 pr-4">Hata</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-          {% for run in warehouse_summary.latest_runs %}
-          <tr>
-            <td class="py-3 pr-4 font-semibold text-slate-900">{{ run.provider }}</td>
-            <td class="py-3 pr-4 text-slate-700">{{ run.strategy }}</td>
-            <td class="py-3 pr-4 text-slate-700">{{ run.status }}</td>
-            <td class="py-3 pr-4 text-slate-700">{{ run.row_count }}</td>
-            <td class="py-3 pr-4 text-slate-700">{{ run.requested_at or "N/A" }}</td>
-            <td class="py-3 pr-4 text-slate-700">{{ run.error_message or "-" }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="6" class="py-6 text-center text-slate-500">Henüz collector run kaydı yok.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
 </div>
 
 <script>
