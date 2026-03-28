@@ -16,9 +16,13 @@
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
-                <span class="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 font-medium">Kritik</span>
+                {% if "[POSITIVE]" in alert.message %}
+                  <span class="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 font-medium">✓ İyileşme</span>
+                {% else %}
+                  <span class="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 font-medium">⚠ Uyarı</span>
+                {% endif %}
               </div>
-              <p class="mt-1 text-sm text-slate-600">{{ alert.message }}</p>
+              <p class="mt-1 text-sm text-slate-600">{% if "[POSITIVE]" in alert.message or "[NEGATIVE]" in alert.message %}{{ alert.message.replace('[POSITIVE]', '').replace('[NEGATIVE]', '').strip() }}{% else %}{{ alert.message }}{% endif %}</p>
             </div>
             <div class="text-right">
               <p class="text-xs text-slate-500">{{ alert.triggered_at }}</p>

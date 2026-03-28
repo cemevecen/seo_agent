@@ -138,15 +138,18 @@ def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefi
             delta = query_data.get("delta", 0)
             position = query_data.get("position", 0)
             previous_position = query_data.get("previous_position", 0)
+            # delta < 0 = pozisyon iyileşti (iyi) = positive sentiment
+            # delta > 0 = pozisyon kötüleşti (kötü) = negative sentiment
+            sentiment = "POSITIVE" if delta < 0 else "NEGATIVE"
             return (
-                f"{site.domain} için Search Console sıralama düşüşü: '{query_name}'. "
-                f"Mevcut pozisyon: {position:.1f}, önceki: {previous_position:.1f}, düşüş: {delta:.2f} pozisyon, eşik: {alert.threshold:.2f}."
+                f"[{sentiment}] {site.domain} için Search Console sıralama: '{query_name}'. "
+                f"Mevcut pozisyon: {position:.1f}, önceki: {previous_position:.1f}, değişim: {delta:+.2f} pozisyon."
             )
         elif alert.alert_type == "search_console_dropped_queries":
             # Bu query'nin bulunup bulunmadığını kontrol et
             # query_data varsa, query halen var demek
             return (
-                f"{site.domain} için Düşen sorgu: '{query_name}'. "
+                f"[NEGATIVE] {site.domain} için Düşen sorgu: '{query_name}'. "
                 f"Mevcut pozisyon: {query_data.get('position', 0):.1f}."
             )
     
