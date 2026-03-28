@@ -11,8 +11,8 @@
     <div class="space-y-3">
       {% for alert in recent_alerts %}
         <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}">
-          <!-- Alert Header (Clickable) -->
-          <div class="flex items-center justify-between gap-4 cursor-pointer alert-header hover:bg-slate-50 p-2 -m-2 rounded transition-colors">
+          <!-- Alert Header (Display Only) -->
+          <div class="flex items-center justify-between gap-4 p-2">
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
@@ -25,7 +25,7 @@
               <p class="text-xs mt-1 {% if alert.sent_mail %}text-green-600{% else %}text-amber-600{% endif %}">
                 {% if alert.sent_mail %}✓ Mail gönderildi{% else %}⧗ Mail bekliyor{% endif %}
               </p>
-              <button class="mt-2 px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors toggle-details">
+              <button class="mt-2 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors toggle-details">
                 Detay
               </button>
             </div>
@@ -107,10 +107,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Alert kartlarını expand/collapse yap
-  document.querySelectorAll('.alert-header, .toggle-details').forEach(btn => {
+  // Sadece "Detay" butonlarına click event ekle
+  document.querySelectorAll('.toggle-details').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
+      e.stopPropagation();
+      
       const card = this.closest('.alert-card');
       const details = card.querySelector('.alert-details');
       const alertId = card.dataset.alertId;
@@ -119,9 +121,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Aç ve detayları yükle
         details.classList.remove('hidden');
         loadAlertDetails(alertId, card);
+        this.textContent = 'Gizle';
       } else {
         // Kapat
         details.classList.add('hidden');
+        this.textContent = 'Detay';
       }
     });
   });
@@ -129,59 +133,102 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadAlertDetails(alertId, card) {
   try {
+    console.log(`Loading alert details for ID: ${alertId}`);
+    
     const response = await fetch(`/api/alert-details/${alertId}`);
-    if (!response.ok) throw new Error('Failed to load alert details');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const data = await response.json();
+    console.log('Alert data loaded:', data);
+    
     const rule = data.rule;
     const metrics = data.metrics;
     const trend = data.trend;
 
     // Ne anlama geliyor (Türkçe)
-    document.getElementById(`what-means-${alertId}`).textContent = rule.description_short;
+    const whatMeansTr = document.getElementById(`what-means-${alertId}`);
+    if (whatMeansTr) {
+      whatMeansTr.textContent = rule.description_short || 'Açıklama yüklenmedi';
+    }
     
     // What does this mean (İngilizce)
-    document.getElementById(`what-means-en-${alertId}`).textContent = rule.description_short_en;
+    const whatMeansEn = document.getElementById(`what-means-en-${alertId}`);
+    if (whatMeansEn) {
+      whatMeansEn.textContent = rule.description_short_en || 'Description not loaded';
+    }
     
     // Detaylı açıklama
-    document.getElementById(`description-${alertId}`).textContent = rule.description_detailed_tr;
-    document.getElementById(`description-en-${alertId}`).textContent = rule.description_detailed_en;
+    const descTr = document.getElementById(`description-${alertId}`);
+    if (descTr) {
+      descTr.textContent = rule.description_detailed_tr || 'Detaylı açıklama bulunamadı';
+    }
+    
+    const descEn = document.getElementById(`description-en-${alertId}`);
+    if (descEn) {
+      descEn.textContent = rule.description_detailed_en || 'Detailed description not found';
+    }
     
     // Metrikler
-    document.getElementById(`metric-current-${alertId}`).textContent = 
-      metrics.current_value !== null ? metrics.current_value.toFixed(2) : 'N/A';
-    document.getElementById(`metric-threshold-${alertId}`).textContent = 
-      metrics.threshold_value.toFixed(2);
-    document.getElementById(`metric-minmax-${alertId}`).textContent = 
-      metrics.min_value !== null && metrics.max_value !== null 
+    const currentVal = document.getElementById(`metric-current-${alertId}`);
+    if (currentVal) {
+      currentVal.textContent = metrics.current_value !== null ? metrics.current_value.toFixed(2) : 'N/A';
+    }
+    
+    const thresholdVal = document.getElementById(`metric-threshold-${alertId}`);
+    if (thresholdVal) {
+      thresholdVal.textContent = metrics.threshold_value.toFixed(2);
+    }
+    
+    const minmaxVal = document.getElementById(`metric-minmax-${alertId}`);
+    if (minmaxVal) {
+      minmaxVal.textContent = metrics.min_value !== null && metrics.max_value !== null 
         ? `${metrics.min_value.toFixed(2)} - ${metrics.max_value.toFixed(2)}`
         : 'N/A';
-    document.getElementById(`metric-avg-${alertId}`).textContent = 
-      metrics.avg_value !== null ? metrics.avg_value.toFixed(2) : 'N/A';
+    }
+    
+    const avgVal = document.getElementById(`metric-avg-${alertId}`);
+    if (avgVal) {
+      avgVal.textContent = metrics.avg_value !== null ? metrics.avg_value.toFixed(2) : 'N/A';
+    }
     
     // Öneriler
-    const recsHtml = rule.recommendations
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => `<p>${line}</p>`)
-      .join('');
-    document.getElementById(`recommendations-${alertId}`).innerHTML = recsHtml;
+    const recsDiv = document.getElementById(`recommendations-${alertId}`);
+    if (recsDiv && rule.recommendations) {
+      const recsHtml = rule.recommendations
+        .split('\n')
+        .filter(line => line.trim())
+        .map(line => `<p>• ${line.replace(/^[•\-\*]\s*/, '')}</p>`)
+        .join('');
+      recsDiv.innerHTML = recsHtml || '<p>Öneri bulunamadı</p>';
+    }
     
     // Trend
-    const trendHtml = trend
-      .map(log => `
-        <div class="text-xs p-2 bg-slate-100 rounded">
-          <p class="font-semibold">${log.triggered_at}</p>
-          <p class="text-slate-700 mt-1">${log.message}</p>
-          <p class="text-slate-500 mt-1">${log.sent_mail ? '✓ Mail' : '⧗ Bekliyor'}</p>
-        </div>
-      `)
-      .join('');
-    document.getElementById(`trend-${alertId}`).innerHTML = trendHtml || '<p class="text-sm text-slate-600">Trend verisi bulunamadı</p>';
+    const trendDiv = document.getElementById(`trend-${alertId}`);
+    if (trendDiv) {
+      if (trend && trend.length > 0) {
+        const trendHtml = trend
+          .map(log => `
+            <div class="text-xs p-2 bg-slate-100 rounded">
+              <p class="font-semibold">${log.triggered_at}</p>
+              <p class="text-slate-700 mt-1">${log.message}</p>
+              <p class="text-slate-500 mt-1">${log.sent_mail ? '✓ Mail gönderildi' : '⧗ Mail bekliyor'}</p>
+            </div>
+          `)
+          .join('');
+        trendDiv.innerHTML = trendHtml;
+      } else {
+        trendDiv.innerHTML = '<p class="text-sm text-slate-600">Trend verisi bulunamadı</p>';
+      }
+    }
     
   } catch (error) {
     console.error('Error loading alert details:', error);
-    document.getElementById(`what-means-${alertId}`).textContent = 'Hata: Detaylar yüklenemedi';
+    const whatMeansTr = document.getElementById(`what-means-${alertId}`);
+    if (whatMeansTr) {
+      whatMeansTr.textContent = `Hata: ${error.message}`;
+    }
   }
 }
 </script>
