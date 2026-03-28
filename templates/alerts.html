@@ -2,15 +2,26 @@
 
 {% block content %}
 <div class="space-y-6">
-  <div>
-    <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Alert Center</p>
-    <h3 class="text-3xl font-bold tracking-tight text-slate-900">Son Uyarılar</h3>
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Alert Center</p>
+      <h3 class="text-3xl font-bold tracking-tight text-slate-900">Son Uyarılar</h3>
+    </div>
+    <div class="flex items-center gap-3">
+      <label for="site-filter" class="text-sm font-medium text-slate-700">Site Seç:</label>
+      <select id="site-filter" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-900 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="">Tüm Siteler</option>
+        {% for site in sites %}
+          <option value="{{ site.domain }}">{{ site.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
 
   <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-    <div class="space-y-3">
+    <div class="space-y-3" id="alerts-container">
       {% for alert in recent_alerts %}
-        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}">
+        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}">
           <!-- Alert Header (Display Only) -->
           <div class="flex items-center justify-between gap-4 p-2">
             <div class="flex-1">
@@ -65,6 +76,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  initializeFilter();
+  
   // Detay butonu
   document.querySelectorAll('.toggle-details').forEach(btn => {
     btn.addEventListener('click', function(e) {
@@ -163,6 +176,47 @@ async function loadComparisonData(alertId, comparisonType) {
       comparisonDiv.textContent = `Hata: ${error.message}`;
     }
   }
+}
+
+// Site filter functionality
+function initializeFilter() {
+  const filterSelect = document.getElementById('site-filter');
+  const alertCards = document.querySelectorAll('.alert-card');
+  
+  filterSelect.addEventListener('change', function() {
+    const selectedDomain = this.value;
+    
+    alertCards.forEach(card => {
+      const cardDomain = card.dataset.domain;
+      
+      // If "All" is selected (empty value), show all cards
+      if (selectedDomain === '') {
+        card.style.display = 'block';
+      } else if (cardDomain === selectedDomain) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+    
+    // Check if any cards are visible
+    const visibleCards = Array.from(alertCards).filter(card => card.style.display !== 'none');
+    const container = document.getElementById('alerts-container');
+    
+    // Show/hide empty state
+    let emptyState = container.querySelector('.empty-state');
+    if (visibleCards.length === 0) {
+      if (!emptyState) {
+        emptyState = document.createElement('div');
+        emptyState.className = 'empty-state rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500';
+        emptyState.textContent = 'Bu site için henüz alarm kaydı oluşmadı.';
+        container.appendChild(emptyState);
+      }
+      emptyState.style.display = 'block';
+    } else if (emptyState) {
+      emptyState.style.display = 'none';
+    }
+  });
 }
 </script>
 {% endblock %}
