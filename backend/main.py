@@ -462,7 +462,7 @@ def dashboard(request: Request):
     }
     with SessionLocal() as db:
         payload["recent_alerts"] = get_recent_alerts(db, limit=6)
-    return templates.TemplateResponse("dashboard.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
 
 
 @app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
@@ -480,6 +480,7 @@ def dashboard_measure_site(request: Request, site_id: int):
         }
         card = _build_dashboard_card(db, site, flash_message=_summarize_manual_measurement(results))
     return templates.TemplateResponse(
+        request,
         "partials/dashboard_site_card.html",
         context={"request": request, "card": card, "period": period},
     )
@@ -495,8 +496,8 @@ def site_detail(request: Request, domain: str):
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
     if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse("partials/site_detail_content.html", context={"request": request, **payload})
-    return templates.TemplateResponse("site_detail.html", context={"request": request, **payload})
+        return templates.TemplateResponse(request, "partials/site_detail_content.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "site_detail.html", context={"request": request, **payload})
 
 
 @app.get("/api/site/{domain}/top-queries")
@@ -543,7 +544,7 @@ def alerts_page(request: Request):
             "sites": get_sidebar_sites(),
             "recent_alerts": get_recent_alerts(db, limit=30),
         }
-    return templates.TemplateResponse("alerts.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "alerts.html", context={"request": request, **payload})
 
 
 @app.get("/settings")
@@ -558,7 +559,7 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         }
-    return templates.TemplateResponse("settings.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
 
 @app.get("/settings/site-list")
@@ -567,6 +568,7 @@ def settings_site_list(request: Request):
     with SessionLocal() as db:
         sites = _settings_sites_payload(db)
         return templates.TemplateResponse(
+            request,
             "partials/site_list.html",
             context={"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
         )
@@ -577,7 +579,7 @@ def settings_alert_thresholds(request: Request):
     # HTMX ile alert threshold tablosunu yeniler.
     with SessionLocal() as db:
         alert_rules = get_alert_rules(db)
-    return templates.TemplateResponse("partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
+    return templates.TemplateResponse(request, "partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
 
 
 @app.get("/api/search-console/oauth/start/{site_id}")
