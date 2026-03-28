@@ -33,20 +33,6 @@
 
           <!-- Alert Details (Collapsible) -->
           <div class="alert-details hidden mt-4 pt-4 border-t border-slate-200 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Turkish Description -->
-              <div class="space-y-2">
-                <p class="text-xs uppercase font-bold text-slate-600">Ne Anlama Geliyor?</p>
-                <p id="what-means-{{ alert.id }}" class="text-sm text-slate-700 leading-relaxed">Detaylar yükleniyor...</p>
-              </div>
-
-              <!-- English Description -->
-              <div class="space-y-2">
-                <p class="text-xs uppercase font-bold text-slate-600">What Does This Mean?</p>
-                <p id="what-means-en-{{ alert.id }}" class="text-sm text-slate-700 leading-relaxed">Loading details...</p>
-              </div>
-            </div>
-
             <!-- Comparison Info -->
             <div class="space-y-2">
               <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
@@ -61,14 +47,6 @@
               <p id="comparison-info-{{ alert.id }}" class="text-sm text-slate-700 mt-2 p-2 bg-blue-50 rounded border border-blue-200 leading-relaxed">
                 Yükleniyor...
               </p>
-            </div>
-
-            <!-- Trend History -->
-            <div class="space-y-2">
-              <p class="text-xs uppercase font-bold text-slate-600">📊 Tetikleme Geçmişi</p>
-              <div id="trend-{{ alert.id }}" class="space-y-2 max-h-48 overflow-y-auto">
-                <p class="text-sm text-slate-600">Yükleniyor...</p>
-              </div>
             </div>
           </div>
         </div>
@@ -143,48 +121,14 @@ async function loadAlertDetails(alertId, card) {
     const data = await response.json();
     console.log('Alert data loaded:', data);
     
-    const rule = data.rule;
-    const trend = data.trend;
-
-    // Ne anlama geliyor (Türkçe)
-    const whatMeansTr = document.getElementById(`what-means-${alertId}`);
-    if (whatMeansTr) {
-      whatMeansTr.textContent = rule.description_short || 'Açıklama yüklenmedi';
-    }
-    
-    // What does this mean (İngilizce)
-    const whatMeansEn = document.getElementById(`what-means-en-${alertId}`);
-    if (whatMeansEn) {
-      whatMeansEn.textContent = rule.description_short_en || 'Description not loaded';
-    }
-    
     // Load default comparison (daily)
     loadComparisonData(alertId, 'daily');
     
-    // Trend
-    const trendDiv = document.getElementById(`trend-${alertId}`);
-    if (trendDiv) {
-      if (trend && trend.length > 0) {
-        const trendHtml = trend
-          .map(log => `
-            <div class="text-xs p-2 bg-slate-100 rounded">
-              <p class="font-semibold">${log.triggered_at}</p>
-              <p class="text-slate-700 mt-1">${log.message}</p>
-              <p class="text-slate-500 mt-1">${log.sent_mail ? '✓ Mail gönderildi' : '⧗ Mail bekliyor'}</p>
-            </div>
-          `)
-          .join('');
-        trendDiv.innerHTML = trendHtml;
-      } else {
-        trendDiv.innerHTML = '<p class="text-sm text-slate-600">Trend verisi bulunamadı</p>';
-      }
-    }
-    
   } catch (error) {
     console.error('Error loading alert details:', error);
-    const whatMeansTr = document.getElementById(`what-means-${alertId}`);
-    if (whatMeansTr) {
-      whatMeansTr.textContent = `Hata: ${error.message}`;
+    const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
+    if (comparisonDiv) {
+      comparisonDiv.textContent = `Hata: ${error.message}`;
     }
   }
 }
