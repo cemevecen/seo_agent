@@ -47,24 +47,20 @@
               </div>
             </div>
 
-            <!-- Metrics Section -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg">
-              <div class="space-y-1">
-                <p class="text-xs text-slate-600 font-semibold">Mevcut Değer</p>
-                <p id="metric-current-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
+            <!-- Comparison Info -->
+            <div class="space-y-2">
+              <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
+              <div class="flex gap-2 flex-wrap">
+                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="daily" data-alert-id="{{ alert.id }}">
+                  Dünle (Day-over-Day)
+                </button>
+                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200" data-comparison="weekly" data-alert-id="{{ alert.id }}">
+                  Geçen Hafta (Week-over-Week)
+                </button>
               </div>
-              <div class="space-y-1">
-                <p class="text-xs text-slate-600 font-semibold">Eşik Değeri</p>
-                <p id="metric-threshold-{{ alert.id }}" class="text-lg font-bold text-red-600">-</p>
-              </div>
-              <div class="space-y-1">
-                <p class="text-xs text-slate-600 font-semibold">Min/Max</p>
-                <p id="metric-minmax-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
-              </div>
-              <div class="space-y-1">
-                <p class="text-xs text-slate-600 font-semibold">Ortalama</p>
-                <p id="metric-avg-{{ alert.id }}" class="text-lg font-bold text-slate-900">-</p>
-              </div>
+              <p id="comparison-info-{{ alert.id }}" class="text-sm text-slate-700 mt-2 p-2 bg-blue-50 rounded border border-blue-200 leading-relaxed">
+                Yükleniyor...
+              </p>
             </div>
 
             <!-- Trend History -->
@@ -87,7 +83,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Sadece "Detay" butonlarına click event ekle
+  // Detay butonu
   document.querySelectorAll('.toggle-details').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
@@ -98,15 +94,39 @@ document.addEventListener('DOMContentLoaded', function() {
       const alertId = card.dataset.alertId;
       
       if (details.classList.contains('hidden')) {
-        // Aç ve detayları yükle
         details.classList.remove('hidden');
         loadAlertDetails(alertId, card);
         this.textContent = 'Gizle';
       } else {
-        // Kapat
         details.classList.add('hidden');
         this.textContent = 'Detay';
       }
+    });
+  });
+  
+  // Comparison type buttons
+  document.querySelectorAll('.comparison-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      
+      const alertId = this.dataset.alertId;
+      const comparisonType = this.dataset.comparison;
+      const card = this.closest('.alert-details').closest('.alert-card');
+      
+      // Button styling
+      const allBtns = card.querySelectorAll('.comparison-btn');
+      allBtns.forEach(b => {
+        if (b.dataset.alertId === alertId) {
+          b.classList.remove('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+          b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+        } else {
+          b.classList.add('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+          b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+        }
+      });
+      
+      // Load comparison data
+      loadComparisonData(alertId, comparisonType);
     });
   });
 });
@@ -124,7 +144,6 @@ async function loadAlertDetails(alertId, card) {
     console.log('Alert data loaded:', data);
     
     const rule = data.rule;
-    const metrics = data.metrics;
     const trend = data.trend;
 
     // Ne anlama geliyor (Türkçe)
@@ -139,28 +158,8 @@ async function loadAlertDetails(alertId, card) {
       whatMeansEn.textContent = rule.description_short_en || 'Description not loaded';
     }
     
-    // Metrikler
-    const currentVal = document.getElementById(`metric-current-${alertId}`);
-    if (currentVal) {
-      currentVal.textContent = metrics.current_value !== null ? metrics.current_value.toFixed(2) : 'N/A';
-    }
-    
-    const thresholdVal = document.getElementById(`metric-threshold-${alertId}`);
-    if (thresholdVal) {
-      thresholdVal.textContent = metrics.threshold_value.toFixed(2);
-    }
-    
-    const minmaxVal = document.getElementById(`metric-minmax-${alertId}`);
-    if (minmaxVal) {
-      minmaxVal.textContent = metrics.min_value !== null && metrics.max_value !== null 
-        ? `${metrics.min_value.toFixed(2)} - ${metrics.max_value.toFixed(2)}`
-        : 'N/A';
-    }
-    
-    const avgVal = document.getElementById(`metric-avg-${alertId}`);
-    if (avgVal) {
-      avgVal.textContent = metrics.avg_value !== null ? metrics.avg_value.toFixed(2) : 'N/A';
-    }
+    // Load default comparison (daily)
+    loadComparisonData(alertId, 'daily');
     
     // Trend
     const trendDiv = document.getElementById(`trend-${alertId}`);
@@ -186,6 +185,34 @@ async function loadAlertDetails(alertId, card) {
     const whatMeansTr = document.getElementById(`what-means-${alertId}`);
     if (whatMeansTr) {
       whatMeansTr.textContent = `Hata: ${error.message}`;
+    }
+  }
+}
+
+async function loadComparisonData(alertId, comparisonType) {
+  try {
+    const response = await fetch(`/api/alert-details/${alertId}?comparison=${comparisonType}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const comparison = data.comparison || {};
+    const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
+    
+    if (comparisonDiv) {
+      if (comparison.message) {
+        comparisonDiv.innerHTML = `<p>${comparison.message}</p>`;
+      } else {
+        comparisonDiv.innerHTML = '<p class="text-slate-600">Karşılaştırma verisi bulunamadı</p>';
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error loading comparison data:', error);
+    const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
+    if (comparisonDiv) {
+      comparisonDiv.textContent = `Hata: ${error.message}`;
     }
   }
 }
