@@ -1,0 +1,223 @@
+{% macro metric_tile(title, value, subtitle) %}
+<div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ title }}</p>
+  <p class="mt-3 text-3xl font-bold text-slate-900">{{ value }}</p>
+  <p class="mt-2 text-sm text-slate-600">{{ subtitle }}</p>
+</div>
+{% endmacro %}
+
+<div id="data-explorer-shell" class="space-y-6">
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Warehouse Explorer</p>
+      <h3 class="text-3xl font-bold tracking-tight text-slate-900">{{ domain }}</h3>
+      <p class="mt-2 max-w-3xl text-sm text-slate-600">
+        CrUX History, URL Inspection ve biriken warehouse kayıtlarını tek ekranda gör.
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/site/{{ domain }}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900">Site Detayı</a>
+      <button
+        type="button"
+        id="refresh-data-explorer"
+        class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+        data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
+      >
+        CrUX + URL Inspection Yenile
+      </button>
+    </div>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+    {{ metric_tile("Collector Runs", warehouse_summary.collector_runs, "Tum collector calismalari") }}
+    {{ metric_tile("PS Payloads", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed snapshot sayisi") }}
+    {{ metric_tile("LH Audits", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari") }}
+    {{ metric_tile("SC Rows", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari") }}
+    {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX history snapshot sayisi") }}
+    {{ metric_tile("Inspection", warehouse_summary.url_inspection_snapshots, "URL Inspection snapshot sayisi") }}
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-2">
+    <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">CrUX History</p>
+          <h4 class="text-xl font-semibold text-slate-900">Mobile</h4>
+          <p class="mt-2 text-sm text-slate-600">{{ crux_mobile_status.description }}</p>
+        </div>
+        <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {% for metric in crux_mobile_series.values() %}
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
+          <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest if metric.latest is not none else "N/A" }}</p>
+          <p class="mt-1 text-xs text-slate-500">Good share: {{ "%.1f"|format(metric.good_share) if metric.good_share is not none else "N/A" }}%</p>
+        </div>
+        {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz mobile CrUX history snapshot yok.</div>
+        {% endfor %}
+      </div>
+      <div id="crux-mobile-chart" class="mt-4 h-[340px]" data-series='{{ crux_mobile_series|tojson }}'></div>
+    </section>
+
+    <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">CrUX History</p>
+          <h4 class="text-xl font-semibold text-slate-900">Desktop</h4>
+          <p class="mt-2 text-sm text-slate-600">{{ crux_desktop_status.description }}</p>
+        </div>
+        <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {% for metric in crux_desktop_series.values() %}
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
+          <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest if metric.latest is not none else "N/A" }}</p>
+          <p class="mt-1 text-xs text-slate-500">Good share: {{ "%.1f"|format(metric.good_share) if metric.good_share is not none else "N/A" }}%</p>
+        </div>
+        {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz desktop CrUX history snapshot yok.</div>
+        {% endfor %}
+      </div>
+      <div id="crux-desktop-chart" class="mt-4 h-[340px]" data-series='{{ crux_desktop_series|tojson }}'></div>
+    </section>
+  </div>
+
+  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">URL Inspection</p>
+        <h4 class="text-xl font-semibold text-slate-900">Index / Canonical / Crawl Durumu</h4>
+        <p class="mt-2 text-sm text-slate-600">{{ url_inspection_status.description }}</p>
+      </div>
+      <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ url_inspection_status.badge_class }}">{{ url_inspection_status.label }}</span>
+    </div>
+
+    {% if url_inspection and url_inspection.summary %}
+    {% set inspect = url_inspection.summary %}
+    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {{ metric_tile("Verdict", inspect.verdict or "N/A", "Google index karari") }}
+      {{ metric_tile("Coverage", inspect.coverage_state or "N/A", "Coverage state") }}
+      {{ metric_tile("Indexing", inspect.indexing_state or "N/A", "Indexing state") }}
+      {{ metric_tile("Fetch", inspect.page_fetch_state or "N/A", "Page fetch state") }}
+    </div>
+    <div class="mt-5 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Canonical</p>
+        <p class="mt-3 text-sm font-semibold text-slate-900">Google Canonical</p>
+        <p class="mt-1 break-all text-sm text-slate-700">{{ inspect.google_canonical or "N/A" }}</p>
+        <p class="mt-4 text-sm font-semibold text-slate-900">User Canonical</p>
+        <p class="mt-1 break-all text-sm text-slate-700">{{ inspect.user_canonical or "N/A" }}</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Crawl & Robots</p>
+        <p class="mt-3 text-sm"><span class="font-semibold text-slate-900">Robots:</span> <span class="text-slate-700">{{ inspect.robots_txt_state or "N/A" }}</span></p>
+        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Last crawl:</span> <span class="text-slate-700">{{ inspect.last_crawl_time or "N/A" }}</span></p>
+        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Rich results:</span> <span class="text-slate-700">{{ inspect.rich_results_verdict or "N/A" }}</span></p>
+        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900">Mobile usability:</span> <span class="text-slate-700">{{ inspect.mobile_usability_verdict or "N/A" }}</span></p>
+      </div>
+    </div>
+    {% else %}
+    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+      Henüz URL Inspection snapshot yok.
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Collector Log</p>
+        <h4 class="text-xl font-semibold text-slate-900">Son Warehouse Çalışmaları</h4>
+      </div>
+    </div>
+    <div class="mt-5 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-left text-slate-500">
+          <tr>
+            <th class="py-2 pr-4">Provider</th>
+            <th class="py-2 pr-4">Strategy</th>
+            <th class="py-2 pr-4">Status</th>
+            <th class="py-2 pr-4">Rows</th>
+            <th class="py-2 pr-4">Requested</th>
+            <th class="py-2 pr-4">Error</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for run in warehouse_summary.latest_runs %}
+          <tr>
+            <td class="py-3 pr-4 font-semibold text-slate-900">{{ run.provider }}</td>
+            <td class="py-3 pr-4 text-slate-700">{{ run.strategy }}</td>
+            <td class="py-3 pr-4 text-slate-700">{{ run.status }}</td>
+            <td class="py-3 pr-4 text-slate-700">{{ run.row_count }}</td>
+            <td class="py-3 pr-4 text-slate-700">{{ run.requested_at or "N/A" }}</td>
+            <td class="py-3 pr-4 text-slate-700">{{ run.error_message or "-" }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="py-6 text-center text-slate-500">Henüz collector run kaydı yok.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+  (function () {
+    function renderCruxChart(elementId) {
+      const element = document.getElementById(elementId);
+      if (!element || typeof Plotly === 'undefined') {
+        return;
+      }
+      const raw = JSON.parse(element.dataset.series || '{}');
+      const traces = Object.keys(raw).map(function (key) {
+        const metric = raw[key] || {};
+        const chart = metric.chart || { x: [], y: [] };
+        return {
+          x: chart.x,
+          y: chart.y,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: metric.label || key.toUpperCase(),
+        };
+      }).filter(function (trace) { return trace.x && trace.x.length; });
+      if (!traces.length) {
+        element.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">Grafik için yeterli CrUX history verisi yok.</div>';
+        return;
+      }
+      Plotly.newPlot(element, traces, {
+        margin: { t: 10, r: 20, b: 50, l: 50 },
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white',
+        xaxis: { color: '#475569' },
+        yaxis: { color: '#475569' },
+        legend: { orientation: 'h', y: 1.12 }
+      }, { displayModeBar: false, responsive: true });
+    }
+
+    renderCruxChart('crux-mobile-chart');
+    renderCruxChart('crux-desktop-chart');
+
+    const refreshButton = document.getElementById('refresh-data-explorer');
+    if (refreshButton && !refreshButton.dataset.bound) {
+      refreshButton.dataset.bound = '1';
+      refreshButton.addEventListener('click', async function () {
+        const url = refreshButton.dataset.refreshUrl;
+        const original = refreshButton.textContent;
+        refreshButton.disabled = true;
+        refreshButton.textContent = 'Yenileniyor...';
+        try {
+          await fetch(url, { method: 'POST' });
+          window.location.reload();
+        } catch (error) {
+          refreshButton.textContent = 'Yenileme basarisiz';
+          setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
+        }
+      });
+    }
+  })();
+</script>

@@ -26,9 +26,11 @@ from backend.api.alerts import router as alerts_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
+from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import STRATEGY_METRIC_MAP, collect_pagespeed_metrics, get_latest_pagespeed_audit_snapshot
 from backend.collectors.search_console import get_top_queries
 from backend.collectors.search_console import collect_search_console_metrics
+from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
 from backend.models import Site
@@ -40,6 +42,11 @@ from backend.services.search_console_auth import build_oauth_flow, decode_oauth_
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
+from backend.services.warehouse import (
+    get_latest_crux_snapshot,
+    get_latest_url_inspection_snapshot,
+    get_site_warehouse_summary,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -615,6 +622,90 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
     }
 
 
+def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: str) -> dict[str, str]:
+    if state == "live":
+        return {
+            "label": "Live",
+            "badge_class": "border-emerald-200 bg-emerald-50 text-emerald-700",
+            "description": live_text,
+        }
+    if state == "stale":
+        return {
+            "label": "Stale",
+            "badge_class": "border-amber-200 bg-amber-50 text-amber-800",
+            "description": stale_text,
+        }
+    return {
+        "label": "Failed",
+        "badge_class": "border-rose-200 bg-rose-50 text-rose-700",
+        "description": failed_text,
+    }
+
+
+def _format_crux_series(snapshot: dict | None) -> dict[str, dict]:
+    summary = (snapshot or {}).get("summary") or {}
+    series = summary.get("series") or {}
+    formatted: dict[str, dict] = {}
+    for metric_key, item in series.items():
+        points = item.get("points") or []
+        formatted[metric_key] = {
+            "label": item.get("label") or metric_key.upper(),
+            "latest": item.get("latest"),
+            "good_share": item.get("good_share"),
+            "chart": {
+                "x": [point.get("label") for point in points],
+                "y": [point.get("value") for point in points],
+            },
+        }
+    return formatted
+
+
+def _data_explorer_context(domain: str) -> dict:
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            raise ValueError("Site bulunamadı.")
+
+        warehouse = get_site_warehouse_summary(db, site_id=site.id)
+        mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+        desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
+
+        mobile_state = _data_state_badge(
+            "live" if mobile_crux else "failed",
+            "CrUX history canlı snapshot mevcut",
+            "Son başarılı CrUX history snapshot gösteriliyor",
+            "CrUX history verisi henüz yok",
+        )
+        desktop_state = _data_state_badge(
+            "live" if desktop_crux else "failed",
+            "CrUX history canlı snapshot mevcut",
+            "Son başarılı CrUX history snapshot gösteriliyor",
+            "CrUX history verisi henüz yok",
+        )
+        inspection_state = _data_state_badge(
+            "live" if inspection else "failed",
+            "URL Inspection snapshot mevcut",
+            "Son başarılı URL Inspection snapshot gösteriliyor",
+            "URL Inspection verisi henüz yok",
+        )
+
+        return {
+            "site_name": f"Data Explorer - {site.display_name}",
+            "sites": get_sidebar_sites(),
+            "domain": site.domain,
+            "warehouse_summary": warehouse,
+            "crux_mobile": mobile_crux,
+            "crux_desktop": desktop_crux,
+            "crux_mobile_series": _format_crux_series(mobile_crux),
+            "crux_desktop_series": _format_crux_series(desktop_crux),
+            "url_inspection": inspection,
+            "crux_mobile_status": mobile_state,
+            "crux_desktop_status": desktop_state,
+            "url_inspection_status": inspection_state,
+        }
+
+
 def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
@@ -1036,6 +1127,18 @@ def site_detail(request: Request, domain: str):
     return templates.TemplateResponse(request, "site_detail.html", context={"request": request, **payload})
 
 
+@app.get("/data-explorer/{domain}", response_class=HTMLResponse)
+def data_explorer(request: Request, domain: str):
+    try:
+        payload = _data_explorer_context(domain)
+    except ValueError:
+        return HTMLResponse("Site bulunamadı.", status_code=404)
+
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "partials/data_explorer_content.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "data_explorer.html", context={"request": request, **payload})
+
+
 @app.get("/api/site/{domain}/top-queries")
 def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
     """API endpoint to get filtered top queries by device and limit."""
@@ -1087,6 +1190,42 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
             })
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/site/{domain}/warehouse-summary")
+def api_get_site_warehouse_summary(domain: str):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "warehouse": get_site_warehouse_summary(db, site_id=site.id),
+            }
+        )
+
+
+@app.post("/api/site/{domain}/data-explorer/refresh")
+def api_refresh_data_explorer(domain: str):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+
+        results = {
+            "crux_history": collect_crux_history(db, site),
+            "url_inspection": collect_url_inspection(db, site),
+        }
+        db.commit()
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "refreshed": True,
+                "results": results,
+                "warehouse": get_site_warehouse_summary(db, site_id=site.id),
+            }
+        )
 
 
 @app.post("/api/site/{domain}/refresh")

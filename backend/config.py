@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     pagespeed_retry_backoff_seconds: float = 2.0
     search_console_daily_limit: int = 80
     search_console_monthly_limit: int = 1500
+    search_console_row_batch_size: int = 2500
+    search_console_max_rows: int = 10000
 
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"

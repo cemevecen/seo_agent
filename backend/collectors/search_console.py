@@ -10,11 +10,18 @@ from urllib.parse import urlparse
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models import Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
 from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
+from backend.services.warehouse import (
+    finish_collector_run,
+    get_latest_search_console_rows,
+    save_search_console_query_rows,
+    start_collector_run,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -255,6 +262,61 @@ def _mock_search_console_response(domain: str = "") -> dict:
     }
 
 
+def _normalize_search_console_rows(rows: list[dict]) -> list[dict]:
+    normalized: list[dict] = []
+    for row in rows or []:
+        keys = row.get("keys") or []
+        query = str(keys[0] if len(keys) > 0 else row.get("query") or "")
+        device = str(keys[1] if len(keys) > 1 else row.get("device") or "ALL").upper()
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        ctr = float(row.get("ctr") or 0.0)
+        if impressions > 0 and ctr <= 0 and clicks > 0:
+            ctr = clicks / impressions
+        normalized.append(
+            {
+                "query": query,
+                "device": device,
+                "clicks": clicks,
+                "impressions": impressions,
+                "ctr": ctr,
+                "position": float(row.get("position") or 0.0),
+            }
+        )
+    return normalized
+
+
+def _fetch_search_console_rows(service, site_url: str, start_date: date, end_date: date) -> list[dict]:
+    page_size = max(100, min(int(settings.search_console_row_batch_size), int(settings.search_console_max_rows)))
+    max_rows = max(page_size, int(settings.search_console_max_rows))
+    all_rows: list[dict] = []
+    start_row = 0
+
+    while start_row < max_rows:
+        response = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body={
+                    "startDate": start_date.isoformat(),
+                    "endDate": end_date.isoformat(),
+                    "dimensions": ["query", "device"],
+                    "rowLimit": page_size,
+                    "startRow": start_row,
+                },
+            )
+            .execute()
+        )
+        rows = response.get("rows", []) or []
+        normalized = _normalize_search_console_rows(rows)
+        all_rows.extend(normalized)
+        if len(rows) < page_size:
+            break
+        start_row += page_size
+
+    return all_rows[:max_rows]
+
+
 def _load_search_console_data(site: Site, credential: SiteCredential | None) -> dict:
     # Credential varsa Search Console API cevabı üretir, yoksa bos/failure doner.
     if credential is None:
@@ -283,38 +345,17 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         start_date = end_date - timedelta(days=27)
         previous_date = end_date - timedelta(days=1)
 
-        current = (
-            service.searchanalytics()
-            .query(
-                siteUrl=site_url,
-                body={
-                    "startDate": start_date.isoformat(),
-                    "endDate": end_date.isoformat(),
-                    "dimensions": ["query"],
-                    "rowLimit": 50,
-                },
-            )
-            .execute()
-        )
-        previous = (
-            service.searchanalytics()
-            .query(
-                siteUrl=site_url,
-                body={
-                    "startDate": previous_date.isoformat(),
-                    "endDate": previous_date.isoformat(),
-                    "dimensions": ["query"],
-                    "rowLimit": 50,
-                },
-            )
-            .execute()
-        )
+        current_rows = _fetch_search_console_rows(service, site_url, start_date, end_date)
+        previous_rows = _fetch_search_console_rows(service, site_url, previous_date, previous_date)
         return {
-            "rows": current.get("rows", []),
-            "previous_day": previous.get("rows", []),
+            "rows": current_rows,
+            "previous_day": previous_rows,
             "source": "live",
             "error": None,
             "site_url": site_url,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "previous_date": previous_date.isoformat(),
         }
     except Exception as exc:
         LOGGER.warning("Search Console failed for %s due to credential/API error: %s", site.domain, exc)
@@ -334,13 +375,32 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         }
 
     credential = get_search_console_credentials_record(db, site.id)
+    collected_at = datetime.utcnow()
+    collector_run = start_collector_run(
+        db,
+        site_id=site.id,
+        provider="search_console",
+        strategy="all",
+        target_url=site.domain,
+        requested_at=collected_at,
+    )
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
     previous_rows = payload.get("previous_day", [])
     source = payload.get("source", "failed")
     error = payload.get("error")
+    site_url = payload.get("site_url", "")
 
     if source != "live":
+        finish_collector_run(
+            db,
+            collector_run,
+            status="failed",
+            finished_at=datetime.utcnow(),
+            error_message=str(error or "Search Console canli veri alinamadi."),
+            summary={"source": source},
+            row_count=0,
+        )
         return {
             "site_id": site.id,
             "rows": [],
@@ -348,7 +408,10 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "source": source,
             "error": error,
         }
-    previous_map = {row.get("keys", [""])[0]: float(row.get("position", 0)) for row in previous_rows}
+    previous_map = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
+        for row in previous_rows
+    }
 
     total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
     total_impressions = sum(float(row.get("impressions", 0)) for row in rows)
@@ -357,9 +420,10 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     dropped_queries = 0
     max_drop = 0.0
     for row in rows:
-        query = row.get("keys", [""])[0]
+        query = str(row.get("query") or "")
+        device = str(row.get("device") or "ALL").upper()
         current_position = float(row.get("position", 0))
-        previous_position = previous_map.get(query)
+        previous_position = previous_map.get((query, device))
         if previous_position is None:
             continue
         drop = current_position - previous_position
@@ -375,7 +439,42 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         "search_console_dropped_queries": float(dropped_queries),
         "search_console_biggest_drop": max_drop,
     }
-    save_metrics(db, site.id, metrics, datetime.utcnow())
+    save_metrics(db, site.id, metrics, collected_at)
+    current_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="current_28d",
+        rows=rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("start_date") or ""),
+        end_date=str(payload.get("end_date") or ""),
+        collector_run_id=collector_run.id,
+    )
+    previous_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="previous_day",
+        rows=previous_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("previous_date") or ""),
+        end_date=str(payload.get("previous_date") or ""),
+        collector_run_id=collector_run.id,
+    )
+    finish_collector_run(
+        db,
+        collector_run,
+        status="success",
+        finished_at=collected_at,
+        summary={
+            "source": "live",
+            "property_url": site_url,
+            "current_rows": current_row_count,
+            "previous_rows": previous_row_count,
+        },
+        row_count=current_row_count + previous_row_count,
+    )
     evaluate_site_alerts(db, site)
     return {"site_id": site.id, "rows": rows, "summary": metrics, "source": "live", "error": None}
 
@@ -393,14 +492,17 @@ def get_top_queries(db: Session, site: Site, limit: int = 10, device: str = "all
         List of query rows. If device is "all", includes both DESKTOP and MOBILE.
         If device is "DESKTOP" or "MOBILE", includes only that device.
     """
-    credential = get_search_console_credentials_record(db, site.id)
-    payload = _load_search_console_data(site, credential)
-    rows = payload.get("rows", [])
-    previous_day = payload.get("previous_day", [])
+    rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_28d")
+    previous_day = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
+    if not rows:
+        credential = get_search_console_credentials_record(db, site.id)
+        payload = _load_search_console_data(site, credential)
+        rows = payload.get("rows", [])
+        previous_day = payload.get("previous_day", [])
     
     # Device-specific previous map: (query, device) -> position
     previous_map = {
-        (row.get("keys", [""])[0], row.get("device", "DESKTOP").upper()): float(row.get("position", 0))
+        (str(row.get("query") or row.get("keys", [""])[0]), str(row.get("device", "DESKTOP")).upper()): float(row.get("position", 0))
         for row in previous_day
     }
     
@@ -412,7 +514,7 @@ def get_top_queries(db: Session, site: Site, limit: int = 10, device: str = "all
     # Group rows by query name to get unique queries
     queries_dict = {}
     for row in rows:
-        query_name = row.get("keys", [""])[0]
+        query_name = str(row.get("query") or row.get("keys", [""])[0])
         row_device = (row.get("device", "DESKTOP") or "DESKTOP").upper().strip()
         
         if query_name not in queries_dict:

@@ -31,6 +31,24 @@ class Site(Base):
     api_usages: Mapped[list["ApiUsage"]] = relationship(
         "ApiUsage", back_populates="site", cascade="all, delete-orphan"
     )
+    collector_runs: Mapped[list["CollectorRun"]] = relationship(
+        "CollectorRun", back_populates="site", cascade="all, delete-orphan"
+    )
+    pagespeed_payload_snapshots: Mapped[list["PageSpeedPayloadSnapshot"]] = relationship(
+        "PageSpeedPayloadSnapshot", back_populates="site", cascade="all, delete-orphan"
+    )
+    lighthouse_audit_records: Mapped[list["LighthouseAuditRecord"]] = relationship(
+        "LighthouseAuditRecord", back_populates="site", cascade="all, delete-orphan"
+    )
+    search_console_query_snapshots: Mapped[list["SearchConsoleQuerySnapshot"]] = relationship(
+        "SearchConsoleQuerySnapshot", back_populates="site", cascade="all, delete-orphan"
+    )
+    crux_history_snapshots: Mapped[list["CruxHistorySnapshot"]] = relationship(
+        "CruxHistorySnapshot", back_populates="site", cascade="all, delete-orphan"
+    )
+    url_inspection_snapshots: Mapped[list["UrlInspectionSnapshot"]] = relationship(
+        "UrlInspectionSnapshot", back_populates="site", cascade="all, delete-orphan"
+    )
 
 
 class SiteCredential(Base):
@@ -70,6 +88,150 @@ class PageSpeedAuditSnapshot(Base):
     strategy: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     analysis_json: Mapped[str] = mapped_column(Text, nullable=False)
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class CollectorRun(Base):
+    """Her harici veri toplama akisi icin izleme ve hata kaydi tutar."""
+
+    __tablename__ = "collector_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    strategy: Mapped[str] = mapped_column(String(20), nullable=False, default="all", index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="started", index=True)
+    target_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    error_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="collector_runs")
+
+
+class PageSpeedPayloadSnapshot(Base):
+    """Ham PageSpeed API payload'ini strategy bazinda saklar."""
+
+    __tablename__ = "pagespeed_payload_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    strategy: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="pagespeed_payload_snapshots")
+
+
+class LighthouseAuditRecord(Base):
+    """Her Lighthouse denetimini normalize satirlar halinde saklar."""
+
+    __tablename__ = "lighthouse_audit_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    strategy: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    section_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    section_title_en: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    section_title_tr: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    audit_id: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    audit_state: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    priority: Mapped[str] = mapped_column(String(30), nullable=False, default="MEDIUM")
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    score_display_mode: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    title_en: Mapped[str] = mapped_column(Text, nullable=False)
+    title_tr: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    display_value: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    problem_en: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    problem_tr: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    impact_en: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    impact_tr: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    examples_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    solution_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    expected_result_en: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    expected_result_tr: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="lighthouse_audit_records")
+
+
+class SearchConsoleQuerySnapshot(Base):
+    """Canli Search Console satirlarini buyuk hacimde saklar."""
+
+    __tablename__ = "search_console_query_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    property_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    data_scope: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    device: Mapped[str] = mapped_column(String(30), nullable=False, default="ALL", index=True)
+    clicks: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    impressions: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    ctr: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    position: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    start_date: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    end_date: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="search_console_query_snapshots")
+
+
+class CruxHistorySnapshot(Base):
+    """CrUX History API yanitlarini form factor bazinda saklar."""
+
+    __tablename__ = "crux_history_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    form_factor: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    target_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="crux_history_snapshots")
+
+
+class UrlInspectionSnapshot(Base):
+    """Google index durumu, canonical ve crawl bilgisini saklar."""
+
+    __tablename__ = "url_inspection_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    inspection_url: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    property_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    verdict: Mapped[str] = mapped_column(String(100), nullable=False, default="", index=True)
+    coverage_state: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    indexing_state: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    page_fetch_state: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    robots_txt_state: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    google_canonical: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    user_canonical: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    last_crawl_time: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="url_inspection_snapshots")
 
 
 class Alert(Base):

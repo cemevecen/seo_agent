@@ -19,6 +19,12 @@ from backend.models import PageSpeedAuditSnapshot, Site
 from backend.services.alert_engine import emit_custom_alert, evaluate_site_alerts
 from backend.services.metric_store import get_latest_metrics, save_metrics
 from backend.services.quota_guard import consume_api_quota
+from backend.services.warehouse import (
+    finish_collector_run,
+    save_lighthouse_audit_records,
+    save_pagespeed_payload_snapshot,
+    start_collector_run,
+)
 
 PAGESPEED_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 LOGGER = logging.getLogger(__name__)
@@ -510,6 +516,8 @@ def _build_lighthouse_analysis(payload: dict, strategy: str) -> dict:
                 "title_tr": str(localized.get("title_tr") or title_en),
                 "category": label,
                 "priority": _audit_priority(audit),
+                "score": float(audit.get("score") or 0.0),
+                "score_display_mode": str(audit.get("scoreDisplayMode") or ""),
                 "state": state,
                 "state_label_en": {
                     "failed": "Needs Fix",
@@ -551,6 +559,7 @@ def _build_lighthouse_analysis(payload: dict, strategy: str) -> dict:
                         else "Bu madde raporda referans olarak tutuluyor."
                     )
                 ),
+                "display_value": display_value,
                 "solution": localized.get("solution") if state == "failed" else [],
                 "expected_result": "This audit should improve after the fix is deployed." if state == "failed" else "No action is required for this audit in the current report.",
                 "expected_result_en": "This audit should improve after the fix is deployed." if state == "failed" else "No action is required for this audit in the current report.",
@@ -823,10 +832,15 @@ def _mock_lighthouse_analysis(strategy: str) -> dict:
     }
 
 
-def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict]:
+def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict, dict]:
     # API key yoksa deterministic mock veri döndürür, varsa gerçek API çağrısı yapar.
     api_key = settings.google_api_key.strip()
     if not api_key or api_key.startswith("local-"):
+        payload = {
+            "mock": True,
+            "strategy": strategy,
+            "generated_at": datetime.utcnow().isoformat(),
+        }
         if strategy == "mobile":
             return ({
                 "performance_score": 72.0,
@@ -838,7 +852,7 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict]:
                 "ttfb": 420.0,
                 "cls": 0.08,
                 "inp": 180.0,
-            }, _mock_lighthouse_analysis(strategy))
+            }, _mock_lighthouse_analysis(strategy), payload)
         return ({
             "performance_score": 89.0,
             "accessibility_score": 91.0,
@@ -849,7 +863,7 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict]:
             "ttfb": 260.0,
             "cls": 0.03,
             "inp": 110.0,
-        }, _mock_lighthouse_analysis(strategy))
+        }, _mock_lighthouse_analysis(strategy), payload)
 
     query = urlencode(
         [
@@ -865,10 +879,10 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict]:
     )
     with urlopen(f"{PAGESPEED_ENDPOINT}?{query}", timeout=settings.pagespeed_request_timeout) as response:
         payload = json.loads(response.read().decode("utf-8"))
-    return _extract_lighthouse_metrics(payload), _build_lighthouse_analysis(payload, strategy)
+    return _extract_lighthouse_metrics(payload), _build_lighthouse_analysis(payload, strategy), payload
 
 
-def _fetch_pagespeed_with_retries(url: str, strategy: str) -> tuple[dict[str, float], dict]:
+def _fetch_pagespeed_with_retries(url: str, strategy: str) -> tuple[dict[str, float], dict, dict]:
     # Geçici ağ hatalarında yeniden deneyip kalıcı hataları açıklayıcı şekilde döndürür.
     attempts = max(1, settings.pagespeed_max_retries + 1)
     last_error: Exception | None = None
@@ -987,14 +1001,52 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
     errors: dict[str, str] = {}
 
     for strategy in ("mobile", "desktop"):
+        collector_run = start_collector_run(
+            db,
+            site_id=site.id,
+            provider="pagespeed",
+            strategy=strategy,
+            target_url=target_url,
+            requested_at=collected_at,
+        )
         try:
-            payload, analysis = _fetch_pagespeed_with_retries(target_url, strategy)
+            payload, analysis, raw_payload = _fetch_pagespeed_with_retries(target_url, strategy)
             strategy_payloads[strategy] = payload
             strategy_analyses[strategy] = analysis
             strategy_status[strategy] = {"state": "fresh", "message": "Canli veri guncellendi."}
             metrics.update(_flatten_strategy_metrics(strategy, payload))
             if analysis:
                 _save_pagespeed_audit_snapshot(db, site.id, strategy, analysis, collected_at)
+                audit_row_count = save_lighthouse_audit_records(
+                    db,
+                    site_id=site.id,
+                    strategy=strategy,
+                    analysis=analysis,
+                    collected_at=collected_at,
+                    collector_run_id=collector_run.id,
+                )
+            else:
+                audit_row_count = 0
+            save_pagespeed_payload_snapshot(
+                db,
+                site_id=site.id,
+                strategy=strategy,
+                payload=raw_payload,
+                collected_at=collected_at,
+                collector_run_id=collector_run.id,
+            )
+            finish_collector_run(
+                db,
+                collector_run,
+                status="success",
+                finished_at=collected_at,
+                summary={
+                    "source": "mock" if raw_payload.get("mock") else "live",
+                    "saved_metric_keys": sorted(_flatten_strategy_metrics(strategy, payload).keys()),
+                    "audit_rows": audit_row_count,
+                },
+                row_count=audit_row_count,
+            )
         except RuntimeError as exc:
             fallback = _load_latest_strategy_metrics(db, site.id, strategy)
             strategy_analyses[strategy] = get_latest_pagespeed_audit_snapshot(db, site.id, strategy)
@@ -1025,6 +1077,17 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
                     dedupe_hours=3,
                 )
             LOGGER.warning("PageSpeed %s fallback durumuna gecti for %s: %s", strategy, site.domain, exc)
+            finish_collector_run(
+                db,
+                collector_run,
+                status="failed" if fallback is None else "stale",
+                finished_at=datetime.utcnow(),
+                error_message=str(exc),
+                summary={
+                    "fallback_used": fallback is not None,
+                },
+                row_count=0,
+            )
 
     if metrics:
         save_metrics(db, site.id, metrics, collected_at)
