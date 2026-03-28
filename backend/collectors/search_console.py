@@ -19,54 +19,100 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _get_mock_queries_for_domain(domain: str) -> list[dict]:
-    """Domain'e göre dinamik test querylerini döndürür. Device ayrılımı ile (desktop/mobile)."""
+    """Domain'e göre dinamik test querylerini döndürür (TOP 50). Device ayrılımı ile (desktop/mobile)."""
     # Domain'i normalize et (www'siz, lowercase)
     domain_key = domain.lower().replace("www.", "").split(".")[0]
     
-    # Kategori-spesifik queryler
+    # Kategori-spesifik queryler (Top 50 keywords)
     query_sets = {
         "sinema": [
-            {"query": "sinema seans saatleri", "clicks_desktop": 50.0, "clicks_mobile": 35.0, "impressions_desktop": 1200.0, "impressions_mobile": 900.0, "position_desktop": 2.5, "position_mobile": 3.2},
-            {"query": "yakındaki sinemalar", "clicks_desktop": 38.0, "clicks_mobile": 24.0, "impressions_desktop": 950.0, "impressions_mobile": 650.0, "position_desktop": 3.2, "position_mobile": 4.1},
-            {"query": "film uyarlaması", "clicks_desktop": 28.0, "clicks_mobile": 20.0, "impressions_desktop": 700.0, "impressions_mobile": 500.0, "position_desktop": 4.9, "position_mobile": 5.8},
-            {"query": "yeni filmler", "clicks_desktop": 32.0, "clicks_mobile": 23.0, "impressions_desktop": 800.0, "impressions_mobile": 600.0, "position_desktop": 2.9, "position_mobile": 3.5},
-            {"query": "sinema bilet fiyatları", "clicks_desktop": 25.0, "clicks_mobile": 17.0, "impressions_desktop": 550.0, "impressions_mobile": 400.0, "position_desktop": 4.0, "position_mobile": 5.0},
-            {"query": "çocuk filmleri", "clicks_desktop": 22.0, "clicks_mobile": 16.0, "impressions_desktop": 500.0, "impressions_mobile": 380.0, "position_desktop": 4.6, "position_mobile": 5.2},
-            {"query": "korku filmleri", "clicks_desktop": 27.0, "clicks_mobile": 18.0, "impressions_desktop": 650.0, "impressions_mobile": 450.0, "position_desktop": 3.7, "position_mobile": 4.3},
-            {"query": "aksiyon filmleri", "clicks_desktop": 31.0, "clicks_mobile": 21.0, "impressions_desktop": 750.0, "impressions_mobile": 500.0, "position_desktop": 3.3, "position_mobile": 3.9},
-            {"query": "romantik filmler", "clicks_desktop": 20.0, "clicks_mobile": 15.0, "impressions_desktop": 430.0, "impressions_mobile": 320.0, "position_desktop": 4.9, "position_mobile": 5.5},
-            {"query": "komedi filmleri", "clicks_desktop": 24.0, "clicks_mobile": 17.0, "impressions_desktop": 540.0, "impressions_mobile": 380.0, "position_desktop": 4.3, "position_mobile": 4.9},
-            {"query": "bilim kurgu filmleri", "clicks_desktop": 23.0, "clicks_mobile": 16.0, "impressions_desktop": 500.0, "impressions_mobile": 350.0, "position_desktop": 4.7, "position_mobile": 5.3},
-            {"query": "film izle", "clicks_desktop": 46.0, "clicks_mobile": 32.0, "impressions_desktop": 1200.0, "impressions_mobile": 750.0, "position_desktop": 2.1, "position_mobile": 2.6},
-            {"query": "sinema kartı", "clicks_desktop": 16.0, "clicks_mobile": 12.0, "impressions_desktop": 360.0, "impressions_mobile": 260.0, "position_desktop": 5.6, "position_mobile": 6.2},
-            {"query": "imax sinema", "clicks_desktop": 13.0, "clicks_mobile": 9.0, "impressions_desktop": 280.0, "impressions_mobile": 200.0, "position_desktop": 6.0, "position_mobile": 6.6},
-            {"query": "3d sinema", "clicks_desktop": 11.0, "clicks_mobile": 8.0, "impressions_desktop": 240.0, "impressions_mobile": 180.0, "position_desktop": 6.3, "position_mobile": 6.9},
+            # Top tier (80-100 clicks)
+            {"query": "sinema seans saatleri", "clicks_desktop": 85.0, "clicks_mobile": 55.0, "impressions_desktop": 1800.0, "impressions_mobile": 1200.0, "position_desktop": 2.5, "position_mobile": 3.2},
+            {"query": "film izle", "clicks_desktop": 80.0, "clicks_mobile": 55.0, "impressions_desktop": 1900.0, "impressions_mobile": 1300.0, "position_desktop": 2.1, "position_mobile": 2.6},
+            # High tier (50-80 clicks)
+            {"query": "yakındaki sinemalar", "clicks_desktop": 65.0, "clicks_mobile": 42.0, "impressions_desktop": 1500.0, "impressions_mobile": 1000.0, "position_desktop": 3.2, "position_mobile": 4.1},
+            {"query": "yeni filmler", "clicks_desktop": 60.0, "clicks_mobile": 40.0, "impressions_desktop": 1400.0, "impressions_mobile": 900.0, "position_desktop": 2.9, "position_mobile": 3.5},
+            {"query": "film önerileri", "clicks_desktop": 55.0, "clicks_mobile": 38.0, "impressions_desktop": 1300.0, "impressions_mobile": 850.0, "position_desktop": 3.1, "position_mobile": 3.8},
+            {"query": "sinema bilet fiyatları", "clicks_desktop": 52.0, "clicks_mobile": 35.0, "impressions_desktop": 1200.0, "impressions_mobile": 800.0, "position_desktop": 4.0, "position_mobile": 5.0},
+            # Medium tier (30-50 clicks)
+            {"query": "çocuk filmleri", "clicks_desktop": 48.0, "clicks_mobile": 32.0, "impressions_desktop": 1100.0, "impressions_mobile": 700.0, "position_desktop": 4.6, "position_mobile": 5.2},
+            {"query": "korku filmleri", "clicks_desktop": 47.0, "clicks_mobile": 31.0, "impressions_desktop": 1050.0, "impressions_mobile": 700.0, "position_desktop": 3.7, "position_mobile": 4.3},
+            {"query": "aksiyon filmleri", "clicks_desktop": 45.0, "clicks_mobile": 30.0, "impressions_desktop": 1000.0, "impressions_mobile": 650.0, "position_desktop": 3.3, "position_mobile": 3.9},
+            {"query": "romantik filmler", "clicks_desktop": 43.0, "clicks_mobile": 29.0, "impressions_desktop": 950.0, "impressions_mobile": 620.0, "position_desktop": 4.9, "position_mobile": 5.5},
+            {"query": "komedi filmleri", "clicks_desktop": 42.0, "clicks_mobile": 28.0, "impressions_desktop": 930.0, "impressions_mobile": 600.0, "position_desktop": 4.3, "position_mobile": 4.9},
+            {"query": "bilim kurgu filmleri", "clicks_desktop": 40.0, "clicks_mobile": 27.0, "impressions_desktop": 900.0, "impressions_mobile": 580.0, "position_desktop": 4.7, "position_mobile": 5.3},
+            {"query": "film uyarlaması", "clicks_desktop": 38.0, "clicks_mobile": 25.0, "impressions_desktop": 850.0, "impressions_mobile": 550.0, "position_desktop": 4.9, "position_mobile": 5.8},
+            {"query": "film review", "clicks_desktop": 36.0, "clicks_mobile": 24.0, "impressions_desktop": 800.0, "impressions_mobile": 520.0, "position_desktop": 5.1, "position_mobile": 5.9},
+            {"query": "sinema kartı", "clicks_desktop": 32.0, "clicks_mobile": 21.0, "impressions_desktop": 700.0, "impressions_mobile": 450.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            # Lower tier (20-30 clicks)
+            {"query": "imax sinema", "clicks_desktop": 28.0, "clicks_mobile": 18.0, "impressions_desktop": 600.0, "impressions_mobile": 380.0, "position_desktop": 6.0, "position_mobile": 6.6},
+            {"query": "3d sinema", "clicks_desktop": 26.0, "clicks_mobile": 17.0, "impressions_desktop": 550.0, "impressions_mobile": 350.0, "position_desktop": 6.3, "position_mobile": 6.9},
+            {"query": "dram filmleri", "clicks_desktop": 25.0, "clicks_mobile": 17.0, "impressions_desktop": 530.0, "impressions_mobile": 340.0, "position_desktop": 5.4, "position_mobile": 6.0},
+            {"query": "gerilim filmleri", "clicks_desktop": 24.0, "clicks_mobile": 16.0, "impressions_desktop": 510.0, "impressions_mobile": 330.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "animasyon filmleri", "clicks_desktop": 22.0, "clicks_mobile": 15.0, "impressions_desktop": 470.0, "impressions_mobile": 310.0, "position_desktop": 5.9, "position_mobile": 6.5},
+            # Additional keywords for top 50
+            {"query": "sinema seansları", "clicks_desktop": 21.0, "clicks_mobile": 14.0, "impressions_desktop": 450.0, "impressions_mobile": 290.0, "position_desktop": 4.1, "position_mobile": 4.7},
+            {"query": "film fragmanı", "clicks_desktop": 20.0, "clicks_mobile": 13.0, "impressions_desktop": 430.0, "impressions_mobile": 280.0, "position_desktop": 4.2, "position_mobile": 4.8},
+            {"query": "sinema hakkında", "clicks_desktop": 19.0, "clicks_mobile": 13.0, "impressions_desktop": 410.0, "impressions_mobile": 270.0, "position_desktop": 4.3, "position_mobile": 4.9},
+            {"query": "müzik filmleri", "clicks_desktop": 18.0, "clicks_mobile": 12.0, "impressions_desktop": 390.0, "impressions_mobile": 250.0, "position_desktop": 4.4, "position_mobile": 5.0},
+            {"query": "biyografi filmleri", "clicks_desktop": 17.0, "clicks_mobile": 11.0, "impressions_desktop": 370.0, "impressions_mobile": 240.0, "position_desktop": 4.5, "position_mobile": 5.1},
+            # Continue to reach 50
+            {"query": "western filmleri", "clicks_desktop": 16.0, "clicks_mobile": 11.0, "impressions_desktop": 350.0, "impressions_mobile": 230.0, "position_desktop": 5.5, "position_mobile": 6.1},
+            {"query": "polisiye filmleri", "clicks_desktop": 15.0, "clicks_mobile": 10.0, "impressions_desktop": 330.0, "impressions_mobile": 220.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            {"query": "bilim kurgu dizisi", "clicks_desktop": 14.0, "clicks_mobile": 9.0, "impressions_desktop": 310.0, "impressions_mobile": 210.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "filmler izle", "clicks_desktop": 13.0, "clicks_mobile": 9.0, "impressions_desktop": 290.0, "impressions_mobile": 200.0, "position_desktop": 5.8, "position_mobile": 6.4},
+            {"query": "sinemanın tarihi", "clicks_desktop": 12.0, "clicks_mobile": 8.0, "impressions_desktop": 270.0, "impressions_mobile": 190.0, "position_desktop": 5.9, "position_mobile": 6.5},
+            {"query": "kısa filmler", "clicks_desktop": 11.0, "clicks_mobile": 8.0, "impressions_desktop": 250.0, "impressions_mobile": 180.0, "position_desktop": 6.0, "position_mobile": 6.6},
+            {"query": "belgesel filmler", "clicks_desktop": 10.0, "clicks_mobile": 7.0, "impressions_desktop": 230.0, "impressions_mobile": 170.0, "position_desktop": 6.1, "position_mobile": 6.7},
+            {"query": "fantezi filmleri", "clicks_desktop": 9.0, "clicks_mobile": 6.0, "impressions_desktop": 210.0, "impressions_mobile": 160.0, "position_desktop": 6.2, "position_mobile": 6.8},
+            {"query": "macera filmleri", "clicks_desktop": 8.0, "clicks_mobile": 5.0, "impressions_desktop": 190.0, "impressions_mobile": 150.0, "position_desktop": 6.3, "position_mobile": 6.9},
+            {"query": "gizem filmleri", "clicks_desktop": 7.0, "clicks_mobile": 5.0, "impressions_desktop": 170.0, "impressions_mobile": 140.0, "position_desktop": 6.4, "position_mobile": 7.0},
+            {"query": "tarih filmleri", "clicks_desktop": 6.0, "clicks_mobile": 4.0, "impressions_desktop": 150.0, "impressions_mobile": 130.0, "position_desktop": 6.5, "position_mobile": 7.1},
         ],
         "doviz": [
-            {"query": "doviz kuru", "clicks_desktop": 72.0, "clicks_mobile": 48.0, "impressions_desktop": 1500.0, "impressions_mobile": 1000.0, "position_desktop": 3.0, "position_mobile": 3.5},
-            {"query": "altin fiyatlari", "clicks_desktop": 48.0, "clicks_mobile": 32.0, "impressions_desktop": 1100.0, "impressions_mobile": 700.0, "position_desktop": 4.5, "position_mobile": 5.1},
-            {"query": "dolar ne kadar", "clicks_desktop": 39.0, "clicks_mobile": 26.0, "impressions_desktop": 900.0, "impressions_mobile": 600.0, "position_desktop": 7.6, "position_mobile": 8.2},
-            {"query": "euro kuru", "clicks_desktop": 35.0, "clicks_mobile": 23.0, "impressions_desktop": 800.0, "impressions_mobile": 550.0, "position_desktop": 4.0, "position_mobile": 4.6},
-            {"query": "bitcoin fiyati", "clicks_desktop": 45.0, "clicks_mobile": 30.0, "impressions_desktop": 1000.0, "impressions_mobile": 700.0, "position_desktop": 3.3, "position_mobile": 3.9},
-            {"query": "borsa istanbul", "clicks_desktop": 31.0, "clicks_mobile": 21.0, "impressions_desktop": 720.0, "impressions_mobile": 480.0, "position_desktop": 4.9, "position_mobile": 5.5},
-            {"query": "merkez bankasi", "clicks_desktop": 27.0, "clicks_mobile": 18.0, "impressions_desktop": 630.0, "impressions_mobile": 420.0, "position_desktop": 5.6, "position_mobile": 6.2},
-            {"query": "gumruk vergileri", "clicks_desktop": 22.0, "clicks_mobile": 16.0, "impressions_desktop": 540.0, "impressions_mobile": 360.0, "position_desktop": 6.0, "position_mobile": 6.5},
-            {"query": "hazine bonosu", "clicks_desktop": 19.0, "clicks_mobile": 13.0, "impressions_desktop": 450.0, "impressions_mobile": 300.0, "position_desktop": 5.7, "position_mobile": 6.3},
-            {"query": "piyasa analizi", "clicks_desktop": 29.0, "clicks_mobile": 19.0, "impressions_desktop": 660.0, "impressions_mobile": 440.0, "position_desktop": 4.3, "position_mobile": 4.9},
-            {"query": "kripto para", "clicks_desktop": 37.0, "clicks_mobile": 25.0, "impressions_desktop": 840.0, "impressions_mobile": 560.0, "position_desktop": 4.1, "position_mobile": 4.7},
-            {"query": "forex trading", "clicks_desktop": 33.0, "clicks_mobile": 22.0, "impressions_desktop": 750.0, "impressions_mobile": 500.0, "position_desktop": 4.6, "position_mobile": 5.2},
-            {"query": "yatirim stratejisi", "clicks_desktop": 25.0, "clicks_mobile": 17.0, "impressions_desktop": 570.0, "impressions_mobile": 380.0, "position_desktop": 5.3, "position_mobile": 5.9},
-            {"query": "emtia fiyatlari", "clicks_desktop": 22.0, "clicks_mobile": 15.0, "impressions_desktop": 510.0, "impressions_mobile": 340.0, "position_desktop": 5.7, "position_mobile": 6.3},
-            {"query": "petrol fiyati", "clicks_desktop": 41.0, "clicks_mobile": 27.0, "impressions_desktop": 930.0, "impressions_mobile": 620.0, "position_desktop": 3.9, "position_mobile": 4.5},
+            # Top tier (80-120 clicks)
+            {"query": "doviz kuru", "clicks_desktop": 120.0, "clicks_mobile": 80.0, "impressions_desktop": 2500.0, "impressions_mobile": 1600.0, "position_desktop": 3.0, "position_mobile": 3.5},
+            {"query": "altin fiyatlari", "clicks_desktop": 95.0, "clicks_mobile": 63.0, "impressions_desktop": 2000.0, "impressions_mobile": 1300.0, "position_desktop": 4.5, "position_mobile": 5.1},
+            {"query": "bitcoin fiyati", "clicks_desktop": 88.0, "clicks_mobile": 58.0, "impressions_desktop": 1850.0, "impressions_mobile": 1250.0, "position_desktop": 3.3, "position_mobile": 3.9},
+            # High tier (50-80 clicks)
+            {"query": "dolar ne kadar", "clicks_desktop": 78.0, "clicks_mobile": 52.0, "impressions_desktop": 1650.0, "impressions_mobile": 1100.0, "position_desktop": 7.6, "position_mobile": 8.2},
+            {"query": "euro kuru", "clicks_desktop": 70.0, "clicks_mobile": 46.0, "impressions_desktop": 1500.0, "impressions_mobile": 1000.0, "position_desktop": 4.0, "position_mobile": 4.6},
+            {"query": "petrol fiyati", "clicks_desktop": 68.0, "clicks_mobile": 45.0, "impressions_desktop": 1450.0, "impressions_mobile": 950.0, "position_desktop": 3.9, "position_mobile": 4.5},
+            {"query": "kripto para", "clicks_desktop": 65.0, "clicks_mobile": 43.0, "impressions_desktop": 1400.0, "impressions_mobile": 900.0, "position_desktop": 4.1, "position_mobile": 4.7},
+            {"query": "borsa istanbul", "clicks_desktop": 62.0, "clicks_mobile": 41.0, "impressions_desktop": 1320.0, "impressions_mobile": 880.0, "position_desktop": 4.9, "position_mobile": 5.5},
+            {"query": "forex trading", "clicks_desktop": 60.0, "clicks_mobile": 40.0, "impressions_desktop": 1280.0, "impressions_mobile": 850.0, "position_desktop": 4.6, "position_mobile": 5.2},
+            {"query": "merkez bankasi", "clicks_desktop": 55.0, "clicks_mobile": 36.0, "impressions_desktop": 1170.0, "impressions_mobile": 780.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            # Medium tier (30-50 clicks)
+            {"query": "piyasa analizi", "clicks_desktop": 52.0, "clicks_mobile": 34.0, "impressions_desktop": 1100.0, "impressions_mobile": 730.0, "position_desktop": 4.3, "position_mobile": 4.9},
+            {"query": "gumruk vergileri", "clicks_desktop": 48.0, "clicks_mobile": 32.0, "impressions_desktop": 1020.0, "impressions_mobile": 680.0, "position_desktop": 6.0, "position_mobile": 6.5},
+            {"query": "hazine bonosu", "clicks_desktop": 45.0, "clicks_mobile": 30.0, "impressions_desktop": 950.0, "impressions_mobile": 630.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "yatirim stratejisi", "clicks_desktop": 42.0, "clicks_mobile": 28.0, "impressions_desktop": 890.0, "impressions_mobile": 590.0, "position_desktop": 5.3, "position_mobile": 5.9},
+            {"query": "emtia fiyatlari", "clicks_desktop": 40.0, "clicks_mobile": 26.0, "impressions_desktop": 850.0, "impressions_mobile": 560.0, "position_desktop": 5.7, "position_mobile": 6.3},
+            {"query": "piyasa haluketi", "clicks_desktop": 38.0, "clicks_mobile": 25.0, "impressions_desktop": 810.0, "impressions_mobile": 540.0, "position_desktop": 4.8, "position_mobile": 5.4},
+            # Continue to reach 50
+            {"query": "gumus fiyati", "clicks_desktop": 35.0, "clicks_mobile": 23.0, "impressions_desktop": 750.0, "impressions_mobile": 500.0, "position_desktop": 5.0, "position_mobile": 5.6},
+            {"query": "bakir fiyati", "clicks_desktop": 32.0, "clicks_mobile": 21.0, "impressions_desktop": 690.0, "impressions_mobile": 460.0, "position_desktop": 5.2, "position_mobile": 5.8},
+            {"query": "bist 100", "clicks_desktop": 30.0, "clicks_mobile": 20.0, "impressions_desktop": 650.0, "impressions_mobile": 430.0, "position_desktop": 4.5, "position_mobile": 5.1},
+            {"query": "dolar tl", "clicks_desktop": 28.0, "clicks_mobile": 18.0, "impressions_desktop": 610.0, "impressions_mobile": 410.0, "position_desktop": 5.8, "position_mobile": 6.4},
+            {"query": "ruble kuru", "clicks_desktop": 26.0, "clicks_mobile": 17.0, "impressions_desktop": 570.0, "impressions_mobile": 390.0, "position_desktop": 6.0, "position_mobile": 6.6},
+            {"query": "ethereum fiyati", "clicks_desktop": 24.0, "clicks_mobile": 16.0, "impressions_desktop": 530.0, "impressions_mobile": 370.0, "position_desktop": 4.2, "position_mobile": 4.8},
+            {"query": "ltc fiyati", "clicks_desktop": 22.0, "clicks_mobile": 14.0, "impressions_desktop": 490.0, "impressions_mobile": 350.0, "position_desktop": 4.4, "position_mobile": 5.0},
+            {"query": "ripple fiyati", "clicks_desktop": 20.0, "clicks_mobile": 13.0, "impressions_desktop": 450.0, "impressions_mobile": 330.0, "position_desktop": 4.6, "position_mobile": 5.2},
+            {"query": "bnb fiyati", "clicks_desktop": 18.0, "clicks_mobile": 12.0, "impressions_desktop": 410.0, "impressions_mobile": 310.0, "position_desktop": 4.8, "position_mobile": 5.4},
+            {"query": "ada fiyati", "clicks_desktop": 16.0, "clicks_mobile": 11.0, "impressions_desktop": 370.0, "impressions_mobile": 290.0, "position_desktop": 5.0, "position_mobile": 5.6},
+            {"query": "doge fiyati", "clicks_desktop": 14.0, "clicks_mobile": 9.0, "impressions_desktop": 330.0, "impressions_mobile": 270.0, "position_desktop": 5.2, "position_mobile": 5.8},
+            {"query": "polkadot fiyati", "clicks_desktop": 12.0, "clicks_mobile": 8.0, "impressions_desktop": 290.0, "impressions_mobile": 250.0, "position_desktop": 5.4, "position_mobile": 6.0},
+            {"query": "solana fiyati", "clicks_desktop": 10.0, "clicks_mobile": 7.0, "impressions_desktop": 250.0, "impressions_mobile": 230.0, "position_desktop": 5.6, "position_mobile": 6.2},
+            {"query": "xrp fiyati", "clicks_desktop": 8.0, "clicks_mobile": 5.0, "impressions_desktop": 210.0, "impressions_mobile": 210.0, "position_desktop": 5.8, "position_mobile": 6.4},
         ]
     }
     
     # Domain'e ait queryleri bul, yoksa varsayılan (doviz) seçimini yap
     base_queries = query_sets.get(domain_key, query_sets.get("doviz", []))
     
-    # Eğer hiç eşleşme yoksa, generic query'ler oluştur (herhangi bir domain için)
+    # Eğer hiç eşleşme yoksa, generic query'ler oluştur
     if not base_queries:
-        base_queries = query_sets["doviz"]  # Varsayılan olarak doviz
+        base_queries = query_sets["doviz"]
     
     return base_queries
 
@@ -74,8 +120,7 @@ def _get_mock_queries_for_domain(domain: str) -> list[dict]:
 def _mock_search_console_response(domain: str = "") -> dict:
     """
     Mock Search Console yanıtı - web ve mobile ayrılımı ile.
-    Her query, desktop ve mobile verisi ile döner.
-    Device filterlemesi ve tüm domainler için dinamik.
+    Realistic position, impression, CTR drops'ı simüle et.
     """
     base_queries = _get_mock_queries_for_domain(domain)
     
@@ -101,23 +146,48 @@ def _mock_search_console_response(domain: str = "") -> dict:
             "device": "MOBILE"
         })
     
-    # Dünkü pozisyonlar - dinamik delta değerleri oluştur
-    # Her device çifti için farklı delta değerleri
+    # Dünkü pozisyonlar - realistic drops'ları simüle et
+    # Top keywords'ler için position drops, impression drops
     position_deltas = {}
+    impression_changes = {}  # multiplier (0.85 = 15% drop)
+    
     for idx in range(0, len(current_queries), 2):
-        # Desktop için negatif delta (iyileşme) veya pozitif (kötüleşme)
-        desktop_delta = -0.3 - (idx // 6) * 0.1  # Vary by group of 6
-        # Mobile için farklı değer
-        mobile_delta = 0.2 + (idx // 6) * 0.05
-        position_deltas[idx] = desktop_delta
-        position_deltas[idx + 1] = mobile_delta
+        query_idx = idx // 2
+        
+        # Top 10 keywords'ler için significant drops simüle et (position WORSENS = increases)
+        if query_idx < 10:
+            # Position: Position gets WORSE (higher number)
+            # previous = current - delta, so negative delta means previous was lower (better)
+            # This means current is worse than previous
+            desktop_pos_delta = -(0.8 + (query_idx % 3) * 0.3)  # -0.8 to -1.4 (position got worse)
+            mobile_pos_delta = -(0.5 + (query_idx % 3) * 0.25)  # -0.5 to -1.0
+            
+            # Impressions: 10-20% drop
+            impression_mult = 0.85 - (query_idx % 4) * 0.02
+        else:
+            # Diğer keywords'ler için minimal changes
+            desktop_pos_delta = -0.15  # Slight worsening
+            mobile_pos_delta = -0.1
+            impression_mult = 0.95
+        
+        position_deltas[idx] = desktop_pos_delta
+        position_deltas[idx + 1] = mobile_pos_delta
+        impression_changes[idx] = impression_mult
+        impression_changes[idx + 1] = impression_mult
     
     previous_queries = []
     for idx, row in enumerate(current_queries):
-        delta = position_deltas.get(idx, -0.3)
+        delta = position_deltas.get(idx, -0.15)
+        impression_mult = impression_changes.get(idx, 0.95)
+        
+        # subtraction: previous = current - delta
+        # if delta is negative, previous = current - (-value) = current + value (higher, worse)
+        # This correctly shows previous was better (lower number)
         prev_row = {
             "keys": row["keys"],
             "position": float(row.get("position", 0)) - delta,
+            "impressions": row.get("impressions", 0) / impression_mult,
+            "ctr": row.get("ctr", 0) / impression_mult,  # CTR goes down with impressions
             "device": row["device"]
         }
         previous_queries.append(prev_row)

@@ -13,31 +13,46 @@ from backend.services.alert_engine import DEFAULT_ALERT_RULES, ALERT_DESCRIPTION
 router = APIRouter(tags=["alerts"])
 
 
-def _extract_query_details_from_message(message: str) -> dict:
+def _extract_query_details_from_message(message: str) -> dict | list[dict]:
     """Alert message'den query detaylarını extract et.
     
-    Message formatı: "[NEGATIVE] search_console_dropped_queries: 'query_name'. Position: 5.0->8.0"
+    Message formatı: "[NEGATIVE] search_console_dropped_queries: 'query1'. Position: 5.0->8.0 | 'query2'. Position: 3.0->5.2"
+    Returns single dict if one query, list of dicts if multiple queries.
     """
-    details = {}
+    # Split by pipe to handle multiple queries
+    query_segments = message.split(" | ")
+    all_details = []
     
-    # Query name extract et
-    query_match = re.search(r":\s*'([^']+)'", message)
-    if query_match:
-        details["query"] = query_match.group(1)
+    for segment in query_segments:
+        details = {}
+        
+        # Query name extract et
+        query_match = re.search(r"'([^']+)'", segment)
+        if query_match:
+            details["query"] = query_match.group(1)
+        
+        # Position change extract et
+        pos_match = re.search(r"Position:\s*([\d.]+)\s*->\s*([\d.]+)", segment)
+        if pos_match:
+            details["old_position"] = float(pos_match.group(1))
+            details["new_position"] = float(pos_match.group(2))
+            details["change"] = details["new_position"] - details["old_position"]
+            details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
+        
+        # POSITIVE/NEGATIVE flag
+        details["is_negative"] = "[NEGATIVE]" in message
+        details["is_positive"] = "[POSITIVE]" in message
+        
+        if details.get("query"):  # Only add if query was found
+            all_details.append(details)
     
-    # Position change extract et (5.0->8.0 formatında)
-    pos_match = re.search(r"Position:\s*([\d.]+)\s*->\s*([\d.]+)", message)
-    if pos_match:
-        details["old_position"] = float(pos_match.group(1))
-        details["new_position"] = float(pos_match.group(2))
-        details["change"] = details["new_position"] - details["old_position"]
-        details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
-    
-    # POSITIVE/NEGATIVE flag
-    details["is_negative"] = "[NEGATIVE]" in message
-    details["is_positive"] = "[POSITIVE]" in message
-    
-    return details
+    # Return single dict if one query, list if multiple
+    if len(all_details) == 1:
+        return all_details[0]
+    elif len(all_details) > 1:
+        return all_details
+    else:
+        return {}
 
 
 def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered_at: datetime, comparison_type: str = "daily", alert_log_message: str = None) -> dict:
@@ -108,7 +123,11 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
     if alert_log_message and metric_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
         query_details = _extract_query_details_from_message(alert_log_message)
         if query_details:
-            result["query_details"] = query_details
+            # Ensure query_details is always a list for consistent template handling
+            if isinstance(query_details, dict):
+                result["query_details"] = [query_details]  # Wrap single dict in list
+            else:
+                result["query_details"] = query_details
     
     return result
 
