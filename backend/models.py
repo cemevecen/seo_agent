@@ -84,7 +84,7 @@ class AlertLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True)
-    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True, default="unknown")
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     triggered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     sent_mail: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
