@@ -58,18 +58,20 @@ def _candidate_identifiers(domain: str, form_factor: str | None = None) -> list[
     if host.startswith("www."):
         naked = host[4:]
         url_candidates = [f"https://{host}/"]
-        origin_candidates = [f"https://{host}"]
         if mobile_host:
             url_candidates.append(f"https://{mobile_host}/")
-            origin_candidates.append(f"https://{mobile_host}")
+            origin_candidates = [f"https://{mobile_host}", f"https://{host}"]
+        else:
+            origin_candidates = [f"https://{host}"]
         url_candidates.append(f"https://{naked}/")
         origin_candidates.append(f"https://{naked}")
     else:
         url_candidates = [f"https://{host}/"]
-        origin_candidates = [f"https://{host}"]
         if mobile_host:
             url_candidates.append(f"https://{mobile_host}/")
-            origin_candidates.append(f"https://{mobile_host}")
+            origin_candidates = [f"https://{mobile_host}", f"https://{host}"]
+        else:
+            origin_candidates = [f"https://{host}"]
         url_candidates.append(f"https://www.{host}/")
         origin_candidates.append(f"https://www.{host}")
 
