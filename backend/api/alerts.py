@@ -132,7 +132,6 @@ def get_alert_details(request: Request, alert_log_id: int, db: Session = Depends
             "description_short_en": desc.get("what_means_en", ""),
             "description_detailed_tr": desc.get("description_tr", ""),
             "description_detailed_en": desc.get("description_en", ""),
-            "recommendations": desc.get("recommendations", ""),
             "severity": desc.get("severity", "warning"),
         },
         "metrics": {

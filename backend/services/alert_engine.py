@@ -32,7 +32,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "Mobile page loading performance is evaluated by Google on a 0-100 scale. Scores below 50 are considered critical.",
         "what_means": "Mobil kullanıcıların sitenizi açması yavaş, Google sıralamalarında kayıp yaşıyorsunuz.",
         "what_means_en": "Mobile users experience slow page loads, and you're losing Google search rankings.",
-        "recommendations": "• Mobil resimleri sıkıştırın (WebP formatıyla)\n• Lazy loading etkinleştirin\n• JavaScript/CSS minify edin\n• CDN kullanın\n• Sunucu yanıt süresini iyileştirin\n• Font loading'i optimize edin",
         "severity": "critical"
     },
     "pagespeed_desktop_score": {
@@ -40,7 +39,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "Desktop page loading performance. Desktop speeds should typically be faster than mobile.",
         "what_means": "Masaüstü kullanıcıları da sayfa açılış süreleri yüzünden siteyi terk edebilir.",
         "what_means_en": "Desktop users may abandon your site due to slow page speeds.",
-        "recommendations": "• Server response time'ı kontrol edin\n• Caching stratejisini gözden geçirin\n• Large file'ları optimize edin\n• Critical CSS'i inline edin\n• API call'larını minimize edin",
         "severity": "warning"
     },
     "crawler_robots_accessible": {
@@ -48,7 +46,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "The robots.txt file tells Google bots which parts of your site can be crawled. If missing, search engines may not fully index your site.",
         "what_means": "Google sitenizin tüm sayfalarını indeksleme imkanı olmayabilir.",
         "what_means_en": "Google may not have the opportunity to index all pages of your site.",
-        "recommendations": "• /robots.txt dosyasını oluşturun\n• Sunucudan 200 (OK) status döndüğünü kontrol edin\n• Disallowed dizinleri doğru ayarlayın\n• Sitemap'in bulunduğu URL'yi robots.txt'de belirtin",
         "severity": "critical"
     },
     "crawler_sitemap_exists": {
@@ -56,7 +53,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "sitemap.xml lists all pages on your site to search engines. Without it, deep pages may not be indexed.",
         "what_means": "Yeni eklenen sayfalarınız Google'a geç ulaşabilir.",
         "what_means_en": "Your new pages may reach Google slowly.",
-        "recommendations": "• XML sitemap'i oluşturun\n• /sitemap.xml'de sunun\n• Google Search Console'a iletin\n• Periyodik olarak güncelleyin\n• Robots.txt'de sitemap'in URL'sini belirtin",
         "severity": "warning"
     },
     "crawler_schema_found": {
@@ -64,7 +60,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "Schema markup helps search engines understand your page content. Should include product, article, location information, etc.",
         "what_means": "Rich snippets (yıldız, fiyat vb.) Search sonuçlarında gösterilmeyen sayfaların tıklanma oranı düşük olabilir.",
         "what_means_en": "Without rich snippets in search results, your click-through rate may be lower.",
-        "recommendations": "• schema.org formatında iş verilerini ekleyin\n• JSON-LD formatını kullanın\n• Ürün, makale, kuruluş schema'larını ekleyin\n• Google Rich Results Test aracıyla test edin\n• LocalBusiness schema'sını ekleyin (işletme ise)",
         "severity": "info"
     },
     "crawler_canonical_found": {
@@ -72,7 +67,6 @@ ALERT_DESCRIPTIONS = {
         "description_en": "Canonical tag tells search engines if duplicate content exists on your site.",
         "what_means": "Aynı içerik birden fazla URL'de yayınlanıyorsa, linking power dağılabilir veya yanlış sayfa sıralanabilir.",
         "what_means_en": "If the same content is published on multiple URLs, Google may split ranking power or rank the wrong page.",
-        "recommendations": "• Tüm sayfaların head'ine <link rel=\"canonical\"> ekleyin\n• Self-referential canonical'i tercih edin\n• www ve non-www arasında seçim yapın\n• HTTP vs HTTPS'yi standardize edin\n• Sayfalama (pagination) canonical'lerini ayarlayın",
         "severity": "warning"
     },
     "search_console_dropped_queries": {
@@ -80,15 +74,13 @@ ALERT_DESCRIPTIONS = {
         "description_en": "Triggered when the number of search queries where you're not ranking (or your position dropped) increases.",
         "what_means": "Siteniz için önemli arama terimlerindeki görünürlüğünüz azalıyor.",
         "what_means_en": "Your visibility is decreasing for important search queries.",
-        "recommendations": "• Content kalitesini iyileştirin\n• Backlink profili analiz edin\n• Rakip analizi yapın\n• Teknik SEO sorunlarını gözden geçirin\n• Content güncelleme stratejisi uygulayın",
         "severity": "critical"
     },
     "search_console_biggest_drop": {
-        "description_tr": "En yüksek sıralama kaybı olan arama terimindeki pozisyon düşüşü 2 pozisyondur. Bu terimler önem verilmeli.",
-        "description_en": "The biggest ranking drop is 2 positions for your top search query. These terms should be prioritized.",
-        "what_means": "Trafik getiren ana arama terimlerindeki sıralamanız düşmüş.",
-        "what_means_en": "Your ranking has dropped for your main traffic-driving search queries.",
-        "recommendations": "• Düşen sayfanın content kalitesini artırın\n• Daha iyi backlink bulun\n• Page title ve meta description'ı optimize edin\n• Internal linking'i güçlendir\n• User experience'ı iyileştir",
+        "description_tr": "En yüksek sıralama kaybı olan arama terimindeki pozisyon düşüşü. Hangi arama terimleri etkilendiğini görmek için detaylara bakınız.",
+        "description_en": "The biggest ranking drop for your top search queries. See details section for affected search terms.",
+        "what_means": "Trafik getiren ana arama terimlerindeki sıralamanız düşmüş. Detaylı bilgi için açılımı görebilirsiniz.",
+        "what_means_en": "Your ranking has dropped for your main traffic-driving search queries. See expansion for detailed terms.",
         "severity": "critical"
     }
 }
@@ -136,8 +128,36 @@ def _is_triggered(metric_value: float, threshold: float, comparator: str) -> boo
     return metric_value > threshold
 
 
-def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition) -> str:
+def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition, db: Session = None) -> str:
     # Alarm log mesajını okunur halde üretir.
+    
+    # Search Console uyarıları için query detayları ekle
+    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and db:
+        try:
+            from backend.collectors.search_console import get_top_queries
+            
+            # Düşen query'leri bul
+            if alert.alert_type == "search_console_biggest_drop":
+                queries = get_top_queries(db, site, limit=5, device="all")
+                if queries and len(queries) > 0:
+                    query_list = ", ".join([f"'{q['query']}'" for q in queries[:3]])
+                    return (
+                        f"{site.domain} için {rule.title}. "
+                        f"Etkilenen arama terimleri: {query_list}. "
+                        f"Mevcut sıralama düşüşü: {metric.value:.2f} pozisyon, eşik: {alert.threshold:.2f}."
+                    )
+            elif alert.alert_type == "search_console_dropped_queries":
+                queries = get_top_queries(db, site, limit=5, device="all")
+                if queries and len(queries) > 0:
+                    query_list = ", ".join([f"'{q['query']}'" for q in queries[:3]])
+                    return (
+                        f"{site.domain} için {rule.title}. "
+                        f"Düşen arama terimleri: {query_list}. "
+                        f"Sayı: {metric.value:.0f}, eşik: {alert.threshold:.0f}."
+                    )
+        except:
+            pass  # Search Console data not available, use default message
+    
     return (
         f"{site.domain} için {rule.title}. "
         f"Mevcut değer: {metric.value:.2f}, eşik: {alert.threshold:.2f}."
@@ -162,7 +182,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
         if not _is_triggered(metric.value, alert.threshold, rule.comparator):
             continue
 
-        message = _build_message(site, alert, metric, rule)
+        message = _build_message(site, alert, metric, rule, db)
         last_log = (
             db.query(AlertLog)
             .filter(AlertLog.alert_id == alert.id)

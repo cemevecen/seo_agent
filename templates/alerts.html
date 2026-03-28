@@ -79,14 +79,6 @@
               </div>
             </div>
 
-            <!-- Recommendations -->
-            <div class="space-y-2 bg-green-50 p-3 rounded-lg">
-              <p class="text-xs uppercase font-bold text-green-900">💡 Çözüm Önerileri</p>
-              <div id="recommendations-{{ alert.id }}" class="text-sm text-green-800 leading-relaxed space-y-2">
-                <p>Yükleniyor...</p>
-              </div>
-            </div>
-
             <!-- Trend History -->
             <div class="space-y-2">
               <p class="text-xs uppercase font-bold text-slate-600">📊 Tetikleme Geçmişi</p>
@@ -191,17 +183,6 @@ async function loadAlertDetails(alertId, card) {
     const avgVal = document.getElementById(`metric-avg-${alertId}`);
     if (avgVal) {
       avgVal.textContent = metrics.avg_value !== null ? metrics.avg_value.toFixed(2) : 'N/A';
-    }
-    
-    // Öneriler
-    const recsDiv = document.getElementById(`recommendations-${alertId}`);
-    if (recsDiv && rule.recommendations) {
-      const recsHtml = rule.recommendations
-        .split('\n')
-        .filter(line => line.trim())
-        .map(line => `<p>• ${line.replace(/^[•\-\*]\s*/, '')}</p>`)
-        .join('');
-      recsDiv.innerHTML = recsHtml || '<p>Öneri bulunamadı</p>';
     }
     
     // Trend
