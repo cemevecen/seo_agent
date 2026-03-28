@@ -188,8 +188,11 @@ async function loadAlertDetails(alertId, card) {
     const data = await response.json();
     console.log('Alert data loaded:', data);
     
-    // Load default comparison (daily)
-    loadComparisonData(alertId, 'daily');
+    // Paralel olarak her iki comparison type'ı yükle
+    await Promise.all([
+      loadComparisonData(alertId, 'daily'),
+      loadComparisonData(alertId, 'weekly')
+    ]);
     
   } catch (error) {
     console.error('Error loading alert details:', error);

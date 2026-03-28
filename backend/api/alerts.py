@@ -16,7 +16,7 @@ router = APIRouter(tags=["alerts"])
 def _extract_query_details_from_message(message: str) -> dict | list[dict]:
     """Alert message'den query detaylarını extract et.
     
-    Message formatı: "[NEGATIVE] search_console_dropped_queries: 'query1'. Position: 5.0->8.0 | 'query2'. Position: 3.0->5.2"
+    Message formatı: "[NEGATIVE] search_console_position_change: 'query1'. Position: 5.0->8.0"
     Returns single dict if one query, list of dicts if multiple queries.
     """
     # Split by pipe to handle multiple queries
@@ -31,13 +31,23 @@ def _extract_query_details_from_message(message: str) -> dict | list[dict]:
         if query_match:
             details["query"] = query_match.group(1)
         
-        # Position change extract et
-        pos_match = re.search(r"Position:\s*([\d.]+)\s*->\s*([\d.]+)", segment)
+        # Position change extract et (handles both numeric and N/A)
+        pos_match = re.search(r"Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", segment)
         if pos_match:
-            details["old_position"] = float(pos_match.group(1))
-            details["new_position"] = float(pos_match.group(2))
-            details["change"] = details["new_position"] - details["old_position"]
-            details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
+            old_val = pos_match.group(1)
+            new_val = pos_match.group(2)
+            
+            # Convert to float if not N/A
+            try:
+                details["old_position"] = float(old_val) if old_val != "N/A" else None
+                details["new_position"] = float(new_val) if new_val != "N/A" else None
+                
+                # Calculate change only if both values exist
+                if details["old_position"] is not None and details["new_position"] is not None:
+                    details["change"] = details["new_position"] - details["old_position"]
+                    details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
+            except (ValueError, TypeError):
+                pass
         
         # POSITIVE/NEGATIVE flag
         details["is_negative"] = "[NEGATIVE]" in message

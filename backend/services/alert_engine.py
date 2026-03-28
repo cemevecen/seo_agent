@@ -343,9 +343,8 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
             top_3 = position_drops[:3]
             for drop in top_3:
                 message = (
-                    f"[NEGATIVE] {site.domain} position düşüşü - "
-                    f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
-                    f"Pozisyon {drop['old_position']:.1f} → {drop['new_position']:.1f} ({drop['change']:+.1f} Δ)"
+                    f"[NEGATIVE] search_console_position_drop: '{drop['query']}'. "
+                    f"Position: {drop['old_position']:.1f}->{drop['new_position']:.1f}"
                 )
                 
                 last_log = (
@@ -437,22 +436,23 @@ def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefi
     # Search Console uyarıları için query detayları ekle - her sorgu için kendi verilerini kullan
     if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and query_name and query_data:
         if alert.alert_type == "search_console_biggest_drop":
-            delta = query_data.get("delta", 0)
             position = query_data.get("position", 0)
             previous_position = query_data.get("previous_position", 0)
+            delta = position - previous_position
             # delta < 0 = pozisyon iyileşti (iyi) = positive sentiment
             # delta > 0 = pozisyon kötüleşti (kötü) = negative sentiment
             sentiment = "POSITIVE" if delta < 0 else "NEGATIVE"
             return (
-                f"[{sentiment}] {site.domain} için Search Console sıralama: '{query_name}'. "
-                f"Mevcut pozisyon: {position:.1f}, önceki: {previous_position:.1f}, değişim: {delta:+.2f} pozisyon."
+                f"[{sentiment}] search_console_position_change: '{query_name}'. "
+                f"Position: {previous_position:.1f}->{position:.1f}"
             )
         elif alert.alert_type == "search_console_dropped_queries":
             # Bu query'nin bulunup bulunmadığını kontrol et
             # query_data varsa, query halen var demek
+            position = query_data.get("position", 0)
             return (
-                f"[NEGATIVE] {site.domain} için Düşen sorgu: '{query_name}'. "
-                f"Mevcut pozisyon: {query_data.get('position', 0):.1f}."
+                f"[NEGATIVE] search_console_dropped_queries: '{query_name}'. "
+                f"Position: {position:.1f}->N/A"
             )
     
     return (
