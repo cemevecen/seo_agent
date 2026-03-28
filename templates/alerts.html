@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6 relative">
   <div class="flex items-center justify-between">
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Alert Center</p>
@@ -18,10 +18,11 @@
     </div>
   </div>
 
-  <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+  <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 overflow-visible">
+    <!-- DEBUG: Total alerts={{ recent_alerts|length }}, Doviz count={{ recent_alerts|selectattr('domain', 'equalto', 'doviz.com')|list|length }} -->
     <div class="space-y-3" id="alerts-container">
       {% for alert in recent_alerts %}
-        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}">
+        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all overflow-visible" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}">
           <!-- Alert Header (Display Only) -->
           <div class="flex items-center justify-between gap-4 p-2">
             <div class="flex-1">
@@ -46,22 +47,24 @@
             </div>
           </div>
 
-          <!-- Alert Details (Collapsible) -->
-          <div class="alert-details hidden mt-4 pt-4 border-t border-slate-200 space-y-4">
-            <!-- Comparison Info -->
-            <div class="space-y-2">
-              <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
-              <div class="flex gap-2 flex-wrap">
-                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="daily" data-alert-id="{{ alert.id }}">
-                  Dünle (Day-over-Day)
-                </button>
-                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200" data-comparison="weekly" data-alert-id="{{ alert.id }}">
-                  Geçen Hafta (Week-over-Week)
-                </button>
+          <!-- Alert Details (Collapsible) - Isolated Component -->
+          <div class="alert-details opacity-0 h-0 mt-0 pt-0 transition-all duration-300 ease-out overflow-hidden" style="pointer-events: none;">
+            <div class="pt-4 border-t border-slate-200 space-y-4">
+              <!-- Comparison Info -->
+              <div class="space-y-2">
+                <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
+                <div class="flex gap-2 flex-wrap">
+                  <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="daily" data-alert-id="{{ alert.id }}">
+                    Dünle (Day-over-Day)
+                  </button>
+                  <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200" data-comparison="weekly" data-alert-id="{{ alert.id }}">
+                    Geçen Hafta (Week-over-Week)
+                  </button>
+                </div>
+                <p id="comparison-info-{{ alert.id }}" class="text-sm text-slate-700 mt-2 p-2 bg-blue-50 rounded border border-blue-200 leading-relaxed">
+                  Yükleniyor...
+                </p>
               </div>
-              <p id="comparison-info-{{ alert.id }}" class="text-sm text-slate-700 mt-2 p-2 bg-blue-50 rounded border border-blue-200 leading-relaxed">
-                Yükleniyor...
-              </p>
             </div>
           </div>
         </div>
@@ -75,6 +78,38 @@
 </div>
 
 <script>
+/* Component Isolation Styles */
+const style = document.createElement('style');
+style.textContent = `
+  .alert-card {
+    display: block;
+    position: relative;
+    z-index: auto;
+    overflow: visible;
+  }
+  
+  .alert-details {
+    display: block;
+    position: relative;
+    z-index: auto;
+  }
+  
+  .alert-details.opacity-1 {
+    opacity: 1;
+  }
+  
+  .alert-details.opacity-0 {
+    opacity: 0;
+  }
+  
+  #alerts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+`;
+document.head.appendChild(style);
+
 document.addEventListener('DOMContentLoaded', function() {
   initializeFilter();
   
@@ -87,13 +122,27 @@ document.addEventListener('DOMContentLoaded', function() {
       const card = this.closest('.alert-card');
       const details = card.querySelector('.alert-details');
       const alertId = card.dataset.alertId;
+      const innerDiv = details.querySelector('div:first-child');
       
-      if (details.classList.contains('hidden')) {
-        details.classList.remove('hidden');
+      if (details.classList.contains('opacity-0')) {
+        // Show
+        const contentHeight = innerDiv.scrollHeight;
+        details.style.pointerEvents = 'auto';
+        details.classList.remove('opacity-0', 'h-0', 'mt-0', 'pt-0');
+        details.classList.add('opacity-1');
+        details.style.height = contentHeight + 'px';
+        details.style.marginTop = '1rem';
+        details.style.paddingTop = '1rem';
         loadAlertDetails(alertId, card);
         this.textContent = 'Gizle';
       } else {
-        details.classList.add('hidden');
+        // Hide
+        details.style.pointerEvents = 'none';
+        details.classList.remove('opacity-1');
+        details.classList.add('opacity-0', 'h-0', 'mt-0', 'pt-0');
+        details.style.height = '0';
+        details.style.marginTop = '0';
+        details.style.paddingTop = '0';
         this.textContent = 'Detay';
       }
     });
@@ -103,10 +152,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.comparison-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
+      e.stopPropagation();
       
       const alertId = this.dataset.alertId;
       const comparisonType = this.dataset.comparison;
-      const card = this.closest('.alert-details').closest('.alert-card');
+      const card = this.closest('.alert-card');
       
       // Button styling
       const allBtns = card.querySelectorAll('.comparison-btn');
@@ -141,12 +191,32 @@ async function loadAlertDetails(alertId, card) {
     // Load default comparison (daily)
     loadComparisonData(alertId, 'daily');
     
+    // Recalculate height after content loads
+    setTimeout(() => {
+      const details = card.querySelector('.alert-details');
+      if (details && !details.classList.contains('opacity-0')) {
+        const innerDiv = details.querySelector('div:first-child');
+        details.style.height = innerDiv.scrollHeight + 'px';
+      }
+    }, 100);
+    
   } catch (error) {
     console.error('Error loading alert details:', error);
     const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
     if (comparisonDiv) {
       comparisonDiv.textContent = `Hata: ${error.message}`;
     }
+    
+    // Recalculate height after error message
+    setTimeout(() => {
+      const details = document.querySelector(`[data-alert-id="${alertId}"] .alert-details`);
+      if (details && !details.classList.contains('opacity-0')) {
+        const innerDiv = details.querySelector('div:first-child');
+        details.style.height = innerDiv.scrollHeight + 'px';
+      }
+    }, 100);
+  }
+}
   }
 }
 
@@ -229,6 +299,13 @@ async function loadComparisonData(alertId, comparisonType) {
       }
       
       comparisonDiv.innerHTML = html;
+      
+      // Recalculate height after content updates
+      const details = comparisonDiv.closest('.alert-details');
+      if (details && !details.classList.contains('opacity-0')) {
+        const innerDiv = details.querySelector('div:first-child');
+        details.style.height = innerDiv.scrollHeight + 'px';
+      }
     }
     
   } catch (error) {
@@ -236,6 +313,13 @@ async function loadComparisonData(alertId, comparisonType) {
     const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
     if (comparisonDiv) {
       comparisonDiv.textContent = `Hata: ${error.message}`;
+    }
+    
+    // Recalculate height after error
+    const details = comparisonDiv.closest('.alert-details');
+    if (details && !details.classList.contains('opacity-0')) {
+      const innerDiv = details.querySelector('div:first-child');
+      details.style.height = innerDiv.scrollHeight + 'px';
     }
   }
 }

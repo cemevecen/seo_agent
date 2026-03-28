@@ -1,7 +1,11 @@
 """FastAPI uygulama giriş noktası."""
 import os
+import sys
 from ipaddress import ip_address, ip_network
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
