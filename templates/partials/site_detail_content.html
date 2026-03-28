@@ -1,3 +1,148 @@
+{% macro lighthouse_issue_card(issue, source_label) %}
+<div class="rounded-2xl bg-gradient-to-br from-slate-50 to-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+  <button type="button" class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/50 transition">
+    <div class="flex-1 text-left">
+      <h5 class="font-semibold text-slate-900">{{ issue.title_en or issue.title }}</h5>
+      {% if issue.title_tr %}
+      <p class="text-sm text-slate-600 mt-1">{{ issue.title_tr }}</p>
+      {% endif %}
+      <p class="text-xs text-slate-500 mt-1">
+        Source / Kaynak: <span class="font-semibold">{{ source_label }}</span>
+        {% if issue.state_label_en %}
+        • Status / Durum: <span class="font-semibold">{{ issue.state_label_en }}{% if issue.state_label_tr %} / {{ issue.state_label_tr }}{% endif %}</span>
+        {% endif %}
+        {% if issue.priority %}
+        • Priority / Seviye: <span class="font-semibold">{{ issue.priority }}</span>
+        {% endif %}
+      </p>
+    </div>
+    <span class="text-slate-400 ml-2 trigger-arrow">›</span>
+  </button>
+  <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
+    {% if issue.problem_en or issue.problem %}
+    <div>
+      <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-2">Issue / Sorun</h6>
+      <p class="text-slate-700">{{ issue.problem_en or issue.problem }}</p>
+      {% if issue.problem_tr %}
+      <p class="mt-2 text-slate-700">{{ issue.problem_tr }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if issue.impact_en or issue.impact %}
+    <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
+      <h6 class="text-sm font-semibold text-rose-900">Impact / Etki</h6>
+      <p class="text-sm text-rose-800 mt-2">{{ issue.impact_en or issue.impact }}</p>
+      {% if issue.impact_tr %}
+      <p class="text-sm text-rose-800 mt-2">{{ issue.impact_tr }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if issue.examples %}
+    <div class="rounded-xl bg-gradient-to-br from-slate-50 to-white p-3 shadow-xs">
+      <h6 class="text-sm font-semibold text-slate-900">Detected Examples / Tespit Edilen Ornekler</h6>
+      <div class="mt-2 space-y-1 text-sm text-slate-700">
+        {% for example in issue.examples %}
+        <p>{{ example }}</p>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if issue.solution %}
+    <div>
+      <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">Solution Steps / Çözüm Adımları</h6>
+      <div class="space-y-3">
+        {% for step in issue.solution %}
+        <div class="rounded-xl bg-gradient-to-br from-sky-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
+          <div class="flex items-start gap-3">
+            <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-sky-200 to-sky-100 text-sky-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
+            <div class="flex-1">
+              <h6 class="font-semibold text-slate-900">{{ step.title_en or step.title }}</h6>
+              {% if step.title_tr %}
+              <p class="text-sm text-slate-600 mt-1">{{ step.title_tr }}</p>
+              {% endif %}
+              <p class="text-xs text-slate-500 mt-1">Difficulty / Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
+            </div>
+          </div>
+          {% if step.details_en %}
+          <p class="mt-3 text-sm text-slate-700">{{ step.details_en }}</p>
+          {% endif %}
+          {% if step.details_tr %}
+          <p class="mt-2 text-sm text-slate-700">{{ step.details_tr }}</p>
+          {% endif %}
+          {% if step.code %}
+          <button class="code-trigger mt-3 w-full text-left text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-2">
+            <span>Code Example / Kod Ornegi</span> <span class="code-toggle">(Göster)</span>
+          </button>
+          <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code|e }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if issue.expected_result_en or issue.expected_result %}
+    <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
+      <h6 class="text-sm font-semibold text-emerald-900">Expected Result / Beklenen Sonuç</h6>
+      <p class="text-sm text-emerald-800 mt-2">{{ issue.expected_result_en or issue.expected_result }}</p>
+      {% if issue.expected_result_tr %}
+      <p class="text-sm text-emerald-800 mt-2">{{ issue.expected_result_tr }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro lighthouse_issue_group(analysis, category_name, source_label, empty_text) %}
+{% if analysis and analysis.issues %}
+  {% set ns = namespace(has_items=false) %}
+  <div class="space-y-3">
+    {% for issue in analysis.issues %}
+      {% if issue.category == category_name %}
+        {% set ns.has_items = true %}
+        {{ lighthouse_issue_card(issue, source_label) }}
+      {% endif %}
+    {% endfor %}
+    {% if not ns.has_items %}
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{{ empty_text }}</div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{{ empty_text }}</div>
+{% endif %}
+{% endmacro %}
+
+{% macro lighthouse_category_sections(analysis, category_key, source_label, empty_text) %}
+{% set sections = ((analysis.sections or {}).get(category_key) if analysis and analysis.sections else []) %}
+{% if sections %}
+  <div class="space-y-5">
+    {% for section in sections %}
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="mb-4">
+        <h5 class="text-sm font-semibold uppercase tracking-wide text-slate-900">{{ section.title_en }}</h5>
+        {% if section.title_tr %}
+        <p class="mt-1 text-sm text-slate-600">{{ section.title_tr }}</p>
+        {% endif %}
+        {% if section.description_en %}
+        <p class="mt-2 text-sm text-slate-700">{{ section.description_en }}</p>
+        {% endif %}
+        {% if section.description_tr %}
+        <p class="mt-1 text-sm text-slate-700">{{ section.description_tr }}</p>
+        {% endif %}
+      </div>
+      <div class="space-y-3">
+        {% for item in section['items'] %}
+          {{ lighthouse_issue_card(item, source_label) }}
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{{ empty_text }}</div>
+{% endif %}
+{% endmacro %}
+
 <div class="space-y-6">
   <div class="flex items-center gap-3">
     <label for="detail-period-filter" class="text-sm font-medium text-slate-700">Zaman Aralığı</label>
@@ -8,143 +153,109 @@
     </select>
   </div>
 
-  <div class="grid gap-4 lg:grid-cols-2">
-    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm text-slate-500">PageSpeed Mobile</p>
-          <h3 class="mt-1 text-4xl font-bold {{ mobile_color }}">{{ mobile_score|round|int }}</h3>
+  <div class="grid gap-5 xl:grid-cols-2">
+    <div class="space-y-4">
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">PageSpeed Mobile</p>
+            <h3 class="mt-1 text-4xl font-bold {{ mobile_color }}">{{ mobile_score|round|int }}</h3>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border-2 {% if mobile_cwv.passed %}border-emerald-300 bg-emerald-50{% else %}border-amber-300 bg-amber-50{% endif %} p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-2xl">{{ mobile_cwv.icon }}</span>
+          <h3 class="text-lg font-semibold {% if mobile_cwv.passed %}text-emerald-900{% else %}text-amber-900{% endif %}">{{ mobile_cwv.title }} (Mobil)</h3>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-emerald-800">Largest Contentful Paint (LCP)</h4>
+              <span class="text-lg font-bold text-emerald-600">{{ mobile_lcp_seconds|round(1) }} s</span>
+            </div>
+            <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500" style="width: {{ mobile_lcp_progress }}%"></div>
+            </div>
+            <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 2.5s</p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-emerald-800">Cumulative Layout Shift (CLS)</h4>
+              <span class="text-lg font-bold text-emerald-600">{{ '%.2f'|format(mobile_cls) }}</span>
+            </div>
+            <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500" style="width: {{ mobile_cls_progress }}%"></div>
+            </div>
+            <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 0.1</p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-emerald-800">First Contentful Paint (FCP)</h4>
+              <span class="text-lg font-bold text-emerald-600">{{ mobile_fcp_seconds|round(1) }} s</span>
+            </div>
+            <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500" style="width: {{ mobile_lcp_progress }}%"></div>
+            </div>
+            <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 1.8s</p>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm text-slate-500">PageSpeed Desktop</p>
-          <h3 class="mt-1 text-4xl font-bold {{ desktop_color }}">{{ desktop_score|round|int }}</h3>
+    <div class="space-y-4">
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-slate-500">PageSpeed Desktop</p>
+            <h3 class="mt-1 text-4xl font-bold {{ desktop_color }}">{{ desktop_score|round|int }}</h3>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Core Web Vitals Assessment - Mobile -->
-  <div class="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5">
-    <div class="flex items-center gap-2 mb-4">
-      <span class="text-2xl">✓</span>
-      <h3 class="text-lg font-semibold text-emerald-900">Core Web Vitals Assessment: Passed (Mobil)</h3>
-    </div>
-    
-    <div class="grid gap-6 md:grid-cols-3 mb-6">
-      <!-- LCP -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-emerald-800">Largest Contentful Paint (LCP)</h4>
-          <span class="text-lg font-bold text-emerald-600">{{ mobile_lcp|round(1) }} s</span>
+      <div class="rounded-2xl border-2 {% if desktop_cwv.passed %}border-emerald-300 bg-emerald-50{% else %}border-amber-300 bg-amber-50{% endif %} p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-2xl">{{ desktop_cwv.icon }}</span>
+          <h3 class="text-lg font-semibold {% if desktop_cwv.passed %}text-emerald-900{% else %}text-amber-900{% endif %}">{{ desktop_cwv.title }} (Desktop)</h3>
         </div>
-        <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500" style="width: 65%"></div>
-        </div>
-        <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 2.5s</p>
-      </div>
-      
-      <!-- INP -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-emerald-800">Interaction to Next Paint (INP)</h4>
-          <span class="text-lg font-bold text-emerald-600">{{ mobile_inp|round|int }} ms</span>
-        </div>
-        <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500" style="width: 80%"></div>
-        </div>
-        <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 200ms</p>
-      </div>
-      
-      <!-- CLS -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-emerald-800">Cumulative Layout Shift (CLS)</h4>
-          <span class="text-lg font-bold text-emerald-600">{{ '%.2f'|format(mobile_cls) }}</span>
-        </div>
-        <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500" style="width: 85%"></div>
-        </div>
-        <p class="text-xs text-emerald-700 mt-1">Hedef: &lt; 0.1</p>
-      </div>
-    </div>
-    
-    <!-- Other Notable Metrics - Mobile -->
-    <div class="border-t border-emerald-200 pt-4">
-      <p class="text-xs font-semibold text-emerald-700 uppercase mb-3">Diğer Önemli Metrikler</p>
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="rounded-lg bg-white p-3">
-          <p class="text-xs text-slate-600">First Contentful Paint (FCP)</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">0.7 s</p>
-        </div>
-        <div class="rounded-lg bg-white p-3">
-          <p class="text-xs text-slate-600">Time to First Byte (TTFB)</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">0.3 s</p>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Core Web Vitals Assessment - Desktop -->
-  <div class="rounded-2xl border-2 border-amber-300 bg-amber-50 p-5">
-    <div class="flex items-center gap-2 mb-4">
-      <span class="text-2xl">✓</span>
-      <h3 class="text-lg font-semibold text-amber-900">Core Web Vitals Assessment: Passed (Desktop)</h3>
-    </div>
-    
-    <div class="grid gap-6 md:grid-cols-3 mb-6">
-      <!-- LCP -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-amber-800">Largest Contentful Paint (LCP)</h4>
-          <span class="text-lg font-bold text-amber-600">{{ desktop_lcp|round(1) }} s</span>
-        </div>
-        <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
-          <div class="h-full bg-amber-500" style="width: 75%"></div>
-        </div>
-        <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 2.5s</p>
-      </div>
-      
-      <!-- INP -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-amber-800">Interaction to Next Paint (INP)</h4>
-          <span class="text-lg font-bold text-amber-600">{{ desktop_inp|round|int }} ms</span>
-        </div>
-        <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
-          <div class="h-full bg-amber-500" style="width: 85%"></div>
-        </div>
-        <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 200ms</p>
-      </div>
-      
-      <!-- CLS -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-amber-800">Cumulative Layout Shift (CLS)</h4>
-          <span class="text-lg font-bold text-amber-600">{{ '%.2f'|format(desktop_cls) }}</span>
-        </div>
-        <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
-          <div class="h-full bg-amber-500" style="width: 90%"></div>
-        </div>
-        <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 0.1</p>
-      </div>
-    </div>
-    
-    <!-- Other Notable Metrics - Desktop -->
-    <div class="border-t border-amber-200 pt-4">
-      <p class="text-xs font-semibold text-amber-700 uppercase mb-3">Diğer Önemli Metrikler</p>
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="rounded-lg bg-white p-3">
-          <p class="text-xs text-slate-600">First Contentful Paint (FCP)</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">0.5 s</p>
-        </div>
-        <div class="rounded-lg bg-white p-3">
-          <p class="text-xs text-slate-600">Time to First Byte (TTFB)</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">0.3 s</p>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-amber-800">Largest Contentful Paint (LCP)</h4>
+              <span class="text-lg font-bold text-amber-600">{{ desktop_lcp_seconds|round(1) }} s</span>
+            </div>
+            <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
+              <div class="h-full bg-amber-500" style="width: {{ desktop_lcp_progress }}%"></div>
+            </div>
+            <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 2.5s</p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-amber-800">Cumulative Layout Shift (CLS)</h4>
+              <span class="text-lg font-bold text-amber-600">{{ '%.2f'|format(desktop_cls) }}</span>
+            </div>
+            <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
+              <div class="h-full bg-amber-500" style="width: {{ desktop_cls_progress }}%"></div>
+            </div>
+            <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 0.1</p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-amber-800">First Contentful Paint (FCP)</h4>
+              <span class="text-lg font-bold text-amber-600">{{ desktop_fcp_seconds|round(1) }} s</span>
+            </div>
+            <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
+              <div class="h-full bg-amber-500" style="width: {{ desktop_lcp_progress }}%"></div>
+            </div>
+            <p class="text-xs text-amber-700 mt-1">Hedef: &lt; 1.8s</p>
+          </div>
         </div>
       </div>
     </div>
@@ -153,329 +264,182 @@
   <!-- Lighthouse Scores - Circle Only -->
   <div>
     <h3 class="text-lg font-semibold text-slate-900 mb-6">Lighthouse Skorları</h3>
-    
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 flex items-center justify-center">
-      <!-- Performance Score -->
-      <div class="flex flex-col items-center gap-3">
-        <button onclick="document.getElementById('lighthouse-details-performance').classList.toggle('hidden')" class="cursor-pointer hover:opacity-80 transition">
-          <div class="relative inline-flex items-center justify-center w-20 h-20">
-            <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#fbbf24" stroke-width="6" stroke-dasharray="187 235" stroke-linecap="round"></circle>
-            </svg>
-            <span class="absolute text-3xl font-bold text-amber-500">58</span>
+
+    <div class="grid gap-5 xl:grid-cols-2">
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-4">
+          <p class="text-sm text-slate-500">Lighthouse Mobile</p>
+          <h4 class="text-lg font-semibold text-slate-900">Mobile Skorları</h4>
+        </div>
+        <div class="grid grid-cols-2 gap-8">
+          {% for score in mobile_lighthouse_scores %}
+          <div>
+            <button type="button" data-detail-target="{{ score.detail_id }}" class="score-detail-trigger flex flex-col items-center gap-3 cursor-pointer hover:opacity-80 transition">
+              <div class="relative inline-flex items-center justify-center w-20 h-20">
+                <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
+                  <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round"></circle>
+                </svg>
+                <span class="absolute text-3xl font-bold {{ score.text_class }}">{{ score.value }}</span>
+              </div>
+              <p class="font-semibold text-slate-900 text-sm">{{ score.label }}</p>
+              <p class="text-xs text-slate-600">{{ score.subtitle }}</p>
+            </button>
           </div>
-        </button>
-        <div class="text-center">
-          <p class="font-semibold text-slate-900 text-sm">Performance</p>
-          <p class="text-xs text-slate-600">Performans</p>
+          {% endfor %}
         </div>
       </div>
-      
-      <!-- Accessibility Score -->
-      <div class="flex flex-col items-center gap-3">
-        <button onclick="document.getElementById('lighthouse-details-accessibility').classList.toggle('hidden')" class="cursor-pointer hover:opacity-80 transition">
-          <div class="relative inline-flex items-center justify-center w-20 h-20">
-            <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#fbbf24" stroke-width="6" stroke-dasharray="190 235" stroke-linecap="round"></circle>
-            </svg>
-            <span class="absolute text-3xl font-bold text-amber-500">81</span>
-          </div>
-        </button>
-        <div class="text-center">
-          <p class="font-semibold text-slate-900 text-sm">Accessibility</p>
-          <p class="text-xs text-slate-600">Erişilebilirlik</p>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="mb-4">
+          <p class="text-sm text-slate-500">Lighthouse Desktop</p>
+          <h4 class="text-lg font-semibold text-slate-900">Desktop Skorları</h4>
         </div>
-      </div>
-      
-      <!-- Best Practices Score -->
-      <div class="flex flex-col items-center gap-3">
-        <button onclick="document.getElementById('lighthouse-details-practices').classList.toggle('hidden')" class="cursor-pointer hover:opacity-80 transition">
-          <div class="relative inline-flex items-center justify-center w-20 h-20">
-            <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#f87171" stroke-width="6" stroke-dasharray="82 235" stroke-linecap="round"></circle>
-            </svg>
-            <span class="absolute text-3xl font-bold text-rose-500">35</span>
+        <div class="grid grid-cols-2 gap-8">
+          {% for score in desktop_lighthouse_scores %}
+          <div>
+            <button type="button" data-detail-target="{{ score.detail_id }}" class="score-detail-trigger flex flex-col items-center gap-3 cursor-pointer hover:opacity-80 transition">
+              <div class="relative inline-flex items-center justify-center w-20 h-20">
+                <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
+                  <circle cx="40" cy="40" r="37" fill="none" stroke="{{ score.stroke_color }}" stroke-width="6" stroke-dasharray="{{ score.dasharray }}" stroke-linecap="round"></circle>
+                </svg>
+                <span class="absolute text-3xl font-bold {{ score.text_class }}">{{ score.value }}</span>
+              </div>
+              <p class="font-semibold text-slate-900 text-sm">{{ score.label }}</p>
+              <p class="text-xs text-slate-600">{{ score.subtitle }}</p>
+            </button>
           </div>
-        </button>
-        <div class="text-center">
-          <p class="font-semibold text-slate-900 text-sm">Best Practices</p>
-          <p class="text-xs text-slate-600">En İyi Uygulamalar</p>
-        </div>
-      </div>
-      
-      <!-- SEO Score -->
-      <div class="flex flex-col items-center gap-3">
-        <button onclick="document.getElementById('lighthouse-details-seo').classList.toggle('hidden')" class="cursor-pointer hover:opacity-80 transition">
-          <div class="relative inline-flex items-center justify-center w-20 h-20">
-            <svg class="transform -rotate-90 w-20 h-20" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
-              <circle cx="40" cy="40" r="37" fill="none" stroke="#10b981" stroke-width="6" stroke-dasharray="215 235" stroke-linecap="round"></circle>
-            </svg>
-            <span class="absolute text-3xl font-bold text-emerald-600">92</span>
-          </div>
-        </button>
-        <div class="text-center">
-          <p class="font-semibold text-slate-900 text-sm">SEO</p>
-          <p class="text-xs text-slate-600">Arama Motoru</p>
+          {% endfor %}
         </div>
       </div>
     </div>
     
     <!-- Details (Hidden by default) -->
-    <div id="lighthouse-details-performance" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h4 class="font-semibold text-slate-900 mb-4">Performance (Performans) - Detaylar</h4>
-      <div class="space-y-3">
-        <div class="rounded-lg bg-rose-50 border border-rose-200 p-3">
-          <h5 class="text-sm font-semibold text-rose-900">⚠️ Uyarılar</h5>
-          <ul class="text-sm text-rose-700 mt-2 space-y-1">
-            <li>• Render-blocking JavaScript (Oluşturmayı Engelleyen JavaScript)</li>
-            <li>• Optimize edilmemiş görüntüler (Unoptimized Images)</li>
-            <li>• Kullanılmayan CSS (Unused CSS)</li>
-          </ul>
+    <div id="lighthouse-details-mobile-performance" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Performance (Performans) - Mobile Detayı</h4>
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Skor</p>
+          <p class="mt-2 text-3xl font-bold {{ mobile_color }}">{{ mobile_score|round|int }}</p>
+          <p class="mt-2 text-sm text-slate-600">Bu skor mobile Lighthouse ölçümünden geliyor.</p>
         </div>
-        <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
-          <h5 class="text-sm font-semibold text-emerald-900">✓ Başarılar</h5>
-          <ul class="text-sm text-emerald-700 mt-2 space-y-1">
-            <li>• Compression (Sıkıştırma etkin)</li>
-            <li>• Caching (Cache politikası uygun)</li>
-            <li>• Lazy Loading (Lazy yükleme yapılandırılmış)</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    
-    <div id="lighthouse-details-accessibility" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h4 class="font-semibold text-slate-900 mb-4">Accessibility (Erişilebilirlik) - Detaylı Analiz</h4>
-      
-      {% if lighthouse_analysis and lighthouse_analysis.issues %}
-      <div class="space-y-3">
-        {% for issue in lighthouse_analysis.issues %}
-          {% if issue.category == 'Accessibility' %}
-          <div class="rounded-2xl bg-gradient-to-br from-slate-50 to-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-            <!-- Issue Header -->
-            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/50 transition">
-              <div class="flex-1 text-left">
-                <h5 class="font-semibold text-slate-900">{{ issue.title }}</h5>
-                <p class="text-xs text-slate-500 mt-1">Seviye: <span class="font-semibold">{{ issue.priority }}</span></p>
-              </div>
-              <span class="text-slate-400 ml-2 trigger-arrow">›</span>
-            </button>
-
-            <!-- Issue Details -->
-            <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
-              <!-- Problem -->
-              {% if issue.problem %}
-              <div>
-                <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-2">🔴 Problem</h6>
-                <p class="text-slate-700">{{ issue.problem }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Impact -->
-              {% if issue.impact %}
-              <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-rose-900 flex items-center gap-2">
-                  <span>⚠️</span> Etkisi
-                </h6>
-                <p class="text-sm text-rose-800 mt-2">{{ issue.impact }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Solutions -->
-              {% if issue.solution %}
-              <div>
-                <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">✅ Çözüm Adımları</h6>
-                <div class="space-y-3">
-                  {% for step in issue.solution %}
-                  <div class="rounded-xl bg-gradient-to-br from-sky-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
-                    <div class="flex items-start gap-3">
-                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-sky-200 to-sky-100 text-sky-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
-                      <div class="flex-1">
-                        <h6 class="font-semibold text-slate-900">{{ step.title }}</h6>
-                        <p class="text-xs text-slate-500 mt-1">Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
-                      </div>
-                    </div>
-                    
-                    <!-- Code Block -->
-                    {% if step.code %}
-                    <button class="code-trigger mt-3 w-full text-left text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-2">
-                      <span>💻</span> Code Örneği <span class="code-toggle">(Göster)</span>
-                    </button>
-                    <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code }}</div>
-                    {% endif %}
-                  </div>
-                  {% endfor %}
-                </div>
-              </div>
-              {% endif %}
-
-              <!-- Expected Result -->
-              {% if issue.expected_result %}
-              <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
-                  <span>🎯</span> Beklenen Sonuç
-                </h6>
-                <p class="text-sm text-emerald-800 mt-2">{{ issue.expected_result }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Timeline -->
-              {% if issue.timeline %}
-              <div class="rounded-xl bg-gradient-to-br from-blue-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                  <span>⏱️</span> Zaman Çerçevesi
-                </h6>
-                <p class="text-sm text-blue-800 mt-2">{{ issue.timeline }}</p>
-              </div>
-              {% endif %}
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 lg:col-span-2">
+          <p class="text-sm font-semibold text-amber-900">Öne çıkan mobile metrikler</p>
+          <div class="mt-3 grid gap-3 md:grid-cols-3">
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">LCP</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_lcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 2.5s</p>
+            </div>
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">CLS</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ '%.2f'|format(mobile_cls) }}</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 0.1</p>
+            </div>
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">FCP</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_fcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 1.8s</p>
             </div>
           </div>
-          {% endif %}
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-    
-    <div id="lighthouse-details-practices" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h4 class="font-semibold text-slate-900 mb-4">Best Practices (En İyi Uygulamalar) - Detaylı Analiz</h4>
-      
-      {% if lighthouse_analysis and lighthouse_analysis.issues %}
-      <div class="space-y-3">
-        {% for issue in lighthouse_analysis.issues %}
-          {% if issue.category == 'Best Practices' %}
-          <div class="rounded-2xl bg-gradient-to-br from-slate-50 to-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-            <!-- Issue Header -->
-            <button class="lighthouse-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/50 transition">
-              <div class="flex-1 text-left">
-                <h5 class="font-semibold text-slate-900">{{ issue.title }}</h5>
-                <p class="text-xs text-slate-500 mt-1">Seviye: <span class="font-semibold">{{ issue.priority }}</span></p>
-              </div>
-              <span class="text-slate-400 ml-2 trigger-arrow">›</span>
-            </button>
-
-            <!-- Issue Details -->
-            <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
-              <!-- Problem -->
-              {% if issue.problem %}
-              <div>
-                <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-2">🔴 Problem</h6>
-                <p class="text-slate-700">{{ issue.problem }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Impact -->
-              {% if issue.impact %}
-              <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-rose-900 flex items-center gap-2">
-                  <span>⚠️</span> Etkisi
-                </h6>
-                <p class="text-sm text-rose-800 mt-2">{{ issue.impact }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Solutions -->
-              {% if issue.solution %}
-              <div>
-                <h6 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">✅ Çözüm Adımları</h6>
-                <div class="space-y-3">
-                  {% for step in issue.solution %}
-                  <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
-                    <div class="flex items-start gap-3">
-                      <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-rose-200 to-rose-100 text-rose-700 text-sm font-semibold flex-shrink-0">{{ step.step }}</span>
-                      <div class="flex-1">
-                        <h6 class="font-semibold text-slate-900">{{ step.title }}</h6>
-                        <p class="text-xs text-slate-500 mt-1">Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
-                      </div>
-                    </div>
-                    
-                    <!-- Code Block -->
-                    {% if step.code %}
-                    <button class="code-trigger mt-3 w-full text-left text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-2">
-                      <span>💻</span> Code Örneği <span class="code-toggle">(Göster)</span>
-                    </button>
-                    <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code }}</div>
-                    {% endif %}
-                  </div>
-                  {% endfor %}
-                </div>
-              </div>
-              {% endif %}
-
-              <!-- Expected Result -->
-              {% if issue.expected_result %}
-              <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
-                  <span>🎯</span> Beklenen Sonuç
-                </h6>
-                <p class="text-sm text-emerald-800 mt-2">{{ issue.expected_result }}</p>
-              </div>
-              {% endif %}
-
-              <!-- Timeline -->
-              {% if issue.timeline %}
-              <div class="rounded-xl bg-gradient-to-br from-blue-50 to-white p-3 shadow-xs">
-                <h6 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                  <span>⏱️</span> Zaman Çerçevesi
-                </h6>
-                <p class="text-sm text-blue-800 mt-2">{{ issue.timeline }}</p>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-          {% endif %}
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-    
-    <div id="lighthouse-details-seo" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h4 class="font-semibold text-slate-900 mb-4">SEO - Başarılı ✓</h4>
-      <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4">
-        <h5 class="font-semibold text-emerald-900 flex items-center gap-2">
-          <span>✅</span> Tüm Kritik SEO Metrikler İyi Durumda
-        </h5>
-        <div class="mt-3 space-y-2 text-sm text-emerald-800">
-          <p>✓ Document has a meta viewport tag</p>
-          <p>✓ Document title element is present</p>
-          <p>✓ Document has a meta description</p>
-          <p>✓ Valid Schema.org markup detected</p>
-          <p>✓ Canonical URL is specified</p>
         </div>
       </div>
+      <div class="mt-5">
+        <h5 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Live Audit Sections / Canlı Audit Bölümleri</h5>
+        {{ lighthouse_category_sections(mobile_lighthouse_analysis, 'performance', 'Mobile', 'Mobile performance için gösterilecek ek audit detayı bulunamadı.') }}
+      </div>
+    </div>
+
+    <div id="lighthouse-details-desktop-performance" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Performance (Performans) - Desktop Detayı</h4>
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Skor</p>
+          <p class="mt-2 text-3xl font-bold {{ desktop_color }}">{{ desktop_score|round|int }}</p>
+          <p class="mt-2 text-sm text-slate-600">Bu skor desktop Lighthouse ölçümünden geliyor.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 lg:col-span-2">
+          <p class="text-sm font-semibold text-emerald-900">Öne çıkan desktop metrikler</p>
+          <div class="mt-3 grid gap-3 md:grid-cols-3">
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">LCP</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_lcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 2.5s</p>
+            </div>
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">CLS</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ '%.2f'|format(desktop_cls) }}</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 0.1</p>
+            </div>
+            <div class="rounded-lg bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">FCP</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_fcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 1.8s</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-5">
+        <h5 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Live Audit Sections / Canlı Audit Bölümleri</h5>
+        {{ lighthouse_category_sections(desktop_lighthouse_analysis, 'performance', 'Desktop', 'Desktop performance için gösterilecek ek audit detayı bulunamadı.') }}
+      </div>
+    </div>
+
+    <div id="lighthouse-details-mobile-accessibility" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Accessibility (Erişilebilirlik) - Mobile Detaylı Analiz</h4>
+      {{ lighthouse_category_sections(mobile_lighthouse_analysis, 'accessibility', 'Mobile', 'Mobile erişilebilirlik için gösterilecek ek detay bulunamadı.') }}
+    </div>
+
+    <div id="lighthouse-details-desktop-accessibility" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Accessibility (Erişilebilirlik) - Desktop Detaylı Analiz</h4>
+      {{ lighthouse_category_sections(desktop_lighthouse_analysis, 'accessibility', 'Desktop', 'Desktop erişilebilirlik için gösterilecek ek detay bulunamadı.') }}
+    </div>
+
+    <div id="lighthouse-details-mobile-practices" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Best Practices (En İyi Uygulamalar) - Mobile Detaylı Analiz</h4>
+      {{ lighthouse_category_sections(mobile_lighthouse_analysis, 'best_practices', 'Mobile', 'Mobile best practices için gösterilecek ek detay bulunamadı.') }}
+    </div>
+
+    <div id="lighthouse-details-desktop-practices" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">Best Practices (En İyi Uygulamalar) - Desktop Detaylı Analiz</h4>
+      {{ lighthouse_category_sections(desktop_lighthouse_analysis, 'best_practices', 'Desktop', 'Desktop best practices için gösterilecek ek detay bulunamadı.') }}
+    </div>
+
+    <div id="lighthouse-details-mobile-seo" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">SEO - Mobile Detayı</h4>
+      {{ lighthouse_category_sections(mobile_lighthouse_analysis, 'seo', 'Mobile', 'Mobile SEO için gösterilecek ek detay bulunamadı.') }}
+    </div>
+
+    <div id="lighthouse-details-desktop-seo" class="hidden mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h4 class="font-semibold text-slate-900 mb-4">SEO - Desktop Detayı</h4>
+      {{ lighthouse_category_sections(desktop_lighthouse_analysis, 'seo', 'Desktop', 'Desktop SEO için gösterilecek ek detay bulunamadı.') }}
     </div>
 
     <!-- Lighthouse JavaScript Toggles -->
-    <script>
-      (function() {
-        // Lighthouse toggles
-        document.querySelectorAll('.lighthouse-trigger').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const details = this.parentElement.querySelector('.lighthouse-details');
-            const arrow = this.querySelector('.trigger-arrow');
-            details.classList.toggle('hidden');
-            arrow.style.transform = details.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(90deg)';
-            arrow.style.transition = 'transform 0.2s';
-          });
-        });
-        
-        // Code block toggles
-        document.querySelectorAll('.code-trigger').forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const block = this.nextElementSibling;
-            const toggle = this.querySelector('.code-toggle');
-            block.classList.toggle('hidden');
-            toggle.textContent = block.classList.contains('hidden') ? '(Göster)' : '(Gizle)';
-          });
-        });
-      })();
-    </script>
   </div>
 
   <div class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+    <div class="mb-3 grid gap-3 md:grid-cols-2">
+      <div class="rounded-xl border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-slate-500">PageSpeed Mobile</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ pagespeed_status.mobile.description }}</p>
+          </div>
+          <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ pagespeed_status.mobile.badge_class }}">{{ pagespeed_status.mobile.label }}</span>
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-slate-500">PageSpeed Desktop</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ pagespeed_status.desktop.description }}</p>
+          </div>
+          <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ pagespeed_status.desktop.badge_class }}">{{ pagespeed_status.desktop.label }}</span>
+        </div>
+      </div>
+    </div>
     <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
       <p><span class="font-semibold">Mobile son guncelleme:</span> {{ pagespeed_status.mobile_updated_at }}</p>
       <p><span class="font-semibold">Desktop son guncelleme:</span> {{ pagespeed_status.desktop_updated_at }}</p>
@@ -507,7 +471,7 @@
         {% for item in crawler_checks %}
           <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
             <!-- Check Header -->
-            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
+            <button type="button" class="collapse-next-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
               <div class="flex items-center gap-3">
                 <span class="text-xl {% if item.passed %}text-emerald-600{% else %}text-rose-600{% endif %}">
                   {% if item.passed %}✓{% else %}✗{% endif %}
@@ -580,7 +544,7 @@
       {% for diagnostic in pagespeed_analysis.diagnostics.performance_diagnostics %}
       <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <!-- Diagnostic Header -->
-        <button class="diagnostic-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
+        <button type="button" class="diagnostic-trigger w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition">
           <div class="flex-1">
             <div class="flex items-center gap-3">
               <span class="text-2xl font-bold text-slate-400">{{ loop.index }}.</span>
@@ -636,7 +600,7 @@
                 <button class="code-trigger mt-3 w-full text-left text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-2">
                   <span>💻</span> Code Örneği <span class="code-toggle">(Göster)</span>
                 </button>
-                <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code }}</div>
+                <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code|e }}</div>
                 {% endif %}
               </div>
               {% endfor %}
@@ -711,31 +675,6 @@
     {% endif %}
 
     <!-- JavaScript for Accordion Toggles -->
-    <script>
-      (function() {
-        // Diagnostic toggles
-        document.querySelectorAll('.diagnostic-trigger').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const details = this.parentElement.querySelector('.diagnostic-details');
-            const arrow = this.querySelector('.trigger-arrow');
-            details.classList.toggle('hidden');
-            arrow.style.transform = details.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(90deg)';
-            arrow.style.transition = 'transform 0.2s';
-          });
-        });
-        
-        // Code block toggles
-        document.querySelectorAll('.code-trigger').forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const block = this.nextElementSibling;
-            const toggle = this.querySelector('.code-toggle');
-            block.classList.toggle('hidden');
-            toggle.textContent = block.classList.contains('hidden') ? '(Göster)' : '(Gizle)';
-          });
-        });
-      })();
-    </script>
   </div>
   {% endif %}
 
@@ -762,8 +701,14 @@
         </div>
       </div>
       <div class="text-right text-sm text-slate-500">
-        <p>Mock veya canlı veri</p>
-        <p>Düşen sorgu: {{ search_summary.dropped_queries|round|int }}</p>
+        <div class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold {{ search_console_status.badge_class }}">
+          <span>{{ search_console_status.label }}</span>
+        </div>
+        <p class="mt-2">{{ search_console_status.description }}</p>
+        <p>{{ search_console_status.connection_label }}</p>
+        {% if search_console_status.updated_at %}
+        <p>Son olcum: {{ search_console_status.updated_at }}</p>
+        {% endif %}
       </div>
     </div>
 
@@ -792,7 +737,13 @@
 
     <div class="mt-5 rounded-2xl border border-slate-200 p-4">
       <p class="text-sm font-semibold text-slate-900">Search Console Trend (28d snapshots)</p>
+      {% if search_console_status.state == 'live' %}
       <div id="search-trend-chart" class="mt-3 h-[320px]" data-trend='{{ search_trend_data|tojson }}'></div>
+      {% else %}
+      <div class="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+        Guncel Search Console trend verisi su an alinmiyor.
+      </div>
+      {% endif %}
     </div>
 
     <div class="mt-4 flex items-center justify-between gap-3">
@@ -801,8 +752,15 @@
         type="text"
         placeholder="Query filtrele..."
         class="w-full max-w-md rounded-xl border border-slate-300 px-4 py-2 text-sm outline-none ring-slate-200 focus:ring"
+        {% if search_console_status.state != 'live' %}disabled{% endif %}
       />
-      <span class="text-xs text-slate-500">Top 50 sorgu canlı filtrelenir ve sıralanır</span>
+      <span class="text-xs text-slate-500">
+        {% if search_console_status.state == 'live' %}
+        Top 50 sorgu canli filtrelenir ve siralanir
+        {% else %}
+        Sorgu tablosu yalnizca canli Search Console verisi geldiginde gosterilir
+        {% endif %}
+      </span>
     </div>
 
     <div class="mt-4 overflow-x-auto">
@@ -844,6 +802,82 @@
 
 <script>
   (function () {
+    if (!window.__seoDetailDelegatesBound) {
+      window.__seoDetailDelegatesBound = true;
+
+      const rotateArrow = function (arrow, expanded) {
+        if (!arrow) {
+          return;
+        }
+        arrow.style.transform = expanded ? 'rotate(90deg)' : 'rotate(0deg)';
+        arrow.style.transition = 'transform 0.2s';
+      };
+
+      const toggleBlock = function (block, arrow) {
+        if (!block) {
+          return;
+        }
+        block.classList.toggle('hidden');
+        const expanded = !block.classList.contains('hidden');
+        rotateArrow(arrow, expanded);
+        if (expanded) {
+          block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+
+      document.addEventListener('click', function (event) {
+        const scoreTrigger = event.target.closest('[data-detail-target]');
+        if (scoreTrigger) {
+          event.preventDefault();
+          const targetId = scoreTrigger.getAttribute('data-detail-target');
+          const target = targetId ? document.getElementById(targetId) : null;
+          toggleBlock(target, null);
+          return;
+        }
+
+        const lighthouseTrigger = event.target.closest('.lighthouse-trigger');
+        if (lighthouseTrigger) {
+          event.preventDefault();
+          const details = lighthouseTrigger.nextElementSibling;
+          const arrow = lighthouseTrigger.querySelector('.trigger-arrow');
+          toggleBlock(details, arrow);
+          return;
+        }
+
+        const diagnosticTrigger = event.target.closest('.diagnostic-trigger');
+        if (diagnosticTrigger) {
+          event.preventDefault();
+          const details = diagnosticTrigger.nextElementSibling;
+          const arrow = diagnosticTrigger.querySelector('.trigger-arrow');
+          toggleBlock(details, arrow);
+          return;
+        }
+
+        const collapseNextTrigger = event.target.closest('.collapse-next-trigger');
+        if (collapseNextTrigger) {
+          event.preventDefault();
+          const details = collapseNextTrigger.nextElementSibling;
+          const arrow = collapseNextTrigger.querySelector('.trigger-arrow') || collapseNextTrigger.lastElementChild;
+          toggleBlock(details, arrow);
+          return;
+        }
+
+        const codeTrigger = event.target.closest('.code-trigger');
+        if (codeTrigger) {
+          event.preventDefault();
+          const block = codeTrigger.nextElementSibling;
+          const toggle = codeTrigger.querySelector('.code-toggle');
+          if (!block) {
+            return;
+          }
+          block.classList.toggle('hidden');
+          if (toggle) {
+            toggle.textContent = block.classList.contains('hidden') ? '(Göster)' : '(Gizle)';
+          }
+        }
+      });
+    }
+
     const periodFilter = document.getElementById('detail-period-filter');
     if (periodFilter) {
       periodFilter.addEventListener('change', function () {
@@ -851,6 +885,35 @@
         window.location.href = next;
       });
     }
+  })();
+
+  (function () {
+    const shouldRefresh = {{ 'true' if should_background_refresh else 'false' }};
+    if (!shouldRefresh) {
+      return;
+    }
+
+    const refreshKey = 'site-refresh-{{ domain }}';
+    const now = Date.now();
+    const lastAttempt = parseInt(sessionStorage.getItem(refreshKey) || '0', 10);
+    if (lastAttempt && now - lastAttempt < 5 * 60 * 1000) {
+      return;
+    }
+
+    sessionStorage.setItem(refreshKey, String(now));
+    fetch('/api/site/{{ domain }}/refresh', { method: 'POST' })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('refresh failed');
+        }
+        return response.json();
+      })
+      .then(function () {
+        window.location.reload();
+      })
+      .catch(function (error) {
+        console.warn('Background site refresh failed:', error);
+      });
   })();
 
   (function () {

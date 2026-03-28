@@ -51,7 +51,7 @@
               aria-controls="sidebar"
               title="Sidebar Daralt/Genişlet"
             >
-              <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 rotate-180" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
@@ -109,7 +109,7 @@
           item.removeAttribute('title');
         });
 
-        icon.classList.toggle('rotate-180', collapsed);
+        icon.classList.toggle('rotate-180', !collapsed);
         icon.classList.add('transition-transform', 'duration-300');
         toggle.setAttribute('aria-expanded', String(!collapsed));
         localStorage.setItem('seo-sidebar-collapsed', collapsed ? '1' : '0');

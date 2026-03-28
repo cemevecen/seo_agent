@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from sqlalchemy.orm import Session
@@ -16,6 +17,58 @@ from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_site_host(domain: str) -> str:
+    raw = (domain or "").strip()
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return urlparse(raw).netloc.lower().strip("/")
+    return raw.lower().strip("/")
+
+
+def _property_candidates(domain: str) -> list[str]:
+    host = _normalize_site_host(domain)
+    if not host:
+        return []
+
+    naked = host[4:] if host.startswith("www.") else host
+    candidates: list[str] = []
+    for candidate in (
+        f"sc-domain:{host}",
+        f"sc-domain:{naked}",
+        f"https://{host}/",
+        f"http://{host}/",
+    ):
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    if host.startswith("www."):
+        extra = (f"https://{naked}/", f"http://{naked}/")
+    else:
+        extra = (f"https://www.{host}/", f"http://www.{host}/")
+
+    for candidate in extra:
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _resolve_search_console_property(service, site: Site) -> str:
+    candidates = _property_candidates(site.domain)
+    entries = service.sites().list().execute().get("siteEntry", [])
+    available = {
+        entry.get("siteUrl")
+        for entry in entries
+        if entry.get("siteUrl") and entry.get("permissionLevel") not in {"siteUnverifiedUser", "siteRestrictedUser"}
+    }
+
+    for candidate in candidates:
+        if candidate in available:
+            return candidate
+
+    raise ValueError(
+        f"Erisilebilir Search Console property bulunamadi. Adaylar: {', '.join(candidates)}"
+    )
 
 
 def _get_mock_queries_for_domain(domain: str) -> list[dict]:
@@ -203,15 +256,15 @@ def _mock_search_console_response(domain: str = "") -> dict:
 
 
 def _load_search_console_data(site: Site, credential: SiteCredential | None) -> dict:
-    # Credential yoksa mock, varsa Search Console API cevabı üretir.
+    # Credential varsa Search Console API cevabı üretir, yoksa bos/failure doner.
     if credential is None:
-        return _mock_search_console_response(site.domain)
+        return {"rows": [], "previous_day": [], "source": "failed", "error": "Search Console baglantisi yok."}
 
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
     except ImportError:
-        return _mock_search_console_response()
+        return {"rows": [], "previous_day": [], "source": "failed", "error": "Google Search Console istemcisi yuklu degil."}
 
     try:
         credential_data = load_google_credentials(credential)
@@ -225,7 +278,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                 scopes=SEARCH_CONSOLE_SCOPES,
             )
         service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
-        site_url = site.domain if site.domain.startswith("http") else f"sc-domain:{site.domain}"
+        site_url = _resolve_search_console_property(service, site)
         end_date = date.today() - timedelta(days=1)
         start_date = end_date - timedelta(days=27)
         previous_date = end_date - timedelta(days=1)
@@ -256,10 +309,16 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             )
             .execute()
         )
-        return {"rows": current.get("rows", []), "previous_day": previous.get("rows", [])}
+        return {
+            "rows": current.get("rows", []),
+            "previous_day": previous.get("rows", []),
+            "source": "live",
+            "error": None,
+            "site_url": site_url,
+        }
     except Exception as exc:
-        LOGGER.warning("Search Console fallback to mock for %s due to credential/API error: %s", site.domain, exc)
-        return _mock_search_console_response(site.domain)
+        LOGGER.warning("Search Console failed for %s due to credential/API error: %s", site.domain, exc)
+        return {"rows": [], "previous_day": [], "source": "failed", "error": str(exc)}
 
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
@@ -278,6 +337,17 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
     previous_rows = payload.get("previous_day", [])
+    source = payload.get("source", "failed")
+    error = payload.get("error")
+
+    if source != "live":
+        return {
+            "site_id": site.id,
+            "rows": [],
+            "summary": {},
+            "source": source,
+            "error": error,
+        }
     previous_map = {row.get("keys", [""])[0]: float(row.get("position", 0)) for row in previous_rows}
 
     total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
@@ -307,7 +377,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     }
     save_metrics(db, site.id, metrics, datetime.utcnow())
     evaluate_site_alerts(db, site)
-    return {"site_id": site.id, "rows": rows, "summary": metrics}
+    return {"site_id": site.id, "rows": rows, "summary": metrics, "source": "live", "error": None}
 
 
 def get_top_queries(db: Session, site: Site, limit: int = 10, device: str = "all") -> list[dict]:

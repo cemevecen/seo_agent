@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Comparison type buttons
   document.querySelectorAll('.comparison-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
+    btn.addEventListener('click', async function(e) {
       e.preventDefault();
       e.stopPropagation();
       
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Button styling
       const allBtns = card.querySelectorAll('.comparison-btn');
       allBtns.forEach(b => {
-        if (b.dataset.alertId === alertId) {
+        if (b.dataset.comparison === comparisonType) {
           b.classList.remove('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
           b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
         } else {
@@ -170,8 +170,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
       
-      // Load comparison data
-      loadComparisonData(alertId, comparisonType);
+      // Load and render the selected comparison type.
+      await loadComparisonData(alertId, comparisonType);
+      renderComparisonData(alertId, comparisonType);
     });
   });
 });
@@ -188,11 +189,20 @@ async function loadAlertDetails(alertId, card) {
     const data = await response.json();
     console.log('Alert data loaded:', data);
     
-    // Paralel olarak her iki comparison type'ı yükle
-    await Promise.all([
+    // Store both daily and weekly data in memory
+    if (!window.comparisonCache) {
+      window.comparisonCache = {};
+    }
+    window.comparisonCache[alertId] = {};
+    
+    // Paralel olarak her iki comparison type'ı yükle VE SAKLA
+    const [dailyData, weeklyData] = await Promise.all([
       loadComparisonData(alertId, 'daily'),
       loadComparisonData(alertId, 'weekly')
     ]);
+    
+    // İlk render: daily
+    renderComparisonData(alertId, 'daily');
     
   } catch (error) {
     console.error('Error loading alert details:', error);
@@ -211,11 +221,42 @@ async function loadComparisonData(alertId, comparisonType) {
     }
     
     const data = await response.json();
+    
+    // Cache data
+    if (!window.comparisonCache) {
+      window.comparisonCache = {};
+    }
+    if (!window.comparisonCache[alertId]) {
+      window.comparisonCache[alertId] = {};
+    }
+    window.comparisonCache[alertId][comparisonType] = data;
+    
+    console.log(`Loaded ${comparisonType} data for alert ${alertId}:`, data);
+    return data;
+    
+  } catch (error) {
+    console.error(`Error loading ${comparisonType} comparison data:`, error);
+    throw error;
+  }
+}
+
+function renderComparisonData(alertId, comparisonType) {
+  try {
+    if (!window.comparisonCache || !window.comparisonCache[alertId] || !window.comparisonCache[alertId][comparisonType]) {
+      console.warn(`No cached data for alert ${alertId}, type ${comparisonType}`);
+      return;
+    }
+    
+    const data = window.comparisonCache[alertId][comparisonType];
     const comparison = data.comparison || {};
     const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
     
     if (comparisonDiv) {
       let html = '';
+      
+      // Add comparison type label
+      const typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
+      html += `<p class="text-xs font-semibold text-slate-500 uppercase mb-2">📊 ${typeLabel}</p>`;
       
       // Show main message
       if (comparison.message) {
@@ -255,7 +296,7 @@ async function loadComparisonData(alertId, comparisonType) {
     }
     
   } catch (error) {
-    console.error('Error loading comparison data:', error);
+    console.error(`Error rendering ${comparisonType} data:`, error);
     const comparisonDiv = document.getElementById(`comparison-info-${alertId}`);
     if (comparisonDiv) {
       comparisonDiv.textContent = `Hata: ${error.message}`;

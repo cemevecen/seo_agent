@@ -74,9 +74,10 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
         metric_type: Metric type (metrik adı)
         triggered_at: Alert'in trigger edildiği tarih
         comparison_type: "daily" (dünle karşılaştır) veya "weekly" (geçen hafta aynı güne karşılaştır)
+        alert_log_message: Alert message'i (extract query details için)
     
     Returns:
-        {"message": "Karşılaştırmalı açıklama}
+        {"message": "Karşılaştırmalı açıklama", "query_details": [...], "comparison_type": "daily|weekly"}
     """
     # Mevcut günün metriğini al
     current_start = triggered_at.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -128,16 +129,24 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
         )
     
     result["message"] = message
+    result["comparison_type"] = comparison_type  # Help frontend know which comparison this is
     
     # Search Console alertları için query details ekle
+    # IMPORTANT: Parse message AND ADD TIME PERIOD INFO if applicable
     if alert_log_message and metric_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
         query_details = _extract_query_details_from_message(alert_log_message)
         if query_details:
             # Ensure query_details is always a list for consistent template handling
             if isinstance(query_details, dict):
-                result["query_details"] = [query_details]  # Wrap single dict in list
+                query_details = [query_details]
             else:
-                result["query_details"] = query_details
+                query_details = list(query_details)
+            
+            # Add comparison_type to each query detail for clarity
+            for detail in query_details:
+                detail["comparison_type"] = comparison_type
+            
+            result["query_details"] = query_details
     
     return result
 

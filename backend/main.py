@@ -1,6 +1,7 @@
 """FastAPI uygulama giriş noktası."""
 import os
 import sys
+from datetime import datetime, timedelta
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -20,13 +21,12 @@ from jinja2 import Environment, FileSystemLoader
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
-import requests
 
 from backend.api.alerts import router as alerts_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
-from backend.collectors.pagespeed import collect_pagespeed_metrics
+from backend.collectors.pagespeed import STRATEGY_METRIC_MAP, collect_pagespeed_metrics, get_latest_pagespeed_audit_snapshot
 from backend.collectors.search_console import get_top_queries
 from backend.collectors.search_console import collect_search_console_metrics
 from backend.config import settings
@@ -37,7 +37,6 @@ from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, g
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
-from backend.services.technical_seo import run_technical_seo_audit
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
@@ -195,6 +194,427 @@ def _score_color(score: float) -> str:
     return "text-rose-600"
 
 
+def _metric_value(latest: dict[str, object], metric_type: str, default: float = 0.0) -> float:
+    metric = latest.get(metric_type)
+    if metric is None:
+        return default
+    return float(metric.value)
+
+
+def _metric_is_stale(latest: dict[str, object], metric_type: str, max_age_minutes: int = 30) -> bool:
+    metric = latest.get(metric_type)
+    if metric is None:
+        return True
+    return metric.collected_at < datetime.utcnow() - timedelta(minutes=max_age_minutes)
+
+
+def _pagespeed_strategy_is_complete(latest: dict[str, object], strategy: str) -> bool:
+    metric_names = STRATEGY_METRIC_MAP[strategy]
+    required_positive = (
+        "performance_score",
+        "accessibility_score",
+        "best_practices_score",
+        "seo_score",
+        "lcp",
+        "fcp",
+    )
+    for key in required_positive:
+        metric = latest.get(metric_names[key])
+        if metric is None or float(metric.value) <= 0:
+            return False
+
+    cls_metric = latest.get(metric_names["cls"])
+    return cls_metric is not None
+
+
+def _site_detail_should_refresh(latest: dict[str, object]) -> bool:
+    required_metrics = (
+        "pagespeed_mobile_score",
+        "pagespeed_desktop_score",
+        "pagespeed_mobile_accessibility_score",
+        "pagespeed_desktop_accessibility_score",
+        "pagespeed_mobile_best_practices_score",
+        "pagespeed_desktop_best_practices_score",
+        "pagespeed_mobile_seo_score",
+        "pagespeed_desktop_seo_score",
+        "pagespeed_mobile_fcp",
+        "pagespeed_desktop_fcp",
+        "pagespeed_mobile_ttfb",
+        "pagespeed_desktop_ttfb",
+        "pagespeed_mobile_inp",
+        "pagespeed_desktop_inp",
+        "search_console_clicks_28d",
+        "crawler_robots_accessible",
+    )
+    return (
+        any(_metric_is_stale(latest, metric_type) for metric_type in required_metrics)
+        or not _pagespeed_strategy_is_complete(latest, "mobile")
+        or not _pagespeed_strategy_is_complete(latest, "desktop")
+    )
+
+
+def _refresh_site_detail_measurements(
+    db,
+    site: Site,
+    *,
+    include_pagespeed: bool = True,
+    include_crawler: bool = False,
+    include_search_console: bool = False,
+) -> dict[str, dict]:
+    if not settings.live_refresh_enabled:
+        return {}
+    results: dict[str, dict] = {}
+    if include_pagespeed:
+        try:
+            results["pagespeed"] = collect_pagespeed_metrics(db, site)
+        except Exception as exc:  # noqa: BLE001
+            results["pagespeed"] = {"errors": {"exception": str(exc)}}
+    if include_crawler:
+        try:
+            results["crawler"] = collect_crawler_metrics(db, site)
+        except Exception as exc:  # noqa: BLE001
+            results["crawler"] = {"errors": {"exception": str(exc)}}
+    if include_search_console:
+        try:
+            results["search_console"] = collect_search_console_metrics(db, site)
+        except Exception as exc:  # noqa: BLE001
+            results["search_console"] = {"errors": {"exception": str(exc)}}
+    return results
+
+
+def _pagespeed_progress(value: float, good_threshold: float, poor_threshold: float) -> int:
+    if value <= 0:
+        return 0
+    if value <= good_threshold:
+        return 100
+    if value >= poor_threshold:
+        return 15
+    ratio = (value - good_threshold) / (poor_threshold - good_threshold)
+    return max(15, min(100, int(round(100 - ratio * 85))))
+
+
+def _cwv_status(lcp_ms: float, inp_ms: float, cls: float) -> dict[str, object]:
+    good = lcp_ms <= 2500 and inp_ms <= 200 and cls <= 0.1
+    needs_improvement = lcp_ms <= 4000 and inp_ms <= 500 and cls <= 0.25
+    if good:
+        return {
+            "passed": True,
+            "title": "Core Web Vitals Assessment: Passed",
+            "icon": "✓",
+        }
+    if needs_improvement:
+        return {
+            "passed": False,
+            "title": "Core Web Vitals Assessment: Needs Improvement",
+            "icon": "!",
+        }
+    return {
+        "passed": False,
+        "title": "Core Web Vitals Assessment: Failed",
+        "icon": "✗",
+    }
+
+
+def _ms_to_seconds(value: float) -> float:
+    return round((value or 0.0) / 1000, 1)
+
+
+def _has_metric_value(value: float) -> bool:
+    return (value or 0.0) > 0
+
+
+def _build_lighthouse_score(key: str, label: str, subtitle: str, value: float, scope: str) -> dict[str, object]:
+    score = int(round(max(0.0, min(100.0, value))))
+    circumference = 2 * 3.141592653589793 * 37
+    dash = circumference * (score / 100)
+    if score >= 90:
+        stroke_color = "#10b981"
+        text_class = "text-emerald-600"
+    elif score >= 50:
+        stroke_color = "#f59e0b"
+        text_class = "text-amber-500"
+    else:
+        stroke_color = "#f43f5e"
+        text_class = "text-rose-500"
+    return {
+        "key": key,
+        "detail_id": f"lighthouse-details-{scope}-{key}",
+        "label": label,
+        "subtitle": subtitle,
+        "value": score,
+        "dasharray": f"{dash:.0f} {circumference:.0f}",
+        "stroke_color": stroke_color,
+        "text_class": text_class,
+    }
+
+
+def _analysis_category_score(analysis: dict | None, key: str) -> float:
+    if not analysis:
+        return 0.0
+    category = (analysis.get("categories") or {}).get(key) or {}
+    return float(category.get("score") or 0.0)
+
+
+def _normalize_lighthouse_issue_order(analysis: dict | None) -> dict | None:
+    if not analysis or not analysis.get("issues"):
+        return analysis
+
+    def issue_sort_key(issue: dict) -> tuple[int, int, str]:
+        issue_id = str(issue.get("id") or "")
+        title = str(issue.get("title_en") or issue.get("title") or "").lower()
+        priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+        insight_like = (
+            "insight" in issue_id
+            or any(
+                token in issue_id
+                for token in (
+                    "unused",
+                    "render-blocking",
+                    "cache",
+                    "image",
+                    "document-latency",
+                    "server-response",
+                    "network",
+                    "redirect",
+                    "font-display",
+                )
+            )
+            or any(
+                phrase in title
+                for phrase in (
+                    "use ",
+                    "reduce ",
+                    "eliminate ",
+                    "improve ",
+                    "avoid ",
+                    "serve ",
+                    "defer ",
+                )
+            )
+        )
+        metric_like = issue_id in {
+            "largest-contentful-paint",
+            "first-contentful-paint",
+            "speed-index",
+            "interactive",
+            "max-potential-fid",
+            "total-blocking-time",
+            "cumulative-layout-shift",
+        }
+        bucket = 0 if insight_like else 2 if metric_like else 1
+        return (bucket, priority_order.get(str(issue.get("priority") or "").upper(), 9), issue_id)
+
+    normalized = dict(analysis)
+    normalized["issues"] = sorted(list(analysis.get("issues") or []), key=issue_sort_key)
+    return normalized
+
+
+def _fallback_lighthouse_analysis(
+    scope: str,
+    *,
+    accessibility_score: int,
+    practices_score: int,
+    seo_score: int,
+    lcp_ms: float,
+    fcp_ms: float,
+    cls: float,
+) -> dict:
+    scope_label = "Mobile" if scope == "mobile" else "Desktop"
+    issues: list[dict] = []
+
+    if accessibility_score < 95:
+        issues.append(
+            {
+                "id": f"{scope}-accessibility-primary",
+                "title": "Dokunulabilirlik ve okunabilirlik iyilestirilmeli" if scope == "mobile" else "Masaustu okunabilirlik iyilestirilmeli",
+                "category": "Accessibility",
+                "priority": "HIGH" if accessibility_score < 85 else "MEDIUM",
+                "problem": (
+                    f"{scope_label} audit skorunda erisilebilirlik {accessibility_score}. "
+                    + (
+                        "Mobil ekranda dokunma alanlari, kucuk metinler veya kontrast sorunlari olasi gorunuyor."
+                        if scope == "mobile"
+                        else "Buyuk ekran duzeninde kontrast, tablo yogunlugu veya odak gorunurlugu sorunlari olasi gorunuyor."
+                    )
+                ),
+                "impact": f"{scope_label} kullanicilarinda okunabilirlik ve etkileşim kalitesi dusebilir.",
+                "solution": [],
+                "expected_result": f"{scope_label} erisilebilirlik skorunda artis beklenir.",
+                "timeline": None,
+                "examples": [
+                    f"{scope_label} accessibility score: {accessibility_score}",
+                    f"LCP: {_ms_to_seconds(lcp_ms)} s",
+                    f"FCP: {_ms_to_seconds(fcp_ms)} s",
+                ],
+                "source_strategy": scope,
+            }
+        )
+
+    if practices_score < 95:
+        issues.append(
+            {
+                "id": f"{scope}-best-practices-primary",
+                "title": "Mobil yukleme pratikleri optimize edilmeli" if scope == "mobile" else "Desktop bundle ve tarayici davranisi optimize edilmeli",
+                "category": "Best Practices",
+                "priority": "HIGH" if practices_score < 75 else "MEDIUM",
+                "problem": (
+                    "Mobil tarafta agir gorsel/script kullanimi ya da gereksiz kaynaklar gorunuyor."
+                    if scope == "mobile"
+                    else "Desktop tarafta gereksiz bundle, console warning ya da tarayici uyumluluk konusu gorunuyor."
+                ),
+                "impact": f"{scope_label} best practices skoru {practices_score} seviyesinde kalir.",
+                "solution": [],
+                "expected_result": f"{scope_label} icin daha stabil sayfa davranisi.",
+                "timeline": None,
+                "examples": [
+                    f"{scope_label} best practices score: {practices_score}",
+                    f"CLS: {cls:.2f}",
+                ],
+                "source_strategy": scope,
+            }
+        )
+
+    if seo_score < 100:
+        issues.append(
+            {
+                "id": f"{scope}-seo-primary",
+                "title": "Mobil SERP gorunumu duzenlenmeli" if scope == "mobile" else "Desktop SEO sinyalleri guclendirilmeli",
+                "category": "SEO",
+                "priority": "LOW",
+                "problem": (
+                    "Mobil arama sonucunda baslik veya snippet gorunumu iyilestirilebilir."
+                    if scope == "mobile"
+                    else "Desktop arama sonucunda teknik sinyaller daha da guclendirilebilir."
+                ),
+                "impact": f"{scope_label} SEO skoru {seo_score}.",
+                "solution": [],
+                "expected_result": f"{scope_label} SEO skorunda marjinal artis beklenir.",
+                "timeline": None,
+                "examples": [f"{scope_label} SEO score: {seo_score}"],
+                "source_strategy": scope,
+            }
+        )
+
+    return {
+        "strategy": scope,
+        "issues": issues,
+        "categories": {
+            "accessibility": {"score": accessibility_score, "issues_count": len([i for i in issues if i["category"] == "Accessibility"]), "title": "Accessibility"},
+            "best_practices": {"score": practices_score, "issues_count": len([i for i in issues if i["category"] == "Best Practices"]), "title": "Best Practices"},
+            "seo": {"score": seo_score, "issues_count": len([i for i in issues if i["category"] == "SEO"]), "title": "SEO"},
+        },
+        "summary": f"{scope_label} fallback audit ozeti",
+    }
+
+
+def _average_available(values: list[float]) -> float:
+    available = [value for value in values if value > 0]
+    if not available:
+        return 0.0
+    return sum(available) / len(available)
+
+
+def _crawler_checks_from_metrics(latest: dict[str, object]) -> list[dict]:
+    checks = [
+        (
+            "robots.txt",
+            _metric_value(latest, "crawler_robots_accessible", 0.0) >= 1.0,
+            "Arama motoru bot erişimi",
+        ),
+        (
+            "sitemap.xml",
+            _metric_value(latest, "crawler_sitemap_exists", 0.0) >= 1.0,
+            "Sitemap erişilebilirliği",
+        ),
+        (
+            "Canonical",
+            _metric_value(latest, "crawler_canonical_found", 0.0) >= 1.0,
+            "Canonical etiketi",
+        ),
+        (
+            "Schema Markup",
+            _metric_value(latest, "crawler_schema_found", 0.0) >= 1.0,
+            "Yapısal veri varlığı",
+        ),
+    ]
+    items: list[dict] = []
+    for name, passed, label in checks:
+        items.append(
+            {
+                "check": name,
+                "passed": passed,
+                "status": "✓ Başarılı" if passed else "✗ Eksik / Hatalı",
+                "reason": f"{label} son kaydedilmiş crawler ölçümünden okunuyor.",
+                "impact": "İyi durumda." if passed else "Bu alanda teknik SEO kaybı yaşanabilir.",
+                "action": "Canlı yenileme sonrası detaylı teknik analiz tekrar üretilecektir.",
+            }
+        )
+    return items
+
+
+def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_messages: list[str]) -> dict[str, object]:
+    metric = latest.get(f"pagespeed_{strategy}_score")
+    has_metric = metric is not None
+    is_stale = _metric_is_stale(latest, f"pagespeed_{strategy}_score") if has_metric else True
+    has_fetch_error = any(f"{strategy} PageSpeed" in message for message in alert_messages)
+
+    if has_metric and not is_stale and not has_fetch_error:
+        state = "live"
+        label = "Live"
+        badge_class = "border-emerald-200 bg-emerald-50 text-emerald-700"
+        description = "Canli ve guncel veri"
+    elif has_metric:
+        state = "stale"
+        label = "Stale"
+        badge_class = "border-amber-200 bg-amber-50 text-amber-800"
+        description = "Son basarili olcum gosteriliyor"
+    else:
+        state = "failed"
+        label = "Failed"
+        badge_class = "border-rose-200 bg-rose-50 text-rose-700"
+        description = "Veri alinamadi"
+
+    return {
+        "state": state,
+        "label": label,
+        "badge_class": badge_class,
+        "description": description,
+        "updated_at": _format_metric_timestamp(metric),
+    }
+
+
+def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[str, object]:
+    connection = get_search_console_connection_status(db, site_id)
+    clicks_metric = latest.get("search_console_clicks_28d")
+    has_metric = clicks_metric is not None
+    is_stale = _metric_is_stale(latest, "search_console_clicks_28d") if has_metric else True
+
+    if connection.get("connected") and has_metric and not is_stale:
+        state = "live"
+        label = "Live"
+        badge_class = "border-emerald-200 bg-emerald-50 text-emerald-700"
+        description = "Search Console canli veri"
+    elif connection.get("connected") and has_metric:
+        state = "stale"
+        label = "Stale"
+        badge_class = "border-amber-200 bg-amber-50 text-amber-800"
+        description = "Son basarili Search Console olcumu"
+    else:
+        state = "failed"
+        label = "Failed"
+        badge_class = "border-rose-200 bg-rose-50 text-rose-700"
+        description = "Search Console verisi alinamadi"
+
+    return {
+        "state": state,
+        "label": label,
+        "badge_class": badge_class,
+        "description": description,
+        "updated_at": _format_metric_timestamp(clicks_metric),
+        "connection_label": connection.get("label", "Baglanti yok"),
+    }
+
+
 def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
@@ -221,6 +641,8 @@ def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> d
         for alert in recent_site_alerts
         if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
     ]
+    mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
+    desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
     return {
         "id": site.id,
         "domain": site.domain,
@@ -230,8 +652,10 @@ def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> d
         "check_count": len(available_metrics),
         "last_updated": last_updated.strftime("%d.%m.%Y %H:%M"),
         "pagespeed_status": {
-            "mobile_updated_at": _format_metric_timestamp(latest.get("pagespeed_mobile_score")),
-            "desktop_updated_at": _format_metric_timestamp(latest.get("pagespeed_desktop_score")),
+            "mobile_updated_at": mobile_status["updated_at"],
+            "desktop_updated_at": desktop_status["updated_at"],
+            "mobile": mobile_status,
+            "desktop": desktop_status,
             "messages": pagespeed_status_alerts,
         },
         "flash_message": flash_message,
@@ -326,17 +750,15 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             raise ValueError("Site bulunamadı.")
 
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        if settings.live_refresh_enabled and (
+            not _pagespeed_strategy_is_complete(latest, "mobile")
+            or not _pagespeed_strategy_is_complete(latest, "desktop")
+        ):
+            _refresh_site_detail_measurements(db, site, include_pagespeed=True)
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+
         history = get_metric_history(db, site.id, days=period_days)
-        top_queries = get_top_queries(db, site, limit=50)
-        
-        # Ensure all rows have device field set correctly
-        for i, row in enumerate(top_queries):
-            if 'device' not in row or not row['device']:
-                # Default: if position not set devices based on row index (alternating Desktop/Mobile for mock data)
-                row['device'] = 'DESKTOP' if i % 2 == 0 else 'MOBILE'
-            else:
-                # Ensure device is uppercase
-                row['device'] = row['device'].upper() if isinstance(row['device'], str) else 'DESKTOP'
+        top_queries: list[dict] = []
 
         mobile_score = _latest_value_from_history(
             history,
@@ -357,21 +779,66 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
         search_position_history = history.get("search_console_avg_position_28d", [])
         search_trend_labels = [_format_trend_label(item["collected_at"], period) for item in search_clicks_history]
 
-        # Teknik SEO kontrolleri otomatik yapıl
-        page_html = ""
-        try:
-            resp = requests.get(f"https://{site.domain}", timeout=10)
-            page_html = resp.text if resp.status_code == 200 else ""
-        except:
-            pass
-        
-        crawler_checks = run_technical_seo_audit(site.domain, page_html)
+        crawler_checks = _crawler_checks_from_metrics(latest)
         
         # PageSpeed comprehensive analysis
         pagespeed_analysis = analyze_pagespeed_detailed(int(mobile_score), int(desktop_score))
-        
+
+        mobile_lcp = _metric_value(latest, "pagespeed_mobile_lcp")
+        mobile_cls = _metric_value(latest, "pagespeed_mobile_cls")
+        mobile_inp = _metric_value(latest, "pagespeed_mobile_inp")
+        mobile_fcp = _metric_value(latest, "pagespeed_mobile_fcp")
+        mobile_ttfb = _metric_value(latest, "pagespeed_mobile_ttfb")
+        desktop_lcp = _metric_value(latest, "pagespeed_desktop_lcp")
+        desktop_cls = _metric_value(latest, "pagespeed_desktop_cls")
+        desktop_inp = _metric_value(latest, "pagespeed_desktop_inp")
+        desktop_fcp = _metric_value(latest, "pagespeed_desktop_fcp")
+        desktop_ttfb = _metric_value(latest, "pagespeed_desktop_ttfb")
+
+        mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile") or _fallback_lighthouse_analysis(
+            "mobile",
+            accessibility_score=round(_metric_value(latest, "pagespeed_mobile_accessibility_score", 0.0)),
+            practices_score=round(_metric_value(latest, "pagespeed_mobile_best_practices_score", 0.0)),
+            seo_score=round(_metric_value(latest, "pagespeed_mobile_seo_score", 0.0)),
+            lcp_ms=mobile_lcp,
+            fcp_ms=mobile_fcp,
+            cls=mobile_cls,
+        )
+        desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop") or _fallback_lighthouse_analysis(
+            "desktop",
+            accessibility_score=round(_metric_value(latest, "pagespeed_desktop_accessibility_score", 0.0)),
+            practices_score=round(_metric_value(latest, "pagespeed_desktop_best_practices_score", 0.0)),
+            seo_score=round(_metric_value(latest, "pagespeed_desktop_seo_score", 0.0)),
+            lcp_ms=desktop_lcp,
+            fcp_ms=desktop_fcp,
+            cls=desktop_cls,
+        )
+        mobile_lighthouse_analysis = _normalize_lighthouse_issue_order(mobile_lighthouse_analysis)
+        desktop_lighthouse_analysis = _normalize_lighthouse_issue_order(desktop_lighthouse_analysis)
+        mobile_lighthouse_performance = round(mobile_score) if mobile_score else round(_analysis_category_score(mobile_lighthouse_analysis, "performance"))
+        mobile_lighthouse_accessibility = round(_metric_value(latest, "pagespeed_mobile_accessibility_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "accessibility"))
+        mobile_lighthouse_best_practices = round(_metric_value(latest, "pagespeed_mobile_best_practices_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "best_practices"))
+        mobile_lighthouse_seo = round(_metric_value(latest, "pagespeed_mobile_seo_score", 0.0)) or round(_analysis_category_score(mobile_lighthouse_analysis, "seo"))
+
+        desktop_lighthouse_performance = round(desktop_score) if desktop_score else round(_analysis_category_score(desktop_lighthouse_analysis, "performance"))
+        desktop_lighthouse_accessibility = round(_metric_value(latest, "pagespeed_desktop_accessibility_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "accessibility"))
+        desktop_lighthouse_best_practices = round(_metric_value(latest, "pagespeed_desktop_best_practices_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "best_practices"))
+        desktop_lighthouse_seo = round(_metric_value(latest, "pagespeed_desktop_seo_score", 0.0)) or round(_analysis_category_score(desktop_lighthouse_analysis, "seo"))
+
+        lighthouse_accessibility = round(
+            _average_available([mobile_lighthouse_accessibility, desktop_lighthouse_accessibility])
+        )
+        lighthouse_best_practices = round(
+            _average_available([mobile_lighthouse_best_practices, desktop_lighthouse_best_practices])
+        )
+        lighthouse_seo = round(_average_available([mobile_lighthouse_seo, desktop_lighthouse_seo]))
+
         # Lighthouse comprehensive analysis
-        lighthouse_analysis = get_lighthouse_analysis(accessible_score=81, practices_score=35, seo_score=92)
+        lighthouse_analysis = get_lighthouse_analysis(
+            accessible_score=lighthouse_accessibility,
+            practices_score=lighthouse_best_practices,
+            seo_score=lighthouse_seo,
+        )
         
         recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
         pagespeed_status_alerts = [
@@ -379,33 +846,13 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             for alert in recent_site_alerts
             if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
         ]
+        mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
+        desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
+        search_console_status = _search_console_status(db, latest, site.id)
 
-        return {
-            "site_name": site.display_name,
-            "sites": get_sidebar_sites(),
-            "domain": site.domain,
-            "period": period,
-            "mobile_score": mobile_score,
-            "mobile_color": _score_color(mobile_score),
-            "mobile_lcp": float((latest.get("pagespeed_mobile_lcp").value if latest.get("pagespeed_mobile_lcp") else 0.0)),
-            "mobile_cls": float((latest.get("pagespeed_mobile_cls").value if latest.get("pagespeed_mobile_cls") else 0.0)),
-            "mobile_inp": float((latest.get("pagespeed_mobile_inp").value if latest.get("pagespeed_mobile_inp") else 0.0)),
-            "desktop_score": desktop_score,
-            "desktop_color": _score_color(desktop_score),
-            "desktop_lcp": float((latest.get("pagespeed_desktop_lcp").value if latest.get("pagespeed_desktop_lcp") else 0.0)),
-            "desktop_cls": float((latest.get("pagespeed_desktop_cls").value if latest.get("pagespeed_desktop_cls") else 0.0)),
-            "desktop_inp": float((latest.get("pagespeed_desktop_inp").value if latest.get("pagespeed_desktop_inp") else 0.0)),
-            "pagespeed_status": {
-                "mobile_updated_at": _format_metric_timestamp(latest.get("pagespeed_mobile_score")),
-                "desktop_updated_at": _format_metric_timestamp(latest.get("pagespeed_desktop_score")),
-                "messages": pagespeed_status_alerts,
-            },
-            "crawler_checks": crawler_checks,
-            "pagespeed_analysis": pagespeed_analysis,
-            "lighthouse_analysis": lighthouse_analysis,
-            "site_alerts": recent_site_alerts,
-            "top_queries": top_queries,
-            "search_summary": {
+        if search_console_status["state"] == "live":
+            top_queries = get_top_queries(db, site, limit=50, device="all")
+            search_summary = {
                 "clicks": _latest_value_from_history(
                     history,
                     "search_console_clicks_28d",
@@ -436,19 +883,104 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
                     "search_console_biggest_drop",
                     float((latest.get("search_console_biggest_drop").value if latest.get("search_console_biggest_drop") else 0.0)),
                 ),
-            },
-            "trend_data": {
-                "labels": trend_labels,
-                "mobile": mobile_trend,
-                "desktop": desktop_trend,
-            },
-            "search_trend_data": {
+            }
+            search_trend_data = {
                 "labels": search_trend_labels,
                 "clicks": [item["value"] for item in search_clicks_history],
                 "impressions": [item["value"] for item in search_impressions_history],
                 "avg_ctr": [item["value"] for item in search_ctr_history],
                 "avg_position": [item["value"] for item in search_position_history],
+            }
+        else:
+            top_queries = []
+            search_summary = {
+                "clicks": 0.0,
+                "impressions": 0.0,
+                "avg_ctr": 0.0,
+                "avg_position": 0.0,
+                "dropped_queries": 0.0,
+                "biggest_drop": 0.0,
+            }
+            search_trend_data = {
+                "labels": [],
+                "clicks": [],
+                "impressions": [],
+                "avg_ctr": [],
+                "avg_position": [],
+            }
+
+        return {
+            "site_name": site.display_name,
+            "sites": get_sidebar_sites(),
+            "domain": site.domain,
+            "period": period,
+            "mobile_score": mobile_score,
+            "mobile_color": _score_color(mobile_score),
+            "mobile_lcp": mobile_lcp,
+            "mobile_cls": mobile_cls,
+            "mobile_inp": mobile_inp,
+            "mobile_fcp": mobile_fcp,
+            "mobile_ttfb": mobile_ttfb,
+            "mobile_lcp_seconds": _ms_to_seconds(mobile_lcp),
+            "mobile_fcp_seconds": _ms_to_seconds(mobile_fcp),
+            "mobile_ttfb_seconds": _ms_to_seconds(mobile_ttfb),
+            "mobile_lcp_progress": _pagespeed_progress(mobile_lcp, 2500, 4000),
+            "mobile_inp_progress": _pagespeed_progress(mobile_inp, 200, 500),
+            "mobile_cls_progress": _pagespeed_progress(mobile_cls, 0.1, 0.25),
+            "mobile_inp_available": _has_metric_value(mobile_inp),
+            "mobile_ttfb_available": _has_metric_value(mobile_ttfb),
+            "mobile_cwv": _cwv_status(mobile_lcp, mobile_inp, mobile_cls),
+            "desktop_score": desktop_score,
+            "desktop_color": _score_color(desktop_score),
+            "desktop_lcp": desktop_lcp,
+            "desktop_cls": desktop_cls,
+            "desktop_inp": desktop_inp,
+            "desktop_fcp": desktop_fcp,
+            "desktop_ttfb": desktop_ttfb,
+            "desktop_lcp_seconds": _ms_to_seconds(desktop_lcp),
+            "desktop_fcp_seconds": _ms_to_seconds(desktop_fcp),
+            "desktop_ttfb_seconds": _ms_to_seconds(desktop_ttfb),
+            "desktop_lcp_progress": _pagespeed_progress(desktop_lcp, 2500, 4000),
+            "desktop_inp_progress": _pagespeed_progress(desktop_inp, 200, 500),
+            "desktop_cls_progress": _pagespeed_progress(desktop_cls, 0.1, 0.25),
+            "desktop_inp_available": _has_metric_value(desktop_inp),
+            "desktop_ttfb_available": _has_metric_value(desktop_ttfb),
+            "desktop_cwv": _cwv_status(desktop_lcp, desktop_inp, desktop_cls),
+            "pagespeed_status": {
+                "mobile_updated_at": mobile_status["updated_at"],
+                "desktop_updated_at": desktop_status["updated_at"],
+                "mobile": mobile_status,
+                "desktop": desktop_status,
+                "messages": pagespeed_status_alerts,
             },
+            "mobile_lighthouse_scores": [
+                _build_lighthouse_score("performance", "Performance", "Performans", mobile_lighthouse_performance, "mobile"),
+                _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", mobile_lighthouse_accessibility, "mobile"),
+                _build_lighthouse_score("practices", "Best Practices", "En İyi Uygulamalar", mobile_lighthouse_best_practices, "mobile"),
+                _build_lighthouse_score("seo", "SEO", "Arama Motoru", mobile_lighthouse_seo, "mobile"),
+            ],
+            "desktop_lighthouse_scores": [
+                _build_lighthouse_score("performance", "Performance", "Performans", desktop_lighthouse_performance, "desktop"),
+                _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", desktop_lighthouse_accessibility, "desktop"),
+                _build_lighthouse_score("practices", "Best Practices", "En İyi Uygulamalar", desktop_lighthouse_best_practices, "desktop"),
+                _build_lighthouse_score("seo", "SEO", "Arama Motoru", desktop_lighthouse_seo, "desktop"),
+            ],
+            "crawler_checks": crawler_checks,
+            "pagespeed_analysis": pagespeed_analysis,
+            "lighthouse_analysis": lighthouse_analysis,
+            "mobile_lighthouse_analysis": mobile_lighthouse_analysis,
+            "desktop_lighthouse_analysis": desktop_lighthouse_analysis,
+            "site_alerts": recent_site_alerts,
+            "top_queries": top_queries,
+            "search_console_status": search_console_status,
+            "search_summary": search_summary,
+            "trend_data": {
+                "labels": trend_labels,
+                "mobile": mobile_trend,
+                "desktop": desktop_trend,
+            },
+            "search_trend_data": search_trend_data,
+            "should_background_refresh": settings.live_refresh_enabled and _site_detail_should_refresh(latest),
         }
 
 
@@ -512,7 +1044,24 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
             site = db.query(Site).filter(Site.domain == domain).first()
             if site is None:
                 return JSONResponse({"error": "Site not found"}, status_code=404)
-            
+
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            search_console_status = _search_console_status(db, latest, site.id)
+            if search_console_status["state"] != "live":
+                return JSONResponse(
+                    {
+                        "queries": [],
+                        "summary": {
+                            "clicks": 0,
+                            "impressions": 0,
+                            "ctr": 0.0,
+                            "position": 0.0,
+                            "biggest_drop": 0.0,
+                        },
+                        "status": search_console_status,
+                    }
+                )
+
             queries = get_top_queries(db, site, limit=limit, device=device)
             
             # Calculate summary from returned queries
@@ -527,6 +1076,7 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
             
             return JSONResponse({
                 "queries": queries,
+                "status": search_console_status,
                 "summary": {
                     "clicks": round(total_clicks),
                     "impressions": round(total_impressions),
@@ -537,6 +1087,30 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
             })
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/site/{domain}/refresh")
+def api_refresh_site_metrics(domain: str):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+
+        results = _refresh_site_detail_measurements(
+            db,
+            site,
+            include_pagespeed=True,
+            include_crawler=True,
+            include_search_console=True,
+        )
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "refreshed": True,
+                "summary": _summarize_manual_measurement(results),
+                "results": results,
+            }
+        )
 
 
 @app.get("/alerts")

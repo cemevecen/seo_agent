@@ -60,6 +60,18 @@ class Metric(Base):
     site: Mapped["Site"] = relationship("Site", back_populates="metrics")
 
 
+class PageSpeedAuditSnapshot(Base):
+    """PageSpeed/Lighthouse audit detaylarını strategy bazında saklar."""
+
+    __tablename__ = "pagespeed_audit_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    analysis_json: Mapped[str] = mapped_column(Text, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class Alert(Base):
     """Site bazlı alarm eşiklerini tutar."""
 

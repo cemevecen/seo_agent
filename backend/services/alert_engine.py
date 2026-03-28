@@ -5,6 +5,7 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import re
 
 from sqlalchemy.orm import Session
 
@@ -591,25 +592,36 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
 
 def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
+    def _has_same_position(message: str) -> bool:
+        match = re.search(r"Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", message or "")
+        if not match:
+            return False
+        return match.group(1) == match.group(2)
+
     rows = (
         db.query(AlertLog, Alert)
         .join(Alert, AlertLog.alert_id == Alert.id)
         .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
-        .limit(limit)
         .all()
     )
-    return [
-        {
-            "id": log.id,
-            "alert_id": alert.id,
-            "domain": log.domain,
-            "alert_type": alert.alert_type,
-            "message": log.message,
-            "triggered_at": log.triggered_at.strftime("%d.%m.%Y %H:%M"),
-            "sent_mail": log.sent_mail,
-        }
-        for log, alert in rows
-    ]
+    filtered_alerts = []
+    for log, alert in rows:
+        if _has_same_position(log.message):
+            continue
+        filtered_alerts.append(
+            {
+                "id": log.id,
+                "alert_id": alert.id,
+                "domain": log.domain,
+                "alert_type": alert.alert_type,
+                "message": log.message,
+                "triggered_at": log.triggered_at.strftime("%d.%m.%Y %H:%M"),
+                "sent_mail": log.sent_mail,
+            }
+        )
+        if len(filtered_alerts) >= limit:
+            break
+    return filtered_alerts
 
 
 def get_alert_rules(db: Session) -> list[dict]:
