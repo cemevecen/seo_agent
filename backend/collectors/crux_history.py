@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -38,6 +39,31 @@ def _normalize_url(domain: str) -> str:
     if domain.startswith("http://") or domain.startswith("https://"):
         return domain
     return f"https://{domain}"
+
+
+def _candidate_identifiers(domain: str) -> list[dict[str, str]]:
+    normalized_url = _normalize_url(domain).rstrip("/")
+    parsed = urlparse(normalized_url)
+    host = parsed.netloc.lower()
+    candidates: list[dict[str, str]] = [{"type": "url", "value": normalized_url + "/"}]
+
+    if host.startswith("www."):
+        naked = host[4:]
+        url_candidates = [f"https://{host}/", f"https://{naked}/"]
+        origin_candidates = [f"https://{host}", f"https://{naked}"]
+    else:
+        url_candidates = [f"https://{host}/", f"https://www.{host}/"]
+        origin_candidates = [f"https://{host}", f"https://www.{host}"]
+
+    for value in url_candidates:
+        record = {"type": "url", "value": value}
+        if record not in candidates:
+            candidates.append(record)
+    for value in origin_candidates:
+        record = {"type": "origin", "value": value}
+        if record not in candidates:
+            candidates.append(record)
+    return candidates
 
 
 def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
@@ -96,32 +122,47 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
     return series
 
 
-def _fetch_crux_history(url: str, form_factor: str) -> tuple[dict, dict]:
+def _fetch_crux_history(domain: str, form_factor: str) -> tuple[dict, dict]:
     api_key = settings.google_api_key.strip()
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY eksik.")
 
-    body = json.dumps(
-        {
-            "url": url,
+    last_error: Exception | None = None
+    for identifier in _candidate_identifiers(domain):
+        body_payload = {
+            identifier["type"]: identifier["value"],
             "formFactor": form_factor,
             "metrics": list(METRIC_LABELS.keys()),
         }
-    ).encode("utf-8")
-    request = Request(
-        f"{CRUX_HISTORY_ENDPOINT}?key={api_key}",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urlopen(request, timeout=settings.pagespeed_request_timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    record = payload.get("record") or {}
-    return payload, {
-        "form_factor": form_factor,
-        "target_url": url,
-        "series": _extract_crux_points(record),
-    }
+        body = json.dumps(body_payload).encode("utf-8")
+        request = Request(
+            f"{CRUX_HISTORY_ENDPOINT}?key={api_key}",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=settings.pagespeed_request_timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            record = payload.get("record") or {}
+            return payload, {
+                "form_factor": form_factor,
+                "target_url": identifier["value"],
+                "identifier_type": identifier["type"],
+                "series": _extract_crux_points(record),
+            }
+        except HTTPError as exc:
+            if exc.code == 404:
+                last_error = exc
+                continue
+            raise
+        except (URLError, TimeoutError) as exc:
+            last_error = exc
+            continue
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("CrUX history verisi alinamadi.")
 
 
 def collect_crux_history(db: Session, site: Site) -> dict:
@@ -139,12 +180,12 @@ def collect_crux_history(db: Session, site: Site) -> dict:
             requested_at=collected_at,
         )
         try:
-            raw_payload, summary = _fetch_crux_history(target_url, api_form_factor)
+            raw_payload, summary = _fetch_crux_history(site.domain, api_form_factor)
             save_crux_history_snapshot(
                 db,
                 site_id=site.id,
                 form_factor=local_key,
-                target_url=target_url,
+                target_url=str(summary.get("target_url") or target_url),
                 payload=raw_payload,
                 summary=summary,
                 collected_at=collected_at,
