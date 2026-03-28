@@ -77,7 +77,16 @@ def get_alert_details(request: Request, alert_log_id: int, db: Session = Depends
     rule = next((r for r in DEFAULT_ALERT_RULES if r.metric_type == alert.alert_type), None)
     desc = ALERT_DESCRIPTIONS.get(alert.alert_type, {})
     
-    # Trend: Son 10 alert log'u
+    # Search Console uyarıları için query name'i extract et
+    query_name_filter = None
+    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
+        # Message format: "doviz.com için ... : 'query_name'. ..."
+        import re
+        match = re.search(r":\s*'([^']+)'", alert_log.message)
+        if match:
+            query_name_filter = match.group(1)
+    
+    # Trend: Son 10 alert log'u - aynı query'e ait
     recent_logs = (
         db.query(AlertLog)
         .filter(AlertLog.alert_id == alert.id)
@@ -85,6 +94,15 @@ def get_alert_details(request: Request, alert_log_id: int, db: Session = Depends
         .limit(10)
         .all()
     )
+    
+    # Search Console alertleri için, aynı query'e ait olanları filtre et
+    if query_name_filter:
+        filtered_logs = []
+        for log in recent_logs:
+            match = re.search(r":\s*'([^']+)'", log.message)
+            if match and match.group(1) == query_name_filter:
+                filtered_logs.append(log)
+        recent_logs = filtered_logs
     
     # Metrik history: Son 30 gün
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
