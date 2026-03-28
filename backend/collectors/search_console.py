@@ -23,6 +23,10 @@ def _get_mock_queries_for_domain(domain: str) -> list[dict]:
     # Domain'i normalize et (www'siz, lowercase)
     domain_key = domain.lower().replace("www.", "").split(".")[0]
     
+    # Domain key'ini kısalt (sinemalar → sinema)
+    if domain_key.startswith("sinema"):
+        domain_key = "sinema"
+    
     # Kategori-spesifik queryler (Top 50 keywords)
     query_sets = {
         "sinema": [
