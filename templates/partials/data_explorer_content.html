@@ -6,6 +6,33 @@
 </div>
 {% endmacro %}
 
+{% macro crux_metric_card(metric) %}
+{% set good_share = metric.good_share if metric.good_share is not none else 0 %}
+{% set width = good_share if good_share <= 100 else 100 %}
+{% set tone = 'emerald' if good_share >= 75 else 'amber' if good_share >= 50 else 'rose' %}
+{% set status_label = 'İyi' if good_share >= 75 else 'Orta' if good_share >= 50 else 'Zayıf' %}
+<div class="rounded-2xl bg-slate-50 p-4">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
+      <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
+    </div>
+    <span class="rounded-full px-2.5 py-1 text-xs font-semibold {% if tone == 'emerald' %}bg-emerald-100 text-emerald-700{% elif tone == 'amber' %}bg-amber-100 text-amber-700{% else %}bg-rose-100 text-rose-700{% endif %}">
+      {{ status_label }}
+    </span>
+  </div>
+  <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
+    <div class="h-full rounded-full {% if tone == 'emerald' %}bg-emerald-500{% elif tone == 'amber' %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ width|exact }}%"></div>
+  </div>
+  <div class="mt-2 flex items-center justify-between text-xs">
+    <span class="text-slate-500">İyi oran</span>
+    <span class="font-semibold {% if tone == 'emerald' %}text-emerald-700{% elif tone == 'amber' %}text-amber-700{% else %}text-rose-700{% endif %}">
+      {{ metric.good_share|exact if metric.good_share is not none else "N/A" }}%
+    </span>
+  </div>
+</div>
+{% endmacro %}
+
 <div id="data-explorer-shell" class="space-y-6">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
@@ -49,11 +76,7 @@
       </div>
       <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {% for metric in crux_mobile_series.values() %}
-        <div class="rounded-2xl bg-slate-50 p-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
-          <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
-          <p class="mt-1 text-xs text-slate-500">Iyi oran: {{ metric.good_share|exact if metric.good_share is not none else "N/A" }}%</p>
-        </div>
+        {{ crux_metric_card(metric) }}
         {% else %}
         <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz mobil CrUX history snapshot yok.</div>
         {% endfor %}
@@ -72,11 +95,7 @@
       </div>
       <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {% for metric in crux_desktop_series.values() %}
-        <div class="rounded-2xl bg-slate-50 p-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
-          <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
-          <p class="mt-1 text-xs text-slate-500">Iyi oran: {{ metric.good_share|exact if metric.good_share is not none else "N/A" }}%</p>
-        </div>
+        {{ crux_metric_card(metric) }}
         {% else %}
         <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz masaüstü CrUX history snapshot yok.</div>
         {% endfor %}
