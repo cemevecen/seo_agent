@@ -128,35 +128,21 @@ def _is_triggered(metric_value: float, threshold: float, comparator: str) -> boo
     return metric_value > threshold
 
 
-def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition, db: Session = None) -> str:
+def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefinition, query_name: str = None) -> str:
     # Alarm log mesajını okunur halde üretir.
     
     # Search Console uyarıları için query detayları ekle
-    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and db:
-        try:
-            from backend.collectors.search_console import get_top_queries
-            
-            # Düşen query'leri bul
-            if alert.alert_type == "search_console_biggest_drop":
-                queries = get_top_queries(db, site, limit=5, device="all")
-                if queries and len(queries) > 0:
-                    query_list = ", ".join([f"'{q['query']}'" for q in queries[:3]])
-                    return (
-                        f"{site.domain} için {rule.title}. "
-                        f"Etkilenen arama terimleri: {query_list}. "
-                        f"Mevcut sıralama düşüşü: {metric.value:.2f} pozisyon, eşik: {alert.threshold:.2f}."
-                    )
-            elif alert.alert_type == "search_console_dropped_queries":
-                queries = get_top_queries(db, site, limit=5, device="all")
-                if queries and len(queries) > 0:
-                    query_list = ", ".join([f"'{q['query']}'" for q in queries[:3]])
-                    return (
-                        f"{site.domain} için {rule.title}. "
-                        f"Düşen arama terimleri: {query_list}. "
-                        f"Sayı: {metric.value:.0f}, eşik: {alert.threshold:.0f}."
-                    )
-        except:
-            pass  # Search Console data not available, use default message
+    if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"] and query_name:
+        if alert.alert_type == "search_console_biggest_drop":
+            return (
+                f"{site.domain} için Search Console sıralama düşüşü: '{query_name}'. "
+                f"Mevcut düşüş: {metric.value:.2f} pozisyon, eşik: {alert.threshold:.2f}."
+            )
+        elif alert.alert_type == "search_console_dropped_queries":
+            return (
+                f"{site.domain} için Düşen sorgu: '{query_name}'. "
+                f"Mevcut değer: {metric.value:.2f}, eşik: {alert.threshold:.2f}."
+            )
     
     return (
         f"{site.domain} için {rule.title}. "
@@ -182,24 +168,74 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
         if not _is_triggered(metric.value, alert.threshold, rule.comparator):
             continue
 
-        message = _build_message(site, alert, metric, rule, db)
-        last_log = (
-            db.query(AlertLog)
-            .filter(AlertLog.alert_id == alert.id)
-            .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
-            .first()
-        )
-        if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12):
-            continue
+        # Search Console uyarıları için her query'nin kendi log entry'si olmalı
+        if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
+            try:
+                queries = get_top_queries(db, site, limit=10, device="all")
+                if queries:
+                    for query in queries:
+                        query_name = query.get("query", "")
+                        if not query_name:
+                            continue
+                        
+                        message = _build_message(site, alert, metric, rule, query_name)
+                        
+                        # Tekrar eden alert kontrol (mesaj bazlı)
+                        last_log = (
+                            db.query(AlertLog)
+                            .filter(AlertLog.alert_id == alert.id)
+                            .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+                            .first()
+                        )
+                        if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12):
+                            continue
+                        
+                        log = AlertLog(
+                            alert_id=alert.id,
+                            triggered_at=now,
+                            message=message,
+                            sent_mail=False,
+                        )
+                        db.add(log)
+                        created_logs.append(log)
+            except:
+                # Search Console data not available, fallback to default message
+                message = _build_message(site, alert, metric, rule)
+                last_log = (
+                    db.query(AlertLog)
+                    .filter(AlertLog.alert_id == alert.id)
+                    .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+                    .first()
+                )
+                if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
+                    log = AlertLog(
+                        alert_id=alert.id,
+                        triggered_at=now,
+                        message=message,
+                        sent_mail=False,
+                    )
+                    db.add(log)
+                    created_logs.append(log)
+        else:
+            # Diğer alert'ler (non-Search Console)
+            message = _build_message(site, alert, metric, rule)
+            last_log = (
+                db.query(AlertLog)
+                .filter(AlertLog.alert_id == alert.id)
+                .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+                .first()
+            )
+            if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12):
+                continue
 
-        log = AlertLog(
-            alert_id=alert.id,
-            triggered_at=now,
-            message=message,
-            sent_mail=False,
-        )
-        db.add(log)
-        created_logs.append(log)
+            log = AlertLog(
+                alert_id=alert.id,
+                triggered_at=now,
+                message=message,
+                sent_mail=False,
+            )
+            db.add(log)
+            created_logs.append(log)
 
     if created_logs:
         db.commit()

@@ -47,18 +47,6 @@
               </div>
             </div>
 
-            <!-- Detailed Description -->
-            <div class="space-y-2 bg-blue-50 p-3 rounded-lg">
-              <p class="text-xs uppercase font-bold text-blue-900">📋 Detaylı Açıklama</p>
-              <p id="description-{{ alert.id }}" class="text-sm text-blue-800 leading-relaxed">Yükleniyor...</p>
-            </div>
-
-            <!-- English Detailed Description -->
-            <div class="space-y-2 bg-blue-50 p-3 rounded-lg">
-              <p class="text-xs uppercase font-bold text-blue-900">📋 Detailed Description</p>
-              <p id="description-en-{{ alert.id }}" class="text-sm text-blue-800 leading-relaxed">Loading...</p>
-            </div>
-
             <!-- Metrics Section -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg">
               <div class="space-y-1">
@@ -149,17 +137,6 @@ async function loadAlertDetails(alertId, card) {
     const whatMeansEn = document.getElementById(`what-means-en-${alertId}`);
     if (whatMeansEn) {
       whatMeansEn.textContent = rule.description_short_en || 'Description not loaded';
-    }
-    
-    // Detaylı açıklama
-    const descTr = document.getElementById(`description-${alertId}`);
-    if (descTr) {
-      descTr.textContent = rule.description_detailed_tr || 'Detaylı açıklama bulunamadı';
-    }
-    
-    const descEn = document.getElementById(`description-en-${alertId}`);
-    if (descEn) {
-      descEn.textContent = rule.description_detailed_en || 'Detailed description not found';
     }
     
     // Metrikler
