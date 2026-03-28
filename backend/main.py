@@ -2,6 +2,7 @@
 import os
 import sys
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -60,6 +61,50 @@ jinja_env = Environment(
     cache_size=0,
     auto_reload=True
 )
+
+
+def _format_exact(value) -> str:
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    normalized = format(decimal_value.normalize(), "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    if normalized in {"", "-0"}:
+        return "0"
+    return normalized
+
+
+def _format_exact_signed(value) -> str:
+    if value is None or value == "":
+        return "N/A"
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        text = str(value)
+        return text if text.startswith(("+", "-")) else f"+{text}"
+    sign = "+" if decimal_value >= 0 else ""
+    return f"{sign}{_format_exact(decimal_value)}"
+
+
+def _ms_to_exact_seconds(value) -> str:
+    if value is None:
+        return "N/A"
+    try:
+        seconds = Decimal(str(value)) / Decimal("1000")
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    return _format_exact(seconds)
+
+
+jinja_env.filters["exact"] = _format_exact
+jinja_env.filters["exact_signed"] = _format_exact_signed
+jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -1193,11 +1238,11 @@ def api_get_top_queries(domain: str, device: str = "all", limit: int = 10):
                 "queries": queries,
                 "status": search_console_status,
                 "summary": {
-                    "clicks": round(total_clicks),
-                    "impressions": round(total_impressions),
-                    "ctr": round(avg_ctr, 2),
-                    "position": round(avg_position, 1),
-                    "biggest_drop": round(max_delta, 1)
+                    "clicks": total_clicks,
+                    "impressions": total_impressions,
+                    "ctr": avg_ctr,
+                    "position": avg_position,
+                    "biggest_drop": max_delta
                 }
             })
     except Exception as e:

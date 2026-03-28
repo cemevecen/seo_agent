@@ -174,7 +174,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-emerald-800">Largest Contentful Paint (LCP)</h4>
-              <span class="text-lg font-bold text-emerald-600">{{ mobile_lcp_seconds|round(1) }} s</span>
+              <span class="text-lg font-bold text-emerald-600">{{ mobile_lcp|seconds_exact }} s</span>
             </div>
             <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
               <div class="h-full bg-emerald-500" style="width: {{ mobile_lcp_progress }}%"></div>
@@ -185,7 +185,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-emerald-800">Cumulative Layout Shift (CLS)</h4>
-              <span class="text-lg font-bold text-emerald-600">{{ '%.2f'|format(mobile_cls) }}</span>
+              <span class="text-lg font-bold text-emerald-600">{{ mobile_cls|exact }}</span>
             </div>
             <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
               <div class="h-full bg-emerald-500" style="width: {{ mobile_cls_progress }}%"></div>
@@ -196,7 +196,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-emerald-800">First Contentful Paint (FCP)</h4>
-              <span class="text-lg font-bold text-emerald-600">{{ mobile_fcp_seconds|round(1) }} s</span>
+              <span class="text-lg font-bold text-emerald-600">{{ mobile_fcp|seconds_exact }} s</span>
             </div>
             <div class="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
               <div class="h-full bg-emerald-500" style="width: {{ mobile_lcp_progress }}%"></div>
@@ -227,7 +227,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-amber-800">Largest Contentful Paint (LCP)</h4>
-              <span class="text-lg font-bold text-amber-600">{{ desktop_lcp_seconds|round(1) }} s</span>
+              <span class="text-lg font-bold text-amber-600">{{ desktop_lcp|seconds_exact }} s</span>
             </div>
             <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
               <div class="h-full bg-amber-500" style="width: {{ desktop_lcp_progress }}%"></div>
@@ -238,7 +238,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-amber-800">Cumulative Layout Shift (CLS)</h4>
-              <span class="text-lg font-bold text-amber-600">{{ '%.2f'|format(desktop_cls) }}</span>
+              <span class="text-lg font-bold text-amber-600">{{ desktop_cls|exact }}</span>
             </div>
             <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
               <div class="h-full bg-amber-500" style="width: {{ desktop_cls_progress }}%"></div>
@@ -249,7 +249,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-sm font-semibold text-amber-800">First Contentful Paint (FCP)</h4>
-              <span class="text-lg font-bold text-amber-600">{{ desktop_fcp_seconds|round(1) }} s</span>
+              <span class="text-lg font-bold text-amber-600">{{ desktop_fcp|seconds_exact }} s</span>
             </div>
             <div class="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
               <div class="h-full bg-amber-500" style="width: {{ desktop_lcp_progress }}%"></div>
@@ -329,17 +329,17 @@
           <div class="mt-3 grid gap-3 md:grid-cols-3">
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">LCP</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_lcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_lcp|seconds_exact }} s</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 2.5s</p>
             </div>
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">CLS</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ '%.2f'|format(mobile_cls) }}</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_cls|exact }}</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 0.1</p>
             </div>
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">FCP</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_fcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ mobile_fcp|seconds_exact }} s</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 1.8s</p>
             </div>
           </div>
@@ -364,17 +364,17 @@
           <div class="mt-3 grid gap-3 md:grid-cols-3">
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">LCP</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_lcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_lcp|seconds_exact }} s</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 2.5s</p>
             </div>
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">CLS</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ '%.2f'|format(desktop_cls) }}</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_cls|exact }}</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 0.1</p>
             </div>
             <div class="rounded-lg bg-white p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">FCP</p>
-              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_fcp_seconds|round(1) }} s</p>
+              <p class="mt-1 text-lg font-bold text-slate-900">{{ desktop_fcp|seconds_exact }} s</p>
               <p class="mt-1 text-xs text-slate-600">Hedef: &lt; 1.8s</p>
             </div>
           </div>
@@ -715,23 +715,23 @@
     <div class="mt-4 grid gap-4 md:grid-cols-5">
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Clicks 28d</p>
-        <p id="summary-clicks" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.clicks|round|int }}</p>
+        <p id="summary-clicks" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.clicks|exact }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Impressions</p>
-        <p id="summary-impressions" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.impressions|round|int }}</p>
+        <p id="summary-impressions" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.impressions|exact }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Avg CTR</p>
-        <p id="summary-ctr" class="mt-2 text-2xl font-bold text-slate-900">{{ '%.2f'|format(search_summary.avg_ctr) }}%</p>
+        <p id="summary-ctr" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.avg_ctr|exact }}%</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Avg Position</p>
-        <p id="summary-position" class="mt-2 text-2xl font-bold text-slate-900">{{ '%.1f'|format(search_summary.avg_position) }}</p>
+        <p id="summary-position" class="mt-2 text-2xl font-bold text-slate-900">{{ search_summary.avg_position|exact }}</p>
       </div>
       <div class="rounded-2xl bg-slate-50 px-4 py-3">
         <p class="text-xs uppercase tracking-wide text-slate-500">Biggest Drop</p>
-        <p id="summary-drop" class="mt-2 text-2xl font-bold text-rose-600">{{ '%.1f'|format(search_summary.biggest_drop) }}</p>
+        <p id="summary-drop" class="mt-2 text-2xl font-bold text-rose-600">{{ search_summary.biggest_drop|exact }}</p>
       </div>
     </div>
 
@@ -777,15 +777,15 @@
         </thead>
         <tbody>
           {% for row in top_queries %}
-            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks|round|int }}" data-impressions="{{ row.impressions|round|int }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}" data-device="{{ (row.device or 'DESKTOP')|upper|trim }}">
+            <tr class="border-b border-slate-100" data-query="{{ row.query|lower }}" data-clicks="{{ row.clicks }}" data-impressions="{{ row.impressions }}" data-ctr="{{ row.ctr }}" data-position="{{ row.position }}" data-delta="{{ row.delta }}" data-device="{{ (row.device or 'DESKTOP')|upper|trim }}">
               <td class="px-3 py-2 font-medium text-slate-900">{{ row.query }}</td>
-              <td class="px-3 py-2 text-slate-700">{{ row.clicks|round|int }}</td>
-              <td class="px-3 py-2 text-slate-700">{{ row.impressions|round|int }}</td>
-              <td class="px-3 py-2 text-slate-700">{{ '%.2f'|format(row.ctr) }}%</td>
-              <td class="px-3 py-2 text-slate-700">{{ '%.1f'|format(row.position) }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.clicks|exact }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.impressions|exact }}</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.ctr|exact }}%</td>
+              <td class="px-3 py-2 text-slate-700">{{ row.position|exact }}</td>
               <td class="px-3 py-2">
                 <span class="rounded-full px-2 py-1 text-xs font-semibold {% if row.delta > 0.5 %}bg-rose-100 text-rose-700{% elif row.delta < -0.5 %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-600{% endif %}">
-                  {{ '%+.1f'|format(row.delta) }}
+                  {{ row.delta|exact_signed }}
                 </span>
               </td>
             </tr>
@@ -802,6 +802,35 @@
 
 <script>
   (function () {
+    function formatExact(value) {
+      if (value === null || value === undefined || value === '') {
+        return 'N/A';
+      }
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) {
+        return String(value);
+      }
+      if (Object.is(numeric, -0) || numeric === 0) {
+        return '0';
+      }
+      const text = numeric.toString();
+      if (!text.includes('e') && !text.includes('E')) {
+        return text;
+      }
+      return numeric.toLocaleString('en-US', {
+        useGrouping: false,
+        maximumFractionDigits: 20
+      }).replace(/\.?0+$/, '');
+    }
+
+    function formatExactSigned(value) {
+      const exact = formatExact(value);
+      if (exact === 'N/A') {
+        return exact;
+      }
+      return String(exact).startsWith('-') ? exact : `+${exact}`;
+    }
+
     if (!window.__seoDetailDelegatesBound) {
       window.__seoDetailDelegatesBound = true;
 
@@ -1116,8 +1145,8 @@
           const delta = query.delta || 0;
           row.className = 'border-b border-slate-100';
           row.dataset.query = (query.query || '').toLowerCase();
-          row.dataset.clicks = Math.round(query.clicks || 0);
-          row.dataset.impressions = Math.round(query.impressions || 0);
+          row.dataset.clicks = formatExact(query.clicks || 0);
+          row.dataset.impressions = formatExact(query.impressions || 0);
           row.dataset.ctr = query.ctr || 0;
           row.dataset.position = query.position || 0;
           row.dataset.delta = delta;
@@ -1125,13 +1154,13 @@
           
           row.innerHTML = `
             <td class="px-3 py-2 font-medium text-slate-900">${query.query || ''}</td>
-            <td class="px-3 py-2 text-slate-700">${Math.round(query.clicks || 0)}</td>
-            <td class="px-3 py-2 text-slate-700">${Math.round(query.impressions || 0)}</td>
-            <td class="px-3 py-2 text-slate-700">${(query.ctr || 0).toFixed(2)}%</td>
-            <td class="px-3 py-2 text-slate-700">${(query.position || 0).toFixed(1)}</td>
+            <td class="px-3 py-2 text-slate-700">${formatExact(query.clicks || 0)}</td>
+            <td class="px-3 py-2 text-slate-700">${formatExact(query.impressions || 0)}</td>
+            <td class="px-3 py-2 text-slate-700">${formatExact(query.ctr || 0)}%</td>
+            <td class="px-3 py-2 text-slate-700">${formatExact(query.position || 0)}</td>
             <td class="px-3 py-2">
               <span class="rounded-full px-2 py-1 text-xs font-semibold ${delta > 0.5 ? 'bg-rose-100 text-rose-700' : delta < -0.5 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}">
-                ${(delta >= 0 ? '+' : '') + delta.toFixed(1)}
+                ${formatExactSigned(delta)}
               </span>
             </td>
           `;
@@ -1145,11 +1174,11 @@
         const positionEl = document.getElementById('summary-position');
         const dropEl = document.getElementById('summary-drop');
         
-        if (clicksEl) clicksEl.textContent = summary.clicks || 0;
-        if (impressionsEl) impressionsEl.textContent = summary.impressions || 0;
-        if (ctrEl) ctrEl.textContent = (summary.ctr || 0).toFixed(2) + '%';
-        if (positionEl) positionEl.textContent = (summary.position || 0).toFixed(1);
-        if (dropEl) dropEl.textContent = (summary.biggest_drop || 0).toFixed(1);
+        if (clicksEl) clicksEl.textContent = formatExact(summary.clicks || 0);
+        if (impressionsEl) impressionsEl.textContent = formatExact(summary.impressions || 0);
+        if (ctrEl) ctrEl.textContent = formatExact(summary.ctr || 0) + '%';
+        if (positionEl) positionEl.textContent = formatExact(summary.position || 0);
+        if (dropEl) dropEl.textContent = formatExact(summary.biggest_drop || 0);
       } catch (error) {
         console.error('Error fetching queries:', error);
       }
