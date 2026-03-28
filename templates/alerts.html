@@ -18,13 +18,13 @@
     </div>
   </div>
 
-  <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200" style="overflow: visible;">
+  <div class="rounded-3xl bg-white shadow-sm ring-1 ring-slate-200" style="overflow: visible; padding: 1.25rem;">
     <!-- DEBUG: Total alerts={{ recent_alerts|length }}, Doviz count={{ recent_alerts|selectattr('domain', 'equalto', 'doviz.com')|list|length }} -->
-    <div class="space-y-3" id="alerts-container" style="overflow: visible;">
+    <div id="alerts-container" style="display: flex; flex-direction: column; gap: 0.75rem; overflow: visible;">
       {% for alert in recent_alerts %}
-        <div class="alert-card rounded-2xl border border-slate-200 p-4 transition-all" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" style="overflow: visible;">
+        <div class="alert-card rounded-2xl border border-slate-200 transition-all overflow-visible" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" style="padding: 1rem; overflow: visible;">
           <!-- Alert Header (Display Only) -->
-          <div class="flex items-center justify-between gap-4 p-2">
+          <div class="flex items-center justify-between gap-4">
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
@@ -48,9 +48,9 @@
           </div>
 
           <!-- Alert Details (Collapsible) - Isolated Component -->
-          <div class="alert-details rounded-2xl border-t border-slate-200 mt-4 pt-4 space-y-4">
+          <div class="alert-details" style="display: none; overflow: visible; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
             <!-- Comparison Info -->
-            <div class="space-y-2">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
               <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
               <div class="flex gap-2 flex-wrap">
                 <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="daily" data-alert-id="{{ alert.id }}">
@@ -79,16 +79,22 @@
 /* Component Isolation Styles */
 const style = document.createElement('style');
 style.textContent = `
+  body {
+    overflow-x: hidden;
+  }
+  
   .alert-card {
     display: block;
     position: relative;
     z-index: 1;
     overflow: visible;
     width: 100%;
+    margin: 0;
+    border-radius: 0.5rem;
   }
   
   .alert-details {
-    display: none;
+    display: none !important;
     position: relative;
     z-index: 0;
     width: 100%;
@@ -96,7 +102,7 @@ style.textContent = `
   }
   
   .alert-details.show {
-    display: block;
+    display: block !important;
   }
   
   #alerts-container {
@@ -105,6 +111,7 @@ style.textContent = `
     gap: 0.75rem;
     position: relative;
     z-index: 1;
+    overflow: visible;
   }
   
   .rounded-3xl.bg-white {
@@ -127,19 +134,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const card = this.closest('.alert-card');
       const details = card.querySelector('.alert-details');
       const alertId = card.dataset.alertId;
-      
-      if (details.classList.contains('show')) {
-        // Hide
-        details.classList.remove('show');
-        this.textContent = 'Detay';
-      } else {
-        // Show
-        details.classList.add('show');
-        loadAlertDetails(alertId, card);
-        this.textContent = 'Gizle';
-      }
-    });
-  });
       
       if (details.classList.contains('show')) {
         // Hide
@@ -205,8 +199,6 @@ async function loadAlertDetails(alertId, card) {
     }
   }
 }
-  }
-}
 
 async function loadComparisonData(alertId, comparisonType) {
   try {
@@ -228,7 +220,6 @@ async function loadComparisonData(alertId, comparisonType) {
       }
       
       // Show query details table if available
-      // query_details can be a single dict or array of dicts
       let queryDetailsArray = [];
       if (comparison.query_details) {
         if (Array.isArray(comparison.query_details)) {
@@ -239,20 +230,7 @@ async function loadComparisonData(alertId, comparisonType) {
       }
       
       if (queryDetailsArray.length > 0) {
-        html += `
-          <div class="mt-4 overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
-              <thead>
-                <tr class="border-b-2 border-slate-300">
-                  <th class="text-left px-3 py-2 font-semibold text-slate-700">Query</th>
-                  <th class="text-center px-3 py-2 font-semibold text-slate-700">Eski Pozisyon</th>
-                  <th class="text-center px-3 py-2 font-semibold text-slate-700">Yeni Pozisyon</th>
-                  <th class="text-center px-3 py-2 font-semibold text-slate-700">Değişim</th>
-                  <th class="text-center px-3 py-2 font-semibold text-slate-700">Durum</th>
-                </tr>
-              </thead>
-              <tbody>
-        `;
+        html += `<div class="mt-4 overflow-x-auto"><table class="w-full text-sm border-collapse"><thead><tr class="border-b-2 border-slate-300"><th class="text-left px-3 py-2 font-semibold text-slate-700">Query</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Eski Pozisyon</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Yeni Pozisyon</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Değişim</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Durum</th></tr></thead><tbody>`;
         
         queryDetailsArray.forEach(detail => {
           const change = detail.change || 0;
@@ -262,26 +240,10 @@ async function loadComparisonData(alertId, comparisonType) {
           const statusText = isImprovement ? 'İyileşme' : 'Kötüleşme';
           const changeStr = change >= 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
           
-          html += `
-            <tr class="border-b border-slate-200 hover:bg-slate-50">
-              <td class="px-3 py-2 font-medium text-slate-900">${detail.query || 'N/A'}</td>
-              <td class="text-center px-3 py-2 text-slate-700">${detail.old_position ? detail.old_position.toFixed(1) : 'N/A'}</td>
-              <td class="text-center px-3 py-2 text-slate-700">${detail.new_position ? detail.new_position.toFixed(1) : 'N/A'}</td>
-              <td class="text-center px-3 py-2 font-medium ${isImprovement ? 'text-green-600' : 'text-red-600'}">${changeStr}</td>
-              <td class="text-center px-3 py-2">
-                <span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">
-                  ${statusIcon} ${statusText}
-                </span>
-              </td>
-            </tr>
-          `;
+          html += `<tr class="border-b border-slate-200 hover:bg-slate-50"><td class="px-3 py-2 font-medium text-slate-900">${detail.query || 'N/A'}</td><td class="text-center px-3 py-2 text-slate-700">${detail.old_position ? detail.old_position.toFixed(1) : 'N/A'}</td><td class="text-center px-3 py-2 text-slate-700">${detail.new_position ? detail.new_position.toFixed(1) : 'N/A'}</td><td class="text-center px-3 py-2 font-medium ${isImprovement ? 'text-green-600' : 'text-red-600'}">${changeStr}</td><td class="text-center px-3 py-2"><span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">${statusIcon} ${statusText}</span></td></tr>`;
         });
         
-        html += `
-              </tbody>
-            </table>
-          </div>
-        `;
+        html += `</tbody></table></div>`;
       } else if (!comparison.message) {
         html = '<p class="text-slate-600">Karşılaştırma verisi bulunamadı</p>';
       }
@@ -309,7 +271,6 @@ function initializeFilter() {
     alertCards.forEach(card => {
       const cardDomain = card.dataset.domain;
       
-      // If "All" is selected (empty value), show all cards
       if (selectedDomain === '') {
         card.style.display = 'block';
       } else if (cardDomain === selectedDomain) {
@@ -319,11 +280,9 @@ function initializeFilter() {
       }
     });
     
-    // Check if any cards are visible
     const visibleCards = Array.from(alertCards).filter(card => card.style.display !== 'none');
     const container = document.getElementById('alerts-container');
     
-    // Show/hide empty state
     let emptyState = container.querySelector('.empty-state');
     if (visibleCards.length === 0) {
       if (!emptyState) {
