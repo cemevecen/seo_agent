@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -152,6 +153,8 @@ def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefi
 
 def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
     # Son metriklere göre aktif alarm kayıtlarını üretir.
+    from backend.collectors.search_console import get_top_queries
+    
     alerts = ensure_site_alerts(db, site)
     latest_metrics = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     rules = {rule.metric_type: rule for rule in DEFAULT_ALERT_RULES}
@@ -198,8 +201,10 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                         )
                         db.add(log)
                         created_logs.append(log)
-            except:
+            except Exception as e:
                 # Search Console data not available, fallback to default message
+                print(f"⚠️  get_top_queries failed for {site.domain}: {e}")
+                traceback.print_exc()
                 message = _build_message(site, alert, metric, rule)
                 last_log = (
                     db.query(AlertLog)
