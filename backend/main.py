@@ -1,11 +1,15 @@
 """FastAPI uygulama giriş noktası."""
 import json
+import logging
 import os
 import sys
+import threading
+import time
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from ipaddress import ip_address, ip_network
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,6 +24,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -40,7 +46,7 @@ from backend.collectors.search_console import collect_search_console_metrics
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
-from backend.models import PageSpeedPayloadSnapshot, Site
+from backend.models import CollectorRun, PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -59,6 +65,9 @@ from backend.services.warehouse import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
+LOGGER = logging.getLogger(__name__)
+DAILY_REFRESH_LOCK = threading.Lock()
+SCHEDULER: BackgroundScheduler | None = None
 
 # Create Jinja2Templates with cache disabled for Python 3.14 compatibility
 from jinja2 import Environment, FileSystemLoader
@@ -79,6 +88,24 @@ def _format_exact(value) -> str:
     except (InvalidOperation, ValueError, TypeError):
         return str(value)
     normalized = format(decimal_value.normalize(), "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    if normalized in {"", "-0"}:
+        return "0"
+    return normalized
+
+
+def _format_max_two_decimals(value) -> str:
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    clipped = decimal_value.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    normalized = format(clipped.normalize(), "f")
     if "." in normalized:
         normalized = normalized.rstrip("0").rstrip(".")
     if normalized in {"", "-0"}:
@@ -109,6 +136,7 @@ def _ms_to_exact_seconds(value) -> str:
 
 
 jinja_env.filters["exact"] = _format_exact
+jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
 jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
 templates = Jinja2Templates(env=jinja_env)
@@ -211,7 +239,28 @@ app.include_router(alerts_router, prefix="/api")
 @app.on_event("startup")
 def on_startup() -> None:
     # Uygulama açılışında tablolar create_all ile hazırlanır.
+    global SCHEDULER
     init_db()
+    if SCHEDULER is None:
+        SCHEDULER = _build_daily_refresh_scheduler()
+        if SCHEDULER is not None:
+            SCHEDULER.start()
+            LOGGER.info(
+                "Scheduled jobs started. Search Console=%02d:%02d, full refresh=%02d:%02d %s.",
+                int(settings.search_console_scheduled_refresh_hour),
+                int(settings.search_console_scheduled_refresh_minute),
+                int(settings.scheduled_refresh_hour),
+                int(settings.scheduled_refresh_minute),
+                settings.scheduled_refresh_timezone,
+            )
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    global SCHEDULER
+    if SCHEDULER is not None:
+        SCHEDULER.shutdown(wait=False)
+        SCHEDULER = None
 
 
 def get_sidebar_sites() -> list[dict]:
@@ -235,6 +284,399 @@ def _settings_sites_payload(db) -> list[dict]:
             }
         )
     return rows
+
+
+def _format_optional_datetime(value: datetime | None) -> str:
+    if value is None:
+        return "Henuz tetiklenmedi"
+    return value.strftime("%d.%m.%Y %H:%M")
+
+
+def _latest_provider_run(db, *, site_id: int, provider: str) -> CollectorRun | None:
+    return (
+        db.query(CollectorRun)
+        .filter(CollectorRun.site_id == site_id, CollectorRun.provider == provider)
+        .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
+        .first()
+    )
+
+
+def _latest_successful_provider_summary(db, *, site_id: int, provider: str) -> dict:
+    run = (
+        db.query(CollectorRun)
+        .filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider == provider,
+            CollectorRun.status == "success",
+        )
+        .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
+        .first()
+    )
+    if run is None:
+        return {}
+    try:
+        return json.loads(run.summary_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+
+
+def _summarize_search_console_rows(rows: list[dict]) -> dict[str, float]:
+    total_clicks = sum(float(row.get("clicks", 0.0)) for row in rows)
+    total_impressions = sum(float(row.get("impressions", 0.0)) for row in rows)
+    avg_ctr = (total_clicks / total_impressions * 100.0) if total_impressions > 0 else 0.0
+
+    weighted_position_total = 0.0
+    weighted_position_weight = 0.0
+    fallback_position_total = 0.0
+    fallback_position_count = 0
+    for row in rows:
+        position = float(row.get("position", 0.0))
+        impressions = float(row.get("impressions", 0.0))
+        if impressions > 0:
+            weighted_position_total += position * impressions
+            weighted_position_weight += impressions
+        elif position > 0:
+            fallback_position_total += position
+            fallback_position_count += 1
+
+    if weighted_position_weight > 0:
+        avg_position = weighted_position_total / weighted_position_weight
+    elif fallback_position_count > 0:
+        avg_position = fallback_position_total / fallback_position_count
+    else:
+        avg_position = 0.0
+
+    return {
+        "clicks": total_clicks,
+        "impressions": total_impressions,
+        "ctr": avg_ctr,
+        "position": avg_position,
+    }
+
+
+def _filter_search_console_rows_by_device(rows: list[dict], device: str) -> list[dict]:
+    normalized_device = str(device or "").upper().strip()
+    return [
+        row
+        for row in rows
+        if str(row.get("device") or "ALL").upper().strip() == normalized_device
+    ]
+
+
+def _aggregate_search_console_queries(rows: list[dict]) -> dict[str, dict]:
+    aggregated: dict[str, dict] = {}
+    for row in rows:
+        query = str(row.get("query") or "").strip()
+        if not query:
+            continue
+        item = aggregated.setdefault(
+            query,
+            {
+                "query": query,
+                "clicks": 0.0,
+                "impressions": 0.0,
+                "position_weighted_total": 0.0,
+                "position_weighted_impressions": 0.0,
+                "fallback_position_total": 0.0,
+                "fallback_position_count": 0,
+            },
+        )
+        clicks = float(row.get("clicks", 0.0))
+        impressions = float(row.get("impressions", 0.0))
+        position = float(row.get("position", 0.0))
+        item["clicks"] += clicks
+        item["impressions"] += impressions
+        if impressions > 0:
+            item["position_weighted_total"] += position * impressions
+            item["position_weighted_impressions"] += impressions
+        elif position > 0:
+            item["fallback_position_total"] += position
+            item["fallback_position_count"] += 1
+
+    normalized: dict[str, dict] = {}
+    for query, item in aggregated.items():
+        impressions = float(item["impressions"])
+        if item["position_weighted_impressions"] > 0:
+            position = item["position_weighted_total"] / item["position_weighted_impressions"]
+        elif item["fallback_position_count"] > 0:
+            position = item["fallback_position_total"] / item["fallback_position_count"]
+        else:
+            position = 0.0
+        normalized[query] = {
+            "query": query,
+            "clicks": float(item["clicks"]),
+            "impressions": impressions,
+            "ctr": (float(item["clicks"]) / impressions * 100.0) if impressions > 0 else 0.0,
+            "position": position,
+        }
+    return normalized
+
+
+def _build_search_console_top_queries(current_rows: list[dict], previous_rows: list[dict], *, limit: int = 50) -> list[dict]:
+    current_map = _aggregate_search_console_queries(current_rows)
+    previous_map = _aggregate_search_console_queries(previous_rows)
+    items: list[dict] = []
+    for query, current in sorted(current_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
+        previous = previous_map.get(query, {})
+        previous_position = float(previous.get("position", current["position"]))
+        current_position = float(current["position"])
+        items.append(
+            {
+                "query": query,
+                "clicks_current": float(current.get("clicks", 0.0)),
+                "clicks_previous": float(previous.get("clicks", 0.0)),
+                "clicks_diff": float(current.get("clicks", 0.0)) - float(previous.get("clicks", 0.0)),
+                "position_current": current_position,
+                "position_previous": previous_position,
+                "position_diff": current_position - previous_position,
+            }
+        )
+    return items
+
+
+def _sanitize_search_console_trend(trend: dict) -> dict:
+    sanitized = dict(trend or {})
+    for prefix in ("current", "previous"):
+        clicks_key = f"{prefix}_clicks"
+        position_key = f"{prefix}_position"
+        clicks = list(sanitized.get(clicks_key) or [])
+        positions = list(sanitized.get(position_key) or [])
+        for index in range(min(len(clicks), len(positions))):
+            if float(clicks[index] or 0.0) == 0.0 and float(positions[index] or 0.0) == 0.0:
+                clicks[index] = None
+                positions[index] = None
+        sanitized[clicks_key] = clicks
+        sanitized[position_key] = positions
+    return sanitized
+
+
+def _search_console_report_payload(db, *, site_id: int) -> dict:
+    current_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
+    previous_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
+    summary_payload = _latest_successful_provider_summary(db, site_id=site_id, provider="search_console")
+    current_summary = summary_payload.get("current_7d_summary") or _summarize_search_console_rows(current_rows)
+    previous_summary = summary_payload.get("previous_7d_summary") or _summarize_search_console_rows(previous_rows)
+    current_summary_by_device = summary_payload.get("current_7d_summary_by_device") or {}
+    previous_summary_by_device = summary_payload.get("previous_7d_summary_by_device") or {}
+    trend_summary = _sanitize_search_console_trend(summary_payload.get("trend_7d_summary") or {
+        "labels": [str(index) for index in range(1, 8)],
+        "previous_dates": [],
+        "current_dates": [],
+        "previous_clicks": [],
+        "current_clicks": [],
+        "previous_position": [],
+        "current_position": [],
+    })
+    top_queries = _build_search_console_top_queries(current_rows, previous_rows, limit=50)
+    trend_summary_by_device = summary_payload.get("trend_7d_summary_by_device") or {}
+
+    views: dict[str, dict] = {}
+    for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
+        device_code = device_key.upper()
+        filtered_current_rows = _filter_search_console_rows_by_device(current_rows, device_code)
+        filtered_previous_rows = _filter_search_console_rows_by_device(previous_rows, device_code)
+        device_trend = _sanitize_search_console_trend(trend_summary_by_device.get(device_code) or {
+            "labels": [str(index) for index in range(1, 8)],
+            "previous_dates": [],
+            "current_dates": [],
+            "previous_clicks": [],
+            "current_clicks": [],
+            "previous_position": [],
+            "current_position": [],
+        })
+        device_top_queries = _build_search_console_top_queries(filtered_current_rows, filtered_previous_rows, limit=50)
+        views[device_key] = {
+            "device_code": device_code,
+            "device_label": device_label,
+            "has_data": bool(filtered_current_rows or filtered_previous_rows or device_top_queries),
+            "summary_current": current_summary_by_device.get(device_code) or _summarize_search_console_rows(filtered_current_rows),
+            "summary_previous": previous_summary_by_device.get(device_code) or _summarize_search_console_rows(filtered_previous_rows),
+            "trend": device_trend,
+            "top_queries": device_top_queries,
+        }
+
+    return {
+        "has_data": bool(current_rows or previous_rows or top_queries),
+        "summary_current": current_summary,
+        "summary_previous": previous_summary,
+        "trend": trend_summary,
+        "top_queries": top_queries,
+        "default_device": "mobile",
+        "views": views,
+    }
+
+
+def _search_console_sites_payload(db) -> list[dict]:
+    sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    rows: list[dict] = []
+    for site in sites:
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        status = _search_console_status(db, latest, site.id)
+        connection = get_search_console_connection_status(db, site.id)
+        last_run = _latest_provider_run(db, site_id=site.id, provider="search_console")
+        cooldown_active = _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="search_console",
+            cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
+        )
+        rows.append(
+            {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "is_active": site.is_active,
+                "connection": connection,
+                "status": status,
+                "last_run_status": str(last_run.status or "").upper() if last_run and last_run.status else "NEVER",
+                "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
+                "last_run_error": str(last_run.error_message or "") if last_run else "",
+                "cooldown_active": cooldown_active,
+                "manual_mode_label": "05:00 otomatik + manuel",
+                "report": _search_console_report_payload(db, site_id=site.id),
+            }
+        )
+    return rows
+
+
+def _active_sites(db) -> list[Site]:
+    return (
+        db.query(Site)
+        .filter(Site.is_active.is_(True))
+        .order_by(Site.created_at.asc(), Site.id.asc())
+        .all()
+    )
+
+
+def _run_daily_search_console_refresh_job() -> None:
+    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Daily Search Console refresh skipped because another scheduled job is still in progress.")
+        return
+
+    try:
+        LOGGER.info("Daily Search Console refresh started.")
+        with SessionLocal() as db:
+            connected_sites = [
+                site
+                for site in _active_sites(db)
+                if get_search_console_connection_status(db, site.id).get("connected")
+            ]
+
+            for index, site in enumerate(connected_sites):
+                LOGGER.info("Daily Search Console refresh processing site=%s", site.domain)
+                try:
+                    collect_search_console_metrics(db, site)
+                    db.commit()
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    LOGGER.warning("Daily Search Console refresh failed for %s: %s", site.domain, exc)
+
+                if index < len(connected_sites) - 1:
+                    time.sleep(max(0, int(settings.search_console_scheduled_refresh_site_spacing_seconds)))
+
+        LOGGER.info("Daily Search Console refresh completed.")
+    finally:
+        DAILY_REFRESH_LOCK.release()
+
+
+def _run_daily_refresh_job() -> None:
+    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Daily refresh skipped because a previous run is still in progress.")
+        return
+
+    try:
+        LOGGER.info("Daily refresh started.")
+        with SessionLocal() as db:
+            sites = _active_sites(db)
+
+            for index, site in enumerate(sites):
+                connection = get_search_console_connection_status(db, site.id)
+                LOGGER.info(
+                    "Daily refresh processing site=%s search_console_connected=%s",
+                    site.domain,
+                    bool(connection.get("connected")),
+                )
+
+                _refresh_site_detail_measurements(
+                    db,
+                    site,
+                    include_pagespeed=True,
+                    include_crawler=True,
+                    include_search_console=False,
+                    force=True,
+                )
+                db.commit()
+
+                try:
+                    collect_crux_history(db, site)
+                    db.commit()
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
+
+                if include_search_console:
+                    try:
+                        collect_url_inspection(db, site)
+                        db.commit()
+                    except Exception as exc:  # noqa: BLE001
+                        db.rollback()
+                        LOGGER.warning("Daily refresh URL Inspection failed for %s: %s", site.domain, exc)
+
+                if index < len(sites) - 1:
+                    time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+        LOGGER.info("Daily refresh completed.")
+    finally:
+        DAILY_REFRESH_LOCK.release()
+
+
+def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
+    try:
+        timezone = ZoneInfo(settings.scheduled_refresh_timezone)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Invalid scheduled refresh timezone %s: %s", settings.scheduled_refresh_timezone, exc)
+        timezone = ZoneInfo("UTC")
+
+    scheduler = BackgroundScheduler(timezone=timezone)
+    job_count = 0
+
+    if settings.search_console_scheduled_refresh_enabled:
+        scheduler.add_job(
+            _run_daily_search_console_refresh_job,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.search_console_scheduled_refresh_hour))),
+                minute=max(0, min(59, int(settings.search_console_scheduled_refresh_minute))),
+                timezone=timezone,
+            ),
+            id="daily-search-console-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.scheduled_refresh_enabled:
+        scheduler.add_job(
+            _run_daily_refresh_job,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.scheduled_refresh_hour))),
+                minute=max(0, min(59, int(settings.scheduled_refresh_minute))),
+                timezone=timezone,
+            ),
+            id="daily-site-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if job_count == 0:
+        LOGGER.info("All scheduled refresh jobs are disabled via settings.")
+        return None
+
+    return scheduler
 
 
 def _metric_map(site_id: int) -> dict[str, object]:
@@ -265,6 +707,55 @@ def _metric_is_stale(latest: dict[str, object], metric_type: str, max_age_minute
     if metric is None:
         return True
     return metric.collected_at < datetime.utcnow() - timedelta(minutes=max_age_minutes)
+
+
+def _metric_age_seconds(latest: dict[str, object], metric_type: str) -> float | None:
+    metric = latest.get(metric_type)
+    if metric is None or metric.collected_at is None:
+        return None
+    return max(0.0, (datetime.utcnow() - metric.collected_at).total_seconds())
+
+
+def _metrics_fresh_within(latest: dict[str, object], metric_types: tuple[str, ...], max_age_seconds: int) -> bool:
+    if max_age_seconds <= 0:
+        return False
+    for metric_type in metric_types:
+        age_seconds = _metric_age_seconds(latest, metric_type)
+        if age_seconds is None or age_seconds > max_age_seconds:
+            return False
+    return True
+
+
+def _latest_collector_run_recent(
+    db,
+    *,
+    site_id: int,
+    provider: str,
+    strategy: str | None = None,
+    cooldown_seconds: int,
+) -> bool:
+    if cooldown_seconds <= 0:
+        return False
+    query = db.query(CollectorRun).filter(CollectorRun.site_id == site_id, CollectorRun.provider == provider)
+    if strategy is not None:
+        query = query.filter(CollectorRun.strategy == strategy)
+    run = query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc()).first()
+    if run is None or run.requested_at is None:
+        return False
+    return run.requested_at >= datetime.utcnow() - timedelta(seconds=cooldown_seconds)
+
+
+def _cached_pagespeed_scores(latest: dict[str, object], strategy: str) -> dict[str, float] | None:
+    prefix = f"pagespeed_{strategy}_"
+    scores = {
+        "performance": _metric_value(latest, f"{prefix}score", -1.0),
+        "accessibility": _metric_value(latest, f"{prefix}accessibility_score", -1.0),
+        "best_practices": _metric_value(latest, f"{prefix}best_practices_score", -1.0),
+        "seo": _metric_value(latest, f"{prefix}seo_score", -1.0),
+    }
+    if any(value < 0 for value in scores.values()):
+        return None
+    return scores
 
 
 def _pagespeed_strategy_is_complete(latest: dict[str, object], strategy: str) -> bool:
@@ -319,25 +810,83 @@ def _refresh_site_detail_measurements(
     include_pagespeed: bool = True,
     include_crawler: bool = False,
     include_search_console: bool = False,
+    force: bool = False,
 ) -> dict[str, dict]:
     if not settings.live_refresh_enabled:
         return {}
     results: dict[str, dict] = {}
+    latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     if include_pagespeed:
-        try:
-            results["pagespeed"] = collect_pagespeed_metrics(db, site)
-        except Exception as exc:  # noqa: BLE001
-            results["pagespeed"] = {"errors": {"exception": str(exc)}}
+        pagespeed_recent = _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="pagespeed",
+            cooldown_seconds=settings.pagespeed_refresh_cooldown_seconds,
+        )
+        pagespeed_cached = _metrics_fresh_within(
+            latest,
+            ("pagespeed_mobile_score", "pagespeed_desktop_score"),
+            settings.pagespeed_refresh_cooldown_seconds,
+        )
+        if not force and (pagespeed_recent or pagespeed_cached):
+            results["pagespeed"] = {
+                "state": "skipped",
+                "reason": "PageSpeed olcumu yakin zamanda alindigi icin yeniden tetiklenmedi.",
+            }
+        else:
+            try:
+                results["pagespeed"] = collect_pagespeed_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                results["pagespeed"] = {"errors": {"exception": str(exc)}}
     if include_crawler:
-        try:
-            results["crawler"] = collect_crawler_metrics(db, site)
-        except Exception as exc:  # noqa: BLE001
-            results["crawler"] = {"errors": {"exception": str(exc)}}
+        crawler_recent = _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="crawler",
+            cooldown_seconds=settings.crawler_refresh_cooldown_seconds,
+        )
+        crawler_cached = _metrics_fresh_within(
+            latest,
+            (
+                "crawler_robots_accessible",
+                "crawler_sitemap_exists",
+                "crawler_schema_found",
+                "crawler_canonical_found",
+            ),
+            settings.crawler_refresh_cooldown_seconds,
+        )
+        if not force and (crawler_recent or crawler_cached):
+            results["crawler"] = {
+                "state": "skipped",
+                "reason": "Crawler kontrolleri yakin zamanda calistigi icin yeniden istek atilmadi.",
+            }
+        else:
+            try:
+                results["crawler"] = collect_crawler_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                results["crawler"] = {"errors": {"exception": str(exc)}}
     if include_search_console:
-        try:
-            results["search_console"] = collect_search_console_metrics(db, site)
-        except Exception as exc:  # noqa: BLE001
-            results["search_console"] = {"errors": {"exception": str(exc)}}
+        search_console_recent = _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="search_console",
+            cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
+        )
+        search_console_cached = _metrics_fresh_within(
+            latest,
+            ("search_console_clicks_28d",),
+            settings.search_console_refresh_cooldown_seconds,
+        )
+        if not force and (search_console_recent or search_console_cached):
+            results["search_console"] = {
+                "state": "skipped",
+                "reason": "Search Console verisi yakin zamanda yenilendigi icin yeniden sorgulanmadi.",
+            }
+        else:
+            try:
+                results["search_console"] = collect_search_console_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                results["search_console"] = {"errors": {"exception": str(exc)}}
     return results
 
 
@@ -781,6 +1330,156 @@ def _latest_pagespeed_category_scores(db, site_id: int, strategy: str) -> dict[s
     return output
 
 
+def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple[dict, datetime | None]:
+    row = (
+        db.query(PageSpeedPayloadSnapshot)
+        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
+        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
+        .first()
+    )
+    if row is None:
+        return {}, None
+    try:
+        return json.loads(row.payload_json or "{}"), row.collected_at
+    except json.JSONDecodeError:
+        return {}, row.collected_at
+
+
+def _format_pagespeed_report_time(value: datetime | None, fallback_iso: str = "") -> str:
+    if fallback_iso:
+        try:
+            normalized = fallback_iso.replace("Z", "+00:00")
+            return datetime.fromisoformat(normalized).astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            pass
+    if value is None:
+        return "N/A"
+    return value.strftime("%d.%m.%Y %H:%M")
+
+
+def _pagespeed_overall_category_label(value: str) -> tuple[str, str]:
+    normalized = str(value or "").strip().upper()
+    if normalized == "FAST":
+        return "Passed", "border-emerald-200 bg-emerald-50 text-emerald-700"
+    if normalized == "AVERAGE":
+        return "Needs Attention", "border-amber-200 bg-amber-50 text-amber-800"
+    if normalized == "SLOW":
+        return "Failed", "border-rose-200 bg-rose-50 text-rose-700"
+    return "N/A", "border-slate-200 bg-slate-50 text-slate-600"
+
+
+def _format_pagespeed_metric_display(audit: dict, fallback_value: float | None = None, metric_type: str = "timing") -> str:
+    display_value = str(audit.get("displayValue") or "").strip()
+    if display_value:
+        return display_value
+    if fallback_value is None:
+        return "N/A"
+    if metric_type == "cls":
+        return _format_max_two_decimals(fallback_value)
+    seconds = float(fallback_value) / 1000.0
+    return f"{_format_max_two_decimals(seconds)} s"
+
+
+def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dict | None) -> dict:
+    payload, collected_at = _latest_pagespeed_payload_snapshot(db, site_id, strategy)
+    lighthouse = (payload.get("lighthouseResult") or {})
+    categories = lighthouse.get("categories") or {}
+    loading_experience = payload.get("loadingExperience") or {}
+    origin_loading_experience = payload.get("originLoadingExperience") or {}
+    environment = lighthouse.get("environment") or {}
+    config_settings = lighthouse.get("configSettings") or {}
+    audits = lighthouse.get("audits") or {}
+    field_metrics = _latest_pagespeed_field_metrics(db, site_id, strategy)
+    category_scores = _latest_pagespeed_category_scores(db, site_id, strategy)
+    overall_category = loading_experience.get("overall_category") or origin_loading_experience.get("overall_category") or ""
+    cwv_label, cwv_badge_class = _pagespeed_overall_category_label(overall_category)
+    analysis = _normalize_lighthouse_issue_order(analysis)
+
+    metric_tiles = [
+        {
+            "label": "First Contentful Paint",
+            "value": _format_pagespeed_metric_display(
+                audits.get("first-contentful-paint") or {},
+                field_metrics.get("first_contentful_paint", {}).get("latest"),
+            ),
+        },
+        {
+            "label": "Largest Contentful Paint",
+            "value": _format_pagespeed_metric_display(
+                audits.get("largest-contentful-paint") or {},
+                field_metrics.get("largest_contentful_paint", {}).get("latest"),
+            ),
+        },
+        {
+            "label": "Total Blocking Time",
+            "value": _format_pagespeed_metric_display(audits.get("total-blocking-time") or {}),
+        },
+        {
+            "label": "Cumulative Layout Shift",
+            "value": _format_pagespeed_metric_display(
+                audits.get("cumulative-layout-shift") or {},
+                field_metrics.get("cumulative_layout_shift", {}).get("latest"),
+                metric_type="cls",
+            ),
+        },
+        {
+            "label": "Speed Index",
+            "value": _format_pagespeed_metric_display(audits.get("speed-index") or {}),
+        },
+    ]
+
+    score_tiles = []
+    for category_key, label in (
+        ("performance", "Performance"),
+        ("accessibility", "Accessibility"),
+        ("best_practices", "Best Practices"),
+        ("seo", "SEO"),
+    ):
+        value = round(float(category_scores.get(category_key, 0.0)))
+        score_tiles.append(
+            {
+                "label": label,
+                "value": value,
+                "tone": _score_color(value),
+            }
+        )
+
+    sections = []
+    for category_key, category_label in (
+        ("performance", "Performance"),
+        ("accessibility", "Accessibility"),
+        ("best_practices", "Best Practices"),
+        ("seo", "SEO"),
+    ):
+        category_sections = ((analysis or {}).get("sections") or {}).get(category_key) or []
+        if not category_sections:
+            continue
+        sections.append(
+            {
+                "key": category_key,
+                "label": category_label,
+                "items_count": sum(len(section.get("items") or []) for section in category_sections),
+                "sections": category_sections,
+            }
+        )
+
+    return {
+        "has_data": bool(payload),
+        "strategy": strategy,
+        "strategy_label": "Mobile" if strategy == "mobile" else "Desktop",
+        "report_time": _format_pagespeed_report_time(collected_at, str(lighthouse.get("fetchTime") or "")),
+        "requested_url": str(payload.get("id") or lighthouse.get("requestedUrl") or loading_experience.get("initial_url") or ""),
+        "final_url": str(lighthouse.get("finalDisplayedUrl") or lighthouse.get("finalUrl") or origin_loading_experience.get("id") or ""),
+        "environment": str(environment.get("benchmarkIndex") or ""),
+        "emulation": str(config_settings.get("emulatedFormFactor") or strategy),
+        "cwv_label": cwv_label,
+        "cwv_badge_class": cwv_badge_class,
+        "metric_tiles": metric_tiles,
+        "score_tiles": score_tiles,
+        "sections": sections,
+    }
+
+
 def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict] | None = None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
@@ -822,6 +1521,8 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
         mobile_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "mobile")
         desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
+        mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
+        desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
         inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
 
         mobile_state = _data_state_badge(
@@ -852,6 +1553,8 @@ def _data_explorer_context(domain: str) -> dict:
             "crux_desktop": desktop_crux,
             "crux_mobile_series": _format_crux_series(mobile_crux, mobile_pagespeed_current),
             "crux_desktop_series": _format_crux_series(desktop_crux, desktop_pagespeed_current),
+            "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
+            "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
             "url_inspection": inspection,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
@@ -914,16 +1617,22 @@ def _summarize_manual_measurement(results: dict[str, dict]) -> str:
 
     if pagespeed_result.get("saved_metric_count"):
         parts.append("PageSpeed olcumu tamamlandi")
+    elif pagespeed_result.get("state") == "skipped":
+        parts.append("PageSpeed yeniden tetiklenmedi")
     elif pagespeed_result.get("errors"):
         parts.append("PageSpeed kismi olarak guncellendi")
 
     if crawler_result.get("metrics"):
         parts.append("crawler kontrolleri yenilendi")
+    elif crawler_result.get("state") == "skipped":
+        parts.append("crawler kontrolleri tekrar calistirilmedi")
 
     if search_console_result.get("blocked"):
         parts.append("Search Console kota nedeniyle atlandi")
     elif search_console_result.get("summary"):
         parts.append("Search Console verisi yenilendi")
+    elif search_console_result.get("state") == "skipped":
+        parts.append("Search Console yeniden sorgulanmadi")
 
     return ". ".join(parts) + "." if parts else "Olcum tetiklendi."
 
@@ -994,9 +1703,14 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             raise ValueError("Site bulunamadı.")
 
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-        if settings.live_refresh_enabled and (
+        if settings.live_refresh_enabled and settings.pagespeed_auto_collect_on_page_load and (
             not _pagespeed_strategy_is_complete(latest, "mobile")
             or not _pagespeed_strategy_is_complete(latest, "desktop")
+        ) and not _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="pagespeed",
+            cooldown_seconds=settings.pagespeed_refresh_cooldown_seconds,
         ):
             _refresh_site_detail_measurements(db, site, include_pagespeed=True)
             latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
@@ -1233,6 +1947,7 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
             "search_summary": search_summary,
             "search_console_has_queries": has_search_console_queries,
             "search_console_has_trend": has_search_console_trend,
+            "allow_live_lighthouse_sync": settings.pagespeed_live_sync_on_page_load,
             "trend_data": {
                 "labels": trend_labels,
                 "mobile": mobile_trend,
@@ -1261,6 +1976,7 @@ def dashboard(request: Request):
 
 
 @app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
+@limiter.limit("6/hour")
 def dashboard_measure_site(request: Request, site_id: int):
     period, _ = _resolve_period(request.query_params.get("period"))
     with SessionLocal() as db:
@@ -1268,11 +1984,14 @@ def dashboard_measure_site(request: Request, site_id: int):
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
-        results = {
-            "pagespeed": collect_pagespeed_metrics(db, site),
-            "crawler": collect_crawler_metrics(db, site),
-            "search_console": collect_search_console_metrics(db, site),
-        }
+        results = _refresh_site_detail_measurements(
+            db,
+            site,
+            include_pagespeed=True,
+            include_crawler=True,
+            include_search_console=True,
+        )
+        db.commit()
         card = _build_dashboard_card(db, site, flash_message=_summarize_manual_measurement(results))
     return templates.TemplateResponse(
         request,
@@ -1375,24 +2094,41 @@ def api_get_site_warehouse_summary(domain: str):
 
 
 @app.get("/api/site/{domain}/lighthouse-live-scores")
-def api_get_live_lighthouse_scores(domain: str):
+@limiter.limit("20/hour")
+def api_get_live_lighthouse_scores(request: Request, domain: str):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
-        try:
-            mobile_scores = fetch_live_lighthouse_category_scores(site, "mobile")
-            desktop_scores = fetch_live_lighthouse_category_scores(site, "desktop")
-        except Exception as exc:
-            return JSONResponse(
-                {"error": f"Live Lighthouse fetch failed: {exc}"},
-                status_code=502,
-            )
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        mobile_scores = None
+        desktop_scores = None
+        source = "live"
+        if _metrics_fresh_within(
+            latest,
+            ("pagespeed_mobile_score", "pagespeed_desktop_score"),
+            settings.lighthouse_live_score_cache_seconds,
+        ):
+            mobile_scores = _cached_pagespeed_scores(latest, "mobile")
+            desktop_scores = _cached_pagespeed_scores(latest, "desktop")
+            if mobile_scores and desktop_scores:
+                source = "cache"
+
+        if mobile_scores is None or desktop_scores is None:
+            try:
+                mobile_scores = fetch_live_lighthouse_category_scores(site, "mobile")
+                desktop_scores = fetch_live_lighthouse_category_scores(site, "desktop")
+            except Exception as exc:
+                return JSONResponse(
+                    {"error": f"Live Lighthouse fetch failed: {exc}"},
+                    status_code=502,
+                )
 
         return JSONResponse(
             {
                 "site": site.domain,
+                "source": source,
                 "mobile": {
                     "performance": _build_lighthouse_score("performance", "Performance", "Performans", mobile_scores.get("performance", 0.0), "mobile"),
                     "accessibility": _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", mobile_scores.get("accessibility", 0.0), "mobile"),
@@ -1410,7 +2146,8 @@ def api_get_live_lighthouse_scores(domain: str):
 
 
 @app.get("/api/site/{domain}/lighthouse-live-scores/{strategy}")
-def api_get_live_lighthouse_scores_by_strategy(domain: str, strategy: str):
+@limiter.limit("20/hour")
+def api_get_live_lighthouse_scores_by_strategy(request: Request, domain: str, strategy: str):
     normalized_strategy = (strategy or "").strip().lower()
     if normalized_strategy not in {"mobile", "desktop"}:
         return JSONResponse({"error": "Invalid strategy"}, status_code=400)
@@ -1420,18 +2157,28 @@ def api_get_live_lighthouse_scores_by_strategy(domain: str, strategy: str):
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
-        try:
-            scores = fetch_live_lighthouse_category_scores(site, normalized_strategy)
-        except Exception as exc:
-            return JSONResponse(
-                {"error": f"Live Lighthouse fetch failed: {exc}"},
-                status_code=502,
-            )
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        scores = None
+        source = "live"
+        score_metric = f"pagespeed_{normalized_strategy}_score"
+        if _metrics_fresh_within(latest, (score_metric,), settings.lighthouse_live_score_cache_seconds):
+            scores = _cached_pagespeed_scores(latest, normalized_strategy)
+            if scores is not None:
+                source = "cache"
+        if scores is None:
+            try:
+                scores = fetch_live_lighthouse_category_scores(site, normalized_strategy)
+            except Exception as exc:
+                return JSONResponse(
+                    {"error": f"Live Lighthouse fetch failed: {exc}"},
+                    status_code=502,
+                )
 
         return JSONResponse(
             {
                 "site": site.domain,
                 "strategy": normalized_strategy,
+                "source": source,
                 "scores": {
                     "performance": _build_lighthouse_score("performance", "Performance", "Performans", scores.get("performance", 0.0), normalized_strategy),
                     "accessibility": _build_lighthouse_score("accessibility", "Accessibility", "Erişilebilirlik", scores.get("accessibility", 0.0), normalized_strategy),
@@ -1443,16 +2190,39 @@ def api_get_live_lighthouse_scores_by_strategy(domain: str, strategy: str):
 
 
 @app.post("/api/site/{domain}/data-explorer/refresh")
-def api_refresh_data_explorer(domain: str):
+@limiter.limit("6/hour")
+def api_refresh_data_explorer(request: Request, domain: str):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
-        results = {
-            "crux_history": collect_crux_history(db, site),
-            "url_inspection": collect_url_inspection(db, site),
-        }
+        results: dict[str, dict] = {}
+        if _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="crux_history",
+            cooldown_seconds=settings.crux_refresh_cooldown_seconds,
+        ):
+            results["crux_history"] = {
+                "state": "skipped",
+                "reason": "CrUX history yakin zamanda yenilendigi icin tekrar tetiklenmedi.",
+            }
+        else:
+            results["crux_history"] = collect_crux_history(db, site)
+
+        if _latest_collector_run_recent(
+            db,
+            site_id=site.id,
+            provider="url_inspection",
+            cooldown_seconds=settings.url_inspection_refresh_cooldown_seconds,
+        ):
+            results["url_inspection"] = {
+                "state": "skipped",
+                "reason": "URL Inspection yakin zamanda yenilendigi icin tekrar cagrilmadi.",
+            }
+        else:
+            results["url_inspection"] = collect_url_inspection(db, site)
         db.commit()
         return JSONResponse(
             {
@@ -1465,7 +2235,8 @@ def api_refresh_data_explorer(domain: str):
 
 
 @app.post("/api/site/{domain}/refresh")
-def api_refresh_site_metrics(domain: str):
+@limiter.limit("6/hour")
+def api_refresh_site_metrics(request: Request, domain: str):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
         if site is None:
@@ -1478,6 +2249,7 @@ def api_refresh_site_metrics(domain: str):
             include_crawler=True,
             include_search_console=True,
         )
+        db.commit()
         return JSONResponse(
             {
                 "site": site.domain,
@@ -1535,8 +2307,79 @@ def settings_alert_thresholds(request: Request):
     return templates.TemplateResponse(request, "partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
 
 
+@app.get("/search-console")
+def search_console_page(request: Request):
+    with SessionLocal() as db:
+        payload = {
+            "site_name": "Search Console",
+            "sites": get_sidebar_sites(),
+            "oauth_ready": oauth_is_configured(),
+            "oauth_redirect_uri": settings.google_oauth_redirect_uri,
+            "search_console_sites": _search_console_sites_payload(db),
+        }
+    return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
+
+
+@app.get("/search-console/site-list")
+def search_console_site_list(request: Request):
+    with SessionLocal() as db:
+        return templates.TemplateResponse(
+            request,
+            "partials/search_console_site_cards.html",
+            context={
+                "request": request,
+                "search_console_sites": _search_console_sites_payload(db),
+                "oauth_ready": oauth_is_configured(),
+            },
+        )
+
+
+@app.post("/search-console/refresh/{site_id}")
+@limiter.limit("6/hour")
+def search_console_manual_refresh(request: Request, site_id: int):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+        _refresh_site_detail_measurements(
+            db,
+            site,
+            include_pagespeed=False,
+            include_crawler=False,
+            include_search_console=True,
+        )
+        db.commit()
+        return templates.TemplateResponse(
+            request,
+            "partials/search_console_site_cards.html",
+            context={
+                "request": request,
+                "search_console_sites": _search_console_sites_payload(db),
+                "oauth_ready": oauth_is_configured(),
+            },
+        )
+
+
+@app.post("/search-console/disconnect/{site_id}")
+def search_console_disconnect_from_header(request: Request, site_id: int):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadi.", status_code=404)
+        delete_oauth_credentials(db, site_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/search_console_site_cards.html",
+            context={
+                "request": request,
+                "search_console_sites": _search_console_sites_payload(db),
+                "oauth_ready": oauth_is_configured(),
+            },
+        )
+
+
 @app.get("/api/search-console/oauth/start/{site_id}")
-def search_console_oauth_start(site_id: int):
+def search_console_oauth_start(site_id: int, next: str = "/settings"):
     if not oauth_is_configured():
         return HTMLResponse("Google OAuth ayarlari eksik. GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET gerekli.", status_code=400)
 
@@ -1545,7 +2388,7 @@ def search_console_oauth_start(site_id: int):
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
-    state = encode_oauth_state(site_id)
+    state = encode_oauth_state(site_id, return_path=next)
     flow = build_oauth_flow(state=state)
     authorization_url, _ = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
     return RedirectResponse(authorization_url, status_code=302)
@@ -1574,7 +2417,7 @@ def search_console_oauth_callback(request: Request):
         flow = build_oauth_flow(state=state)
         flow.fetch_token(authorization_response=str(request.url))
         save_oauth_credentials(db, site.id, flow.credentials)
-    return RedirectResponse("/settings", status_code=302)
+    return RedirectResponse(str(payload.get("return_path") or "/settings"), status_code=302)
 
 
 @app.post("/api/search-console/oauth/disconnect/{site_id}")

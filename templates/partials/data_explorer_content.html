@@ -25,18 +25,47 @@
     </span>
   </div>
   <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
-    <div class="h-full rounded-full {% if tone == 'emerald' %}bg-emerald-500{% elif tone == 'amber' %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ width|exact }}%"></div>
+    <div class="h-full rounded-full {% if tone == 'emerald' %}bg-emerald-500{% elif tone == 'amber' %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ width|max_two_decimals }}%"></div>
   </div>
   <div class="mt-2 flex items-center justify-between text-xs">
     <span class="text-slate-500">İyi oran</span>
     <span class="font-semibold {% if tone == 'emerald' %}text-emerald-700{% elif tone == 'amber' %}text-amber-700{% else %}text-rose-700{% endif %}">
-      {{ metric.good_share|exact if metric.good_share is not none else "N/A" }}%
+      {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%
     </span>
   </div>
 </div>
 {% endmacro %}
 
-<div id="data-explorer-shell" class="space-y-6">
+{% macro pagespeed_metric_tile(metric) %}
+<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+  <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
+  <p class="mt-2 text-xl font-bold text-slate-900">{{ metric.value }}</p>
+</div>
+{% endmacro %}
+
+{% macro pagespeed_audit_item(item) %}
+<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <p class="font-semibold text-slate-900">{{ item.title_en or item.title }}</p>
+      {% if item.title_tr %}
+      <p class="mt-1 text-sm text-slate-600">{{ item.title_tr }}</p>
+      {% endif %}
+    </div>
+    {% if item.display_value %}
+    <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ item.display_value }}</span>
+    {% endif %}
+  </div>
+  {% if item.problem_en or item.problem %}
+  <p class="mt-3 text-sm text-slate-700">{{ item.problem_en or item.problem }}</p>
+  {% endif %}
+  {% if item.problem_tr %}
+  <p class="mt-2 text-sm text-slate-700">{{ item.problem_tr }}</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<div id="data-explorer-shell" class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('Data Explorer')|e }}">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Veri Ambarı Gezgini</p>
@@ -99,6 +128,94 @@
       <div id="crux-desktop-chart" class="mt-4 h-[340px]" data-series='{{ crux_desktop_series|tojson }}'></div>
     </section>
   </div>
+
+  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">PageSpeed Insights</p>
+        <h4 class="text-xl font-semibold text-slate-900">Resmi PSI ve Lighthouse Maddeleri</h4>
+        <p class="mt-2 text-sm text-slate-600">Bu alan son kaydedilen resmi PageSpeed Insights payload'ından ve normalize Lighthouse audit section'larından üretilir.</p>
+      </div>
+    </div>
+
+    <div class="mt-5 grid items-start gap-5 lg:grid-cols-2">
+      {% for report in [pagespeed_report_mobile, pagespeed_report_desktop] %}
+      <section class="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p class="text-sm uppercase tracking-[0.18em] text-slate-500">{{ report.strategy_label }}</p>
+            <h5 class="text-xl font-semibold text-slate-900">PageSpeed Insights {{ report.strategy_label }}</h5>
+            <p class="mt-2 text-sm text-slate-600">Report zamanı: {{ report.report_time }}</p>
+            {% if report.final_url %}
+            <p class="mt-1 break-all text-xs text-slate-500">Final URL: {{ report.final_url }}</p>
+            {% elif report.requested_url %}
+            <p class="mt-1 break-all text-xs text-slate-500">URL: {{ report.requested_url }}</p>
+            {% endif %}
+          </div>
+          <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ report.cwv_badge_class }}">Core Web Vitals: {{ report.cwv_label }}</span>
+        </div>
+
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {% for metric in report.metric_tiles %}
+          {{ pagespeed_metric_tile(metric) }}
+          {% endfor %}
+        </div>
+
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {% for score in report.score_tiles %}
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">{{ score.label }}</p>
+            <p class="mt-2 text-2xl font-bold {{ score.tone }}">{{ score.value }}</p>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if report.sections %}
+        <div class="mt-5 space-y-4">
+          {% for category in report.sections %}
+          <details class="rounded-2xl border border-slate-200 bg-white p-4">
+            <summary class="cursor-pointer list-none">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="font-semibold text-slate-900">{{ category.label }}</p>
+                  <p class="mt-1 text-xs text-slate-500">{{ category.items_count }} madde</p>
+                </div>
+                <span class="text-slate-400">Aç / Kapat</span>
+              </div>
+            </summary>
+            <div class="mt-4 space-y-4">
+              {% for section in category.sections %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-sm font-semibold text-slate-900">{{ section.title_en }}</p>
+                {% if section.title_tr %}
+                <p class="mt-1 text-sm text-slate-600">{{ section.title_tr }}</p>
+                {% endif %}
+                {% if section.description_en %}
+                <p class="mt-2 text-sm text-slate-700">{{ section.description_en }}</p>
+                {% endif %}
+                {% if section.description_tr %}
+                <p class="mt-1 text-sm text-slate-700">{{ section.description_tr }}</p>
+                {% endif %}
+                <div class="mt-4 space-y-3">
+                  {% for item in section['items'] %}
+                  {{ pagespeed_audit_item(item) }}
+                  {% endfor %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+          Bu strateji icin henüz kaydedilmiş resmi PSI audit section verisi yok.
+        </div>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+  </section>
 
   <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="flex items-center justify-between gap-3">

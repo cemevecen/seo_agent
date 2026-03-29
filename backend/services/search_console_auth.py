@@ -45,11 +45,13 @@ def build_oauth_flow(state: str | None = None) -> Flow:
     )
 
 
-def encode_oauth_state(site_id: int) -> str:
+def encode_oauth_state(site_id: int, return_path: str = "/settings") -> str:
+    safe_return_path = return_path if return_path.startswith("/") else "/settings"
     payload = {
         "site_id": site_id,
         "issued_at": datetime.utcnow().isoformat(),
         "redirect_host": urlparse(get_oauth_redirect_uri()).netloc,
+        "return_path": safe_return_path,
     }
     return encrypt_text(json.dumps(payload))
 
@@ -61,6 +63,8 @@ def decode_oauth_state(state: str) -> dict:
         raise ValueError("OAuth state zaman asimina ugradi.")
     if payload.get("redirect_host") != urlparse(get_oauth_redirect_uri()).netloc:
         raise ValueError("OAuth state gecersiz host iceriyor.")
+    return_path = str(payload.get("return_path") or "/settings")
+    payload["return_path"] = return_path if return_path.startswith("/") else "/settings"
     return payload
 
 

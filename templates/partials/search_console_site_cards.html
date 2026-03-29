@@ -1,0 +1,251 @@
+{% if search_console_sites %}
+  <div class="grid gap-4 lg:grid-cols-2">
+    {% for site in search_console_sites %}
+      <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ site.manual_mode_label }}</p>
+            <h5 class="mt-2 text-xl font-semibold text-slate-900">{{ site.display_name }}</h5>
+            <p class="mt-1 text-sm text-slate-600">{{ site.domain }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            {% if site.connection.connected %}
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">{{ site.connection.label }}</span>
+            {% else %}
+              <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">{{ site.connection.label }}</span>
+            {% endif %}
+            <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ site.status.badge_class }}">{{ site.status.label }}</span>
+          </div>
+        </div>
+
+        {% if site.report.has_data %}
+          <div class="mt-6 space-y-5 rounded-3xl border border-slate-200 bg-white p-5 overflow-hidden">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Search Console Özeti</p>
+                <h6 class="mt-2 text-lg font-semibold text-slate-900">Son 7 Gün ve Önceki 7 Gün</h6>
+                <p class="mt-2 text-sm text-slate-500">Veri cihaz bazinda saklanir ve burada sadece secili cihaz gorunur.</p>
+              </div>
+              <div class="inline-flex rounded-full border border-slate-200 bg-slate-100 p-1" data-search-console-device-switch>
+                <button
+                  type="button"
+                  class="rounded-full px-4 py-2 text-sm font-semibold transition data-[active=true]:bg-slate-900 data-[active=true]:text-white"
+                  data-device-toggle="mobile"
+                  data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}"
+                >
+                  Mobile
+                </button>
+                <button
+                  type="button"
+                  class="rounded-full px-4 py-2 text-sm font-semibold transition data-[active=true]:bg-slate-900 data-[active=true]:text-white"
+                  data-device-toggle="desktop"
+                  data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}"
+                >
+                  Desktop
+                </button>
+              </div>
+            </div>
+
+            {% for device_key, view in site.report.views.items() %}
+              <div
+                data-device-panel="{{ device_key }}"
+                class="{% if device_key != site.report.default_device %}hidden {% endif %}space-y-5"
+              >
+                <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                  {% set clicks_diff = (view.summary_current.clicks or 0) - (view.summary_previous.clicks or 0) %}
+                  {% set impressions_diff = (view.summary_current.impressions or 0) - (view.summary_previous.impressions or 0) %}
+                  {% set ctr_diff = (view.summary_current.ctr or 0) - (view.summary_previous.ctr or 0) %}
+                  {% set position_diff = (view.summary_current.position or 0) - (view.summary_previous.position or 0) %}
+
+                  <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+                    <p class="text-sm font-medium text-slate-500">Total clicks</p>
+                    <div class="mt-3 flex items-start gap-2">
+                      <p class="break-all text-3xl font-bold leading-none text-slate-900 tabular-nums xl:text-[2.6rem]">{{ "{:,.0f}".format(view.summary_current.clicks or 0).replace(",", ",") }}</p>
+                      <span class="mt-1 text-[2rem] leading-none font-semibold {% if clicks_diff >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                        {% if clicks_diff >= 0 %}↑{% else %}↓{% endif %}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-sm text-slate-500">Last 7 days</p>
+                    <p class="mt-4 break-all text-xl font-semibold leading-tight text-slate-900 tabular-nums xl:text-2xl">{{ "{:,.0f}".format(view.summary_previous.clicks or 0).replace(",", ",") }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Previous 7 days</p>
+                  </article>
+
+                  <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+                    <p class="text-sm font-medium text-slate-500">Total impressions</p>
+                    <div class="mt-3 flex items-start gap-2">
+                      <p class="break-all text-3xl font-bold leading-none text-slate-900 tabular-nums xl:text-[2.6rem]">{{ "{:,.0f}".format(view.summary_current.impressions or 0).replace(",", ",") }}</p>
+                      <span class="mt-1 text-[2rem] leading-none font-semibold {% if impressions_diff >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                        {% if impressions_diff >= 0 %}↑{% else %}↓{% endif %}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-sm text-slate-500">Last 7 days</p>
+                    <p class="mt-4 break-all text-xl font-semibold leading-tight text-slate-900 tabular-nums xl:text-2xl">{{ "{:,.0f}".format(view.summary_previous.impressions or 0).replace(",", ",") }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Previous 7 days</p>
+                  </article>
+
+                  <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+                    <p class="text-sm font-medium text-slate-500">Average CTR</p>
+                    <div class="mt-3 flex items-start gap-2">
+                      <p class="break-all text-3xl font-bold leading-none text-slate-900 tabular-nums xl:text-[2.6rem]">{{ "{:.2f}".format(view.summary_current.ctr or 0) }}%</p>
+                      <span class="mt-1 text-[2rem] leading-none font-semibold {% if ctr_diff >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                        {% if ctr_diff >= 0 %}↑{% else %}↓{% endif %}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-sm text-slate-500">Last 7 days</p>
+                    <p class="mt-4 break-all text-xl font-semibold leading-tight text-slate-900 tabular-nums xl:text-2xl">{{ "{:.2f}".format(view.summary_previous.ctr or 0) }}%</p>
+                    <p class="mt-1 text-sm text-slate-500">Previous 7 days</p>
+                  </article>
+
+                  <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+                    <p class="text-sm font-medium text-slate-500">Average position</p>
+                    <div class="mt-3 flex items-start gap-2">
+                      <p class="break-all text-3xl font-bold leading-none text-slate-900 tabular-nums xl:text-[2.6rem]">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
+                      <span class="mt-1 text-[2rem] leading-none font-semibold {% if position_diff <= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                        {% if position_diff <= 0 %}↑{% else %}↓{% endif %}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-sm text-slate-500">Last 7 days</p>
+                    <p class="mt-4 break-all text-xl font-semibold leading-tight text-slate-900 tabular-nums xl:text-2xl">{{ "{:.2f}".format(view.summary_previous.position or 0) }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Previous 7 days</p>
+                  </article>
+                </div>
+
+                <div
+                  id="search-console-trend-{{ site.id }}-{{ device_key }}"
+                  class="h-[360px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50"
+                  data-search-console-trend='{{ view.trend|tojson }}'
+                ></div>
+
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm" data-search-console-table>
+                    <thead class="border-b border-slate-200 text-slate-500">
+                      <tr>
+                        <th class="px-3 py-3 text-left">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="query" data-sort-type="string">Top queries</button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksCurrent" data-sort-type="number">Clicks<br><span class="text-xs font-normal">Last 7 days</span></button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksPrevious" data-sort-type="number">Clicks<br><span class="text-xs font-normal">Previous 7 days</span></button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksDiff" data-sort-type="number">Clicks<br><span class="text-xs font-normal">Difference</span></button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionCurrent" data-sort-type="number">Position<br><span class="text-xs font-normal">Last 7 days</span></button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionPrevious" data-sort-type="number">Position<br><span class="text-xs font-normal">Previous 7 days</span></button>
+                        </th>
+                        <th class="px-3 py-3 text-right">
+                          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionDiff" data-sort-type="number">Position<br><span class="text-xs font-normal">Difference</span></button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in view.top_queries %}
+                        <tr
+                          class="border-b border-slate-100 hover:bg-slate-50"
+                          data-query="{{ row.query|lower }}"
+                          data-clicks-current="{{ row.clicks_current }}"
+                          data-clicks-previous="{{ row.clicks_previous }}"
+                          data-clicks-diff="{{ row.clicks_diff }}"
+                          data-position-current="{{ row.position_current }}"
+                          data-position-previous="{{ row.position_previous }}"
+                          data-position-diff="{{ row.position_diff }}"
+                        >
+                          <td class="px-3 py-4 text-left font-medium text-slate-900">{{ row.query }}</td>
+                          <td class="px-3 py-4 text-right text-blue-600">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
+                          <td class="px-3 py-4 text-right text-blue-500">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
+                          <td class="px-3 py-4 text-right font-semibold {% if row.clicks_diff >= 0 %}text-blue-700{% else %}text-rose-700{% endif %}">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                          <td class="px-3 py-4 text-right text-orange-600">{{ "{:.2f}".format(row.position_current) }}</td>
+                          <td class="px-3 py-4 text-right text-orange-500">{{ "{:.2f}".format(row.position_previous) }}</td>
+                          <td class="px-3 py-4 text-right font-semibold {% if row.position_diff <= 0 %}text-emerald-700{% else %}text-orange-700{% endif %}">{{ "{:+.2f}".format(row.position_diff) }}</td>
+                        </tr>
+                      {% else %}
+                        <tr>
+                          <td colspan="7" class="px-3 py-6 text-center text-slate-500">{{ view.device_label }} icin Top 50 keyword verisi henuz yok.</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="mt-6 grid gap-3 md:grid-cols-2">
+          <div class="rounded-2xl bg-white p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Son veri</p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">{{ site.status.updated_at }}</p>
+            <p class="mt-1 text-sm text-slate-600">{{ site.status.description }}</p>
+          </div>
+          <div class="rounded-2xl bg-white p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Son yenileme</p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">{{ site.last_run_at }}</p>
+            <p class="mt-1 text-sm text-slate-600">Durum: {{ site.last_run_status }}</p>
+          </div>
+        </div>
+
+        {% if site.last_run_error %}
+          <div class="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            {{ site.last_run_error }}
+          </div>
+        {% endif %}
+
+        <p class="mt-4 text-sm text-slate-600">
+          Bu kart sayfa acilisinda Google API'ye kendiliginden gitmez. Veri sadece gunluk 05:00 calismasinda veya sen manuel yenilediginde cekilir.
+        </p>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          {% if site.connection.method == 'oauth' %}
+            <form hx-post="/search-console/disconnect/{{ site.id }}" hx-target="#search-console-site-list" hx-swap="innerHTML">
+              <button
+                type="submit"
+                class="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+              >
+                Baglantiyi Kaldir
+              </button>
+            </form>
+          {% elif oauth_ready %}
+            <a
+              href="/api/search-console/oauth/start/{{ site.id }}?next=/search-console"
+              class="rounded-full border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
+            >
+              Google ile Bagla
+            </a>
+          {% else %}
+            <span class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">OAuth ayari bekleniyor</span>
+          {% endif %}
+
+          {% if site.connection.connected %}
+            {% if site.cooldown_active %}
+              <button
+                type="button"
+                disabled
+                class="cursor-not-allowed rounded-full bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                Yenileme beklemede
+              </button>
+            {% else %}
+              <form hx-post="/search-console/refresh/{{ site.id }}" hx-target="#search-console-site-list" hx-swap="innerHTML">
+                <button
+                  type="submit"
+                  class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                >
+                  Search Console Verisini Yenile
+                </button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+    Search Console icin kayitli site bulunmuyor.
+  </div>
+{% endif %}

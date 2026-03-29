@@ -12,6 +12,7 @@
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900">
+  {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="flex min-h-screen">
     <aside id="sidebar" class="w-72 shrink-0 overflow-hidden bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
       <h1 id="sidebar-title" class="text-xl font-bold">SEO Agent</h1>
@@ -59,9 +60,9 @@
           </div>
           <div class="flex items-center gap-3 text-sm">
             <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
-            {% if domain %}
-            <a id="header-data-explorer-link" href="/data-explorer/{{ domain }}" class="text-slate-600 hover:text-slate-900">Data Explorer</a>
-            {% endif %}
+            <a href="/search-console" class="text-slate-600 hover:text-slate-900">Search Console</a>
+            <a id="header-site-detail-link" href="{{ '/site/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">Lighthouse</a>
+            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">Data Explorer</a>
             <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
             <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
           </div>
@@ -131,6 +132,18 @@
         if (!content) {
           return;
         }
+        const siteDetailLink = document.getElementById('header-site-detail-link');
+        const explorerLink = document.getElementById('header-data-explorer-link');
+        const storedDomain = localStorage.getItem('seo-current-domain');
+        if (!content.querySelector('[data-site-domain]') && storedDomain) {
+          if (siteDetailLink) {
+            siteDetailLink.setAttribute('href', '/site/' + storedDomain);
+          }
+          if (explorerLink) {
+            explorerLink.setAttribute('href', '/data-explorer/' + storedDomain);
+          }
+        }
+
         const siteRoot = content.querySelector('[data-site-domain]');
         if (!siteRoot) {
           return;
@@ -139,10 +152,13 @@
         const siteDomain = siteRoot.getAttribute('data-site-domain');
         const siteTitle = siteRoot.getAttribute('data-site-title') || 'SEO Agent Dashboard';
         const headerTitle = document.getElementById('header-site-title');
-        const explorerLink = document.getElementById('header-data-explorer-link');
+        localStorage.setItem('seo-current-domain', siteDomain || '');
 
         if (headerTitle) {
           headerTitle.textContent = siteTitle;
+        }
+        if (siteDetailLink && siteDomain) {
+          siteDetailLink.setAttribute('href', '/site/' + siteDomain);
         }
         if (explorerLink && siteDomain) {
           explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);

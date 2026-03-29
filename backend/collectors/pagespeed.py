@@ -974,7 +974,7 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict, d
             ("category", "accessibility"),
             ("category", "best-practices"),
             ("category", "seo"),
-            ("fields", "loadingExperience,originLoadingExperience,lighthouseResult(categories,categoryGroups,audits)"),
+            ("fields", "id,loadingExperience,originLoadingExperience,lighthouseResult(fetchTime,requestedUrl,finalUrl,finalDisplayedUrl,environment,configSettings,categories,categoryGroups,audits)"),
         ]
     )
     payload = _request_pagespeed_payload(

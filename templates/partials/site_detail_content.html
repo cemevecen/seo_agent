@@ -234,6 +234,11 @@
       }
     };
 
+    const allowLiveSync = {{ 'true' if allow_live_lighthouse_sync else 'false' }};
+    if (!allowLiveSync) {
+      return;
+    }
+
     ['mobile', 'desktop'].forEach(function (scope) {
       fetch('/api/site/{{ domain }}/lighthouse-live-scores/' + scope)
         .then(function (response) {

@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="mb-4 flex items-center justify-between gap-4">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Site Kontrolleri</p>
+        <h4 class="text-xl font-semibold text-slate-900">Baglanti ve Manuel Yenileme</h4>
+      </div>
+      <button
+        type="button"
+        class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900"
+        onclick="refreshSearchConsoleSites()"
+      >
+        Listeyi Yenile
+      </button>
+    </div>
+
+    <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
+      <p class="text-sm text-slate-500">Search Console durumlari yukleniyor...</p>
+    </div>
+  </div>
+
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Kontrollu Mod</p>
+        <h3 class="text-3xl font-bold tracking-tight text-slate-900">Search Console</h3>
+        <p class="mt-3 max-w-3xl text-sm text-slate-600">
+          Bu ekran guvenli akista calisir. Sayfayi acmak Google API istegi baslatmaz. Bagla ve Yenile adimlari sadece sen manuel tetiklediginde calisir.
+        </p>
+        <p class="mt-2 max-w-3xl text-sm text-slate-600">
+          Ek olarak Search Console baglantisi olan aktif siteler icin her gun 05:00'da tek seferlik otomatik yenileme calisir. Site bazinda sirayla ilerler ve bunun disinda gizli arka plan fetch veya surekli arka plan taramasi yoktur.
+        </p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <p><span class="font-semibold">OAuth durumu:</span> {% if oauth_ready %}Hazir{% else %}Eksik{% endif %}</p>
+        <p class="mt-1"><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
+      </div>
+    </div>
+    <div class="mt-5 grid gap-3 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">1. Bagla</p>
+        <p class="mt-2 text-sm text-slate-700">Site bazli Google Search Console OAuth baglantisini kur.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">2. Manuel Yenile</p>
+        <p class="mt-2 text-sm text-slate-700">Veriyi istedigin anda butonla cek. Bunun disinda sistem sadece gunluk 05:00 Search Console yenilemesini yapar.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">3. Sakli Veriyi Oku</p>
+        <p class="mt-2 text-sm text-slate-700">Dashboard ve site detaylari varsa son kaydi okur, Google'a kendiliginden gitmez.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function refreshSearchConsoleSites() {
+    htmx.ajax('GET', '/search-console/site-list', { target: '#search-console-site-list', swap: 'innerHTML' });
+  }
+
+  function renderSearchConsoleTrendCharts(root) {
+    (root || document).querySelectorAll('[data-search-console-trend]').forEach(function (element) {
+      if (element.closest('.hidden')) {
+        return;
+      }
+      if (element.dataset.chartReady === '1') {
+        if (window.Plotly) {
+          window.requestAnimationFrame(function () {
+            Plotly.Plots.resize(element);
+          });
+        }
+        return;
+      }
+      const renderChart = function (attempt) {
+        if (element.dataset.chartReady === '1') {
+          return;
+        }
+        if (!window.Plotly) {
+          if (attempt < 10) {
+            window.setTimeout(function () { renderChart(attempt + 1); }, 250);
+          }
+          return;
+        }
+        try {
+          const trend = JSON.parse(element.dataset.searchConsoleTrend || '{}');
+          const labels = trend.labels || ['1', '2', '3', '4', '5', '6', '7'];
+          const currentClicks = trend.current_clicks || [];
+          const previousClicks = trend.previous_clicks || [];
+          const currentPosition = trend.current_position || [];
+          const previousPosition = trend.previous_position || [];
+
+          Plotly.newPlot(
+            element,
+            [
+              {
+                x: labels,
+                y: currentClicks,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Clicks 7G',
+                line: { color: '#4f83e3', width: 3 },
+                yaxis: 'y1',
+              },
+              {
+                x: labels,
+                y: previousClicks,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Clicks Onceki 7G',
+                line: { color: '#4f83e3', width: 3, dash: 'dash' },
+                yaxis: 'y1',
+              },
+              {
+                x: labels,
+                y: currentPosition,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Position 7G',
+                line: { color: '#dd7a2a', width: 3 },
+                yaxis: 'y2',
+              },
+              {
+                x: labels,
+                y: previousPosition,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Position Onceki 7G',
+                line: { color: '#dd7a2a', width: 3, dash: 'dash' },
+                yaxis: 'y2',
+              }
+            ],
+            {
+              autosize: true,
+              height: 360,
+              margin: { l: 56, r: 56, t: 20, b: 92 },
+              paper_bgcolor: 'rgba(0,0,0,0)',
+              plot_bgcolor: 'rgba(0,0,0,0)',
+              legend: {
+                orientation: 'h',
+                x: 0,
+                y: -0.22,
+                xanchor: 'left',
+                yanchor: 'top',
+                font: { size: 11 },
+              },
+              xaxis: { gridcolor: '#e2e8f0', automargin: true },
+              yaxis: { title: 'Clicks', gridcolor: '#e2e8f0', zeroline: false, automargin: true },
+              yaxis2: {
+                title: 'Position',
+                overlaying: 'y',
+                side: 'right',
+                autorange: 'reversed',
+                zeroline: false,
+                automargin: true,
+              },
+              hovermode: 'x unified',
+            },
+            { displayModeBar: false, responsive: true }
+          ).then(function () {
+            element.dataset.chartReady = '1';
+            window.requestAnimationFrame(function () {
+              Plotly.Plots.resize(element);
+            });
+            window.setTimeout(function () {
+              Plotly.Plots.resize(element);
+            }, 150);
+          });
+        } catch (error) {
+          console.warn('Search Console trend render failed:', error);
+        }
+      };
+
+      renderChart(0);
+    });
+  }
+
+  function initSearchConsoleTables(root) {
+    (root || document).querySelectorAll('[data-search-console-table]').forEach(function (table) {
+      if (table.dataset.tableReady === '1') {
+        return;
+      }
+      table.dataset.tableReady = '1';
+      const tbody = table.querySelector('tbody');
+      const buttons = table.querySelectorAll('[data-sort-key]');
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          const key = button.dataset.sortKey;
+          const type = button.dataset.sortType || 'string';
+          const currentDirection = button.dataset.sortDirection === 'asc' ? 'asc' : 'desc';
+          const nextDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+          buttons.forEach(function (item) {
+            item.dataset.sortDirection = '';
+          });
+          button.dataset.sortDirection = nextDirection;
+          const rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+            return row.dataset.query;
+          });
+          rows.sort(function (left, right) {
+            const leftValue = left.dataset[key];
+            const rightValue = right.dataset[key];
+            if (type === 'number') {
+              const leftNumber = parseFloat(leftValue || '0');
+              const rightNumber = parseFloat(rightValue || '0');
+              return nextDirection === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;
+            }
+            return nextDirection === 'asc'
+              ? String(leftValue || '').localeCompare(String(rightValue || ''), 'tr')
+              : String(rightValue || '').localeCompare(String(leftValue || ''), 'tr');
+          });
+          rows.forEach(function (row) {
+            tbody.appendChild(row);
+          });
+        });
+      });
+    });
+  }
+
+  function initSearchConsoleDeviceSwitches(root) {
+    (root || document).querySelectorAll('[data-search-console-device-switch]').forEach(function (switcher) {
+      if (switcher.dataset.switchReady === '1') {
+        return;
+      }
+      switcher.dataset.switchReady = '1';
+      const hostCard = switcher.closest('section');
+      const buttons = switcher.querySelectorAll('[data-device-toggle]');
+      const activateDevice = function (deviceKey) {
+        buttons.forEach(function (button) {
+          button.dataset.active = button.dataset.deviceToggle === deviceKey ? 'true' : 'false';
+        });
+        hostCard.querySelectorAll('[data-device-panel]').forEach(function (panel) {
+          const isActive = panel.dataset.devicePanel === deviceKey;
+          panel.classList.toggle('hidden', !isActive);
+        });
+        window.setTimeout(function () {
+          initSearchConsoleTables(hostCard);
+          renderSearchConsoleTrendCharts(hostCard);
+        }, 40);
+      };
+
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activateDevice(button.dataset.deviceToggle);
+        });
+      });
+
+      const initialButton = Array.from(buttons).find(function (button) {
+        return button.dataset.active === 'true';
+      }) || buttons[0];
+      if (initialButton) {
+        activateDevice(initialButton.dataset.deviceToggle);
+      }
+    });
+  }
+
+  function initSearchConsolePanels(root) {
+    initSearchConsoleDeviceSwitches(root);
+    renderSearchConsoleTrendCharts(root);
+    initSearchConsoleTables(root);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initSearchConsolePanels(document);
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function (event) {
+    if (event.target && event.target.id === 'search-console-site-list') {
+      window.setTimeout(function () {
+        initSearchConsolePanels(event.target);
+      }, 50);
+    }
+  });
+</script>
+{% endblock %}
