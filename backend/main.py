@@ -3034,8 +3034,6 @@ def search_console_refresh_all(request: Request):
                     result={"state": "failed", "error": str(exc)},
                     action_label="Tüm Search Console sitelerini yenile",
                 )
-            if index < len(sites) - 1:
-                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
         return templates.TemplateResponse(
             request,
             "partials/search_console_site_cards.html",
