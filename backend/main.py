@@ -614,7 +614,7 @@ def _run_daily_refresh_job() -> None:
                     db.rollback()
                     LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
 
-                if include_search_console:
+                if connection.get("connected"):
                     try:
                         collect_url_inspection(db, site)
                         db.commit()

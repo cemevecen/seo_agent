@@ -742,6 +742,8 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         },
         row_count=current_row_count + previous_row_count + current_7d_row_count + previous_7d_row_count,
     )
+    # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
+    db.commit()
     evaluate_site_alerts(db, site)
     return {"site_id": site.id, "rows": rows, "summary": metrics, "source": "live", "error": None}
 
