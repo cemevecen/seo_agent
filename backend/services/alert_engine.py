@@ -36,8 +36,8 @@ class AlertRuleDefinition:
 # Alert açıklamaları ve önerileri
 ALERT_DESCRIPTIONS = {
     "pagespeed_mobile_score": {
-        "description_tr": "Mobil cihazlardaki sayfa yükleme performansı Google tarafından 0-100 puan ile değerlendirilir. 50 puanın altı kritik seviye kabul edilir.",
-        "description_en": "Mobile page loading performance is evaluated by Google on a 0-100 scale. Scores below 50 are considered critical.",
+        "description_tr": "Mobil cihazlardaki sayfa yükleme performansı Google tarafından 0-100 puan ile değerlendirilir. 60 puanın altı düşük performans kabul edilir.",
+        "description_en": "Mobile page loading performance is evaluated by Google on a 0-100 scale. Scores below 60 are treated as low performance.",
         "what_means": "Mobil kullanıcıların sitenizi açması yavaş, Google sıralamalarında kayıp yaşıyorsunuz.",
         "what_means_en": "Mobile users experience slow page loads, and you're losing Google search rankings.",
         "severity": "critical"
@@ -113,15 +113,15 @@ ALERT_DESCRIPTIONS = {
         "severity": "critical"
     },
     "search_console_impressions_drop": {
-        "description_tr": "Top 50 arama terimlerinde impression sayısı %10'dan fazla düştü. Daha az insan sitenizi SERP'de görüyor.",
-        "description_en": "Top 50 search queries showing >10% drop in impressions. Fewer people are seeing your site in search results.",
+        "description_tr": "Top 50 arama terimlerinde impression sayısı %15'ten fazla düştü. Daha az insan sitenizi SERP'de görüyor.",
+        "description_en": "Top 50 search queries showing >15% drop in impressions. Fewer people are seeing your site in search results.",
         "what_means": "Arama motorlarında görünürlüğünüz azalıyor, organik trafik potansiyeli düşüyor.",
         "what_means_en": "Your visibility in search engines is decreasing, organic traffic potential is dropping.",
         "severity": "warning"
     },
     "search_console_ctr_drop": {
-        "description_tr": "Top 50 arama terimlerinde tıklama oranı (CTR) %5'ten fazla düştü. Google'da göründüğünüz halde daha az insan tıklıyor.",
-        "description_en": "Top 50 search queries showing >5% drop in CTR. People see your site in Google but click less often.",
+        "description_tr": "Top 50 arama terimlerinde tıklama oranı (CTR) %10'dan fazla düştü. Google'da göründüğünüz halde daha az insan tıklıyor.",
+        "description_en": "Top 50 search queries showing >10% drop in CTR. People see your site in Google but click less often.",
         "what_means": "Title, description veya position'unuz kötüleşmiş olabilir. İyileştirme gerekli.",
         "what_means_en": "Your title, description, or position may have worsened. Optimization needed.",
         "severity": "warning"
@@ -130,40 +130,64 @@ ALERT_DESCRIPTIONS = {
 
 
 DEFAULT_ALERT_RULES: tuple[AlertRuleDefinition, ...] = (
-    AlertRuleDefinition("pagespeed_mobile_score", 50.0, "lt", "Mobile PageSpeed kritik seviyede"),
-    AlertRuleDefinition("pagespeed_desktop_score", 50.0, "lt", "Desktop PageSpeed kritik seviyede"),
+    AlertRuleDefinition("pagespeed_mobile_score", 60.0, "lt", "Mobile PageSpeed düşük"),
+    AlertRuleDefinition("pagespeed_desktop_score", 70.0, "lt", "Desktop PageSpeed düşük"),
     AlertRuleDefinition("crawler_robots_accessible", 1.0, "lt", "robots.txt erişilemiyor"),
     AlertRuleDefinition("crawler_sitemap_exists", 1.0, "lt", "sitemap.xml bulunamadı"),
     AlertRuleDefinition("crawler_schema_found", 1.0, "lt", "Schema markup bulunamadı"),
     AlertRuleDefinition("crawler_canonical_found", 1.0, "lt", "Canonical etiketi bulunamadı"),
-    AlertRuleDefinition("crawler_broken_links_count", 0.0, "gt", "Kırık iç link bulundu"),
-    AlertRuleDefinition("crawler_redirect_chain_count", 0.0, "gt", "Redirect zinciri bulundu"),
-    AlertRuleDefinition("search_console_dropped_queries", 1.0, "gt", "Düşen sorgu sayısı arttı"),
-    AlertRuleDefinition("search_console_biggest_drop", 2.0, "gt", "Search Console sıralama düşüşü yüksek"),
-    AlertRuleDefinition("search_console_position_drop", 1.0, "gt", "Top 50 keyword position düşüşü"),
-    AlertRuleDefinition("search_console_impressions_drop", 10.0, "gt", "Top 50 keyword impressions düşüşü"),
-    AlertRuleDefinition("search_console_ctr_drop", 5.0, "gt", "Top 50 keyword CTR düşüşü"),
+    AlertRuleDefinition("crawler_broken_links_count", 2.0, "gt", "Kırık iç link sayısı yüksek"),
+    AlertRuleDefinition("crawler_redirect_chain_count", 1.0, "gt", "Redirect zinciri sayısı yüksek"),
+    AlertRuleDefinition("search_console_dropped_queries", 3.0, "gt", "Düşen sorgu sayısı yüksek"),
+    AlertRuleDefinition("search_console_biggest_drop", 3.0, "gt", "Search Console sıralama düşüşü yüksek"),
+    AlertRuleDefinition("search_console_position_drop", 2.0, "gt", "Top 50 keyword position düşüşü"),
+    AlertRuleDefinition("search_console_impressions_drop", 15.0, "gt", "Top 50 keyword impressions düşüşü"),
+    AlertRuleDefinition("search_console_ctr_drop", 10.0, "gt", "Top 50 keyword CTR düşüşü"),
 )
+
+
+SUPPORTED_ALERT_TYPES = {rule.metric_type for rule in DEFAULT_ALERT_RULES}
+
+
+def _is_supported_alert_type(alert_type: str) -> bool:
+    metric_type = str(alert_type or "")
+    if metric_type in SUPPORTED_ALERT_TYPES:
+        return True
+    if metric_type.startswith("pagespeed_") and metric_type.endswith("_fetch_error"):
+        return True
+    if metric_type.startswith("quota_"):
+        return True
+    return False
 
 
 def ensure_site_alerts(db: Session, site: Site) -> list[Alert]:
     # Site için varsayılan alarmlar yoksa oluşturur.
     alerts = db.query(Alert).filter(Alert.site_id == site.id).all()
-    existing = {alert.alert_type for alert in alerts}
-    created = False
-    for rule in DEFAULT_ALERT_RULES:
-        if rule.metric_type in existing:
+    by_type = {alert.alert_type: alert for alert in alerts}
+    changed = False
+
+    for alert in alerts:
+        if _is_supported_alert_type(alert.alert_type):
             continue
-        db.add(
-            Alert(
-                site_id=site.id,
-                alert_type=rule.metric_type,
-                threshold=rule.threshold,
-                is_active=True,
+        if alert.is_active:
+            alert.is_active = False
+            changed = True
+
+    for rule in DEFAULT_ALERT_RULES:
+        existing_alert = by_type.get(rule.metric_type)
+        if existing_alert is None:
+            db.add(
+                Alert(
+                    site_id=site.id,
+                    alert_type=rule.metric_type,
+                    threshold=rule.threshold,
+                    is_active=True,
+                )
             )
-        )
-        created = True
-    if created:
+            changed = True
+            continue
+
+    if changed:
         db.commit()
         alerts = db.query(Alert).filter(Alert.site_id == site.id).all()
     return alerts
@@ -359,6 +383,13 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
     
     if not top_50:
         return created_logs
+
+    position_alert = next((a for a in alerts if a.alert_type == "search_console_position_drop"), None)
+    impressions_alert = next((a for a in alerts if a.alert_type == "search_console_impressions_drop"), None)
+    ctr_alert = next((a for a in alerts if a.alert_type == "search_console_ctr_drop"), None)
+    position_drop_threshold = float(position_alert.threshold if position_alert else rules["search_console_position_drop"].threshold)
+    impressions_drop_threshold_pct = float(impressions_alert.threshold if impressions_alert else rules["search_console_impressions_drop"].threshold)
+    ctr_drop_threshold_pct = float(ctr_alert.threshold if ctr_alert else rules["search_console_ctr_drop"].threshold)
     
     # Position drops
     position_drops = []
@@ -376,7 +407,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
         prev_ctr = float(query_data.get("previous_ctr", 0) or 0)
         
         # Position drop: position > prev_position (higher number = worse ranking)
-        if prev_position > 0 and position > prev_position and (position - prev_position) >= 1.0:
+        if prev_position > 0 and position > prev_position and (position - prev_position) >= position_drop_threshold:
             position_drops.append({
                 "query": query_name,
                 "old_position": prev_position,
@@ -385,8 +416,9 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                 "clicks": query_data.get("clicks", 0)
             })
         
-        # Impression drop: >10% decrease
-        if prev_impressions > 0 and impressions < prev_impressions * 0.9:
+        # Impression drop: threshold-based percentage decrease
+        impression_drop_pct = ((prev_impressions - impressions) / prev_impressions * 100.0) if prev_impressions > 0 else 0.0
+        if prev_impressions > 0 and impression_drop_pct >= impressions_drop_threshold_pct:
             impression_drops.append({
                 "query": query_name,
                 "old_impressions": prev_impressions,
@@ -395,8 +427,9 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                 "clicks": query_data.get("clicks", 0)
             })
         
-        # CTR drop: >5% decrease
-        if prev_ctr > 0 and ctr < prev_ctr * 0.95:
+        # CTR drop: threshold-based percentage decrease
+        ctr_drop_pct = ((prev_ctr - ctr) / prev_ctr * 100.0) if prev_ctr > 0 else 0.0
+        if prev_ctr > 0 and ctr_drop_pct >= ctr_drop_threshold_pct:
             ctr_drops.append({
                 "query": query_name,
                 "old_ctr": prev_ctr,
@@ -785,6 +818,7 @@ def get_alert_rules(db: Session) -> list[dict]:
             "is_active": alert.is_active,
         }
         for alert, site in rows
+        if _is_supported_alert_type(alert.alert_type)
     ]
 
 
