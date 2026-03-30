@@ -9,73 +9,217 @@
 </div>
 {% endmacro %}
 
+{% macro crux_metric_color_class(label) %}
+{% set normalized = (label or '')|upper %}
+{% if normalized == 'CLS' %}
+text-sky-600
+{% elif normalized == 'TTFB' %}
+text-orange-500
+{% elif normalized == 'FCP' %}
+text-emerald-600
+{% elif normalized == 'INP' %}
+text-rose-600
+{% elif normalized == 'LCP' %}
+text-violet-600
+{% else %}
+text-slate-500
+{% endif %}
+{% endmacro %}
+
 {% macro crux_metric_card(metric) %}
 {% set good_share = metric.good_share if metric.good_share is not none else 0 %}
 {% set width = good_share if good_share <= 100 else 100 %}
-{% set tone = 'emerald' if good_share >= 75 else 'amber' if good_share >= 50 else 'rose' %}
-{% set status_label = 'İyi' if good_share >= 75 else 'Orta' if good_share >= 50 else 'Zayıf' %}
-<div class="rounded-2xl bg-slate-50 p-4">
-  <div class="flex items-start justify-between gap-3">
-    <div>
-      <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
-      <p class="mt-2 text-2xl font-bold text-slate-900">{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
-    </div>
-    <span class="rounded-full px-2.5 py-1 text-xs font-semibold {% if tone == 'emerald' %}bg-emerald-100 text-emerald-700{% elif tone == 'amber' %}bg-amber-100 text-amber-700{% else %}bg-rose-100 text-rose-700{% endif %}">
-      {{ status_label }}
-    </span>
+{% set metric_color_class = crux_metric_color_class(metric.label)|trim %}
+{% set normalized = (metric.label or '')|upper %}
+{% if normalized == 'CLS' %}
+{% set surface_class = 'border-sky-200 bg-gradient-to-b from-sky-50/70 to-white' %}
+{% set fill_class = 'bg-sky-500' %}
+{% elif normalized == 'TTFB' %}
+{% set surface_class = 'border-orange-200 bg-gradient-to-b from-orange-50/70 to-white' %}
+{% set fill_class = 'bg-orange-500' %}
+{% elif normalized == 'FCP' %}
+{% set surface_class = 'border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white' %}
+{% set fill_class = 'bg-emerald-500' %}
+{% elif normalized == 'INP' %}
+{% set surface_class = 'border-rose-200 bg-gradient-to-b from-rose-50/70 to-white' %}
+{% set fill_class = 'bg-rose-500' %}
+{% elif normalized == 'LCP' %}
+{% set surface_class = 'border-violet-200 bg-gradient-to-b from-violet-50/70 to-white' %}
+{% set fill_class = 'bg-violet-500' %}
+{% else %}
+{% set surface_class = 'border-slate-200 bg-gradient-to-b from-slate-50/80 to-white' %}
+{% set fill_class = 'bg-slate-500' %}
+{% endif %}
+<div class="min-w-0 rounded-[1.15rem] border p-2.5 shadow-sm {{ surface_class }}">
+  <div>
+    <p
+      data-fit-text
+      data-fit-max="11"
+      data-fit-min="7.5"
+      class="text-[0.72rem] font-black uppercase tracking-[0.11em] {{ metric_color_class }}"
+      style="font-size: 11px;"
+    >{{ metric.label }}</p>
+    <p
+      data-fit-text
+      data-fit-max="36"
+      data-fit-min="18"
+      class="mt-2.5 text-[clamp(1.55rem,2.45vw,2.2rem)] font-black leading-none tracking-[-0.07em] {{ metric_color_class }}"
+      style="font-size: 36px;"
+    >{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
+    <p
+      data-fit-text
+      data-fit-max="14"
+      data-fit-min="9"
+      class="mt-1.5 text-[clamp(0.8rem,0.96vw,0.92rem)] font-semibold leading-snug text-slate-500"
+      style="font-size: 14px;"
+    >iyi oran {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
   </div>
-  <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
-    <div class="h-full rounded-full {% if tone == 'emerald' %}bg-emerald-500{% elif tone == 'amber' %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ width|max_two_decimals }}%"></div>
-  </div>
-  <div class="mt-2 flex items-center justify-between text-xs">
-    <span class="text-slate-500">İyi oran</span>
-    <span class="font-semibold {% if tone == 'emerald' %}text-emerald-700{% elif tone == 'amber' %}text-amber-700{% else %}text-rose-700{% endif %}">
-      {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%
-    </span>
+  <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/90">
+    <div class="h-full rounded-full {{ fill_class }}" style="width: {{ width|max_two_decimals }}%"></div>
   </div>
 </div>
 {% endmacro %}
 
 {% macro pagespeed_metric_tile(metric) %}
-<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-  <p class="text-xs uppercase tracking-wide text-slate-500">{{ metric.label }}</p>
-  <p class="mt-2 text-xl font-bold text-slate-900">{{ metric.value }}</p>
+{% set metric_value = metric.value|string %}
+{% set metric_parts = metric_value.rsplit(' ', 1) %}
+{% set tone = metric.tone or {} %}
+{% set status_label = tone.status_label|default('N/A') %}
+{% if status_label == 'Iyi' %}
+{% set shell_class = 'border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white' %}
+{% set label_class = 'text-emerald-700' %}
+{% set value_class = 'text-emerald-700' %}
+{% set badge_class = 'bg-emerald-100 text-emerald-700' %}
+{% set bar_class = 'bg-emerald-500' %}
+{% set bar_width = '90%' %}
+{% elif status_label == 'Izlenmeli' %}
+{% set shell_class = 'border-amber-200 bg-gradient-to-b from-amber-50/70 to-white' %}
+{% set label_class = 'text-amber-700' %}
+{% set value_class = 'text-amber-700' %}
+{% set badge_class = 'bg-amber-100 text-amber-700' %}
+{% set bar_class = 'bg-amber-500' %}
+{% set bar_width = '68%' %}
+{% elif status_label == 'Zayif' %}
+{% set shell_class = 'border-rose-200 bg-gradient-to-b from-rose-50/70 to-white' %}
+{% set label_class = 'text-rose-700' %}
+{% set value_class = 'text-rose-700' %}
+{% set badge_class = 'bg-rose-100 text-rose-700' %}
+{% set bar_class = 'bg-rose-500' %}
+{% set bar_width = '42%' %}
+{% else %}
+{% set shell_class = 'border-slate-200 bg-gradient-to-b from-slate-50/80 to-white' %}
+{% set label_class = 'text-slate-600' %}
+{% set value_class = 'text-slate-900' %}
+{% set badge_class = 'bg-slate-100 text-slate-600' %}
+{% set bar_class = 'bg-slate-400' %}
+{% set bar_width = '50%' %}
+{% endif %}
+{% set hint_map = {
+  'First Contentful Paint': 'ilk boyama hizi',
+  'Largest Contentful Paint': 'ana icerik hizi',
+  'Total Blocking Time': 'ana thread blokaji',
+  'Cumulative Layout Shift': 'gorsel stabilite',
+  'Speed Index': 'gorunur yuklenme hizi'
+} %}
+<div class="min-w-0 rounded-[1.2rem] border p-2.5 shadow-sm {{ shell_class }}">
+  <div class="min-w-0">
+    <p
+      data-fit-text
+      data-fit-max="10"
+      data-fit-min="7.5"
+      class="min-w-0 uppercase leading-[1.18] tracking-[0.09em] font-black {{ label_class }}"
+      style="font-size: 10px;"
+    >{{ metric.label }}</p>
+  </div>
+  {% if metric_parts|length > 1 and metric_parts[1] %}
+  <div
+    data-fit-text
+    data-fit-max="30"
+    data-fit-min="16"
+    class="mt-3 flex max-w-full items-end gap-x-1 {{ value_class }}"
+    style="font-size: 30px;"
+  >
+    <span class="font-black leading-none tracking-[-0.06em]" style="font-size: 1em;">{{ metric_parts[0] }}</span>
+    <span class="whitespace-nowrap font-bold leading-none opacity-90" style="font-size: 0.44em;">{{ metric_parts[1] }}</span>
+  </div>
+  {% else %}
+  <p
+    data-fit-text
+    data-fit-max="30"
+    data-fit-min="16"
+    class="mt-3 max-w-full font-black leading-none tracking-[-0.06em] {{ value_class }}"
+    style="font-size: 30px;"
+  >{{ metric_value }}</p>
+  {% endif %}
+  <p
+    data-fit-text
+    data-fit-max="12"
+    data-fit-min="9"
+    class="mt-1.5 text-[0.76rem] font-semibold leading-snug text-slate-500"
+    style="font-size: 12px;"
+  >{{ hint_map.get(metric.label, 'olcum ozeti') }}</p>
+  <div class="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/90">
+    <div class="h-full rounded-full {{ bar_class }}" style="width: {{ bar_width }}"></div>
+  </div>
 </div>
 {% endmacro %}
 
 {% macro pagespeed_audit_item(item) %}
-<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+{% set tone = item.priority|default('MEDIUM') %}
+{% if tone == 'CRITICAL' %}
+{% set shell_class = 'border-rose-200 bg-rose-50/80' %}
+{% set title_class = 'text-rose-700' %}
+{% set badge_class = 'bg-rose-100 text-rose-700 ring-1 ring-rose-200' %}
+{% set problem_tr_class = 'text-rose-700' %}
+{% elif tone == 'HIGH' %}
+{% set shell_class = 'border-amber-200 bg-amber-50/80' %}
+{% set title_class = 'text-amber-700' %}
+{% set badge_class = 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' %}
+{% set problem_tr_class = 'text-amber-700' %}
+{% elif tone == 'LOW' %}
+{% set shell_class = 'border-emerald-200 bg-emerald-50/70' %}
+{% set title_class = 'text-emerald-700' %}
+{% set badge_class = 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' %}
+{% set problem_tr_class = 'text-emerald-700' %}
+{% else %}
+{% set shell_class = 'border-sky-200 bg-sky-50/70' %}
+{% set title_class = 'text-sky-700' %}
+{% set badge_class = 'bg-sky-100 text-sky-700 ring-1 ring-sky-200' %}
+{% set problem_tr_class = 'text-sky-700' %}
+{% endif %}
+<div class="rounded-2xl border p-4 {{ shell_class }}">
   <div class="flex items-start justify-between gap-3">
     <div>
-      <p class="font-semibold text-slate-900">{{ item.title_en or item.title }}</p>
+      <p class="font-semibold text-slate-900">{{ (item.title_en or item.title)|e }}</p>
       {% if item.title_tr %}
-      <p class="mt-1 text-sm text-slate-600">{{ item.title_tr }}</p>
+      <p class="mt-1 text-sm font-medium {{ title_class }}">{{ item.title_tr|e }}</p>
       {% endif %}
     </div>
-    {% if item.display_value %}
-    <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ item.display_value }}</span>
-    {% endif %}
+    <div class="flex shrink-0 items-center gap-2">
+      {% if item.state_label_tr %}
+      <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold {{ badge_class }}">{{ item.state_label_tr|e }}</span>
+      {% endif %}
+      {% if item.display_value %}
+      <span class="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{{ item.display_value|e }}</span>
+      {% endif %}
+    </div>
   </div>
   {% if item.problem_en or item.problem %}
-  <p class="mt-3 text-sm text-slate-700">{{ item.problem_en or item.problem }}</p>
+  <p class="mt-3 text-sm text-slate-700">{{ (item.problem_en or item.problem)|e }}</p>
   {% endif %}
   {% if item.problem_tr %}
-  <p class="mt-2 text-sm text-slate-700">{{ item.problem_tr }}</p>
+  <p class="mt-2 text-sm font-medium {{ problem_tr_class }}">{{ item.problem_tr|e }}</p>
   {% endif %}
 </div>
 {% endmacro %}
 
-<div id="data-explorer-shell" class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('Data Explorer')|e }}">
+<div id="data-explorer-shell" class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('PageSpeed')|e }}">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Veri Ambarı Gezgini</p>
+      <p class="text-sm uppercase tracking-[0.18em] text-slate-500">PageSpeed</p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900">{{ domain }}</h3>
-      <p class="mt-2 max-w-3xl text-sm text-slate-600">
-        CrUX History, URL Inspection ve biriken warehouse kayıtlarını tek ekranda gör.
-      </p>
     </div>
     <div class="flex items-center gap-3">
-      <a href="/site/{{ domain }}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900">Site Detayı</a>
       <button
         type="button"
         id="refresh-data-explorer"
@@ -91,41 +235,49 @@
     <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">CrUX History</p>
           <h4 class="text-xl font-semibold text-slate-900">Mobil</h4>
-          <p class="mt-2 text-sm text-slate-600">{{ crux_mobile_status.description }}</p>
-          <p class="mt-1 text-xs text-slate-500">Kutular guncel CrUX record degerlerini, grafik ise history serisini gosterir.</p>
+          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 gunluk crux gercek kullanici verisini gosterir.</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
-      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        class="mt-5 grid auto-rows-fr gap-2.5"
+        data-crux-grid
+        data-preferred-columns="5"
+        data-min-card-width="102"
+        style="grid-template-columns: repeat(5, minmax(0, 1fr));"
+      >
         {% for metric in crux_mobile_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz mobil CrUX history snapshot yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz mobil CrUX history snapshot yok.</div>
         {% endfor %}
       </div>
-      <div id="crux-mobile-chart" class="mt-4 h-[340px]" data-series='{{ crux_mobile_series|tojson }}'></div>
+      <div id="crux-mobile-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_mobile_series|tojson }}'></div>
     </section>
 
     <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-sm uppercase tracking-[0.18em] text-slate-500">CrUX History</p>
           <h4 class="text-xl font-semibold text-slate-900">Masaüstü</h4>
-          <p class="mt-2 text-sm text-slate-600">{{ crux_desktop_status.description }}</p>
-          <p class="mt-1 text-xs text-slate-500">Kutular guncel CrUX record degerlerini, grafik ise history serisini gosterir.</p>
+          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 gunluk crux gercek kullanici verisini gosterir.</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>
-      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        class="mt-5 grid auto-rows-fr gap-2.5"
+        data-crux-grid
+        data-preferred-columns="5"
+        data-min-card-width="102"
+        style="grid-template-columns: repeat(5, minmax(0, 1fr));"
+      >
         {% for metric in crux_desktop_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">Henüz masaüstü CrUX history snapshot yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz masaüstü CrUX history snapshot yok.</div>
         {% endfor %}
       </div>
-      <div id="crux-desktop-chart" class="mt-4 h-[340px]" data-series='{{ crux_desktop_series|tojson }}'></div>
+      <div id="crux-desktop-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_desktop_series|tojson }}'></div>
     </section>
   </div>
 
@@ -140,32 +292,84 @@
 
     <div class="mt-5 grid items-start gap-5 lg:grid-cols-2">
       {% for report in [pagespeed_report_mobile, pagespeed_report_desktop] %}
-      <section class="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+      <section class="h-fit overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0 flex-1">
             <p class="text-sm uppercase tracking-[0.18em] text-slate-500">{{ report.strategy_label }}</p>
             <h5 class="text-xl font-semibold text-slate-900">PageSpeed Insights {{ report.strategy_label }}</h5>
+            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan son lighthouse psi lab olcumunden uretilir.</p>
             <p class="mt-2 text-sm text-slate-600">Report zamanı: {{ report.report_time }}</p>
             {% if report.final_url %}
-            <p class="mt-1 break-all text-xs text-slate-500">Final URL: {{ report.final_url }}</p>
+            <p class="mt-1 break-words text-xs text-slate-500">Final URL: {{ report.final_url }}</p>
             {% elif report.requested_url %}
-            <p class="mt-1 break-all text-xs text-slate-500">URL: {{ report.requested_url }}</p>
+            <p class="mt-1 break-words text-xs text-slate-500">URL: {{ report.requested_url }}</p>
             {% endif %}
           </div>
-          <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ report.cwv_badge_class }}">Core Web Vitals: {{ report.cwv_label }}</span>
+          <span class="max-w-full shrink-0 self-start rounded-full border px-3 py-1 text-xs font-semibold leading-tight {{ report.cwv_badge_class }}">Core Web Vitals: {{ report.cwv_label }}</span>
         </div>
 
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div
+          class="mt-4 grid auto-rows-fr items-stretch gap-2"
+          data-pagespeed-metric-grid
+          data-preferred-columns="5"
+          data-min-card-width="112"
+          style="grid-template-columns: repeat(5, minmax(0, 1fr));"
+        >
           {% for metric in report.metric_tiles %}
           {{ pagespeed_metric_tile(metric) }}
           {% endfor %}
         </div>
 
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="mt-4 grid auto-rows-fr items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {% for score in report.score_tiles %}
-          <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">{{ score.label }}</p>
-            <p class="mt-2 text-2xl font-bold {{ score.tone }}">{{ score.value }}</p>
+          {% set score_value = score.value|int %}
+          {% set ring_circumference = 232 %}
+          {% set ring_dash = (ring_circumference * (score_value / 100))|round(0, 'common')|int %}
+          {% if score_value >= 90 %}
+          {% set ring_stroke = '#10b981' %}
+          {% set score_shell = 'border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white' %}
+          {% set score_label = 'text-emerald-700' %}
+          {% elif score_value >= 50 %}
+          {% set ring_stroke = '#f59e0b' %}
+          {% set score_shell = 'border-amber-200 bg-gradient-to-b from-amber-50/70 to-white' %}
+          {% set score_label = 'text-amber-700' %}
+          {% else %}
+          {% set ring_stroke = '#f43f5e' %}
+          {% set score_shell = 'border-rose-200 bg-gradient-to-b from-rose-50/70 to-white' %}
+          {% set score_label = 'text-rose-700' %}
+          {% endif %}
+          <div class="flex h-full min-h-[10.5rem] min-w-0 flex-col items-center justify-center gap-4 rounded-[1.8rem] border px-4 py-5 text-center shadow-sm {{ score_shell }}">
+            <div class="relative flex h-24 w-24 items-center justify-center">
+              <svg class="h-full w-full -rotate-90" viewBox="0 0 84 84" aria-hidden="true">
+                <circle cx="42" cy="42" r="37" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
+                <circle
+                  cx="42"
+                  cy="42"
+                  r="37"
+                  fill="none"
+                  stroke="{{ ring_stroke }}"
+                  stroke-width="6"
+                  stroke-dasharray="{{ ring_dash }} {{ ring_circumference }}"
+                  stroke-linecap="round"
+                ></circle>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <p
+                  data-fit-text
+                  data-fit-max="36"
+                  data-fit-min="20"
+                  class="max-w-full text-center font-black leading-none tracking-[-0.05em] {{ score.tone }}"
+                  style="font-size: 36px;"
+                >{{ score_value }}</p>
+              </div>
+            </div>
+            <p
+              data-fit-text
+              data-fit-max="12"
+              data-fit-min="9"
+              class="max-w-full px-2 text-center uppercase leading-4 tracking-[0.12em] font-black {{ score_label }}"
+              style="font-size: 12px;"
+            >{{ score.label }}</p>
           </div>
           {% endfor %}
         </div>
@@ -186,15 +390,15 @@
             <div class="mt-4 space-y-4">
               {% for section in category.sections %}
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p class="text-sm font-semibold text-slate-900">{{ section.title_en }}</p>
+                <p class="text-sm font-semibold text-slate-900">{{ section.title_en|e }}</p>
                 {% if section.title_tr %}
-                <p class="mt-1 text-sm text-slate-600">{{ section.title_tr }}</p>
+                <p class="mt-1 text-sm text-slate-600">{{ section.title_tr|e }}</p>
                 {% endif %}
                 {% if section.description_en %}
-                <p class="mt-2 text-sm text-slate-700">{{ section.description_en }}</p>
+                <p class="mt-2 text-sm text-slate-700">{{ section.description_en|e }}</p>
                 {% endif %}
                 {% if section.description_tr %}
-                <p class="mt-1 text-sm text-slate-700">{{ section.description_tr }}</p>
+                <p class="mt-1 text-sm text-slate-700">{{ section.description_tr|e }}</p>
                 {% endif %}
                 <div class="mt-4 space-y-3">
                   {% for item in section['items'] %}
@@ -261,8 +465,6 @@
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500">URL Inspection</p>
         <h4 class="text-xl font-semibold text-slate-900">Index / Canonical / Crawl Durumu</h4>
-        <p class="mt-2 text-sm text-slate-600">{{ url_inspection_status.description }}</p>
-        <p class="mt-1 text-xs text-slate-500">Bu alan Google’ın son inspection kaydından indekslenme, canonical ve erişim durumunu özetler.</p>
       </div>
       <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ url_inspection_status.badge_class }}">{{ url_inspection_status.label }}</span>
     </div>
@@ -305,7 +507,6 @@
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Warehouse Özeti</p>
         <h4 class="text-xl font-semibold text-slate-900">Kayıt Sayaçları</h4>
-        <p class="mt-2 text-sm text-slate-600">Bu kutular arka planda biriken veri hacmini gösterir; sayı yüksekse o kaynaktan daha fazla geçmiş ve detay saklanıyordur.</p>
       </div>
     </div>
     <div class="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
@@ -321,21 +522,94 @@
 
 <script>
   (function () {
+    function applyPreferredGridLayout(selector) {
+      document.querySelectorAll(selector).forEach(function (grid) {
+        const width = grid.clientWidth || 0;
+        const preferred = Number(grid.dataset.preferredColumns || 5);
+        const minCardWidth = Number(grid.dataset.minCardWidth || 140);
+        const approxGap = 12;
+        const fitted = Math.floor((width + approxGap) / (minCardWidth + approxGap));
+        const columns = Math.max(1, Math.min(preferred, fitted || 1));
+        grid.style.gridTemplateColumns = 'repeat(' + columns + ', minmax(0, 1fr))';
+      });
+    }
+
+    function applyCruxGridLayout() {
+      applyPreferredGridLayout('[data-crux-grid]');
+    }
+
+    function applyPagespeedMetricGridLayout() {
+      applyPreferredGridLayout('[data-pagespeed-metric-grid]');
+    }
+
+    function resizeCruxCharts() {
+      if (typeof Plotly === 'undefined') {
+        return;
+      }
+      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
+        const element = document.getElementById(elementId);
+        if (!element || element.dataset.chartReady !== '1') {
+          return;
+        }
+        window.requestAnimationFrame(function () {
+          Plotly.Plots.resize(element);
+        });
+      });
+    }
+
+    function fitTextInElement(element) {
+      if (!element) {
+        return;
+      }
+      const max = Number(element.dataset.fitMax || 16);
+      const min = Number(element.dataset.fitMin || 10);
+      const step = 0.5;
+      element.style.fontSize = max + 'px';
+      for (let size = max; size >= min; size -= step) {
+        element.style.fontSize = size + 'px';
+        if (element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1) {
+          break;
+        }
+      }
+    }
+
+    function applyResponsiveFits() {
+      document.querySelectorAll('[data-fit-text]').forEach(function (element) {
+        fitTextInElement(element);
+      });
+    }
+
     function renderCruxChart(elementId) {
       const element = document.getElementById(elementId);
       if (!element || typeof Plotly === 'undefined') {
         return;
       }
+      if (element.dataset.chartReady === '1') {
+        resizeCruxCharts();
+        return;
+      }
       const raw = JSON.parse(element.dataset.series || '{}');
+      function metricColor(label) {
+        const normalized = String(label || '').toUpperCase();
+        if (normalized === 'CLS') return '#0ea5e9';
+        if (normalized === 'TTFB') return '#f97316';
+        if (normalized === 'FCP') return '#16a34a';
+        if (normalized === 'INP') return '#e11d48';
+        if (normalized === 'LCP') return '#8b5cf6';
+        return '#475569';
+      }
       const traces = Object.keys(raw).map(function (key) {
         const metric = raw[key] || {};
         const chart = metric.chart || { x: [], y: [] };
+        const traceColor = metricColor(metric.label || key.toUpperCase());
         return {
           x: chart.x,
           y: chart.y,
           type: 'scatter',
           mode: 'lines+markers',
           name: metric.label || key.toUpperCase(),
+          line: { color: traceColor, width: 3 },
+          marker: { color: traceColor, size: 7 },
         };
       }).filter(function (trace) { return trace.x && trace.x.length; });
       if (!traces.length) {
@@ -343,17 +617,63 @@
         return;
       }
       Plotly.newPlot(element, traces, {
+        autosize: true,
         margin: { t: 10, r: 20, b: 50, l: 50 },
         paper_bgcolor: 'white',
         plot_bgcolor: 'white',
-        xaxis: { color: '#475569' },
-        yaxis: { color: '#475569' },
-        legend: { orientation: 'h', y: 1.12 }
-      }, { displayModeBar: false, responsive: true });
+        xaxis: { color: '#475569', automargin: true },
+        yaxis: { color: '#475569', automargin: true },
+        legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11 } }
+      }, { displayModeBar: false, responsive: true }).then(function () {
+        element.dataset.chartReady = '1';
+        resizeCruxCharts();
+        window.setTimeout(resizeCruxCharts, 150);
+      });
     }
 
     renderCruxChart('crux-mobile-chart');
     renderCruxChart('crux-desktop-chart');
+    applyCruxGridLayout();
+    applyPagespeedMetricGridLayout();
+    applyResponsiveFits();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const shell = document.getElementById('data-explorer-shell');
+      if (shell && !shell.dataset.fitObserverBound) {
+        shell.dataset.fitObserverBound = '1';
+        const observer = new ResizeObserver(function () {
+          applyCruxGridLayout();
+          applyPagespeedMetricGridLayout();
+          applyResponsiveFits();
+          resizeCruxCharts();
+        });
+        observer.observe(shell);
+      }
+
+      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
+        const element = document.getElementById(elementId);
+        if (!element || !element.parentElement || element.dataset.resizeObserverBound === '1') {
+          return;
+        }
+        element.dataset.resizeObserverBound = '1';
+        const observer = new ResizeObserver(function () {
+          applyCruxGridLayout();
+          applyPagespeedMetricGridLayout();
+          resizeCruxCharts();
+        });
+        observer.observe(element.parentElement);
+      });
+    }
+
+    if (!window.__dataExplorerFitResizeBound) {
+      window.__dataExplorerFitResizeBound = true;
+      window.addEventListener('resize', function () {
+        applyCruxGridLayout();
+        applyPagespeedMetricGridLayout();
+        applyResponsiveFits();
+        resizeCruxCharts();
+      });
+    }
 
     const refreshButton = document.getElementById('refresh-data-explorer');
     if (refreshButton && !refreshButton.dataset.bound) {

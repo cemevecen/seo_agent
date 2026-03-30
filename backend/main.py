@@ -41,8 +41,7 @@ from backend.collectors.pagespeed import (
     fetch_live_lighthouse_category_scores,
     get_latest_pagespeed_audit_snapshot,
 )
-from backend.collectors.search_console import get_top_queries
-from backend.collectors.search_console import collect_search_console_metrics
+from backend.collectors.search_console import collect_search_console_alert_metrics, collect_search_console_metrics, get_top_queries
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
@@ -55,6 +54,7 @@ from backend.services.search_console_auth import build_oauth_flow, decode_oauth_
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
+from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
     get_latest_search_console_rows,
@@ -183,7 +183,7 @@ def _latest_value_from_history(history: dict[str, list[dict]], metric_type: str,
 def _format_metric_timestamp(metric) -> str:
     if metric is None:
         return "Henuz veri yok"
-    return metric.collected_at.strftime("%d.%m.%Y %H:%M")
+    return format_local_datetime(metric.collected_at, fallback="Henuz veri yok")
 
 
 def _extract_client_ip(request: Request) -> str:
@@ -263,11 +263,27 @@ def on_shutdown() -> None:
         SCHEDULER = None
 
 
+def _preferred_site_order_key(domain: str | None, display_name: str | None = None) -> tuple[int, str]:
+    normalized_domain = str(domain or "").lower()
+    preferred_domains = {
+        "doviz.com": 0,
+        "www.doviz.com": 0,
+        "sinemalar.com": 1,
+        "www.sinemalar.com": 1,
+    }
+    return (
+        preferred_domains.get(normalized_domain, 99),
+        str(display_name or "").lower(),
+    )
+
+
 def get_sidebar_sites() -> list[dict]:
     # Sidebar için aktif siteler veritabanından okunur.
     with SessionLocal() as db:
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
-        return [{"domain": site.domain, "label": site.display_name} for site in sites]
+        rows = [{"domain": site.domain, "label": site.display_name} for site in sites]
+        rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
+        return rows
 
 
 def _settings_sites_payload(db) -> list[dict]:
@@ -289,29 +305,25 @@ def _settings_sites_payload(db) -> list[dict]:
 def _format_optional_datetime(value: datetime | None) -> str:
     if value is None:
         return "Henuz tetiklenmedi"
-    return value.strftime("%d.%m.%Y %H:%M")
+    return format_local_datetime(value, fallback="Henuz tetiklenmedi")
 
 
-def _latest_provider_run(db, *, site_id: int, provider: str) -> CollectorRun | None:
-    return (
-        db.query(CollectorRun)
-        .filter(CollectorRun.site_id == site_id, CollectorRun.provider == provider)
-        .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
-        .first()
+def _latest_provider_run(db, *, site_id: int, provider: str, strategy: str | None = None) -> CollectorRun | None:
+    query = db.query(CollectorRun).filter(CollectorRun.site_id == site_id, CollectorRun.provider == provider)
+    if strategy is not None:
+        query = query.filter(CollectorRun.strategy == strategy)
+    return query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc()).first()
+
+
+def _latest_successful_provider_summary(db, *, site_id: int, provider: str, strategy: str | None = None) -> dict:
+    query = db.query(CollectorRun).filter(
+        CollectorRun.site_id == site_id,
+        CollectorRun.provider == provider,
+        CollectorRun.status == "success",
     )
-
-
-def _latest_successful_provider_summary(db, *, site_id: int, provider: str) -> dict:
-    run = (
-        db.query(CollectorRun)
-        .filter(
-            CollectorRun.site_id == site_id,
-            CollectorRun.provider == provider,
-            CollectorRun.status == "success",
-        )
-        .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
-        .first()
-    )
+    if strategy is not None:
+        query = query.filter(CollectorRun.strategy == strategy)
+    run = query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc()).first()
     if run is None:
         return {}
     try:
@@ -436,6 +448,16 @@ def _build_search_console_top_queries(current_rows: list[dict], previous_rows: l
 
 def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
+    if str(sanitized.get("mode") or "") == "last_28d":
+        clicks = list(sanitized.get("clicks") or [])
+        positions = list(sanitized.get("position") or [])
+        for index in range(min(len(clicks), len(positions))):
+            if float(clicks[index] or 0.0) == 0.0 and float(positions[index] or 0.0) == 0.0:
+                clicks[index] = None
+                positions[index] = None
+        sanitized["clicks"] = clicks
+        sanitized["position"] = positions
+        return sanitized
     for prefix in ("current", "previous"):
         clicks_key = f"{prefix}_clicks"
         position_key = f"{prefix}_position"
@@ -453,22 +475,33 @@ def _sanitize_search_console_trend(trend: dict) -> dict:
 def _search_console_report_payload(db, *, site_id: int) -> dict:
     current_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
     previous_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
-    summary_payload = _latest_successful_provider_summary(db, site_id=site_id, provider="search_console")
+    summary_payload = _latest_successful_provider_summary(
+        db,
+        site_id=site_id,
+        provider="search_console",
+        strategy="all",
+    )
     current_summary = summary_payload.get("current_7d_summary") or _summarize_search_console_rows(current_rows)
     previous_summary = summary_payload.get("previous_7d_summary") or _summarize_search_console_rows(previous_rows)
     current_summary_by_device = summary_payload.get("current_7d_summary_by_device") or {}
     previous_summary_by_device = summary_payload.get("previous_7d_summary_by_device") or {}
-    trend_summary = _sanitize_search_console_trend(summary_payload.get("trend_7d_summary") or {
-        "labels": [str(index) for index in range(1, 8)],
-        "previous_dates": [],
-        "current_dates": [],
-        "previous_clicks": [],
-        "current_clicks": [],
-        "previous_position": [],
-        "current_position": [],
-    })
+    trend_summary = _sanitize_search_console_trend(
+        summary_payload.get("trend_28d_summary")
+        or summary_payload.get("trend_7d_summary")
+        or {
+            "mode": "last_28d",
+            "labels": [],
+            "dates": [],
+            "clicks": [],
+            "position": [],
+        }
+    )
     top_queries = _build_search_console_top_queries(current_rows, previous_rows, limit=50)
-    trend_summary_by_device = summary_payload.get("trend_7d_summary_by_device") or {}
+    trend_summary_by_device = (
+        summary_payload.get("trend_28d_summary_by_device")
+        or summary_payload.get("trend_7d_summary_by_device")
+        or {}
+    )
 
     views: dict[str, dict] = {}
     for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
@@ -476,13 +509,11 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         filtered_current_rows = _filter_search_console_rows_by_device(current_rows, device_code)
         filtered_previous_rows = _filter_search_console_rows_by_device(previous_rows, device_code)
         device_trend = _sanitize_search_console_trend(trend_summary_by_device.get(device_code) or {
-            "labels": [str(index) for index in range(1, 8)],
-            "previous_dates": [],
-            "current_dates": [],
-            "previous_clicks": [],
-            "current_clicks": [],
-            "previous_position": [],
-            "current_position": [],
+            "mode": "last_28d",
+            "labels": [],
+            "dates": [],
+            "clicks": [],
+            "position": [],
         })
         device_top_queries = _build_search_console_top_queries(filtered_current_rows, filtered_previous_rows, limit=50)
         views[device_key] = {
@@ -509,11 +540,15 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 def _search_console_sites_payload(db) -> list[dict]:
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
     rows: list[dict] = []
+    schedule_label = (
+        f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+        f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+    )
     for site in sites:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         status = _search_console_status(db, latest, site.id)
         connection = get_search_console_connection_status(db, site.id)
-        last_run = _latest_provider_run(db, site_id=site.id, provider="search_console")
+        last_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
         cooldown_active = _latest_collector_run_recent(
             db,
             site_id=site.id,
@@ -532,10 +567,11 @@ def _search_console_sites_payload(db) -> list[dict]:
                 "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
                 "last_run_error": str(last_run.error_message or "") if last_run else "",
                 "cooldown_active": cooldown_active,
-                "manual_mode_label": "05:00 otomatik + manuel",
+                "manual_mode_label": f"{schedule_label} otomatik + manuel",
                 "report": _search_console_report_payload(db, site_id=site.id),
             }
         )
+    rows.sort(key=lambda row: _preferred_site_order_key(row.get("domain"), row.get("display_name")))
     return rows
 
 
@@ -579,6 +615,33 @@ def _run_daily_search_console_refresh_job() -> None:
         DAILY_REFRESH_LOCK.release()
 
 
+def _run_daily_alert_refresh_job() -> None:
+    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Daily alert refresh skipped because another scheduled job is still in progress.")
+        return
+
+    try:
+        LOGGER.info("Daily alert refresh started.")
+        with SessionLocal() as db:
+            sites = _active_sites(db)
+
+            for index, site in enumerate(sites):
+                LOGGER.info("Daily alert refresh processing site=%s", site.domain)
+                try:
+                    collect_search_console_alert_metrics(db, site, send_notifications=True)
+                    db.commit()
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    LOGGER.warning("Daily alert refresh failed for %s: %s", site.domain, exc)
+
+                if index < len(sites) - 1:
+                    time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+        LOGGER.info("Daily alert refresh completed.")
+    finally:
+        DAILY_REFRESH_LOCK.release()
+
+
 def _run_daily_refresh_job() -> None:
     if not DAILY_REFRESH_LOCK.acquire(blocking=False):
         LOGGER.info("Daily refresh skipped because a previous run is still in progress.")
@@ -614,7 +677,7 @@ def _run_daily_refresh_job() -> None:
                     db.rollback()
                     LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
 
-                if include_search_console:
+                if connection.get("connected"):
                     try:
                         collect_url_inspection(db, site)
                         db.commit()
@@ -639,6 +702,22 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
 
     scheduler = BackgroundScheduler(timezone=timezone)
     job_count = 0
+
+    if settings.alerts_scheduled_refresh_enabled:
+        scheduler.add_job(
+            _run_daily_alert_refresh_job,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.alerts_scheduled_refresh_hour))),
+                minute=max(0, min(59, int(settings.alerts_scheduled_refresh_minute))),
+                timezone=timezone,
+            ),
+            id="daily-alert-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
 
     if settings.search_console_scheduled_refresh_enabled:
         scheduler.add_job(
@@ -1348,13 +1427,12 @@ def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple
 def _format_pagespeed_report_time(value: datetime | None, fallback_iso: str = "") -> str:
     if fallback_iso:
         try:
-            normalized = fallback_iso.replace("Z", "+00:00")
-            return datetime.fromisoformat(normalized).astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
+            return format_datetime_like(fallback_iso)
         except Exception:
             pass
     if value is None:
         return "N/A"
-    return value.strftime("%d.%m.%Y %H:%M")
+    return format_local_datetime(value)
 
 
 def _pagespeed_overall_category_label(value: str) -> tuple[str, str]:
@@ -1366,6 +1444,59 @@ def _pagespeed_overall_category_label(value: str) -> tuple[str, str]:
     if normalized == "SLOW":
         return "Failed", "border-rose-200 bg-rose-50 text-rose-700"
     return "N/A", "border-slate-200 bg-slate-50 text-slate-600"
+
+
+def _pagespeed_metric_numeric_value(audit: dict, fallback_value: float | None = None) -> float | None:
+    numeric_value = audit.get("numericValue")
+    if numeric_value is not None:
+        return float(numeric_value)
+    if fallback_value is not None:
+        return float(fallback_value)
+    return None
+
+
+def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict[str, str]:
+    if numeric_value is None:
+        return {
+            "shell_class": "border-slate-200 bg-slate-50",
+            "label_class": "text-slate-500",
+            "value_class": "text-slate-900",
+            "badge_class": "bg-slate-100 text-slate-600",
+            "status_label": "N/A",
+        }
+
+    thresholds = {
+        "fcp": (1800.0, 3000.0),
+        "lcp": (2500.0, 4000.0),
+        "tbt": (200.0, 600.0),
+        "speed_index": (3400.0, 5800.0),
+        "cls": (0.1, 0.25),
+    }
+    good_threshold, needs_attention_threshold = thresholds.get(metric_key, (0.0, 0.0))
+
+    if numeric_value <= good_threshold:
+        return {
+            "shell_class": "border-emerald-200 bg-emerald-50/70",
+            "label_class": "text-emerald-700",
+            "value_class": "text-emerald-700",
+            "badge_class": "bg-emerald-100 text-emerald-700",
+            "status_label": "Iyi",
+        }
+    if numeric_value <= needs_attention_threshold:
+        return {
+            "shell_class": "border-amber-200 bg-amber-50/70",
+            "label_class": "text-amber-700",
+            "value_class": "text-amber-700",
+            "badge_class": "bg-amber-100 text-amber-700",
+            "status_label": "Izlenmeli",
+        }
+    return {
+        "shell_class": "border-rose-200 bg-rose-50/70",
+        "label_class": "text-rose-700",
+        "value_class": "text-rose-700",
+        "badge_class": "bg-rose-100 text-rose-700",
+        "status_label": "Zayif",
+    }
 
 
 def _format_pagespeed_metric_display(audit: dict, fallback_value: float | None = None, metric_type: str = "timing") -> str:
@@ -1397,34 +1528,68 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
 
     metric_tiles = [
         {
+            "key": "fcp",
             "label": "First Contentful Paint",
             "value": _format_pagespeed_metric_display(
                 audits.get("first-contentful-paint") or {},
                 field_metrics.get("first_contentful_paint", {}).get("latest"),
             ),
+            "tone": _pagespeed_metric_tone(
+                "fcp",
+                _pagespeed_metric_numeric_value(
+                    audits.get("first-contentful-paint") or {},
+                    field_metrics.get("first_contentful_paint", {}).get("latest"),
+                ),
+            ),
         },
         {
+            "key": "lcp",
             "label": "Largest Contentful Paint",
             "value": _format_pagespeed_metric_display(
                 audits.get("largest-contentful-paint") or {},
                 field_metrics.get("largest_contentful_paint", {}).get("latest"),
             ),
+            "tone": _pagespeed_metric_tone(
+                "lcp",
+                _pagespeed_metric_numeric_value(
+                    audits.get("largest-contentful-paint") or {},
+                    field_metrics.get("largest_contentful_paint", {}).get("latest"),
+                ),
+            ),
         },
         {
+            "key": "tbt",
             "label": "Total Blocking Time",
             "value": _format_pagespeed_metric_display(audits.get("total-blocking-time") or {}),
+            "tone": _pagespeed_metric_tone(
+                "tbt",
+                _pagespeed_metric_numeric_value(audits.get("total-blocking-time") or {}),
+            ),
         },
         {
+            "key": "cls",
             "label": "Cumulative Layout Shift",
             "value": _format_pagespeed_metric_display(
                 audits.get("cumulative-layout-shift") or {},
                 field_metrics.get("cumulative_layout_shift", {}).get("latest"),
                 metric_type="cls",
             ),
+            "tone": _pagespeed_metric_tone(
+                "cls",
+                _pagespeed_metric_numeric_value(
+                    audits.get("cumulative-layout-shift") or {},
+                    field_metrics.get("cumulative_layout_shift", {}).get("latest"),
+                ),
+            ),
         },
         {
+            "key": "speed_index",
             "label": "Speed Index",
             "value": _format_pagespeed_metric_display(audits.get("speed-index") or {}),
+            "tone": _pagespeed_metric_tone(
+                "speed_index",
+                _pagespeed_metric_numeric_value(audits.get("speed-index") or {}),
+            ),
         },
     ]
 
@@ -1524,6 +1689,13 @@ def _data_explorer_context(domain: str) -> dict:
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
         inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
+        if inspection and inspection.get("summary"):
+            inspection_summary = dict(inspection.get("summary") or {})
+            inspection_summary["last_crawl_time"] = format_datetime_like(
+                inspection_summary.get("last_crawl_time"),
+                fallback="N/A",
+            )
+            inspection = {**inspection, "summary": inspection_summary}
 
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
@@ -1545,7 +1717,7 @@ def _data_explorer_context(domain: str) -> dict:
         )
 
         return {
-            "site_name": f"Data Explorer - {site.display_name}",
+            "site_name": f"PageSpeed - {site.display_name}",
             "sites": get_sidebar_sites(),
             "domain": site.domain,
             "warehouse_summary": warehouse,
@@ -1565,11 +1737,23 @@ def _data_explorer_context(domain: str) -> dict:
 def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
-        sites = db.query(Site).order_by(Site.created_at.desc()).all()
-        return [_build_dashboard_card(db, site) for site in sites]
+        recent_alerts = get_recent_alerts(db, limit=100)
+        return _dashboard_cards_with_db(db, recent_alerts_cache=recent_alerts)
 
 
-def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> dict:
+def _dashboard_cards_with_db(db, *, recent_alerts_cache: list[dict] | None = None) -> list[dict]:
+    sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    cards = [_build_dashboard_card(db, site, recent_alerts_cache=recent_alerts_cache) for site in sites]
+    cards.sort(key=lambda card: _preferred_site_order_key(card.get("domain"), card.get("display_name")))
+    return cards
+
+
+def _build_dashboard_card(
+    db,
+    site: Site,
+    flash_message: str | None = None,
+    recent_alerts_cache: list[dict] | None = None,
+) -> dict:
     ensure_site_alerts(db, site)
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
@@ -1582,7 +1766,8 @@ def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> d
     available_metrics = [metric for metric in latest.values()]
     last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
     pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
-    recent_site_alerts = [alert for alert in get_recent_alerts(db, limit=20) if alert["domain"] == site.domain][:5]
+    alert_rows = recent_alerts_cache if recent_alerts_cache is not None else get_recent_alerts(db, limit=100)
+    recent_site_alerts = [alert for alert in alert_rows if alert["domain"] == site.domain][:6]
     pagespeed_status_alerts = [
         alert["message"]
         for alert in recent_site_alerts
@@ -1590,14 +1775,34 @@ def _build_dashboard_card(db, site: Site, flash_message: str | None = None) -> d
     ]
     mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
     desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
+    search_console_status = _search_console_status(db, latest, site.id)
+    search_console_report = _search_console_report_payload(db, site_id=site.id)
+    search_console_summary = search_console_report.get("summary_current") or {}
+    search_console_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
     return {
         "id": site.id,
+        "display_name": site.display_name,
         "domain": site.domain,
         "pagespeed_score": round(pagespeed_score),
         "pagespeed_color": _score_color(pagespeed_score),
         "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
         "check_count": len(available_metrics),
-        "last_updated": last_updated.strftime("%d.%m.%Y %H:%M"),
+        "last_updated": format_local_datetime(last_updated, fallback="Henuz veri yok"),
+        "alert_count": len(recent_site_alerts),
+        "recent_alerts": recent_site_alerts[:3],
+        "top_queries": search_console_report.get("top_queries") or [],
+        "search_console": {
+            "clicks": float(search_console_summary.get("clicks", 0.0)),
+            "clicks_label": _format_compact_number(search_console_summary.get("clicks", 0.0)),
+            "ctr": float(search_console_summary.get("ctr", 0.0)),
+            "ctr_label": f"{_format_max_two_decimals(search_console_summary.get('ctr', 0.0))}%",
+            "position": float(search_console_summary.get("position", 0.0)),
+            "position_label": _format_max_two_decimals(search_console_summary.get("position", 0.0)),
+            "status": search_console_status,
+            "last_run_status": str(search_console_run.status or "").upper() if search_console_run and search_console_run.status else "NEVER",
+            "last_run_at": _format_optional_datetime(search_console_run.requested_at if search_console_run else None),
+            "last_run_dt": search_console_run.requested_at if search_console_run else None,
+        },
         "pagespeed_status": {
             "mobile_updated_at": mobile_status["updated_at"],
             "desktop_updated_at": desktop_status["updated_at"],
@@ -1635,6 +1840,216 @@ def _summarize_manual_measurement(results: dict[str, dict]) -> str:
         parts.append("Search Console yeniden sorgulanmadi")
 
     return ". ".join(parts) + "." if parts else "Olcum tetiklendi."
+
+
+def _format_compact_number(value) -> str:
+    if value is None or value == "":
+        return "0"
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    abs_numeric = abs(numeric)
+    for threshold, suffix in (
+        (1_000_000_000, "B"),
+        (1_000_000, "M"),
+        (1_000, "K"),
+    ):
+        if abs_numeric >= threshold:
+            compact = f"{numeric / threshold:.1f}".rstrip("0").rstrip(".")
+            return f"{compact}{suffix}"
+    if float(numeric).is_integer():
+        return f"{int(numeric):,}"
+    return _format_max_two_decimals(numeric)
+
+
+def _dashboard_tone_classes(tone: str) -> dict[str, str]:
+    palette = {
+        "rose": {
+            "badge": "border-rose-200 bg-rose-50 text-rose-700",
+            "title": "text-rose-700",
+            "accent": "text-rose-600",
+            "panel": "border-rose-100 bg-rose-50/60",
+        },
+        "amber": {
+            "badge": "border-amber-200 bg-amber-50 text-amber-700",
+            "title": "text-amber-700",
+            "accent": "text-amber-700",
+            "panel": "border-amber-100 bg-amber-50/60",
+        },
+        "sky": {
+            "badge": "border-sky-200 bg-sky-50 text-sky-700",
+            "title": "text-sky-700",
+            "accent": "text-sky-700",
+            "panel": "border-sky-100 bg-sky-50/70",
+        },
+        "emerald": {
+            "badge": "border-emerald-200 bg-emerald-50 text-emerald-700",
+            "title": "text-emerald-700",
+            "accent": "text-emerald-700",
+            "panel": "border-emerald-100 bg-emerald-50/70",
+        },
+    }
+    return palette.get(tone, {
+        "badge": "border-slate-200 bg-slate-50 text-slate-700",
+        "title": "text-slate-800",
+        "accent": "text-slate-700",
+        "panel": "border-slate-200 bg-slate-50",
+    })
+
+
+def _dashboard_device_label(device_code: str) -> str:
+    if device_code == "M":
+        return "Mobile"
+    if device_code == "D":
+        return "Desktop"
+    return ""
+
+
+def _build_dashboard_overview(site_cards: list[dict], recent_alerts: list[dict]) -> list[dict]:
+    total_sites = len(site_cards)
+    highlighted_alert_count = min(len(recent_alerts), 12)
+    ready_search_console = sum(
+        1 for card in site_cards if card.get("search_console", {}).get("status", {}).get("state") != "failed"
+    )
+    attention_sites = sum(
+        1
+        for card in site_cards
+        if card.get("alert_count", 0) > 0 or not card.get("crawler_ok") or card.get("pagespeed_score", 0) < 50
+    )
+    latest_snapshot = max(
+        (card.get("search_console", {}).get("last_run_dt") for card in site_cards if card.get("search_console", {}).get("last_run_dt")),
+        default=None,
+    )
+    return [
+        {
+            "eyebrow": "Aktif Site",
+            "value": str(total_sites),
+            "note": "dashboard takibi açık proje",
+        },
+        {
+            "eyebrow": "Kritik Uyarı",
+            "value": str(highlighted_alert_count),
+            "note": "öne çıkan alarm kaydı",
+        },
+        {
+            "eyebrow": "Search Console Güncel",
+            "value": f"{ready_search_console}/{total_sites}" if total_sites else "0/0",
+            "note": "sabah snapshot'ı hazır",
+        },
+        {
+            "eyebrow": "Dikkat Gereken Site",
+            "value": str(attention_sites),
+            "note": format_local_datetime(latest_snapshot) if latest_snapshot else "henüz otomatik çekim yok",
+        },
+    ]
+
+
+def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> list[dict]:
+    candidates: list[dict] = []
+    seen_queries: set[tuple[str, str]] = set()
+    for card in site_cards:
+        for query in card.get("top_queries") or []:
+            clicks_current = float(query.get("clicks_current", 0.0))
+            clicks_previous = float(query.get("clicks_previous", 0.0))
+            clicks_diff = float(query.get("clicks_diff", 0.0))
+            position_current = float(query.get("position_current", 0.0))
+            position_previous = float(query.get("position_previous", position_current))
+            position_diff = float(query.get("position_diff", 0.0))
+            if clicks_diff >= 0 and position_diff <= 0.15:
+                continue
+
+            reason = "Tıklama düşüşü"
+            tone = "rose"
+            metric = f"{_format_compact_number(clicks_previous)} -> {_format_compact_number(clicks_current)} tıklama"
+            secondary = ""
+            impact = abs(clicks_diff)
+
+            if clicks_diff < 0 and position_diff > 0.15:
+                reason = "Tıklama + pozisyon kaybı"
+                metric = f"{_format_compact_number(clicks_previous)} -> {_format_compact_number(clicks_current)} tıklama"
+                secondary = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
+                impact = abs(clicks_diff) + (position_diff * 1000)
+            elif position_diff > 0.15:
+                reason = "Pozisyon düşüşü"
+                tone = "sky"
+                metric = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
+                secondary = f"{_format_compact_number(clicks_current)} tıklama"
+                impact = max(clicks_current, 1.0) + (position_diff * 1000)
+
+            key = (card.get("domain", ""), str(query.get("query") or "").strip().lower())
+            if not key[1] or key in seen_queries:
+                continue
+            seen_queries.add(key)
+            candidates.append(
+                {
+                    "domain": card.get("domain"),
+                    "query": query.get("query"),
+                    "reason": reason,
+                    "metric": metric,
+                    "secondary": secondary,
+                    "impact": impact,
+                    "classes": _dashboard_tone_classes(tone),
+                }
+            )
+
+    candidates.sort(key=lambda item: item.get("impact", 0.0), reverse=True)
+    return candidates[:limit]
+
+
+def _build_dashboard_opportunities(site_cards: list[dict], *, limit: int = 4) -> list[dict]:
+    candidates: list[dict] = []
+    seen_queries: set[tuple[str, str]] = set()
+    for card in site_cards:
+        for query in card.get("top_queries") or []:
+            clicks_current = float(query.get("clicks_current", 0.0))
+            clicks_previous = float(query.get("clicks_previous", 0.0))
+            position_current = float(query.get("position_current", 0.0))
+            position_previous = float(query.get("position_previous", position_current))
+            position_diff = float(query.get("position_diff", 0.0))
+            title = ""
+            tone = "emerald"
+            detail = ""
+            action = ""
+            score = 0.0
+
+            if clicks_current >= 2000 and 3.0 <= position_current <= 8.0 and position_diff <= 0.25:
+                title = "İlk sayfa fırsatı"
+                detail = f"Pozisyon {_format_max_two_decimals(position_current)} · {_format_compact_number(clicks_current)} tıklama"
+                action = "İçerik, başlık ve iç link güçlendirmesiyle daha yukarı taşınabilir."
+                tone = "sky"
+                score = clicks_current / max(position_current, 1.0)
+            elif clicks_current >= 800 and position_diff < -0.15 and clicks_current >= clicks_previous:
+                title = "Momentum yakalayan sorgu"
+                detail = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
+                action = "Kazanım yeni ise landing sayfayı desteklemek için iyi bir zaman."
+                tone = "emerald"
+                score = clicks_current + (abs(position_diff) * 1000)
+            elif clicks_current >= 3000 and position_current <= 3.0:
+                title = "CTR optimizasyon adayı"
+                detail = f"Pozisyon {_format_max_two_decimals(position_current)} · {_format_compact_number(clicks_current)} tıklama"
+                action = "Snippet ve title testi ile ekstra tıklama alınabilir."
+                tone = "amber"
+                score = clicks_current
+
+            key = (card.get("domain", ""), str(query.get("query") or "").strip().lower())
+            if not title or not key[1] or key in seen_queries:
+                continue
+            seen_queries.add(key)
+            candidates.append(
+                {
+                    "domain": card.get("domain"),
+                    "query": query.get("query"),
+                    "title": title,
+                    "detail": detail,
+                    "action": action,
+                    "score": score,
+                    "classes": _dashboard_tone_classes(tone),
+                }
+            )
+
+    candidates.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+    return candidates[:limit]
 
 
 def _dashboard_comparison_data(period_days: int) -> dict:
@@ -1961,18 +2376,28 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 @app.get("/")
 def dashboard(request: Request):
     # Jinja2 template'i başlangıç ekranını render eder.
-    period, period_days = _resolve_period(request.query_params.get("period"))
-    payload = {
-        "site_name": "SEO Agent Dashboard",
-        "sites": get_sidebar_sites(),
-        "period": period,
-        "site_cards": _dashboard_cards(),
-        "comparison_data": _dashboard_comparison_data(period_days),
-        "trend_data": _dashboard_trend_data(period, period_days),
-    }
     with SessionLocal() as db:
-        payload["recent_alerts"] = get_recent_alerts(db, limit=6)
+        recent_alerts = get_recent_alerts(db, limit=100)
+        site_cards = _dashboard_cards_with_db(db, recent_alerts_cache=recent_alerts)
+        payload = {
+            "site_name": "SEO Agent Dashboard",
+            "sites": get_sidebar_sites(),
+            "period": _resolve_period(request.query_params.get("period"))[0],
+            "overview_items": _build_dashboard_overview(site_cards, recent_alerts),
+            "critical_alerts": recent_alerts[:6],
+            "site_cards": site_cards,
+            "top_drop_items": _build_dashboard_top_drops(site_cards, limit=6),
+            "opportunity_items": _build_dashboard_opportunities(site_cards, limit=4),
+        }
     return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
+
+
+@app.get("/design/lighthouse-minimal-options", response_class=HTMLResponse)
+def design_lighthouse_minimal_options():
+    design_path = BASE_DIR / "design" / "lighthouse_minimal_options.html"
+    if not design_path.exists():
+        return HTMLResponse("Design preview bulunamadi.", status_code=404)
+    return HTMLResponse(design_path.read_text(encoding="utf-8"))
 
 
 @app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
@@ -1984,15 +2409,25 @@ def dashboard_measure_site(request: Request, site_id: int):
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
-        results = _refresh_site_detail_measurements(
-            db,
-            site,
-            include_pagespeed=True,
-            include_crawler=True,
-            include_search_console=True,
-        )
-        db.commit()
-        card = _build_dashboard_card(db, site, flash_message=_summarize_manual_measurement(results))
+        try:
+            results = _refresh_site_detail_measurements(
+                db,
+                site,
+                include_pagespeed=True,
+                include_crawler=True,
+                include_search_console=True,
+            )
+            db.commit()
+            flash_message = _summarize_manual_measurement(results)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("Dashboard manual measure failed for site_id=%s: %s", site_id, exc)
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None:
+                return HTMLResponse("Site bulunamadi.", status_code=404)
+            flash_message = f"Olcum tamamlanamadi. Mevcut kayitli veri gosteriliyor. Detay: {exc}"
+
+        card = _build_dashboard_card(db, site, flash_message=flash_message)
     return templates.TemplateResponse(
         request,
         "partials/dashboard_site_card.html",
@@ -2002,16 +2437,8 @@ def dashboard_measure_site(request: Request, site_id: int):
 
 @app.get("/site/{domain}", response_class=HTMLResponse)
 def site_detail(request: Request, domain: str):
-    # Site detay ekranını HTMX ve tam sayfa modunda sunar.
-    period, period_days = _resolve_period(request.query_params.get("period"))
-    try:
-        payload = _site_detail_context(domain, period, period_days)
-    except ValueError:
-        return HTMLResponse("Site bulunamadı.", status_code=404)
-
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "partials/site_detail_content.html", context={"request": request, **payload})
-    return templates.TemplateResponse(request, "site_detail.html", context={"request": request, **payload})
+    # Lighthouse içeriği Data Explorer'a taşındığı için eski rota güvenli şekilde yönlendirilir.
+    return RedirectResponse(url=f"/data-explorer/{domain}", status_code=307)
 
 
 @app.get("/data-explorer/{domain}", response_class=HTMLResponse)
@@ -2272,6 +2699,39 @@ def alerts_page(request: Request):
     return templates.TemplateResponse(request, "alerts.html", context={"request": request, **payload})
 
 
+@app.post("/alerts/refresh")
+@limiter.limit("3/hour")
+def alerts_refresh(request: Request):
+    summaries: list[dict[str, object]] = []
+    with SessionLocal() as db:
+        sites = _active_sites(db)
+        for index, site in enumerate(sites):
+            try:
+                results = {
+                    "search_console": collect_search_console_alert_metrics(
+                        db,
+                        site,
+                        send_notifications=False,
+                    )
+                }
+                db.commit()
+                summaries.append({"site": site.domain, "results": results})
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                summaries.append({"site": site.domain, "error": str(exc)})
+
+            if index < len(sites) - 1:
+                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+        return JSONResponse(
+            {
+                "refreshed": True,
+                "sites": summaries,
+                "recent_alerts": get_recent_alerts(db, limit=100),
+            }
+        )
+
+
 @app.get("/settings")
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
@@ -2310,12 +2770,17 @@ def settings_alert_thresholds(request: Request):
 @app.get("/search-console")
 def search_console_page(request: Request):
     with SessionLocal() as db:
+        search_console_schedule_label = (
+            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+        )
         payload = {
             "site_name": "Search Console",
             "sites": get_sidebar_sites(),
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "search_console_sites": _search_console_sites_payload(db),
+            "search_console_schedule_label": search_console_schedule_label,
         }
     return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
 

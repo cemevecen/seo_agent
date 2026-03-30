@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from backend.models import Alert, AlertLog, Metric, Site
 from backend.services.mailer import send_email
 from backend.services.metric_store import get_latest_metrics
+from backend.services.timezone_utils import format_local_datetime
+from backend.services.warehouse import get_latest_search_console_rows
 
 
 @dataclass(frozen=True)
@@ -154,107 +156,151 @@ def _is_triggered(metric_value: float, threshold: float, comparator: str) -> boo
     return metric_value > threshold
 
 
-def _get_top_50_keywords_with_changes(site: Site) -> dict:
-    """Top 50 keywords'ü ve bunların position/impression/ctr değişimlerini al."""
+def _weighted_position(rows: list[dict]) -> float:
+    weighted_total = 0.0
+    total_impressions = 0.0
+    fallback_total = 0.0
+    fallback_count = 0
+    for row in rows:
+        impressions = float(row.get("impressions", 0.0) or 0.0)
+        position = float(row.get("position", 0.0) or 0.0)
+        if impressions > 0:
+            weighted_total += position * impressions
+            total_impressions += impressions
+        elif position > 0:
+            fallback_total += position
+            fallback_count += 1
+    if total_impressions > 0:
+        return weighted_total / total_impressions
+    if fallback_count > 0:
+        return fallback_total / fallback_count
+    return 0.0
+
+
+def _recent_duplicate_exists(
+    db: Session,
+    *,
+    alert_id: int,
+    message: str,
+    now: datetime,
+    dedupe_hours: int = 24,
+) -> bool:
+    return (
+        db.query(AlertLog.id)
+        .filter(
+            AlertLog.alert_id == alert_id,
+            AlertLog.message == message,
+            AlertLog.triggered_at >= now - timedelta(hours=dedupe_hours),
+        )
+        .first()
+        is not None
+    )
+
+
+def _device_scope_code(query_data: dict | None) -> str:
+    devices = (query_data or {}).get("devices") or {}
+    active_devices = []
+    for device, payload in devices.items():
+        if payload.get("current") or payload.get("previous"):
+            active_devices.append(str(device).upper())
+    active_devices = sorted(set(active_devices))
+    if active_devices == ["DESKTOP"]:
+        return "D"
+    if active_devices == ["MOBILE"]:
+        return "M"
+    return ""
+
+
+def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
+    """Gerçek current_7d / previous_7d snapshot'larından top keyword değişimlerini al."""
     try:
-        from backend.collectors.search_console import _mock_search_console_response
-        
-        response = _mock_search_console_response(site.domain)
-        current_rows = response.get("rows", [])
-        previous_rows = response.get("previous_day", [])
-        
-        # Query bazında aggregate et (device'ın üzerinden)
-        query_aggregates = {}  # {query_name: {device: {current: {...}, previous: {...}}}}
-        
-        for row in current_rows:
-            query_name = row.get("keys", [""])[0]
-            device = row.get("device", "DESKTOP")
-            if not query_name:
-                continue
-                
-            if query_name not in query_aggregates:
-                query_aggregates[query_name] = {}
-            
-            query_aggregates[query_name][device] = {
-                "current": {
-                    "clicks": row.get("clicks", 0),
-                    "impressions": row.get("impressions", 0),
-                    "ctr": row.get("ctr", 0),
-                    "position": row.get("position", 0),
+        current_rows = [
+            row
+            for row in get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+            if str(row.get("device") or "").upper() in {"MOBILE", "DESKTOP"}
+        ]
+        previous_rows = [
+            row
+            for row in get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+            if str(row.get("device") or "").upper() in {"MOBILE", "DESKTOP"}
+        ]
+
+        if not current_rows and not previous_rows:
+            return {"top_50": [], "all_queries": [], "dropped_queries": []}
+
+        query_aggregates: dict[str, dict[str, dict[str, dict]]] = {}
+
+        for scope, rows in (("current", current_rows), ("previous", previous_rows)):
+            for row in rows:
+                query_name = str(row.get("query") or "").strip()
+                device = str(row.get("device") or "DESKTOP").upper().strip()
+                if not query_name or device not in {"MOBILE", "DESKTOP"}:
+                    continue
+                query_aggregates.setdefault(query_name, {}).setdefault(device, {})[scope] = {
+                    "clicks": float(row.get("clicks", 0.0) or 0.0),
+                    "impressions": float(row.get("impressions", 0.0) or 0.0),
+                    "ctr": float(row.get("ctr", 0.0) or 0.0),
+                    "position": float(row.get("position", 0.0) or 0.0),
+                    "property_url": str(row.get("property_url") or ""),
                 }
-            }
-        
-        for row in previous_rows:
-            query_name = row.get("keys", [""])[0]
-            device = row.get("device", "DESKTOP")
-            if not query_name or query_name not in query_aggregates:
-                continue
-            
-            if device not in query_aggregates[query_name]:
-                query_aggregates[query_name][device] = {"current": {}}
-            
-            query_aggregates[query_name][device]["previous"] = {
-                "position": row.get("position", 0),
-            }
-        
-        # Top 50'yi click count'a göre sort et
-        query_metrics = []
+
+        query_metrics: list[dict] = []
+        dropped_queries: list[dict] = []
+
         for query_name, devices in query_aggregates.items():
-            total_clicks = 0
-            total_impressions = 0
-            avg_position = 0
-            avg_ctr = 0
-            count = 0
-            
+            current_device_rows = []
+            previous_device_rows = []
+            current_clicks = 0.0
+            previous_clicks = 0.0
+
             for device, data in devices.items():
-                current = data.get("current", {})
-                total_clicks += current.get("clicks", 0)
-                total_impressions += current.get("impressions", 0)
-                avg_position += current.get("position", 0)
-                avg_ctr += current.get("ctr", 0)
-                count += 1
-            
-            if count > 0:
-                avg_position /= count
-                avg_ctr /= count
-            
-            # Previous values (weighted by current)
-            prev_position = 0
-            prev_ctr = 0
-            prev_count = 0
-            
-            for device, data in devices.items():
-                previous = data.get("previous", {})
+                current = data.get("current")
+                previous = data.get("previous")
+                if current:
+                    current_device_rows.append(current)
+                    current_clicks += float(current.get("clicks", 0.0) or 0.0)
                 if previous:
-                    prev_position += previous.get("position", 0)
-                    prev_ctr += data.get("current", {}).get("ctr", 0)  # Use current if prev not available
-                    prev_count += 1
-            
-            if prev_count > 0:
-                prev_position /= prev_count
-            
-            query_metrics.append({
+                    previous_device_rows.append(previous)
+                    previous_clicks += float(previous.get("clicks", 0.0) or 0.0)
+
+            current_impressions = sum(float(item.get("impressions", 0.0) or 0.0) for item in current_device_rows)
+            previous_impressions = sum(float(item.get("impressions", 0.0) or 0.0) for item in previous_device_rows)
+            current_ctr = (current_clicks / current_impressions * 100.0) if current_impressions > 0 else 0.0
+            previous_ctr = (previous_clicks / previous_impressions * 100.0) if previous_impressions > 0 else 0.0
+            current_position = _weighted_position(current_device_rows)
+            previous_position = _weighted_position(previous_device_rows)
+            traffic_weight = max(current_clicks, previous_clicks)
+
+            metric = {
                 "query": query_name,
-                "clicks": total_clicks,
-                "impressions": total_impressions,
-                "position": avg_position,
-                "ctr": avg_ctr,
-                "prev_position": prev_position,
-                "prev_impressions": total_impressions,  # Will be adjusted
-                "prev_ctr": prev_ctr,
-                "devices": devices
-            })
-        
-        # Top 50'yi sort et (clicks'e göre descending)
-        query_metrics.sort(key=lambda x: x["clicks"], reverse=True)
+                "clicks": current_clicks,
+                "previous_clicks": previous_clicks,
+                "impressions": current_impressions,
+                "previous_impressions": previous_impressions,
+                "ctr": current_ctr,
+                "previous_ctr": previous_ctr,
+                "position": current_position,
+                "previous_position": previous_position,
+                "devices": devices,
+                "traffic_weight": traffic_weight,
+                "is_dropped": bool(previous_device_rows) and not bool(current_device_rows),
+            }
+            query_metrics.append(metric)
+
+            if metric["is_dropped"]:
+                dropped_queries.append(metric)
+
+        query_metrics.sort(key=lambda item: item.get("traffic_weight", 0.0), reverse=True)
+        dropped_queries.sort(key=lambda item: item.get("traffic_weight", 0.0), reverse=True)
         return {
             "top_50": query_metrics[:50],
-            "all_queries": query_metrics
+            "all_queries": query_metrics,
+            "dropped_queries": dropped_queries[:10],
         }
     except Exception as e:
         print(f"Error getting top 50 keywords: {e}")
         traceback.print_exc()
-        return {"top_50": [], "all_queries": []}
+        return {"top_50": [], "all_queries": [], "dropped_queries": []}
 
 
 def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog]:
@@ -264,7 +310,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
     rules = {rule.metric_type: rule for rule in DEFAULT_ALERT_RULES}
     
     # Get top 50 keywords with their changes
-    data = _get_top_50_keywords_with_changes(site)
+    data = _get_top_50_keywords_with_changes(db, site)
     top_50 = data.get("top_50", [])
     
     if not top_50:
@@ -281,29 +327,12 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
         impressions = query_data.get("impressions", 0)
         ctr = query_data.get("ctr", 0)
         
-        # Get previous values from devices data
-        prev_position = 0
-        prev_impressions = 0
-        prev_ctr = 0
-        count = 0
-        
-        for device, data in query_data.get("devices", {}).items():
-            current = data.get("current", {})
-            previous = data.get("previous", {})
-            
-            if previous:
-                prev_position += previous.get("position", 0)
-                prev_ctr += previous.get("ctr", 0) if "ctr" in previous else current.get("ctr", 0)
-            
-            prev_impressions += current.get("impressions", 0) * 0.85  # Assume 15% drop scenario
-            count += 1
-        
-        if count > 0:
-            prev_position /= count
-            prev_ctr /= count
+        prev_position = float(query_data.get("previous_position", 0) or 0)
+        prev_impressions = float(query_data.get("previous_impressions", 0) or 0)
+        prev_ctr = float(query_data.get("previous_ctr", 0) or 0)
         
         # Position drop: position > prev_position (higher number = worse ranking)
-        if position > prev_position and (position - prev_position) >= 1.0:
+        if prev_position > 0 and position > prev_position and (position - prev_position) >= 1.0:
             position_drops.append({
                 "query": query_name,
                 "old_position": prev_position,
@@ -347,14 +376,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"[NEGATIVE] search_console_position_drop: '{drop['query']}'. "
                     f"Position: {drop['old_position']:.1f}->{drop['new_position']:.1f}"
                 )
-                
-                last_log = (
-                    db.query(AlertLog)
-                    .filter(AlertLog.alert_id == alert.id)
-                    .order_by(AlertLog.triggered_at.desc())
-                    .first()
-                )
-                if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
+                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -376,14 +398,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
                     f"Impressions {drop['old_impressions']:.0f} → {drop['new_impressions']:.0f} ({drop['change_pct']:+.1f}%)"
                 )
-                
-                last_log = (
-                    db.query(AlertLog)
-                    .filter(AlertLog.alert_id == alert.id)
-                    .order_by(AlertLog.triggered_at.desc())
-                    .first()
-                )
-                if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
+                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -405,14 +420,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
                     f"CTR {drop['old_ctr']:.3f} → {drop['new_ctr']:.3f} ({drop['change_pct']:+.1f}%)"
                 )
-                
-                last_log = (
-                    db.query(AlertLog)
-                    .filter(AlertLog.alert_id == alert.id)
-                    .order_by(AlertLog.triggered_at.desc())
-                    .first()
-                )
-                if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
+                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -440,20 +448,22 @@ def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefi
             position = query_data.get("position", 0)
             previous_position = query_data.get("previous_position", 0)
             delta = position - previous_position
+            device_code = _device_scope_code(query_data)
+            device_suffix = f" [{device_code}]" if device_code else ""
             # delta < 0 = pozisyon iyileşti (iyi) = positive sentiment
             # delta > 0 = pozisyon kötüleşti (kötü) = negative sentiment
             sentiment = "POSITIVE" if delta < 0 else "NEGATIVE"
             return (
                 f"[{sentiment}] search_console_position_change: '{query_name}'. "
-                f"Position: {previous_position:.1f}->{position:.1f}"
+                f"Position: {previous_position:.1f}->{position:.1f}{device_suffix}"
             )
         elif alert.alert_type == "search_console_dropped_queries":
-            # Bu query'nin bulunup bulunmadığını kontrol et
-            # query_data varsa, query halen var demek
-            position = query_data.get("position", 0)
+            position = query_data.get("previous_position", 0) or query_data.get("position", 0)
+            device_code = _device_scope_code(query_data)
+            device_suffix = f" [{device_code}]" if device_code else ""
             return (
                 f"[NEGATIVE] search_console_dropped_queries: '{query_name}'. "
-                f"Position: {position:.1f}->N/A"
+                f"Position: {position:.1f}->N/A{device_suffix}"
             )
     
     return (
@@ -462,15 +472,14 @@ def _build_message(site: Site, alert: Alert, metric: Metric, rule: AlertRuleDefi
     )
 
 
-def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
+def evaluate_site_alerts(db: Session, site: Site, *, send_notifications: bool = True) -> list[AlertLog]:
     # Son metriklere göre aktif alarm kayıtlarını üretir.
-    from backend.collectors.search_console import get_top_queries
-    
     alerts = ensure_site_alerts(db, site)
     latest_metrics = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     rules = {rule.metric_type: rule for rule in DEFAULT_ALERT_RULES}
     created_logs: list[AlertLog] = []
     now = datetime.utcnow()
+    search_console_changes = _get_top_50_keywords_with_changes(db, site)
 
     for alert in alerts:
         if not alert.is_active:
@@ -485,7 +494,15 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
         # Search Console uyarıları için her query'nin kendi log entry'si olmalı
         if alert.alert_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
             try:
-                queries = get_top_queries(db, site, limit=10, device="all")
+                if alert.alert_type == "search_console_dropped_queries":
+                    queries = search_console_changes.get("dropped_queries", [])
+                else:
+                    queries = [
+                        query
+                        for query in search_console_changes.get("top_50", [])
+                        if float(query.get("previous_position", 0) or 0) > 0
+                        and float(query.get("position", 0) or 0) > float(query.get("previous_position", 0) or 0)
+                    ][:10]
                 if queries:
                     for query in queries:
                         query_name = query.get("query", "")
@@ -494,14 +511,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                         
                         message = _build_message(site, alert, metric, rule, query_name, query_data=query)
                         
-                        # Tekrar eden alert kontrol (mesaj bazlı)
-                        last_log = (
-                            db.query(AlertLog)
-                            .filter(AlertLog.alert_id == alert.id)
-                            .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
-                            .first()
-                        )
-                        if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12):
+                        if _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                             continue
                         
                         log = AlertLog(
@@ -518,13 +528,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
                 print(f"⚠️  get_top_queries failed for {site.domain}: {e}")
                 traceback.print_exc()
                 message = _build_message(site, alert, metric, rule)
-                last_log = (
-                    db.query(AlertLog)
-                    .filter(AlertLog.alert_id == alert.id)
-                    .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
-                    .first()
-                )
-                if not (last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12)):
+                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -537,13 +541,7 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
         else:
             # Diğer alert'ler (non-Search Console)
             message = _build_message(site, alert, metric, rule)
-            last_log = (
-                db.query(AlertLog)
-                .filter(AlertLog.alert_id == alert.id)
-                .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
-                .first()
-            )
-            if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=12):
+            if _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                 continue
 
             log = AlertLog(
@@ -560,13 +558,15 @@ def evaluate_site_alerts(db: Session, site: Site) -> list[AlertLog]:
         db.commit()
         for log in created_logs:
             db.refresh(log)
-        _send_alert_emails(db, site, created_logs)
+        if send_notifications:
+            _send_alert_emails(db, site, created_logs)
     
     # Also check for top 50 keyword drops (position, impressions, CTR)
     top50_logs = _detect_top50_drops(db, site, now)
     if top50_logs:
         created_logs.extend(top50_logs)
-        _send_alert_emails(db, site, top50_logs)
+        if send_notifications:
+            _send_alert_emails(db, site, top50_logs)
     
     return created_logs
 
@@ -598,6 +598,62 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
             return False
         return match.group(1) == match.group(2)
 
+    def _extract_device_code(message: str) -> str:
+        match = re.search(r"\[(M|D)\]\s*$", message or "")
+        return match.group(1) if match else ""
+
+    def _present_alert(message: str, alert_type: str) -> dict:
+        raw = str(message or "")
+        clean = raw.replace("[POSITIVE]", "").replace("[NEGATIVE]", "").strip()
+        clean = re.sub(r"\s+\[(M|D)\]\s*$", "", clean)
+
+        title = "Uyarı"
+        query = ""
+        metric = clean
+        tone = "slate"
+
+        ctr_match = re.search(
+            r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
+            clean,
+        )
+        if ctr_match:
+            title = "CTR düşüşü"
+            query = ctr_match.group(1)
+            metric = f"CTR {ctr_match.group(3)} -> {ctr_match.group(4)}"
+            tone = "rose"
+            return {"title": title, "query": query, "metric": metric, "tone": tone}
+
+        impression_match = re.search(
+            r"impression düşüşü - '([^']+)' \(([\d.,]+) clicks\): Impressions ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
+            clean,
+        )
+        if impression_match:
+            title = "Impression düşüşü"
+            query = impression_match.group(1)
+            metric = f"Impressions {impression_match.group(3)} -> {impression_match.group(4)}"
+            tone = "amber"
+            return {"title": title, "query": query, "metric": metric, "tone": tone}
+
+        position_match = re.search(r"'([^']+)'.*Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", clean)
+        if position_match and alert_type in {
+            "search_console_biggest_drop",
+            "search_console_position_drop",
+            "search_console_dropped_queries",
+        }:
+            title = "Pozisyon düşüşü"
+            query = position_match.group(1)
+            metric = f"Pozisyon {position_match.group(2)} -> {position_match.group(3)}"
+            tone = "sky"
+            return {"title": title, "query": query, "metric": metric, "tone": tone}
+
+        return {
+            "title": title,
+            "query": query,
+            "metric": metric,
+            "tone": tone,
+            "device_code": _extract_device_code(raw),
+        }
+
     rows = (
         db.query(AlertLog, Alert)
         .join(Alert, AlertLog.alert_id == Alert.id)
@@ -605,9 +661,22 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
         .all()
     )
     filtered_alerts = []
+    seen_keys: set[tuple[str, str, str, str, str, str]] = set()
     for log, alert in rows:
         if _has_same_position(log.message):
             continue
+        presentation = _present_alert(log.message, alert.alert_type)
+        semantic_key = (
+            log.domain,
+            alert.alert_type,
+            presentation.get("title") or "",
+            presentation.get("query") or "",
+            presentation.get("metric") or "",
+            presentation.get("device_code") or "",
+        )
+        if semantic_key in seen_keys:
+            continue
+        seen_keys.add(semantic_key)
         filtered_alerts.append(
             {
                 "id": log.id,
@@ -615,7 +684,12 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
                 "domain": log.domain,
                 "alert_type": alert.alert_type,
                 "message": log.message,
-                "triggered_at": log.triggered_at.strftime("%d.%m.%Y %H:%M"),
+                "display_title": presentation["title"],
+                "display_query": presentation["query"],
+                "display_metric": presentation["metric"],
+                "display_tone": presentation["tone"],
+                "display_device_code": presentation.get("device_code") or "",
+                "triggered_at": format_local_datetime(log.triggered_at),
                 "sent_mail": log.sent_mail,
             }
         )

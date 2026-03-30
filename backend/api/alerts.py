@@ -9,8 +9,268 @@ from backend.database import get_db
 from backend.models import Alert, AlertLog, Site, Metric
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import DEFAULT_ALERT_RULES, ALERT_DESCRIPTIONS
+from backend.services.timezone_utils import format_local_datetime
+from backend.services.warehouse import get_latest_search_console_rows
 
 router = APIRouter(tags=["alerts"])
+
+
+def _extract_primary_query(message: str | None) -> str | None:
+    match = re.search(r"'([^']+)'", message or "")
+    if not match:
+        return None
+    query = str(match.group(1) or "").strip()
+    return query or None
+
+
+def _weighted_position(rows: list[dict]) -> float | None:
+    weighted_total = 0.0
+    total_impressions = 0.0
+    fallback_total = 0.0
+    fallback_count = 0
+    for row in rows:
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        if impressions > 0:
+            weighted_total += position * impressions
+            total_impressions += impressions
+        elif position > 0:
+            fallback_total += position
+            fallback_count += 1
+    if total_impressions > 0:
+        return weighted_total / total_impressions
+    if fallback_count > 0:
+        return fallback_total / fallback_count
+    return None
+
+
+def _aggregate_search_console_query(rows: list[dict], query_name: str) -> dict:
+    filtered = [row for row in rows if str(row.get("query") or "").strip() == query_name]
+    clicks = sum(float(row.get("clicks") or 0.0) for row in filtered)
+    impressions = sum(float(row.get("impressions") or 0.0) for row in filtered)
+    ctr = (clicks / impressions * 100.0) if impressions > 0 else None
+    position = _weighted_position(filtered)
+    devices = sorted({str(row.get("device") or "").upper() for row in filtered if row.get("device")})
+    property_urls = sorted({str(row.get("property_url") or "") for row in filtered if row.get("property_url")})
+    return {
+        "rows": filtered,
+        "clicks": clicks,
+        "impressions": impressions,
+        "ctr": ctr,
+        "position": position,
+        "devices": devices,
+        "property_urls": property_urls,
+    }
+
+
+def _format_decimal(value: float | None, digits: int = 1) -> str:
+    if value is None:
+        return "N/A"
+    return f"{value:.{digits}f}"
+
+
+def _comparison_card(label: str, value: str, detail: str = "", tone: str = "slate") -> dict:
+    return {
+        "label": label,
+        "value": value,
+        "detail": detail,
+        "tone": tone,
+    }
+
+
+def _build_search_console_comparison(
+    db: Session,
+    site: Site,
+    metric_type: str,
+    comparison_type: str,
+    alert_log_message: str | None,
+) -> dict:
+    query_name = _extract_primary_query(alert_log_message)
+    if not query_name:
+        fallback_label = "Dün" if comparison_type != "weekly" else "Geçen haftanın aynı günü"
+        return {
+            "message": (
+                f"{fallback_label} bazlı ayrı snapshot bulunmuyor. "
+                "Bu uyarı Search Console son 7 gün / önceki 7 gün karşılaştırmasından üretilir."
+            ),
+            "comparison_type": comparison_type,
+        }
+
+    current_label = "Son 7 Gun"
+    previous_label = "Onceki 7 Gun"
+    if comparison_type == "weekly":
+        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+    else:
+        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_day")
+        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
+        current_label = "Dun"
+        previous_label = "Onceki Gun"
+        if not current_rows and not previous_rows:
+            return {
+                "message": "Gunluk Search Console snapshot henuz hazir degil. Manuel yenile ya da sabah otomatik taramayi bekle.",
+                "comparison_type": comparison_type,
+                "query_details": [],
+                "cards": [
+                    _comparison_card("Durum", "Veri yok", "Dun / onceki gun snapshot bulunamadi.", "slate"),
+                ],
+            }
+
+    current = _aggregate_search_console_query(current_rows, query_name)
+    previous = _aggregate_search_console_query(previous_rows, query_name)
+    has_meaningful_data = bool(current["rows"] or previous["rows"])
+
+    cards: list[dict] = []
+    query_details: list[dict] = []
+
+    if metric_type == "search_console_ctr_drop":
+        current_ctr = current.get("ctr")
+        previous_ctr = previous.get("ctr")
+        change = None if current_ctr is None or previous_ctr is None else current_ctr - previous_ctr
+        message = (
+            "CTR dun onceki gune gore daha dusuk."
+            if comparison_type == "daily"
+            else "CTR son 7 gunde onceki 7 gune gore daha dusuk."
+        )
+        cards = [
+            _comparison_card(
+                current_label,
+                f"{_format_decimal(current_ctr, 3)} CTR",
+                f"{int(current.get('clicks') or 0)} tiklama / {int(current.get('impressions') or 0)} gosterim",
+                "blue",
+            ),
+            _comparison_card(
+                previous_label,
+                f"{_format_decimal(previous_ctr, 3)} CTR",
+                f"{int(previous.get('clicks') or 0)} tiklama / {int(previous.get('impressions') or 0)} gosterim",
+                "slate",
+            ),
+        ]
+        if change is not None and previous_ctr not in (None, 0):
+            change_pct = change / previous_ctr * 100.0
+            cards.append(
+                _comparison_card(
+                    "Fark",
+                    f"{change:+.3f} puan",
+                    f"{change_pct:+.1f}%",
+                    "red" if change < 0 else "green",
+                )
+            )
+        else:
+            cards.append(_comparison_card("Fark", "N/A", "", "slate"))
+    elif metric_type == "search_console_impressions_drop":
+        current_impressions = current.get("impressions")
+        previous_impressions = previous.get("impressions")
+        change = current_impressions - previous_impressions
+        message = (
+            "Gosterim dun onceki gune gore dusmus."
+            if comparison_type == "daily"
+            else "Gosterim son 7 gunde onceki 7 gune gore dusmus."
+        )
+        cards = [
+            _comparison_card(current_label, f"{int(current_impressions or 0)}", "Gosterim", "blue"),
+            _comparison_card(previous_label, f"{int(previous_impressions or 0)}", "Gosterim", "slate"),
+        ]
+        if previous_impressions:
+            change_pct = change / previous_impressions * 100.0
+            cards.append(
+                _comparison_card(
+                    "Fark",
+                    f"{change:+.0f}",
+                    f"{change_pct:+.1f}%",
+                    "red" if change < 0 else "green",
+                )
+            )
+        else:
+            cards.append(_comparison_card("Fark", "N/A", "", "slate"))
+    elif metric_type == "search_console_biggest_drop":
+        previous_position = previous.get("position")
+        current_position = current.get("position")
+        change = None if current_position is None or previous_position is None else current_position - previous_position
+        query_details = [{
+            "query": query_name,
+            "old_position": previous_position,
+            "new_position": current_position,
+            "change": change,
+            "is_improvement": None if change is None else change < 0,
+        }]
+        message = (
+            "Pozisyon dun ile onceki gun arasinda kotulesmis."
+            if comparison_type == "daily"
+            else "Pozisyon kotulesmesi son 7 gun ile onceki 7 gun arasindan hesaplandi."
+        )
+        cards = [
+            _comparison_card(current_label, _format_decimal(current_position, 1), "Ortalama pozisyon", "blue"),
+            _comparison_card(previous_label, _format_decimal(previous_position, 1), "Ortalama pozisyon", "slate"),
+        ]
+        if change is not None:
+            cards.append(
+                _comparison_card(
+                    "Fark",
+                    f"{change:+.1f}",
+                    "Pozisyon farki",
+                    "red" if change > 0 else "green",
+                )
+            )
+        else:
+            cards.append(_comparison_card("Fark", "N/A", "", "slate"))
+    elif metric_type == "search_console_dropped_queries":
+        previous_position = previous.get("position")
+        query_details = [{
+            "query": query_name,
+            "old_position": previous_position,
+            "new_position": None,
+            "change": None,
+            "is_improvement": False,
+        }]
+        dropped_message = (
+            "Gunluk karsilastirmada bu sorgu icin veri bulunamadi. Haftalik gorunum daha anlamli."
+            if comparison_type == "daily" and not current["rows"] and not previous["rows"]
+            else "Sorgu dunde gorunmuyor, onceki gunde vardi."
+            if comparison_type == "daily" and previous["rows"] and not current["rows"]
+            else "Sorgu dunde vardi, onceki gunde yoktu."
+            if comparison_type == "daily" and current["rows"] and not previous["rows"]
+            else "Sorgu onceki 7 gunde vardi, son 7 gunde gorunmuyor."
+            if previous["rows"] and not current["rows"]
+            else "Sorgu dusus adayi olarak isaretlendi."
+        )
+        message = dropped_message
+        if comparison_type == "daily" and not current["rows"] and not previous["rows"]:
+            delta_value = "Veri yok"
+            delta_detail = "Haftalik gorunumu kullan"
+            has_meaningful_data = False
+        elif previous["rows"] and not current["rows"]:
+            delta_value = "SERP disi"
+            delta_detail = "Dunde yok" if comparison_type == "daily" else "Son 7 gunde yok"
+        else:
+            delta_value = "Dususte"
+            delta_detail = "Kontrol et"
+        cards = [
+            _comparison_card(
+                current_label,
+                _format_decimal(current.get("position"), 1),
+                f"{int(current.get('clicks') or 0)} tiklama / {int(current.get('impressions') or 0)} gosterim",
+                "blue",
+            ),
+            _comparison_card(
+                previous_label,
+                _format_decimal(previous_position, 1),
+                f"{int(previous.get('clicks') or 0)} tiklama / {int(previous.get('impressions') or 0)} gosterim",
+                "slate",
+            ),
+            _comparison_card("Fark", delta_value, delta_detail, "red"),
+        ]
+    else:
+        message = "Bu alert tipi Search Console snapshot karsilastirmasiyla aciklandi."
+        cards = [_comparison_card("Durum", "Hazir", "", "blue")]
+
+    return {
+        "message": message,
+        "comparison_type": comparison_type,
+        "query_details": query_details,
+        "cards": cards,
+        "has_meaningful_data": has_meaningful_data,
+    }
 
 
 def _extract_query_details_from_message(message: str) -> dict | list[dict]:
@@ -79,6 +339,12 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
     Returns:
         {"message": "Karşılaştırmalı açıklama", "query_details": [...], "comparison_type": "daily|weekly"}
     """
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if metric_type.startswith("search_console_"):
+        if site is None:
+            return {"message": "Site bulunamadi.", "comparison_type": comparison_type, "query_details": [], "cards": []}
+        return _build_search_console_comparison(db, site, metric_type, comparison_type, alert_log_message)
+
     # Mevcut günün metriğini al
     current_start = triggered_at.replace(hour=0, minute=0, second=0, microsecond=0)
     current_end = current_start + timedelta(days=1)
@@ -273,7 +539,7 @@ def get_alert_details(request: Request, alert_log_id: int, comparison: str = "da
         "alert_log": {
             "id": alert_log.id,
             "message": alert_log.message,
-            "triggered_at": alert_log.triggered_at.strftime("%d.%m.%Y %H:%M:%S"),
+            "triggered_at": format_local_datetime(alert_log.triggered_at, fmt="%d.%m.%Y %H:%M:%S"),
             "sent_mail": alert_log.sent_mail,
         },
         "alert": {
@@ -305,7 +571,7 @@ def get_alert_details(request: Request, alert_log_id: int, comparison: str = "da
         "trend": [
             {
                 "message": log.message,
-                "triggered_at": log.triggered_at.strftime("%d.%m.%Y %H:%M:%S"),
+                "triggered_at": format_local_datetime(log.triggered_at, fmt="%d.%m.%Y %H:%M:%S"),
                 "sent_mail": log.sent_mail,
             }
             for log in recent_logs

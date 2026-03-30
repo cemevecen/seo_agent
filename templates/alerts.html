@@ -8,6 +8,9 @@
       <h3 class="text-3xl font-bold tracking-tight text-slate-900">Son Uyarılar</h3>
     </div>
     <div class="flex items-center gap-3">
+      <button id="refresh-alerts-button" type="button" class="px-4 py-2 rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-slate-700 transition-colors">
+        Uyarıları Yenile
+      </button>
       <label for="site-filter" class="text-sm font-medium text-slate-700">Site Seç:</label>
       <select id="site-filter" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-900 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="">Tüm Siteler</option>
@@ -18,23 +21,55 @@
     </div>
   </div>
 
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="button" class="alert-type-tab rounded-full px-4 py-2 text-sm font-semibold transition-colors bg-slate-900 text-white ring-2 ring-offset-2 ring-slate-300" data-alert-filter="all">
+      Tümü
+    </button>
+    <button type="button" class="alert-type-tab rounded-full px-4 py-2 text-sm font-semibold transition-colors bg-rose-50 text-rose-700 hover:bg-rose-100" data-alert-filter="ctr">
+      CTR
+    </button>
+    <button type="button" class="alert-type-tab rounded-full px-4 py-2 text-sm font-semibold transition-colors bg-sky-50 text-sky-700 hover:bg-sky-100" data-alert-filter="position">
+      Pozisyon
+    </button>
+    <button type="button" class="alert-type-tab rounded-full px-4 py-2 text-sm font-semibold transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100" data-alert-filter="impression">
+      Impression
+    </button>
+  </div>
+
   <div class="rounded-3xl bg-white shadow-sm ring-1 ring-slate-200" style="overflow: visible; padding: 1.25rem;">
     <!-- DEBUG: Total alerts={{ recent_alerts|length }}, Doviz count={{ recent_alerts|selectattr('domain', 'equalto', 'doviz.com')|list|length }} -->
     <div id="alerts-container" style="display: flex; flex-direction: column; gap: 0.75rem; overflow: visible;">
       {% for alert in recent_alerts %}
-        <div class="alert-card rounded-2xl border border-slate-200 transition-all overflow-visible" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" style="padding: 1rem; overflow: visible;">
+        <div class="alert-card rounded-2xl border border-slate-200 transition-all overflow-visible" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" data-alert-category="{% if alert.display_tone == 'rose' %}ctr{% elif alert.display_tone == 'amber' %}impression{% elif alert.display_tone == 'sky' %}position{% else %}other{% endif %}" style="padding: 1rem; overflow: visible;">
           <!-- Alert Header (Display Only) -->
           <div class="flex items-center justify-between gap-4">
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
-                {% if "[POSITIVE]" in alert.message %}
+                {% if alert.display_device_code %}
+                  <span class="text-[11px] px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold">{{ alert.display_device_code }}</span>
+                {% endif %}
+                {% if alert.display_tone == 'rose' %}
+                  <span class="text-xs px-2 py-1 rounded-full bg-rose-50 text-rose-700 font-medium">CTR</span>
+                {% elif alert.display_tone == 'amber' %}
+                  <span class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 font-medium">Impression</span>
+                {% elif alert.display_tone == 'sky' %}
+                  <span class="text-xs px-2 py-1 rounded-full bg-sky-50 text-sky-700 font-medium">Pozisyon</span>
+                {% elif "[POSITIVE]" in alert.message %}
                   <span class="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 font-medium">✓ İyileşme</span>
                 {% else %}
                   <span class="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 font-medium">⚠ Uyarı</span>
                 {% endif %}
               </div>
-              <p class="mt-1 text-sm text-slate-600">{% if "[POSITIVE]" in alert.message or "[NEGATIVE]" in alert.message %}{{ alert.message.replace('[POSITIVE]', '').replace('[NEGATIVE]', '').strip() }}{% else %}{{ alert.message }}{% endif %}</p>
+              <div class="mt-2 space-y-1">
+                <p class="text-base font-semibold {% if alert.display_tone == 'rose' %}text-rose-700{% elif alert.display_tone == 'amber' %}text-amber-700{% elif alert.display_tone == 'sky' %}text-sky-700{% else %}text-slate-800{% endif %}">
+                  {{ alert.display_title }}
+                </p>
+                {% if alert.display_query %}
+                  <p class="text-sm font-medium text-slate-900">'{{ alert.display_query }}'</p>
+                {% endif %}
+                <p class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-600{% endif %}">{{ alert.display_metric }}</p>
+              </div>
             </div>
             <div class="text-right">
               <p class="text-xs text-slate-500">{{ alert.triggered_at }}</p>
@@ -53,11 +88,11 @@
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
               <p class="text-xs uppercase font-bold text-slate-600">⏱️ Karşılaştırma Türü</p>
               <div class="flex gap-2 flex-wrap">
-                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="daily" data-alert-id="{{ alert.id }}">
-                  Dünle (Day-over-Day)
-                </button>
-                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200" data-comparison="weekly" data-alert-id="{{ alert.id }}">
+                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 active" data-comparison="weekly" data-alert-id="{{ alert.id }}">
                   Geçen Hafta (Week-over-Week)
+                </button>
+                <button class="comparison-btn px-3 py-1.5 text-xs rounded-lg font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200" data-comparison="daily" data-alert-id="{{ alert.id }}">
+                  Dünle (Day-over-Day)
                 </button>
               </div>
               <p id="comparison-info-{{ alert.id }}" class="text-sm text-slate-700 mt-2 p-2 bg-blue-50 rounded border border-blue-200 leading-relaxed">
@@ -124,6 +159,7 @@ document.head.appendChild(style);
 
 document.addEventListener('DOMContentLoaded', function() {
   initializeFilter();
+  initializeRefreshButton();
   
   // Detay butonu
   document.querySelectorAll('.toggle-details').forEach(btn => {
@@ -153,6 +189,9 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.addEventListener('click', async function(e) {
       e.preventDefault();
       e.stopPropagation();
+      if (this.dataset.disabled === 'true') {
+        return;
+      }
       
       const alertId = this.dataset.alertId;
       const comparisonType = this.dataset.comparison;
@@ -177,6 +216,34 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+function initializeRefreshButton() {
+  const button = document.getElementById('refresh-alerts-button');
+  if (!button) {
+    return;
+  }
+  button.addEventListener('click', async function() {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Yenileniyor...';
+    button.classList.add('opacity-70', 'cursor-wait');
+    try {
+      const response = await fetch('/alerts/refresh', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error('Alert refresh failed:', error);
+      button.textContent = 'Yenileme Hatası';
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.disabled = false;
+        button.classList.remove('opacity-70', 'cursor-wait');
+      }, 1500);
+    }
+  });
+}
+
 async function loadAlertDetails(alertId, card) {
   try {
     console.log(`Loading alert details for ID: ${alertId}`);
@@ -200,9 +267,36 @@ async function loadAlertDetails(alertId, card) {
       loadComparisonData(alertId, 'daily'),
       loadComparisonData(alertId, 'weekly')
     ]);
+
+    const dailyUsable = dailyData?.comparison?.has_meaningful_data !== false;
+    const weeklyUsable = weeklyData?.comparison?.has_meaningful_data !== false;
+    const weeklyButton = card.querySelector('.comparison-btn[data-comparison="weekly"]');
+    const dailyButton = card.querySelector('.comparison-btn[data-comparison="daily"]');
+
+    if (weeklyButton) {
+      weeklyButton.dataset.disabled = weeklyUsable ? 'false' : 'true';
+      weeklyButton.classList.toggle('opacity-50', !weeklyUsable);
+      weeklyButton.classList.toggle('cursor-not-allowed', !weeklyUsable);
+    }
+    if (dailyButton) {
+      dailyButton.dataset.disabled = dailyUsable ? 'false' : 'true';
+      dailyButton.classList.toggle('opacity-50', !dailyUsable);
+      dailyButton.classList.toggle('cursor-not-allowed', !dailyUsable);
+    }
+
+    const initialType = weeklyUsable ? 'weekly' : dailyUsable ? 'daily' : 'weekly';
+    const allBtns = card.querySelectorAll('.comparison-btn');
+    allBtns.forEach(b => {
+      if (b.dataset.comparison === initialType) {
+        b.classList.remove('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+        b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+      } else {
+        b.classList.add('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+        b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+      }
+    });
     
-    // İlk render: daily
-    renderComparisonData(alertId, 'daily');
+    renderComparisonData(alertId, initialType);
     
   } catch (error) {
     console.error('Error loading alert details:', error);
@@ -253,17 +347,36 @@ function renderComparisonData(alertId, comparisonType) {
     
     if (comparisonDiv) {
       let html = '';
-      
-      // Add comparison type label
       const typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
-      html += `<p class="text-xs font-semibold text-slate-500 uppercase mb-2">📊 ${typeLabel}</p>`;
-      
-      // Show main message
+      const toneMap = {
+        blue: 'bg-sky-50 border-sky-100 text-slate-900',
+        slate: 'bg-slate-50 border-slate-100 text-slate-900',
+        red: 'bg-rose-50 border-rose-100 text-rose-700',
+        green: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+      };
+
+      html += `<div class="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 sm:p-5">`;
+      html += `<p class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase mb-3">${typeLabel}</p>`;
+
       if (comparison.message) {
-        html += `<p class="font-medium text-slate-900 mb-3">${comparison.message}</p>`;
+        html += `<p class="text-base sm:text-lg font-semibold text-slate-900 mb-4">${comparison.message}</p>`;
       }
-      
-      // Show query details table if available
+
+      if (Array.isArray(comparison.cards) && comparison.cards.length > 0) {
+        html += `<div class="grid gap-3 md:grid-cols-3">`;
+        comparison.cards.forEach(card => {
+          const toneClass = toneMap[card.tone] || toneMap.slate;
+          html += `
+            <div class="rounded-2xl border p-4 ${toneClass}">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">${card.label || ''}</p>
+              <p class="mt-2 text-2xl font-bold leading-none">${card.value || 'N/A'}</p>
+              ${card.detail ? `<p class="mt-2 text-sm leading-5 text-slate-600">${card.detail}</p>` : ''}
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+
       let queryDetailsArray = [];
       if (comparison.query_details) {
         if (Array.isArray(comparison.query_details)) {
@@ -273,7 +386,7 @@ function renderComparisonData(alertId, comparisonType) {
         }
       }
       
-      if (queryDetailsArray.length > 0) {
+      if (queryDetailsArray.length > 0 && (!comparison.cards || comparison.cards.length === 0)) {
         html += `<div class="mt-4 overflow-x-auto"><table class="w-full text-sm border-collapse"><thead><tr class="border-b-2 border-slate-300"><th class="text-left px-3 py-2 font-semibold text-slate-700">Query</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Eski Pozisyon</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Yeni Pozisyon</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Değişim</th><th class="text-center px-3 py-2 font-semibold text-slate-700">Durum</th></tr></thead><tbody>`;
         
         queryDetailsArray.forEach(detail => {
@@ -288,10 +401,11 @@ function renderComparisonData(alertId, comparisonType) {
         });
         
         html += `</tbody></table></div>`;
-      } else if (!comparison.message) {
-        html = '<p class="text-slate-600">Karşılaştırma verisi bulunamadı</p>';
+      } else if (!comparison.message && (!comparison.cards || comparison.cards.length === 0)) {
+        html += '<p class="text-slate-600">Karşılaştırma verisi bulunamadı</p>';
       }
-      
+
+      html += `</div>`;
       comparisonDiv.innerHTML = html;
     }
     
@@ -308,38 +422,79 @@ function renderComparisonData(alertId, comparisonType) {
 function initializeFilter() {
   const filterSelect = document.getElementById('site-filter');
   const alertCards = document.querySelectorAll('.alert-card');
-  
-  filterSelect.addEventListener('change', function() {
-    const selectedDomain = this.value;
-    
+  const filterTabs = document.querySelectorAll('.alert-type-tab');
+  const container = document.getElementById('alerts-container');
+  let selectedType = 'all';
+
+  function applyFilters() {
+    const selectedDomain = filterSelect ? filterSelect.value : '';
+
     alertCards.forEach(card => {
       const cardDomain = card.dataset.domain;
-      
-      if (selectedDomain === '') {
-        card.style.display = 'block';
-      } else if (cardDomain === selectedDomain) {
-        card.style.display = 'block';
-      } else {
-        card.style.display = 'none';
-      }
+      const cardCategory = card.dataset.alertCategory || 'other';
+      const domainMatches = selectedDomain === '' || cardDomain === selectedDomain;
+      const typeMatches = selectedType === 'all' || cardCategory === selectedType;
+      card.style.display = domainMatches && typeMatches ? 'block' : 'none';
     });
-    
+
     const visibleCards = Array.from(alertCards).filter(card => card.style.display !== 'none');
-    const container = document.getElementById('alerts-container');
-    
     let emptyState = container.querySelector('.empty-state');
     if (visibleCards.length === 0) {
       if (!emptyState) {
         emptyState = document.createElement('div');
         emptyState.className = 'empty-state rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500';
-        emptyState.textContent = 'Bu site için henüz alarm kaydı oluşmadı.';
         container.appendChild(emptyState);
       }
+      emptyState.textContent = 'Bu filtreye uygun alarm kaydı bulunamadı.';
       emptyState.style.display = 'block';
     } else if (emptyState) {
       emptyState.style.display = 'none';
     }
+  }
+
+  if (filterSelect) {
+    filterSelect.addEventListener('change', applyFilters);
+  }
+
+  filterTabs.forEach(tab => {
+    tab.addEventListener('click', function() {
+      selectedType = tab.dataset.alertFilter || 'all';
+      filterTabs.forEach(item => {
+        item.classList.remove('ring-2', 'ring-offset-2', 'ring-slate-300');
+        if (item.dataset.alertFilter === 'all') {
+          item.classList.remove('bg-slate-900', 'text-white');
+          item.classList.add('bg-slate-100', 'text-slate-700');
+        } else if (item.dataset.alertFilter === 'ctr') {
+          item.classList.remove('bg-rose-600', 'text-white');
+          item.classList.add('bg-rose-50', 'text-rose-700');
+        } else if (item.dataset.alertFilter === 'position') {
+          item.classList.remove('bg-sky-600', 'text-white');
+          item.classList.add('bg-sky-50', 'text-sky-700');
+        } else if (item.dataset.alertFilter === 'impression') {
+          item.classList.remove('bg-amber-500', 'text-white');
+          item.classList.add('bg-amber-50', 'text-amber-700');
+        }
+      });
+
+      if (selectedType === 'all') {
+        tab.classList.remove('bg-slate-100', 'text-slate-700');
+        tab.classList.add('bg-slate-900', 'text-white');
+      } else if (selectedType === 'ctr') {
+        tab.classList.remove('bg-rose-50', 'text-rose-700');
+        tab.classList.add('bg-rose-600', 'text-white');
+      } else if (selectedType === 'position') {
+        tab.classList.remove('bg-sky-50', 'text-sky-700');
+        tab.classList.add('bg-sky-600', 'text-white');
+      } else if (selectedType === 'impression') {
+        tab.classList.remove('bg-amber-50', 'text-amber-700');
+        tab.classList.add('bg-amber-500', 'text-white');
+      }
+      tab.classList.add('ring-2', 'ring-offset-2', 'ring-slate-300');
+      applyFilters();
+    });
   });
+
+  applyFilters();
 }
 </script>
 {% endblock %}

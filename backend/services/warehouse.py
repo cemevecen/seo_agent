@@ -16,6 +16,7 @@ from backend.models import (
     SearchConsoleQuerySnapshot,
     UrlInspectionSnapshot,
 )
+from backend.services.timezone_utils import format_local_datetime
 
 
 def start_collector_run(
@@ -146,7 +147,7 @@ def save_search_console_query_rows(
             SearchConsoleQuerySnapshot(
                 site_id=site_id,
                 collector_run_id=collector_run_id,
-                property_url=property_url,
+                property_url=str(row.get("property_url") or property_url),
                 data_scope=data_scope,
                 query=str(row.get("query") or ""),
                 device=str(row.get("device") or "ALL"),
@@ -193,6 +194,7 @@ def get_latest_search_console_rows(
     return [
         {
             "query": row.query,
+            "property_url": row.property_url,
             "device": row.device,
             "clicks": float(row.clicks),
             "impressions": float(row.impressions),
@@ -253,8 +255,8 @@ def get_site_warehouse_summary(db: Session, *, site_id: int) -> dict:
                 "strategy": run.strategy,
                 "status": run.status,
                 "row_count": run.row_count,
-                "requested_at": run.requested_at.isoformat() if run.requested_at else None,
-                "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+                "requested_at": format_local_datetime(run.requested_at),
+                "finished_at": format_local_datetime(run.finished_at),
                 "target_url": run.target_url,
                 "error_message": run.error_message,
                 "summary": json.loads(run.summary_json or "{}"),

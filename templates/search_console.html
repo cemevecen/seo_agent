@@ -3,14 +3,10 @@
 {% block content %}
 <div class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-    <div class="mb-4 flex items-center justify-between gap-4">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Site Kontrolleri</p>
-        <h4 class="text-xl font-semibold text-slate-900">Baglanti ve Manuel Yenileme</h4>
-      </div>
+    <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <button
         type="button"
-        class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900"
+        class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
         onclick="refreshSearchConsoleSites()"
       >
         Listeyi Yenile
@@ -21,44 +17,36 @@
       <p class="text-sm text-slate-500">Search Console durumlari yukleniyor...</p>
     </div>
   </div>
-
-  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Kontrollu Mod</p>
-        <h3 class="text-3xl font-bold tracking-tight text-slate-900">Search Console</h3>
-        <p class="mt-3 max-w-3xl text-sm text-slate-600">
-          Bu ekran guvenli akista calisir. Sayfayi acmak Google API istegi baslatmaz. Bagla ve Yenile adimlari sadece sen manuel tetiklediginde calisir.
-        </p>
-        <p class="mt-2 max-w-3xl text-sm text-slate-600">
-          Ek olarak Search Console baglantisi olan aktif siteler icin her gun 05:00'da tek seferlik otomatik yenileme calisir. Site bazinda sirayla ilerler ve bunun disinda gizli arka plan fetch veya surekli arka plan taramasi yoktur.
-        </p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <p><span class="font-semibold">OAuth durumu:</span> {% if oauth_ready %}Hazir{% else %}Eksik{% endif %}</p>
-        <p class="mt-1"><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
-      </div>
-    </div>
-    <div class="mt-5 grid gap-3 md:grid-cols-3">
-      <div class="rounded-2xl border border-slate-200 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500">1. Bagla</p>
-        <p class="mt-2 text-sm text-slate-700">Site bazli Google Search Console OAuth baglantisini kur.</p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500">2. Manuel Yenile</p>
-        <p class="mt-2 text-sm text-slate-700">Veriyi istedigin anda butonla cek. Bunun disinda sistem sadece gunluk 05:00 Search Console yenilemesini yapar.</p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500">3. Sakli Veriyi Oku</p>
-        <p class="mt-2 text-sm text-slate-700">Dashboard ve site detaylari varsa son kaydi okur, Google'a kendiliginden gitmez.</p>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
   function refreshSearchConsoleSites() {
     htmx.ajax('GET', '/search-console/site-list', { target: '#search-console-site-list', swap: 'innerHTML' });
+  }
+
+  function fitSearchConsoleText(root) {
+    const scope = root || document;
+    const baseFontSize = parseFloat(window.getComputedStyle(document.documentElement).fontSize || '16');
+    scope.querySelectorAll('[data-fit-text]').forEach(function (element) {
+      const maxRem = parseFloat(element.dataset.fitTextMax || '3');
+      const minRem = parseFloat(element.dataset.fitTextMin || '1');
+      const maxPx = maxRem * baseFontSize;
+      const minPx = minRem * baseFontSize;
+
+      element.style.fontSize = maxPx + 'px';
+      if (!element.parentElement) {
+        return;
+      }
+
+      let nextSize = maxPx;
+      const maxWidth = element.clientWidth || element.parentElement.clientWidth || 0;
+      const maxHeight = element.parentElement.clientHeight || 0;
+
+      while (nextSize > minPx && (element.scrollWidth > maxWidth || (maxHeight && element.scrollHeight > maxHeight))) {
+        nextSize -= 0.5;
+        element.style.fontSize = nextSize + 'px';
+      }
+    });
   }
 
   function renderSearchConsoleTrendCharts(root) {
@@ -86,26 +74,38 @@
         }
         try {
           const trend = JSON.parse(element.dataset.searchConsoleTrend || '{}');
+          const isLast28Days = trend.mode === 'last_28d';
           const labels = trend.labels || ['1', '2', '3', '4', '5', '6', '7'];
-          const currentClicks = trend.current_clicks || [];
-          const previousClicks = trend.previous_clicks || [];
-          const currentPosition = trend.current_position || [];
-          const previousPosition = trend.previous_position || [];
+          const xValues = isLast28Days ? (trend.dates || labels) : labels;
+          const currentClicks = isLast28Days ? (trend.clicks || []) : (trend.current_clicks || []);
+          const previousClicks = isLast28Days ? [] : (trend.previous_clicks || []);
+          const currentPosition = isLast28Days ? (trend.position || []) : (trend.current_position || []);
+          const previousPosition = isLast28Days ? [] : (trend.previous_position || []);
+          const traces = [
+            {
+              x: xValues,
+              y: currentClicks,
+              type: 'scatter',
+              mode: 'lines',
+              name: isLast28Days ? 'Clicks' : 'Clicks 7G',
+              line: { color: '#4f83e3', width: 3 },
+              yaxis: 'y1',
+            },
+            {
+              x: xValues,
+              y: currentPosition,
+              type: 'scatter',
+              mode: 'lines',
+              name: isLast28Days ? 'Position' : 'Position 7G',
+              line: { color: '#dd7a2a', width: 3 },
+              yaxis: 'y2',
+            }
+          ];
 
-          Plotly.newPlot(
-            element,
-            [
+          if (!isLast28Days) {
+            traces.push(
               {
-                x: labels,
-                y: currentClicks,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Clicks 7G',
-                line: { color: '#4f83e3', width: 3 },
-                yaxis: 'y1',
-              },
-              {
-                x: labels,
+                x: xValues,
                 y: previousClicks,
                 type: 'scatter',
                 mode: 'lines',
@@ -114,16 +114,7 @@
                 yaxis: 'y1',
               },
               {
-                x: labels,
-                y: currentPosition,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Position 7G',
-                line: { color: '#dd7a2a', width: 3 },
-                yaxis: 'y2',
-              },
-              {
-                x: labels,
+                x: xValues,
                 y: previousPosition,
                 type: 'scatter',
                 mode: 'lines',
@@ -131,7 +122,12 @@
                 line: { color: '#dd7a2a', width: 3, dash: 'dash' },
                 yaxis: 'y2',
               }
-            ],
+            );
+          }
+
+          Plotly.newPlot(
+            element,
+            traces,
             {
               autosize: true,
               height: 360,
@@ -146,7 +142,14 @@
                 yanchor: 'top',
                 font: { size: 11 },
               },
-              xaxis: { gridcolor: '#e2e8f0', automargin: true },
+              xaxis: {
+                gridcolor: '#e2e8f0',
+                automargin: true,
+                type: isLast28Days ? 'date' : 'category',
+                tickangle: isLast28Days ? -45 : 0,
+                tickfont: { size: isLast28Days ? 10 : 12 },
+                tickformat: isLast28Days ? '%d.%m' : undefined,
+              },
               yaxis: { title: 'Clicks', gridcolor: '#e2e8f0', zeroline: false, automargin: true },
               yaxis2: {
                 title: 'Position',
@@ -237,6 +240,7 @@
         window.setTimeout(function () {
           initSearchConsoleTables(hostCard);
           renderSearchConsoleTrendCharts(hostCard);
+          fitSearchConsoleText(hostCard);
         }, 40);
       };
 
@@ -255,14 +259,70 @@
     });
   }
 
+  function initSearchConsoleExpandables(root) {
+    (root || document).querySelectorAll('[data-search-console-expandable]').forEach(function (card) {
+      if (card.dataset.expandReady === '1') {
+        return;
+      }
+      card.dataset.expandReady = '1';
+
+      const button = card.querySelector('[data-site-expand-toggle]');
+      const panel = card.querySelector('[data-site-expand-panel]');
+      const icon = card.querySelector('[data-site-expand-icon]');
+      const label = button ? button.querySelector('[data-site-expand-label]') : null;
+      const trigger = button ? button.querySelector('[data-site-expand-trigger]') : null;
+
+      if (!button || !panel) {
+        return;
+      }
+
+      const setExpanded = function (expanded) {
+        card.dataset.expanded = expanded ? 'true' : 'false';
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        panel.classList.toggle('hidden', !expanded);
+        if (icon) {
+          icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        if (label) {
+          label.textContent = expanded ? 'Detayları Gizle' : 'Detayları Aç';
+        }
+        if (trigger) {
+          trigger.classList.toggle('bg-sky-700', !expanded);
+          trigger.classList.toggle('bg-sky-800', expanded);
+        }
+        if (expanded) {
+          window.setTimeout(function () {
+            fitSearchConsoleText(panel);
+            initSearchConsoleTables(panel);
+            renderSearchConsoleTrendCharts(panel);
+          }, 60);
+        }
+      };
+
+      button.addEventListener('click', function () {
+        setExpanded(button.getAttribute('aria-expanded') !== 'true');
+      });
+
+      setExpanded(false);
+    });
+  }
+
   function initSearchConsolePanels(root) {
+    initSearchConsoleExpandables(root);
     initSearchConsoleDeviceSwitches(root);
     renderSearchConsoleTrendCharts(root);
     initSearchConsoleTables(root);
+    fitSearchConsoleText(root);
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     initSearchConsolePanels(document);
+  });
+
+  window.addEventListener('resize', function () {
+    window.requestAnimationFrame(function () {
+      fitSearchConsoleText(document);
+    });
   });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {

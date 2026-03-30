@@ -370,6 +370,53 @@ def _localized_section_content(section_key: str, title_en: str, description_en: 
 
 def _localized_audit_content(audit_id: str, title_en: str, category: str, strategy: str) -> dict[str, object]:
     token = f"{audit_id} {title_en}".lower()
+    audit_label = str(title_en or "Bu denetim").strip() or "Bu denetim"
+
+    metric_localizations = {
+        "largest-contentful-paint": {
+            "title_tr": "LCP degerini iyilestir",
+            "problem_tr": "En buyuk gorunur metin veya gorsel gec boyaniyor; bu nedenle LCP onerilen esigin uzerinde kaliyor.",
+            "impact_tr": "Kullanici ana icerigi gec gordugu icin algilanan yuklenme hizi zayifliyor.",
+            "expected_result_tr": "Ana icerik daha erken gorunur ve LCP metriği iyilesir.",
+        },
+        "first-contentful-paint": {
+            "title_tr": "FCP degerini iyilestir",
+            "problem_tr": "Ilk gorunur metin veya gorsel gec boyaniyor; bu nedenle FCP beklenenden daha yavas.",
+            "impact_tr": "Sayfa ilk tepkiyi gec verir ve kullanici bos ekran hissini daha uzun sure yasayabilir.",
+            "expected_result_tr": "Ilk boyama daha erken gerceklesir ve sayfa daha hizli aciliyormus gibi hissedilir.",
+        },
+        "speed-index": {
+            "title_tr": "Gorunur yuklenme hizini iyilestir",
+            "problem_tr": "Sayfa icerigi ekranda kademeli olarak gec doluyor; bu nedenle Speed Index zayif gorunuyor.",
+            "impact_tr": "Kullanici icerigin tamamlandigini daha gec algilar.",
+            "expected_result_tr": "Ekrandaki icerik daha hizli dolar ve Speed Index metriği iyilesir.",
+        },
+        "total-blocking-time": {
+            "title_tr": "Ana thread blokajini azalt",
+            "problem_tr": "FCP ile etkilesime hazir olma arasinda uzun calisan gorevler ana thread'i fazla mesgul ediyor.",
+            "impact_tr": "Tiklama, kaydirma ve ilk etkileşimlerde gecikme hissedilebilir.",
+            "expected_result_tr": "Ana thread daha erken bosalir ve Total Blocking Time azalir.",
+        },
+        "cumulative-layout-shift": {
+            "title_tr": "Layout kaymalarini azalt",
+            "problem_tr": "Sayfa icerigi yukleme sirasinda yer degistiriyor; bu nedenle CLS metriği ideal seviyede degil.",
+            "impact_tr": "Kullanici gorunur elemanlar kaydigi icin okumada ve tiklamada zorlanabilir.",
+            "expected_result_tr": "Gorunum daha stabil hale gelir ve CLS metriği iyilesir.",
+        },
+    }
+    if audit_id in metric_localizations:
+        localized_metric = metric_localizations[audit_id]
+        return {
+            "title_tr": localized_metric["title_tr"],
+            "problem_tr": localized_metric["problem_tr"],
+            "impact_tr": localized_metric["impact_tr"],
+            "solution": [
+                _solution_step(1, "Review the metric contributors", "Metrigi etkileyen unsurlari incele", "Inspect the related resource timing, render path and blocking work attached to this metric.", "Bu metriği etkileyen kaynak zamanlamasi, render yolu ve blokaj olusturan isleri incele.", "Medium"),
+                _solution_step(2, "Apply the metric-specific fix", "Metrige uygun duzeltmeyi uygula", "Optimize resources, rendering order or main-thread work according to the metric signal.", "Metriğin isaret ettigi noktaya gore kaynaklari, render sirasini veya ana thread yukunu optimize et.", "Medium"),
+                _solution_step(3, "Measure after deployment", "Yayin sonrasi tekrar olc", "Run Lighthouse again to confirm the metric moved toward the target range.", "Lighthouse'i yeniden calistir ve metriğin hedef araliga yaklastigini dogrula.", "Easy"),
+            ],
+            "expected_result_tr": localized_metric["expected_result_tr"],
+        }
 
     if "cache" in token or "ttl" in token:
         return {
@@ -562,7 +609,7 @@ def _localized_audit_content(audit_id: str, title_en: str, category: str, strate
 
     return {
         "title_tr": generic_title_tr,
-        "problem_tr": "Bu Lighthouse denetimi basarisiz oldu; ilgili kaynak veya isaretleme optimize edilmeli.",
+        "problem_tr": f"{audit_label} denetimi beklenen seviyede degil; ilgili kaynak, isaretleme veya calisma yolu optimize edilmeli.",
         "impact_tr": f"Bu sorun {strategy} tarafinda {category} skorunu dusuruyor.",
         "solution": [
             _solution_step(1, "Inspect the failing audit in context", "Basarisiz denetimi baglaminda incele", "Review the failing resources, DOM nodes or requests attached to this audit.", "Bu denetime bagli kaynak, DOM dugumu veya request'leri incele.", "Medium"),
@@ -1040,7 +1087,11 @@ def get_latest_pagespeed_audit_snapshot(db: Session, site_id: int, strategy: str
         "SEO bulgusunu iyilestir",
         "Lighthouse bulgusunu iyilestir",
     }
-    for issue in issues:
+    generic_problem_tr = {
+        "Bu Lighthouse denetimi basarisiz oldu; ilgili kaynak veya isaretleme optimize edilmeli.",
+        "Bu denetim beklenen seviyede degil; ilgili kaynak, isaretleme veya calisma yolu optimize edilmeli.",
+    }
+    def _apply_localized_overrides(issue: dict) -> None:
         localized = _localized_audit_content(
             str(issue.get("id") or ""),
             str(issue.get("title_en") or issue.get("title") or ""),
@@ -1049,7 +1100,7 @@ def get_latest_pagespeed_audit_snapshot(db: Session, site_id: int, strategy: str
         )
         if not issue.get("title_tr") or str(issue.get("title_tr")) in generic_titles:
             issue["title_tr"] = str(localized.get("title_tr") or issue.get("title_tr") or "")
-        if not issue.get("problem_tr"):
+        if not issue.get("problem_tr") or str(issue.get("problem_tr")) in generic_problem_tr:
             issue["problem_tr"] = str(localized.get("problem_tr") or "")
         if not issue.get("impact_tr"):
             issue["impact_tr"] = str(localized.get("impact_tr") or "")
@@ -1057,6 +1108,16 @@ def get_latest_pagespeed_audit_snapshot(db: Session, site_id: int, strategy: str
             issue["solution"] = localized.get("solution") or []
         if not issue.get("expected_result_tr"):
             issue["expected_result_tr"] = str(localized.get("expected_result_tr") or "")
+
+    for issue in issues:
+        _apply_localized_overrides(issue)
+
+    sections = analysis.get("sections") or {}
+    for category_sections in sections.values():
+        for section in category_sections or []:
+            for item in section.get("items") or []:
+                if isinstance(item, dict):
+                    _apply_localized_overrides(item)
     return analysis
 
 

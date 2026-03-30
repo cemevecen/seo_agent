@@ -22,9 +22,9 @@
         {% if sites %}
           {% for site in sites %}
             <a
-              href="/site/{{ site.domain }}"
+              href="/data-explorer/{{ site.domain }}"
               class="block rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-700 sidebar-link"
-              hx-get="/site/{{ site.domain }}"
+              hx-get="/data-explorer/{{ site.domain }}"
               hx-target="#content"
               hx-swap="innerHTML"
               hx-push-url="true"
@@ -40,9 +40,9 @@
       </nav>
     </aside>
 
-    <main class="flex-1">
-      <header class="border-b border-slate-200 bg-white px-6 py-4">
-        <div class="flex items-center justify-between">
+    <main class="min-w-0 flex-1">
+      <header class="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-3">
             <button
               id="sidebar-toggle"
@@ -58,18 +58,17 @@
             </button>
             <h2 id="header-site-title" class="text-lg font-semibold">{{ site_name or "SEO Agent Dashboard" }}</h2>
           </div>
-          <div class="flex items-center gap-3 text-sm">
+          <div class="hidden flex-wrap items-center gap-3 text-sm lg:flex">
             <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
             <a href="/search-console" class="text-slate-600 hover:text-slate-900">Search Console</a>
-            <a id="header-site-detail-link" href="{{ '/site/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">Lighthouse</a>
-            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">Data Explorer</a>
+            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">PageSpeed</a>
             <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
             <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
           </div>
         </div>
       </header>
 
-      <section id="content" class="p-6">
+      <section id="content" class="p-4 sm:p-6">
         {% block content %}{% endblock %}
       </section>
     </main>
@@ -119,7 +118,8 @@
         localStorage.setItem('seo-sidebar-collapsed', collapsed ? '1' : '0');
       }
 
-      const stored = localStorage.getItem('seo-sidebar-collapsed') === '1';
+      const storedValue = localStorage.getItem('seo-sidebar-collapsed');
+      const stored = storedValue === null ? window.innerWidth < 1024 : storedValue === '1';
       setCollapsed(stored);
 
       toggle.addEventListener('click', function () {
@@ -132,13 +132,9 @@
         if (!content) {
           return;
         }
-        const siteDetailLink = document.getElementById('header-site-detail-link');
         const explorerLink = document.getElementById('header-data-explorer-link');
         const storedDomain = localStorage.getItem('seo-current-domain');
         if (!content.querySelector('[data-site-domain]') && storedDomain) {
-          if (siteDetailLink) {
-            siteDetailLink.setAttribute('href', '/site/' + storedDomain);
-          }
           if (explorerLink) {
             explorerLink.setAttribute('href', '/data-explorer/' + storedDomain);
           }
@@ -156,9 +152,6 @@
 
         if (headerTitle) {
           headerTitle.textContent = siteTitle;
-        }
-        if (siteDetailLink && siteDomain) {
-          siteDetailLink.setAttribute('href', '/site/' + siteDomain);
         }
         if (explorerLink && siteDomain) {
           explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);

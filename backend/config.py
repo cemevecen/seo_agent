@@ -50,9 +50,12 @@ class Settings(BaseSettings):
     search_console_refresh_cooldown_seconds: int = 21600
     search_console_live_fetch_on_read: bool = False
     search_console_scheduled_refresh_enabled: bool = True
-    search_console_scheduled_refresh_hour: int = 5
+    search_console_scheduled_refresh_hour: int = 4
     search_console_scheduled_refresh_minute: int = 0
     search_console_scheduled_refresh_site_spacing_seconds: int = 20
+    alerts_scheduled_refresh_enabled: bool = False
+    alerts_scheduled_refresh_hour: int = 4
+    alerts_scheduled_refresh_minute: int = 0
 
     crawler_refresh_cooldown_seconds: int = 1800
     crawler_request_timeout_seconds: int = 10
@@ -63,7 +66,7 @@ class Settings(BaseSettings):
     url_inspection_refresh_cooldown_seconds: int = 21600
     crux_refresh_cooldown_seconds: int = 21600
     scheduled_refresh_enabled: bool = True
-    scheduled_refresh_hour: int = 6
+    scheduled_refresh_hour: int = 5
     scheduled_refresh_minute: int = 0
     scheduled_refresh_timezone: str = "Europe/Istanbul"
     scheduled_refresh_site_spacing_seconds: int = 10

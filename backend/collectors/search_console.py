@@ -60,6 +60,25 @@ def _property_candidates(domain: str) -> list[str]:
     return candidates
 
 
+def _explicit_property_targets(domain: str) -> dict[str, str]:
+    host = _normalize_site_host(domain)
+    normalized = host[4:] if host.startswith("www.") else host
+
+    if normalized in {"doviz.com", "m.doviz.com"}:
+        return {
+            "MOBILE": "sc-domain:doviz.com",
+            "DESKTOP": "sc-domain:doviz.com",
+        }
+
+    if normalized in {"sinemalar.com", "m.sinemalar.com"}:
+        return {
+            "MOBILE": "https://m.sinemalar.com/",
+            "DESKTOP": "https://www.sinemalar.com/",
+        }
+
+    return {}
+
+
 def _resolve_search_console_property(service, site: Site) -> str:
     candidates = _property_candidates(site.domain)
     entries = service.sites().list().execute().get("siteEntry", [])
@@ -76,6 +95,34 @@ def _resolve_search_console_property(service, site: Site) -> str:
     raise ValueError(
         f"Erisilebilir Search Console property bulunamadi. Adaylar: {', '.join(candidates)}"
     )
+
+
+def _resolve_search_console_targets(service, site: Site) -> list[dict[str, str]]:
+    entries = service.sites().list().execute().get("siteEntry", [])
+    available = {
+        entry.get("siteUrl")
+        for entry in entries
+        if entry.get("siteUrl") and entry.get("permissionLevel") not in {"siteUnverifiedUser", "siteRestrictedUser"}
+    }
+
+    explicit_targets = _explicit_property_targets(site.domain)
+    if explicit_targets:
+        missing = [property_url for property_url in explicit_targets.values() if property_url not in available]
+        if missing:
+            raise ValueError(
+                "Zorunlu Search Console property erisimi eksik. Beklenenler: "
+                + ", ".join(missing)
+            )
+        return [
+            {"device": device, "property_url": property_url}
+            for device, property_url in explicit_targets.items()
+        ]
+
+    site_url = _resolve_search_console_property(service, site)
+    return [
+        {"device": "MOBILE", "property_url": site_url},
+        {"device": "DESKTOP", "property_url": site_url},
+    ]
 
 
 def _get_mock_queries_for_domain(domain: str) -> list[dict]:
@@ -262,12 +309,17 @@ def _mock_search_console_response(domain: str = "") -> dict:
     }
 
 
-def _normalize_search_console_rows(rows: list[dict]) -> list[dict]:
+def _normalize_search_console_rows(
+    rows: list[dict],
+    *,
+    forced_device: str | None = None,
+    property_url: str = "",
+) -> list[dict]:
     normalized: list[dict] = []
     for row in rows or []:
         keys = row.get("keys") or []
         query = str(keys[0] if len(keys) > 0 else row.get("query") or "")
-        device = str(keys[1] if len(keys) > 1 else row.get("device") or "ALL").upper()
+        device = str(forced_device or (keys[1] if len(keys) > 1 else row.get("device") or "ALL")).upper()
         clicks = float(row.get("clicks") or 0.0)
         impressions = float(row.get("impressions") or 0.0)
         ctr = float(row.get("ctr") or 0.0)
@@ -281,34 +333,54 @@ def _normalize_search_console_rows(rows: list[dict]) -> list[dict]:
                 "impressions": impressions,
                 "ctr": ctr,
                 "position": float(row.get("position") or 0.0),
+                "property_url": property_url,
             }
         )
     return normalized
 
 
-def _fetch_search_console_rows(service, site_url: str, start_date: date, end_date: date) -> list[dict]:
+def _fetch_search_console_rows(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    *,
+    device: str | None = None,
+) -> list[dict]:
     page_size = max(100, min(int(settings.search_console_row_batch_size), int(settings.search_console_max_rows)))
     max_rows = max(page_size, int(settings.search_console_max_rows))
     all_rows: list[dict] = []
     start_row = 0
 
     while start_row < max_rows:
+        body = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": ["query"] if device else ["query", "device"],
+            "rowLimit": page_size,
+            "startRow": start_row,
+        }
+        if device:
+            body["dimensionFilterGroups"] = [
+                {
+                    "filters": [
+                        {
+                            "dimension": "device",
+                            "expression": str(device).upper(),
+                        }
+                    ]
+                }
+            ]
         response = (
             service.searchanalytics()
             .query(
                 siteUrl=site_url,
-                body={
-                    "startDate": start_date.isoformat(),
-                    "endDate": end_date.isoformat(),
-                    "dimensions": ["query", "device"],
-                    "rowLimit": page_size,
-                    "startRow": start_row,
-                },
+                body=body,
             )
             .execute()
         )
         rows = response.get("rows", []) or []
-        normalized = _normalize_search_console_rows(rows)
+        normalized = _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
         all_rows.extend(normalized)
         if len(rows) < page_size:
             break
@@ -317,7 +389,81 @@ def _fetch_search_console_rows(service, site_url: str, start_date: date, end_dat
     return all_rows[:max_rows]
 
 
-def _fetch_search_console_daily_rows(service, site_url: str, start_date: date, end_date: date) -> list[dict]:
+def _fetch_search_console_rows_limited(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    *,
+    device: str | None = None,
+    max_rows: int = 1000,
+) -> list[dict]:
+    page_size = max(100, min(int(settings.search_console_row_batch_size), int(max_rows)))
+    all_rows: list[dict] = []
+    start_row = 0
+
+    while start_row < max_rows:
+        body = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": ["query"] if device else ["query", "device"],
+            "rowLimit": page_size,
+            "startRow": start_row,
+        }
+        if device:
+            body["dimensionFilterGroups"] = [
+                {
+                    "filters": [
+                        {
+                            "dimension": "device",
+                            "expression": str(device).upper(),
+                        }
+                    ]
+                }
+            ]
+        response = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body=body,
+            )
+            .execute()
+        )
+        rows = response.get("rows", []) or []
+        normalized = _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
+        all_rows.extend(normalized)
+        if len(rows) < page_size:
+            break
+        start_row += page_size
+
+    return all_rows[:max_rows]
+
+
+def _fetch_search_console_query_rows(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    *,
+    query: str,
+    device: str | None = None,
+) -> list[dict]:
+    filters = [
+        {
+            "dimension": "query",
+            "operator": "equals",
+            "expression": str(query),
+        }
+    ]
+    if device:
+        filters.append(
+            {
+                "dimension": "device",
+                "operator": "equals",
+                "expression": str(device).upper(),
+            }
+        )
+
     response = (
         service.searchanalytics()
         .query(
@@ -325,9 +471,47 @@ def _fetch_search_console_daily_rows(service, site_url: str, start_date: date, e
             body={
                 "startDate": start_date.isoformat(),
                 "endDate": end_date.isoformat(),
-                "dimensions": ["date", "device"],
-                "rowLimit": 62,
+                "dimensions": ["query"],
+                "rowLimit": 10,
+                "dimensionFilterGroups": [{"filters": filters}],
             },
+        )
+        .execute()
+    )
+    rows = response.get("rows", []) or []
+    return _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
+
+
+def _fetch_search_console_daily_rows(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    *,
+    device: str | None = None,
+) -> list[dict]:
+    body = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+        "dimensions": ["date"] if device else ["date", "device"],
+        "rowLimit": 62,
+    }
+    if device:
+        body["dimensionFilterGroups"] = [
+            {
+                "filters": [
+                    {
+                        "dimension": "device",
+                        "expression": str(device).upper(),
+                    }
+                ]
+            }
+        ]
+    response = (
+        service.searchanalytics()
+        .query(
+            siteUrl=site_url,
+            body=body,
         )
         .execute()
     )
@@ -335,7 +519,7 @@ def _fetch_search_console_daily_rows(service, site_url: str, start_date: date, e
     for row in response.get("rows", []) or []:
         keys = row.get("keys") or []
         day_label = str(keys[0] if keys else "")
-        device = str(keys[1] if len(keys) > 1 else row.get("device") or "ALL").upper()
+        row_device = str(device or (keys[1] if len(keys) > 1 else row.get("device") or "ALL")).upper()
         clicks = float(row.get("clicks") or 0.0)
         impressions = float(row.get("impressions") or 0.0)
         ctr = float(row.get("ctr") or 0.0)
@@ -344,14 +528,46 @@ def _fetch_search_console_daily_rows(service, site_url: str, start_date: date, e
         normalized.append(
             {
                 "date": day_label,
-                "device": device,
+                "device": row_device,
                 "clicks": clicks,
                 "impressions": impressions,
                 "ctr": ctr,
                 "position": float(row.get("position") or 0.0),
+                "property_url": site_url,
             }
         )
     return normalized
+
+
+def _resolve_latest_available_day(
+    service,
+    targets: list[dict[str, str]],
+    *,
+    fallback_end_date: date,
+) -> date:
+    probe_start = fallback_end_date - timedelta(days=6)
+    available_dates: set[date] = set()
+    for target in targets:
+        property_url = str(target.get("property_url") or "")
+        device = str(target.get("device") or "").upper() or None
+        probe_rows = _fetch_search_console_daily_rows(
+            service,
+            property_url,
+            probe_start,
+            fallback_end_date,
+            device=device,
+        )
+        for row in probe_rows:
+            raw_date = str(row.get("date") or "").strip()
+            if not raw_date:
+                continue
+            try:
+                available_dates.add(date.fromisoformat(raw_date))
+            except ValueError:
+                continue
+    if not available_dates:
+        return fallback_end_date
+    return max(available_dates)
 
 
 def _summarize_rows(rows: list[dict]) -> dict[str, float]:
@@ -421,6 +637,86 @@ def _build_trend_summary(
         "previous_position": [row["position"] for row in previous],
         "current_position": [row["position"] for row in current],
     }
+
+
+def _build_recent_trend_summary(
+    daily_rows: list[dict],
+    *,
+    start_date: date,
+    end_date: date,
+) -> dict:
+    aggregated_by_day: dict[str, dict[str, float]] = {}
+    for row in daily_rows:
+        row_date = str(row.get("date") or "")
+        if not row_date:
+            continue
+        bucket = aggregated_by_day.setdefault(
+            row_date,
+            {
+                "clicks": 0.0,
+                "impressions": 0.0,
+                "weighted_position_total": 0.0,
+                "fallback_position_total": 0.0,
+                "fallback_position_count": 0.0,
+            },
+        )
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impressions
+        if impressions > 0:
+            bucket["weighted_position_total"] += position * impressions
+        elif position > 0:
+            bucket["fallback_position_total"] += position
+            bucket["fallback_position_count"] += 1.0
+
+    labels: list[str] = []
+    dates: list[str] = []
+    clicks_series: list[float] = []
+    position_series: list[float] = []
+    day = start_date
+    while day <= end_date:
+        key = day.isoformat()
+        bucket = aggregated_by_day.get(key) or {}
+        impressions = float(bucket.get("impressions") or 0.0)
+        weighted_position_total = float(bucket.get("weighted_position_total") or 0.0)
+        if impressions > 0:
+            position = weighted_position_total / impressions
+        else:
+            fallback_total = float(bucket.get("fallback_position_total") or 0.0)
+            fallback_count = float(bucket.get("fallback_position_count") or 0.0)
+            position = (fallback_total / fallback_count) if fallback_count > 0 else 0.0
+        labels.append(day.strftime("%d.%m"))
+        dates.append(key)
+        clicks_series.append(float(bucket.get("clicks") or 0.0))
+        position_series.append(position)
+        day += timedelta(days=1)
+
+    return {
+        "mode": "last_28d",
+        "labels": labels,
+        "dates": dates,
+        "clicks": clicks_series,
+        "position": position_series,
+    }
+
+
+def _build_recent_trend_summary_by_device(
+    daily_rows: list[dict],
+    *,
+    start_date: date,
+    end_date: date,
+) -> dict[str, dict]:
+    summaries: dict[str, dict] = {}
+    for device in ("MOBILE", "DESKTOP"):
+        device_rows = [row for row in daily_rows if str(row.get("device") or "ALL").upper() == device]
+        summaries[device] = _build_recent_trend_summary(
+            device_rows,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    return summaries
 
 
 def _build_trend_summary_by_device(
@@ -513,13 +809,25 @@ def _build_period_summaries_from_daily_rows(
 def _load_search_console_data(site: Site, credential: SiteCredential | None) -> dict:
     # Credential varsa Search Console API cevabı üretir, yoksa bos/failure doner.
     if credential is None:
-        return {"rows": [], "previous_day": [], "source": "failed", "error": "Search Console baglantisi yok."}
+        return {
+            "rows": [],
+            "current_day": [],
+            "previous_day": [],
+            "source": "failed",
+            "error": "Search Console baglantisi yok.",
+        }
 
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
     except ImportError:
-        return {"rows": [], "previous_day": [], "source": "failed", "error": "Google Search Console istemcisi yuklu degil."}
+        return {
+            "rows": [],
+            "current_day": [],
+            "previous_day": [],
+            "source": "failed",
+            "error": "Google Search Console istemcisi yuklu degil.",
+        }
 
     try:
         credential_data = load_google_credentials(credential)
@@ -533,31 +841,50 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                 scopes=SEARCH_CONSOLE_SCOPES,
             )
         service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
-        site_url = _resolve_search_console_property(service, site)
-        end_date = date.today() - timedelta(days=1)
+        targets = _resolve_search_console_targets(service, site)
+        latest_supported_end_date = _resolve_latest_available_day(
+            service,
+            targets,
+            fallback_end_date=date.today() - timedelta(days=1),
+        )
+        end_date = latest_supported_end_date
         start_date = end_date - timedelta(days=27)
+        current_date = end_date
         previous_date = end_date - timedelta(days=1)
         current_7d_start = end_date - timedelta(days=6)
         previous_7d_end = current_7d_start - timedelta(days=1)
         previous_7d_start = previous_7d_end - timedelta(days=6)
-        trend_14d_start = previous_7d_start
+        current_rows: list[dict] = []
+        current_day_rows: list[dict] = []
+        previous_rows: list[dict] = []
+        current_7d_rows: list[dict] = []
+        previous_7d_rows: list[dict] = []
+        trend_28d_rows: list[dict] = []
 
-        current_rows = _fetch_search_console_rows(service, site_url, start_date, end_date)
-        previous_rows = _fetch_search_console_rows(service, site_url, previous_date, previous_date)
-        current_7d_rows = _fetch_search_console_rows(service, site_url, current_7d_start, end_date)
-        previous_7d_rows = _fetch_search_console_rows(service, site_url, previous_7d_start, previous_7d_end)
-        trend_14d_rows = _fetch_search_console_daily_rows(service, site_url, trend_14d_start, end_date)
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            device = str(target.get("device") or "").upper() or None
+            current_rows.extend(_fetch_search_console_rows(service, property_url, start_date, end_date, device=device))
+            current_day_rows.extend(_fetch_search_console_rows(service, property_url, current_date, current_date, device=device))
+            previous_rows.extend(_fetch_search_console_rows(service, property_url, previous_date, previous_date, device=device))
+            current_7d_rows.extend(_fetch_search_console_rows(service, property_url, current_7d_start, end_date, device=device))
+            previous_7d_rows.extend(_fetch_search_console_rows(service, property_url, previous_7d_start, previous_7d_end, device=device))
+            trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, start_date, end_date, device=device))
+
         return {
             "rows": current_rows,
+            "current_day": current_day_rows,
             "previous_day": previous_rows,
             "current_7d_rows": current_7d_rows,
             "previous_7d_rows": previous_7d_rows,
-            "trend_14d_rows": trend_14d_rows,
+            "trend_28d_rows": trend_28d_rows,
             "source": "live",
             "error": None,
-            "site_url": site_url,
+            "site_url": targets[0]["property_url"] if len(targets) == 1 else "",
+            "property_urls_by_device": {str(target["device"]): str(target["property_url"]) for target in targets},
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
+            "current_date": current_date.isoformat(),
             "previous_date": previous_date.isoformat(),
             "current_7d_start": current_7d_start.isoformat(),
             "current_7d_end": end_date.isoformat(),
@@ -566,7 +893,256 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         }
     except Exception as exc:
         LOGGER.warning("Search Console failed for %s due to credential/API error: %s", site.domain, exc)
-        return {"rows": [], "previous_day": [], "source": "failed", "error": str(exc)}
+        return {
+            "rows": [],
+            "current_day": [],
+            "previous_day": [],
+            "source": "failed",
+            "error": str(exc),
+        }
+
+
+def _load_search_console_alert_data(site: Site, credential: SiteCredential | None) -> dict:
+    # Alert taramasi icin yalnizca current_7d ve previous_7d Search Console verisini toplar.
+    if credential is None:
+        return {
+            "current_day_rows": [],
+            "previous_day_rows": [],
+            "current_7d_rows": [],
+            "previous_7d_rows": [],
+            "source": "failed",
+            "error": "Search Console baglantisi yok.",
+            "property_urls_by_device": {},
+        }
+
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError:
+        return {
+            "current_day_rows": [],
+            "previous_day_rows": [],
+            "current_7d_rows": [],
+            "previous_7d_rows": [],
+            "source": "failed",
+            "error": "Google Search Console istemcisi yuklu degil.",
+            "property_urls_by_device": {},
+        }
+
+    try:
+        credential_data = load_google_credentials(credential)
+        if credential.credential_type == "search_console_oauth":
+            credentials = credential_data
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(GoogleAuthRequest())
+        else:
+            credentials = service_account.Credentials.from_service_account_info(
+                credential_data,
+                scopes=SEARCH_CONSOLE_SCOPES,
+            )
+        service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+        targets = _resolve_search_console_targets(service, site)
+        latest_supported_end_date = _resolve_latest_available_day(
+            service,
+            targets,
+            fallback_end_date=date.today() - timedelta(days=1),
+        )
+        end_date = latest_supported_end_date
+        current_date = end_date
+        previous_date = end_date - timedelta(days=1)
+        current_7d_start = end_date - timedelta(days=6)
+        previous_7d_end = current_7d_start - timedelta(days=1)
+        previous_7d_start = previous_7d_end - timedelta(days=6)
+
+        current_day_rows: list[dict] = []
+        previous_day_rows: list[dict] = []
+        current_7d_rows: list[dict] = []
+        previous_7d_rows: list[dict] = []
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            device = str(target.get("device") or "").upper() or None
+            current_day_rows.extend(
+                _fetch_search_console_rows_limited(
+                    service,
+                    property_url,
+                    current_date,
+                    current_date,
+                    device=device,
+                    max_rows=1000,
+                )
+            )
+            previous_day_rows.extend(
+                _fetch_search_console_rows_limited(
+                    service,
+                    property_url,
+                    previous_date,
+                    previous_date,
+                    device=device,
+                    max_rows=1000,
+                )
+            )
+            current_7d_rows.extend(
+                _fetch_search_console_rows_limited(
+                    service,
+                    property_url,
+                    current_7d_start,
+                    end_date,
+                    device=device,
+                    max_rows=1000,
+                )
+            )
+            previous_7d_rows.extend(
+                _fetch_search_console_rows_limited(
+                    service,
+                    property_url,
+                    previous_7d_start,
+                    previous_7d_end,
+                    device=device,
+                    max_rows=1000,
+                )
+            )
+
+        return {
+            "current_day_rows": current_day_rows,
+            "previous_day_rows": previous_day_rows,
+            "current_7d_rows": current_7d_rows,
+            "previous_7d_rows": previous_7d_rows,
+            "source": "live",
+            "error": None,
+            "property_urls_by_device": {str(target["device"]): str(target["property_url"]) for target in targets},
+            "current_date": current_date.isoformat(),
+            "previous_date": previous_date.isoformat(),
+            "current_7d_start": current_7d_start.isoformat(),
+            "current_7d_end": end_date.isoformat(),
+            "previous_7d_start": previous_7d_start.isoformat(),
+            "previous_7d_end": previous_7d_end.isoformat(),
+        }
+    except Exception as exc:
+        LOGGER.warning("Search Console alert fetch failed for %s: %s", site.domain, exc)
+        return {
+            "current_day_rows": [],
+            "previous_day_rows": [],
+            "current_7d_rows": [],
+            "previous_7d_rows": [],
+            "source": "failed",
+            "error": str(exc),
+            "property_urls_by_device": {},
+        }
+
+
+def fetch_search_console_query_comparison(
+    db: Session,
+    site: Site,
+    *,
+    query: str,
+    comparison_type: str = "daily",
+) -> dict:
+    credential = get_search_console_credentials_record(db, site.id)
+    if credential is None:
+        return {
+            "source": "failed",
+            "error": "Search Console baglantisi yok.",
+            "current_rows": [],
+            "previous_rows": [],
+            "current_label": "",
+            "previous_label": "",
+        }
+
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError:
+        return {
+            "source": "failed",
+            "error": "Google Search Console istemcisi yuklu degil.",
+            "current_rows": [],
+            "previous_rows": [],
+            "current_label": "",
+            "previous_label": "",
+        }
+
+    try:
+        credential_data = load_google_credentials(credential)
+        if credential.credential_type == "search_console_oauth":
+            credentials = credential_data
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(GoogleAuthRequest())
+        else:
+            credentials = service_account.Credentials.from_service_account_info(
+                credential_data,
+                scopes=SEARCH_CONSOLE_SCOPES,
+            )
+        service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+        targets = _resolve_search_console_targets(service, site)
+        latest_available_day = _resolve_latest_available_day(
+            service,
+            targets,
+            fallback_end_date=date.today() - timedelta(days=1),
+        )
+
+        if comparison_type == "weekly":
+            current_start = latest_available_day - timedelta(days=6)
+            current_end = latest_available_day
+            previous_end = current_start - timedelta(days=1)
+            previous_start = previous_end - timedelta(days=6)
+            current_label = "Son 7 Gun"
+            previous_label = "Onceki 7 Gun"
+        else:
+            current_start = latest_available_day
+            current_end = latest_available_day
+            previous_start = latest_available_day - timedelta(days=1)
+            previous_end = previous_start
+            current_label = "Dun"
+            previous_label = "Onceki Gun"
+
+        current_rows: list[dict] = []
+        previous_rows: list[dict] = []
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            device = str(target.get("device") or "").upper() or None
+            current_rows.extend(
+                _fetch_search_console_query_rows(
+                    service,
+                    property_url,
+                    current_start,
+                    current_end,
+                    query=query,
+                    device=device,
+                )
+            )
+            previous_rows.extend(
+                _fetch_search_console_query_rows(
+                    service,
+                    property_url,
+                    previous_start,
+                    previous_end,
+                    query=query,
+                    device=device,
+                )
+            )
+
+        return {
+            "source": "live",
+            "error": None,
+            "current_rows": current_rows,
+            "previous_rows": previous_rows,
+            "current_label": current_label,
+            "previous_label": previous_label,
+            "current_start": current_start.isoformat(),
+            "current_end": current_end.isoformat(),
+            "previous_start": previous_start.isoformat(),
+            "previous_end": previous_end.isoformat(),
+        }
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Search Console query comparison failed for %s query=%s: %s", site.domain, query, exc)
+        return {
+            "source": "failed",
+            "error": str(exc),
+            "current_rows": [],
+            "previous_rows": [],
+            "current_label": "",
+            "previous_label": "",
+        }
 
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
@@ -593,13 +1169,17 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     )
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
+    current_day_rows = payload.get("current_day", [])
     previous_rows = payload.get("previous_day", [])
+    current_day_rows = payload.get("current_day_rows", [])
+    previous_day_rows = payload.get("previous_day_rows", [])
     current_7d_rows = payload.get("current_7d_rows", [])
     previous_7d_rows = payload.get("previous_7d_rows", [])
-    trend_14d_rows = payload.get("trend_14d_rows", [])
+    trend_28d_rows = payload.get("trend_28d_rows", [])
     source = payload.get("source", "failed")
     error = payload.get("error")
     site_url = payload.get("site_url", "")
+    property_urls_by_device = payload.get("property_urls_by_device", {}) or {}
 
     if source != "live":
         finish_collector_run(
@@ -620,7 +1200,15 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         }
     previous_map = {
         (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
-        for row in previous_rows
+        for row in previous_7d_rows
+    }
+    current_query_keys = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
+        for row in current_7d_rows
+    }
+    previous_query_keys = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
+        for row in previous_7d_rows
     }
 
     total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
@@ -629,7 +1217,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     avg_position = sum(float(row.get("position", 0)) for row in rows) / len(rows) if rows else 0.0
     dropped_queries = 0
     max_drop = 0.0
-    for row in rows:
+    for row in current_7d_rows:
         query = str(row.get("query") or "")
         device = str(row.get("device") or "ALL").upper()
         current_position = float(row.get("position", 0))
@@ -638,8 +1226,8 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             continue
         drop = current_position - previous_position
         if drop > 0.5:
-            dropped_queries += 1
             max_drop = max(max_drop, drop)
+    dropped_queries = len(previous_query_keys - current_query_keys)
 
     metrics = {
         "search_console_clicks_28d": total_clicks,
@@ -650,7 +1238,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         "search_console_biggest_drop": max_drop,
     }
     period_summaries = _build_period_summaries_from_daily_rows(
-        trend_14d_rows,
+        trend_28d_rows,
         previous_7d_start=date.fromisoformat(str(payload.get("previous_7d_start") or "")),
         previous_7d_end=date.fromisoformat(str(payload.get("previous_7d_end") or "")),
         current_7d_start=date.fromisoformat(str(payload.get("current_7d_start") or "")),
@@ -658,19 +1246,15 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     )
     current_7d_summary = period_summaries["current"]
     previous_7d_summary = period_summaries["previous"]
-    trend_summary_by_device = _build_trend_summary_by_device(
-        trend_14d_rows,
-        previous_7d_start=date.fromisoformat(str(payload.get("previous_7d_start") or "")),
-        previous_7d_end=date.fromisoformat(str(payload.get("previous_7d_end") or "")),
-        current_7d_start=date.fromisoformat(str(payload.get("current_7d_start") or "")),
-        current_7d_end=date.fromisoformat(str(payload.get("current_7d_end") or "")),
+    trend_summary_by_device = _build_recent_trend_summary_by_device(
+        trend_28d_rows,
+        start_date=date.fromisoformat(str(payload.get("start_date") or "")),
+        end_date=date.fromisoformat(str(payload.get("end_date") or "")),
     )
-    trend_summary = _build_trend_summary(
-        trend_14d_rows,
-        previous_7d_start=date.fromisoformat(str(payload.get("previous_7d_start") or "")),
-        previous_7d_end=date.fromisoformat(str(payload.get("previous_7d_end") or "")),
-        current_7d_start=date.fromisoformat(str(payload.get("current_7d_start") or "")),
-        current_7d_end=date.fromisoformat(str(payload.get("current_7d_end") or "")),
+    trend_summary = _build_recent_trend_summary(
+        trend_28d_rows,
+        start_date=date.fromisoformat(str(payload.get("start_date") or "")),
+        end_date=date.fromisoformat(str(payload.get("end_date") or "")),
     )
     save_metrics(db, site.id, metrics, collected_at)
     current_row_count = save_search_console_query_rows(
@@ -682,6 +1266,17 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         collected_at=collected_at,
         start_date=str(payload.get("start_date") or ""),
         end_date=str(payload.get("end_date") or ""),
+        collector_run_id=collector_run.id,
+    )
+    current_day_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="current_day",
+        rows=current_day_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("current_date") or ""),
+        end_date=str(payload.get("current_date") or ""),
         collector_run_id=collector_run.id,
     )
     previous_row_count = save_search_console_query_rows(
@@ -725,7 +1320,9 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         summary={
             "source": "live",
             "property_url": site_url,
+            "property_url_by_device": property_urls_by_device,
             "current_rows": current_row_count,
+            "current_day_rows": current_day_row_count,
             "previous_rows": previous_row_count,
             "current_7d_rows": current_7d_row_count,
             "previous_7d_rows": previous_7d_row_count,
@@ -737,13 +1334,166 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "previous_7d_summary_by_device": {
                 device: values["previous"] for device, values in period_summaries["by_device"].items()
             },
-            "trend_7d_summary": trend_summary,
-            "trend_7d_summary_by_device": trend_summary_by_device,
+            "trend_28d_summary": trend_summary,
+            "trend_28d_summary_by_device": trend_summary_by_device,
         },
-        row_count=current_row_count + previous_row_count + current_7d_row_count + previous_7d_row_count,
+        row_count=current_row_count + current_day_row_count + previous_row_count + current_7d_row_count + previous_7d_row_count,
     )
+    # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
+    db.commit()
     evaluate_site_alerts(db, site)
     return {"site_id": site.id, "rows": rows, "summary": metrics, "source": "live", "error": None}
+
+
+def collect_search_console_alert_metrics(
+    db: Session,
+    site: Site,
+    *,
+    send_notifications: bool = True,
+) -> dict:
+    """Alert taramasi icin hafif Search Console yenilemesi yapar."""
+    decision = consume_api_quota(db, site, provider="search_console", units=2)
+    if not decision.allowed:
+        return {
+            "site_id": site.id,
+            "blocked": True,
+            "reason": decision.reason,
+            "summary": {},
+        }
+
+    credential = get_search_console_credentials_record(db, site.id)
+    collected_at = datetime.utcnow()
+    collector_run = start_collector_run(
+        db,
+        site_id=site.id,
+        provider="search_console",
+        strategy="alerts",
+        target_url=site.domain,
+        requested_at=collected_at,
+    )
+    payload = _load_search_console_alert_data(site, credential)
+    current_day_rows = payload.get("current_day_rows", [])
+    previous_day_rows = payload.get("previous_day_rows", [])
+    current_7d_rows = payload.get("current_7d_rows", [])
+    previous_7d_rows = payload.get("previous_7d_rows", [])
+    source = payload.get("source", "failed")
+    error = payload.get("error")
+    property_urls_by_device = payload.get("property_urls_by_device", {}) or {}
+
+    if source != "live":
+        finish_collector_run(
+            db,
+            collector_run,
+            status="failed",
+            finished_at=datetime.utcnow(),
+            error_message=str(error or "Search Console alert verisi alinamadi."),
+            summary={"source": source},
+            row_count=0,
+        )
+        db.commit()
+        return {
+            "site_id": site.id,
+            "summary": {},
+            "source": source,
+            "error": error,
+        }
+
+    previous_map = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
+        for row in previous_7d_rows
+    }
+    current_query_keys = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
+        for row in current_7d_rows
+    }
+    previous_query_keys = {
+        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
+        for row in previous_7d_rows
+    }
+
+    max_drop = 0.0
+    for row in current_7d_rows:
+        query = str(row.get("query") or "")
+        device = str(row.get("device") or "ALL").upper()
+        current_position = float(row.get("position", 0))
+        previous_position = previous_map.get((query, device))
+        if previous_position is None:
+            continue
+        max_drop = max(max_drop, current_position - previous_position)
+
+    metrics = {
+        "search_console_dropped_queries": float(len(previous_query_keys - current_query_keys)),
+        "search_console_biggest_drop": max_drop,
+    }
+    save_metrics(db, site.id, metrics, collected_at)
+    current_day_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url="",
+        data_scope="current_day",
+        rows=current_day_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("current_date") or ""),
+        end_date=str(payload.get("current_date") or ""),
+        collector_run_id=collector_run.id,
+    )
+    previous_day_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url="",
+        data_scope="previous_day",
+        rows=previous_day_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("previous_date") or ""),
+        end_date=str(payload.get("previous_date") or ""),
+        collector_run_id=collector_run.id,
+    )
+    current_7d_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url="",
+        data_scope="current_7d",
+        rows=current_7d_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("current_7d_start") or ""),
+        end_date=str(payload.get("current_7d_end") or ""),
+        collector_run_id=collector_run.id,
+    )
+    previous_7d_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url="",
+        data_scope="previous_7d",
+        rows=previous_7d_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("previous_7d_start") or ""),
+        end_date=str(payload.get("previous_7d_end") or ""),
+        collector_run_id=collector_run.id,
+    )
+    finish_collector_run(
+        db,
+        collector_run,
+        status="success",
+        finished_at=datetime.utcnow(),
+        summary={
+            "source": "live",
+            "property_url_by_device": property_urls_by_device,
+            "current_day_rows": current_day_row_count,
+            "previous_day_rows": previous_day_row_count,
+            "current_7d_rows": current_7d_row_count,
+            "previous_7d_rows": previous_7d_row_count,
+        },
+        row_count=current_day_row_count + previous_day_row_count + current_7d_row_count + previous_7d_row_count,
+    )
+    db.commit()
+    evaluate_site_alerts(db, site, send_notifications=send_notifications)
+    return {
+        "site_id": site.id,
+        "summary": metrics,
+        "source": "live",
+        "error": None,
+        "property_url_by_device": property_urls_by_device,
+    }
 
 
 def get_top_queries(db: Session, site: Site, limit: int = 10, device: str = "all") -> list[dict]:
