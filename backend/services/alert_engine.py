@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from html import escape
 import re
+import time
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from backend.models import Alert, AlertLog, Metric, Site
@@ -213,6 +215,28 @@ def _recent_duplicate_exists(
         .first()
         is not None
     )
+
+
+def _is_sqlite_locked_error(exc: Exception) -> bool:
+    return "database is locked" in str(exc).lower()
+
+
+def _commit_with_retry(db: Session, *, retries: int = 4, base_delay: float = 0.15) -> None:
+    last_exc: OperationalError | None = None
+    for attempt in range(retries):
+        try:
+            db.commit()
+            return
+        except OperationalError as exc:
+            db.rollback()
+            if not _is_sqlite_locked_error(exc):
+                raise
+            last_exc = exc
+            if attempt == retries - 1:
+                break
+            time.sleep(base_delay * (attempt + 1))
+    if last_exc is not None:
+        raise last_exc
 
 
 def _device_scope_code(query_data: dict | None) -> str:
@@ -636,7 +660,12 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
     if sent:
         for log in logs:
             log.sent_mail = True
-        db.commit()
+        try:
+            _commit_with_retry(db)
+        except OperationalError as exc:
+            db.rollback()
+            # Mail gonderimi tamamlandi; lock nedeniyle sent_mail yazilamazsa ana akisi bozma.
+            print(f"Warning: could not mark alert mails as sent due to DB lock: {exc}")
 
 
 def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
@@ -766,8 +795,12 @@ def emit_custom_alert(
     )
     if send_email(subject, body):
         log.sent_mail = True
-        db.commit()
-        db.refresh(log)
+        try:
+            _commit_with_retry(db)
+            db.refresh(log)
+        except OperationalError as exc:
+            db.rollback()
+            print(f"Warning: could not mark quota alert mail as sent due to DB lock: {exc}")
     return log
 
 
