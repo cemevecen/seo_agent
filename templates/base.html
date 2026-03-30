@@ -22,9 +22,9 @@
         {% if sites %}
           {% for site in sites %}
             <a
-              href="/data-explorer/{{ site.domain }}"
+              href="{{ site.href if site.href else '/data-explorer/' ~ site.domain }}"
               class="block rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-700 sidebar-link"
-              hx-get="/data-explorer/{{ site.domain }}"
+              hx-get="{{ site.href if site.href else '/data-explorer/' ~ site.domain }}"
               hx-target="#content"
               hx-swap="innerHTML"
               hx-push-url="true"
@@ -62,6 +62,7 @@
             <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
             <a href="/search-console" class="text-slate-600 hover:text-slate-900">Search Console</a>
             <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">PageSpeed</a>
+            <a href="/public-sites" class="text-slate-600 hover:text-slate-900">Public Crawl</a>
             <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
             <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
           </div>
@@ -134,9 +135,14 @@
         }
         const explorerLink = document.getElementById('header-data-explorer-link');
         const storedDomain = localStorage.getItem('seo-current-domain');
+        const storedProfile = (localStorage.getItem('seo-current-profile') || '').toLowerCase();
         if (!content.querySelector('[data-site-domain]') && storedDomain) {
           if (explorerLink) {
-            explorerLink.setAttribute('href', '/data-explorer/' + storedDomain);
+            if (storedProfile === 'public') {
+              explorerLink.setAttribute('href', '/public-explorer/' + storedDomain);
+            } else {
+              explorerLink.setAttribute('href', '/data-explorer/' + storedDomain);
+            }
           }
         }
 
@@ -146,15 +152,21 @@
         }
 
         const siteDomain = siteRoot.getAttribute('data-site-domain');
+        const siteProfile = (siteRoot.getAttribute('data-site-profile') || '').toLowerCase();
         const siteTitle = siteRoot.getAttribute('data-site-title') || 'SEO Agent Dashboard';
         const headerTitle = document.getElementById('header-site-title');
         localStorage.setItem('seo-current-domain', siteDomain || '');
+        localStorage.setItem('seo-current-profile', siteProfile || 'verified');
 
         if (headerTitle) {
           headerTitle.textContent = siteTitle;
         }
         if (explorerLink && siteDomain) {
-          explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);
+          if (siteProfile === 'public') {
+            explorerLink.setAttribute('href', '/public-explorer/' + siteDomain);
+          } else {
+            explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);
+          }
         }
         document.title = siteTitle;
       }

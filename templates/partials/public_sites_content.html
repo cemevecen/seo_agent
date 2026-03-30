@@ -1,0 +1,52 @@
+<div id="public-sites-view" class="space-y-6">
+  <section class="rounded-[2rem] border border-orange-200 bg-[linear-gradient(120deg,rgba(255,247,237,0.95),rgba(255,255,255,0.98)_45%,rgba(254,242,242,0.9))] p-6 shadow-[0_24px_60px_-38px_rgba(194,65,12,0.45)] ring-1 ring-white/70">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-700/80">Public Crawl Zone</p>
+        <h3 class="mt-2 text-3xl font-black tracking-tight text-slate-900">İzin Gerektirmeyen Siteler</h3>
+        <p class="mt-2 max-w-3xl text-sm text-slate-600">Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.</p>
+      </div>
+      <button
+        type="button"
+        id="refresh-public-sites-all"
+        class="rounded-full bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500"
+        onclick="refreshAllPublicSites(this)"
+      >
+        Tüm Public Siteleri Yenile
+      </button>
+    </div>
+  </section>
+
+  <div id="public-site-list" hx-get="/public-sites/site-list" hx-trigger="load" hx-swap="innerHTML">
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
+      Public site kartları yükleniyor...
+    </div>
+  </div>
+</div>
+
+<script>
+  function refreshAllPublicSites(button) {
+    if (button) {
+      button.disabled = true;
+      button.dataset.originalText = button.textContent;
+      button.textContent = 'Yenileniyor...';
+    }
+
+    htmx.ajax('POST', '/public-sites/refresh-all', {
+      target: '#public-site-list',
+      swap: 'innerHTML'
+    }).then(function () {
+      if (!button) {
+        return;
+      }
+      button.disabled = false;
+      button.textContent = button.dataset.originalText || 'Tüm Public Siteleri Yenile';
+    }).catch(function () {
+      if (!button) {
+        return;
+      }
+      button.disabled = false;
+      button.textContent = button.dataset.originalText || 'Tüm Public Siteleri Yenile';
+    });
+  }
+</script>

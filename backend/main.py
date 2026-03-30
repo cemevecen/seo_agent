@@ -287,7 +287,18 @@ def get_sidebar_sites() -> list[dict]:
     # Sidebar için aktif siteler veritabanından okunur.
     with SessionLocal() as db:
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
-        rows = [{"domain": site.domain, "label": site.display_name} for site in sites]
+        rows = []
+        for site in sites:
+            connection = get_search_console_connection_status(db, site.id)
+            is_public = not bool(connection.get("connected"))
+            rows.append(
+                {
+                    "domain": site.domain,
+                    "label": site.display_name,
+                    "profile": "public" if is_public else "verified",
+                    "href": f"/public-explorer/{site.domain}" if is_public else f"/data-explorer/{site.domain}",
+                }
+            )
         rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
         return rows
 
@@ -588,6 +599,34 @@ def _active_sites(db) -> list[Site]:
         .order_by(Site.created_at.asc(), Site.id.asc())
         .all()
     )
+
+
+def _is_search_console_connected(db, site_id: int) -> bool:
+    connection = get_search_console_connection_status(db, site_id)
+    return bool(connection.get("connected"))
+
+
+def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> dict[str, dict]:
+    # Search Console yetkisi gerektirmeyen collector akisi.
+    results = _refresh_site_detail_measurements(
+        db,
+        site,
+        include_pagespeed=True,
+        include_crawler=True,
+        include_search_console=False,
+        force=force,
+    )
+
+    try:
+        results["crux_history"] = collect_crux_history(db, site)
+    except Exception as exc:  # noqa: BLE001
+        results["crux_history"] = {"state": "failed", "error": str(exc)}
+
+    results["url_inspection"] = {
+        "state": "skipped",
+        "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
+    }
+    return results
 
 
 def _run_daily_search_console_refresh_job() -> None:
@@ -1863,6 +1902,94 @@ def _data_explorer_context(domain: str) -> dict:
         }
 
 
+def _public_sites_payload(db) -> list[dict]:
+    sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
+    rows: list[dict] = []
+    for site in sites:
+        if _is_search_console_connected(db, site.id):
+            continue
+
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        warehouse = get_site_warehouse_summary(db, site_id=site.id)
+        crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+        desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        last_updated = max((metric.collected_at for metric in latest.values()), default=site.created_at)
+
+        rows.append(
+            {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
+                "pagespeed_mobile": round(_metric_value(latest, "pagespeed_mobile_score", 0.0)) if latest.get("pagespeed_mobile_score") else None,
+                "pagespeed_desktop": round(_metric_value(latest, "pagespeed_desktop_score", 0.0)) if latest.get("pagespeed_desktop_score") else None,
+                "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
+                "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
+                "crawler_audited_urls": crawler_link_audit.get("audited_urls", 0),
+                "crux_ready": bool(mobile_crux or desktop_crux),
+                "warehouse": warehouse,
+            }
+        )
+
+    rows.sort(key=lambda row: _preferred_site_order_key(row.get("domain"), row.get("display_name")))
+    return rows
+
+
+def _public_explorer_context(domain: str) -> dict:
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            raise ValueError("Site bulunamadı.")
+
+        connection = get_search_console_connection_status(db, site.id)
+        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+        warehouse = get_site_warehouse_summary(db, site_id=site.id)
+        crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+        desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+
+        cwv_rows = []
+        mobile_series = _format_crux_series(mobile_crux)
+        desktop_series = _format_crux_series(desktop_crux)
+        for metric_key, label in (
+            ("largest_contentful_paint", "LCP"),
+            ("interaction_to_next_paint", "INP"),
+            ("cumulative_layout_shift", "CLS"),
+            ("first_contentful_paint", "FCP"),
+            ("experimental_time_to_first_byte", "TTFB"),
+        ):
+            cwv_rows.append(
+                {
+                    "label": label,
+                    "mobile": (mobile_series.get(metric_key) or {}).get("latest"),
+                    "desktop": (desktop_series.get(metric_key) or {}).get("latest"),
+                }
+            )
+
+        return {
+            "site_name": f"Public Crawl - {site.display_name}",
+            "sites": get_sidebar_sites(),
+            "domain": site.domain,
+            "display_name": site.display_name,
+            "is_public_only": not bool(connection.get("connected")),
+            "search_console_label": connection.get("label", "Bağlantı yok"),
+            "pagespeed_mobile": round(_metric_value(latest, "pagespeed_mobile_score", 0.0)) if latest.get("pagespeed_mobile_score") else None,
+            "pagespeed_desktop": round(_metric_value(latest, "pagespeed_desktop_score", 0.0)) if latest.get("pagespeed_desktop_score") else None,
+            "crawler_robots": _metric_value(latest, "crawler_robots_accessible", 0.0) >= 1.0,
+            "crawler_sitemap": _metric_value(latest, "crawler_sitemap_exists", 0.0) >= 1.0,
+            "crawler_schema": _metric_value(latest, "crawler_schema_found", 0.0) >= 1.0,
+            "crawler_canonical": _metric_value(latest, "crawler_canonical_found", 0.0) >= 1.0,
+            "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
+            "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
+            "crawler_link_audit": crawler_link_audit,
+            "crux_mobile": mobile_crux,
+            "crux_desktop": desktop_crux,
+            "crux_rows": cwv_rows,
+            "warehouse_summary": warehouse,
+        }
+
+
 def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
@@ -2582,14 +2709,20 @@ def dashboard_measure_site(request: Request, site_id: int):
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
         try:
+            search_console_connected = _is_search_console_connected(db, site.id)
             results = _refresh_site_detail_measurements(
                 db,
                 site,
                 include_pagespeed=True,
                 include_crawler=True,
-                include_search_console=True,
+                include_search_console=search_console_connected,
                 force=True,
             )
+            if not search_console_connected:
+                try:
+                    results["crux_history"] = collect_crux_history(db, site)
+                except Exception as exc:  # noqa: BLE001
+                    results["crux_history"] = {"state": "failed", "error": str(exc)}
             db.commit()
             notify_result_map(
                 trigger_source="manual",
@@ -2637,6 +2770,109 @@ def data_explorer(request: Request, domain: str):
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(request, "partials/data_explorer_content.html", context={"request": request, **payload})
     return templates.TemplateResponse(request, "data_explorer.html", context={"request": request, **payload})
+
+
+@app.get("/public-sites")
+def public_sites_page(request: Request):
+    with SessionLocal() as db:
+        payload = {
+            "site_name": "Public Crawl",
+            "sites": get_sidebar_sites(),
+            "public_sites": _public_sites_payload(db),
+        }
+    template_name = "partials/public_sites_content.html" if request.headers.get("HX-Request") == "true" else "public_sites.html"
+    return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
+
+
+@app.get("/public-explorer/{domain}", response_class=HTMLResponse)
+def public_explorer(request: Request, domain: str):
+    try:
+        payload = _public_explorer_context(domain)
+    except ValueError:
+        return HTMLResponse("Site bulunamadı.", status_code=404)
+
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "partials/public_explorer_content.html", context={"request": request, **payload})
+    return templates.TemplateResponse(request, "public_explorer.html", context={"request": request, **payload})
+
+
+@app.get("/public-sites/site-list")
+def public_sites_list(request: Request):
+    with SessionLocal() as db:
+        return templates.TemplateResponse(
+            request,
+            "partials/public_site_cards.html",
+            context={
+                "request": request,
+                "public_sites": _public_sites_payload(db),
+            },
+        )
+
+
+@app.post("/public-sites/refresh/{site_id}")
+def public_sites_refresh_site(request: Request, site_id: int):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+
+        results = _refresh_public_site_measurements(db, site, force=True)
+        db.commit()
+        notify_result_map(
+            trigger_source="manual",
+            site=site,
+            results=results,
+            action_label="Public crawl verisini yenile",
+        )
+        if isinstance(results.get("crawler"), dict):
+            notify_crawler_audit_emails(
+                db=db,
+                site=site,
+                result=results.get("crawler"),
+                trigger_source="manual",
+            )
+        return templates.TemplateResponse(
+            request,
+            "partials/public_site_cards.html",
+            context={
+                "request": request,
+                "public_sites": _public_sites_payload(db),
+            },
+        )
+
+
+@app.post("/public-sites/refresh-all")
+def public_sites_refresh_all(request: Request):
+    with SessionLocal() as db:
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        for index, site in enumerate(sites):
+            if _is_search_console_connected(db, site.id):
+                continue
+            results = _refresh_public_site_measurements(db, site, force=True)
+            db.commit()
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                results=results,
+                action_label="Public crawl tum siteler yenile",
+            )
+            if isinstance(results.get("crawler"), dict):
+                notify_crawler_audit_emails(
+                    db=db,
+                    site=site,
+                    result=results.get("crawler"),
+                    trigger_source="manual",
+                )
+            if index < len(sites) - 1:
+                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+        return templates.TemplateResponse(
+            request,
+            "partials/public_site_cards.html",
+            context={
+                "request": request,
+                "public_sites": _public_sites_payload(db),
+            },
+        )
 
 
 @app.get("/api/site/{domain}/top-queries")
@@ -2842,14 +3078,29 @@ def api_refresh_site_metrics(request: Request, domain: str):
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
+        search_console_connected = _is_search_console_connected(db, site.id)
         results = _refresh_site_detail_measurements(
             db,
             site,
             include_pagespeed=True,
             include_crawler=True,
-            include_search_console=True,
+            include_search_console=search_console_connected,
             force=True,
         )
+        try:
+            results["crux_history"] = collect_crux_history(db, site)
+        except Exception as exc:  # noqa: BLE001
+            results["crux_history"] = {"state": "failed", "error": str(exc)}
+        if search_console_connected:
+            try:
+                results["url_inspection"] = collect_url_inspection(db, site)
+            except Exception as exc:  # noqa: BLE001
+                results["url_inspection"] = {"state": "failed", "error": str(exc)}
+        else:
+            results["url_inspection"] = {
+                "state": "skipped",
+                "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
+            }
         db.commit()
         notify_result_map(
             trigger_source="manual",

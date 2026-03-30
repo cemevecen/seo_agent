@@ -7,6 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
+from backend.collectors.crawler import collect_crawler_metrics
+from backend.collectors.crux_history import collect_crux_history
+from backend.collectors.pagespeed import collect_pagespeed_metrics
 from backend.models import Site, SiteCredential
 from backend.rate_limiter import limiter
 from backend.services.crypto import encrypt_text
@@ -71,7 +74,23 @@ async def create_site(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(site)
 
-    return {"item": _site_to_dict(site)}
+    bootstrap: dict[str, object] = {}
+    if site.is_active:
+        try:
+            bootstrap["pagespeed"] = collect_pagespeed_metrics(db, site)
+        except Exception as exc:  # noqa: BLE001
+            bootstrap["pagespeed"] = {"state": "failed", "error": str(exc)}
+        try:
+            bootstrap["crawler"] = collect_crawler_metrics(db, site)
+        except Exception as exc:  # noqa: BLE001
+            bootstrap["crawler"] = {"state": "failed", "error": str(exc)}
+        try:
+            bootstrap["crux_history"] = collect_crux_history(db, site)
+        except Exception as exc:  # noqa: BLE001
+            bootstrap["crux_history"] = {"state": "failed", "error": str(exc)}
+        db.commit()
+
+    return {"item": _site_to_dict(site), "bootstrap": bootstrap}
 
 
 @router.delete("/sites/{site_id}")

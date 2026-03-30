@@ -39,6 +39,18 @@
       >
         PageSpeed
       </a>
+      {% if card.search_console.status.state == 'failed' %}
+      <a
+        href="/public-explorer/{{ card.domain }}"
+        class="rounded-full border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
+        hx-get="/public-explorer/{{ card.domain }}"
+        hx-target="#content"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+      >
+        Public Explorer
+      </a>
+      {% endif %}
     </div>
   </div>
 

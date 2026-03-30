@@ -6,6 +6,7 @@
           <th class="px-3 py-2 font-medium">ID</th>
           <th class="px-3 py-2 font-medium">Domain</th>
           <th class="px-3 py-2 font-medium">Görünen Ad</th>
+          <th class="px-3 py-2 font-medium">Profil</th>
           <th class="px-3 py-2 font-medium">Durum</th>
           <th class="px-3 py-2 font-medium">Search Console</th>
           <th class="px-3 py-2 font-medium">İşlem</th>
@@ -17,6 +18,13 @@
             <td class="px-3 py-2 text-slate-700">{{ site.id }}</td>
             <td class="px-3 py-2 font-medium text-slate-900">{{ site.domain }}</td>
             <td class="px-3 py-2 text-slate-700">{{ site.display_name }}</td>
+            <td class="px-3 py-2">
+              {% if site.search_console.connected %}
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Verified</span>
+              {% else %}
+                <span class="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700">Public Crawl</span>
+              {% endif %}
+            </td>
             <td class="px-3 py-2">
               {% if site.is_active %}
                 <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Aktif</span>
@@ -63,6 +71,18 @@
                 >
                   Sil
                 </button>
+                {% if not site.search_console.connected %}
+                  <a
+                    href="/public-explorer/{{ site.domain }}"
+                    class="rounded-md border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
+                    hx-get="/public-explorer/{{ site.domain }}"
+                    hx-target="#content"
+                    hx-swap="innerHTML"
+                    hx-push-url="true"
+                  >
+                    Public Explorer
+                  </a>
+                {% endif %}
               </div>
             </td>
           </tr>

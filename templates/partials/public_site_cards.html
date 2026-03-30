@@ -1,0 +1,58 @@
+{% if public_sites %}
+  <div class="grid gap-4 xl:grid-cols-2">
+    {% for site in public_sites %}
+      <article class="rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-slate-100">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Public Site</p>
+            <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{{ site.display_name }}</h4>
+            <p class="mt-1 break-all text-sm text-slate-600">{{ site.domain }}</p>
+            <p class="mt-2 text-xs text-slate-500">Son güncelleme: {{ site.last_updated }}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <form hx-post="/public-sites/refresh/{{ site.id }}" hx-target="#public-site-list" hx-swap="innerHTML">
+              <button type="submit" class="rounded-full border border-orange-300 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100">
+                Public Veriyi Yenile
+              </button>
+            </form>
+            <a
+              href="/public-explorer/{{ site.domain }}"
+              class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+              hx-get="/public-explorer/{{ site.domain }}"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-push-url="true"
+            >
+              Public Explorer
+            </a>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Mobile PSI</p>
+            <p class="mt-2 text-2xl font-black {% if site.pagespeed_mobile is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ site.pagespeed_mobile if site.pagespeed_mobile is not none else 'N/A' }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Desktop PSI</p>
+            <p class="mt-2 text-2xl font-black {% if site.pagespeed_desktop is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ site.pagespeed_desktop if site.pagespeed_desktop is not none else 'N/A' }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Crawler</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ site.crawler_audited_urls }} URL</p>
+            <p class="mt-1 text-xs text-slate-500">Kırık: {{ site.crawler_broken_links }} · Zincir: {{ site.crawler_redirect_chains }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">CrUX</p>
+            <p class="mt-2 text-lg font-semibold {% if site.crux_ready %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Hazır' if site.crux_ready else 'Bekleniyor' }}</p>
+            <p class="mt-1 text-xs text-slate-500">Snapshot: {{ site.warehouse.crux_history_snapshots }}</p>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
+    Search Console bağlantısı olmayan aktif site bulunmuyor.
+  </div>
+{% endif %}
