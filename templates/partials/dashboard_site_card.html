@@ -145,7 +145,7 @@
       hx-swap="innerHTML"
       hx-push-url="true"
     >
-      {% if card.crawler_ok %}Crawler sağlıklı{% else %}Crawler kontrol gerekli{% endif %}
+      {{ card.crawler_label }}
     </a>
     <a
       href="/alerts"
@@ -158,6 +158,7 @@
       {{ card.alert_count }} uyarı
     </a>
   </div>
+  <p class="mt-2 text-xs text-slate-500">{{ card.crawler_detail }}</p>
 
   <div class="mt-4 grid items-start gap-3 lg:grid-cols-[1.2fr_0.8fr]">
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">

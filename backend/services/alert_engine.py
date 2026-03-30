@@ -75,6 +75,20 @@ ALERT_DESCRIPTIONS = {
         "what_means_en": "If the same content is published on multiple URLs, Google may split ranking power or rank the wrong page.",
         "severity": "warning"
     },
+    "crawler_broken_links_count": {
+        "description_tr": "Ana sayfadan örneklenen iç linklerin bir kısmı 404, 410 veya benzeri hata ile açılmıyor.",
+        "description_en": "Some sampled internal links from the homepage are returning 404, 410, or similar errors.",
+        "what_means": "Kullanıcı deneyimi bozulur, crawl bütçesi boşa gider ve SEO değeri zayıflayabilir.",
+        "what_means_en": "User experience degrades, crawl budget is wasted, and SEO value may weaken.",
+        "severity": "critical"
+    },
+    "crawler_redirect_chain_count": {
+        "description_tr": "İç linklerin bir kısmı hedefe tek adımda gitmiyor; birden fazla yönlendirme üzerinden açılıyor.",
+        "description_en": "Some internal links are not resolving directly and require multiple redirect hops.",
+        "what_means": "Tarama verimi düşer, sayfa açılışı uzar ve link değeri gereksiz yönlendirmelerde yıpranır.",
+        "what_means_en": "Crawl efficiency drops, page loads slow down, and link equity is diluted through unnecessary redirects.",
+        "severity": "warning"
+    },
     "search_console_dropped_queries": {
         "description_tr": "Google Search Console'da sıralamadığınız (veya konumunuz düşen) arama terimleri sayısı arttığında tetiklenir.",
         "description_en": "Triggered when the number of search queries where you're not ranking (or your position dropped) increases.",
@@ -120,6 +134,8 @@ DEFAULT_ALERT_RULES: tuple[AlertRuleDefinition, ...] = (
     AlertRuleDefinition("crawler_sitemap_exists", 1.0, "lt", "sitemap.xml bulunamadı"),
     AlertRuleDefinition("crawler_schema_found", 1.0, "lt", "Schema markup bulunamadı"),
     AlertRuleDefinition("crawler_canonical_found", 1.0, "lt", "Canonical etiketi bulunamadı"),
+    AlertRuleDefinition("crawler_broken_links_count", 0.0, "gt", "Kırık iç link bulundu"),
+    AlertRuleDefinition("crawler_redirect_chain_count", 0.0, "gt", "Redirect zinciri bulundu"),
     AlertRuleDefinition("search_console_dropped_queries", 1.0, "gt", "Düşen sorgu sayısı arttı"),
     AlertRuleDefinition("search_console_biggest_drop", 2.0, "gt", "Search Console sıralama düşüşü yüksek"),
     AlertRuleDefinition("search_console_position_drop", 1.0, "gt", "Top 50 keyword position düşüşü"),

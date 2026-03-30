@@ -245,6 +245,72 @@ text-slate-500
     </div>
   </div>
 
+  <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Crawler Denetimi</p>
+        <h4 class="text-xl font-semibold text-slate-900">Kırık Link ve Redirect Taraması</h4>
+        <p class="mt-2 text-sm text-slate-600">Ana sayfadaki dahili linklerden örneklem alınır; kırık hedefler, yönlendirmeler ve zincirler burada görünür.</p>
+      </div>
+      {% if crawler_link_audit.has_data %}
+      <span class="rounded-full border px-3 py-1 text-xs font-semibold {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 %}border-rose-200 bg-rose-50 text-rose-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-700{% endif %}">
+        {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 %}Kontrol gerekli{% else %}Sağlıklı{% endif %}
+      </span>
+      {% else %}
+      <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">Henüz taranmadı</span>
+      {% endif %}
+    </div>
+
+    {% if crawler_link_audit.has_data %}
+    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {{ metric_tile("Örnek Link", crawler_link_audit.sampled_links, "Taranan dahili link", "Ana sayfadan alınan örnek link sayısıdır.") }}
+      {{ metric_tile("Redirect", crawler_link_audit.redirect_links, "En az bir kez yönlendi", "Hedefe doğrudan gitmeyen iç link sayısıdır.") }}
+      {{ metric_tile("Zincir", crawler_link_audit.redirect_chains, "Birden fazla hop", "İki veya daha fazla yönlendirme adımı kullanan link sayısıdır.") }}
+      {{ metric_tile("Kırık", crawler_link_audit.broken_links, "404 / 5xx / erişilemeyen", "Açılmayan veya hata dönen dahili link sayısıdır.") }}
+      {{ metric_tile("Maks. Hop", crawler_link_audit.max_hops, "En uzun zincir", "Tek bir linkte görülen en yüksek yönlendirme adımıdır.") }}
+    </div>
+
+    <div class="mt-5 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Kırık Link Örnekleri</p>
+        {% if crawler_link_audit.broken_samples %}
+        <div class="mt-3 space-y-2">
+          {% for sample in crawler_link_audit.broken_samples %}
+          <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+            <p class="break-all text-sm font-semibold text-rose-700">{{ sample.url }}</p>
+            <p class="mt-1 text-xs text-rose-600">Son durum: {{ sample.final_status or "erişilemedi" }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Örneklem içinde kırık link bulunmadı.</div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Redirect Zinciri Örnekleri</p>
+        {% if crawler_link_audit.redirect_samples %}
+        <div class="mt-3 space-y-2">
+          {% for sample in crawler_link_audit.redirect_samples %}
+          <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+            <p class="break-all text-sm font-semibold text-amber-800">{{ sample.url }}</p>
+            <p class="mt-1 text-xs text-amber-700">Adım: {{ sample.hops }} | Zincir: {{ sample.chain }}</p>
+            <p class="mt-1 break-all text-xs text-amber-700">Final URL: {{ sample.final_url }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Örneklem içinde redirect zinciri bulunmadı.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+      Henüz crawler link denetimi kaydı yok.
+    </div>
+    {% endif %}
+  </section>
+
   <div class="grid gap-5 xl:grid-cols-2">
     <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">

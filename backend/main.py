@@ -1014,6 +1014,8 @@ def _refresh_site_detail_measurements(
                 "crawler_sitemap_exists",
                 "crawler_schema_found",
                 "crawler_canonical_found",
+                "crawler_broken_links_count",
+                "crawler_redirect_chain_count",
             ),
             settings.crawler_refresh_cooldown_seconds,
         )
@@ -1306,6 +1308,16 @@ def _crawler_checks_from_metrics(latest: dict[str, object]) -> list[dict]:
             _metric_value(latest, "crawler_schema_found", 0.0) >= 1.0,
             "Yapısal veri varlığı",
         ),
+        (
+            "Kırık İç Link",
+            latest.get("crawler_broken_links_count") is None or _metric_value(latest, "crawler_broken_links_count", 0.0) <= 0.0,
+            "Ana sayfadan örneklenen iç linklerde hata sayısı",
+        ),
+        (
+            "Redirect Zinciri",
+            latest.get("crawler_redirect_chain_count") is None or _metric_value(latest, "crawler_redirect_chain_count", 0.0) <= 0.0,
+            "Birden fazla yönlendirme adımı kullanan iç linkler",
+        ),
     ]
     items: list[dict] = []
     for name, passed, label in checks:
@@ -1320,6 +1332,21 @@ def _crawler_checks_from_metrics(latest: dict[str, object]) -> list[dict]:
             }
         )
     return items
+
+
+def _latest_crawler_link_audit_summary(db, *, site_id: int) -> dict:
+    summary = _latest_successful_provider_summary(db, site_id=site_id, provider="crawler")
+    link_audit = dict(summary.get("link_audit") or {})
+    return {
+        "sampled_links": int(link_audit.get("sampled_links") or 0),
+        "redirect_links": int(link_audit.get("redirect_links") or 0),
+        "redirect_chains": int(link_audit.get("redirect_chains") or 0),
+        "broken_links": int(link_audit.get("broken_links") or 0),
+        "max_hops": int(link_audit.get("max_hops") or 0),
+        "redirect_samples": list(link_audit.get("redirect_samples") or []),
+        "broken_samples": list(link_audit.get("broken_samples") or []),
+        "has_data": bool(link_audit),
+    }
 
 
 def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_messages: list[str]) -> dict[str, object]:
@@ -1765,6 +1792,7 @@ def _data_explorer_context(domain: str) -> dict:
             raise ValueError("Site bulunamadı.")
 
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
+        crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
         mobile_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "mobile")
@@ -1804,6 +1832,7 @@ def _data_explorer_context(domain: str) -> dict:
             "sites": get_sidebar_sites(),
             "domain": site.domain,
             "warehouse_summary": warehouse,
+            "crawler_link_audit": crawler_link_audit,
             "crux_mobile": mobile_crux,
             "crux_desktop": desktop_crux,
             "crux_mobile_series": _format_crux_series(mobile_crux, mobile_pagespeed_current),
@@ -1842,12 +1871,7 @@ def _build_dashboard_card(
     mobile_pagespeed_metric = latest.get("pagespeed_mobile_score")
     desktop_pagespeed_metric = latest.get("pagespeed_desktop_score")
     pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
-    crawler_checks = [
-        latest.get("crawler_robots_accessible"),
-        latest.get("crawler_sitemap_exists"),
-        latest.get("crawler_schema_found"),
-        latest.get("crawler_canonical_found"),
-    ]
+    crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
     available_metrics = [metric for metric in latest.values()]
     last_updated = max((metric.collected_at for metric in available_metrics), default=site.created_at)
     pagespeed_score = float(pagespeed_metric.value) if pagespeed_metric else 0.0
@@ -1860,6 +1884,25 @@ def _build_dashboard_card(
     ]
     mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
     desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
+    base_crawler_ok = all(
+        _metric_value(latest, metric_name, 0.0) >= 1.0
+        for metric_name in (
+            "crawler_robots_accessible",
+            "crawler_sitemap_exists",
+            "crawler_schema_found",
+            "crawler_canonical_found",
+        )
+    )
+    broken_links_ok = crawler_link_audit["broken_links"] <= 0
+    redirect_chain_ok = crawler_link_audit["redirect_chains"] <= 0
+    crawler_ok = base_crawler_ok and broken_links_ok and redirect_chain_ok
+    crawler_status_parts: list[str] = []
+    if crawler_link_audit["broken_links"] > 0:
+        crawler_status_parts.append(f'{crawler_link_audit["broken_links"]} kırık link')
+    if crawler_link_audit["redirect_chains"] > 0:
+        crawler_status_parts.append(f'{crawler_link_audit["redirect_chains"]} redirect zinciri')
+    crawler_label = "Crawler sağlıklı" if crawler_ok else "Crawler kontrol gerekli"
+    crawler_detail = ", ".join(crawler_status_parts) if crawler_status_parts else "robots, sitemap, schema ve link denetimi iyi durumda"
     search_console_status = _search_console_status(db, latest, site.id)
     search_console_report = _search_console_report_payload(db, site_id=site.id)
     search_console_summary = search_console_report.get("summary_current") or {}
@@ -1878,7 +1921,10 @@ def _build_dashboard_card(
         "pagespeed_desktop_score": round(desktop_pagespeed_score) if desktop_pagespeed_score is not None else None,
         "pagespeed_desktop_label": str(round(desktop_pagespeed_score)) if desktop_pagespeed_score is not None else "Veri yok",
         "pagespeed_desktop_color": _score_color(desktop_pagespeed_score) if desktop_pagespeed_score is not None else "text-slate-400",
-        "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
+        "crawler_ok": crawler_ok,
+        "crawler_label": crawler_label,
+        "crawler_detail": crawler_detail,
+        "crawler_link_audit": crawler_link_audit,
         "check_count": len(available_metrics),
         "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
         "alert_count": len(recent_site_alerts),
