@@ -562,7 +562,11 @@
       const buttons = switcher.querySelectorAll('[data-device-toggle]');
       const activateDevice = function (deviceKey) {
         buttons.forEach(function (button) {
-          button.dataset.active = button.dataset.deviceToggle === deviceKey ? 'true' : 'false';
+          const isActive = button.dataset.deviceToggle === deviceKey;
+          button.dataset.active = isActive ? 'true' : 'false';
+          button.classList.toggle('bg-slate-900', isActive);
+          button.classList.toggle('text-white', isActive);
+          button.classList.toggle('text-slate-600', !isActive);
         });
         hostCard.querySelectorAll('[data-device-panel]').forEach(function (panel) {
           const isActive = panel.dataset.devicePanel === deviceKey;
