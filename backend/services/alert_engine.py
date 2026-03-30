@@ -605,7 +605,7 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
     body = render_email_shell(
         eyebrow="SEO Agent Alerts",
         title=f"{site.domain} icin yeni uyarilar",
-        intro="Bu mail, degisimi ham cümleye gommeden dogrudan once, simdi, fark ve etki kolonlariyla gosterir. Boylece CTR, click, position veya kritik skor sapmasi tek bakista okunur.",
+        intro="",
         tone="rose",
         status_label="Alert",
         sections=[
@@ -618,27 +618,16 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
                         ("Son tetikleme", format_local_datetime(max(log.triggered_at for log in logs))),
                     ]
                 ),
-                subtitle="Bu e-posta yeni olusan alarm loglarini tek pakette toplar.",
             ),
             section(
                 "Kritik Gorunum",
                 stat_cards(overview_cards),
-                subtitle="En hizli okunacak kritik ozet kutulari burada yer alir.",
             ),
             section(
                 "Uyari Tablosu",
                 data_table(
                     ["Durum", "Olcum", "Sorgu / Alan", "Once", "Simdi", "Delta", "Ek Veri"],
                     rows,
-                ),
-                subtitle="Her satir bir yeni alarm kaydini temsil eder; sayisal degisim ayri kolonlara ayrilmistir.",
-            ),
-            section(
-                "Yorum",
-                note_box(
-                    "Okuma Rehberi",
-                    "CTR satirlarinda degerler yuzde olarak, pozisyon satirlarinda float olarak, click ve impression etkisi ise hacim bilgisiyle birlikte verilir. Kritik skor alarmlarinda once kolonunda esik, simdi kolonunda mevcut skor yazilir; fark kolonu ne kadar sapma oldugunu net gosterir.",
-                    tone="rose",
                 ),
             ),
         ],

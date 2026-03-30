@@ -189,7 +189,7 @@ def render_email_shell(
                           <td valign="top">
                             <p style="margin:0 0 12px 0;">{status_chip(status_label, tone=tone)}</p>
                             <h1 style="margin:0;font-size:34px;line-height:1.15;color:#0f172a;font-weight:800;">{escape(title)}</h1>
-                            <p style="margin:14px 0 0 0;font-size:15px;line-height:1.7;color:#475569;max-width:560px;">{escape(intro)}</p>
+                            {"" if not intro else f'<p style="margin:14px 0 0 0;font-size:15px;line-height:1.7;color:#475569;max-width:560px;">{escape(intro)}</p>'}
                           </td>
                         </tr>
                       </table>
