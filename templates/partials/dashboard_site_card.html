@@ -9,6 +9,8 @@
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
+        data-dashboard-measure-button
+        data-dashboard-card-id="{{ card.id }}"
         class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
         hx-post="/dashboard/cards/{{ card.id }}/measure?period={{ period }}"
         hx-target="#dashboard-card-{{ card.id }}"
@@ -43,6 +45,24 @@
   {% if card.flash_message %}
     <div class="mt-4 rounded-[1.25rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{{ card.flash_message }}</div>
   {% endif %}
+
+  <div
+    id="dashboard-progress-panel-{{ card.id }}"
+    data-dashboard-progress-panel
+    class="mt-4 hidden rounded-[1.6rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm"
+  >
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklasik Ilerleme</p>
+        <p data-dashboard-progress-title class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
+        <p data-dashboard-progress-detail class="mt-1 text-sm text-slate-600">Dashboard olcumu ilgili site icin canli veri ve saglik kontrollerini tazeliyor.</p>
+      </div>
+      <p data-dashboard-progress-percent class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
+    </div>
+    <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/80 ring-1 ring-sky-100 shadow-inner">
+      <div data-dashboard-progress-bar class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500" style="width: 0%"></div>
+    </div>
+  </div>
 
   <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">

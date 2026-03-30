@@ -176,4 +176,148 @@
     </div>
   </section>
 </div>
+<script>
+  (function () {
+    const dashboardProgressTimers = new Map();
+
+    function panelParts(card) {
+      return {
+        panel: card.querySelector('[data-dashboard-progress-panel]'),
+        title: card.querySelector('[data-dashboard-progress-title]'),
+        detail: card.querySelector('[data-dashboard-progress-detail]'),
+        percent: card.querySelector('[data-dashboard-progress-percent]'),
+        bar: card.querySelector('[data-dashboard-progress-bar]'),
+      };
+    }
+
+    function renderDashboardProgress(card, step) {
+      const parts = panelParts(card);
+      if (!parts.panel || !parts.title || !parts.detail || !parts.percent || !parts.bar) {
+        return;
+      }
+      parts.panel.classList.remove('hidden');
+      parts.title.textContent = step.title;
+      parts.detail.textContent = step.detail;
+      parts.percent.textContent = String(step.percent) + '%';
+      parts.bar.style.width = String(step.percent) + '%';
+    }
+
+    function resetDashboardProgressTone(card) {
+      const parts = panelParts(card);
+      if (!parts.panel || !parts.bar) {
+        return;
+      }
+      parts.panel.classList.remove('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
+      parts.panel.classList.add('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
+      parts.bar.classList.remove('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
+      parts.bar.classList.add('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
+    }
+
+    function failDashboardProgress(card, title, detail) {
+      const parts = panelParts(card);
+      if (!parts.panel || !parts.bar) {
+        return;
+      }
+      parts.panel.classList.remove('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
+      parts.panel.classList.add('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
+      parts.bar.classList.remove('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
+      parts.bar.classList.add('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
+      renderDashboardProgress(card, {
+        percent: Math.max(parseInt(parts.bar.style.width || '14', 10) || 14, 14),
+        title: title,
+        detail: detail,
+      });
+    }
+
+    function clearDashboardProgress(cardId) {
+      const timers = dashboardProgressTimers.get(cardId);
+      if (!timers) {
+        return;
+      }
+      if (timers.timer) {
+        window.clearInterval(timers.timer);
+      }
+      if (timers.tailTimer) {
+        window.clearInterval(timers.tailTimer);
+      }
+      dashboardProgressTimers.delete(cardId);
+    }
+
+    document.body.addEventListener('htmx:beforeRequest', function (event) {
+      const trigger = event.detail && event.detail.elt;
+      if (!trigger || !trigger.matches('[data-dashboard-measure-button]')) {
+        return;
+      }
+      const cardId = trigger.dataset.dashboardCardId;
+      const card = document.getElementById('dashboard-card-' + cardId);
+      if (!card) {
+        return;
+      }
+      clearDashboardProgress(cardId);
+      resetDashboardProgressTone(card);
+      trigger.dataset.originalText = trigger.textContent;
+      trigger.textContent = 'Yenileniyor...';
+      const steps = [
+        { percent: 12, title: 'Olcum baslatildi', detail: 'Bu site icin Search Console, PageSpeed ve crawler akisleri siraya alindi.' },
+        { percent: 29, title: 'Search Console kontrol ediliyor', detail: 'Query, trend ve ozet verilerinin guncel durumu dogrulaniyor.' },
+        { percent: 51, title: 'Performans ve crawler cagrilari yapiliyor', detail: 'PageSpeed ile teknik saglik kontrolleri guncel kayitlarla esitleniyor.' },
+        { percent: 74, title: 'Alarm ve skor hesaplari isleniyor', detail: 'Dashboard kartindaki ozetler yeni sonuca gore yeniden hesaplanacak.' },
+        { percent: 91, title: 'Kart son haline getiriliyor', detail: 'Yeni olcum tamamlanirken kart yeniden cizim icin hazirlaniyor.' },
+      ];
+      let index = 0;
+      renderDashboardProgress(card, {
+        percent: 6,
+        title: 'Hazirlaniyor',
+        detail: 'Canli olcum istegi backend tarafina gonderiliyor.',
+      });
+      const timer = window.setInterval(function () {
+        if (index >= steps.length) {
+          window.clearInterval(timer);
+          const tailTimer = window.setInterval(function () {
+            const parts = panelParts(card);
+            const current = parseInt((parts.bar && parts.bar.style.width) || '0', 10) || 0;
+            const next = Math.min(current + 1, 98);
+            if (next <= current) {
+              window.clearInterval(tailTimer);
+              return;
+            }
+            renderDashboardProgress(card, {
+              percent: next,
+              title: 'Son olcum adimlari tamamlanıyor',
+              detail: 'Yanit bekleniyor; dashboard karti yeni veri ile guncellenecek.',
+            });
+          }, 700);
+          dashboardProgressTimers.set(cardId, { timer: null, tailTimer: tailTimer });
+          return;
+        }
+        renderDashboardProgress(card, steps[index]);
+        index += 1;
+      }, 850);
+      dashboardProgressTimers.set(cardId, { timer: timer, tailTimer: null });
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function (event) {
+      const target = event.target;
+      if (!target || !target.id || !target.id.startsWith('dashboard-card-')) {
+        return;
+      }
+      const cardId = target.id.replace('dashboard-card-', '');
+      clearDashboardProgress(cardId);
+    });
+
+    document.body.addEventListener('htmx:responseError', function (event) {
+      const target = event.detail && event.detail.target;
+      if (!target || !target.id || !target.id.startsWith('dashboard-card-')) {
+        return;
+      }
+      const cardId = target.id.replace('dashboard-card-', '');
+      clearDashboardProgress(cardId);
+      failDashboardProgress(target, 'Olcum tamamlanamadi', 'Bu site icin manuel olcum basarisiz oldu. Baglanti ve backend loglarini kontrol et.');
+      const button = target.querySelector('[data-dashboard-measure-button]');
+      if (button && button.dataset.originalText) {
+        button.textContent = button.dataset.originalText;
+      }
+    });
+  })();
+</script>
 {% endblock %}
