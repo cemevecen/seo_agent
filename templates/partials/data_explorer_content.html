@@ -704,6 +704,7 @@ text-slate-500
         { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gosterilmek uzere hazirlaniyor.' },
       ];
       let progressTimer = null;
+      let progressTailTimer = null;
 
       function renderProgress(step) {
         progressPanel.classList.remove('hidden');
@@ -736,6 +737,20 @@ text-slate-500
           if (stepIndex >= progressSteps.length) {
             window.clearInterval(progressTimer);
             progressTimer = null;
+            progressTailTimer = window.setInterval(function () {
+              const current = parseInt(progressBar.style.width || '0', 10) || 0;
+              const next = Math.min(current + 1, 98);
+              if (next <= current) {
+                window.clearInterval(progressTailTimer);
+                progressTailTimer = null;
+                return;
+              }
+              renderProgress({
+                percent: next,
+                title: 'Son paneller hazirlaniyor',
+                detail: 'Yanit bekleniyor; Data Explorer icin son cizim adimlari tamamlanıyor.',
+              });
+            }, 700);
             return;
           }
           renderProgress(progressSteps[stepIndex]);
@@ -749,6 +764,9 @@ text-slate-500
           if (progressTimer) {
             window.clearInterval(progressTimer);
           }
+          if (progressTailTimer) {
+            window.clearInterval(progressTailTimer);
+          }
           renderProgress({
             percent: 100,
             title: 'Data Explorer guncellendi',
@@ -760,6 +778,9 @@ text-slate-500
         } catch (error) {
           if (progressTimer) {
             window.clearInterval(progressTimer);
+          }
+          if (progressTailTimer) {
+            window.clearInterval(progressTailTimer);
           }
           progressPanel.classList.remove('border-emerald-200', 'bg-emerald-50/80');
           progressPanel.classList.add('border-rose-200', 'bg-rose-50');

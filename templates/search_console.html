@@ -49,6 +49,7 @@
     const steps = config.steps || [];
     let index = 0;
     let timer = null;
+    let tailTimer = null;
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !bar) {
@@ -72,6 +73,20 @@
         if (index >= steps.length) {
           window.clearInterval(timer);
           timer = null;
+          tailTimer = window.setInterval(function () {
+            const current = parseInt((bar && bar.style.width) || '0', 10) || 0;
+            const next = Math.min(current + 1, config.maxPendingPercent || 98);
+            if (next <= current) {
+              window.clearInterval(tailTimer);
+              tailTimer = null;
+              return;
+            }
+            render({
+              percent: next,
+              title: config.pendingTitle || 'Son adimlar tamamlaniyor',
+              detail: config.pendingDetail || 'Yanit bekleniyor, son cizim ve guncelleme adimlari suruyor.',
+            });
+          }, config.tailInterval || 700);
           return;
         }
         render(steps[index]);
@@ -84,6 +99,9 @@
         if (timer) {
           window.clearInterval(timer);
         }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
+        }
         render({
           percent: 100,
           title: doneTitle || 'Tamamlandi',
@@ -93,6 +111,9 @@
       fail: function (errorTitle, errorDetail) {
         if (timer) {
           window.clearInterval(timer);
+        }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
         }
         if (panel) {
           panel.classList.remove('border-sky-200', 'bg-sky-50/80');
@@ -135,6 +156,8 @@
         { percent: 73, title: 'Alert senkronu hesaplaniyor', detail: 'Yeni Search Console verisine gore iliskili uyarilar guncelleniyor.' },
         { percent: 91, title: 'Kartlar hazirlaniyor', detail: 'Ekrandaki tum kartlar yeni verilerle yeniden olusturuluyor.' },
       ],
+      pendingTitle: 'Kartlar son kez guncelleniyor',
+      pendingDetail: 'Yanit bekleniyor; kalan adimlar sirayla tamamlandikca ilerleme artiyor.',
     });
     progress.resetTone();
     if (trigger) {
@@ -487,6 +510,8 @@
             { percent: 79, title: 'Alert senkronu guncelleniyor', detail: 'Bu siteye ait Search Console uyari verileri yeniden hesaplanıyor.' },
             { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar olusturuluyor.' },
           ],
+          pendingTitle: siteDomain + ' icin son adimlar tamamlaniyor',
+          pendingDetail: 'Yanit bekleniyor; kart guncellemesi tamamlanmak uzere.',
         });
         progress.resetTone();
         if (button) {

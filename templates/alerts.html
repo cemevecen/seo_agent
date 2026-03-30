@@ -248,6 +248,7 @@ function initializeRefreshButton() {
     { percent: 94, title: 'Liste yenileniyor', detail: 'Alert listesi yeni sonuc ile tekrar cizilecek.' },
   ];
   let timer = null;
+  let tailTimer = null;
 
   function renderProgress(step) {
     panel.classList.remove('hidden');
@@ -276,6 +277,20 @@ function initializeRefreshButton() {
       if (stepIndex >= steps.length) {
         window.clearInterval(timer);
         timer = null;
+        tailTimer = window.setInterval(function () {
+          const current = parseInt(bar.style.width || '0', 10) || 0;
+          const next = Math.min(current + 1, 98);
+          if (next <= current) {
+            window.clearInterval(tailTimer);
+            tailTimer = null;
+            return;
+          }
+          renderProgress({
+            percent: next,
+            title: 'Son liste guncellemesi bekleniyor',
+            detail: 'Yanittan once kalan son adimlar tamamlandikca ilerleme yavasca devam ediyor.',
+          });
+        }, 700);
         return;
       }
       renderProgress(steps[stepIndex]);
@@ -289,6 +304,9 @@ function initializeRefreshButton() {
       if (timer) {
         window.clearInterval(timer);
       }
+      if (tailTimer) {
+        window.clearInterval(tailTimer);
+      }
       renderProgress({ percent: 100, title: 'Uyarilar guncellendi', detail: 'Yeni alert listesi yukleniyor.' });
       setTimeout(function () {
         window.location.reload();
@@ -297,6 +315,9 @@ function initializeRefreshButton() {
       console.error('Alert refresh failed:', error);
       if (timer) {
         window.clearInterval(timer);
+      }
+      if (tailTimer) {
+        window.clearInterval(tailTimer);
       }
       panel.classList.remove('border-violet-200', 'bg-violet-50/80');
       panel.classList.add('border-rose-200', 'bg-rose-50');
