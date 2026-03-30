@@ -197,9 +197,7 @@ def render_email_shell(
                   </tr>
                   {section_html}
                   <tr>
-                    <td style="padding:0 32px 30px 32px;">
-                      <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;">SEO Agent mail tasarimi tablo tabanlidir ve Gmail uyumlulugu icin inline stiller kullanir.</p>
-                    </td>
+                    <td style="padding:0 32px 30px 32px;"></td>
                   </tr>
                 </table>
               </td>

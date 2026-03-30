@@ -306,7 +306,6 @@ def _trigger_email_body(
         section(
             "Ozet",
             summary_table(summary_rows),
-            subtitle="Bu mail, dış sisteme giden tetikleme akışının çalıştığını bildirir.",
         )
     ]
     if summary_cards:
@@ -314,7 +313,6 @@ def _trigger_email_body(
             section(
                 "Kritik Özet",
                 stat_cards(summary_cards),
-                subtitle="Collector sonucundan çıkarılan en kritik metrikler.",
             )
         )
     if details:
@@ -322,7 +320,6 @@ def _trigger_email_body(
             section(
                 "Calisma Detaylari",
                 summary_table(details),
-                subtitle="Collector veya API sonucundan toplanan özet alanlar.",
             )
         )
     if detail_rows:
@@ -330,7 +327,6 @@ def _trigger_email_body(
             section(
                 "Metrik Dökümü",
                 data_table(["Alan", "Değer"], detail_rows),
-                subtitle="Collector sonucundaki sayısal alanlar ayrı satırlarda gösterilir.",
             )
         )
     if comparison_rows:
@@ -338,23 +334,12 @@ def _trigger_email_body(
             section(
                 "Karşılaştırmalı Veri",
                 data_table(["Alan", "Önceki 7 Gün", "Son 7 Gün", "Fark"], comparison_rows),
-                subtitle="Search Console tetiklemelerinde önceki 7 gün ile son 7 gün verisi yan yana gösterilir.",
             )
         )
-    sections.append(
-        section(
-            "Yorum",
-            note_box(
-                "Ne Anlama Gelir",
-                "Bu mail bir bilgilendirme kaydidir. Manuel veya sistem tetigi ilgili entegrasyona ulastiysa gonderilir.",
-                tone=_result_tone(result),
-            ),
-        )
-    )
     return render_email_shell(
         eyebrow="SEO Agent Operations",
         title=f"{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi",
-        intro="Tetikleme akisi basladi veya tamamlandi. Asagidaki tablo hangi sistemin, hangi aksiyonla ve hangi sonuc ozetiyle calistigini gosterir.",
+        intro="",
         tone=_result_tone(result),
         status_label="Bilgilendirme",
         sections=sections,
