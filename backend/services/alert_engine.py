@@ -716,6 +716,63 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     return filtered_alerts
 
 
+def get_site_alerts(db: Session, *, site_id: int, limit: int = 500) -> dict:
+    # Site bazli alert listesi ve kirilim ozetlerini dondurur.
+    rows = (
+        db.query(AlertLog, Alert)
+        .join(Alert, AlertLog.alert_id == Alert.id)
+        .filter(Alert.site_id == site_id)
+        .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+        .all()
+    )
+
+    alerts: list[dict] = []
+    tone_breakdown = {
+        "rose": 0,
+        "amber": 0,
+        "sky": 0,
+        "emerald": 0,
+        "other": 0,
+    }
+
+    for log, alert in rows:
+        if alert.alert_type == "search_console_dropped_queries":
+            continue
+        presentation = _parse_alert_message(log.message, alert_type=alert.alert_type, domain=log.domain)
+        if presentation.get("skip"):
+            continue
+
+        tone = str(presentation.get("tone") or "other")
+        if tone not in tone_breakdown:
+            tone = "other"
+        tone_breakdown[tone] += 1
+
+        alerts.append(
+            {
+                "id": log.id,
+                "alert_id": alert.id,
+                "domain": log.domain,
+                "alert_type": alert.alert_type,
+                "message": log.message,
+                "display_title": presentation["display_title"],
+                "display_query": presentation["display_query"],
+                "display_metric": presentation["display_metric"],
+                "display_tone": tone,
+                "display_device_code": presentation.get("device_code") or "",
+                "triggered_at": format_local_datetime(log.triggered_at),
+                "sent_mail": log.sent_mail,
+            }
+        )
+        if len(alerts) >= limit:
+            break
+
+    return {
+        "items": alerts,
+        "total": len(alerts),
+        "breakdown": tone_breakdown,
+    }
+
+
 def get_alert_rules(db: Session) -> list[dict]:
     # Settings ekranı için alert kural listesini döndürür.
     rows = db.query(Alert, Site).join(Site, Alert.site_id == Site.id).order_by(Site.domain.asc(), Alert.alert_type.asc()).all()

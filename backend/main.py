@@ -50,7 +50,7 @@ from backend.config import settings
 from backend.database import SessionLocal, init_db
 from backend.models import Alert, CollectorRun, ExternalOnboardingJob, ExternalSite, PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
-from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
+from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
@@ -2345,7 +2345,6 @@ def _public_sites_payload(db) -> list[dict]:
         .all()
     )
     rows: list[dict] = []
-    recent_alert_rows = get_recent_alerts(db, limit=300)
     for site in sites:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
@@ -2369,7 +2368,7 @@ def _public_sites_payload(db) -> list[dict]:
                 "crawler_status": str(crawler_run.status or "").lower() if crawler_run and crawler_run.status else "never",
                 "crux_ready": bool(mobile_crux or desktop_crux),
                 "warehouse": warehouse,
-                "recent_alerts": [alert for alert in recent_alert_rows if alert.get("domain") == site.domain][:6],
+                "alerts": get_site_alerts(db, site_id=site.id, limit=1000),
             }
         )
 
