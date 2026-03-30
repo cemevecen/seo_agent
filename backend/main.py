@@ -2574,7 +2574,6 @@ def design_lighthouse_minimal_options():
 
 
 @app.post("/dashboard/cards/{site_id}/measure", response_class=HTMLResponse)
-@limiter.limit("6/hour")
 def dashboard_measure_site(request: Request, site_id: int):
     period, _ = _resolve_period(request.query_params.get("period"))
     with SessionLocal() as db:
@@ -2804,7 +2803,6 @@ def api_get_live_lighthouse_scores_by_strategy(request: Request, domain: str, st
 
 
 @app.post("/api/site/{domain}/data-explorer/refresh")
-@limiter.limit("6/hour")
 def api_refresh_data_explorer(request: Request, domain: str):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -2838,7 +2836,6 @@ def api_refresh_data_explorer(request: Request, domain: str):
 
 
 @app.post("/api/site/{domain}/refresh")
-@limiter.limit("6/hour")
 def api_refresh_site_metrics(request: Request, domain: str):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -2892,7 +2889,6 @@ def alerts_page(request: Request):
 
 
 @app.post("/alerts/refresh")
-@limiter.limit("3/hour")
 def alerts_refresh(request: Request):
     summaries: list[dict[str, object]] = []
     with SessionLocal() as db:
@@ -3006,7 +3002,6 @@ def search_console_site_list(request: Request):
 
 
 @app.post("/search-console/refresh-all")
-@limiter.limit("20/hour")
 def search_console_refresh_all(request: Request):
     with SessionLocal() as db:
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
@@ -3053,7 +3048,6 @@ def search_console_refresh_all(request: Request):
 
 
 @app.post("/search-console/refresh/{site_id}")
-@limiter.limit("30/hour")
 def search_console_manual_refresh(request: Request, site_id: int):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()

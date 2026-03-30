@@ -329,9 +329,6 @@
       headers: { 'HX-Request': 'true' }
     })
       .then(function (response) {
-        if (response.status === 429) {
-          throw new Error('rate_limit');
-        }
         if (!response.ok) {
           throw new Error('refresh failed');
         }
@@ -348,11 +345,7 @@
       })
       .catch(function (error) {
         console.warn('Search Console bulk refresh failed:', error);
-        if (error.message === 'rate_limit') {
-          progress.fail('Çok sık istek', 'Kısa sürede çok fazla yenileme yapıldı. Birkaç dakika bekleyip tekrar dene.');
-        } else {
-          progress.fail('Tüm siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadı. Log ve bağlantı durumunu kontrol et.');
-        }
+        progress.fail('Tüm siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadı. Log ve bağlantı durumunu kontrol et.');
       })
       .finally(function () {
         if (trigger) {
@@ -690,9 +683,6 @@
           headers: { 'HX-Request': 'true' }
         })
           .then(function (response) {
-            if (response.status === 429) {
-              throw new Error('rate_limit');
-            }
             if (!response.ok) {
               throw new Error('refresh failed');
             }
@@ -709,11 +699,7 @@
           })
           .catch(function (error) {
             console.warn('Search Console site refresh failed:', error);
-            if (error.message === 'rate_limit') {
-              progress.fail('Çok sık istek', 'Kısa sürede çok fazla yenileme yapıldı. Birkaç dakika bekleyip tekrar dene.');
-            } else {
-              progress.fail(siteDomain + ' yenilenemedi', 'Bu site için Search Console verisi yenilenemedi. Bağlantı ve backend loglarını kontrol et.');
-            }
+            progress.fail(siteDomain + ' yenilenemedi', 'Bu site için Search Console verisi yenilenemedi. Bağlantı ve backend loglarını kontrol et.');
           })
           .finally(function () {
             if (button) {
