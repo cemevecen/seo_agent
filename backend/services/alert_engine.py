@@ -10,6 +10,7 @@ import re
 from sqlalchemy.orm import Session
 
 from backend.models import Alert, AlertLog, Metric, Site
+from backend.services.email_templates import data_table, note_box, render_email_shell, section, status_chip, summary_table
 from backend.services.mailer import send_email
 from backend.services.metric_store import get_latest_metrics
 from backend.services.timezone_utils import format_local_datetime
@@ -576,12 +577,43 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
     if not logs:
         return
 
-    html_items = "".join(f"<li>{log.message}</li>" for log in logs)
+    rows = [_alert_email_row(log) for log in logs]
     subject = f"SEO Alert: {site.domain}"
-    body = (
-        f"<h2>{site.domain} için yeni uyarılar</h2>"
-        f"<p>Aşağıdaki alarmlar tetiklendi:</p>"
-        f"<ul>{html_items}</ul>"
+    body = render_email_shell(
+        eyebrow="SEO Agent Alerts",
+        title=f"{site.domain} icin yeni uyarilar",
+        intro="Asagidaki tablo son alarm turlerini, hangi sorgu veya metrikte degisim oldugunu ve degisim ozetini renkli satirlarla gosterir.",
+        tone="rose",
+        status_label="Alert",
+        sections=[
+            section(
+                "Ozet",
+                summary_table(
+                    [
+                        ("Site", site.domain),
+                        ("Toplam yeni uyari", str(len(logs))),
+                        ("Son tetikleme", format_local_datetime(max(log.triggered_at for log in logs))),
+                    ]
+                ),
+                subtitle="Bu e-posta yeni olusan alarm loglarini tek paket halinde gonderir.",
+            ),
+            section(
+                "Uyari Tablosu",
+                data_table(
+                    ["Durum", "Tur", "Sorgu / Alan", "Degisim"],
+                    rows,
+                ),
+                subtitle="Her satir bir yeni alarm kaydini temsil eder.",
+            ),
+            section(
+                "Yorum",
+                note_box(
+                    "Okuma Rehberi",
+                    "CTR, impression veya pozisyon satirlarinda dusus renklerle vurgulanir. Sayisal degisim ilk inceleme icin yeterlidir; daha detayli karsilastirma uygulama icindeki alert ekraninda gorulur.",
+                    tone="rose",
+                ),
+            ),
+        ],
     )
     sent = send_email(subject, body)
     if sent:
@@ -753,9 +785,77 @@ def emit_custom_alert(
     db.refresh(log)
 
     subject = f"SEO Quota Alert: {site.domain}"
-    body = f"<h2>Quota Uyarisi</h2><p>{message}</p>"
+    body = render_email_shell(
+        eyebrow="SEO Agent Quota",
+        title=f"{site.domain} icin quota uyarisi",
+        intro="Bu mail, entegrasyon kotasina yaklasildigini veya limitin asildigini haber verir.",
+        tone="amber",
+        status_label="Quota",
+        sections=[
+            section(
+                "Ozet",
+                summary_table(
+                    [
+                        ("Site", site.domain),
+                        ("Zaman", format_local_datetime(log.triggered_at)),
+                    ]
+                ),
+            ),
+            section(
+                "Detay",
+                note_box("Quota Mesaji", message, tone="amber"),
+            ),
+        ],
+    )
     if send_email(subject, body):
         log.sent_mail = True
         db.commit()
         db.refresh(log)
     return log
+
+
+def _alert_email_row(log: AlertLog) -> list[str]:
+    message = str(log.message or "")
+    clean = message.replace("[POSITIVE]", "").replace("[NEGATIVE]", "").strip()
+    tone = "rose" if "[NEGATIVE]" in message else "emerald" if "[POSITIVE]" in message else "amber"
+    status = status_chip("Negatif" if tone == "rose" else "Pozitif" if tone == "emerald" else "Uyari", tone=tone)
+
+    ctr_match = re.search(
+        r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
+        clean,
+    )
+    if ctr_match:
+        return [
+            status,
+            "CTR",
+            ctr_match.group(1),
+            f"{ctr_match.group(3)} -> {ctr_match.group(4)} ({ctr_match.group(5)})",
+        ]
+
+    impression_match = re.search(
+        r"impression düşüşü - '([^']+)' \(([\d.,]+) clicks\): Impressions ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
+        clean,
+    )
+    if impression_match:
+        return [
+            status,
+            "Impression",
+            impression_match.group(1),
+            f"{impression_match.group(3)} -> {impression_match.group(4)} ({impression_match.group(5)})",
+        ]
+
+    position_match = re.search(r"'([^']+)'.*Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", clean)
+    if position_match:
+        return [
+            status,
+            "Pozisyon",
+            position_match.group(1),
+            f"{position_match.group(2)} -> {position_match.group(3)}",
+        ]
+
+    return [
+        status,
+        "Genel",
+        log.domain,
+        clean,
+    ]

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.models import CollectorRun, NotificationDeliveryLog, Site
+from backend.services.email_templates import data_table, note_box, render_email_shell, section, summary_table
 from backend.services.mailer import send_email
 from backend.services.search_console_auth import get_search_console_connection_status
 from backend.services.timezone_utils import (
@@ -112,6 +113,15 @@ def _result_status_label(result: dict | None) -> str:
     return "completed"
 
 
+def _result_tone(result: dict | None) -> str:
+    status = _result_status_label(result).lower()
+    if status in {"failed", "blocked"}:
+        return "rose"
+    if status in {"warning", "stale"}:
+        return "amber"
+    return "blue"
+
+
 def _should_send_trigger_email(result: dict | None) -> bool:
     if not isinstance(result, dict):
         return True
@@ -130,30 +140,61 @@ def _trigger_email_body(
     result: dict | None,
     action_label: str,
 ) -> str:
-    site_html = f"<p><strong>Site:</strong> {site.domain}</p>" if site is not None else ""
-    details = []
+    details: list[tuple[str, str]] = []
     if isinstance(result, dict):
         if result.get("reason"):
-            details.append(f"Neden: {result['reason']}")
+            details.append(("Neden", str(result["reason"])))
         if result.get("error"):
-            details.append(f"Hata: {result['error']}")
+            details.append(("Hata", str(result["error"])))
         if result.get("errors"):
-            details.append(f"Hata ozeti: {result['errors']}")
+            details.append(("Hata Ozeti", str(result["errors"])))
         if result.get("summary"):
-            details.append(f"Ozet: {result['summary']}")
+            details.append(("Ozet", str(result["summary"])))
         if result.get("state"):
-            details.append(f"Durum: {result['state']}")
+            details.append(("Durum", str(result["state"])))
         elif result.get("source"):
-            details.append(f"Kaynak: {result['source']}")
-    details_html = "".join(f"<li>{item}</li>" for item in details)
-    return (
-        f"<h2>{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi</h2>"
-        f"<p><strong>Mail tipi:</strong> Bilgilendirme</p>"
-        f"<p><strong>Tetik tipi:</strong> {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)}</p>"
-        f"<p><strong>Aksiyon:</strong> {action_label}</p>"
-        f"{site_html}"
-        f"<p><strong>Zaman:</strong> {format_local_datetime(now_local(), include_suffix=True)}</p>"
-        f"{f'<ul>{details_html}</ul>' if details_html else ''}"
+            details.append(("Kaynak", str(result["source"])))
+
+    summary_rows = [
+        ("Mail tipi", "Bilgilendirme"),
+        ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
+        ("Sistem", system_label),
+        ("Aksiyon", action_label),
+        ("Site", site.domain if site is not None else "Tum sistem"),
+        ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
+    ]
+    sections = [
+        section(
+            "Ozet",
+            summary_table(summary_rows),
+            subtitle="Bu mail, dis sisteme giden tetikleme akisinin calistigini bildirir.",
+        )
+    ]
+    if details:
+        sections.append(
+            section(
+                "Calisma Detaylari",
+                summary_table(details),
+                subtitle="Collector veya API sonucundan toplanan ozet alanlar.",
+            )
+        )
+    sections.append(
+        section(
+            "Yorum",
+            note_box(
+                "Ne Anlama Gelir",
+                "Bu mail bir bilgilendirme kaydidir. Manuel veya sistem tetigi ilgili entegrasyona ulastiysa gonderilir.",
+                tone=_result_tone(result),
+            ),
+        )
+    )
+    return render_email_shell(
+        eyebrow="SEO Agent Operations",
+        title=f"{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi",
+        intro="Tetikleme akisi basladi veya tamamlandi. Asagidaki tablo hangi sistemin, hangi aksiyonla ve hangi sonuc ozetiyle calistigini gosterir.",
+        tone=_result_tone(result),
+        status_label="Bilgilendirme",
+        sections=sections,
     )
 
 
@@ -359,7 +400,7 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
             continue
 
         requested_after = local_schedule_to_utc_naive(local_now.date(), spec.schedule_hour, spec.schedule_minute)
-        missing_lines: list[str] = []
+        missing_rows: list[list[str]] = []
         missing_count = 0
 
         for site in expected_sites:
@@ -374,14 +415,15 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
                 continue
 
             missing_count += 1
-            missing_lines.append(
-                "<li>"
-                f"<strong>{site.domain}</strong><br>"
-                f"{_missed_run_reason(latest_run)}"
-                "</li>"
+            missing_rows.append(
+                [
+                    site.domain,
+                    "Run bulunamadi" if latest_run is None else str(latest_run.status or "unknown"),
+                    _missed_run_reason(latest_run),
+                ]
             )
 
-        if not missing_lines:
+        if not missing_rows:
             continue
 
         notification_key = f"missed:{spec.notification_name}:{local_now.date().isoformat()}"
@@ -389,20 +431,42 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
             continue
 
         subject = f"SEO Agent UYARI: {spec.label} zamaninda guncellenmedi"
-        body = (
-            f"<h2>Uyari: {spec.label} zamaninda guncellenmedi</h2>"
-            f"<p><strong>Mail tipi:</strong> Uyari</p>"
-            f"<p>Bu mail bir sorun bildirir. Beklenen zaman araliginda bu sistem icin basarili calisma kaydi bulunamadi.</p>"
-            f"<p><strong>Beklenen saat:</strong> {scheduled_local.strftime('%d.%m.%Y %H:%M')} TSİ</p>"
-            f"<p><strong>Kontrol zamani:</strong> {format_local_datetime(local_now)}</p>"
-            f"<p><strong>Etkilenen site sayisi:</strong> {missing_count}/{len(expected_sites)}</p>"
-            f"<p><strong>Yorum:</strong> "
-            f"{spec.label} icin beklenen zaman penceresinde ya job hic baslamadi ya da basarili tamamlanmadi."
-            f"</p>"
-            f"<ul>{''.join(missing_lines)}</ul>"
-            f"<p><strong>Ne yapilmali:</strong> "
-            f"Uygulamanin o saatte ayakta oldugunu, scheduler'in aktif oldugunu ve ilgili refresh endpoint/job akisinin hata vermedigini kontrol et."
-            f"</p>"
+        body = render_email_shell(
+            eyebrow="SEO Agent Operations",
+            title=f"Uyari: {spec.label} zamaninda guncellenmedi",
+            intro="Bu mail bir sorun bildirir. Beklenen zaman araliginda bu sistem icin basarili calisma kaydi bulunamadi.",
+            tone="amber",
+            status_label="Uyari",
+            sections=[
+                section(
+                    "Zamanlama Ozeti",
+                    summary_table(
+                        [
+                            ("Sistem", spec.label),
+                            ("Beklenen saat", scheduled_local.strftime("%d.%m.%Y %H:%M") + " TSİ"),
+                            ("Kontrol zamani", format_local_datetime(local_now)),
+                            ("Etkilenen site", f"{missing_count}/{len(expected_sites)}"),
+                        ]
+                    ),
+                    subtitle="Monitor job'i beklenen pencere sonrasinda son calisma kayitlarini kontrol etti.",
+                ),
+                section(
+                    "Etkilenen Siteler",
+                    data_table(
+                        ["Site", "Son Durum", "Aciklama"],
+                        missing_rows,
+                    ),
+                    subtitle="Tabloda, ilgili zaman penceresinde neden basarili run gorulmedigi anlatilir.",
+                ),
+                section(
+                    "Aksiyon Notu",
+                    note_box(
+                        "Kontrol Listesi",
+                        "Uygulamanin o saatte ayakta oldugunu, scheduler'in aktif oldugunu ve ilgili refresh job akisinin hata vermedigini kontrol et. Run hic olusmadiysa job baslamamis olabilir; failed veya started goruluyorsa islem tamamlanmadan kesilmis olabilir.",
+                        tone="amber",
+                    ),
+                ),
+            ],
         )
         if _send_operations_email(subject, body, notification_key=notification_key, db=db):
             sent_subjects.append(subject)
