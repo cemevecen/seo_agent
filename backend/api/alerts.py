@@ -78,6 +78,16 @@ def _comparison_card(label: str, value: str, detail: str = "", tone: str = "slat
     }
 
 
+def _position_change_state(change: float | None) -> str:
+    if change is None:
+        return "unknown"
+    if change < 0:
+        return "improved"
+    if change > 0:
+        return "worsened"
+    return "neutral"
+
+
 def _build_search_console_comparison(
     db: Session,
     site: Site,
@@ -187,18 +197,30 @@ def _build_search_console_comparison(
         previous_position = previous.get("position")
         current_position = current.get("position")
         change = None if current_position is None or previous_position is None else current_position - previous_position
+        position_state = _position_change_state(change)
         query_details = [{
             "query": query_name,
             "old_position": previous_position,
             "new_position": current_position,
             "change": change,
-            "is_improvement": None if change is None else change < 0,
+            "is_improvement": True if position_state == "improved" else False if position_state == "worsened" else None,
         }]
-        message = (
-            "Pozisyon dun ile onceki gun arasinda kotulesmis."
-            if comparison_type == "daily"
-            else "Pozisyon kotulesmesi son 7 gun ile onceki 7 gun arasindan hesaplandi."
-        )
+        if comparison_type == "daily":
+            message = (
+                "Pozisyon dun ile onceki gun arasinda iyilesmis."
+                if position_state == "improved"
+                else "Pozisyon dun ile onceki gun arasinda kotulesmis."
+                if position_state == "worsened"
+                else "Pozisyon dun ile onceki gun arasinda degismemis."
+            )
+        else:
+            message = (
+                "Pozisyon son 7 gun ile onceki 7 gun arasinda iyilesmis."
+                if position_state == "improved"
+                else "Pozisyon son 7 gun ile onceki 7 gun arasinda kotulesmis."
+                if position_state == "worsened"
+                else "Pozisyon son 7 gun ile onceki 7 gun arasinda degismemis."
+            )
         cards = [
             _comparison_card(current_label, _format_decimal(current_position, 1), "Ortalama pozisyon", "blue"),
             _comparison_card(previous_label, _format_decimal(previous_position, 1), "Ortalama pozisyon", "slate"),
@@ -209,7 +231,7 @@ def _build_search_console_comparison(
                     "Fark",
                     f"{change:+.1f}",
                     "Pozisyon farki",
-                    "red" if change > 0 else "green",
+                    "green" if position_state == "improved" else "red" if position_state == "worsened" else "slate",
                 )
             )
         else:
@@ -305,7 +327,8 @@ def _extract_query_details_from_message(message: str) -> dict | list[dict]:
                 # Calculate change only if both values exist
                 if details["old_position"] is not None and details["new_position"] is not None:
                     details["change"] = details["new_position"] - details["old_position"]
-                    details["is_improvement"] = details["change"] < 0  # Düşük position daha iyi
+                    state = _position_change_state(details["change"])
+                    details["is_improvement"] = True if state == "improved" else False if state == "worsened" else None
             except (ValueError, TypeError):
                 pass
         
