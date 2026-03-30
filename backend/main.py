@@ -3006,7 +3006,7 @@ def search_console_site_list(request: Request):
 
 
 @app.post("/search-console/refresh-all")
-@limiter.limit("2/hour")
+@limiter.limit("20/hour")
 def search_console_refresh_all(request: Request):
     with SessionLocal() as db:
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
@@ -3053,7 +3053,7 @@ def search_console_refresh_all(request: Request):
 
 
 @app.post("/search-console/refresh/{site_id}")
-@limiter.limit("6/hour")
+@limiter.limit("30/hour")
 def search_console_manual_refresh(request: Request, site_id: int):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
