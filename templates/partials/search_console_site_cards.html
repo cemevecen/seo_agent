@@ -1,12 +1,12 @@
 {% if search_console_sites %}
   <div class="grid gap-4 xl:grid-cols-2">
     {% for site in search_console_sites %}
-      <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:bg-white" data-search-console-expandable data-expanded="false">
+      <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:bg-white" data-search-console-expandable data-expanded="true">
         <button
           type="button"
           class="flex w-full flex-col gap-4 text-left lg:min-h-[6.75rem] lg:flex-row lg:items-center lg:justify-between"
           data-site-expand-toggle
-          aria-expanded="false"
+          aria-expanded="true"
           aria-controls="search-console-panel-{{ site.id }}"
         >
           <div class="min-w-0 flex-1">
@@ -26,7 +26,7 @@
             {% endif %}
             <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ site.status.badge_class }}">{{ site.status.label }}</span>
             <span class="inline-flex items-center gap-2 rounded-full bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-200" data-site-expand-trigger aria-hidden="true">
-              <span data-site-expand-label>Detayları Aç</span>
+              <span data-site-expand-label>Detayları Gizle</span>
               <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform duration-200" data-site-expand-icon>
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -36,7 +36,7 @@
           </div>
         </button>
 
-        <div id="search-console-panel-{{ site.id }}" class="mt-6 hidden space-y-6" data-site-expand-panel>
+        <div id="search-console-panel-{{ site.id }}" class="mt-6 space-y-6" data-site-expand-panel>
 
         {% if site.report.has_data %}
           <div class="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 overflow-hidden">

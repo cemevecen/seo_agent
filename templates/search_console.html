@@ -452,7 +452,7 @@
         setExpanded(button.getAttribute('aria-expanded') !== 'true');
       });
 
-      setExpanded(false);
+      setExpanded(card.dataset.expanded === 'true');
     });
   }
 
