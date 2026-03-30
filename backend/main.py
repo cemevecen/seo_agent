@@ -28,6 +28,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy.exc import OperationalError
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -698,6 +699,22 @@ def _create_external_onboarding_job(*, site_id: int, domain: str) -> str:
             "finished_at": None,
         }
     return job_id
+
+
+def _is_sqlite_lock_error(exc: Exception) -> bool:
+    return "database is locked" in str(exc).lower()
+
+
+def _commit_with_retry(db, *, attempts: int = 3, wait_seconds: float = 0.3) -> None:
+    for attempt in range(1, attempts + 1):
+        try:
+            db.commit()
+            return
+        except OperationalError as exc:  # noqa: PERF203
+            db.rollback()
+            if not _is_sqlite_lock_error(exc) or attempt >= attempts:
+                raise
+            time.sleep(wait_seconds * attempt)
 
 
 def _set_external_onboarding_job(job_id: str, **updates) -> None:
@@ -3080,12 +3097,34 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
             site.is_active = is_active
 
         db.add(site)
-        db.commit()
-        db.refresh(site)
+        try:
+            _commit_with_retry(db, attempts=4, wait_seconds=0.25)
+            db.refresh(site)
+        except OperationalError as exc:
+            if _is_sqlite_lock_error(exc):
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "error": "Veritabanı meşgul olduğu için işlem kısa süreliğine tamamlanamadı. Lütfen tekrar deneyin.",
+                    },
+                    status_code=503,
+                )
+            raise
 
         if not _is_external_site(db, site.id):
             db.add(ExternalSite(site_id=site.id))
-            db.commit()
+            try:
+                _commit_with_retry(db, attempts=4, wait_seconds=0.25)
+            except OperationalError as exc:
+                if _is_sqlite_lock_error(exc):
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "error": "External profil işaretlenirken veritabanı kilidi oluştu. Lütfen tekrar deneyin.",
+                        },
+                        status_code=503,
+                    )
+                raise
 
         job_id = _create_external_onboarding_job(site_id=site.id, domain=site.domain)
         background_tasks.add_task(_run_external_onboarding_background, site.id, job_id)

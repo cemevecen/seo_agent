@@ -239,7 +239,12 @@
           display_name: nameInput ? nameInput.value : ''
         })
       });
-      var payload = await response.json();
+      var payload = null;
+      try {
+        payload = await response.json();
+      } catch (_parseError) {
+        payload = { ok: false, error: 'Sunucu geçersiz cevap döndürdü.' };
+      }
       if (!response.ok || !payload.ok) {
         setExternalFeedback((payload && payload.error) || 'External site eklenemedi.', true);
         return;
