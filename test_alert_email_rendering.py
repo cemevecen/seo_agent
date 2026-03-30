@@ -12,7 +12,7 @@ from backend.services.alert_engine import _alert_email_row, _parse_alert_message
 class AlertEmailRenderingTest(unittest.TestCase):
     def test_ctr_alert_is_expanded_into_explicit_columns(self) -> None:
         parsed = _parse_alert_message(
-            "[NEGATIVE] doviz.com CTR düşüşü - 'altin fiyatlari' (4998 clicks): CTR 22.400 → 20.097 (-10.3%)",
+            "[NEGATIVE] doviz.com CTR düşüşü - 'altin fiyatlari' (4998 clicks): CTR 22.400% → 20.097% (-10.3%)",
             domain="doviz.com",
         )
         row = _alert_email_row(parsed)

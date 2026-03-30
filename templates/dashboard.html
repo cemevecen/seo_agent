@@ -61,24 +61,18 @@
 
       <div class="mt-5 space-y-3">
         {% for alert in critical_alerts %}
-          {% if alert.display_tone == 'rose' %}
+          {% if alert.display_tone == 'emerald' %}
+            {% set panel_class = 'border-emerald-100 bg-emerald-50/65' %}
+            {% set badge_class = 'border-emerald-200 bg-emerald-50 text-emerald-700' %}
+            {% set title_class = 'text-emerald-700' %}
+            {% set metric_class = 'text-emerald-700' %}
+          {% else %}
+            {% set panel_class = 'border-rose-100 bg-rose-50/65' %}
             {% set badge_class = 'border-rose-200 bg-rose-50 text-rose-700' %}
             {% set title_class = 'text-rose-700' %}
             {% set metric_class = 'text-rose-600' %}
-          {% elif alert.display_tone == 'amber' %}
-            {% set badge_class = 'border-amber-200 bg-amber-50 text-amber-700' %}
-            {% set title_class = 'text-amber-700' %}
-            {% set metric_class = 'text-amber-700' %}
-          {% elif alert.display_tone == 'sky' %}
-            {% set badge_class = 'border-sky-200 bg-sky-50 text-sky-700' %}
-            {% set title_class = 'text-sky-700' %}
-            {% set metric_class = 'text-sky-700' %}
-          {% else %}
-            {% set badge_class = 'border-slate-200 bg-slate-50 text-slate-700' %}
-            {% set title_class = 'text-slate-800' %}
-            {% set metric_class = 'text-slate-700' %}
           {% endif %}
-          <div class="rounded-[1.5rem] border border-slate-200 p-4">
+          <div class="rounded-[1.5rem] border p-4 {{ panel_class }}">
             <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">

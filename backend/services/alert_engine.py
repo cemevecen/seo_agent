@@ -420,7 +420,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                 message = (
                     f"[NEGATIVE] {site.domain} CTR düşüşü - "
                     f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
-                    f"CTR {drop['old_ctr']:.3f} → {drop['new_ctr']:.3f} ({drop['change_pct']:+.1f}%)"
+                    f"CTR {drop['old_ctr']:.3f}% → {drop['new_ctr']:.3f}% ({drop['change_pct']:+.1f}%)"
                 )
                 if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
@@ -819,7 +819,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
     status_label = "Negatif" if tone == "rose" else "Pozitif" if tone == "emerald" else "Uyari"
 
     ctr_match = re.search(
-        r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
+        r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)%?\s*→\s*([\d.]+)%?\s*\(([-+]?[\d.]+%)\)",
         clean,
     )
     if ctr_match:

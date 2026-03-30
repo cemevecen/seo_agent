@@ -2055,7 +2055,7 @@ def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> lis
                 impact = abs(clicks_diff) + (position_diff * 1000)
             elif position_diff > 0.15:
                 reason = "Pozisyon düşüşü"
-                tone = "sky"
+                tone = "rose"
                 metric = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
                 secondary = f"{_format_compact_number(clicks_current)} tıklama"
                 impact = max(clicks_current, 1.0) + (position_diff * 1000)
