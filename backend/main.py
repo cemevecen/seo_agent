@@ -2,14 +2,16 @@
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from ipaddress import ip_address, ip_network
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, unquote, urlparse
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -1844,6 +1846,148 @@ def _latest_crawler_link_audit_summary(db, *, site_id: int) -> dict:
     }
 
 
+_KEYWORD_STOPWORDS = {
+    "www",
+    "http",
+    "https",
+    "com",
+    "net",
+    "org",
+    "html",
+    "php",
+    "asp",
+    "aspx",
+    "index",
+    "page",
+    "pages",
+    "blog",
+    "kategori",
+    "category",
+    "tag",
+    "utm",
+    "source",
+    "medium",
+    "campaign",
+    "ref",
+    "amp",
+}
+
+
+def _tokenize_keyword_text(text: str) -> list[str]:
+    normalized = re.sub(r"[^a-z0-9]+", " ", (text or "").lower())
+    tokens: list[str] = []
+    for token in normalized.split():
+        if len(token) < 3:
+            continue
+        if token in _KEYWORD_STOPWORDS:
+            continue
+        if token.isdigit():
+            continue
+        tokens.append(token)
+    return tokens
+
+
+def _tokens_from_url(url: str) -> list[str]:
+    if not url:
+        return []
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return []
+
+    parts: list[str] = []
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    host_parts = [item for item in host.split(".") if item]
+    if len(host_parts) >= 2:
+        host_parts = host_parts[:-1]
+    parts.extend(host_parts)
+
+    path = unquote(parsed.path or "")
+    for segment in path.split("/"):
+        if not segment:
+            continue
+        parts.extend(segment.replace("-", " ").replace("_", " ").split())
+
+    for key, value in parse_qsl(parsed.query or "", keep_blank_values=False):
+        if key:
+            parts.extend(key.replace("-", " ").replace("_", " ").split())
+        if value:
+            parts.extend(unquote(value).replace("-", " ").replace("_", " ").split())
+
+    tokens: list[str] = []
+    for part in parts:
+        tokens.extend(_tokenize_keyword_text(part))
+    return tokens
+
+
+def _build_external_keyword_insights(domain: str, crawler_link_audit: dict, *, limit: int = 20) -> dict:
+    weighted_tokens: Counter[str] = Counter()
+    keyword_sources: dict[str, set[str]] = defaultdict(set)
+
+    def add_url_tokens(url: str, *, weight: int) -> None:
+        if not url:
+            return
+        for token in _tokens_from_url(url):
+            weighted_tokens[token] += weight
+            keyword_sources[token].add(url)
+
+    for source_url in list(crawler_link_audit.get("source_pages_sample") or []):
+        add_url_tokens(str(source_url), weight=4)
+
+    for sample in list(crawler_link_audit.get("redirect_samples") or []):
+        add_url_tokens(str(sample.get("url") or ""), weight=3)
+        add_url_tokens(str(sample.get("final_url") or ""), weight=2)
+        for src in list(sample.get("source_urls") or []):
+            add_url_tokens(str(src), weight=2)
+
+    for sample in list(crawler_link_audit.get("broken_samples") or []):
+        add_url_tokens(str(sample.get("url") or ""), weight=4)
+        add_url_tokens(str(sample.get("final_url") or ""), weight=2)
+        for src in list(sample.get("source_urls") or []):
+            add_url_tokens(str(src), weight=2)
+
+    if not weighted_tokens:
+        domain_tokens = _tokenize_keyword_text((domain or "").replace(".", " "))
+        top_keywords = [
+            {
+                "keyword": token,
+                "score": 1,
+                "source_count": 0,
+                "sample_sources": [],
+            }
+            for token in domain_tokens[: max(3, min(limit, 6))]
+        ]
+        return {
+            "has_data": bool(top_keywords),
+            "total_keywords": len(top_keywords),
+            "top_keywords": top_keywords,
+            "source": "domain-fallback",
+            "note": "Crawler URL örneklerinden yeterli token çıkmadığı için domain bazlı fallback kullanıldı.",
+        }
+
+    ranked: list[dict] = []
+    for token, score in weighted_tokens.most_common(limit):
+        sources = sorted(keyword_sources.get(token) or set())
+        ranked.append(
+            {
+                "keyword": token,
+                "score": int(score),
+                "source_count": len(sources),
+                "sample_sources": sources[:3],
+            }
+        )
+
+    return {
+        "has_data": bool(ranked),
+        "total_keywords": len(ranked),
+        "top_keywords": ranked,
+        "source": "crawler-url-signals",
+        "note": "Bu anahtar kelimeler Search Console sorgusu değil; crawler URL/path/query sinyallerinden türetilen query fallback içgörüsüdür.",
+    }
+
+
 def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_messages: list[str]) -> dict[str, object]:
     metric = latest.get(f"pagespeed_{strategy}_score")
     has_metric = metric is not None
@@ -2393,8 +2537,11 @@ def _public_explorer_context(domain: str) -> dict:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        keyword_insights = _build_external_keyword_insights(site.domain, crawler_link_audit)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
+        desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
 
         cwv_rows = []
         mobile_series = _format_crux_series(mobile_crux)
@@ -2430,9 +2577,12 @@ def _public_explorer_context(domain: str) -> dict:
             "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
             "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
             "crawler_link_audit": crawler_link_audit,
+            "keyword_insights": keyword_insights,
             "crux_mobile": mobile_crux,
             "crux_desktop": desktop_crux,
             "crux_rows": cwv_rows,
+            "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
+            "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
             "warehouse_summary": warehouse,
         }
 
