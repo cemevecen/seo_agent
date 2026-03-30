@@ -783,23 +783,29 @@ def _format_number(value, *, decimals: int = 0, suffix: str = "") -> str:
     numeric = _safe_float(value)
     if numeric is None:
         return "-"
-    if decimals == 0:
-        return f"{numeric:,.0f}{suffix}"
-    return f"{numeric:,.{decimals}f}{suffix}"
+    rendered = f"{numeric:,.{decimals}f}"
+    rendered = rendered.replace(",", "__TMP__").replace(".", ",").replace("__TMP__", ".")
+    if decimals > 0:
+        rendered = rendered.rstrip("0").rstrip(",")
+    return f"{rendered}{suffix}"
 
 
 def _format_percent(value, *, decimals: int = 1) -> str:
     numeric = _safe_float(value)
     if numeric is None:
         return "-"
-    return f"{numeric:,.{decimals}f}%"
+    return f"{_format_number(numeric, decimals=decimals)}%"
 
 
 def _format_delta(value, *, decimals: int = 1, suffix: str = "") -> str:
     numeric = _safe_float(value)
     if numeric is None:
         return "-"
-    return f"{numeric:+,.{decimals}f}{suffix}"
+    rendered = f"{numeric:+,.{decimals}f}"
+    rendered = rendered.replace(",", "__TMP__").replace(".", ",").replace("__TMP__", ".")
+    if decimals > 0:
+        rendered = rendered.rstrip("0").rstrip(",")
+    return f"{rendered}{suffix}"
 
 
 def _delta_html(text: str, *, tone: str) -> str:
@@ -838,13 +844,17 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "device_code": device_code,
             "before": _format_percent(ctr_match.group(3), decimals=3),
             "after": _format_percent(ctr_match.group(4), decimals=3),
-            "delta": ctr_match.group(5),
+            "delta": _format_percent(str(ctr_match.group(5)).replace("%", ""), decimals=1),
             "extra": f"{_format_number(clicks)} click",
             "extra_numeric": clicks,
             "delta_numeric": _safe_float(str(ctr_match.group(5)).replace("%", "")),
-            "display_title": "CTR dususu",
+            "display_title": "CTR düşüşü",
             "display_query": ctr_match.group(1),
-            "display_metric": f"CTR {ctr_match.group(3)}% -> {ctr_match.group(4)}% | Click {ctr_match.group(2)} | Delta {ctr_match.group(5)}",
+            "display_metric": (
+                f"CTR {_format_percent(ctr_match.group(3), decimals=3)} -> "
+                f"{_format_percent(ctr_match.group(4), decimals=3)} | "
+                f"Click {_format_number(clicks)} | Delta {_format_percent(str(ctr_match.group(5)).replace('%', ''), decimals=1)}"
+            ),
         }
 
     impression_match = re.search(
@@ -861,13 +871,17 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "device_code": device_code,
             "before": _format_number(impression_match.group(3)),
             "after": _format_number(impression_match.group(4)),
-            "delta": impression_match.group(5),
+            "delta": _format_percent(str(impression_match.group(5)).replace("%", ""), decimals=1),
             "extra": f"{_format_number(clicks)} click",
             "extra_numeric": clicks,
             "delta_numeric": _safe_float(str(impression_match.group(5)).replace("%", "")),
-            "display_title": "Impression dususu",
+            "display_title": "Impression düşüşü",
             "display_query": impression_match.group(1),
-            "display_metric": f"Impression {impression_match.group(3)} -> {impression_match.group(4)} | Click {impression_match.group(2)} | Delta {impression_match.group(5)}",
+            "display_metric": (
+                f"Impression {_format_number(impression_match.group(3))} -> "
+                f"{_format_number(impression_match.group(4))} | "
+                f"Click {_format_number(clicks)} | Delta {_format_percent(str(impression_match.group(5)).replace('%', ''), decimals=1)}"
+            ),
         }
 
     position_match = re.search(r"'([^']+)'.*Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", clean)
@@ -877,16 +891,16 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
         if before_value is not None and after_value is not None and before_value == after_value:
             return {"skip": True}
         if before_value is None or after_value is None:
-            delta_text = "Kayip"
+            delta_text = "Kayıp"
         else:
             delta_text = _format_delta(after_value - before_value, decimals=1)
-        title = "Pozisyon degisimi"
+        title = "Pozisyon değişimi"
         if after_value is None:
-            title = "Sorgu kaybi"
+            title = "Sorgu kaybı"
         elif before_value is not None and after_value is not None and after_value > before_value:
-            title = "Pozisyon dususu"
+            title = "Pozisyon düşüşü"
         elif before_value is not None and after_value is not None and after_value < before_value:
-            title = "Pozisyon iyilesmesi"
+            title = "Pozisyon iyileşmesi"
         return {
             "tone": "rose" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "emerald",
             "status_label": "Negatif" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "Pozitif",
@@ -923,15 +937,15 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "metric_type": threshold_title,
             "query_or_area": threshold_match.group(1),
             "device_code": device_code,
-            "before": f"Esik {_format_number(threshold_value, decimals=2)}",
+            "before": f"Eşik {_format_number(threshold_value, decimals=2)}",
             "after": _format_number(current_value, decimals=2),
             "delta": _format_delta(delta_value, decimals=2),
-            "extra": "Kritik esik asildi" if threshold_tone == "rose" else "Esik uyarisi",
+            "extra": "Kritik eşik aşıldı" if threshold_tone == "rose" else "Eşik uyarısı",
             "extra_numeric": None,
             "delta_numeric": delta_value,
             "display_title": threshold_title,
             "display_query": threshold_match.group(1),
-            "display_metric": f"Mevcut {_format_number(current_value, decimals=2)} | Esik {_format_number(threshold_value, decimals=2)} | Fark {_format_delta(delta_value, decimals=2)}",
+            "display_metric": f"Mevcut {_format_number(current_value, decimals=2)} | Eşik {_format_number(threshold_value, decimals=2)} | Fark {_format_delta(delta_value, decimals=2)}",
         }
 
     return {
@@ -946,7 +960,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
         "extra": clean,
         "extra_numeric": None,
         "delta_numeric": None,
-        "display_title": "Uyari",
+        "display_title": "Uyarı",
         "display_query": "",
         "display_metric": clean,
     }

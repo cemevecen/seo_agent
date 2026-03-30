@@ -1331,7 +1331,18 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
     db.commit()
     evaluate_site_alerts(db, site)
-    return {"site_id": site.id, "rows": rows, "summary": metrics, "source": "live", "error": None}
+    return {
+        "site_id": site.id,
+        "rows": rows,
+        "summary": metrics,
+        "comparison": {
+            "current_7d_summary": current_7d_summary,
+            "previous_7d_summary": previous_7d_summary,
+        },
+        "source": "live",
+        "error": None,
+    }
+
 
 
 def collect_search_console_alert_metrics(

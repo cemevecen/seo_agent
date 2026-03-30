@@ -21,6 +21,22 @@ from backend.services.timezone_utils import (
 
 DEFAULT_OPERATIONS_RECIPIENT = "cemevecen@nokta.com"
 
+SUMMARY_LABELS = {
+    "search_console_clicks_28d": "Search Console tıklama 28G",
+    "search_console_impressions_28d": "Search Console gösterim 28G",
+    "search_console_avg_ctr_28d": "Search Console ort. CTR 28G",
+    "search_console_avg_position_28d": "Search Console ort. pozisyon 28G",
+    "search_console_dropped_queries": "Düşen sorgu sayısı",
+    "search_console_biggest_drop": "En büyük düşüş",
+}
+
+COMPARISON_FIELDS = [
+    ("clicks", "Tıklama"),
+    ("impressions", "Gösterim"),
+    ("ctr", "Ortalama CTR"),
+    ("position", "Ortalama pozisyon"),
+]
+
 SYSTEM_LABELS = {
     "pagespeed": "PageSpeed",
     "crawler": "Crawler",
@@ -52,6 +68,113 @@ def operations_recipients() -> list[str]:
     raw = str(settings.operations_mail_to or DEFAULT_OPERATIONS_RECIPIENT).strip()
     recipients = [item.strip() for item in raw.split(",") if item.strip()]
     return recipients or [DEFAULT_OPERATIONS_RECIPIENT]
+
+
+def _safe_float(value) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_tr_number(value, *, decimals: int = 0) -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return "-"
+    rendered = f"{numeric:,.{decimals}f}"
+    rendered = rendered.replace(",", "__TMP__").replace(".", ",").replace("__TMP__", ".")
+    if decimals > 0:
+        rendered = rendered.rstrip("0").rstrip(",")
+    return rendered
+
+
+def _format_summary_value(key: str, value) -> str:
+    if isinstance(value, bool):
+        return "Evet" if value else "Hayır"
+    if isinstance(value, dict):
+        return f"{len(value)} alan"
+    if isinstance(value, list):
+        return f"{len(value)} kayıt"
+    numeric = _safe_float(value)
+    if numeric is not None:
+        lowered = key.lower()
+        if "ctr" in lowered:
+            return f"%{_format_tr_number(numeric, decimals=2)}"
+        if "position" in lowered or "drop" in lowered:
+            return _format_tr_number(numeric, decimals=2)
+        return _format_tr_number(numeric, decimals=0)
+    return str(value)
+
+
+def _humanize_summary_label(key: str) -> str:
+    return SUMMARY_LABELS.get(key, str(key).replace("_", " ").strip().title())
+
+
+def _summary_detail_rows(summary: dict) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for key, value in summary.items():
+        rows.append([_humanize_summary_label(str(key)), _format_summary_value(str(key), value)])
+    return rows
+
+
+def _format_comparison_value(field: str, value) -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return "-"
+    if field == "ctr":
+        return f"%{_format_tr_number(numeric, decimals=2)}"
+    if field == "position":
+        return _format_tr_number(numeric, decimals=2)
+    return _format_tr_number(numeric, decimals=0)
+
+
+def _format_comparison_delta(field: str, previous, current) -> str:
+    previous_numeric = _safe_float(previous)
+    current_numeric = _safe_float(current)
+    if previous_numeric is None or current_numeric is None:
+        return "-"
+    delta = current_numeric - previous_numeric
+    if field == "ctr":
+        direction = "artış" if delta > 0 else "düşüş" if delta < 0 else "değişmedi"
+        return f"{delta:+.2f} puan ({direction})".replace(".", ",")
+    if field == "position":
+        if delta < 0:
+            note = "iyileşme"
+        elif delta > 0:
+            note = "kötüleşme"
+        else:
+            note = "değişmedi"
+        return f"{delta:+.2f} ({note})".replace(".", ",")
+    return f"{delta:+,.0f}".replace(",", ".")
+
+
+def _comparison_rows(result: dict | None) -> list[list[str]]:
+    if not isinstance(result, dict):
+        return []
+    comparison = result.get("comparison")
+    if not isinstance(comparison, dict):
+        return []
+    current = comparison.get("current_7d_summary") or {}
+    previous = comparison.get("previous_7d_summary") or {}
+    if not isinstance(current, dict) or not isinstance(previous, dict):
+        return []
+    rows: list[list[str]] = []
+    for field, label in COMPARISON_FIELDS:
+        before = previous.get(field)
+        after = current.get(field)
+        if before is None and after is None:
+            continue
+        rows.append(
+            [
+                label,
+                _format_comparison_value(field, before),
+                _format_comparison_value(field, after),
+                _format_comparison_delta(field, before, after),
+            ]
+        )
+    return rows
 
 
 def _record_delivery(
@@ -119,7 +242,7 @@ def _result_tone(result: dict | None) -> str:
     status = _result_status_label(result).lower()
     if status in {"failed", "blocked"}:
         return "rose"
-    if status in {"warning", "stale"}:
+    if status in {"warning", "stale", "güncel değil"}:
         return "amber"
     return "blue"
 
@@ -144,6 +267,7 @@ def _trigger_email_body(
 ) -> str:
     details: list[tuple[str, str]] = []
     detail_rows: list[list[str]] = []
+    comparison_rows: list[list[str]] = []
     summary_cards: list[dict[str, str]] = []
     if isinstance(result, dict):
         if result.get("reason"):
@@ -151,14 +275,13 @@ def _trigger_email_body(
         if result.get("error"):
             details.append(("Hata", str(result["error"])))
         if result.get("errors"):
-            details.append(("Hata Ozeti", str(result["errors"])))
+            details.append(("Hata Özeti", str(result["errors"])))
         if isinstance(result.get("summary"), dict):
-            for key, value in result["summary"].items():
-                label = str(key).replace("_", " ").strip().title()
-                detail_rows.append([label, str(value)])
+            detail_rows = _summary_detail_rows(result["summary"])
             summary_cards = _result_summary_cards(result["summary"])
         elif result.get("summary"):
-            details.append(("Ozet", str(result["summary"])))
+            details.append(("Özet", str(result["summary"])))
+        comparison_rows = _comparison_rows(result)
         if result.get("state"):
             details.append(("Durum", str(result["state"])))
         elif result.get("source"):
@@ -169,22 +292,22 @@ def _trigger_email_body(
         ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
         ("Sistem", system_label),
         ("Aksiyon", action_label),
-        ("Site", site.domain if site is not None else "Tum sistem"),
+        ("Site", site.domain if site is not None else "Tüm sistem"),
         ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
     ]
     sections = [
         section(
             "Ozet",
             summary_table(summary_rows),
-            subtitle="Bu mail, dis sisteme giden tetikleme akisinin calistigini bildirir.",
+            subtitle="Bu mail, dış sisteme giden tetikleme akışının çalıştığını bildirir.",
         )
     ]
     if summary_cards:
         sections.append(
             section(
-                "Kritik Ozet",
+                "Kritik Özet",
                 stat_cards(summary_cards),
-                subtitle="Collector sonucundan cikarilan en kritik metrikler.",
+                subtitle="Collector sonucundan çıkarılan en kritik metrikler.",
             )
         )
     if details:
@@ -192,15 +315,23 @@ def _trigger_email_body(
             section(
                 "Calisma Detaylari",
                 summary_table(details),
-                subtitle="Collector veya API sonucundan toplanan ozet alanlar.",
+                subtitle="Collector veya API sonucundan toplanan özet alanlar.",
             )
         )
     if detail_rows:
         sections.append(
             section(
                 "Metrik Dökümü",
-                data_table(["Alan", "Deger"], detail_rows),
-                subtitle="Collector sonucundaki sayisal alanlar ayri satirlarda gosterilir.",
+                data_table(["Alan", "Değer"], detail_rows),
+                subtitle="Collector sonucundaki sayısal alanlar ayrı satırlarda gösterilir.",
+            )
+        )
+    if comparison_rows:
+        sections.append(
+            section(
+                "Karşılaştırmalı Veri",
+                data_table(["Alan", "Önceki 7 Gün", "Son 7 Gün", "Fark"], comparison_rows),
+                subtitle="Search Console tetiklemelerinde önceki 7 gün ile son 7 gün verisi yan yana gösterilir.",
             )
         )
     sections.append(
@@ -237,9 +368,7 @@ def _result_summary_cards(summary: dict) -> list[dict[str, str]]:
         if key not in summary:
             continue
         value = summary.get(key)
-        rendered = str(value)
-        if isinstance(value, float):
-            rendered = f"{value:,.2f}"
+        rendered = _format_summary_value(key, value)
         cards.append({"label": label, "value": rendered, "caption": caption, "tone": tone})
         if len(cards) >= 4:
             break
@@ -510,7 +639,7 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
                     "Aksiyon Notu",
                     note_box(
                         "Kontrol Listesi",
-                        "Uygulamanin o saatte ayakta oldugunu, scheduler'in aktif oldugunu ve ilgili refresh job akisinin hata vermedigini kontrol et. Run hic olusmadiysa job baslamamis olabilir; failed veya started goruluyorsa islem tamamlanmadan kesilmis olabilir.",
+                        "Uygulamanın o saatte ayakta olduğunu, scheduler'in aktif olduğunu ve ilgili refresh job akışının hata vermediğini kontrol et. Run hiç oluşmadıysa job başlamamış olabilir; failed veya started görülüyorsa işlem tamamlanmadan kesilmiş olabilir.",
                         tone="amber",
                     ),
                 ),

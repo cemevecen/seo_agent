@@ -18,10 +18,10 @@ class AlertEmailRenderingTest(unittest.TestCase):
         row = _alert_email_row(parsed)
 
         self.assertEqual(parsed["metric_type"], "CTR")
-        self.assertEqual(parsed["before"], "22.400%")
-        self.assertEqual(parsed["after"], "20.097%")
-        self.assertEqual(parsed["delta"], "-10.3%")
-        self.assertIn("4,998 click", parsed["extra"])
+        self.assertEqual(parsed["before"], "22,4%")
+        self.assertEqual(parsed["after"], "20,097%")
+        self.assertEqual(parsed["delta"], "-10,3%")
+        self.assertIn("4.998 click", parsed["extra"])
         self.assertEqual(len(row), 7)
 
     def test_threshold_alert_shows_threshold_and_current_value(self) -> None:
@@ -31,9 +31,9 @@ class AlertEmailRenderingTest(unittest.TestCase):
         )
 
         self.assertEqual(parsed["metric_type"], "Mobile PageSpeed kritik seviyede")
-        self.assertEqual(parsed["before"], "Esik 50.00")
-        self.assertEqual(parsed["after"], "47.00")
-        self.assertEqual(parsed["delta"], "-3.00")
+        self.assertEqual(parsed["before"], "Eşik 50")
+        self.assertEqual(parsed["after"], "47")
+        self.assertEqual(parsed["delta"], "-3")
 
 
 if __name__ == "__main__":

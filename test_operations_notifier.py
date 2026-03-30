@@ -62,6 +62,52 @@ class OperationsNotifierTest(unittest.TestCase):
         self.assertEqual(second_subjects, [])
         self.assertEqual(send_email.call_count, 1)
 
+    def test_trigger_email_formats_numbers_and_adds_comparison_table(self) -> None:
+        result = {
+            "summary": {
+                "search_console_clicks_28d": 1300254.0,
+                "search_console_impressions_28d": 27339832.0,
+                "search_console_avg_ctr_28d": 4.7558960859,
+                "search_console_avg_position_28d": 4.5017189867,
+            },
+            "comparison": {
+                "current_7d_summary": {
+                    "clicks": 1300254.0,
+                    "impressions": 27339832.0,
+                    "ctr": 4.7558960859,
+                    "position": 4.5017189867,
+                },
+                "previous_7d_summary": {
+                    "clicks": 1200000.0,
+                    "impressions": 26000000.0,
+                    "ctr": 4.9989,
+                    "position": 4.91,
+                },
+            },
+            "source": "live",
+        }
+
+        with patch("backend.services.operations_notifier.send_email", return_value=True) as send_email:
+            sent = operations_notifier.notify_system_trigger(
+                trigger_source="manual",
+                system_key="search_console",
+                site=self.site,
+                result=result,
+                action_label="Search Console verisini yenile",
+            )
+
+        self.assertTrue(sent)
+        self.assertEqual(send_email.call_count, 1)
+        html = send_email.call_args.args[1]
+        self.assertIn("1.300.254", html)
+        self.assertIn("27.339.832", html)
+        self.assertIn("%4,76", html)
+        self.assertIn("4,5", html)
+        self.assertIn("Karşılaştırmalı Veri", html)
+        self.assertIn("Önceki 7 Gün", html)
+        self.assertIn("Son 7 Gün", html)
+        self.assertIn("-0,24 puan (düşüş)", html)
+
 
 if __name__ == "__main__":
     unittest.main()
