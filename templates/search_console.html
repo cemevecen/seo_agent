@@ -34,12 +34,153 @@
     </div>
 
     <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
-      <p class="text-sm text-slate-500">Search Console durumlari yukleniyor...</p>
+      <div id="search-console-page-load-panel" class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sayfa Yukleniyor</p>
+            <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazirlaniyor</p>
+            <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console sayfasi aciliyor, ilk liste istegi hazirlaniyor.</p>
+          </div>
+          <div class="text-right">
+            <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-700">8%</p>
+            <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
+          </div>
+        </div>
+        <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200">
+          <div id="search-console-page-load-bar" class="h-full rounded-full bg-slate-700 transition-all duration-500" style="width: 8%"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
+  function createSearchConsolePageLoadController() {
+    const panel = document.getElementById('search-console-page-load-panel');
+    const title = document.getElementById('search-console-page-load-title');
+    const detail = document.getElementById('search-console-page-load-detail');
+    const percent = document.getElementById('search-console-page-load-percent');
+    const elapsed = document.getElementById('search-console-page-load-elapsed');
+    const bar = document.getElementById('search-console-page-load-bar');
+    const start = performance.now();
+    let timer = null;
+
+    function secondsText() {
+      return ((performance.now() - start) / 1000).toFixed(1) + ' sn';
+    }
+
+    function render(step) {
+      if (!panel || !title || !detail || !percent || !elapsed || !bar) {
+        return;
+      }
+      title.textContent = step.title;
+      detail.textContent = step.detail;
+      percent.textContent = String(step.percent) + '%';
+      elapsed.textContent = secondsText();
+      bar.style.width = String(step.percent) + '%';
+    }
+
+    function startPendingLoop() {
+      if (timer) {
+        return;
+      }
+      timer = window.setInterval(function () {
+        const current = parseInt((bar && bar.style.width) || '8', 10) || 8;
+        const next = Math.min(current + 1, 94);
+        if (next <= current) {
+          return;
+        }
+        render({
+          percent: next,
+          title: 'Liste verisi bekleniyor',
+          detail: 'HTMX istegi devam ediyor; Search Console kartlari gelince alan otomatik kapanacak.',
+        });
+      }, 500);
+    }
+
+    render({
+      percent: 8,
+      title: 'Kabuk hazirlaniyor',
+      detail: 'Search Console sayfasi aciliyor, ilk liste istegi hazirlaniyor.',
+    });
+
+    return {
+      domReady: function () {
+        render({
+          percent: 24,
+          title: 'DOM hazir',
+          detail: 'Sayfa kabugu tarayicida kuruldu, liste istegi icin altyapi hazir.',
+        });
+      },
+      requestStarted: function () {
+        render({
+          percent: 48,
+          title: 'Liste istegi gonderildi',
+          detail: 'Search Console site listesi icin HTMX istegi sunucuya gonderildi.',
+        });
+        startPendingLoop();
+      },
+      responseReceived: function () {
+        render({
+          percent: 76,
+          title: 'Yanıt alindi',
+          detail: 'Sunucudan liste HTML yaniti alindi, sayfaya yerlestiriliyor.',
+        });
+      },
+      swapped: function () {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        render({
+          percent: 100,
+          title: 'Sayfa hazir',
+          detail: 'Search Console kartlari yuklendi.',
+        });
+        window.setTimeout(function () {
+          if (panel) {
+            panel.style.transition = 'opacity 220ms ease';
+            panel.style.opacity = '0';
+            window.setTimeout(function () {
+              if (panel && panel.parentElement) {
+                panel.remove();
+              }
+            }, 220);
+          }
+        }, 160);
+      },
+      fail: function () {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        if (panel) {
+          panel.classList.remove('border-slate-200', 'bg-slate-50');
+          panel.classList.add('border-rose-200', 'bg-rose-50');
+        }
+        if (bar) {
+          bar.classList.remove('bg-slate-700');
+          bar.classList.add('bg-rose-600');
+        }
+        render({
+          percent: Math.max(parseInt((bar && bar.style.width) || '18', 10) || 18, 18),
+          title: 'Liste yuklenemedi',
+          detail: 'Ilk Search Console liste istegi tamamlanamadi. Sayfayi yenileyip tekrar dene.',
+        });
+      },
+    };
+  }
+
+  const searchConsolePageLoad = createSearchConsolePageLoadController();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      searchConsolePageLoad.domReady();
+    });
+  } else {
+    searchConsolePageLoad.domReady();
+  }
+
   function createSearchConsoleProgressController(config) {
     const panel = document.getElementById('search-console-progress-panel');
     const title = document.getElementById('search-console-progress-title');
@@ -564,9 +705,26 @@
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target && event.target.id === 'search-console-site-list') {
+      searchConsolePageLoad.swapped();
       window.setTimeout(function () {
         initSearchConsolePanels(event.target);
       }, 50);
+    }
+  });
+
+  document.body.addEventListener('htmx:beforeRequest', function (event) {
+    if (event.target && event.target.id === 'search-console-site-list') {
+      searchConsolePageLoad.requestStarted();
+    }
+  });
+
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    if (event.target && event.target.id === 'search-console-site-list') {
+      if (event.detail && event.detail.successful) {
+        searchConsolePageLoad.responseReceived();
+      } else {
+        searchConsolePageLoad.fail();
+      }
     }
   });
 </script>
