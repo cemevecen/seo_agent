@@ -133,7 +133,21 @@
         if (!content) {
           return;
         }
+        const pageRoot = content.querySelector('[data-header-title], [data-site-title], [data-site-domain]');
+        const pageHeaderTitle = pageRoot ? (pageRoot.getAttribute('data-header-title') || pageRoot.getAttribute('data-site-title') || '') : '';
+        const pageExplorerHref = pageRoot ? (pageRoot.getAttribute('data-header-explorer-href') || '') : '';
+        const headerTitle = document.getElementById('header-site-title');
         const explorerLink = document.getElementById('header-data-explorer-link');
+
+        if (headerTitle && pageHeaderTitle) {
+          headerTitle.textContent = pageHeaderTitle;
+          document.title = pageHeaderTitle;
+        }
+
+        if (explorerLink && pageExplorerHref) {
+          explorerLink.setAttribute('href', pageExplorerHref);
+        }
+
         const storedDomain = localStorage.getItem('seo-current-domain');
         const storedProfile = (localStorage.getItem('seo-current-profile') || '').toLowerCase();
         if (!content.querySelector('[data-site-domain]') && storedDomain) {
@@ -154,7 +168,6 @@
         const siteDomain = siteRoot.getAttribute('data-site-domain');
         const siteProfile = (siteRoot.getAttribute('data-site-profile') || '').toLowerCase();
         const siteTitle = siteRoot.getAttribute('data-site-title') || 'SEO Agent Dashboard';
-        const headerTitle = document.getElementById('header-site-title');
         localStorage.setItem('seo-current-domain', siteDomain || '');
         localStorage.setItem('seo-current-profile', siteProfile || 'verified');
 
