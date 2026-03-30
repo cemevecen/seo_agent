@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 # Add parent directory to path for imports
@@ -75,6 +76,10 @@ STATIC_DIR = BASE_DIR / "static"
 LOGGER = logging.getLogger(__name__)
 DAILY_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
+EXTERNAL_ONBOARDING_JOB_LOCK = threading.Lock()
+EXTERNAL_ONBOARDING_JOBS: dict[str, dict] = {}
+EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
+EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 420
 
 # Create Jinja2Templates with cache disabled for Python 3.14 compatibility
 from jinja2 import Environment, FileSystemLoader
@@ -663,27 +668,161 @@ def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> 
     return results
 
 
-def _run_external_onboarding_background(site_id: int) -> None:
+def _cleanup_external_onboarding_jobs() -> None:
+    cutoff_ts = time.time() - EXTERNAL_ONBOARDING_JOB_TTL_SECONDS
+    stale_ids = [
+        job_id
+        for job_id, state in EXTERNAL_ONBOARDING_JOBS.items()
+        if float(state.get("created_ts", 0.0)) < cutoff_ts
+    ]
+    for job_id in stale_ids:
+        EXTERNAL_ONBOARDING_JOBS.pop(job_id, None)
+
+
+def _create_external_onboarding_job(*, site_id: int, domain: str) -> str:
+    job_id = uuid4().hex
+    now = datetime.utcnow()
+    with EXTERNAL_ONBOARDING_JOB_LOCK:
+        _cleanup_external_onboarding_jobs()
+        EXTERNAL_ONBOARDING_JOBS[job_id] = {
+            "job_id": job_id,
+            "site_id": site_id,
+            "domain": domain,
+            "status": "running",
+            "percent": 3,
+            "title": "Onboarding başlatıldı",
+            "detail": "External ölçüm kuyruğa alındı.",
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "created_ts": time.time(),
+            "finished_at": None,
+        }
+    return job_id
+
+
+def _set_external_onboarding_job(job_id: str, **updates) -> None:
+    now = datetime.utcnow().isoformat()
+    with EXTERNAL_ONBOARDING_JOB_LOCK:
+        state = EXTERNAL_ONBOARDING_JOBS.get(job_id)
+        if not state:
+            return
+        state.update(updates)
+        state["updated_at"] = now
+
+
+def _get_external_onboarding_job(job_id: str) -> dict | None:
+    with EXTERNAL_ONBOARDING_JOB_LOCK:
+        _cleanup_external_onboarding_jobs()
+        state = EXTERNAL_ONBOARDING_JOBS.get(job_id)
+        if not state:
+            return None
+        status = str(state.get("status") or "")
+        created_ts = float(state.get("created_ts") or 0.0)
+        if status == "running" and created_ts > 0 and (time.time() - created_ts) > EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS:
+            state.update(
+                {
+                    "status": "failed",
+                    "percent": 100,
+                    "title": "Onboarding zaman aşımına uğradı",
+                    "detail": "İşlem beklenenden uzun sürdü. Yeniden deneyin veya logları kontrol edin.",
+                    "finished_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+        return dict(state)
+
+
+def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
     # External onboarding UI'ini bloklamamak için olcumleri arka planda calistirir.
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
+            _set_external_onboarding_job(
+                job_id,
+                status="failed",
+                percent=100,
+                title="Onboarding başarısız",
+                detail="Site kaydı bulunamadı.",
+                finished_at=datetime.utcnow().isoformat(),
+            )
             return
+
+        results: dict[str, dict] = {}
+        has_error = False
         try:
-            result = _refresh_public_site_measurements(db, site, force=True)
+            _set_external_onboarding_job(
+                job_id,
+                percent=12,
+                title="PageSpeed ölçümü çalışıyor",
+                detail="Mobile ve desktop PageSpeed skorları alınıyor.",
+            )
+            try:
+                results["pagespeed"] = collect_pagespeed_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                has_error = True
+                results["pagespeed"] = {"errors": {"exception": str(exc)}}
+
+            _set_external_onboarding_job(
+                job_id,
+                percent=48,
+                title="CrUX geçmişi güncelleniyor",
+                detail="Chrome UX Report verileri çekiliyor.",
+            )
+            try:
+                results["crux_history"] = collect_crux_history(db, site)
+            except Exception as exc:  # noqa: BLE001
+                has_error = True
+                results["crux_history"] = {"state": "failed", "error": str(exc)}
+
+            _set_external_onboarding_job(
+                job_id,
+                percent=76,
+                title="Crawler analizi çalışıyor",
+                detail="Site içi link ve teknik kontroller taranıyor.",
+            )
+            try:
+                results["crawler"] = collect_crawler_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                has_error = True
+                results["crawler"] = {"errors": {"exception": str(exc)}}
+
+            results["url_inspection"] = {
+                "state": "skipped",
+                "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
+            }
+
             db.commit()
             notify_result_map(
                 trigger_source="manual",
                 site=site,
-                result=result,
+                results=results,
                 action_label="External onboarding arka plan olcumu",
             )
-            if isinstance(result.get("crawler"), dict):
+            if isinstance(results.get("crawler"), dict):
                 notify_crawler_audit_emails(
                     db=db,
                     site=site,
-                    result=result.get("crawler"),
+                    result=results.get("crawler"),
                     trigger_source="manual",
+                )
+
+            if has_error:
+                _set_external_onboarding_job(
+                    job_id,
+                    status="failed",
+                    percent=100,
+                    title="Onboarding tamamlandı (kısmi hata)",
+                    detail="Bazı adımlar hata verdi. Kartlardaki durum ve log detaylarını kontrol edin.",
+                    finished_at=datetime.utcnow().isoformat(),
+                )
+            else:
+                _set_external_onboarding_job(
+                    job_id,
+                    status="completed",
+                    percent=100,
+                    title="Onboarding tamamlandı",
+                    detail="External ölçümler tamamlandı, kartlar güncellendi.",
+                    finished_at=datetime.utcnow().isoformat(),
                 )
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -691,8 +830,16 @@ def _run_external_onboarding_background(site_id: int) -> None:
             notify_result_map(
                 trigger_source="manual",
                 site=site,
-                result={"state": "failed", "error": str(exc)},
+                results={"onboarding": {"state": "failed", "error": str(exc)}},
                 action_label="External onboarding arka plan olcumu",
+            )
+            _set_external_onboarding_job(
+                job_id,
+                status="failed",
+                percent=100,
+                title="Onboarding başarısız",
+                detail=str(exc),
+                finished_at=datetime.utcnow().isoformat(),
             )
 
 
@@ -2940,7 +3087,8 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
             db.add(ExternalSite(site_id=site.id))
             db.commit()
 
-        background_tasks.add_task(_run_external_onboarding_background, site.id)
+        job_id = _create_external_onboarding_job(site_id=site.id, domain=site.domain)
+        background_tasks.add_task(_run_external_onboarding_background, site.id, job_id)
 
         return {
             "ok": True,
@@ -2949,8 +3097,17 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
                 "domain": site.domain,
                 "display_name": site.display_name,
             },
+            "job_id": job_id,
             "summary": "External site eklendi. Ilk olcumler arka planda baslatildi.",
         }
+
+
+@app.get("/external/jobs/{job_id}")
+def external_onboarding_job_status(job_id: str):
+    state = _get_external_onboarding_job(job_id)
+    if state is None:
+        return JSONResponse({"ok": False, "error": "Job bulunamadı."}, status_code=404)
+    return JSONResponse({"ok": True, **state})
 
 
 @app.delete("/external/sites/{site_id}")
