@@ -49,6 +49,9 @@ class Site(Base):
     url_inspection_snapshots: Mapped[list["UrlInspectionSnapshot"]] = relationship(
         "UrlInspectionSnapshot", back_populates="site", cascade="all, delete-orphan"
     )
+    external_profile: Mapped["ExternalSite | None"] = relationship(
+        "ExternalSite", back_populates="site", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class SiteCredential(Base):
@@ -62,6 +65,23 @@ class SiteCredential(Base):
     encrypted_data: Mapped[str] = mapped_column(Text, nullable=False)
 
     site: Mapped["Site"] = relationship("Site", back_populates="credentials")
+
+
+class ExternalSite(Base):
+    """Search Console bagimsiz, external crawler profilini isaretler."""
+
+    __tablename__ = "external_sites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        unique=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="external_profile")
 
 
 class Metric(Base):

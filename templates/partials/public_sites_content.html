@@ -17,14 +17,106 @@
     </div>
   </section>
 
+  <section class="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm ring-1 ring-slate-100">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">External Onboarding</p>
+        <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Domain veya URL Ekle</h4>
+        <p class="mt-2 text-sm text-slate-600">Girilen domain/url otomatik normalize edilir ve ilk PageSpeed, Crawler, CrUX verileri hemen çekilir.</p>
+      </div>
+      <form id="external-site-form" class="grid w-full gap-3 lg:max-w-3xl lg:grid-cols-[2fr_1.2fr_auto]" onsubmit="submitExternalSite(event)">
+        <input
+          type="text"
+          id="external-domain-input"
+          name="domain"
+          placeholder="ornek.com veya https://ornek.com/urun"
+          class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
+          required
+        />
+        <input
+          type="text"
+          id="external-display-name-input"
+          name="display_name"
+          placeholder="Gorunen ad (opsiyonel)"
+          class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
+        />
+        <button
+          type="submit"
+          id="external-site-submit"
+          class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Ekle ve Cek
+        </button>
+      </form>
+    </div>
+    <div id="external-site-feedback" class="mt-3 text-sm"></div>
+  </section>
+
   <div id="public-site-list" hx-get="/external/site-list" hx-trigger="load" hx-swap="innerHTML">
     <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
-      Public site kartları yükleniyor...
+      External site kartlari yukleniyor...
     </div>
   </div>
 </div>
 
 <script>
+  function setExternalFeedback(message, isError) {
+    var feedback = document.getElementById('external-site-feedback');
+    if (!feedback) {
+      return;
+    }
+    feedback.textContent = message || '';
+    feedback.className = 'mt-3 text-sm ' + (isError ? 'text-rose-600' : 'text-emerald-700');
+  }
+
+  async function submitExternalSite(event) {
+    event.preventDefault();
+    var submitButton = document.getElementById('external-site-submit');
+    var domainInput = document.getElementById('external-domain-input');
+    var nameInput = document.getElementById('external-display-name-input');
+    if (!domainInput || !submitButton) {
+      return;
+    }
+
+    submitButton.disabled = true;
+    var originalText = submitButton.textContent;
+    submitButton.textContent = 'Ekleniyor...';
+    setExternalFeedback('', false);
+
+    try {
+      var response = await fetch('/external/sites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          domain: domainInput.value,
+          display_name: nameInput ? nameInput.value : ''
+        })
+      });
+      var payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        setExternalFeedback((payload && payload.error) || 'External site eklenemedi.', true);
+        return;
+      }
+
+      setExternalFeedback(payload.summary || 'External site eklendi ve ilk veriler cekildi.', false);
+      domainInput.value = '';
+      if (nameInput) {
+        nameInput.value = '';
+      }
+      htmx.ajax('GET', '/external/site-list', {
+        target: '#public-site-list',
+        swap: 'innerHTML'
+      });
+    } catch (error) {
+      setExternalFeedback('Istek sirasinda bir hata olustu.', true);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = originalText || 'Ekle ve Cek';
+    }
+  }
+
   function refreshAllPublicSites(button) {
     if (button) {
       button.disabled = true;

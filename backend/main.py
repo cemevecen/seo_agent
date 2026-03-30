@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from ipaddress import ip_address, ip_network
 from pathlib import Path
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 # Add parent directory to path for imports
@@ -45,7 +46,7 @@ from backend.collectors.search_console import collect_search_console_alert_metri
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
-from backend.models import CollectorRun, PageSpeedPayloadSnapshot, Site
+from backend.models import CollectorRun, ExternalSite, PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -286,9 +287,20 @@ def _preferred_site_order_key(domain: str | None, display_name: str | None = Non
 def get_sidebar_sites() -> list[dict]:
     # Sidebar için aktif siteler veritabanından okunur.
     with SessionLocal() as db:
-        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
+        external_site_ids = {
+            int(row.site_id)
+            for row in db.query(ExternalSite.site_id).all()
+        }
+        sites = (
+            db.query(Site)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.desc())
+            .all()
+        )
         rows = []
         for site in sites:
+            if site.id in external_site_ids:
+                continue
             connection = get_search_console_connection_status(db, site.id)
             is_public = not bool(connection.get("connected"))
             rows.append(
@@ -303,10 +315,29 @@ def get_sidebar_sites() -> list[dict]:
         return rows
 
 
+def _external_site_ids(db) -> set[int]:
+    return {
+        int(row.site_id)
+        for row in db.query(ExternalSite.site_id).all()
+    }
+
+
+def _is_external_site(db, site_id: int) -> bool:
+    return (
+        db.query(ExternalSite.id)
+        .filter(ExternalSite.site_id == site_id)
+        .first()
+        is not None
+    )
+
+
 def _settings_sites_payload(db) -> list[dict]:
+    external_site_ids = _external_site_ids(db)
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
     rows: list[dict] = []
     for site in sites:
+        if site.id in external_site_ids:
+            continue
         rows.append(
             {
                 "id": site.id,
@@ -555,6 +586,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 
 
 def _search_console_sites_payload(db) -> list[dict]:
+    external_site_ids = _external_site_ids(db)
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
     rows: list[dict] = []
     schedule_label = (
@@ -562,6 +594,8 @@ def _search_console_sites_payload(db) -> list[dict]:
         f"{int(settings.search_console_scheduled_refresh_minute):02d}"
     )
     for site in sites:
+        if site.id in external_site_ids:
+            continue
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         status = _search_console_status(db, latest, site.id)
         connection = get_search_console_connection_status(db, site.id)
@@ -1903,12 +1937,15 @@ def _data_explorer_context(domain: str) -> dict:
 
 
 def _public_sites_payload(db) -> list[dict]:
-    sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
+    sites = (
+        db.query(Site)
+        .join(ExternalSite, ExternalSite.site_id == Site.id)
+        .filter(Site.is_active.is_(True))
+        .order_by(Site.created_at.desc())
+        .all()
+    )
     rows: list[dict] = []
     for site in sites:
-        if _is_search_console_connected(db, site.id):
-            continue
-
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
@@ -1941,6 +1978,8 @@ def _public_explorer_context(domain: str) -> dict:
         site = db.query(Site).filter(Site.domain == domain).first()
         if site is None:
             raise ValueError("Site bulunamadı.")
+        if not _is_external_site(db, site.id):
+            raise ValueError("Site external profilinde değil.")
 
         connection = get_search_console_connection_status(db, site.id)
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
@@ -1998,7 +2037,9 @@ def _dashboard_cards() -> list[dict]:
 
 
 def _dashboard_cards_with_db(db, *, recent_alerts_cache: list[dict] | None = None) -> list[dict]:
+    external_site_ids = _external_site_ids(db)
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    sites = [site for site in sites if site.id not in external_site_ids]
     cards = [_build_dashboard_card(db, site, recent_alerts_cache=recent_alerts_cache) for site in sites]
     cards.sort(key=lambda card: _preferred_site_order_key(card.get("domain"), card.get("display_name")))
     return cards
@@ -2812,6 +2853,111 @@ def public_sites_list(request: Request):
         )
 
 
+def _normalize_external_domain(raw_value: str) -> str:
+    candidate = str(raw_value or "").strip().lower()
+    if not candidate:
+        return ""
+    if "://" not in candidate:
+        candidate = f"https://{candidate}"
+    parsed = urlparse(candidate)
+    host = (parsed.netloc or parsed.path or "").strip().lower()
+    if "/" in host:
+        host = host.split("/", 1)[0]
+    if ":" in host:
+        host = host.split(":", 1)[0]
+    return host.rstrip(".")
+
+
+@app.post("/external/sites")
+async def public_sites_create_site(request: Request):
+    with SessionLocal() as db:
+        content_type = (request.headers.get("content-type") or "").lower()
+        if "application/json" in content_type:
+            payload = await request.json()
+            domain_input = payload.get("domain") or payload.get("url") or ""
+            display_name = (payload.get("display_name") or "").strip()
+            is_active = bool(payload.get("is_active", True))
+        else:
+            form = await request.form()
+            domain_input = form.get("domain") or form.get("url") or ""
+            display_name = str(form.get("display_name", "")).strip()
+            is_active = str(form.get("is_active", "true")).lower() in {"true", "1", "on", "yes"}
+
+        domain = _normalize_external_domain(str(domain_input))
+        if not domain:
+            return JSONResponse({"ok": False, "error": "Geçerli bir domain veya URL girin."}, status_code=422)
+
+        if not display_name:
+            display_name = domain
+
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            site = Site(domain=domain, display_name=display_name, is_active=is_active)
+        else:
+            site.display_name = display_name or site.display_name
+            site.is_active = is_active
+
+        db.add(site)
+        db.commit()
+        db.refresh(site)
+
+        if not _is_external_site(db, site.id):
+            db.add(ExternalSite(site_id=site.id))
+            db.commit()
+
+        results = _refresh_public_site_measurements(db, site, force=True)
+        db.commit()
+        notify_result_map(
+            trigger_source="manual",
+            site=site,
+            results=results,
+            action_label="External site ekleme ve ilk tarama",
+        )
+        if isinstance(results.get("crawler"), dict):
+            notify_crawler_audit_emails(
+                db=db,
+                site=site,
+                result=results.get("crawler"),
+                trigger_source="manual",
+            )
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "site": {
+                    "id": site.id,
+                    "domain": site.domain,
+                    "display_name": site.display_name,
+                },
+                "summary": _summarize_manual_measurement(results),
+            }
+        )
+
+
+@app.delete("/external/sites/{site_id}")
+def public_sites_delete_site(request: Request, site_id: int):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"ok": False, "error": "Site bulunamadı."}, status_code=404)
+        marker = db.query(ExternalSite).filter(ExternalSite.site_id == site.id).first()
+        if marker is None:
+            return JSONResponse({"ok": False, "error": "Site external profilinde değil."}, status_code=404)
+
+        db.delete(site)
+        db.commit()
+        if request.headers.get("HX-Request") == "true":
+            return templates.TemplateResponse(
+                request,
+                "partials/public_site_cards.html",
+                context={
+                    "request": request,
+                    "public_sites": _public_sites_payload(db),
+                },
+            )
+        return JSONResponse({"ok": True, "deleted_id": site_id})
+
+
 @app.post("/external/refresh/{site_id}")
 @app.post("/public-sites/refresh/{site_id}")
 def public_sites_refresh_site(request: Request, site_id: int):
@@ -2819,6 +2965,8 @@ def public_sites_refresh_site(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
+        if not _is_external_site(db, site.id):
+            return HTMLResponse("Site external profilinde değil.", status_code=404)
 
         results = _refresh_public_site_measurements(db, site, force=True)
         db.commit()
@@ -2849,10 +2997,14 @@ def public_sites_refresh_site(request: Request, site_id: int):
 @app.post("/public-sites/refresh-all")
 def public_sites_refresh_all(request: Request):
     with SessionLocal() as db:
-        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        sites = (
+            db.query(Site)
+            .join(ExternalSite, ExternalSite.site_id == Site.id)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.asc(), Site.id.asc())
+            .all()
+        )
         for index, site in enumerate(sites):
-            if _is_search_console_connected(db, site.id):
-                continue
             results = _refresh_public_site_measurements(db, site, force=True)
             db.commit()
             notify_result_map(
