@@ -296,7 +296,7 @@ def get_sidebar_sites() -> list[dict]:
                     "domain": site.domain,
                     "label": site.display_name,
                     "profile": "public" if is_public else "verified",
-                    "href": f"/public-explorer/{site.domain}" if is_public else f"/data-explorer/{site.domain}",
+                    "href": f"/external-explorer/{site.domain}" if is_public else f"/data-explorer/{site.domain}",
                 }
             )
         rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
@@ -1968,7 +1968,7 @@ def _public_explorer_context(domain: str) -> dict:
             )
 
         return {
-            "site_name": f"Public Crawl - {site.display_name}",
+            "site_name": f"External - {site.display_name}",
             "sites": get_sidebar_sites(),
             "domain": site.domain,
             "display_name": site.display_name,
@@ -2772,11 +2772,12 @@ def data_explorer(request: Request, domain: str):
     return templates.TemplateResponse(request, "data_explorer.html", context={"request": request, **payload})
 
 
+@app.get("/external")
 @app.get("/public-sites")
 def public_sites_page(request: Request):
     with SessionLocal() as db:
         payload = {
-            "site_name": "Public Crawl",
+            "site_name": "External",
             "sites": get_sidebar_sites(),
             "public_sites": _public_sites_payload(db),
         }
@@ -2784,6 +2785,7 @@ def public_sites_page(request: Request):
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
 
 
+@app.get("/external-explorer/{domain}", response_class=HTMLResponse)
 @app.get("/public-explorer/{domain}", response_class=HTMLResponse)
 def public_explorer(request: Request, domain: str):
     try:
@@ -2796,6 +2798,7 @@ def public_explorer(request: Request, domain: str):
     return templates.TemplateResponse(request, "public_explorer.html", context={"request": request, **payload})
 
 
+@app.get("/external/site-list")
 @app.get("/public-sites/site-list")
 def public_sites_list(request: Request):
     with SessionLocal() as db:
@@ -2809,6 +2812,7 @@ def public_sites_list(request: Request):
         )
 
 
+@app.post("/external/refresh/{site_id}")
 @app.post("/public-sites/refresh/{site_id}")
 def public_sites_refresh_site(request: Request, site_id: int):
     with SessionLocal() as db:
@@ -2841,6 +2845,7 @@ def public_sites_refresh_site(request: Request, site_id: int):
         )
 
 
+@app.post("/external/refresh-all")
 @app.post("/public-sites/refresh-all")
 def public_sites_refresh_all(request: Request):
     with SessionLocal() as db:

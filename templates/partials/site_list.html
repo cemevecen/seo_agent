@@ -22,7 +22,7 @@
               {% if site.search_console.connected %}
                 <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Verified</span>
               {% else %}
-                <span class="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700">Public Crawl</span>
+                <span class="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700">External</span>
               {% endif %}
             </td>
             <td class="px-3 py-2">
@@ -73,14 +73,14 @@
                 </button>
                 {% if not site.search_console.connected %}
                   <a
-                    href="/public-explorer/{{ site.domain }}"
+                    href="/external-explorer/{{ site.domain }}"
                     class="rounded-md border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
-                    hx-get="/public-explorer/{{ site.domain }}"
+                    hx-get="/external-explorer/{{ site.domain }}"
                     hx-target="#content"
                     hx-swap="innerHTML"
                     hx-push-url="true"
                   >
-                    Public Explorer
+                    External Explorer
                   </a>
                 {% endif %}
               </div>

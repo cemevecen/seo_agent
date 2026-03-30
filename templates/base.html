@@ -62,7 +62,7 @@
             <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
             <a href="/search-console" class="text-slate-600 hover:text-slate-900">Search Console</a>
             <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">PageSpeed</a>
-            <a href="/public-sites" class="text-slate-600 hover:text-slate-900">Public Crawl</a>
+            <a href="/external" class="text-slate-600 hover:text-slate-900">External</a>
             <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
             <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
           </div>
@@ -139,7 +139,7 @@
         if (!content.querySelector('[data-site-domain]') && storedDomain) {
           if (explorerLink) {
             if (storedProfile === 'public') {
-              explorerLink.setAttribute('href', '/public-explorer/' + storedDomain);
+              explorerLink.setAttribute('href', '/external-explorer/' + storedDomain);
             } else {
               explorerLink.setAttribute('href', '/data-explorer/' + storedDomain);
             }
@@ -163,7 +163,7 @@
         }
         if (explorerLink && siteDomain) {
           if (siteProfile === 'public') {
-            explorerLink.setAttribute('href', '/public-explorer/' + siteDomain);
+            explorerLink.setAttribute('href', '/external-explorer/' + siteDomain);
           } else {
             explorerLink.setAttribute('href', '/data-explorer/' + siteDomain);
           }

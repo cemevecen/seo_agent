@@ -2,7 +2,7 @@
   <section class="rounded-[2rem] border border-cyan-200 bg-[linear-gradient(125deg,rgba(236,254,255,0.95),rgba(255,255,255,0.98)_48%,rgba(254,242,242,0.86))] p-6 shadow-[0_28px_70px_-46px_rgba(8,145,178,0.55)] ring-1 ring-white/70">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700/80">Public Explorer</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700/80">External Explorer</p>
         <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900">{{ display_name }}</h2>
         <p class="mt-2 break-all text-sm text-slate-600">{{ domain }}</p>
         <p class="mt-3 text-sm text-slate-600">Search Console durumu: <span class="font-semibold text-slate-900">{{ search_console_label }}</span></p>
@@ -14,7 +14,7 @@
           class="rounded-full bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-600"
           onclick="refreshPublicExplorer('{{ domain }}', this)"
         >
-          Public Veriyi Yenile
+          External Veriyi Yenile
         </button>
       </div>
     </div>
@@ -22,7 +22,7 @@
 
   {% if not is_public_only %}
     <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-      Bu domain Search Console bağlantısına sahip. Public Explorer sadece izin gerektirmeyen katmanları gösterir.
+      Bu domain Search Console bağlantısına sahip. External Explorer sadece izin gerektirmeyen katmanları gösterir.
     </div>
   {% endif %}
 
@@ -128,7 +128,7 @@
     fetch('/api/site/' + domain + '/refresh', { method: 'POST' })
       .then(function (response) {
         if (!response.ok) {
-          throw new Error('Public refresh failed');
+          throw new Error('External refresh failed');
         }
         return response.json();
       })
@@ -140,7 +140,7 @@
           return;
         }
         button.disabled = false;
-        button.textContent = button.dataset.originalText || 'Public Veriyi Yenile';
+        button.textContent = button.dataset.originalText || 'External Veriyi Yenile';
       });
   }
 </script>
