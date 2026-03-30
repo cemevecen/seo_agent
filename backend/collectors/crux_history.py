@@ -21,6 +21,11 @@ from backend.services.warehouse import (
     start_collector_run,
 )
 
+
+class CruxNoDataError(Exception):
+    """CrUX API'si 404 döndürdüğünde, yani veri olmadığında yükseltilir."""
+    pass
+
 CRUX_HISTORY_ENDPOINT = "https://chromeuxreport.googleapis.com/v1/records:queryHistoryRecord"
 CRUX_CURRENT_ENDPOINT = "https://chromeuxreport.googleapis.com/v1/records:queryRecord"
 
@@ -240,10 +245,12 @@ def _fetch_crux_history(
             }
         except (HTTPError, requests.HTTPError) as exc:
             if _status_code(exc) == 404:
-                last_error = exc
-                continue
+                # 404 means no data for this identifier. Stop and raise a specific exception.
+                raise CruxNoDataError(f"No CrUX history data for identifier: {identifier['value']}") from exc
+            # For other HTTP errors, we can let them be raised.
             raise
         except (URLError, TimeoutError, requests.RequestException) as exc:
+            # For network-level errors, save and continue to the next candidate.
             last_error = exc
             continue
 
@@ -285,8 +292,8 @@ def _fetch_crux_current(
             }
         except (HTTPError, requests.HTTPError) as exc:
             if _status_code(exc) == 404:
-                last_error = exc
-                continue
+                # 404 means no data for this identifier. Stop and raise a specific exception.
+                raise CruxNoDataError(f"No CrUX current data for identifier: {identifier['value']}") from exc
             raise
         except (URLError, TimeoutError, requests.RequestException) as exc:
             last_error = exc
@@ -345,6 +352,8 @@ def collect_crux_history(
                         request_timeout=request_timeout,
                         max_identifier_attempts=max_identifier_attempts,
                     )
+                except CruxNoDataError as exc:
+                    current_error = str(exc)
                 except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
                     current_error = str(exc)
 
@@ -387,6 +396,20 @@ def collect_crux_history(
                 ),
             )
             output[local_key] = {"state": "live", "summary": summary}
+        except CruxNoDataError as exc:
+            finish_collector_run(
+                db,
+                run,
+                status="no_data",
+                finished_at=datetime.utcnow(),
+                summary={"message": str(exc)},
+                row_count=0,
+            )
+            output[local_key] = {
+                "state": "no_data",
+                "summary": None,
+                "error": str(exc),
+            }
         except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
             fallback = get_latest_crux_snapshot(db, site_id=site.id, form_factor=local_key)
             finish_collector_run(
