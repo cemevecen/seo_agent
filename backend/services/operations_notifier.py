@@ -148,6 +148,7 @@ def _trigger_email_body(
     details_html = "".join(f"<li>{item}</li>" for item in details)
     return (
         f"<h2>{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi</h2>"
+        f"<p><strong>Mail tipi:</strong> Bilgilendirme</p>"
         f"<p><strong>Tetik tipi:</strong> {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)}</p>"
         f"<p><strong>Aksiyon:</strong> {action_label}</p>"
         f"{site_html}"
@@ -198,6 +199,25 @@ def notify_result_map(
             result=result_value if isinstance(result_value, dict) else {"summary": result_value},
             action_label=action_label,
         )
+
+
+def _missed_run_reason(latest_run: CollectorRun | None) -> str:
+    if latest_run is None:
+        return (
+            "Beklenen zaman penceresinde hicbir calisma kaydi olusmadi. "
+            "Bu genelde scheduler'in calismadigi, uygulamanin o saatte kapali oldugu "
+            "veya job'in hic baslamadigi anlamina gelir."
+        )
+    status = str(latest_run.status or "unknown").lower()
+    if status == "started":
+        return (
+            f"Calisma kaydi baslamis gorunuyor ancak basariyla tamamlanmis kayit yok. "
+            f"Son gorulen durum: {latest_run.status} ({format_local_datetime(latest_run.requested_at)})."
+        )
+    return (
+        f"Beklenen zaman penceresinde basarili tamamlanan kayit yok. "
+        f"Son gorulen durum: {latest_run.status} ({format_local_datetime(latest_run.requested_at)})."
+    )
 
 
 def _active_sites(db: Session, *, connected_only: bool) -> list[Site]:
@@ -340,6 +360,7 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
 
         requested_after = local_schedule_to_utc_naive(local_now.date(), spec.schedule_hour, spec.schedule_minute)
         missing_lines: list[str] = []
+        missing_count = 0
 
         for site in expected_sites:
             latest_run = _latest_relevant_run(
@@ -352,12 +373,13 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
             if latest_run is not None and str(latest_run.status).lower() == "success":
                 continue
 
-            if latest_run is None:
-                missing_lines.append(f"{site.domain}: hic run bulunamadi")
-            else:
-                missing_lines.append(
-                    f"{site.domain}: son durum={latest_run.status}, zaman={format_local_datetime(latest_run.requested_at)}"
-                )
+            missing_count += 1
+            missing_lines.append(
+                "<li>"
+                f"<strong>{site.domain}</strong><br>"
+                f"{_missed_run_reason(latest_run)}"
+                "</li>"
+            )
 
         if not missing_lines:
             continue
@@ -366,12 +388,21 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
         if _delivery_exists(db, notification_type="operations", notification_key=notification_key):
             continue
 
-        subject = f"SEO Agent: {spec.label} kendi saatinde guncellenmedi"
+        subject = f"SEO Agent UYARI: {spec.label} zamaninda guncellenmedi"
         body = (
-            f"<h2>{spec.label} kendi saatinde guncellenmedi</h2>"
+            f"<h2>Uyari: {spec.label} zamaninda guncellenmedi</h2>"
+            f"<p><strong>Mail tipi:</strong> Uyari</p>"
+            f"<p>Bu mail bir sorun bildirir. Beklenen zaman araliginda bu sistem icin basarili calisma kaydi bulunamadi.</p>"
             f"<p><strong>Beklenen saat:</strong> {scheduled_local.strftime('%d.%m.%Y %H:%M')} TSİ</p>"
             f"<p><strong>Kontrol zamani:</strong> {format_local_datetime(local_now)}</p>"
-            f"<ul>{''.join(f'<li>{line}</li>' for line in missing_lines)}</ul>"
+            f"<p><strong>Etkilenen site sayisi:</strong> {missing_count}/{len(expected_sites)}</p>"
+            f"<p><strong>Yorum:</strong> "
+            f"{spec.label} icin beklenen zaman penceresinde ya job hic baslamadi ya da basarili tamamlanmadi."
+            f"</p>"
+            f"<ul>{''.join(missing_lines)}</ul>"
+            f"<p><strong>Ne yapilmali:</strong> "
+            f"Uygulamanin o saatte ayakta oldugunu, scheduler'in aktif oldugunu ve ilgili refresh endpoint/job akisinin hata vermedigini kontrol et."
+            f"</p>"
         )
         if _send_operations_email(subject, body, notification_key=notification_key, db=db):
             sent_subjects.append(subject)
