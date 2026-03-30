@@ -258,12 +258,17 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
             for device, data in devices.items():
                 current = data.get("current")
                 previous = data.get("previous")
+                if not current or not previous:
+                    continue
                 if current:
                     current_device_rows.append(current)
                     current_clicks += float(current.get("clicks", 0.0) or 0.0)
                 if previous:
                     previous_device_rows.append(previous)
                     previous_clicks += float(previous.get("clicks", 0.0) or 0.0)
+
+            if not current_device_rows or not previous_device_rows:
+                continue
 
             current_impressions = sum(float(item.get("impressions", 0.0) or 0.0) for item in current_device_rows)
             previous_impressions = sum(float(item.get("impressions", 0.0) or 0.0) for item in previous_device_rows)
@@ -285,12 +290,9 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
                 "previous_position": previous_position,
                 "devices": devices,
                 "traffic_weight": traffic_weight,
-                "is_dropped": bool(previous_device_rows) and not bool(current_device_rows),
+                "is_dropped": False,
             }
             query_metrics.append(metric)
-
-            if metric["is_dropped"]:
-                dropped_queries.append(metric)
 
         query_metrics.sort(key=lambda item: item.get("traffic_weight", 0.0), reverse=True)
         dropped_queries.sort(key=lambda item: item.get("traffic_weight", 0.0), reverse=True)
@@ -486,6 +488,8 @@ def evaluate_site_alerts(db: Session, site: Site, *, send_notifications: bool = 
     for alert in alerts:
         if not alert.is_active:
             continue
+        if alert.alert_type == "search_console_dropped_queries":
+            continue
         metric = latest_metrics.get(alert.alert_type)
         rule = rules.get(alert.alert_type)
         if metric is None or rule is None:
@@ -641,6 +645,8 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     filtered_alerts = []
     seen_keys: set[tuple[str, str, str, str, str, str]] = set()
     for log, alert in rows:
+        if alert.alert_type == "search_console_dropped_queries":
+            continue
         presentation = _parse_alert_message(log.message, alert_type=alert.alert_type, domain=log.domain)
         if presentation.get("skip"):
             continue

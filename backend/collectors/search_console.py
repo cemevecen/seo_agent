@@ -1202,20 +1202,10 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
         for row in previous_7d_rows
     }
-    current_query_keys = {
-        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
-        for row in current_7d_rows
-    }
-    previous_query_keys = {
-        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
-        for row in previous_7d_rows
-    }
-
     total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
     total_impressions = sum(float(row.get("impressions", 0)) for row in rows)
     avg_ctr = (total_clicks / total_impressions * 100.0) if total_impressions > 0 else 0.0
     avg_position = sum(float(row.get("position", 0)) for row in rows) / len(rows) if rows else 0.0
-    dropped_queries = 0
     max_drop = 0.0
     for row in current_7d_rows:
         query = str(row.get("query") or "")
@@ -1227,14 +1217,13 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         drop = current_position - previous_position
         if drop > 0.5:
             max_drop = max(max_drop, drop)
-    dropped_queries = len(previous_query_keys - current_query_keys)
 
     metrics = {
         "search_console_clicks_28d": total_clicks,
         "search_console_impressions_28d": total_impressions,
         "search_console_avg_ctr_28d": avg_ctr,
         "search_console_avg_position_28d": avg_position,
-        "search_console_dropped_queries": float(dropped_queries),
+        "search_console_dropped_queries": 0.0,
         "search_console_biggest_drop": max_drop,
     }
     period_summaries = _build_period_summaries_from_daily_rows(
@@ -1402,15 +1391,6 @@ def collect_search_console_alert_metrics(
         (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
         for row in previous_7d_rows
     }
-    current_query_keys = {
-        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
-        for row in current_7d_rows
-    }
-    previous_query_keys = {
-        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper())
-        for row in previous_7d_rows
-    }
-
     max_drop = 0.0
     for row in current_7d_rows:
         query = str(row.get("query") or "")
@@ -1422,7 +1402,7 @@ def collect_search_console_alert_metrics(
         max_drop = max(max_drop, current_position - previous_position)
 
     metrics = {
-        "search_console_dropped_queries": float(len(previous_query_keys - current_query_keys)),
+        "search_console_dropped_queries": 0.0,
         "search_console_biggest_drop": max_drop,
     }
     save_metrics(db, site.id, metrics, collected_at)
