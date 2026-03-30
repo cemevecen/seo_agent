@@ -982,12 +982,13 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 job_id,
                 percent=76,
                 title="Crawler analizi çalışıyor",
-                detail="Hızlı onboarding için crawler analizi ayrı kuyruğa alındı.",
+                detail="Kartların boş gelmemesi için ilk crawler denetimi yazılıyor.",
             )
-            results["crawler"] = {
-                "state": "queued",
-                "message": "Crawler analizi arka planda devam ediyor.",
-            }
+            try:
+                results["crawler"] = _collect_crawler_external_fast(db, site)
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"Crawler: {exc}")
+                results["crawler"] = {"state": "failed", "error": str(exc)}
 
             results["url_inspection"] = {
                 "state": "skipped",
@@ -1043,11 +1044,6 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
             # Onboarding ekranini hizla sonlandirip agir adimlari ayrik calistir.
             threading.Thread(
                 target=_run_external_pagespeed_detached,
-                args=(site.id,),
-                daemon=True,
-            ).start()
-            threading.Thread(
-                target=_run_external_crawler_detached,
                 args=(site.id,),
                 daemon=True,
             ).start()
@@ -1846,6 +1842,31 @@ def _latest_crawler_link_audit_summary(db, *, site_id: int) -> dict:
     }
 
 
+def _crawler_link_audit_with_metric_fallback(crawler_link_audit: dict, latest: dict[str, object]) -> dict:
+    merged = dict(crawler_link_audit or {})
+    merged["source_pages"] = int(merged.get("source_pages") or _metric_value(latest, "crawler_source_pages_count", 0.0))
+    merged["audited_urls"] = int(merged.get("audited_urls") or _metric_value(latest, "crawler_audited_urls_count", 0.0))
+    merged["redirect_links"] = int(merged.get("redirect_links") or _metric_value(latest, "crawler_redirect_links_count", 0.0))
+    merged["redirect_301_links"] = int(merged.get("redirect_301_links") or _metric_value(latest, "crawler_redirect_301_count", 0.0))
+    merged["redirect_302_links"] = int(merged.get("redirect_302_links") or _metric_value(latest, "crawler_redirect_302_count", 0.0))
+    merged["redirect_chains"] = int(merged.get("redirect_chains") or _metric_value(latest, "crawler_redirect_chain_count", 0.0))
+    merged["broken_links"] = int(merged.get("broken_links") or _metric_value(latest, "crawler_broken_links_count", 0.0))
+    merged["max_hops"] = int(merged.get("max_hops") or _metric_value(latest, "crawler_redirect_max_hops", 0.0))
+    merged["source_strategy"] = str(merged.get("source_strategy") or "URL listesi")
+    merged["source_pages_sample"] = list(merged.get("source_pages_sample") or [])
+    merged["redirect_samples"] = list(merged.get("redirect_samples") or [])
+    merged["broken_samples"] = list(merged.get("broken_samples") or [])
+    merged["has_data"] = bool(
+        merged.get("has_data")
+        or merged["audited_urls"]
+        or merged["source_pages"]
+        or merged["redirect_links"]
+        or merged["redirect_chains"]
+        or merged["broken_links"]
+    )
+    return merged
+
+
 _KEYWORD_STOPWORDS = {
     "www",
     "http",
@@ -2497,7 +2518,10 @@ def _public_sites_payload(db) -> list[dict]:
     for site in sites:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
-        crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        crawler_link_audit = _crawler_link_audit_with_metric_fallback(
+            _latest_crawler_link_audit_summary(db, site_id=site.id),
+            latest,
+        )
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
         crawler_run = _latest_provider_run(db, site_id=site.id, provider="crawler", strategy="sitewide")
@@ -2536,7 +2560,10 @@ def _public_explorer_context(domain: str) -> dict:
         connection = get_search_console_connection_status(db, site.id)
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
-        crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        crawler_link_audit = _crawler_link_audit_with_metric_fallback(
+            _latest_crawler_link_audit_summary(db, site_id=site.id),
+            latest,
+        )
         keyword_insights = _build_external_keyword_insights(site.domain, crawler_link_audit)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
