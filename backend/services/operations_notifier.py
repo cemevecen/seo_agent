@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.models import CollectorRun, NotificationDeliveryLog, Site
-from backend.services.email_templates import data_table, note_box, render_email_shell, section, summary_table
+from backend.services.email_templates import data_table, note_box, render_email_shell, section, stat_cards, summary_table
 from backend.services.mailer import send_email
 from backend.services.search_console_auth import get_search_console_connection_status
 from backend.services.timezone_utils import (
@@ -141,6 +141,8 @@ def _trigger_email_body(
     action_label: str,
 ) -> str:
     details: list[tuple[str, str]] = []
+    detail_rows: list[list[str]] = []
+    summary_cards: list[dict[str, str]] = []
     if isinstance(result, dict):
         if result.get("reason"):
             details.append(("Neden", str(result["reason"])))
@@ -148,7 +150,12 @@ def _trigger_email_body(
             details.append(("Hata", str(result["error"])))
         if result.get("errors"):
             details.append(("Hata Ozeti", str(result["errors"])))
-        if result.get("summary"):
+        if isinstance(result.get("summary"), dict):
+            for key, value in result["summary"].items():
+                label = str(key).replace("_", " ").strip().title()
+                detail_rows.append([label, str(value)])
+            summary_cards = _result_summary_cards(result["summary"])
+        elif result.get("summary"):
             details.append(("Ozet", str(result["summary"])))
         if result.get("state"):
             details.append(("Durum", str(result["state"])))
@@ -170,12 +177,28 @@ def _trigger_email_body(
             subtitle="Bu mail, dis sisteme giden tetikleme akisinin calistigini bildirir.",
         )
     ]
+    if summary_cards:
+        sections.append(
+            section(
+                "Kritik Ozet",
+                stat_cards(summary_cards),
+                subtitle="Collector sonucundan cikarilan en kritik metrikler.",
+            )
+        )
     if details:
         sections.append(
             section(
                 "Calisma Detaylari",
                 summary_table(details),
                 subtitle="Collector veya API sonucundan toplanan ozet alanlar.",
+            )
+        )
+    if detail_rows:
+        sections.append(
+            section(
+                "Metrik Dökümü",
+                data_table(["Alan", "Deger"], detail_rows),
+                subtitle="Collector sonucundaki sayisal alanlar ayri satirlarda gosterilir.",
             )
         )
     sections.append(
@@ -196,6 +219,29 @@ def _trigger_email_body(
         status_label="Bilgilendirme",
         sections=sections,
     )
+
+
+def _result_summary_cards(summary: dict) -> list[dict[str, str]]:
+    cards: list[dict[str, str]] = []
+    preferred = [
+        ("search_console_clicks_28d", "28g Click", "Toplam click hacmi", "blue"),
+        ("search_console_impressions_28d", "28g Impression", "Toplam impression hacmi", "amber"),
+        ("search_console_avg_ctr_28d", "Ort. CTR", "Search Console ortalama CTR", "emerald"),
+        ("search_console_avg_position_28d", "Ort. Pozisyon", "Dusuk deger daha iyi", "slate"),
+        ("search_console_dropped_queries", "Dusen Sorgu", "Dikkat gerektiren sorgu sayisi", "rose"),
+        ("search_console_biggest_drop", "En Buyuk Dusus", "Kritik pozisyon kaybi", "rose"),
+    ]
+    for key, label, caption, tone in preferred:
+        if key not in summary:
+            continue
+        value = summary.get(key)
+        rendered = str(value)
+        if isinstance(value, float):
+            rendered = f"{value:,.2f}"
+        cards.append({"label": label, "value": rendered, "caption": caption, "tone": tone})
+        if len(cards) >= 4:
+            break
+    return cards
 
 
 def notify_system_trigger(

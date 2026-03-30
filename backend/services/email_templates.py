@@ -83,6 +83,32 @@ def summary_table(rows: list[tuple[str, str]]) -> str:
     )
 
 
+def stat_cards(items: list[dict[str, str]]) -> str:
+    cards = []
+    for item in items:
+        tone = item.get("tone", "blue")
+        colors = _palette(tone)
+        label = escape(item.get("label", ""))
+        value = escape(item.get("value", ""))
+        caption = escape(item.get("caption", ""))
+        cards.append(
+            '<td valign="top" style="padding:0 10px 10px 0;">'
+            f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+            f'style="border-collapse:collapse;border:1px solid {colors["border"]};border-radius:18px;overflow:hidden;background:{colors["surface"]};min-width:160px;">'
+            f'<tr><td style="padding:16px 16px 14px 16px;">'
+            f'<p style="margin:0;font-size:12px;line-height:1.4;color:{colors["accent_text"]};font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">{label}</p>'
+            f'<p style="margin:10px 0 0 0;font-size:28px;line-height:1.1;color:#0f172a;font-weight:800;">{value}</p>'
+            f'<p style="margin:8px 0 0 0;font-size:13px;line-height:1.55;color:#64748b;">{caption}</p>'
+            f'</td></tr></table></td>'
+        )
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;">'
+        "<tr>"
+        + "".join(cards)
+        + "</tr></table>"
+    )
+
+
 def data_table(headers: list[str], rows: list[list[str]]) -> str:
     header_html = "".join(
         f'<th style="padding:12px 14px;background:#eff6ff;border-bottom:1px solid #dbeafe;'

@@ -5,12 +5,13 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from html import escape
 import re
 
 from sqlalchemy.orm import Session
 
 from backend.models import Alert, AlertLog, Metric, Site
-from backend.services.email_templates import data_table, note_box, render_email_shell, section, status_chip, summary_table
+from backend.services.email_templates import data_table, note_box, render_email_shell, section, stat_cards, status_chip, summary_table
 from backend.services.mailer import send_email
 from backend.services.metric_store import get_latest_metrics
 from backend.services.timezone_utils import format_local_datetime
@@ -577,12 +578,14 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
     if not logs:
         return
 
-    rows = [_alert_email_row(log) for log in logs]
+    parsed_logs = [_parse_alert_message(log.message, domain=site.domain) for log in logs]
+    rows = [_alert_email_row(parsed) for parsed in parsed_logs]
+    overview_cards = _alert_overview_cards(parsed_logs)
     subject = f"SEO Alert: {site.domain}"
     body = render_email_shell(
         eyebrow="SEO Agent Alerts",
         title=f"{site.domain} icin yeni uyarilar",
-        intro="Asagidaki tablo son alarm turlerini, hangi sorgu veya metrikte degisim oldugunu ve degisim ozetini renkli satirlarla gosterir.",
+        intro="Bu mail, degisimi ham cümleye gommeden dogrudan once, simdi, fark ve etki kolonlariyla gosterir. Boylece CTR, click, position veya kritik skor sapmasi tek bakista okunur.",
         tone="rose",
         status_label="Alert",
         sections=[
@@ -595,21 +598,26 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
                         ("Son tetikleme", format_local_datetime(max(log.triggered_at for log in logs))),
                     ]
                 ),
-                subtitle="Bu e-posta yeni olusan alarm loglarini tek paket halinde gonderir.",
+                subtitle="Bu e-posta yeni olusan alarm loglarini tek pakette toplar.",
+            ),
+            section(
+                "Kritik Gorunum",
+                stat_cards(overview_cards),
+                subtitle="En hizli okunacak kritik ozet kutulari burada yer alir.",
             ),
             section(
                 "Uyari Tablosu",
                 data_table(
-                    ["Durum", "Tur", "Sorgu / Alan", "Degisim"],
+                    ["Durum", "Olcum", "Sorgu / Alan", "Once", "Simdi", "Delta", "Ek Veri"],
                     rows,
                 ),
-                subtitle="Her satir bir yeni alarm kaydini temsil eder.",
+                subtitle="Her satir bir yeni alarm kaydini temsil eder; sayisal degisim ayri kolonlara ayrilmistir.",
             ),
             section(
                 "Yorum",
                 note_box(
                     "Okuma Rehberi",
-                    "CTR, impression veya pozisyon satirlarinda dusus renklerle vurgulanir. Sayisal degisim ilk inceleme icin yeterlidir; daha detayli karsilastirma uygulama icindeki alert ekraninda gorulur.",
+                    "CTR satirlarinda degerler yuzde olarak, pozisyon satirlarinda float olarak, click ve impression etkisi ise hacim bilgisiyle birlikte verilir. Kritik skor alarmlarinda once kolonunda esik, simdi kolonunda mevcut skor yazilir; fark kolonu ne kadar sapma oldugunu net gosterir.",
                     tone="rose",
                 ),
             ),
@@ -624,68 +632,6 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
 
 def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
-    def _has_same_position(message: str) -> bool:
-        match = re.search(r"Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", message or "")
-        if not match:
-            return False
-        return match.group(1) == match.group(2)
-
-    def _extract_device_code(message: str) -> str:
-        match = re.search(r"\[(M|D)\]\s*$", message or "")
-        return match.group(1) if match else ""
-
-    def _present_alert(message: str, alert_type: str) -> dict:
-        raw = str(message or "")
-        clean = raw.replace("[POSITIVE]", "").replace("[NEGATIVE]", "").strip()
-        clean = re.sub(r"\s+\[(M|D)\]\s*$", "", clean)
-
-        title = "Uyarı"
-        query = ""
-        metric = clean
-        tone = "slate"
-
-        ctr_match = re.search(
-            r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
-            clean,
-        )
-        if ctr_match:
-            title = "CTR düşüşü"
-            query = ctr_match.group(1)
-            metric = f"CTR {ctr_match.group(3)} -> {ctr_match.group(4)}"
-            tone = "rose"
-            return {"title": title, "query": query, "metric": metric, "tone": tone}
-
-        impression_match = re.search(
-            r"impression düşüşü - '([^']+)' \(([\d.,]+) clicks\): Impressions ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
-            clean,
-        )
-        if impression_match:
-            title = "Impression düşüşü"
-            query = impression_match.group(1)
-            metric = f"Impressions {impression_match.group(3)} -> {impression_match.group(4)}"
-            tone = "amber"
-            return {"title": title, "query": query, "metric": metric, "tone": tone}
-
-        position_match = re.search(r"'([^']+)'.*Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", clean)
-        if position_match and alert_type in {
-            "search_console_biggest_drop",
-            "search_console_position_drop",
-            "search_console_dropped_queries",
-        }:
-            title = "Pozisyon düşüşü"
-            query = position_match.group(1)
-            metric = f"Pozisyon {position_match.group(2)} -> {position_match.group(3)}"
-            tone = "sky"
-            return {"title": title, "query": query, "metric": metric, "tone": tone}
-
-        return {
-            "title": title,
-            "query": query,
-            "metric": metric,
-            "tone": tone,
-            "device_code": _extract_device_code(raw),
-        }
-
     rows = (
         db.query(AlertLog, Alert)
         .join(Alert, AlertLog.alert_id == Alert.id)
@@ -695,15 +641,15 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     filtered_alerts = []
     seen_keys: set[tuple[str, str, str, str, str, str]] = set()
     for log, alert in rows:
-        if _has_same_position(log.message):
+        presentation = _parse_alert_message(log.message, alert_type=alert.alert_type, domain=log.domain)
+        if presentation.get("skip"):
             continue
-        presentation = _present_alert(log.message, alert.alert_type)
         semantic_key = (
             log.domain,
             alert.alert_type,
-            presentation.get("title") or "",
-            presentation.get("query") or "",
-            presentation.get("metric") or "",
+            presentation.get("display_title") or "",
+            presentation.get("display_query") or "",
+            presentation.get("display_metric") or "",
             presentation.get("device_code") or "",
         )
         if semantic_key in seen_keys:
@@ -716,9 +662,9 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
                 "domain": log.domain,
                 "alert_type": alert.alert_type,
                 "message": log.message,
-                "display_title": presentation["title"],
-                "display_query": presentation["query"],
-                "display_metric": presentation["metric"],
+                "display_title": presentation["display_title"],
+                "display_query": presentation["display_query"],
+                "display_metric": presentation["display_metric"],
                 "display_tone": presentation["tone"],
                 "display_device_code": presentation.get("device_code") or "",
                 "triggered_at": format_local_datetime(log.triggered_at),
@@ -814,48 +760,238 @@ def emit_custom_alert(
     return log
 
 
-def _alert_email_row(log: AlertLog) -> list[str]:
-    message = str(log.message or "")
-    clean = message.replace("[POSITIVE]", "").replace("[NEGATIVE]", "").strip()
-    tone = "rose" if "[NEGATIVE]" in message else "emerald" if "[POSITIVE]" in message else "amber"
-    status = status_chip("Negatif" if tone == "rose" else "Pozitif" if tone == "emerald" else "Uyari", tone=tone)
+def _device_label(device_code: str) -> str:
+    return {"M": "Mobil", "D": "Desktop"}.get(device_code or "", device_code or "-")
+
+
+def _safe_float(value) -> float | None:
+    if value in {None, "", "N/A"}:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_number(value, *, decimals: int = 0, suffix: str = "") -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return "-"
+    if decimals == 0:
+        return f"{numeric:,.0f}{suffix}"
+    return f"{numeric:,.{decimals}f}{suffix}"
+
+
+def _format_percent(value, *, decimals: int = 1) -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return "-"
+    return f"{numeric:,.{decimals}f}%"
+
+
+def _format_delta(value, *, decimals: int = 1, suffix: str = "") -> str:
+    numeric = _safe_float(value)
+    if numeric is None:
+        return "-"
+    return f"{numeric:+,.{decimals}f}{suffix}"
+
+
+def _delta_html(text: str, *, tone: str) -> str:
+    if text == "-":
+        return text
+    palette = {
+        "rose": "#be123c",
+        "emerald": "#047857",
+        "amber": "#b45309",
+        "sky": "#0369a1",
+        "slate": "#334155",
+    }
+    return f'<span style="font-weight:800;color:{palette.get(tone, "#334155")};">{escape(text)}</span>'
+
+
+def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = "") -> dict[str, object]:
+    raw = str(message or "")
+    clean = raw.replace("[POSITIVE]", "").replace("[NEGATIVE]", "").strip()
+    device_match = re.search(r"\s+\[(M|D)\]\s*$", clean)
+    device_code = device_match.group(1) if device_match else ""
+    clean = re.sub(r"\s+\[(M|D)\]\s*$", "", clean)
+    tone = "rose" if "[NEGATIVE]" in raw else "emerald" if "[POSITIVE]" in raw else "amber"
+    status_label = "Negatif" if tone == "rose" else "Pozitif" if tone == "emerald" else "Uyari"
 
     ctr_match = re.search(
         r"CTR düşüşü - '([^']+)' \(([\d.,]+) clicks\): CTR ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
         clean,
     )
     if ctr_match:
-        return [
-            status,
-            "CTR",
-            ctr_match.group(1),
-            f"{ctr_match.group(3)} -> {ctr_match.group(4)} ({ctr_match.group(5)})",
-        ]
+        clicks = _safe_float(ctr_match.group(2).replace(",", ""))
+        return {
+            "tone": "rose",
+            "status_label": "Negatif",
+            "metric_type": "CTR",
+            "query_or_area": ctr_match.group(1),
+            "device_code": device_code,
+            "before": _format_percent(ctr_match.group(3), decimals=3),
+            "after": _format_percent(ctr_match.group(4), decimals=3),
+            "delta": ctr_match.group(5),
+            "extra": f"{_format_number(clicks)} click",
+            "extra_numeric": clicks,
+            "delta_numeric": _safe_float(str(ctr_match.group(5)).replace("%", "")),
+            "display_title": "CTR dususu",
+            "display_query": ctr_match.group(1),
+            "display_metric": f"CTR {ctr_match.group(3)}% -> {ctr_match.group(4)}% | Click {ctr_match.group(2)} | Delta {ctr_match.group(5)}",
+        }
 
     impression_match = re.search(
         r"impression düşüşü - '([^']+)' \(([\d.,]+) clicks\): Impressions ([\d.]+)\s*→\s*([\d.]+)\s*\(([-+]?[\d.]+%)\)",
         clean,
     )
     if impression_match:
-        return [
-            status,
-            "Impression",
-            impression_match.group(1),
-            f"{impression_match.group(3)} -> {impression_match.group(4)} ({impression_match.group(5)})",
-        ]
+        clicks = _safe_float(impression_match.group(2).replace(",", ""))
+        return {
+            "tone": "amber",
+            "status_label": "Uyari",
+            "metric_type": "Impression",
+            "query_or_area": impression_match.group(1),
+            "device_code": device_code,
+            "before": _format_number(impression_match.group(3)),
+            "after": _format_number(impression_match.group(4)),
+            "delta": impression_match.group(5),
+            "extra": f"{_format_number(clicks)} click",
+            "extra_numeric": clicks,
+            "delta_numeric": _safe_float(str(impression_match.group(5)).replace("%", "")),
+            "display_title": "Impression dususu",
+            "display_query": impression_match.group(1),
+            "display_metric": f"Impression {impression_match.group(3)} -> {impression_match.group(4)} | Click {impression_match.group(2)} | Delta {impression_match.group(5)}",
+        }
 
     position_match = re.search(r"'([^']+)'.*Position:\s*([\d.]+|N/A)\s*->\s*([\d.]+|N/A)", clean)
     if position_match:
-        return [
-            status,
-            "Pozisyon",
-            position_match.group(1),
-            f"{position_match.group(2)} -> {position_match.group(3)}",
-        ]
+        before_value = _safe_float(position_match.group(2))
+        after_value = _safe_float(position_match.group(3))
+        if before_value is not None and after_value is not None and before_value == after_value:
+            return {"skip": True}
+        if before_value is None or after_value is None:
+            delta_text = "Kayip"
+        else:
+            delta_text = _format_delta(after_value - before_value, decimals=1)
+        title = "Pozisyon degisimi"
+        if after_value is None:
+            title = "Sorgu kaybi"
+        elif before_value is not None and after_value is not None and after_value > before_value:
+            title = "Pozisyon dususu"
+        elif before_value is not None and after_value is not None and after_value < before_value:
+            title = "Pozisyon iyilesmesi"
+        return {
+            "tone": "rose" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "emerald",
+            "status_label": "Negatif" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "Pozitif",
+            "metric_type": "Pozisyon",
+            "query_or_area": position_match.group(1),
+            "device_code": device_code,
+            "before": _format_number(position_match.group(2), decimals=1),
+            "after": _format_number(position_match.group(3), decimals=1) if position_match.group(3) != "N/A" else "N/A",
+            "delta": delta_text,
+            "extra": _device_label(device_code),
+            "extra_numeric": None,
+            "delta_numeric": (after_value - before_value) if before_value is not None and after_value is not None else None,
+            "display_title": title,
+            "display_query": position_match.group(1),
+            "display_metric": f"Pozisyon {position_match.group(2)} -> {position_match.group(3)} | {_device_label(device_code)}",
+        }
 
+    threshold_match = re.search(
+        r"^(.*?) için (.*)\. Mevcut değer: ([\d.]+), eşik: ([\d.]+)\.",
+        clean,
+    )
+    if threshold_match:
+        threshold_title = threshold_match.group(2)
+        current_value = _safe_float(threshold_match.group(3))
+        threshold_value = _safe_float(threshold_match.group(4))
+        delta_value = None
+        if current_value is not None and threshold_value is not None:
+            delta_value = current_value - threshold_value
+        threshold_tone = "rose" if "kritik" in threshold_title.lower() else tone
+        threshold_status = "Negatif" if threshold_tone == "rose" else status_label
+        return {
+            "tone": threshold_tone,
+            "status_label": threshold_status,
+            "metric_type": threshold_title,
+            "query_or_area": threshold_match.group(1),
+            "device_code": device_code,
+            "before": f"Esik {_format_number(threshold_value, decimals=2)}",
+            "after": _format_number(current_value, decimals=2),
+            "delta": _format_delta(delta_value, decimals=2),
+            "extra": "Kritik esik asildi" if threshold_tone == "rose" else "Esik uyarisi",
+            "extra_numeric": None,
+            "delta_numeric": delta_value,
+            "display_title": threshold_title,
+            "display_query": threshold_match.group(1),
+            "display_metric": f"Mevcut {_format_number(current_value, decimals=2)} | Esik {_format_number(threshold_value, decimals=2)} | Fark {_format_delta(delta_value, decimals=2)}",
+        }
+
+    return {
+        "tone": tone,
+        "status_label": status_label,
+        "metric_type": "Genel",
+        "query_or_area": domain or "-",
+        "device_code": device_code,
+        "before": "-",
+        "after": "-",
+        "delta": "-",
+        "extra": clean,
+        "extra_numeric": None,
+        "delta_numeric": None,
+        "display_title": "Uyari",
+        "display_query": "",
+        "display_metric": clean,
+    }
+
+
+def _alert_overview_cards(parsed_logs: list[dict[str, object]]) -> list[dict[str, str]]:
+    unique_queries = {str(item.get("query_or_area") or "-") for item in parsed_logs if str(item.get("query_or_area") or "-") != "-"}
+    click_values = [float(item["extra_numeric"]) for item in parsed_logs if item.get("extra_numeric") is not None]
+    delta_values = [abs(float(item["delta_numeric"])) for item in parsed_logs if item.get("delta_numeric") is not None]
+    negative_count = sum(1 for item in parsed_logs if item.get("tone") == "rose")
+    return [
+        {
+            "label": "Toplam alarm",
+            "value": str(len(parsed_logs)),
+            "caption": "Bu pakette yer alan yeni uyari sayisi",
+            "tone": "rose",
+        },
+        {
+            "label": "Etkilenen alan",
+            "value": str(len(unique_queries) or len(parsed_logs)),
+            "caption": "Ayrik sorgu veya alan sayisi",
+            "tone": "blue",
+        },
+        {
+            "label": "En yuksek click",
+            "value": _format_number(max(click_values)) if click_values else "-",
+            "caption": "En cok click hacmine sahip etkilenen satir",
+            "tone": "amber",
+        },
+        {
+            "label": "En sert degisim",
+            "value": _format_percent(max(delta_values)) if delta_values else "-",
+            "caption": f"Negatif satir: {negative_count}",
+            "tone": "emerald" if negative_count == 0 else "rose",
+        },
+    ]
+
+
+def _alert_email_row(parsed: dict[str, object]) -> list[str]:
+    tone = str(parsed.get("tone") or "amber")
+    status = status_chip(str(parsed.get("status_label") or "Uyari"), tone=tone)
+    area = escape(str(parsed.get("query_or_area") or "-"))
+    device_code = str(parsed.get("device_code") or "")
+    if device_code:
+        area += " " + status_chip(_device_label(device_code), tone="slate")
     return [
         status,
-        "Genel",
-        log.domain,
-        clean,
+        str(parsed.get("metric_type") or "Genel"),
+        area,
+        str(parsed.get("before") or "-"),
+        str(parsed.get("after") or "-"),
+        _delta_html(str(parsed.get("delta") or "-"), tone=tone),
+        str(parsed.get("extra") or "-"),
     ]
