@@ -48,7 +48,7 @@ from backend.collectors.search_console import collect_search_console_alert_metri
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
-from backend.models import CollectorRun, ExternalOnboardingJob, ExternalSite, PageSpeedPayloadSnapshot, Site
+from backend.models import Alert, CollectorRun, ExternalOnboardingJob, ExternalSite, PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -324,6 +324,43 @@ def _external_site_ids(db) -> set[int]:
         int(row.site_id)
         for row in db.query(ExternalSite.site_id).all()
     }
+
+
+def _external_site_domains(db) -> set[str]:
+    rows = (
+        db.query(Site.domain)
+        .join(ExternalSite, ExternalSite.site_id == Site.id)
+        .all()
+    )
+    return {str(row[0] or "").lower() for row in rows if row and row[0]}
+
+
+def _exclude_external_alerts(db, alerts: list[dict]) -> list[dict]:
+    external_site_ids = _external_site_ids(db)
+    if external_site_ids:
+        alert_ids = [int(alert.get("alert_id")) for alert in alerts if alert.get("alert_id") is not None]
+        if alert_ids:
+            external_alert_ids = {
+                int(row.id)
+                for row in db.query(Alert.id)
+                .filter(Alert.id.in_(alert_ids), Alert.site_id.in_(external_site_ids))
+                .all()
+            }
+            if external_alert_ids:
+                alerts = [
+                    alert
+                    for alert in alerts
+                    if int(alert.get("alert_id") or -1) not in external_alert_ids
+                ]
+
+    external_domains = _external_site_domains(db)
+    if not external_domains:
+        return alerts
+    return [
+        alert
+        for alert in alerts
+        if str(alert.get("domain") or "").lower() not in external_domains
+    ]
 
 
 def _is_external_site(db, site_id: int) -> bool:
@@ -2228,6 +2265,7 @@ def _public_sites_payload(db) -> list[dict]:
         .all()
     )
     rows: list[dict] = []
+    recent_alert_rows = get_recent_alerts(db, limit=300)
     for site in sites:
         latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
@@ -2251,6 +2289,7 @@ def _public_sites_payload(db) -> list[dict]:
                 "crawler_status": str(crawler_run.status or "").lower() if crawler_run and crawler_run.status else "never",
                 "crux_ready": bool(mobile_crux or desktop_crux),
                 "warehouse": warehouse,
+                "recent_alerts": [alert for alert in recent_alert_rows if alert.get("domain") == site.domain][:6],
             }
         )
 
@@ -3621,10 +3660,11 @@ def api_refresh_site_metrics(request: Request, domain: str):
 def alerts_page(request: Request):
     # Son alarm kayıtlarını listeler.
     with SessionLocal() as db:
+        alert_rows = _exclude_external_alerts(db, get_recent_alerts(db, limit=100))
         payload = {
             "site_name": "Uyarılar",
             "sites": get_sidebar_sites(),
-            "recent_alerts": get_recent_alerts(db, limit=100),
+            "recent_alerts": alert_rows,
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
         }
     template_name = "partials/alerts_content.html" if request.headers.get("HX-Request") == "true" else "alerts.html"
@@ -3635,7 +3675,8 @@ def alerts_page(request: Request):
 def alerts_refresh(request: Request):
     summaries: list[dict[str, object]] = []
     with SessionLocal() as db:
-        sites = _active_sites(db)
+        external_ids = _external_site_ids(db)
+        sites = [site for site in _active_sites(db) if site.id not in external_ids]
         for index, site in enumerate(sites):
             try:
                 results = {
@@ -3672,7 +3713,7 @@ def alerts_refresh(request: Request):
             {
                 "refreshed": True,
                 "sites": summaries,
-                "recent_alerts": get_recent_alerts(db, limit=100),
+                "recent_alerts": _exclude_external_alerts(db, get_recent_alerts(db, limit=100)),
             }
         )
 
