@@ -951,6 +951,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
 
         results: dict[str, dict] = {}
         has_error = False
+        warnings: list[str] = []
         try:
             _set_external_onboarding_job(
                 job_id,
@@ -972,7 +973,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
             try:
                 results["crux_history"] = _collect_crux_external_fast(db, site)
             except Exception as exc:  # noqa: BLE001
-                has_error = True
+                warnings.append(f"CrUX: {exc}")
                 results["crux_history"] = {"state": "failed", "error": str(exc)}
 
             _set_external_onboarding_job(
@@ -1029,7 +1030,11 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                     status="completed",
                     percent=100,
                     title="Onboarding tamamlandı",
-                    detail="External ölçümler tamamlandı, kartlar güncellendi.",
+                    detail=(
+                        "External ölçümler tamamlandı, kartlar güncellendi."
+                        if not warnings
+                        else "Onboarding tamamlandı. Bazı veri adımları arka planda yeniden denenecek."
+                    ),
                     finished_at=datetime.utcnow(),
                 )
 
