@@ -2780,7 +2780,8 @@ def alerts_page(request: Request):
             "sites": get_sidebar_sites(),
             "recent_alerts": get_recent_alerts(db, limit=100),
         }
-    return templates.TemplateResponse(request, "alerts.html", context={"request": request, **payload})
+    template_name = "partials/alerts_content.html" if request.headers.get("HX-Request") == "true" else "alerts.html"
+    return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
 
 
 @app.post("/alerts/refresh")
