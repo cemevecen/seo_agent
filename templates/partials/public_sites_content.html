@@ -70,10 +70,8 @@
     </div>
   </section>
 
-  <div id="public-site-list" hx-get="/external/site-list" hx-trigger="load" hx-swap="innerHTML">
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
-      External site kartlari yukleniyor...
-    </div>
+  <div id="public-site-list">
+    {% include "partials/public_site_cards.html" %}
   </div>
 </div>
 
