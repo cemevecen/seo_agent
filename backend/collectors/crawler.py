@@ -28,11 +28,12 @@ def _normalize_url(domain: str) -> str:
     return f"https://{domain}"
 
 
-def _fetch_text(url: str) -> tuple[int, str]:
+def _fetch_text(url: str, *, timeout_seconds: int | None = None) -> tuple[int, str]:
     # Hedef kaynağı getirir; erişilemezse durum kodunu sıfır döndürür.
+    effective_timeout = max(1, int(timeout_seconds or settings.crawler_request_timeout_seconds))
     return fetch_text(
         url,
-        timeout_seconds=settings.crawler_request_timeout_seconds,
+        timeout_seconds=effective_timeout,
         cache_ttl_seconds=settings.outbound_cache_ttl_seconds,
         min_interval_seconds=settings.outbound_min_interval_seconds,
     )
@@ -100,9 +101,9 @@ def _extract_internal_links(html: str, base_url: str, *, max_links: int = 12) ->
     return links
 
 
-def _probe_internal_link(url: str) -> dict:
+def _probe_internal_link(url: str, *, timeout_seconds: int | None = None) -> dict:
     # Linkin son durumunu, redirect gecmisiyle birlikte hafifce olcer.
-    timeout = max(1, int(settings.crawler_request_timeout_seconds))
+    timeout = max(1, int(timeout_seconds or settings.crawler_request_timeout_seconds))
     try:
         response = requests.get(
             url,
@@ -235,7 +236,7 @@ def _fetch_top_search_console_pages(db: Session, site: Site, *, limit: int) -> l
         return [url for url, _clicks in ranked[:limit]]
     except Exception:
         return []
-def _fetch_sitemap_urls(base_url: str, *, max_urls: int) -> list[str]:
+def _fetch_sitemap_urls(base_url: str, *, max_urls: int, timeout_seconds: int | None = None) -> list[str]:
     sitemap_queue = [f"{base_url}/sitemap.xml"]
     visited_sitemaps: set[str] = set()
     discovered_urls: list[str] = []
@@ -246,7 +247,7 @@ def _fetch_sitemap_urls(base_url: str, *, max_urls: int) -> list[str]:
         if sitemap_url in visited_sitemaps:
             continue
         visited_sitemaps.add(sitemap_url)
-        status, body = _fetch_text(sitemap_url)
+        status, body = _fetch_text(sitemap_url, timeout_seconds=timeout_seconds)
         if status != 200 or not body.strip():
             continue
         try:
@@ -281,8 +282,16 @@ def _fetch_sitemap_urls(base_url: str, *, max_urls: int) -> list[str]:
     return discovered_urls
 
 
-def _seed_source_pages(db: Session, site: Site, base_url: str) -> tuple[list[str], str]:
-    seed_limit = max(10, int(settings.crawler_source_page_limit))
+def _seed_source_pages(
+    db: Session,
+    site: Site,
+    base_url: str,
+    *,
+    source_page_limit: int | None = None,
+    sitemap_url_limit: int | None = None,
+    timeout_seconds: int | None = None,
+) -> tuple[list[str], str]:
+    seed_limit = max(2, int(source_page_limit or settings.crawler_source_page_limit))
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -303,11 +312,15 @@ def _seed_source_pages(db: Session, site: Site, base_url: str) -> tuple[list[str
     source_strategy = "Search Console öncelikli URL listesi" if ordered else "Sitemap URL listesi"
 
     if len(ordered) < seed_limit:
-        sitemap_urls = _fetch_sitemap_urls(base_url, max_urls=max(seed_limit * 3, int(settings.crawler_sitemap_url_limit)))
+        sitemap_urls = _fetch_sitemap_urls(
+            base_url,
+            max_urls=max(seed_limit * 3, int(sitemap_url_limit or settings.crawler_sitemap_url_limit)),
+            timeout_seconds=timeout_seconds,
+        )
         add_many(sitemap_urls)
 
     if len(ordered) < seed_limit:
-        status, homepage_html = _fetch_text(base_url)
+        status, homepage_html = _fetch_text(base_url, timeout_seconds=timeout_seconds)
         if status == 200 and homepage_html:
             add_many(_extract_internal_links(homepage_html, base_url, max_links=seed_limit * 2))
 
@@ -329,12 +342,31 @@ def _link_issue_label(item: dict) -> str:
     return ", ".join(labels) if labels else "Normal"
 
 
-def _audit_internal_links(db: Session, site: Site, base_url: str, homepage_html: str) -> dict:
-    source_pages, source_strategy = _seed_source_pages(db, site, base_url)
-    source_page_limit = max(10, int(settings.crawler_source_page_limit))
-    target_limit = max(50, int(settings.crawler_target_url_limit))
-    per_page_limit = max(10, int(settings.crawler_links_per_page_limit))
-    issue_sample_limit = max(3, int(settings.crawler_issue_sample_limit))
+def _audit_internal_links(
+    db: Session,
+    site: Site,
+    base_url: str,
+    homepage_html: str,
+    *,
+    source_page_limit: int | None = None,
+    target_url_limit: int | None = None,
+    links_per_page_limit: int | None = None,
+    issue_sample_limit: int | None = None,
+    sitemap_url_limit: int | None = None,
+    request_timeout_seconds: int | None = None,
+) -> dict:
+    source_pages, source_strategy = _seed_source_pages(
+        db,
+        site,
+        base_url,
+        source_page_limit=source_page_limit,
+        sitemap_url_limit=sitemap_url_limit,
+        timeout_seconds=request_timeout_seconds,
+    )
+    source_page_limit = max(2, int(source_page_limit or settings.crawler_source_page_limit))
+    target_limit = max(4, int(target_url_limit or settings.crawler_target_url_limit))
+    per_page_limit = max(2, int(links_per_page_limit or settings.crawler_links_per_page_limit))
+    issue_sample_limit = max(1, int(issue_sample_limit or settings.crawler_issue_sample_limit))
 
     target_sources: dict[str, set[str]] = defaultdict(set)
     ordered_targets: list[str] = []
@@ -354,7 +386,11 @@ def _audit_internal_links(db: Session, site: Site, base_url: str, homepage_html:
 
     for source_url in source_pages[:source_page_limit]:
         register_target(source_url, source_url)
-        status, source_html = (200, homepage_html) if source_url == base_url and homepage_html else _fetch_text(source_url)
+        status, source_html = (
+            (200, homepage_html)
+            if source_url == base_url and homepage_html
+            else _fetch_text(source_url, timeout_seconds=request_timeout_seconds)
+        )
         if status != 200 or not source_html:
             if len(ordered_targets) >= target_limit:
                 break
@@ -368,7 +404,7 @@ def _audit_internal_links(db: Session, site: Site, base_url: str, homepage_html:
 
     results = []
     for target_url in ordered_targets[:target_limit]:
-        probe = _probe_internal_link(target_url)
+        probe = _probe_internal_link(target_url, timeout_seconds=request_timeout_seconds)
         history = list(probe.get("history") or [])
         status_chain = [int(step.get("status") or 0) for step in history]
         final_status = int(probe.get("final_status") or 0)
@@ -448,7 +484,17 @@ def _audit_internal_links(db: Session, site: Site, base_url: str, homepage_html:
     }
 
 
-def collect_crawler_metrics(db: Session, site: Site) -> dict:
+def collect_crawler_metrics(
+    db: Session,
+    site: Site,
+    *,
+    source_page_limit: int | None = None,
+    target_url_limit: int | None = None,
+    links_per_page_limit: int | None = None,
+    issue_sample_limit: int | None = None,
+    sitemap_url_limit: int | None = None,
+    request_timeout_seconds: int | None = None,
+) -> dict:
     """robots, sitemap, schema, canonical ve site ici link denetimlerini yapip kaydeder."""
     collected_at = datetime.utcnow()
     base_url = _normalize_url(site.domain)
@@ -460,9 +506,9 @@ def collect_crawler_metrics(db: Session, site: Site) -> dict:
         target_url=base_url,
         requested_at=collected_at,
     )
-    robots_status, robots_body = _fetch_text(f"{base_url}/robots.txt")
-    sitemap_status, sitemap_body = _fetch_text(f"{base_url}/sitemap.xml")
-    homepage_status, homepage_body = _fetch_text(base_url)
+    robots_status, robots_body = _fetch_text(f"{base_url}/robots.txt", timeout_seconds=request_timeout_seconds)
+    sitemap_status, sitemap_body = _fetch_text(f"{base_url}/sitemap.xml", timeout_seconds=request_timeout_seconds)
+    homepage_status, homepage_body = _fetch_text(base_url, timeout_seconds=request_timeout_seconds)
 
     robots_accessible = robots_status == 200
     robots_rules_ok = robots_accessible and "user-agent" in robots_body.lower()
@@ -474,7 +520,18 @@ def collect_crawler_metrics(db: Session, site: Site) -> dict:
         sitemap_valid = False
     schema_found = homepage_status == 200 and _has_json_ld(homepage_body)
     canonical_found = homepage_status == 200 and _has_canonical(homepage_body)
-    link_audit = _audit_internal_links(db, site, base_url, homepage_body) if homepage_status == 200 and homepage_body else {
+    link_audit = _audit_internal_links(
+        db,
+        site,
+        base_url,
+        homepage_body,
+        source_page_limit=source_page_limit,
+        target_url_limit=target_url_limit,
+        links_per_page_limit=links_per_page_limit,
+        issue_sample_limit=issue_sample_limit,
+        sitemap_url_limit=sitemap_url_limit,
+        request_timeout_seconds=request_timeout_seconds,
+    ) if homepage_status == 200 and homepage_body else {
         "source_pages": 0,
         "audited_urls": 0,
         "redirect_links": 0,

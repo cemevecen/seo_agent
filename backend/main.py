@@ -78,7 +78,7 @@ LOGGER = logging.getLogger(__name__)
 DAILY_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
-EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 420
+EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 180
 
 # Create Jinja2Templates with cache disabled for Python 3.14 compatibility
 from jinja2 import Environment, FileSystemLoader
@@ -681,19 +681,56 @@ def _is_search_console_connected(db, site_id: int) -> bool:
     return bool(connection.get("connected"))
 
 
-def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> dict[str, dict]:
-    # Search Console yetkisi gerektirmeyen collector akisi.
-    results = _refresh_site_detail_measurements(
+def _collect_pagespeed_external_fast(db, site: Site) -> dict:
+    return collect_pagespeed_metrics(
         db,
         site,
-        include_pagespeed=True,
-        include_crawler=True,
-        include_search_console=False,
-        force=force,
+        request_timeout=8,
+        max_retries=0,
+        retry_backoff_seconds=0,
     )
 
+
+def _collect_crux_external_fast(db, site: Site) -> dict:
+    return collect_crux_history(
+        db,
+        site,
+        request_timeout=3,
+        max_identifier_attempts=1,
+        form_factors=("mobile",),
+        include_current=False,
+    )
+
+
+def _collect_crawler_external_fast(db, site: Site) -> dict:
+    return collect_crawler_metrics(
+        db,
+        site,
+        source_page_limit=3,
+        target_url_limit=6,
+        links_per_page_limit=3,
+        issue_sample_limit=2,
+        sitemap_url_limit=12,
+        request_timeout_seconds=2,
+    )
+
+
+def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> dict[str, dict]:
+    # Search Console yetkisi gerektirmeyen collector akisi.
+    results: dict[str, dict] = {}
+
     try:
-        results["crux_history"] = collect_crux_history(db, site)
+        results["pagespeed"] = _collect_pagespeed_external_fast(db, site)
+    except Exception as exc:  # noqa: BLE001
+        results["pagespeed"] = {"errors": {"exception": str(exc)}}
+
+    try:
+        results["crawler"] = _collect_crawler_external_fast(db, site)
+    except Exception as exc:  # noqa: BLE001
+        results["crawler"] = {"errors": {"exception": str(exc)}}
+
+    try:
+        results["crux_history"] = _collect_crux_external_fast(db, site)
     except Exception as exc:  # noqa: BLE001
         results["crux_history"] = {"state": "failed", "error": str(exc)}
 
@@ -821,14 +858,52 @@ def _set_external_onboarding_job(job_id: str, **updates) -> None:
             if hasattr(job, key):
                 setattr(job, key, value)
         job.updated_at = datetime.utcnow()
-        try:
-            db.commit()
-        except OperationalError as exc:
-            db.rollback()
-            if _is_sqlite_lock_error(exc):
-                LOGGER.warning("External onboarding job update skipped due lock: job_id=%s", job_id)
+        for attempt in range(1, 6):
+            try:
+                db.commit()
                 return
-            raise
+            except OperationalError as exc:
+                db.rollback()
+                if not _is_sqlite_lock_error(exc):
+                    raise
+                if attempt >= 5:
+                    LOGGER.warning("External onboarding job update skipped due lock: job_id=%s", job_id)
+                    return
+                time.sleep(0.08 * attempt)
+
+
+def _run_external_pagespeed_detached(site_id: int) -> None:
+    # Onboarding akisina takilmamasi icin PageSpeed olcumunu ayrik thread'de calistirir.
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return
+        try:
+            collect_pagespeed_metrics(
+                db,
+                site,
+                request_timeout=8,
+                max_retries=0,
+                retry_backoff_seconds=0,
+            )
+            _commit_with_lock_retry(db)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("Detached external PageSpeed run failed for site_id=%s: %s", site_id, exc)
+
+
+def _run_external_crawler_detached(site_id: int) -> None:
+    # Crawler denetimi nispeten agir oldugu icin onboarding tamamlanmasini bloklamaz.
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return
+        try:
+            _collect_crawler_external_fast(db, site)
+            _commit_with_lock_retry(db)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("Detached external crawler run failed for site_id=%s: %s", site_id, exc)
 
 
 def _get_external_onboarding_job(job_id: str) -> dict | None:
@@ -881,13 +956,12 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 job_id,
                 percent=12,
                 title="PageSpeed ölçümü çalışıyor",
-                detail="Mobile ve desktop PageSpeed skorları alınıyor.",
+                detail="Hızlı onboarding için PageSpeed ölçümü ayrı kuyruğa alındı.",
             )
-            try:
-                results["pagespeed"] = collect_pagespeed_metrics(db, site)
-            except Exception as exc:  # noqa: BLE001
-                has_error = True
-                results["pagespeed"] = {"errors": {"exception": str(exc)}}
+            results["pagespeed"] = {
+                "state": "queued",
+                "message": "PageSpeed ölçümü arka planda devam ediyor.",
+            }
 
             _set_external_onboarding_job(
                 job_id,
@@ -896,12 +970,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 detail="Chrome UX Report verileri çekiliyor.",
             )
             try:
-                results["crux_history"] = collect_crux_history(
-                    db,
-                    site,
-                    request_timeout=15,
-                    max_identifier_attempts=2,
-                )
+                results["crux_history"] = _collect_crux_external_fast(db, site)
             except Exception as exc:  # noqa: BLE001
                 has_error = True
                 results["crux_history"] = {"state": "failed", "error": str(exc)}
@@ -910,13 +979,12 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 job_id,
                 percent=76,
                 title="Crawler analizi çalışıyor",
-                detail="Site içi link ve teknik kontroller taranıyor.",
+                detail="Hızlı onboarding için crawler analizi ayrı kuyruğa alındı.",
             )
-            try:
-                results["crawler"] = collect_crawler_metrics(db, site)
-            except Exception as exc:  # noqa: BLE001
-                has_error = True
-                results["crawler"] = {"errors": {"exception": str(exc)}}
+            results["crawler"] = {
+                "state": "queued",
+                "message": "Crawler analizi arka planda devam ediyor.",
+            }
 
             results["url_inspection"] = {
                 "state": "skipped",
@@ -938,7 +1006,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 results=results,
                 action_label="External onboarding arka plan olcumu",
             )
-            if isinstance(results.get("crawler"), dict):
+            if isinstance(results.get("crawler"), dict) and str(results.get("crawler", {}).get("state") or "") != "queued":
                 notify_crawler_audit_emails(
                     db=db,
                     site=site,
@@ -964,6 +1032,18 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                     detail="External ölçümler tamamlandı, kartlar güncellendi.",
                     finished_at=datetime.utcnow(),
                 )
+
+            # Onboarding ekranini hizla sonlandirip agir adimlari ayrik calistir.
+            threading.Thread(
+                target=_run_external_pagespeed_detached,
+                args=(site.id,),
+                daemon=True,
+            ).start()
+            threading.Thread(
+                target=_run_external_crawler_detached,
+                args=(site.id,),
+                daemon=True,
+            ).start()
         except Exception as exc:  # noqa: BLE001
             db.rollback()
             LOGGER.warning("External onboarding background run failed for site_id=%s: %s", site_id, exc)

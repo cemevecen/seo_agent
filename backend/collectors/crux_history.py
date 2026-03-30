@@ -8,6 +8,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+import requests
 
 from sqlalchemy.orm import Session
 
@@ -197,16 +198,14 @@ def _request_crux_record(endpoint: str, body_payload: dict, *, request_timeout: 
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY eksik.")
 
-    body = json.dumps(body_payload).encode("utf-8")
-    request = Request(
+    effective_timeout = max(1, int(request_timeout or settings.pagespeed_request_timeout))
+    response = requests.post(
         f"{endpoint}?key={api_key}",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+        json=body_payload,
+        timeout=effective_timeout,
     )
-    effective_timeout = int(request_timeout or settings.pagespeed_request_timeout)
-    with urlopen(request, timeout=effective_timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    response.raise_for_status()
+    return response.json()
 
 
 def _fetch_crux_history(
@@ -217,6 +216,15 @@ def _fetch_crux_history(
     max_identifier_attempts: int | None = None,
 ) -> tuple[dict, dict]:
     last_error: Exception | None = None
+
+    def _status_code(exc: Exception) -> int | None:
+        if isinstance(exc, HTTPError):
+            return int(getattr(exc, "code", 0) or 0)
+        response = getattr(exc, "response", None)
+        if response is None:
+            return None
+        return int(getattr(response, "status_code", 0) or 0)
+
     for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
         if max_identifier_attempts and idx >= max_identifier_attempts:
             break
@@ -230,12 +238,12 @@ def _fetch_crux_history(
                 "identifier_type": identifier["type"],
                 "series": _extract_crux_points(record),
             }
-        except HTTPError as exc:
-            if exc.code == 404:
+        except (HTTPError, requests.HTTPError) as exc:
+            if _status_code(exc) == 404:
                 last_error = exc
                 continue
             raise
-        except (URLError, TimeoutError) as exc:
+        except (URLError, TimeoutError, requests.RequestException) as exc:
             last_error = exc
             continue
 
@@ -252,6 +260,15 @@ def _fetch_crux_current(
     max_identifier_attempts: int | None = None,
 ) -> tuple[dict, dict]:
     last_error: Exception | None = None
+
+    def _status_code(exc: Exception) -> int | None:
+        if isinstance(exc, HTTPError):
+            return int(getattr(exc, "code", 0) or 0)
+        response = getattr(exc, "response", None)
+        if response is None:
+            return None
+        return int(getattr(response, "status_code", 0) or 0)
+
     for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
         if max_identifier_attempts and idx >= max_identifier_attempts:
             break
@@ -266,12 +283,12 @@ def _fetch_crux_current(
                 "collection_period": _format_collection_period(record.get("collectionPeriod")),
                 "current": _extract_crux_current(record),
             }
-        except HTTPError as exc:
-            if exc.code == 404:
+        except (HTTPError, requests.HTTPError) as exc:
+            if _status_code(exc) == 404:
                 last_error = exc
                 continue
             raise
-        except (URLError, TimeoutError) as exc:
+        except (URLError, TimeoutError, requests.RequestException) as exc:
             last_error = exc
             continue
 
@@ -286,12 +303,22 @@ def collect_crux_history(
     *,
     request_timeout: int | None = None,
     max_identifier_attempts: int | None = None,
+    form_factors: tuple[str, ...] | None = None,
+    include_current: bool = True,
 ) -> dict:
     target_url = _normalize_url(site.domain)
     collected_at = datetime.utcnow()
     output: dict[str, dict] = {}
 
-    for local_key, api_form_factor in FORM_FACTORS.items():
+    selected_form_factors = {
+        key: value
+        for key, value in FORM_FACTORS.items()
+        if form_factors is None or key in set(form_factors)
+    }
+    if not selected_form_factors:
+        selected_form_factors = FORM_FACTORS
+
+    for local_key, api_form_factor in selected_form_factors.items():
         run = start_collector_run(
             db,
             site_id=site.id,
@@ -310,15 +337,16 @@ def collect_crux_history(
             raw_current_payload = {}
             current_summary: dict[str, object] = {}
             current_error = ""
-            try:
-                raw_current_payload, current_summary = _fetch_crux_current(
-                    site.domain,
-                    api_form_factor,
-                    request_timeout=request_timeout,
-                    max_identifier_attempts=max_identifier_attempts,
-                )
-            except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
-                current_error = str(exc)
+            if include_current:
+                try:
+                    raw_current_payload, current_summary = _fetch_crux_current(
+                        site.domain,
+                        api_form_factor,
+                        request_timeout=request_timeout,
+                        max_identifier_attempts=max_identifier_attempts,
+                    )
+                except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
+                    current_error = str(exc)
 
             summary = {
                 "form_factor": local_key,

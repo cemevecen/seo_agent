@@ -979,7 +979,12 @@ def _mock_lighthouse_analysis(strategy: str) -> dict:
     }
 
 
-def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict, dict]:
+def _fetch_pagespeed(
+    url: str,
+    strategy: str,
+    *,
+    request_timeout: int | None = None,
+) -> tuple[dict[str, float], dict, dict]:
     # API key yoksa deterministic mock veri döndürür, varsa gerçek API çağrısı yapar.
     api_key = settings.google_api_key.strip()
     if not api_key or api_key.startswith("local-"):
@@ -1024,21 +1029,31 @@ def _fetch_pagespeed(url: str, strategy: str) -> tuple[dict[str, float], dict, d
             ("fields", "id,loadingExperience,originLoadingExperience,lighthouseResult(fetchTime,requestedUrl,finalUrl,finalDisplayedUrl,environment,configSettings,categories,categoryGroups,audits)"),
         ]
     )
+    effective_timeout = int(request_timeout or settings.pagespeed_request_timeout)
     payload = _request_pagespeed_payload(
         f"{PAGESPEED_ENDPOINT}?{query}",
-        timeout_seconds=settings.pagespeed_request_timeout,
+        timeout_seconds=effective_timeout,
     )
     return _extract_lighthouse_metrics(payload), _build_lighthouse_analysis(payload, strategy), payload
 
 
-def _fetch_pagespeed_with_retries(url: str, strategy: str) -> tuple[dict[str, float], dict, dict]:
+def _fetch_pagespeed_with_retries(
+    url: str,
+    strategy: str,
+    *,
+    request_timeout: int | None = None,
+    max_retries: int | None = None,
+    retry_backoff_seconds: float | None = None,
+) -> tuple[dict[str, float], dict, dict]:
     # Geçici ağ hatalarında yeniden deneyip kalıcı hataları açıklayıcı şekilde döndürür.
-    attempts = max(1, settings.pagespeed_max_retries + 1)
+    retries_value = settings.pagespeed_max_retries if max_retries is None else max_retries
+    attempts = max(1, int(retries_value) + 1)
+    effective_backoff = settings.pagespeed_retry_backoff_seconds if retry_backoff_seconds is None else retry_backoff_seconds
     last_error: Exception | None = None
 
     for attempt in range(1, attempts + 1):
         try:
-            return _fetch_pagespeed(url, strategy)
+            return _fetch_pagespeed(url, strategy, request_timeout=request_timeout)
         except HTTPError as exc:
             details = exc.read().decode("utf-8", errors="ignore")[:300]
             if exc.code not in {408, 429, 500, 502, 503, 504}:
@@ -1049,7 +1064,7 @@ def _fetch_pagespeed_with_retries(url: str, strategy: str) -> tuple[dict[str, fl
 
         LOGGER.warning("PageSpeed %s denemesi %s/%s basarisiz oldu: %s", strategy, attempt, attempts, last_error)
         if attempt < attempts:
-            time.sleep(max(0.0, settings.pagespeed_retry_backoff_seconds) * attempt)
+            time.sleep(max(0.0, float(effective_backoff)) * attempt)
 
     raise RuntimeError(f"{strategy} PageSpeed verisi alinamadi: {last_error}") from last_error
 
@@ -1145,7 +1160,14 @@ def _flatten_strategy_metrics(strategy: str, payload: dict[str, float]) -> dict[
     }
 
 
-def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
+def collect_pagespeed_metrics(
+    db: Session,
+    site: Site,
+    *,
+    request_timeout: int | None = None,
+    max_retries: int | None = None,
+    retry_backoff_seconds: float | None = None,
+) -> dict:
     """Mobile ve desktop performans verilerini toplayıp Metric tablosuna kaydeder."""
     decision = consume_api_quota(db, site, provider="pagespeed", units=2)
     if not decision.allowed:
@@ -1173,7 +1195,13 @@ def collect_pagespeed_metrics(db: Session, site: Site) -> dict:
         )
         try:
             target_url = resolve_pagespeed_target_url(site, strategy)
-            payload, analysis, raw_payload = _fetch_pagespeed_with_retries(target_url, strategy)
+            payload, analysis, raw_payload = _fetch_pagespeed_with_retries(
+                target_url,
+                strategy,
+                request_timeout=request_timeout,
+                max_retries=max_retries,
+                retry_backoff_seconds=retry_backoff_seconds,
+            )
             strategy_payloads[strategy] = payload
             strategy_analyses[strategy] = analysis
             strategy_status[strategy] = {"state": "fresh", "message": "Canli veri guncellendi."}
