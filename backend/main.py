@@ -1873,10 +1873,10 @@ def _build_dashboard_card(
         "pagespeed_score": round(pagespeed_score),
         "pagespeed_color": _score_color(pagespeed_score),
         "pagespeed_mobile_score": round(mobile_pagespeed_score) if mobile_pagespeed_score is not None else None,
-        "pagespeed_mobile_label": str(round(mobile_pagespeed_score)) if mobile_pagespeed_score is not None else "—",
+        "pagespeed_mobile_label": str(round(mobile_pagespeed_score)) if mobile_pagespeed_score is not None else "Veri yok",
         "pagespeed_mobile_color": _score_color(mobile_pagespeed_score) if mobile_pagespeed_score is not None else "text-slate-400",
         "pagespeed_desktop_score": round(desktop_pagespeed_score) if desktop_pagespeed_score is not None else None,
-        "pagespeed_desktop_label": str(round(desktop_pagespeed_score)) if desktop_pagespeed_score is not None else "—",
+        "pagespeed_desktop_label": str(round(desktop_pagespeed_score)) if desktop_pagespeed_score is not None else "Veri yok",
         "pagespeed_desktop_color": _score_color(desktop_pagespeed_score) if desktop_pagespeed_score is not None else "text-slate-400",
         "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
         "check_count": len(available_metrics),
@@ -2789,6 +2789,7 @@ def alerts_page(request: Request):
             "site_name": "Uyarılar",
             "sites": get_sidebar_sites(),
             "recent_alerts": get_recent_alerts(db, limit=100),
+            "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
         }
     template_name = "partials/alerts_content.html" if request.headers.get("HX-Request") == "true" else "alerts.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})

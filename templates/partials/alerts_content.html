@@ -1,4 +1,4 @@
-<div id="alerts-view" class="space-y-6 relative">
+<div id="alerts-view" class="space-y-6 relative" data-selected-alert-id="{{ selected_alert_id or '' }}">
   <div class="flex items-center justify-between">
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500">Alert Center</p>
@@ -230,6 +230,7 @@ function initializeAlertsView() {
 }
 
 initializeAlertsView();
+window.setTimeout(autoOpenSelectedAlertFromRoute, 80);
 
 function initializeRefreshButton() {
   const button = document.getElementById('refresh-alerts-button');
@@ -591,5 +592,30 @@ function initializeFilter() {
   });
 
   applyFilters();
+}
+
+function autoOpenSelectedAlertFromRoute() {
+  const root = document.getElementById('alerts-view');
+  const selectedAlertId = (root?.dataset.selectedAlertId || '').trim();
+  if (!selectedAlertId) {
+    return;
+  }
+
+  const card = document.querySelector(`.alert-card[data-alert-id="${selectedAlertId}"]`);
+  if (!card) {
+    return;
+  }
+
+  const details = card.querySelector('.alert-details');
+  const button = card.querySelector('.toggle-details');
+  if (!details || !button) {
+    return;
+  }
+
+  card.classList.add('ring-2', 'ring-sky-200', 'shadow-sm');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!details.classList.contains('show')) {
+    button.click();
+  }
 }
 </script>

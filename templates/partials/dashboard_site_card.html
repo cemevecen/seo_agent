@@ -81,14 +81,28 @@
       <p class="mt-2 text-sm text-slate-500">Düşük sayı daha iyi</p>
     </div>
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
-      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Mobile</p>
-      <p class="mt-3 text-3xl font-bold tracking-tight {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Mobile</p>
+        <span class="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">Mobil</span>
+      </div>
+      <p class="mt-3 font-bold tracking-tight {{ card.pagespeed_mobile_color }} {% if card.pagespeed_mobile_score is none %}text-xl{% else %}text-3xl{% endif %}">{{ card.pagespeed_mobile_label }}</p>
       <p class="mt-2 text-sm text-slate-500">Mobil performans skoru</p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ card.pagespeed_status.mobile.badge_class }}">{{ card.pagespeed_status.mobile.label }}</span>
+        <span class="text-xs text-slate-500">Son veri: {{ card.pagespeed_status.mobile.updated_at }}</span>
+      </div>
     </div>
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
-      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Desktop</p>
-      <p class="mt-3 text-3xl font-bold tracking-tight {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Desktop</p>
+        <span class="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-700">Desktop</span>
+      </div>
+      <p class="mt-3 font-bold tracking-tight {{ card.pagespeed_desktop_color }} {% if card.pagespeed_desktop_score is none %}text-xl{% else %}text-3xl{% endif %}">{{ card.pagespeed_desktop_label }}</p>
       <p class="mt-2 text-sm text-slate-500">Desktop performans skoru</p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ card.pagespeed_status.desktop.badge_class }}">{{ card.pagespeed_status.desktop.label }}</span>
+        <span class="text-xs text-slate-500">Son veri: {{ card.pagespeed_status.desktop.updated_at }}</span>
+      </div>
     </div>
   </div>
 
@@ -145,7 +159,7 @@
     </a>
   </div>
 
-  <div class="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+  <div class="mt-4 grid items-start gap-3 lg:grid-cols-[1.2fr_0.8fr]">
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -162,6 +176,26 @@
         >{{ card.search_console.status.label }}</a>
       </div>
       <p class="mt-3 text-sm text-slate-600">{{ card.search_console.status.description }}</p>
+      <div class="mt-4 grid gap-2 sm:grid-cols-3">
+        <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Clicks</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ card.search_console.clicks_label }}</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">CTR</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ card.search_console.ctr_label }}</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Pozisyon</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ card.search_console.position_label }}</p>
+        </div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{{ card.search_console.connection_label }}</span>
+        <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {% if card.search_console.has_rows %}border-emerald-200 bg-emerald-50 text-emerald-700{% else %}border-amber-200 bg-amber-50 text-amber-700{% endif %}">
+          {% if card.search_console.has_rows %}Snapshot var{% else %}Snapshot bekleniyor{% endif %}
+        </span>
+      </div>
     </div>
 
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
@@ -169,14 +203,19 @@
       <div class="mt-3 space-y-2">
         {% for alert in card.recent_alerts %}
           <a
-            href="/alerts"
+            href="/alerts?selected_alert={{ alert.id }}"
             class="block rounded-xl border border-slate-200 px-3 py-2 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
-            hx-get="/alerts"
+            hx-get="/alerts?selected_alert={{ alert.id }}"
             hx-target="#content"
             hx-swap="innerHTML"
             hx-push-url="true"
           >
-            <p class="text-sm font-semibold text-slate-900">{{ alert.display_title }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <p class="text-sm font-semibold text-slate-900">{{ alert.display_title }}</p>
+              {% if alert.display_device_code %}
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{{ alert.display_device_code }}</span>
+              {% endif %}
+            </div>
             {% if alert.display_query %}
               <p class="mt-1 text-sm text-slate-600">{{ alert.display_query }}</p>
             {% endif %}

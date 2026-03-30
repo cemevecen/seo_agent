@@ -72,7 +72,14 @@
             {% set title_class = 'text-rose-700' %}
             {% set metric_class = 'text-rose-600' %}
           {% endif %}
-          <div class="rounded-[1.5rem] border p-4 {{ panel_class }}">
+          <a
+            href="/alerts?selected_alert={{ alert.id }}"
+            class="block rounded-[1.5rem] border p-4 transition hover:-translate-y-0.5 hover:shadow-sm {{ panel_class }}"
+            hx-get="/alerts?selected_alert={{ alert.id }}"
+            hx-target="#content"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+          >
             <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
@@ -91,7 +98,7 @@
               </div>
               <p class="shrink-0 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{{ alert.triggered_at }}</p>
             </div>
-          </div>
+          </a>
         {% else %}
           <div class="rounded-[1.5rem] border border-dashed border-slate-300 px-6 py-8 text-center text-sm text-slate-500">
             Şu an gösterilecek kritik uyarı görünmüyor.
