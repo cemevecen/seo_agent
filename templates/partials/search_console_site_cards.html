@@ -240,7 +240,7 @@
           {% endif %}
 
           {% if site.connection.connected %}
-            <form hx-post="/search-console/refresh/{{ site.id }}" hx-target="#search-console-site-list" hx-swap="innerHTML">
+            <form action="/search-console/refresh/{{ site.id }}" data-search-console-refresh-form data-site-domain="{{ site.domain }}">
               <button
                 type="submit"
                 class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto"

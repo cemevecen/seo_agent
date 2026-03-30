@@ -21,6 +21,20 @@
     </div>
   </div>
 
+  <div id="alerts-progress-panel" class="hidden rounded-2xl border border-violet-200 bg-violet-50/80 p-4">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Yaklasik Ilerleme</p>
+        <p id="alerts-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
+        <p id="alerts-progress-detail" class="mt-1 text-sm text-slate-600">Tum siteler icin Search Console alert verisi yeniden hesaplanacak.</p>
+      </div>
+      <p id="alerts-progress-percent" class="text-2xl font-bold tracking-tight text-violet-700">0%</p>
+    </div>
+    <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-violet-100">
+      <div id="alerts-progress-bar" class="h-full rounded-full bg-violet-600 transition-all duration-500" style="width: 0%"></div>
+    </div>
+  </div>
+
   <div class="flex flex-wrap items-center gap-2">
     <button type="button" class="alert-type-tab rounded-full px-4 py-2 text-sm font-semibold transition-colors bg-slate-900 text-white ring-2 ring-offset-2 ring-slate-300" data-alert-filter="all">
       Tümü
@@ -221,19 +235,78 @@ function initializeRefreshButton() {
   if (!button) {
     return;
   }
+  const panel = document.getElementById('alerts-progress-panel');
+  const title = document.getElementById('alerts-progress-title');
+  const detail = document.getElementById('alerts-progress-detail');
+  const percent = document.getElementById('alerts-progress-percent');
+  const bar = document.getElementById('alerts-progress-bar');
+  const steps = [
+    { percent: 16, title: 'Site listesi hazirlaniyor', detail: 'Alert yenileme akisi icin tum aktif siteler siralanıyor.' },
+    { percent: 38, title: 'Search Console verileri karsilastiriliyor', detail: 'Her site icin son snapshot verileri yeniden degerlendiriliyor.' },
+    { percent: 63, title: 'Uyarilar hesaplanıyor', detail: 'CTR, pozisyon ve impression degisimleri tekrar hesaplanıyor.' },
+    { percent: 84, title: 'Kayitlar guncelleniyor', detail: 'Yeni uyari sonuclari veritabanina yaziliyor.' },
+    { percent: 94, title: 'Liste yenileniyor', detail: 'Alert listesi yeni sonuc ile tekrar cizilecek.' },
+  ];
+  let timer = null;
+
+  function renderProgress(step) {
+    panel.classList.remove('hidden');
+    title.textContent = step.title;
+    detail.textContent = step.detail;
+    percent.textContent = String(step.percent) + '%';
+    bar.style.width = String(step.percent) + '%';
+  }
+
+  function resetTone() {
+    panel.classList.remove('border-rose-200', 'bg-rose-50');
+    panel.classList.add('border-violet-200', 'bg-violet-50/80');
+    bar.classList.remove('bg-rose-600');
+    bar.classList.add('bg-violet-600');
+  }
+
   button.addEventListener('click', async function() {
     const originalText = button.textContent;
     button.disabled = true;
     button.textContent = 'Yenileniyor...';
     button.classList.add('opacity-70', 'cursor-wait');
+    resetTone();
+    renderProgress({ percent: 8, title: 'Alert yenileme baslatildi', detail: 'Bu islem tum siteler icin Search Console alert metriklerini yeniden hesaplar.' });
+    let stepIndex = 0;
+    timer = window.setInterval(function () {
+      if (stepIndex >= steps.length) {
+        window.clearInterval(timer);
+        timer = null;
+        return;
+      }
+      renderProgress(steps[stepIndex]);
+      stepIndex += 1;
+    }, 850);
     try {
       const response = await fetch('/alerts/refresh', { method: 'POST' });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      window.location.reload();
+      if (timer) {
+        window.clearInterval(timer);
+      }
+      renderProgress({ percent: 100, title: 'Uyarilar guncellendi', detail: 'Yeni alert listesi yukleniyor.' });
+      setTimeout(function () {
+        window.location.reload();
+      }, 250);
     } catch (error) {
       console.error('Alert refresh failed:', error);
+      if (timer) {
+        window.clearInterval(timer);
+      }
+      panel.classList.remove('border-violet-200', 'bg-violet-50/80');
+      panel.classList.add('border-rose-200', 'bg-rose-50');
+      bar.classList.remove('bg-violet-600');
+      bar.classList.add('bg-rose-600');
+      renderProgress({
+        percent: Math.max(parseInt(bar.style.width || '16', 10) || 16, 16),
+        title: 'Uyarilar yenilenemedi',
+        detail: 'Search Console alert hesaplamasi tamamlanamadi. Log ve SMTP bildirimlerini kontrol et.',
+      });
       button.textContent = 'Yenileme Hatası';
       setTimeout(() => {
         button.textContent = originalText;

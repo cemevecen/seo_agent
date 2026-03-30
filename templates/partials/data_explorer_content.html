@@ -231,6 +231,20 @@ text-slate-500
     </div>
   </div>
 
+  <div id="data-explorer-progress-panel" class="hidden rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Yaklasik Ilerleme</p>
+        <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
+        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600">CrUX History ve URL Inspection verileri dis kaynaklardan yeniden alinacak.</p>
+      </div>
+      <p id="data-explorer-progress-percent" class="text-2xl font-bold tracking-tight text-emerald-700">0%</p>
+    </div>
+    <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-emerald-100">
+      <div id="data-explorer-progress-bar" class="h-full rounded-full bg-emerald-600 transition-all duration-500" style="width: 0%"></div>
+    </div>
+  </div>
+
   <div class="grid gap-5 xl:grid-cols-2">
     <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">
@@ -678,15 +692,84 @@ text-slate-500
     const refreshButton = document.getElementById('refresh-data-explorer');
     if (refreshButton && !refreshButton.dataset.bound) {
       refreshButton.dataset.bound = '1';
+      const progressPanel = document.getElementById('data-explorer-progress-panel');
+      const progressTitle = document.getElementById('data-explorer-progress-title');
+      const progressDetail = document.getElementById('data-explorer-progress-detail');
+      const progressPercent = document.getElementById('data-explorer-progress-percent');
+      const progressBar = document.getElementById('data-explorer-progress-bar');
+      const progressSteps = [
+        { percent: 18, title: 'CrUX History cagrisi yapiliyor', detail: 'Chrome UX Report history verisi dis kaynaktan cekiliyor.' },
+        { percent: 43, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu guncel durum icin yeniden isteniyor.' },
+        { percent: 71, title: 'Warehouse kayitlari yaziliyor', detail: 'Yeni snapshot ve collector run kayitlari veritabanina ekleniyor.' },
+        { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gosterilmek uzere hazirlaniyor.' },
+      ];
+      let progressTimer = null;
+
+      function renderProgress(step) {
+        progressPanel.classList.remove('hidden');
+        progressTitle.textContent = step.title;
+        progressDetail.textContent = step.detail;
+        progressPercent.textContent = String(step.percent) + '%';
+        progressBar.style.width = String(step.percent) + '%';
+      }
+
+      function resetTone() {
+        progressPanel.classList.remove('border-rose-200', 'bg-rose-50');
+        progressPanel.classList.add('border-emerald-200', 'bg-emerald-50/80');
+        progressBar.classList.remove('bg-rose-600');
+        progressBar.classList.add('bg-emerald-600');
+      }
+
       refreshButton.addEventListener('click', async function () {
         const url = refreshButton.dataset.refreshUrl;
         const original = refreshButton.textContent;
         refreshButton.disabled = true;
         refreshButton.textContent = 'Yenileniyor...';
+        resetTone();
+        renderProgress({
+          percent: 7,
+          title: 'Data Explorer yenilemesi baslatildi',
+          detail: 'Bu buton CrUX History ve URL Inspection icin gercek refresh cagirir.',
+        });
+        let stepIndex = 0;
+        progressTimer = window.setInterval(function () {
+          if (stepIndex >= progressSteps.length) {
+            window.clearInterval(progressTimer);
+            progressTimer = null;
+            return;
+          }
+          renderProgress(progressSteps[stepIndex]);
+          stepIndex += 1;
+        }, 900);
         try {
-          await fetch(url, { method: 'POST' });
-          window.location.reload();
+          const response = await fetch(url, { method: 'POST' });
+          if (!response.ok) {
+            throw new Error('refresh failed');
+          }
+          if (progressTimer) {
+            window.clearInterval(progressTimer);
+          }
+          renderProgress({
+            percent: 100,
+            title: 'Data Explorer guncellendi',
+            detail: 'Yeni CrUX ve URL Inspection verileri yukleniyor.',
+          });
+          setTimeout(function () {
+            window.location.reload();
+          }, 250);
         } catch (error) {
+          if (progressTimer) {
+            window.clearInterval(progressTimer);
+          }
+          progressPanel.classList.remove('border-emerald-200', 'bg-emerald-50/80');
+          progressPanel.classList.add('border-rose-200', 'bg-rose-50');
+          progressBar.classList.remove('bg-emerald-600');
+          progressBar.classList.add('bg-rose-600');
+          renderProgress({
+            percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
+            title: 'Data Explorer yenilenemedi',
+            detail: 'CrUX veya URL Inspection akisi tamamlanamadi. Backend loglarini kontrol et.',
+          });
           refreshButton.textContent = 'Yenileme basarisiz';
           setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
         }

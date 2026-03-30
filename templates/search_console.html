@@ -4,14 +4,33 @@
 <div class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <button
-        id="refresh-search-console-sites-button"
-        type="button"
-        class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
-        onclick="refreshSearchConsoleSites(this)"
-      >
-        Tum Siteleri Yenile
-      </button>
+      <div class="space-y-2">
+        <button
+          id="refresh-search-console-sites-button"
+          type="button"
+          class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
+          onclick="refreshSearchConsoleSites(this)"
+        >
+          Tum Siteleri Yenile
+        </button>
+        <p class="text-sm text-slate-500">
+          Bu islem bagli siteler icin Search Console API'den yeni veri ceker, snapshot yazar ve kartlari yeniden olusturur.
+        </p>
+      </div>
+    </div>
+
+    <div id="search-console-progress-panel" class="mb-4 hidden rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Yaklasik Ilerleme</p>
+          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
+          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600">Dis kaynaktan veri cekme akisi baslatiliyor.</p>
+        </div>
+        <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-sky-700">0%</p>
+      </div>
+      <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-sky-100">
+        <div id="search-console-progress-bar" class="h-full rounded-full bg-sky-600 transition-all duration-500" style="width: 0%"></div>
+      </div>
     </div>
 
     <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
@@ -21,10 +40,103 @@
 </div>
 
 <script>
+  function createSearchConsoleProgressController(config) {
+    const panel = document.getElementById('search-console-progress-panel');
+    const title = document.getElementById('search-console-progress-title');
+    const detail = document.getElementById('search-console-progress-detail');
+    const percent = document.getElementById('search-console-progress-percent');
+    const bar = document.getElementById('search-console-progress-bar');
+    const steps = config.steps || [];
+    let index = 0;
+    let timer = null;
+
+    function render(step) {
+      if (!panel || !title || !detail || !percent || !bar) {
+        return;
+      }
+      panel.classList.remove('hidden');
+      title.textContent = step.title || config.title || 'Yenileniyor';
+      detail.textContent = step.detail || config.detail || 'Islem suruyor.';
+      percent.textContent = String(step.percent || 0) + '%';
+      bar.style.width = String(step.percent || 0) + '%';
+    }
+
+    render({
+      percent: 6,
+      title: config.title,
+      detail: config.detail,
+    });
+
+    if (steps.length) {
+      timer = window.setInterval(function () {
+        if (index >= steps.length) {
+          window.clearInterval(timer);
+          timer = null;
+          return;
+        }
+        render(steps[index]);
+        index += 1;
+      }, config.interval || 900);
+    }
+
+    return {
+      complete: function (doneTitle, doneDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+        }
+        render({
+          percent: 100,
+          title: doneTitle || 'Tamamlandi',
+          detail: doneDetail || 'Kartlar guncellendi.',
+        });
+      },
+      fail: function (errorTitle, errorDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+        }
+        if (panel) {
+          panel.classList.remove('border-sky-200', 'bg-sky-50/80');
+          panel.classList.add('border-rose-200', 'bg-rose-50');
+        }
+        if (bar) {
+          bar.classList.remove('bg-sky-600');
+          bar.classList.add('bg-rose-600');
+        }
+        render({
+          percent: Math.max(parseInt((bar && bar.style.width) || '12', 10) || 12, 12),
+          title: errorTitle || 'Yenileme basarisiz',
+          detail: errorDetail || 'Dis kaynaktan veri cekilirken bir hata olustu.',
+        });
+      },
+      resetTone: function () {
+        if (panel) {
+          panel.classList.remove('border-rose-200', 'bg-rose-50');
+          panel.classList.add('border-sky-200', 'bg-sky-50/80');
+        }
+        if (bar) {
+          bar.classList.remove('bg-rose-600');
+          bar.classList.add('bg-sky-600');
+        }
+      },
+    };
+  }
+
   function refreshSearchConsoleSites(button) {
     const trigger = button || document.getElementById('refresh-search-console-sites-button');
     const target = document.getElementById('search-console-site-list');
     const original = trigger ? trigger.textContent : '';
+    const progress = createSearchConsoleProgressController({
+      title: 'Tum siteler yenileniyor',
+      detail: 'Bagli siteler icin Search Console API akisi baslatildi.',
+      steps: [
+        { percent: 14, title: 'Baglantilar kontrol ediliyor', detail: 'OAuth baglantilari ve property hedefleri kontrol ediliyor.' },
+        { percent: 31, title: 'API cagrilari basladi', detail: 'Bagli siteler sirayla Search Console API uzerinden yenileniyor.' },
+        { percent: 52, title: 'Snapshot kaydi yapiliyor', detail: 'Yeni query, trend ve ozet satirlari veritabanina yaziliyor.' },
+        { percent: 73, title: 'Alert senkronu hesaplaniyor', detail: 'Yeni Search Console verisine gore iliskili uyarilar guncelleniyor.' },
+        { percent: 91, title: 'Kartlar hazirlaniyor', detail: 'Ekrandaki tum kartlar yeni verilerle yeniden olusturuluyor.' },
+      ],
+    });
+    progress.resetTone();
     if (trigger) {
       trigger.disabled = true;
       trigger.textContent = 'Yenileniyor...';
@@ -47,9 +159,11 @@
             initSearchConsolePanels(target);
           }, 50);
         }
+        progress.complete('Tum siteler guncellendi', 'Search Console kartlari yeni verilerle yeniden cizildi.');
       })
       .catch(function (error) {
         console.warn('Search Console bulk refresh failed:', error);
+        progress.fail('Tum siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadi. Log ve baglanti durumunu kontrol et.');
       })
       .finally(function () {
         if (trigger) {
@@ -345,9 +459,72 @@
   function initSearchConsolePanels(root) {
     initSearchConsoleExpandables(root);
     initSearchConsoleDeviceSwitches(root);
+    bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);
     initSearchConsoleTables(root);
     fitSearchConsoleText(root);
+  }
+
+  function bindSearchConsoleRefreshForms(root) {
+    (root || document).querySelectorAll('[data-search-console-refresh-form]').forEach(function (form) {
+      if (form.dataset.bound === '1') {
+        return;
+      }
+      form.dataset.bound = '1';
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const target = document.getElementById('search-console-site-list');
+        const button = form.querySelector('button[type="submit"]');
+        const original = button ? button.textContent : '';
+        const siteDomain = form.dataset.siteDomain || 'site';
+        const progress = createSearchConsoleProgressController({
+          title: siteDomain + ' icin Search Console yenileniyor',
+          detail: 'Google Search Console API uzerinden yeni snapshot cekiliyor.',
+          steps: [
+            { percent: 16, title: 'Baglanti hazirlaniyor', detail: siteDomain + ' icin OAuth ve property bilgisi dogrulaniyor.' },
+            { percent: 37, title: 'API verisi cekiliyor', detail: siteDomain + ' icin Search Console ozet ve query verisi aliniyor.' },
+            { percent: 59, title: 'Snapshot yaziliyor', detail: 'Yeni query, trend ve ozet satirlari kaydediliyor.' },
+            { percent: 79, title: 'Alert senkronu guncelleniyor', detail: 'Bu siteye ait Search Console uyari verileri yeniden hesaplanıyor.' },
+            { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar olusturuluyor.' },
+          ],
+        });
+        progress.resetTone();
+        if (button) {
+          button.disabled = true;
+          button.textContent = 'Yenileniyor...';
+        }
+
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'HX-Request': 'true' }
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('refresh failed');
+            }
+            return response.text();
+          })
+          .then(function (html) {
+            if (target) {
+              target.innerHTML = html;
+              window.setTimeout(function () {
+                initSearchConsolePanels(target);
+              }, 50);
+            }
+            progress.complete(siteDomain + ' guncellendi', 'Search Console karti yeni verilerle yenilendi.');
+          })
+          .catch(function (error) {
+            console.warn('Search Console site refresh failed:', error);
+            progress.fail(siteDomain + ' yenilenemedi', 'Bu site icin Search Console verisi yenilenemedi. Baglanti ve backend loglarini kontrol et.');
+          })
+          .finally(function () {
+            if (button) {
+              button.disabled = false;
+              button.textContent = original;
+            }
+          });
+      });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
