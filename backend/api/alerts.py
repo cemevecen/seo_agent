@@ -106,23 +106,23 @@ def _build_search_console_comparison(
             "comparison_type": comparison_type,
         }
 
-    current_label = "Son 7 Gun"
-    previous_label = "Onceki 7 Gun"
+    current_label = "Son 7 Gün"
+    previous_label = "Önceki 7 Gün"
     if comparison_type == "weekly":
         current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
         previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
     else:
         current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_day")
         previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
-        current_label = "Dun"
-        previous_label = "Onceki Gun"
+        current_label = "Dün"
+        previous_label = "Önceki Gün"
         if not current_rows and not previous_rows:
             return {
-                "message": "Gunluk Search Console verisi henuz hazir degil. Manuel yenile ya da sabah otomatik taramayi bekle.",
+                "message": "Günlük Search Console verisi henüz hazır değil. Manuel yenile ya da sabah otomatik taramayı bekle.",
                 "comparison_type": comparison_type,
                 "query_details": [],
                 "cards": [
-                    _comparison_card("Durum", "Veri yok", "Dun / onceki gun kaydi bulunamadi.", "slate"),
+                    _comparison_card("Durum", "Veri yok", "Dün / önceki gün kaydı bulunamadı.", "slate"),
                 ],
             }
 
@@ -138,21 +138,21 @@ def _build_search_console_comparison(
         previous_ctr = previous.get("ctr")
         change = None if current_ctr is None or previous_ctr is None else current_ctr - previous_ctr
         message = (
-            "CTR dun onceki gune gore daha dusuk."
+            "CTR dün önceki güne göre daha düşük."
             if comparison_type == "daily"
-            else "CTR son 7 gunde onceki 7 gune gore daha dusuk."
+            else "CTR son 7 günde önceki 7 güne göre daha düşük."
         )
         cards = [
             _comparison_card(
                 current_label,
                 f"{_format_decimal(current_ctr, 3)} CTR",
-                f"{int(current.get('clicks') or 0)} tiklama / {int(current.get('impressions') or 0)} gosterim",
+                f"{int(current.get('clicks') or 0)} tıklama / {int(current.get('impressions') or 0)} gösterim",
                 "blue",
             ),
             _comparison_card(
                 previous_label,
                 f"{_format_decimal(previous_ctr, 3)} CTR",
-                f"{int(previous.get('clicks') or 0)} tiklama / {int(previous.get('impressions') or 0)} gosterim",
+                f"{int(previous.get('clicks') or 0)} tıklama / {int(previous.get('impressions') or 0)} gösterim",
                 "slate",
             ),
         ]
@@ -173,13 +173,13 @@ def _build_search_console_comparison(
         previous_impressions = previous.get("impressions")
         change = current_impressions - previous_impressions
         message = (
-            "Gosterim dun onceki gune gore dusmus."
+            "Gösterim dün önceki güne göre düşmüş."
             if comparison_type == "daily"
-            else "Gosterim son 7 gunde onceki 7 gune gore dusmus."
+            else "Gösterim son 7 günde önceki 7 güne göre düşmüş."
         )
         cards = [
-            _comparison_card(current_label, f"{int(current_impressions or 0)}", "Gosterim", "blue"),
-            _comparison_card(previous_label, f"{int(previous_impressions or 0)}", "Gosterim", "slate"),
+            _comparison_card(current_label, f"{int(current_impressions or 0)}", "Gösterim", "blue"),
+            _comparison_card(previous_label, f"{int(previous_impressions or 0)}", "Gösterim", "slate"),
         ]
         if previous_impressions:
             change_pct = change / previous_impressions * 100.0
@@ -207,19 +207,19 @@ def _build_search_console_comparison(
         }]
         if comparison_type == "daily":
             message = (
-                "Pozisyon dun ile onceki gun arasinda iyilesmis."
+                "Pozisyon dün ile önceki gün arasında iyileşmiş."
                 if position_state == "improved"
-                else "Pozisyon dun ile onceki gun arasinda kotulesmis."
+                else "Pozisyon dün ile önceki gün arasında kötüleşmiş."
                 if position_state == "worsened"
-                else "Pozisyon dun ile onceki gun arasinda degismemis."
+                else "Pozisyon dün ile önceki gün arasında değişmemiş."
             )
         else:
             message = (
-                "Pozisyon son 7 gun ile onceki 7 gun arasinda iyilesmis."
+                "Pozisyon son 7 gün ile önceki 7 gün arasında iyileşmiş."
                 if position_state == "improved"
-                else "Pozisyon son 7 gun ile onceki 7 gun arasinda kotulesmis."
+                else "Pozisyon son 7 gün ile önceki 7 gün arasında kötüleşmiş."
                 if position_state == "worsened"
-                else "Pozisyon son 7 gun ile onceki 7 gun arasinda degismemis."
+                else "Pozisyon son 7 gün ile önceki 7 gün arasında değişmemiş."
             )
         cards = [
             _comparison_card(current_label, _format_decimal(current_position, 1), "Ortalama pozisyon", "blue"),
@@ -230,7 +230,7 @@ def _build_search_console_comparison(
                 _comparison_card(
                     "Fark",
                     f"{change:+.1f}",
-                    "Pozisyon farki",
+                    "Pozisyon farkı",
                     "green" if position_state == "improved" else "red" if position_state == "worsened" else "slate",
                 )
             )
@@ -246,45 +246,45 @@ def _build_search_console_comparison(
             "is_improvement": False,
         }]
         dropped_message = (
-            "Gunluk karsilastirmada bu sorgu icin veri bulunamadi. Haftalik gorunum daha anlamli."
+            "Günlük karşılaştırmada bu sorgu için veri bulunamadı. Haftalık görünüm daha anlamlı."
             if comparison_type == "daily" and not current["rows"] and not previous["rows"]
-            else "Sorgu dunde gorunmuyor, onceki gunde vardi."
+            else "Sorgu dünde görünmüyor, önceki günde vardı."
             if comparison_type == "daily" and previous["rows"] and not current["rows"]
-            else "Sorgu dunde vardi, onceki gunde yoktu."
+            else "Sorgu dünde vardı, önceki günde yoktu."
             if comparison_type == "daily" and current["rows"] and not previous["rows"]
-            else "Sorgu onceki 7 gunde vardi, son 7 gunde gorunmuyor."
+            else "Sorgu önceki 7 günde vardı, son 7 günde görünmüyor."
             if previous["rows"] and not current["rows"]
-            else "Sorgu dusus adayi olarak isaretlendi."
+            else "Sorgu düşüş adayı olarak işaretlendi."
         )
         message = dropped_message
         if comparison_type == "daily" and not current["rows"] and not previous["rows"]:
             delta_value = "Veri yok"
-            delta_detail = "Haftalik gorunumu kullan"
+            delta_detail = "Haftalık görünümü kullan"
             has_meaningful_data = False
         elif previous["rows"] and not current["rows"]:
-            delta_value = "SERP disi"
-            delta_detail = "Dunde yok" if comparison_type == "daily" else "Son 7 gunde yok"
+            delta_value = "SERP dışı"
+            delta_detail = "Dünde yok" if comparison_type == "daily" else "Son 7 günde yok"
         else:
-            delta_value = "Dususte"
+            delta_value = "Düşüşte"
             delta_detail = "Kontrol et"
         cards = [
             _comparison_card(
                 current_label,
                 _format_decimal(current.get("position"), 1),
-                f"{int(current.get('clicks') or 0)} tiklama / {int(current.get('impressions') or 0)} gosterim",
+                f"{int(current.get('clicks') or 0)} tıklama / {int(current.get('impressions') or 0)} gösterim",
                 "blue",
             ),
             _comparison_card(
                 previous_label,
                 _format_decimal(previous_position, 1),
-                f"{int(previous.get('clicks') or 0)} tiklama / {int(previous.get('impressions') or 0)} gosterim",
+                f"{int(previous.get('clicks') or 0)} tıklama / {int(previous.get('impressions') or 0)} gösterim",
                 "slate",
             ),
             _comparison_card("Fark", delta_value, delta_detail, "red"),
         ]
     else:
-        message = "Bu alert tipi Search Console kayit karsilastirmasiyla aciklandi."
-        cards = [_comparison_card("Durum", "Hazir", "", "blue")]
+        message = "Bu alert tipi Search Console kayıt karşılaştırmasıyla açıklandı."
+        cards = [_comparison_card("Durum", "Hazır", "", "blue")]
 
     return {
         "message": message,

@@ -183,8 +183,8 @@ def _latest_value_from_history(history: dict[str, list[dict]], metric_type: str,
 
 def _format_metric_timestamp(metric) -> str:
     if metric is None:
-        return "Henuz veri yok"
-    return format_local_datetime(metric.collected_at, fallback="Henuz veri yok")
+        return "Henüz veri yok"
+    return format_local_datetime(metric.collected_at, fallback="Henüz veri yok")
 
 
 def _extract_client_ip(request: Request) -> str:
@@ -305,8 +305,8 @@ def _settings_sites_payload(db) -> list[dict]:
 
 def _format_optional_datetime(value: datetime | None) -> str:
     if value is None:
-        return "Henuz tetiklenmedi"
-    return format_local_datetime(value, fallback="Henuz tetiklenmedi")
+        return "Henüz tetiklenmedi"
+    return format_local_datetime(value, fallback="Henüz tetiklenmedi")
 
 
 def _latest_provider_run(db, *, site_id: int, provider: str, strategy: str | None = None) -> CollectorRun | None:
@@ -609,7 +609,7 @@ def _run_daily_search_console_refresh_job() -> None:
                         system_key="search_console",
                         site=site,
                         result=result,
-                        action_label="Gunluk Search Console refresh",
+                        action_label="Günlük Search Console yenilemesi",
                     )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
@@ -619,7 +619,7 @@ def _run_daily_search_console_refresh_job() -> None:
                         system_key="search_console",
                         site=site,
                         result={"state": "failed", "error": str(exc)},
-                        action_label="Gunluk Search Console refresh",
+                        action_label="Günlük Search Console yenilemesi",
                     )
 
                 if index < len(connected_sites) - 1:
@@ -650,7 +650,7 @@ def _run_daily_alert_refresh_job() -> None:
                         system_key="search_console_alerts",
                         site=site,
                         result=result,
-                        action_label="Gunluk alert refresh",
+                        action_label="Günlük alert yenilemesi",
                     )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
@@ -660,7 +660,7 @@ def _run_daily_alert_refresh_job() -> None:
                         system_key="search_console_alerts",
                         site=site,
                         result={"state": "failed", "error": str(exc)},
-                        action_label="Gunluk alert refresh",
+                        action_label="Günlük alert yenilemesi",
                     )
 
                 if index < len(sites) - 1:
@@ -702,7 +702,7 @@ def _run_daily_refresh_job() -> None:
                     trigger_source="system",
                     site=site,
                     results=results,
-                    action_label="Gunluk site refresh",
+                    action_label="Günlük site yenilemesi",
                 )
 
                 try:
@@ -713,7 +713,7 @@ def _run_daily_refresh_job() -> None:
                         system_key="crux_history",
                         site=site,
                         result=crux_result,
-                        action_label="Gunluk CrUX refresh",
+                        action_label="Günlük CrUX yenilemesi",
                     )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
@@ -723,7 +723,7 @@ def _run_daily_refresh_job() -> None:
                         system_key="crux_history",
                         site=site,
                         result={"state": "failed", "error": str(exc)},
-                        action_label="Gunluk CrUX refresh",
+                        action_label="Günlük CrUX yenilemesi",
                     )
 
                 if connection.get("connected"):
@@ -735,7 +735,7 @@ def _run_daily_refresh_job() -> None:
                             system_key="url_inspection",
                             site=site,
                             result=inspection_result,
-                            action_label="Gunluk URL Inspection refresh",
+                            action_label="Günlük URL Inspection yenilemesi",
                         )
                     except Exception as exc:  # noqa: BLE001
                         db.rollback()
@@ -745,7 +745,7 @@ def _run_daily_refresh_job() -> None:
                             system_key="url_inspection",
                             site=site,
                             result={"state": "failed", "error": str(exc)},
-                            action_label="Gunluk URL Inspection refresh",
+                            action_label="Günlük URL Inspection yenilemesi",
                         )
 
                 if index < len(sites) - 1:
@@ -993,7 +993,7 @@ def _refresh_site_detail_measurements(
         if not force and (pagespeed_recent or pagespeed_cached):
             results["pagespeed"] = {
                 "state": "skipped",
-                "reason": "PageSpeed olcumu yakin zamanda alindigi icin yeniden tetiklenmedi.",
+                "reason": "PageSpeed ölçümü yakın zamanda alındığı için yeniden tetiklenmedi.",
             }
         else:
             try:
@@ -1020,7 +1020,7 @@ def _refresh_site_detail_measurements(
         if not force and (crawler_recent or crawler_cached):
             results["crawler"] = {
                 "state": "skipped",
-                "reason": "Crawler kontrolleri yakin zamanda calistigi icin yeniden istek atilmadi.",
+                "reason": "Crawler kontrolleri yakın zamanda çalıştığı için yeniden istek atılmadı.",
             }
         else:
             try:
@@ -1042,7 +1042,7 @@ def _refresh_site_detail_measurements(
         if not force and (search_console_recent or search_console_cached):
             results["search_console"] = {
                 "state": "skipped",
-                "reason": "Search Console verisi yakin zamanda yenilendigi icin yeniden sorgulanmadi.",
+                "reason": "Search Console verisi yakın zamanda yenilendiği için yeniden sorgulanmadı.",
             }
         else:
             try:
@@ -1196,20 +1196,20 @@ def _fallback_lighthouse_analysis(
         issues.append(
             {
                 "id": f"{scope}-accessibility-primary",
-                "title": "Dokunulabilirlik ve okunabilirlik iyilestirilmeli" if scope == "mobile" else "Masaustu okunabilirlik iyilestirilmeli",
+                "title": "Dokunulabilirlik ve okunabilirlik iyileştirilmeli" if scope == "mobile" else "Masaüstü okunabilirlik iyileştirilmeli",
                 "category": "Accessibility",
                 "priority": "HIGH" if accessibility_score < 85 else "MEDIUM",
                 "problem": (
-                    f"{scope_label} audit skorunda erisilebilirlik {accessibility_score}. "
+                    f"{scope_label} audit skorunda erişilebilirlik {accessibility_score}. "
                     + (
-                        "Mobil ekranda dokunma alanlari, kucuk metinler veya kontrast sorunlari olasi gorunuyor."
+                        "Mobil ekranda dokunma alanları, küçük metinler veya kontrast sorunları olası görünüyor."
                         if scope == "mobile"
-                        else "Buyuk ekran duzeninde kontrast, tablo yogunlugu veya odak gorunurlugu sorunlari olasi gorunuyor."
+                        else "Büyük ekran düzeninde kontrast, tablo yoğunluğu veya odak görünürlüğü sorunları olası görünüyor."
                     )
                 ),
-                "impact": f"{scope_label} kullanicilarinda okunabilirlik ve etkileşim kalitesi dusebilir.",
+                "impact": f"{scope_label} kullanıcılarında okunabilirlik ve etkileşim kalitesi düşebilir.",
                 "solution": [],
-                "expected_result": f"{scope_label} erisilebilirlik skorunda artis beklenir.",
+                "expected_result": f"{scope_label} erişilebilirlik skorunda artış beklenir.",
                 "timeline": None,
                 "examples": [
                     f"{scope_label} accessibility score: {accessibility_score}",
@@ -1224,17 +1224,17 @@ def _fallback_lighthouse_analysis(
         issues.append(
             {
                 "id": f"{scope}-best-practices-primary",
-                "title": "Mobil yukleme pratikleri optimize edilmeli" if scope == "mobile" else "Desktop bundle ve tarayici davranisi optimize edilmeli",
+                "title": "Mobil yükleme pratikleri optimize edilmeli" if scope == "mobile" else "Desktop bundle ve tarayıcı davranışı optimize edilmeli",
                 "category": "Best Practices",
                 "priority": "HIGH" if practices_score < 75 else "MEDIUM",
                 "problem": (
-                    "Mobil tarafta agir gorsel/script kullanimi ya da gereksiz kaynaklar gorunuyor."
+                    "Mobil tarafta ağır görsel/script kullanımı ya da gereksiz kaynaklar görünüyor."
                     if scope == "mobile"
-                    else "Desktop tarafta gereksiz bundle, console warning ya da tarayici uyumluluk konusu gorunuyor."
+                    else "Desktop tarafta gereksiz bundle, console warning ya da tarayıcı uyumluluk konusu görünüyor."
                 ),
                 "impact": f"{scope_label} best practices skoru {practices_score} seviyesinde kalir.",
                 "solution": [],
-                "expected_result": f"{scope_label} icin daha stabil sayfa davranisi.",
+                "expected_result": f"{scope_label} için daha stabil sayfa davranışı.",
                 "timeline": None,
                 "examples": [
                     f"{scope_label} best practices score: {practices_score}",
@@ -1248,17 +1248,17 @@ def _fallback_lighthouse_analysis(
         issues.append(
             {
                 "id": f"{scope}-seo-primary",
-                "title": "Mobil SERP gorunumu duzenlenmeli" if scope == "mobile" else "Desktop SEO sinyalleri guclendirilmeli",
+                "title": "Mobil SERP görünümü düzenlenmeli" if scope == "mobile" else "Desktop SEO sinyalleri güçlendirilmeli",
                 "category": "SEO",
                 "priority": "LOW",
                 "problem": (
-                    "Mobil arama sonucunda baslik veya snippet gorunumu iyilestirilebilir."
+                    "Mobil arama sonucunda başlık veya snippet görünümü iyileştirilebilir."
                     if scope == "mobile"
-                    else "Desktop arama sonucunda teknik sinyaller daha da guclendirilebilir."
+                    else "Desktop arama sonucunda teknik sinyaller daha da güçlendirilebilir."
                 ),
                 "impact": f"{scope_label} SEO skoru {seo_score}.",
                 "solution": [],
-                "expected_result": f"{scope_label} SEO skorunda marjinal artis beklenir.",
+                "expected_result": f"{scope_label} SEO skorunda marjinal artış beklenir.",
                 "timeline": None,
                 "examples": [f"{scope_label} SEO score: {seo_score}"],
                 "source_strategy": scope,
@@ -1273,7 +1273,7 @@ def _fallback_lighthouse_analysis(
             "best_practices": {"score": practices_score, "issues_count": len([i for i in issues if i["category"] == "Best Practices"]), "title": "Best Practices"},
             "seo": {"score": seo_score, "issues_count": len([i for i in issues if i["category"] == "SEO"]), "title": "SEO"},
         },
-        "summary": f"{scope_label} fallback audit ozeti",
+        "summary": f"{scope_label} fallback audit özeti",
     }
 
 
@@ -1332,12 +1332,12 @@ def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_m
         state = "live"
         label = "Live"
         badge_class = "border-emerald-200 bg-emerald-50 text-emerald-700"
-        description = "Canli ve guncel veri"
+        description = "Canlı ve güncel veri"
     elif has_metric:
         state = "stale"
         label = "Güncel değil"
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
-        description = "Son basarili olcum gosteriliyor"
+        description = "Son başarılı ölçüm gösteriliyor"
     else:
         state = "failed"
         label = "Failed"
@@ -1782,13 +1782,13 @@ def _data_explorer_context(domain: str) -> dict:
 
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
-            "CrUX guncel kaydi ve history serisi mevcut",
+            "CrUX güncel kaydı ve history serisi mevcut",
             "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
         )
         desktop_state = _data_state_badge(
             "live" if desktop_crux else "failed",
-            "CrUX guncel kaydi ve history serisi mevcut",
+            "CrUX güncel kaydı ve history serisi mevcut",
             "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
         )
@@ -1880,7 +1880,7 @@ def _build_dashboard_card(
         "pagespeed_desktop_color": _score_color(desktop_pagespeed_score) if desktop_pagespeed_score is not None else "text-slate-400",
         "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
         "check_count": len(available_metrics),
-        "last_updated": format_local_datetime(last_updated, fallback="Henuz veri yok"),
+        "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
         "alert_count": len(recent_site_alerts),
         "recent_alerts": recent_site_alerts[:3],
         "top_queries": search_console_report.get("top_queries") or [],
@@ -1914,25 +1914,25 @@ def _summarize_manual_measurement(results: dict[str, dict]) -> str:
     parts: list[str] = []
 
     if pagespeed_result.get("saved_metric_count"):
-        parts.append("PageSpeed olcumu tamamlandi")
+        parts.append("PageSpeed ölçümü tamamlandı")
     elif pagespeed_result.get("state") == "skipped":
         parts.append("PageSpeed yeniden tetiklenmedi")
     elif pagespeed_result.get("errors"):
-        parts.append("PageSpeed kismi olarak guncellendi")
+        parts.append("PageSpeed kısmi olarak güncellendi")
 
     if crawler_result.get("metrics"):
-        parts.append("crawler kontrolleri yenilendi")
+        parts.append("Crawler kontrolleri yenilendi")
     elif crawler_result.get("state") == "skipped":
-        parts.append("crawler kontrolleri tekrar calistirilmedi")
+        parts.append("Crawler kontrolleri tekrar çalıştırılmadı")
 
     if search_console_result.get("blocked"):
         parts.append("Search Console kota nedeniyle atlandi")
     elif search_console_result.get("summary"):
         parts.append("Search Console verisi yenilendi")
     elif search_console_result.get("state") == "skipped":
-        parts.append("Search Console yeniden sorgulanmadi")
+        parts.append("Search Console yeniden sorgulanmadı")
 
-    return ". ".join(parts) + "." if parts else "Olcum tetiklendi."
+    return ". ".join(parts) + "." if parts else "Ölçüm tetiklendi."
 
 
 def _format_compact_number(value) -> str:
@@ -2515,7 +2515,7 @@ def dashboard_measure_site(request: Request, site_id: int):
                 trigger_source="manual",
                 site=site,
                 results=results,
-                action_label="Dashboard manuel olcum",
+                action_label="Dashboard manuel ölçüm",
             )
             flash_message = _summarize_manual_measurement(results)
         except Exception as exc:  # noqa: BLE001
@@ -2523,8 +2523,8 @@ def dashboard_measure_site(request: Request, site_id: int):
             LOGGER.warning("Dashboard manual measure failed for site_id=%s: %s", site_id, exc)
             site = db.query(Site).filter(Site.id == site_id).first()
             if site is None:
-                return HTMLResponse("Site bulunamadi.", status_code=404)
-            flash_message = f"Olcum tamamlanamadi. Mevcut kayitli veri gosteriliyor. Detay: {exc}"
+                return HTMLResponse("Site bulunamadı.", status_code=404)
+            flash_message = f"Ölçüm tamamlanamadı. Mevcut kayıtlı veri gösteriliyor. Detay: {exc}"
 
         card = _build_dashboard_card(db, site, flash_message=flash_message)
     return templates.TemplateResponse(
@@ -2816,7 +2816,7 @@ def alerts_refresh(request: Request):
                     system_key="search_console_alerts",
                     site=site,
                     result=results["search_console"],
-                    action_label="Uyarilari yenile",
+                    action_label="Uyarıları yenile",
                 )
                 summaries.append({"site": site.domain, "results": results})
             except Exception as exc:  # noqa: BLE001
@@ -2826,7 +2826,7 @@ def alerts_refresh(request: Request):
                     system_key="search_console_alerts",
                     site=site,
                     result={"state": "failed", "error": str(exc)},
-                    action_label="Uyarilari yenile",
+                    action_label="Uyarıları yenile",
                 )
                 summaries.append({"site": site.domain, "error": str(exc)})
 
@@ -2932,7 +2932,7 @@ def search_console_refresh_all(request: Request):
                     trigger_source="manual",
                     site=site,
                     results=results,
-                    action_label="Tum Search Console sitelerini yenile",
+                    action_label="Tüm Search Console sitelerini yenile",
                 )
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
@@ -2941,7 +2941,7 @@ def search_console_refresh_all(request: Request):
                     system_key="search_console",
                     site=site,
                     result={"state": "failed", "error": str(exc)},
-                    action_label="Tum Search Console sitelerini yenile",
+                    action_label="Tüm Search Console sitelerini yenile",
                 )
             if index < len(sites) - 1:
                 time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
@@ -2962,7 +2962,7 @@ def search_console_manual_refresh(request: Request, site_id: int):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
-            return HTMLResponse("Site bulunamadi.", status_code=404)
+            return HTMLResponse("Site bulunamadı.", status_code=404)
         results = _refresh_site_detail_measurements(
             db,
             site,

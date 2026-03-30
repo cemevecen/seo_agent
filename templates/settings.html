@@ -79,17 +79,17 @@
           <p class="mt-1 text-sm text-slate-500">Google login ile site bazlı Search Console erişimi ver.</p>
         </div>
         {% if oauth_ready %}
-          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">OAuth hazir</span>
+          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">OAuth hazır</span>
         {% else %}
-          <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">OAuth ayari eksik</span>
+          <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">OAuth ayarı eksik</span>
         {% endif %}
       </div>
       <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
         <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
         {% if not oauth_ready %}
-          <p class="mt-2 text-amber-700">.env icinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanimlaman gerekiyor.</p>
+          <p class="mt-2 text-amber-700">.env içinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanımlaman gerekiyor.</p>
         {% else %}
-          <p class="mt-2 text-slate-600">Baglan butonu site listesinde gorunur. Google Cloud OAuth client kaydinda bu redirect URI birebir tanimli olmali.</p>
+          <p class="mt-2 text-slate-600">Bağlan butonu site listesinde görünür. Google Cloud OAuth client kaydında bu redirect URI birebir tanımlı olmalı.</p>
         {% endif %}
       </div>
     </div>
@@ -114,7 +114,7 @@
 
     <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-base font-semibold text-slate-900">API Kota Kontrolu</h3>
+        <h3 class="text-base font-semibold text-slate-900">API Kota Kontrolü</h3>
         <p class="text-xs text-slate-500">Günlük ve aylık limit takibi</p>
       </div>
       <div class="overflow-x-auto">
@@ -123,8 +123,8 @@
             <tr>
               <th class="px-3 py-2 font-medium">Domain</th>
               <th class="px-3 py-2 font-medium">Provider</th>
-              <th class="px-3 py-2 font-medium">Gunluk Kullanim</th>
-              <th class="px-3 py-2 font-medium">Aylik Kullanim</th>
+              <th class="px-3 py-2 font-medium">Günlük Kullanım</th>
+              <th class="px-3 py-2 font-medium">Aylık Kullanım</th>
             </tr>
           </thead>
           <tbody>

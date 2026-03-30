@@ -116,10 +116,10 @@ text-slate-500
 {% endif %}
 {% set hint_map = {
   'First Contentful Paint': 'ilk boyama hizi',
-  'Largest Contentful Paint': 'ana icerik hizi',
+  'Largest Contentful Paint': 'ana içerik hızı',
   'Total Blocking Time': 'ana thread blokaji',
   'Cumulative Layout Shift': 'gorsel stabilite',
-  'Speed Index': 'gorunur yuklenme hizi'
+  'Speed Index': 'görünür yüklenme hızı'
 } %}
 <div class="min-w-0 rounded-[1.2rem] border p-2.5 shadow-sm {{ shell_class }}">
   <div class="min-w-0">
@@ -157,7 +157,7 @@ text-slate-500
     data-fit-min="9"
     class="mt-1.5 text-[0.76rem] font-semibold leading-snug text-slate-500"
     style="font-size: 12px;"
-  >{{ hint_map.get(metric.label, 'olcum ozeti') }}</p>
+  >{{ hint_map.get(metric.label, 'ölçüm özeti') }}</p>
   <div class="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/90">
     <div class="h-full rounded-full {{ bar_class }}" style="width: {{ bar_width }}"></div>
   </div>
@@ -234,9 +234,9 @@ text-slate-500
   <div id="data-explorer-progress-panel" class="hidden rounded-[1.6rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklasik Ilerleme</p>
-        <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
-        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600">CrUX History ve URL Inspection verileri dis kaynaklardan yeniden alinacak.</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklaşık İlerleme</p>
+        <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
+        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600">CrUX History ve URL Inspection verileri dış kaynaklardan yeniden alınacak.</p>
       </div>
       <p id="data-explorer-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
     </div>
@@ -250,7 +250,7 @@ text-slate-500
       <div class="flex items-center justify-between gap-3">
         <div>
           <h4 class="text-xl font-semibold text-slate-900">Mobil</h4>
-          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 gunluk crux gercek kullanici verisini gosterir.</p>
+          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 günlük crux gerçek kullanıcı verisini gösterir.</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
@@ -274,7 +274,7 @@ text-slate-500
       <div class="flex items-center justify-between gap-3">
         <div>
           <h4 class="text-xl font-semibold text-slate-900">Masaüstü</h4>
-          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 gunluk crux gercek kullanici verisini gosterir.</p>
+          <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan 28 günlük crux gerçek kullanıcı verisini gösterir.</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>
@@ -311,7 +311,7 @@ text-slate-500
           <div class="min-w-0 flex-1">
             <p class="text-sm uppercase tracking-[0.18em] text-slate-500">{{ report.strategy_label }}</p>
             <h5 class="text-xl font-semibold text-slate-900">PageSpeed Insights {{ report.strategy_label }}</h5>
-            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan son lighthouse psi lab olcumunden uretilir.</p>
+            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500">bu alan son lighthouse psi lab ölçümünden üretilir.</p>
             <p class="mt-2 text-sm text-slate-600">Report zamanı: {{ report.report_time }}</p>
             {% if report.final_url %}
             <p class="mt-1 break-words text-xs text-slate-500">Final URL: {{ report.final_url }}</p>
@@ -427,7 +427,7 @@ text-slate-500
         </div>
         {% else %}
         <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-          Bu strateji icin henüz kaydedilmiş resmi PSI audit section verisi yok.
+          Bu strateji için henüz kaydedilmiş resmi PSI audit section verisi yok.
         </div>
         {% endif %}
       </section>
@@ -524,7 +524,7 @@ text-slate-500
       </div>
     </div>
     <div class="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-      {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tum collector calismalari", "Arka planda toplam kaç collector görevi koştuğunu gösterir.") }}
+      {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.") }}
       {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.") }}
       {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.") }}
       {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.") }}
@@ -698,10 +698,10 @@ text-slate-500
       const progressPercent = document.getElementById('data-explorer-progress-percent');
       const progressBar = document.getElementById('data-explorer-progress-bar');
       const progressSteps = [
-        { percent: 18, title: 'CrUX History cagrisi yapiliyor', detail: 'Chrome UX Report history verisi dis kaynaktan cekiliyor.' },
-        { percent: 43, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu guncel durum icin yeniden isteniyor.' },
-        { percent: 71, title: 'Veri kayitlari yaziliyor', detail: 'Yeni veri kayitlari ve toplama kayitlari veritabanina ekleniyor.' },
-        { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gosterilmek uzere hazirlaniyor.' },
+        { percent: 18, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
+        { percent: 43, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu güncel durum için yeniden isteniyor.' },
+        { percent: 71, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
+        { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gösterilmek üzere hazırlanıyor.' },
       ];
       let progressTimer = null;
       let progressTailTimer = null;
@@ -729,8 +729,8 @@ text-slate-500
         resetTone();
         renderProgress({
           percent: 7,
-          title: 'Data Explorer yenilemesi baslatildi',
-          detail: 'Bu buton CrUX History ve URL Inspection icin gercek refresh cagirir.',
+          title: 'Data Explorer yenilemesi başlatıldı',
+          detail: 'Bu buton CrUX History ve URL Inspection için gerçek refresh çağırır.',
         });
         let stepIndex = 0;
         progressTimer = window.setInterval(function () {
@@ -747,8 +747,8 @@ text-slate-500
               }
               renderProgress({
                 percent: next,
-                title: 'Son paneller hazirlaniyor',
-                detail: 'Yanit bekleniyor; Data Explorer icin son cizim adimlari tamamlanıyor.',
+                title: 'Son paneller hazırlanıyor',
+                detail: 'Yanıt bekleniyor; Data Explorer için son çizim adımları tamamlanıyor.',
               });
             }, 700);
             return;
@@ -769,8 +769,8 @@ text-slate-500
           }
           renderProgress({
             percent: 100,
-            title: 'Data Explorer guncellendi',
-            detail: 'Yeni CrUX ve URL Inspection verileri yukleniyor.',
+            title: 'Data Explorer güncellendi',
+            detail: 'Yeni CrUX ve URL Inspection verileri yükleniyor.',
           });
           setTimeout(function () {
             window.location.reload();
@@ -789,9 +789,9 @@ text-slate-500
           renderProgress({
             percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
             title: 'Data Explorer yenilenemedi',
-            detail: 'CrUX veya URL Inspection akisi tamamlanamadi. Backend loglarini kontrol et.',
+            detail: 'CrUX veya URL Inspection akışı tamamlanamadı. Backend loglarını kontrol et.',
           });
-          refreshButton.textContent = 'Yenileme basarisiz';
+          refreshButton.textContent = 'Yenileme başarısız';
           setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
         }
       });

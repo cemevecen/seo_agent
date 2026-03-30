@@ -11,10 +11,10 @@
           class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
           onclick="refreshSearchConsoleSites(this)"
         >
-          Tum Siteleri Yenile
+          Tüm Siteleri Yenile
         </button>
         <p class="text-sm text-slate-500">
-          Bu islem bagli siteler icin Search Console API'den yeni veri ceker, kaydi yazar ve kartlari yeniden olusturur.
+          Bu işlem bağlı siteler için Search Console API'den yeni veri çeker, kaydı yazar ve kartları yeniden oluşturur.
         </p>
       </div>
     </div>
@@ -22,9 +22,9 @@
     <div id="search-console-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklasik Ilerleme</p>
-          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
-          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600">Dis kaynaktan veri cekme akisi baslatiliyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklaşık İlerleme</p>
+          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
+          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600">Dış kaynaktan veri çekme akışı başlatılıyor.</p>
         </div>
         <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
       </div>
@@ -37,9 +37,9 @@
       <div id="search-console-page-load-panel" class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa Yukleniyor</p>
-            <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazirlaniyor</p>
-            <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console sayfasi aciliyor, ilk liste istegi hazirlaniyor.</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa Yükleniyor</p>
+            <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
+            <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console sayfası açılıyor, ilk liste isteği hazırlanıyor.</p>
           </div>
           <div class="text-right">
             <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
@@ -93,38 +93,38 @@
         render({
           percent: next,
           title: 'Liste verisi bekleniyor',
-          detail: 'HTMX istegi devam ediyor; Search Console kartlari gelince alan otomatik kapanacak.',
+          detail: 'HTMX isteği devam ediyor; Search Console kartları gelince alan otomatik kapanacak.',
         });
       }, 500);
     }
 
     render({
       percent: 8,
-      title: 'Kabuk hazirlaniyor',
-      detail: 'Search Console sayfasi aciliyor, ilk liste istegi hazirlaniyor.',
+      title: 'Kabuk hazırlanıyor',
+      detail: 'Search Console sayfası açılıyor, ilk liste isteği hazırlanıyor.',
     });
 
     return {
       domReady: function () {
         render({
           percent: 24,
-          title: 'DOM hazir',
-          detail: 'Sayfa kabugu tarayicida kuruldu, liste istegi icin altyapi hazir.',
+          title: 'DOM hazır',
+          detail: 'Sayfa kabuğu tarayıcıda kuruldu, liste isteği için altyapı hazır.',
         });
       },
       requestStarted: function () {
         render({
           percent: 48,
-          title: 'Liste istegi gonderildi',
-          detail: 'Search Console site listesi icin HTMX istegi sunucuya gonderildi.',
+          title: 'Liste isteği gönderildi',
+          detail: 'Search Console site listesi için HTMX isteği sunucuya gönderildi.',
         });
         startPendingLoop();
       },
       responseReceived: function () {
         render({
           percent: 76,
-          title: 'Yanıt alindi',
-          detail: 'Sunucudan liste HTML yaniti alindi, sayfaya yerlestiriliyor.',
+          title: 'Yanıt alındı',
+          detail: 'Sunucudan liste HTML yanıtı alındı, sayfaya yerleştiriliyor.',
         });
       },
       swapped: function () {
@@ -134,8 +134,8 @@
         }
         render({
           percent: 100,
-          title: 'Sayfa hazir',
-          detail: 'Search Console kartlari yuklendi.',
+          title: 'Sayfa hazır',
+          detail: 'Search Console kartları yüklendi.',
         });
         window.setTimeout(function () {
           if (panel) {
@@ -164,8 +164,8 @@
         }
         render({
           percent: Math.max(parseInt((bar && bar.style.width) || '18', 10) || 18, 18),
-          title: 'Liste yuklenemedi',
-          detail: 'Ilk Search Console liste istegi tamamlanamadi. Sayfayi yenileyip tekrar dene.',
+          title: 'Liste yüklenemedi',
+          detail: 'İlk Search Console liste isteği tamamlanamadı. Sayfayı yenileyip tekrar dene.',
         });
       },
     };
@@ -198,7 +198,7 @@
       }
       panel.classList.remove('hidden');
       title.textContent = step.title || config.title || 'Yenileniyor';
-      detail.textContent = step.detail || config.detail || 'Islem suruyor.';
+      detail.textContent = step.detail || config.detail || 'İşlem sürüyor.';
       percent.textContent = String(step.percent || 0) + '%';
       bar.style.width = String(step.percent || 0) + '%';
     }
@@ -224,8 +224,8 @@
             }
             render({
               percent: next,
-              title: config.pendingTitle || 'Son adimlar tamamlaniyor',
-              detail: config.pendingDetail || 'Yanit bekleniyor, son cizim ve guncelleme adimlari suruyor.',
+              title: config.pendingTitle || 'Son adımlar tamamlanıyor',
+              detail: config.pendingDetail || 'Yanıt bekleniyor, son çizim ve güncelleme adımları sürüyor.',
             });
           }, config.tailInterval || 700);
           return;
@@ -245,8 +245,8 @@
         }
         render({
           percent: 100,
-          title: doneTitle || 'Tamamlandi',
-          detail: doneDetail || 'Kartlar guncellendi.',
+          title: doneTitle || 'Tamamlandı',
+          detail: doneDetail || 'Kartlar güncellendi.',
         });
       },
       fail: function (errorTitle, errorDetail) {
@@ -266,8 +266,8 @@
         }
         render({
           percent: Math.max(parseInt((bar && bar.style.width) || '12', 10) || 12, 12),
-          title: errorTitle || 'Yenileme basarisiz',
-          detail: errorDetail || 'Dis kaynaktan veri cekilirken bir hata olustu.',
+          title: errorTitle || 'Yenileme başarısız',
+          detail: errorDetail || 'Dış kaynaktan veri çekilirken bir hata oluştu.',
         });
       },
       resetTone: function () {
@@ -288,17 +288,17 @@
     const target = document.getElementById('search-console-site-list');
     const original = trigger ? trigger.textContent : '';
     const progress = createSearchConsoleProgressController({
-      title: 'Tum siteler yenileniyor',
-      detail: 'Bagli siteler icin Search Console API akisi baslatildi.',
+      title: 'Tüm siteler yenileniyor',
+      detail: 'Bağlı siteler için Search Console API akışı başlatıldı.',
       steps: [
-        { percent: 14, title: 'Baglantilar kontrol ediliyor', detail: 'OAuth baglantilari ve property hedefleri kontrol ediliyor.' },
-        { percent: 31, title: 'API cagrilari basladi', detail: 'Bagli siteler sirayla Search Console API uzerinden yenileniyor.' },
-        { percent: 52, title: 'Kayit yaziliyor', detail: 'Yeni query, trend ve ozet satirlari veritabanina yaziliyor.' },
-        { percent: 73, title: 'Alert senkronu hesaplaniyor', detail: 'Yeni Search Console verisine gore iliskili uyarilar guncelleniyor.' },
-        { percent: 91, title: 'Kartlar hazirlaniyor', detail: 'Ekrandaki tum kartlar yeni verilerle yeniden olusturuluyor.' },
+        { percent: 14, title: 'Bağlantılar kontrol ediliyor', detail: 'OAuth bağlantıları ve property hedefleri kontrol ediliyor.' },
+        { percent: 31, title: 'API çağrıları başladı', detail: 'Bağlı siteler sırayla Search Console API üzerinden yenileniyor.' },
+        { percent: 52, title: 'Kayıt yazılıyor', detail: 'Yeni query, trend ve özet satırları veritabanına yazılıyor.' },
+        { percent: 73, title: 'Alert senkronu hesaplanıyor', detail: 'Yeni Search Console verisine göre ilişkili uyarılar güncelleniyor.' },
+        { percent: 91, title: 'Kartlar hazırlanıyor', detail: 'Ekrandaki tüm kartlar yeni verilerle yeniden oluşturuluyor.' },
       ],
-      pendingTitle: 'Kartlar son kez guncelleniyor',
-      pendingDetail: 'Yanit bekleniyor; kalan adimlar sirayla tamamlandikca ilerleme artiyor.',
+      pendingTitle: 'Kartlar son kez güncelleniyor',
+      pendingDetail: 'Yanıt bekleniyor; kalan adımlar sırayla tamamlandıkça ilerleme artıyor.',
     });
     progress.resetTone();
     if (trigger) {
@@ -323,11 +323,11 @@
             initSearchConsolePanels(target);
           }, 50);
         }
-        progress.complete('Tum siteler guncellendi', 'Search Console kartlari yeni verilerle yeniden cizildi.');
+        progress.complete('Tüm siteler güncellendi', 'Search Console kartları yeni verilerle yeniden çizildi.');
       })
       .catch(function (error) {
         console.warn('Search Console bulk refresh failed:', error);
-        progress.fail('Tum siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadi. Log ve baglanti durumunu kontrol et.');
+        progress.fail('Tüm siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadı. Log ve bağlantı durumunu kontrol et.');
       })
       .finally(function () {
         if (trigger) {
@@ -422,7 +422,7 @@
                 y: previousClicks,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'Clicks Onceki 7G',
+                name: 'Tıklama Önceki 7G',
                 line: { color: '#4f83e3', width: 3, dash: 'dash' },
                 yaxis: 'y1',
               },
@@ -431,7 +431,7 @@
                 y: previousPosition,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'Position Onceki 7G',
+                name: 'Pozisyon Önceki 7G',
                 line: { color: '#dd7a2a', width: 3, dash: 'dash' },
                 yaxis: 'y2',
               }
@@ -642,17 +642,17 @@
         const original = button ? button.textContent : '';
         const siteDomain = form.dataset.siteDomain || 'site';
         const progress = createSearchConsoleProgressController({
-          title: siteDomain + ' icin Search Console yenileniyor',
-          detail: 'Google Search Console API uzerinden yeni veri cekiliyor.',
+          title: siteDomain + ' için Search Console yenileniyor',
+          detail: 'Google Search Console API üzerinden yeni veri çekiliyor.',
           steps: [
-            { percent: 16, title: 'Baglanti hazirlaniyor', detail: siteDomain + ' icin OAuth ve property bilgisi dogrulaniyor.' },
-            { percent: 37, title: 'API verisi cekiliyor', detail: siteDomain + ' icin Search Console ozet ve query verisi aliniyor.' },
-            { percent: 59, title: 'Kayit yaziliyor', detail: 'Yeni query, trend ve ozet satirlari kaydediliyor.' },
-            { percent: 79, title: 'Alert senkronu guncelleniyor', detail: 'Bu siteye ait Search Console uyari verileri yeniden hesaplanıyor.' },
-            { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar olusturuluyor.' },
+            { percent: 16, title: 'Bağlantı hazırlanıyor', detail: siteDomain + ' için OAuth ve property bilgisi doğrulanıyor.' },
+            { percent: 37, title: 'API verisi çekiliyor', detail: siteDomain + ' için Search Console özet ve query verisi alınıyor.' },
+            { percent: 59, title: 'Kayıt yazılıyor', detail: 'Yeni query, trend ve özet satırları kaydediliyor.' },
+            { percent: 79, title: 'Alert senkronu güncelleniyor', detail: 'Bu siteye ait Search Console uyarı verileri yeniden hesaplanıyor.' },
+            { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar oluşturuluyor.' },
           ],
-          pendingTitle: siteDomain + ' icin son adimlar tamamlaniyor',
-          pendingDetail: 'Yanit bekleniyor; kart guncellemesi tamamlanmak uzere.',
+          pendingTitle: siteDomain + ' için son adımlar tamamlanıyor',
+          pendingDetail: 'Yanıt bekleniyor; kart güncellemesi tamamlanmak üzere.',
         });
         progress.resetTone();
         if (button) {
@@ -677,11 +677,11 @@
                 initSearchConsolePanels(target);
               }, 50);
             }
-            progress.complete(siteDomain + ' guncellendi', 'Search Console karti yeni verilerle yenilendi.');
+            progress.complete(siteDomain + ' güncellendi', 'Search Console kartı yeni verilerle yenilendi.');
           })
           .catch(function (error) {
             console.warn('Search Console site refresh failed:', error);
-            progress.fail(siteDomain + ' yenilenemedi', 'Bu site icin Search Console verisi yenilenemedi. Baglanti ve backend loglarini kontrol et.');
+            progress.fail(siteDomain + ' yenilenemedi', 'Bu site için Search Console verisi yenilenemedi. Bağlantı ve backend loglarını kontrol et.');
           })
           .finally(function () {
             if (button) {

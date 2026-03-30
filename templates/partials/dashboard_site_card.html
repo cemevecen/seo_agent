@@ -53,9 +53,9 @@
   >
     <div class="flex items-start justify-between gap-4">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklasik Ilerleme</p>
-        <p data-dashboard-progress-title class="mt-2 text-base font-semibold text-slate-900">Hazirlaniyor</p>
-        <p data-dashboard-progress-detail class="mt-1 text-sm text-slate-600">Dashboard olcumu ilgili site icin canli veri ve saglik kontrollerini tazeliyor.</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklaşık İlerleme</p>
+        <p data-dashboard-progress-title class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
+        <p data-dashboard-progress-detail class="mt-1 text-sm text-slate-600">Dashboard ölçümü ilgili site için canlı veri ve sağlık kontrollerini tazeliyor.</p>
       </div>
       <p data-dashboard-progress-percent class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
     </div>
@@ -66,7 +66,7 @@
 
   <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
-      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Search Clicks</p>
+      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Arama tıklaması</p>
       <p class="mt-3 text-3xl font-bold tracking-tight text-slate-900">{{ card.search_console.clicks_label }}</p>
       <p class="mt-2 text-sm text-slate-500">Son 7 gün toplamı</p>
     </div>
@@ -82,11 +82,11 @@
     </div>
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-2">
-        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Mobile</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Mobil</p>
         <span class="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">Mobil</span>
       </div>
       <p class="mt-3 font-bold tracking-tight {{ card.pagespeed_mobile_color }} {% if card.pagespeed_mobile_score is none %}text-xl{% else %}text-3xl{% endif %}">{{ card.pagespeed_mobile_label }}</p>
-      <p class="mt-2 text-sm text-slate-500">Mobil performans skoru</p>
+      <p class="mt-2 text-sm text-slate-500">Mobil performans puanı</p>
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ card.pagespeed_status.mobile.badge_class }}">{{ card.pagespeed_status.mobile.label }}</span>
         <span class="text-xs text-slate-500">Son veri: {{ card.pagespeed_status.mobile.updated_at }}</span>
@@ -94,11 +94,11 @@
     </div>
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-2">
-        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Desktop</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Masaüstü</p>
         <span class="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-700">Desktop</span>
       </div>
       <p class="mt-3 font-bold tracking-tight {{ card.pagespeed_desktop_color }} {% if card.pagespeed_desktop_score is none %}text-xl{% else %}text-3xl{% endif %}">{{ card.pagespeed_desktop_label }}</p>
-      <p class="mt-2 text-sm text-slate-500">Desktop performans skoru</p>
+      <p class="mt-2 text-sm text-slate-500">Masaüstü performans puanı</p>
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ card.pagespeed_status.desktop.badge_class }}">{{ card.pagespeed_status.desktop.label }}</span>
         <span class="text-xs text-slate-500">Son veri: {{ card.pagespeed_status.desktop.updated_at }}</span>
@@ -125,7 +125,7 @@
       hx-swap="innerHTML"
       hx-push-url="true"
     >
-      Mobile {{ card.pagespeed_status.mobile.label }}
+      Mobil {{ card.pagespeed_status.mobile.label }}
     </a>
     <a
       href="/data-explorer/{{ card.domain }}"
@@ -135,7 +135,7 @@
       hx-swap="innerHTML"
       hx-push-url="true"
     >
-      Desktop {{ card.pagespeed_status.desktop.label }}
+      Masaüstü {{ card.pagespeed_status.desktop.label }}
     </a>
     <a
       href="/data-explorer/{{ card.domain }}"
@@ -178,7 +178,7 @@
       <p class="mt-3 text-sm text-slate-600">{{ card.search_console.status.description }}</p>
       <div class="mt-4 grid gap-2 sm:grid-cols-3">
         <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Clicks</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Tıklama</p>
           <p class="mt-1 text-sm font-semibold text-slate-900">{{ card.search_console.clicks_label }}</p>
         </div>
         <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">

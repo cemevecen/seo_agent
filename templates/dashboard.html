@@ -259,17 +259,17 @@
       trigger.dataset.originalText = trigger.textContent;
       trigger.textContent = 'Yenileniyor...';
       const steps = [
-        { percent: 12, title: 'Olcum baslatildi', detail: 'Bu site icin Search Console, PageSpeed ve crawler akisleri siraya alindi.' },
-        { percent: 29, title: 'Search Console kontrol ediliyor', detail: 'Query, trend ve ozet verilerinin guncel durumu dogrulaniyor.' },
-        { percent: 51, title: 'Performans ve crawler cagrilari yapiliyor', detail: 'PageSpeed ile teknik saglik kontrolleri guncel kayitlarla esitleniyor.' },
-        { percent: 74, title: 'Alarm ve skor hesaplari isleniyor', detail: 'Dashboard kartindaki ozetler yeni sonuca gore yeniden hesaplanacak.' },
-        { percent: 91, title: 'Kart son haline getiriliyor', detail: 'Yeni olcum tamamlanirken kart yeniden cizim icin hazirlaniyor.' },
+        { percent: 12, title: 'Ölçüm başlatıldı', detail: 'Bu site için Search Console, PageSpeed ve crawler akışları sıraya alındı.' },
+        { percent: 29, title: 'Search Console kontrol ediliyor', detail: 'Query, trend ve özet verilerinin güncel durumu doğrulanıyor.' },
+        { percent: 51, title: 'Performans ve crawler çağrıları yapılıyor', detail: 'PageSpeed ile teknik sağlık kontrolleri güncel kayıtlarla eşitleniyor.' },
+        { percent: 74, title: 'Alarm ve skor hesapları işleniyor', detail: 'Dashboard kartındaki özetler yeni sonuca göre yeniden hesaplanacak.' },
+        { percent: 91, title: 'Kart son haline getiriliyor', detail: 'Yeni ölçüm tamamlanırken kart yeniden çizim için hazırlanıyor.' },
       ];
       let index = 0;
       renderDashboardProgress(card, {
         percent: 6,
-        title: 'Hazirlaniyor',
-        detail: 'Canli olcum istegi backend tarafina gonderiliyor.',
+        title: 'Hazırlanıyor',
+        detail: 'Canlı ölçüm isteği backend tarafına gönderiliyor.',
       });
       const timer = window.setInterval(function () {
         if (index >= steps.length) {
@@ -284,8 +284,8 @@
             }
             renderDashboardProgress(card, {
               percent: next,
-              title: 'Son olcum adimlari tamamlanıyor',
-              detail: 'Yanit bekleniyor; dashboard karti yeni veri ile guncellenecek.',
+              title: 'Son ölçüm adımları tamamlanıyor',
+              detail: 'Yanıt bekleniyor; dashboard kartı yeni veri ile güncellenecek.',
             });
           }, 700);
           dashboardProgressTimers.set(cardId, { timer: null, tailTimer: tailTimer });
@@ -313,7 +313,7 @@
       }
       const cardId = target.id.replace('dashboard-card-', '');
       clearDashboardProgress(cardId);
-      failDashboardProgress(target, 'Olcum tamamlanamadi', 'Bu site icin manuel olcum basarisiz oldu. Baglanti ve backend loglarini kontrol et.');
+      failDashboardProgress(target, 'Ölçüm tamamlanamadı', 'Bu site için manuel ölçüm başarısız oldu. Bağlantı ve backend loglarını kontrol et.');
       const button = target.querySelector('[data-dashboard-measure-button]');
       if (button && button.dataset.originalText) {
         button.textContent = button.dataset.originalText;

@@ -60,9 +60,9 @@ def decode_oauth_state(state: str) -> dict:
     payload = json.loads(decrypt_text(state))
     issued_at = datetime.fromisoformat(payload["issued_at"])
     if issued_at < datetime.utcnow() - timedelta(minutes=15):
-        raise ValueError("OAuth state zaman asimina ugradi.")
+        raise ValueError("OAuth state zaman aşımına uğradı.")
     if payload.get("redirect_host") != urlparse(get_oauth_redirect_uri()).netloc:
-        raise ValueError("OAuth state gecersiz host iceriyor.")
+        raise ValueError("OAuth state geçersiz host içeriyor.")
     return_path = str(payload.get("return_path") or "/settings")
     payload["return_path"] = return_path if return_path.startswith("/") else "/settings"
     return payload
@@ -136,7 +136,7 @@ def get_search_console_connection_status(db: Session, site_id: int) -> dict[str,
         .first()
     )
     if oauth_record is not None:
-        return {"connected": True, "method": "oauth", "label": "OAuth bagli"}
+        return {"connected": True, "method": "oauth", "label": "OAuth bağlı"}
 
     service_record = (
         db.query(SiteCredential)
@@ -144,6 +144,6 @@ def get_search_console_connection_status(db: Session, site_id: int) -> dict[str,
         .first()
     )
     if service_record is not None:
-        return {"connected": True, "method": "service_account", "label": "Service account bagli"}
+        return {"connected": True, "method": "service_account", "label": "Service account bağlı"}
 
-    return {"connected": False, "method": "none", "label": "Baglanti yok"}
+    return {"connected": False, "method": "none", "label": "Bağlantı yok"}
