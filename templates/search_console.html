@@ -248,6 +248,16 @@
           title: doneTitle || 'Tamamlandı',
           detail: doneDetail || 'Kartlar güncellendi.',
         });
+        setTimeout(function () {
+          if (!panel) { return; }
+          panel.style.transition = 'opacity 0.4s ease';
+          panel.style.opacity = '0';
+          setTimeout(function () {
+            panel.classList.add('hidden');
+            panel.style.opacity = '';
+            panel.style.transition = '';
+          }, 400);
+        }, 1500);
       },
       fail: function (errorTitle, errorDetail) {
         if (timer) {
