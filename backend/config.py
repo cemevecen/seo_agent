@@ -60,6 +60,11 @@ class Settings(BaseSettings):
 
     crawler_refresh_cooldown_seconds: int = 1800
     crawler_request_timeout_seconds: int = 10
+    crawler_source_page_limit: int = 40
+    crawler_target_url_limit: int = 250
+    crawler_links_per_page_limit: int = 30
+    crawler_sitemap_url_limit: int = 500
+    crawler_issue_sample_limit: int = 8
     outbound_min_interval_seconds: float = 2.0
     outbound_cache_ttl_seconds: int = 1800
     outbound_user_agent: str = "SEO-Agent/1.0 (+https://example.com; polite-monitoring)"

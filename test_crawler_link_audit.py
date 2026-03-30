@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for crawler link audit metrics."""
+"""Regression tests for sitewide crawler link audit metrics."""
 
 import sys
 import unittest
@@ -61,6 +61,10 @@ class CrawlerLinkAuditTest(unittest.TestCase):
                 return 200, "User-agent: *\nDisallow:"
             if url.endswith("/sitemap.xml"):
                 return 200, "<urlset><url><loc>https://example.com/</loc></url></urlset>"
+            if url.endswith("/kaynak-1"):
+                return 200, '<a href="/usd">USD</a><a href="/altin">Altın</a>'
+            if url.endswith("/kaynak-2"):
+                return 200, '<a href="/altin">Altın</a><a href="/borsa">Borsa</a>'
             return 200, homepage_html
 
         def fake_probe(url: str):
@@ -101,6 +105,7 @@ class CrawlerLinkAuditTest(unittest.TestCase):
             }
 
         with patch("backend.collectors.crawler._fetch_text", side_effect=fake_fetch), \
+             patch("backend.collectors.crawler._seed_source_pages", return_value=(["https://example.com/kaynak-1", "https://example.com/kaynak-2"], "Search Console öncelikli URL listesi")), \
              patch("backend.collectors.crawler._probe_internal_link", side_effect=fake_probe), \
              patch("backend.collectors.crawler.evaluate_site_alerts"):
             result = crawler.collect_crawler_metrics(self.db, self.site)
@@ -116,13 +121,19 @@ class CrawlerLinkAuditTest(unittest.TestCase):
             .first()
         )
 
-        self.assertEqual(latest_metrics["crawler_sampled_links_count"], 3.0)
+        self.assertEqual(latest_metrics["crawler_source_pages_count"], 2.0)
+        self.assertEqual(latest_metrics["crawler_audited_urls_count"], 5.0)
         self.assertEqual(latest_metrics["crawler_broken_links_count"], 1.0)
         self.assertEqual(latest_metrics["crawler_redirect_links_count"], 1.0)
+        self.assertEqual(latest_metrics["crawler_redirect_301_count"], 1.0)
+        self.assertEqual(latest_metrics["crawler_redirect_302_count"], 1.0)
         self.assertEqual(latest_metrics["crawler_redirect_chain_count"], 1.0)
         self.assertEqual(latest_metrics["crawler_redirect_max_hops"], 2.0)
         self.assertEqual(result["summary"]["link_audit"]["broken_links"], 1)
+        self.assertEqual(result["summary"]["link_audit"]["source_pages"], 2)
+        self.assertEqual(result["summary"]["link_audit"]["audited_urls"], 5)
         self.assertEqual(result["summary"]["link_audit"]["redirect_chains"], 1)
+        self.assertEqual(result["summary"]["link_audit"]["source_strategy"], "Search Console öncelikli URL listesi")
         self.assertIsNotNone(run)
         self.assertIn("link_audit", run.summary_json)
 

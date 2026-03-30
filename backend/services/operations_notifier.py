@@ -28,6 +28,13 @@ SUMMARY_LABELS = {
     "search_console_avg_position_28d": "Search Console ort. pozisyon 28G",
     "search_console_dropped_queries": "Düşen sorgu sayısı",
     "search_console_biggest_drop": "En büyük düşüş",
+    "source_pages": "Kaynak sayfa",
+    "audited_urls": "Taranan URL",
+    "redirect_301_links": "301 yönlendirme",
+    "redirect_302_links": "302 yönlendirme",
+    "redirect_chains": "Redirect zinciri",
+    "broken_links": "Kırık URL",
+    "max_hops": "Maks. hop",
 }
 
 COMPARISON_FIELDS = [
@@ -517,7 +524,7 @@ def _scheduled_system_specs() -> list[ScheduledSystemSpec]:
             notification_name="crawler_daily",
             label="Crawler",
             provider="crawler",
-            strategy="homepage",
+            strategy="sitewide",
             schedule_hour=int(settings.scheduled_refresh_hour),
             schedule_minute=int(settings.scheduled_refresh_minute),
             enabled=bool(settings.scheduled_refresh_enabled),
@@ -649,3 +656,158 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
             sent_subjects.append(subject)
 
     return sent_subjects
+
+
+def _crawler_summary_from_result(result: dict | None) -> dict:
+    if not isinstance(result, dict):
+        return {}
+    summary = result.get("summary") or {}
+    if not isinstance(summary, dict):
+        return {}
+    return dict(summary.get("link_audit") or {})
+
+
+def _format_source_urls(urls: list[str], *, total: int) -> str:
+    if not urls:
+        return "-"
+    visible = [str(item) for item in urls[:3]]
+    if total > len(visible):
+        visible.append(f"+{total - len(visible)} sayfa")
+    return "<br>".join(visible)
+
+
+def _crawler_issue_rows(link_audit: dict) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for sample in link_audit.get("broken_samples") or []:
+        rows.append(
+            [
+                "Kırık",
+                str(sample.get("url") or "-"),
+                str(sample.get("final_url") or "-"),
+                str(sample.get("final_status") or "erişilemedi"),
+                _format_source_urls(list(sample.get("source_urls") or []), total=int(sample.get("source_count") or 0)),
+            ]
+        )
+    for sample in link_audit.get("redirect_samples") or []:
+        rows.append(
+            [
+                str(sample.get("issue_label") or "Redirect"),
+                str(sample.get("url") or "-"),
+                str(sample.get("final_url") or "-"),
+                str(sample.get("chain") or sample.get("final_status") or "-"),
+                _format_source_urls(list(sample.get("source_urls") or []), total=int(sample.get("source_count") or 0)),
+            ]
+        )
+    return rows[:10]
+
+
+def _crawler_summary_cards(link_audit: dict) -> list[dict[str, str]]:
+    return [
+        {
+            "label": "Kaynak Sayfa",
+            "value": _format_tr_number(link_audit.get("source_pages"), decimals=0),
+            "caption": "İç linki çıkarılan başlangıç sayfaları",
+            "tone": "blue",
+        },
+        {
+            "label": "Taranan URL",
+            "value": _format_tr_number(link_audit.get("audited_urls"), decimals=0),
+            "caption": "Final durum kontrolü yapılan hedef URL",
+            "tone": "slate",
+        },
+        {
+            "label": "301 / 302",
+            "value": f'{_format_tr_number(link_audit.get("redirect_301_links"), decimals=0)} / {_format_tr_number(link_audit.get("redirect_302_links"), decimals=0)}',
+            "caption": "Dahili linklerde yönlendirme sayısı",
+            "tone": "amber",
+        },
+        {
+            "label": "Kırık / Zincir",
+            "value": f'{_format_tr_number(link_audit.get("broken_links"), decimals=0)} / {_format_tr_number(link_audit.get("redirect_chains"), decimals=0)}',
+            "caption": "Kritik teknik sorun sayısı",
+            "tone": "rose" if int(link_audit.get("broken_links") or 0) > 0 or int(link_audit.get("redirect_chains") or 0) > 0 else "emerald",
+        },
+    ]
+
+
+def notify_crawler_audit_emails(
+    *,
+    db: Session,
+    site: Site,
+    result: dict | None,
+    trigger_source: str,
+) -> list[str]:
+    link_audit = _crawler_summary_from_result(result)
+    collector_run_id = str((result or {}).get("collector_run_id") or "").strip()
+    if not link_audit or not collector_run_id:
+        return []
+
+    subjects: list[str] = []
+    issue_rows = _crawler_issue_rows(link_audit)
+    summary_rows = [
+        ("Site", site.domain),
+        ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
+        ("Kaynak seçimi", str(link_audit.get("source_strategy") or "URL listesi")),
+        ("Kaynak sayfa", _format_tr_number(link_audit.get("source_pages"), decimals=0)),
+        ("Taranan URL", _format_tr_number(link_audit.get("audited_urls"), decimals=0)),
+        ("Maks. hop", _format_tr_number(link_audit.get("max_hops"), decimals=0)),
+    ]
+
+    if trigger_source == "system":
+        report_key = f"crawler-report:{site.id}:{collector_run_id}"
+        if not _delivery_exists(db, notification_type="operations", notification_key=report_key):
+            report_subject = f"SEO Agent: {site.domain} günlük crawler raporu"
+            report_body = render_email_shell(
+                eyebrow="SEO Agent Operations",
+                title=f"{site.domain} günlük crawler raporu",
+                intro="Site içi taranan URL'lerin son durum özeti aşağıda yer alır. Bu rapor kırık URL, 301/302 yönlendirme ve redirect zinciri dağılımını tek bakışta gösterir.",
+                tone="blue",
+                status_label="Günlük Rapor",
+                sections=[
+                    section("Özet", summary_table(summary_rows), subtitle="Günlük koşuda kullanılan kapsam ve taranan URL sayısı."),
+                    section("Kritik Kartlar", stat_cards(_crawler_summary_cards(link_audit)), subtitle="En önemli crawler metrikleri."),
+                    section(
+                        "Sorunlu URL Örnekleri",
+                        data_table(["Durum", "Hedef URL", "Final URL", "Durum Zinciri", "Kaynak Sayfalar"], issue_rows)
+                        if issue_rows
+                        else note_box("Temiz Sonuç", "Bu günlük koşuda örnek tabloya girecek kırık veya yönlendirmeli URL bulunmadı.", tone="emerald"),
+                        subtitle="Tablo, tıklayıp kontrol etmen gereken örnek URL'leri gösterir.",
+                    ),
+                ],
+            )
+            if _send_operations_email(report_subject, report_body, notification_key=report_key, db=db):
+                subjects.append(report_subject)
+
+    has_issue = any(int(link_audit.get(key) or 0) > 0 for key in ("broken_links", "redirect_chains", "redirect_301_links", "redirect_302_links"))
+    if has_issue:
+        issue_key = f"crawler-issue:{site.id}:{collector_run_id}"
+        if not _delivery_exists(db, notification_type="operations", notification_key=issue_key):
+            issue_subject = f"SEO Agent UYARI: {site.domain} crawler sorunları bulundu"
+            issue_body = render_email_shell(
+                eyebrow="SEO Agent Operations",
+                title=f"Uyarı: {site.domain} crawler sorunları bulundu",
+                intro="Bu mail bir sorun bildirir. İç linklerde kırık hedef, yönlendirme veya redirect zinciri tespit edildi.",
+                tone="amber",
+                status_label="Uyarı",
+                sections=[
+                    section("Özet", summary_table(summary_rows), subtitle="Sorun çıkan koşunun kısa özeti."),
+                    section("Kritik Kartlar", stat_cards(_crawler_summary_cards(link_audit)), subtitle="Hangi problem tipinin öne çıktığı burada görülür."),
+                    section(
+                        "Sorunlu URL Tablosu",
+                        data_table(["Durum", "Hedef URL", "Final URL", "Durum Zinciri", "Kaynak Sayfalar"], issue_rows),
+                        subtitle="Final URL ve bu linkin hangi kaynak sayfalarda bulunduğu birlikte gösterilir.",
+                    ),
+                    section(
+                        "Yorum",
+                        note_box(
+                            "Ne Yapılmalı",
+                            "Kırık URL'leri kaldır veya doğru hedefe yönlendir. 301/302 kullanan dahili linkleri doğrudan final URL'ye çevir. Zincir görülen URL'leri tek adımlı hedefe indir.",
+                            tone="amber",
+                        ),
+                    ),
+                ],
+            )
+            if _send_operations_email(issue_subject, issue_body, notification_key=issue_key, db=db):
+                subjects.append(issue_subject)
+
+    return subjects

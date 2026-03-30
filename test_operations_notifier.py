@@ -108,6 +108,59 @@ class OperationsNotifierTest(unittest.TestCase):
         self.assertIn("Son 7 Gün", html)
         self.assertIn("-0,24 puan (düşüş)", html)
 
+    def test_crawler_audit_emails_include_final_url_and_source_pages(self) -> None:
+        result = {
+            "collector_run_id": 77,
+            "summary": {
+                "link_audit": {
+                    "source_pages": 40,
+                    "audited_urls": 250,
+                    "redirect_301_links": 3,
+                    "redirect_302_links": 1,
+                    "redirect_chains": 1,
+                    "broken_links": 2,
+                    "max_hops": 2,
+                    "source_strategy": "Search Console öncelikli URL listesi",
+                    "broken_samples": [
+                        {
+                            "url": "https://example.com/eski",
+                            "final_url": "https://example.com/eski",
+                            "final_status": 404,
+                            "source_urls": ["https://example.com/kaynak-a", "https://example.com/kaynak-b"],
+                            "source_count": 2,
+                        }
+                    ],
+                    "redirect_samples": [
+                        {
+                            "url": "https://example.com/yonlen",
+                            "final_url": "https://example.com/yeni",
+                            "final_status": 200,
+                            "chain": "301 -> 302 -> 200",
+                            "source_urls": ["https://example.com/kaynak-c"],
+                            "source_count": 1,
+                            "issue_label": "Redirect zinciri, 302, 301",
+                        }
+                    ],
+                }
+            },
+        }
+
+        with patch("backend.services.operations_notifier.send_email", return_value=True) as send_email:
+            subjects = operations_notifier.notify_crawler_audit_emails(
+                db=self.db,
+                site=self.site,
+                result=result,
+                trigger_source="system",
+            )
+
+        self.assertEqual(len(subjects), 2)
+        self.assertEqual(send_email.call_count, 2)
+        combined_html = "\n".join(call.args[1] for call in send_email.call_args_list)
+        self.assertIn("Final URL", combined_html)
+        self.assertIn("https://example.com/yeni", combined_html)
+        self.assertIn("https://example.com/kaynak-a", combined_html)
+        self.assertIn("301 / 302", combined_html)
+
 
 if __name__ == "__main__":
     unittest.main()

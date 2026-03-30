@@ -54,7 +54,12 @@ from backend.services.search_console_auth import build_oauth_flow, decode_oauth_
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
-from backend.services.operations_notifier import notify_missed_scheduled_refreshes, notify_result_map, notify_system_trigger
+from backend.services.operations_notifier import (
+    notify_crawler_audit_emails,
+    notify_missed_scheduled_refreshes,
+    notify_result_map,
+    notify_system_trigger,
+)
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
@@ -704,6 +709,13 @@ def _run_daily_refresh_job() -> None:
                     results=results,
                     action_label="Günlük site yenilemesi",
                 )
+                if isinstance(results.get("crawler"), dict):
+                    notify_crawler_audit_emails(
+                        db=db,
+                        site=site,
+                        result=results.get("crawler"),
+                        trigger_source="system",
+                    )
 
                 try:
                     crux_result = collect_crux_history(db, site)
@@ -1311,7 +1323,7 @@ def _crawler_checks_from_metrics(latest: dict[str, object]) -> list[dict]:
         (
             "Kırık İç Link",
             latest.get("crawler_broken_links_count") is None or _metric_value(latest, "crawler_broken_links_count", 0.0) <= 0.0,
-            "Ana sayfadan örneklenen iç linklerde hata sayısı",
+            "Site içi taranan URL'lerde hata sayısı",
         ),
         (
             "Redirect Zinciri",
@@ -1338,11 +1350,16 @@ def _latest_crawler_link_audit_summary(db, *, site_id: int) -> dict:
     summary = _latest_successful_provider_summary(db, site_id=site_id, provider="crawler")
     link_audit = dict(summary.get("link_audit") or {})
     return {
-        "sampled_links": int(link_audit.get("sampled_links") or 0),
+        "source_pages": int(link_audit.get("source_pages") or 0),
+        "audited_urls": int(link_audit.get("audited_urls") or link_audit.get("sampled_links") or 0),
         "redirect_links": int(link_audit.get("redirect_links") or 0),
+        "redirect_301_links": int(link_audit.get("redirect_301_links") or 0),
+        "redirect_302_links": int(link_audit.get("redirect_302_links") or 0),
         "redirect_chains": int(link_audit.get("redirect_chains") or 0),
         "broken_links": int(link_audit.get("broken_links") or 0),
         "max_hops": int(link_audit.get("max_hops") or 0),
+        "source_strategy": str(link_audit.get("source_strategy") or "URL listesi"),
+        "source_pages_sample": list(link_audit.get("source_pages_sample") or []),
         "redirect_samples": list(link_audit.get("redirect_samples") or []),
         "broken_samples": list(link_audit.get("broken_samples") or []),
         "has_data": bool(link_audit),
@@ -1904,14 +1921,22 @@ def _build_dashboard_card(
     )
     broken_links_ok = crawler_link_audit["broken_links"] <= 0
     redirect_chain_ok = crawler_link_audit["redirect_chains"] <= 0
-    crawler_ok = base_crawler_ok and broken_links_ok and redirect_chain_ok
+    redirect_301_ok = crawler_link_audit["redirect_301_links"] <= 0
+    redirect_302_ok = crawler_link_audit["redirect_302_links"] <= 0
+    crawler_ok = base_crawler_ok and broken_links_ok and redirect_chain_ok and redirect_301_ok and redirect_302_ok
     crawler_status_parts: list[str] = list(base_crawler_issues)
+    if crawler_link_audit["audited_urls"] > 0:
+        crawler_status_parts.append(f'{crawler_link_audit["audited_urls"]} URL tarandı')
+    if crawler_link_audit["redirect_301_links"] > 0:
+        crawler_status_parts.append(f'{crawler_link_audit["redirect_301_links"]} adet 301')
+    if crawler_link_audit["redirect_302_links"] > 0:
+        crawler_status_parts.append(f'{crawler_link_audit["redirect_302_links"]} adet 302')
     if crawler_link_audit["broken_links"] > 0:
         crawler_status_parts.append(f'{crawler_link_audit["broken_links"]} kırık link')
     if crawler_link_audit["redirect_chains"] > 0:
         crawler_status_parts.append(f'{crawler_link_audit["redirect_chains"]} redirect zinciri')
     crawler_label = "Crawler sağlıklı" if crawler_ok else "Crawler kontrol gerekli"
-    crawler_detail = ", ".join(crawler_status_parts) if crawler_status_parts else "robots, sitemap, schema ve link denetimi iyi durumda"
+    crawler_detail = ", ".join(crawler_status_parts) if crawler_status_parts else "robots, sitemap, schema ve site içi link denetimi iyi durumda"
     search_console_status = _search_console_status(db, latest, site.id)
     search_console_report = _search_console_report_payload(db, site_id=site.id)
     search_console_summary = search_console_report.get("summary_current") or {}
@@ -2564,6 +2589,7 @@ def dashboard_measure_site(request: Request, site_id: int):
                 include_pagespeed=True,
                 include_crawler=True,
                 include_search_console=True,
+                force=True,
             )
             db.commit()
             notify_result_map(
@@ -2572,6 +2598,13 @@ def dashboard_measure_site(request: Request, site_id: int):
                 results=results,
                 action_label="Dashboard manuel ölçüm",
             )
+            if isinstance(results.get("crawler"), dict):
+                notify_crawler_audit_emails(
+                    db=db,
+                    site=site,
+                    result=results.get("crawler"),
+                    trigger_source="manual",
+                )
             flash_message = _summarize_manual_measurement(results)
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -2818,6 +2851,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
             include_pagespeed=True,
             include_crawler=True,
             include_search_console=True,
+            force=True,
         )
         db.commit()
         notify_result_map(
@@ -2826,6 +2860,13 @@ def api_refresh_site_metrics(request: Request, domain: str):
             results=results,
             action_label="Site metriklerini manuel yenile",
         )
+        if isinstance(results.get("crawler"), dict):
+            notify_crawler_audit_emails(
+                db=db,
+                site=site,
+                result=results.get("crawler"),
+                trigger_source="manual",
+            )
         return JSONResponse(
             {
                 "site": site.domain,

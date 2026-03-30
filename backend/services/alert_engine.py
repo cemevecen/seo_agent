@@ -76,14 +76,14 @@ ALERT_DESCRIPTIONS = {
         "severity": "warning"
     },
     "crawler_broken_links_count": {
-        "description_tr": "Ana sayfadan örneklenen iç linklerin bir kısmı 404, 410 veya benzeri hata ile açılmıyor.",
+        "description_tr": "Site içi taranan URL'lerin bir kısmı 404, 410 veya benzeri hata ile açılmıyor.",
         "description_en": "Some sampled internal links from the homepage are returning 404, 410, or similar errors.",
         "what_means": "Kullanıcı deneyimi bozulur, crawl bütçesi boşa gider ve SEO değeri zayıflayabilir.",
         "what_means_en": "User experience degrades, crawl budget is wasted, and SEO value may weaken.",
         "severity": "critical"
     },
     "crawler_redirect_chain_count": {
-        "description_tr": "İç linklerin bir kısmı hedefe tek adımda gitmiyor; birden fazla yönlendirme üzerinden açılıyor.",
+        "description_tr": "Site içi taranan URL'lerin bir kısmı hedefe tek adımda gitmiyor; birden fazla yönlendirme üzerinden açılıyor.",
         "description_en": "Some internal links are not resolving directly and require multiple redirect hops.",
         "what_means": "Tarama verimi düşer, sayfa açılışı uzar ve link değeri gereksiz yönlendirmelerde yıpranır.",
         "what_means_en": "Crawl efficiency drops, page loads slow down, and link equity is diluted through unnecessary redirects.",
