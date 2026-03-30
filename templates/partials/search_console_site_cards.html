@@ -240,24 +240,14 @@
           {% endif %}
 
           {% if site.connection.connected %}
-            {% if site.cooldown_active %}
+            <form hx-post="/search-console/refresh/{{ site.id }}" hx-target="#search-console-site-list" hx-swap="innerHTML">
               <button
-                type="button"
-                disabled
-                class="w-full cursor-not-allowed rounded-full bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 sm:w-auto"
+                type="submit"
+                class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto"
               >
-                Yenileme beklemede
+                Search Console Verisini Yenile
               </button>
-            {% else %}
-              <form hx-post="/search-console/refresh/{{ site.id }}" hx-target="#search-console-site-list" hx-swap="innerHTML">
-                <button
-                  type="submit"
-                  class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto"
-                >
-                  Search Console Verisini Yenile
-                </button>
-              </form>
-            {% endif %}
+            </form>
           {% endif %}
         </div>
         </div>

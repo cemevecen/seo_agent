@@ -5,11 +5,12 @@
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <button
+        id="refresh-search-console-sites-button"
         type="button"
         class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
-        onclick="refreshSearchConsoleSites()"
+        onclick="refreshSearchConsoleSites(this)"
       >
-        Listeyi Yenile
+        Tum Siteleri Yenile
       </button>
     </div>
 
@@ -20,8 +21,42 @@
 </div>
 
 <script>
-  function refreshSearchConsoleSites() {
-    htmx.ajax('GET', '/search-console/site-list', { target: '#search-console-site-list', swap: 'innerHTML' });
+  function refreshSearchConsoleSites(button) {
+    const trigger = button || document.getElementById('refresh-search-console-sites-button');
+    const target = document.getElementById('search-console-site-list');
+    const original = trigger ? trigger.textContent : '';
+    if (trigger) {
+      trigger.disabled = true;
+      trigger.textContent = 'Yenileniyor...';
+    }
+
+    fetch('/search-console/refresh-all', {
+      method: 'POST',
+      headers: { 'HX-Request': 'true' }
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('refresh failed');
+        }
+        return response.text();
+      })
+      .then(function (html) {
+        if (target) {
+          target.innerHTML = html;
+          window.setTimeout(function () {
+            initSearchConsolePanels(target);
+          }, 50);
+        }
+      })
+      .catch(function (error) {
+        console.warn('Search Console bulk refresh failed:', error);
+      })
+      .finally(function () {
+        if (trigger) {
+          trigger.disabled = false;
+          trigger.textContent = original;
+        }
+      });
   }
 
   function fitSearchConsoleText(root) {

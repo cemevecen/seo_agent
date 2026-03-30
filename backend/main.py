@@ -2714,31 +2714,14 @@ def api_refresh_data_explorer(request: Request, domain: str):
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
         results: dict[str, dict] = {}
-        if _latest_collector_run_recent(
-            db,
-            site_id=site.id,
-            provider="crux_history",
-            cooldown_seconds=settings.crux_refresh_cooldown_seconds,
-        ):
-            results["crux_history"] = {
-                "state": "skipped",
-                "reason": "CrUX history yakin zamanda yenilendigi icin tekrar tetiklenmedi.",
-            }
-        else:
+        try:
             results["crux_history"] = collect_crux_history(db, site)
-
-        if _latest_collector_run_recent(
-            db,
-            site_id=site.id,
-            provider="url_inspection",
-            cooldown_seconds=settings.url_inspection_refresh_cooldown_seconds,
-        ):
-            results["url_inspection"] = {
-                "state": "skipped",
-                "reason": "URL Inspection yakin zamanda yenilendigi icin tekrar cagrilmadi.",
-            }
-        else:
+        except Exception as exc:  # noqa: BLE001
+            results["crux_history"] = {"state": "failed", "error": str(exc)}
+        try:
             results["url_inspection"] = collect_url_inspection(db, site)
+        except Exception as exc:  # noqa: BLE001
+            results["url_inspection"] = {"state": "failed", "error": str(exc)}
         db.commit()
         notify_result_map(
             trigger_source="manual",
@@ -2914,6 +2897,53 @@ def search_console_site_list(request: Request):
         )
 
 
+@app.post("/search-console/refresh-all")
+@limiter.limit("2/hour")
+def search_console_refresh_all(request: Request):
+    with SessionLocal() as db:
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        for index, site in enumerate(sites):
+            connection = get_search_console_connection_status(db, site.id)
+            if not connection.get("connected"):
+                continue
+            try:
+                results = _refresh_site_detail_measurements(
+                    db,
+                    site,
+                    include_pagespeed=False,
+                    include_crawler=False,
+                    include_search_console=True,
+                    force=True,
+                )
+                db.commit()
+                notify_result_map(
+                    trigger_source="manual",
+                    site=site,
+                    results=results,
+                    action_label="Tum Search Console sitelerini yenile",
+                )
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                notify_system_trigger(
+                    trigger_source="manual",
+                    system_key="search_console",
+                    site=site,
+                    result={"state": "failed", "error": str(exc)},
+                    action_label="Tum Search Console sitelerini yenile",
+                )
+            if index < len(sites) - 1:
+                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+        return templates.TemplateResponse(
+            request,
+            "partials/search_console_site_cards.html",
+            context={
+                "request": request,
+                "search_console_sites": _search_console_sites_payload(db),
+                "oauth_ready": oauth_is_configured(),
+            },
+        )
+
+
 @app.post("/search-console/refresh/{site_id}")
 @limiter.limit("6/hour")
 def search_console_manual_refresh(request: Request, site_id: int):
@@ -2927,6 +2957,7 @@ def search_console_manual_refresh(request: Request, site_id: int):
             include_pagespeed=False,
             include_crawler=False,
             include_search_console=True,
+            force=True,
         )
         db.commit()
         notify_result_map(
