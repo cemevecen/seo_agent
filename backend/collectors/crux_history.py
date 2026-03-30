@@ -192,7 +192,7 @@ def _extract_crux_current(record: dict) -> dict[str, dict]:
     return current
 
 
-def _request_crux_record(endpoint: str, body_payload: dict) -> dict:
+def _request_crux_record(endpoint: str, body_payload: dict, *, request_timeout: int | None = None) -> dict:
     api_key = settings.google_api_key.strip()
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY eksik.")
@@ -204,16 +204,25 @@ def _request_crux_record(endpoint: str, body_payload: dict) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urlopen(request, timeout=settings.pagespeed_request_timeout) as response:
+    effective_timeout = int(request_timeout or settings.pagespeed_request_timeout)
+    with urlopen(request, timeout=effective_timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _fetch_crux_history(domain: str, form_factor: str) -> tuple[dict, dict]:
+def _fetch_crux_history(
+    domain: str,
+    form_factor: str,
+    *,
+    request_timeout: int | None = None,
+    max_identifier_attempts: int | None = None,
+) -> tuple[dict, dict]:
     last_error: Exception | None = None
-    for identifier in _candidate_identifiers(domain, form_factor):
+    for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
+        if max_identifier_attempts and idx >= max_identifier_attempts:
+            break
         body_payload = {identifier["type"]: identifier["value"], "formFactor": form_factor, "metrics": list(METRIC_LABELS.keys())}
         try:
-            payload = _request_crux_record(CRUX_HISTORY_ENDPOINT, body_payload)
+            payload = _request_crux_record(CRUX_HISTORY_ENDPOINT, body_payload, request_timeout=request_timeout)
             record = payload.get("record") or {}
             return payload, {
                 "form_factor": form_factor,
@@ -235,12 +244,20 @@ def _fetch_crux_history(domain: str, form_factor: str) -> tuple[dict, dict]:
     raise RuntimeError("CrUX history verisi alinamadi.")
 
 
-def _fetch_crux_current(domain: str, form_factor: str) -> tuple[dict, dict]:
+def _fetch_crux_current(
+    domain: str,
+    form_factor: str,
+    *,
+    request_timeout: int | None = None,
+    max_identifier_attempts: int | None = None,
+) -> tuple[dict, dict]:
     last_error: Exception | None = None
-    for identifier in _candidate_identifiers(domain, form_factor):
+    for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
+        if max_identifier_attempts and idx >= max_identifier_attempts:
+            break
         body_payload = {identifier["type"]: identifier["value"], "formFactor": form_factor, "metrics": list(METRIC_LABELS.keys())}
         try:
-            payload = _request_crux_record(CRUX_CURRENT_ENDPOINT, body_payload)
+            payload = _request_crux_record(CRUX_CURRENT_ENDPOINT, body_payload, request_timeout=request_timeout)
             record = payload.get("record") or {}
             return payload, {
                 "form_factor": form_factor,
@@ -263,7 +280,13 @@ def _fetch_crux_current(domain: str, form_factor: str) -> tuple[dict, dict]:
     raise RuntimeError("CrUX guncel veri kaydi alinamadi.")
 
 
-def collect_crux_history(db: Session, site: Site) -> dict:
+def collect_crux_history(
+    db: Session,
+    site: Site,
+    *,
+    request_timeout: int | None = None,
+    max_identifier_attempts: int | None = None,
+) -> dict:
     target_url = _normalize_url(site.domain)
     collected_at = datetime.utcnow()
     output: dict[str, dict] = {}
@@ -278,12 +301,22 @@ def collect_crux_history(db: Session, site: Site) -> dict:
             requested_at=collected_at,
         )
         try:
-            raw_history_payload, history_summary = _fetch_crux_history(site.domain, api_form_factor)
+            raw_history_payload, history_summary = _fetch_crux_history(
+                site.domain,
+                api_form_factor,
+                request_timeout=request_timeout,
+                max_identifier_attempts=max_identifier_attempts,
+            )
             raw_current_payload = {}
             current_summary: dict[str, object] = {}
             current_error = ""
             try:
-                raw_current_payload, current_summary = _fetch_crux_current(site.domain, api_form_factor)
+                raw_current_payload, current_summary = _fetch_crux_current(
+                    site.domain,
+                    api_form_factor,
+                    request_timeout=request_timeout,
+                    max_identifier_attempts=max_identifier_attempts,
+                )
             except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
                 current_error = str(exc)
 

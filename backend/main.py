@@ -859,7 +859,12 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 detail="Chrome UX Report verileri çekiliyor.",
             )
             try:
-                results["crux_history"] = collect_crux_history(db, site)
+                results["crux_history"] = collect_crux_history(
+                    db,
+                    site,
+                    request_timeout=15,
+                    max_identifier_attempts=2,
+                )
             except Exception as exc:  # noqa: BLE001
                 has_error = True
                 results["crux_history"] = {"state": "failed", "error": str(exc)}
