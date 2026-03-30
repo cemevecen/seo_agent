@@ -264,7 +264,7 @@ text-slate-500
         {% for metric in crux_mobile_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz mobil CrUX history snapshot yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz mobil CrUX geçmiş kaydı yok.</div>
         {% endfor %}
       </div>
       <div id="crux-mobile-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_mobile_series|tojson }}'></div>
@@ -288,7 +288,7 @@ text-slate-500
         {% for metric in crux_desktop_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz masaüstü CrUX history snapshot yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Henüz masaüstü CrUX geçmiş kaydı yok.</div>
         {% endfor %}
       </div>
       <div id="crux-desktop-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_desktop_series|tojson }}'></div>
@@ -511,7 +511,7 @@ text-slate-500
     </div>
     {% else %}
     <div class="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-      Henüz URL Inspection snapshot yok.
+      Henüz URL Inspection kaydı yok.
     </div>
     {% endif %}
   </section>
@@ -525,11 +525,11 @@ text-slate-500
     </div>
     <div class="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
       {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tum collector calismalari", "Arka planda toplam kaç collector görevi koştuğunu gösterir.") }}
-      {{ metric_tile("PS Payload'ları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed snapshot sayisi", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.") }}
+      {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.") }}
       {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.") }}
       {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.") }}
-      {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX history snapshot sayisi", "Gerçek kullanıcı performans geçmişi için saklanan CrUX snapshot sayısıdır.") }}
-      {{ metric_tile("İnceleme", warehouse_summary.url_inspection_snapshots, "URL Inspection snapshot sayisi", "Google URL Inspection cevabının saklanan toplam snapshot sayısıdır.") }}
+      {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.") }}
+      {{ metric_tile("İnceleme", warehouse_summary.url_inspection_snapshots, "URL Inspection kayıt sayısı", "Google URL Inspection cevabının saklanan toplam kayıt sayısıdır.") }}
     </div>
   </section>
 </div>
@@ -700,7 +700,7 @@ text-slate-500
       const progressSteps = [
         { percent: 18, title: 'CrUX History cagrisi yapiliyor', detail: 'Chrome UX Report history verisi dis kaynaktan cekiliyor.' },
         { percent: 43, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu guncel durum icin yeniden isteniyor.' },
-        { percent: 71, title: 'Warehouse kayitlari yaziliyor', detail: 'Yeni snapshot ve collector run kayitlari veritabanina ekleniyor.' },
+        { percent: 71, title: 'Veri kayitlari yaziliyor', detail: 'Yeni veri kayitlari ve toplama kayitlari veritabanina ekleniyor.' },
         { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gosterilmek uzere hazirlaniyor.' },
       ];
       let progressTimer = null;

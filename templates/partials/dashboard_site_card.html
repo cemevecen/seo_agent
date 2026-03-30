@@ -163,7 +163,7 @@
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Son Search Console snapshot</p>
+          <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Son Search Console kaydı</p>
           <p class="mt-2 text-sm font-semibold text-slate-900">{{ card.search_console.last_run_at }}</p>
         </div>
         <a
@@ -193,7 +193,7 @@
       <div class="mt-3 flex flex-wrap gap-2">
         <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{{ card.search_console.connection_label }}</span>
         <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {% if card.search_console.has_rows %}border-emerald-200 bg-emerald-50 text-emerald-700{% else %}border-amber-200 bg-amber-50 text-amber-700{% endif %}">
-          {% if card.search_console.has_rows %}Snapshot var{% else %}Snapshot bekleniyor{% endif %}
+          {% if card.search_console.has_rows %}Kayıt var{% else %}Kayıt bekleniyor{% endif %}
         </span>
       </div>
     </div>

@@ -14,7 +14,7 @@
           Tum Siteleri Yenile
         </button>
         <p class="text-sm text-slate-500">
-          Bu islem bagli siteler icin Search Console API'den yeni veri ceker, snapshot yazar ve kartlari yeniden olusturur.
+          Bu islem bagli siteler icin Search Console API'den yeni veri ceker, kaydi yazar ve kartlari yeniden olusturur.
         </p>
       </div>
     </div>
@@ -293,7 +293,7 @@
       steps: [
         { percent: 14, title: 'Baglantilar kontrol ediliyor', detail: 'OAuth baglantilari ve property hedefleri kontrol ediliyor.' },
         { percent: 31, title: 'API cagrilari basladi', detail: 'Bagli siteler sirayla Search Console API uzerinden yenileniyor.' },
-        { percent: 52, title: 'Snapshot kaydi yapiliyor', detail: 'Yeni query, trend ve ozet satirlari veritabanina yaziliyor.' },
+        { percent: 52, title: 'Kayit yaziliyor', detail: 'Yeni query, trend ve ozet satirlari veritabanina yaziliyor.' },
         { percent: 73, title: 'Alert senkronu hesaplaniyor', detail: 'Yeni Search Console verisine gore iliskili uyarilar guncelleniyor.' },
         { percent: 91, title: 'Kartlar hazirlaniyor', detail: 'Ekrandaki tum kartlar yeni verilerle yeniden olusturuluyor.' },
       ],
@@ -643,11 +643,11 @@
         const siteDomain = form.dataset.siteDomain || 'site';
         const progress = createSearchConsoleProgressController({
           title: siteDomain + ' icin Search Console yenileniyor',
-          detail: 'Google Search Console API uzerinden yeni snapshot cekiliyor.',
+          detail: 'Google Search Console API uzerinden yeni veri cekiliyor.',
           steps: [
             { percent: 16, title: 'Baglanti hazirlaniyor', detail: siteDomain + ' icin OAuth ve property bilgisi dogrulaniyor.' },
             { percent: 37, title: 'API verisi cekiliyor', detail: siteDomain + ' icin Search Console ozet ve query verisi aliniyor.' },
-            { percent: 59, title: 'Snapshot yaziliyor', detail: 'Yeni query, trend ve ozet satirlari kaydediliyor.' },
+            { percent: 59, title: 'Kayit yaziliyor', detail: 'Yeni query, trend ve ozet satirlari kaydediliyor.' },
             { percent: 79, title: 'Alert senkronu guncelleniyor', detail: 'Bu siteye ait Search Console uyari verileri yeniden hesaplanıyor.' },
             { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar olusturuluyor.' },
           ],

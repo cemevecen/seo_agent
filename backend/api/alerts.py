@@ -100,7 +100,7 @@ def _build_search_console_comparison(
         fallback_label = "Dün" if comparison_type != "weekly" else "Geçen haftanın aynı günü"
         return {
             "message": (
-                f"{fallback_label} bazlı ayrı snapshot bulunmuyor. "
+                f"{fallback_label} bazlı ayrı kayıt bulunmuyor. "
                 "Bu uyarı Search Console son 7 gün / önceki 7 gün karşılaştırmasından üretilir."
             ),
             "comparison_type": comparison_type,
@@ -118,11 +118,11 @@ def _build_search_console_comparison(
         previous_label = "Onceki Gun"
         if not current_rows and not previous_rows:
             return {
-                "message": "Gunluk Search Console snapshot henuz hazir degil. Manuel yenile ya da sabah otomatik taramayi bekle.",
+                "message": "Gunluk Search Console verisi henuz hazir degil. Manuel yenile ya da sabah otomatik taramayi bekle.",
                 "comparison_type": comparison_type,
                 "query_details": [],
                 "cards": [
-                    _comparison_card("Durum", "Veri yok", "Dun / onceki gun snapshot bulunamadi.", "slate"),
+                    _comparison_card("Durum", "Veri yok", "Dun / onceki gun kaydi bulunamadi.", "slate"),
                 ],
             }
 
@@ -283,7 +283,7 @@ def _build_search_console_comparison(
             _comparison_card("Fark", delta_value, delta_detail, "red"),
         ]
     else:
-        message = "Bu alert tipi Search Console snapshot karsilastirmasiyla aciklandi."
+        message = "Bu alert tipi Search Console kayit karsilastirmasiyla aciklandi."
         cards = [_comparison_card("Durum", "Hazir", "", "blue")]
 
     return {

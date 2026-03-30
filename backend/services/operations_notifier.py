@@ -103,14 +103,16 @@ def _result_status_label(result: dict | None) -> str:
     if not isinstance(result, dict):
         return "tamamlandi"
     if result.get("blocked"):
-        return "blocked"
+        return "engellendi"
     if result.get("state"):
-        return str(result.get("state"))
+        state = str(result.get("state"))
+        return "güncel değil" if state.lower() == "stale" else state
     if result.get("source"):
-        return str(result.get("source"))
+        source = str(result.get("source"))
+        return "güncel değil" if source.lower() == "stale" else source
     if result.get("error") or result.get("errors"):
-        return "failed"
-    return "completed"
+        return "başarısız"
+    return "tamamlandi"
 
 
 def _result_tone(result: dict | None) -> str:

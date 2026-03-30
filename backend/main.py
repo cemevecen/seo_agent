@@ -1335,7 +1335,7 @@ def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_m
         description = "Canli ve guncel veri"
     elif has_metric:
         state = "stale"
-        label = "Stale"
+        label = "Güncel değil"
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
         description = "Son basarili olcum gosteriliyor"
     else:
@@ -1367,9 +1367,9 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
         description = "Search Console canli veri"
     elif connection.get("connected") and (has_metric or has_rows):
         state = "stale"
-        label = "Stale"
+        label = "Güncel değil"
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
-        description = "Son basarili Search Console snapshot'i"
+        description = "Son başarılı Search Console kaydı gösteriliyor"
     else:
         state = "failed"
         label = "Failed"
@@ -1396,7 +1396,7 @@ def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: 
         }
     if state == "stale":
         return {
-            "label": "Stale",
+            "label": "Güncel değil",
             "badge_class": "border-amber-200 bg-amber-50 text-amber-800",
             "description": stale_text,
         }
@@ -1783,19 +1783,19 @@ def _data_explorer_context(domain: str) -> dict:
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
             "CrUX guncel kaydi ve history serisi mevcut",
-            "Son başarılı CrUX snapshot gösteriliyor",
-            "CrUX history verisi henüz yok",
+            "Son başarılı CrUX kaydı gösteriliyor",
+            "CrUX geçmiş verisi henüz yok",
         )
         desktop_state = _data_state_badge(
             "live" if desktop_crux else "failed",
             "CrUX guncel kaydi ve history serisi mevcut",
-            "Son başarılı CrUX snapshot gösteriliyor",
-            "CrUX history verisi henüz yok",
+            "Son başarılı CrUX kaydı gösteriliyor",
+            "CrUX geçmiş verisi henüz yok",
         )
         inspection_state = _data_state_badge(
             "live" if inspection else "failed",
-            "URL Inspection snapshot mevcut",
-            "Son başarılı URL Inspection snapshot gösteriliyor",
+            "URL Inspection kaydı mevcut",
+            "Son başarılı URL Inspection kaydı gösteriliyor",
             "URL Inspection verisi henüz yok",
         )
 
@@ -2028,7 +2028,7 @@ def _build_dashboard_overview(site_cards: list[dict], recent_alerts: list[dict])
         {
             "eyebrow": "Search Console Güncel",
             "value": f"{ready_search_console}/{total_sites}" if total_sites else "0/0",
-            "note": "sabah snapshot'ı hazır",
+            "note": "sabah verisi hazır",
         },
         {
             "eyebrow": "Dikkat Gereken Site",
