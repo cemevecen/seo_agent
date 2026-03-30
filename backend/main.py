@@ -54,6 +54,7 @@ from backend.services.search_console_auth import build_oauth_flow, decode_oauth_
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
+from backend.services.operations_notifier import notify_missed_scheduled_refreshes, notify_result_map, notify_system_trigger
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
@@ -601,11 +602,25 @@ def _run_daily_search_console_refresh_job() -> None:
             for index, site in enumerate(connected_sites):
                 LOGGER.info("Daily Search Console refresh processing site=%s", site.domain)
                 try:
-                    collect_search_console_metrics(db, site)
+                    result = collect_search_console_metrics(db, site)
                     db.commit()
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="search_console",
+                        site=site,
+                        result=result,
+                        action_label="Gunluk Search Console refresh",
+                    )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily Search Console refresh failed for %s: %s", site.domain, exc)
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="search_console",
+                        site=site,
+                        result={"state": "failed", "error": str(exc)},
+                        action_label="Gunluk Search Console refresh",
+                    )
 
                 if index < len(connected_sites) - 1:
                     time.sleep(max(0, int(settings.search_console_scheduled_refresh_site_spacing_seconds)))
@@ -628,11 +643,25 @@ def _run_daily_alert_refresh_job() -> None:
             for index, site in enumerate(sites):
                 LOGGER.info("Daily alert refresh processing site=%s", site.domain)
                 try:
-                    collect_search_console_alert_metrics(db, site, send_notifications=True)
+                    result = collect_search_console_alert_metrics(db, site, send_notifications=True)
                     db.commit()
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="search_console_alerts",
+                        site=site,
+                        result=result,
+                        action_label="Gunluk alert refresh",
+                    )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily alert refresh failed for %s: %s", site.domain, exc)
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="search_console_alerts",
+                        site=site,
+                        result={"state": "failed", "error": str(exc)},
+                        action_label="Gunluk alert refresh",
+                    )
 
                 if index < len(sites) - 1:
                     time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
@@ -660,7 +689,7 @@ def _run_daily_refresh_job() -> None:
                     bool(connection.get("connected")),
                 )
 
-                _refresh_site_detail_measurements(
+                results = _refresh_site_detail_measurements(
                     db,
                     site,
                     include_pagespeed=True,
@@ -669,21 +698,55 @@ def _run_daily_refresh_job() -> None:
                     force=True,
                 )
                 db.commit()
+                notify_result_map(
+                    trigger_source="system",
+                    site=site,
+                    results=results,
+                    action_label="Gunluk site refresh",
+                )
 
                 try:
-                    collect_crux_history(db, site)
+                    crux_result = collect_crux_history(db, site)
                     db.commit()
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="crux_history",
+                        site=site,
+                        result=crux_result,
+                        action_label="Gunluk CrUX refresh",
+                    )
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="crux_history",
+                        site=site,
+                        result={"state": "failed", "error": str(exc)},
+                        action_label="Gunluk CrUX refresh",
+                    )
 
                 if connection.get("connected"):
                     try:
-                        collect_url_inspection(db, site)
+                        inspection_result = collect_url_inspection(db, site)
                         db.commit()
+                        notify_system_trigger(
+                            trigger_source="system",
+                            system_key="url_inspection",
+                            site=site,
+                            result=inspection_result,
+                            action_label="Gunluk URL Inspection refresh",
+                        )
                     except Exception as exc:  # noqa: BLE001
                         db.rollback()
                         LOGGER.warning("Daily refresh URL Inspection failed for %s: %s", site.domain, exc)
+                        notify_system_trigger(
+                            trigger_source="system",
+                            system_key="url_inspection",
+                            site=site,
+                            result={"state": "failed", "error": str(exc)},
+                            action_label="Gunluk URL Inspection refresh",
+                        )
 
                 if index < len(sites) - 1:
                     time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
@@ -691,6 +754,13 @@ def _run_daily_refresh_job() -> None:
         LOGGER.info("Daily refresh completed.")
     finally:
         DAILY_REFRESH_LOCK.release()
+
+
+def _run_scheduled_refresh_monitor_job() -> None:
+    with SessionLocal() as db:
+        sent_subjects = notify_missed_scheduled_refreshes(db)
+    for subject in sent_subjects:
+        LOGGER.warning("Scheduled refresh monitor sent operations email: %s", subject)
 
 
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
@@ -744,6 +814,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                 timezone=timezone,
             ),
             id="daily-site-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.scheduled_refresh_monitor_enabled:
+        scheduler.add_job(
+            _run_scheduled_refresh_monitor_job,
+            trigger="interval",
+            minutes=max(5, int(settings.scheduled_refresh_monitor_interval_minutes)),
+            id="scheduled-refresh-monitor",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -2418,6 +2501,12 @@ def dashboard_measure_site(request: Request, site_id: int):
                 include_search_console=True,
             )
             db.commit()
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                results=results,
+                action_label="Dashboard manuel olcum",
+            )
             flash_message = _summarize_manual_measurement(results)
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -2651,6 +2740,12 @@ def api_refresh_data_explorer(request: Request, domain: str):
         else:
             results["url_inspection"] = collect_url_inspection(db, site)
         db.commit()
+        notify_result_map(
+            trigger_source="manual",
+            site=site,
+            results=results,
+            action_label="Data Explorer manuel refresh",
+        )
         return JSONResponse(
             {
                 "site": site.domain,
@@ -2677,6 +2772,12 @@ def api_refresh_site_metrics(request: Request, domain: str):
             include_search_console=True,
         )
         db.commit()
+        notify_result_map(
+            trigger_source="manual",
+            site=site,
+            results=results,
+            action_label="Site metriklerini manuel yenile",
+        )
         return JSONResponse(
             {
                 "site": site.domain,
@@ -2715,9 +2816,23 @@ def alerts_refresh(request: Request):
                     )
                 }
                 db.commit()
+                notify_system_trigger(
+                    trigger_source="manual",
+                    system_key="search_console_alerts",
+                    site=site,
+                    result=results["search_console"],
+                    action_label="Uyarilari yenile",
+                )
                 summaries.append({"site": site.domain, "results": results})
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
+                notify_system_trigger(
+                    trigger_source="manual",
+                    system_key="search_console_alerts",
+                    site=site,
+                    result={"state": "failed", "error": str(exc)},
+                    action_label="Uyarilari yenile",
+                )
                 summaries.append({"site": site.domain, "error": str(exc)})
 
             if index < len(sites) - 1:
@@ -2806,7 +2921,7 @@ def search_console_manual_refresh(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
-        _refresh_site_detail_measurements(
+        results = _refresh_site_detail_measurements(
             db,
             site,
             include_pagespeed=False,
@@ -2814,6 +2929,12 @@ def search_console_manual_refresh(request: Request, site_id: int):
             include_search_console=True,
         )
         db.commit()
+        notify_result_map(
+            trigger_source="manual",
+            site=site,
+            results=results,
+            action_label="Search Console verisini yenile",
+        )
         return templates.TemplateResponse(
             request,
             "partials/search_console_site_cards.html",

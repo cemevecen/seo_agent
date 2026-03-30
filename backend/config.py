@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     mail_from: str = ""
     mail_to: str = ""
+    operations_mail_to: str = "cemevecen@nokta.com"
 
     quota_guard_enabled: bool = True
     quota_warning_ratio: float = 0.8
@@ -70,6 +71,9 @@ class Settings(BaseSettings):
     scheduled_refresh_minute: int = 0
     scheduled_refresh_timezone: str = "Europe/Istanbul"
     scheduled_refresh_site_spacing_seconds: int = 10
+    scheduled_refresh_monitor_enabled: bool = True
+    scheduled_refresh_monitor_interval_minutes: int = 15
+    scheduled_refresh_monitor_grace_minutes: int = 45
 
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"

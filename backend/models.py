@@ -280,3 +280,16 @@ class ApiUsage(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     site: Mapped["Site"] = relationship("Site", back_populates="api_usages")
+
+
+class NotificationDeliveryLog(Base):
+    """Operasyon e-posta bildirimlerinin tekrar kontrolünü tutar."""
+
+    __tablename__ = "notification_delivery_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    notification_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    recipient: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)

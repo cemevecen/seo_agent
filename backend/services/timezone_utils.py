@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
 from backend.config import settings
@@ -13,6 +13,19 @@ def app_timezone() -> ZoneInfo:
         return ZoneInfo(settings.scheduled_refresh_timezone)
     except Exception:
         return ZoneInfo("Europe/Istanbul")
+
+
+def now_local() -> datetime:
+    return datetime.now(app_timezone())
+
+
+def local_schedule_datetime(target_date: date, hour: int, minute: int) -> datetime:
+    return datetime.combine(target_date, time(hour=hour, minute=minute), tzinfo=app_timezone())
+
+
+def local_schedule_to_utc_naive(target_date: date, hour: int, minute: int) -> datetime:
+    localized = local_schedule_datetime(target_date, hour, minute)
+    return localized.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
 def to_local_datetime(value: datetime | None) -> datetime | None:
