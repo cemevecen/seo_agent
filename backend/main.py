@@ -744,8 +744,35 @@ def _create_external_onboarding_job(db, *, site_id: int, domain: str) -> tuple[s
     return job_id, True
 
 
+def _find_running_external_onboarding_job_id(db, site_id: int) -> str | None:
+    timeout_cutoff = datetime.utcnow() - timedelta(seconds=EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS)
+    running = (
+        db.query(ExternalOnboardingJob)
+        .filter(
+            ExternalOnboardingJob.site_id == site_id,
+            ExternalOnboardingJob.status == "running",
+            ExternalOnboardingJob.updated_at >= timeout_cutoff,
+        )
+        .order_by(ExternalOnboardingJob.updated_at.desc(), ExternalOnboardingJob.id.desc())
+        .first()
+    )
+    return str(running.job_id) if running else None
+
+
 def _is_sqlite_lock_error(exc: Exception) -> bool:
     return "database is locked" in str(exc).lower()
+
+
+def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -> None:
+    for attempt in range(1, attempts + 1):
+        try:
+            db.commit()
+            return
+        except OperationalError as exc:
+            db.rollback()
+            if not _is_sqlite_lock_error(exc) or attempt >= attempts:
+                raise
+            time.sleep(base_wait * attempt)
 
 
 def _set_external_onboarding_job(job_id: str, **updates) -> None:
@@ -3147,12 +3174,24 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
         if site is None:
             site = Site(domain=domain, display_name=display_name, is_active=is_active)
         else:
+            existing_job_id = _find_running_external_onboarding_job_id(db, site.id)
+            if existing_job_id:
+                return {
+                    "ok": True,
+                    "site": {
+                        "id": site.id,
+                        "domain": site.domain,
+                        "display_name": site.display_name,
+                    },
+                    "job_id": existing_job_id,
+                    "summary": "Bu site icin onboarding zaten devam ediyor.",
+                }
             site.display_name = display_name or site.display_name
             site.is_active = is_active
 
         db.add(site)
         try:
-            db.commit()
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             db.refresh(site)
         except OperationalError as exc:
             if _is_sqlite_lock_error(exc):
@@ -3168,7 +3207,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
         if not _is_external_site(db, site.id):
             db.add(ExternalSite(site_id=site.id))
             try:
-                db.commit()
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             except OperationalError as exc:
                 if _is_sqlite_lock_error(exc):
                     return JSONResponse(
