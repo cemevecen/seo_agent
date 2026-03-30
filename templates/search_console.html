@@ -191,12 +191,16 @@
     let index = 0;
     let timer = null;
     let tailTimer = null;
+    let hideTimer = null;
+    let hideInnerTimer = null;
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !bar) {
         return;
       }
       panel.classList.remove('hidden');
+      panel.style.opacity = '';
+      panel.style.transition = '';
       title.textContent = step.title || config.title || 'Yenileniyor';
       detail.textContent = step.detail || config.detail || 'İşlem sürüyor.';
       percent.textContent = String(step.percent || 0) + '%';
@@ -248,11 +252,11 @@
           title: doneTitle || 'Tamamlandı',
           detail: doneDetail || 'Kartlar güncellendi.',
         });
-        setTimeout(function () {
+        hideTimer = setTimeout(function () {
           if (!panel) { return; }
           panel.style.transition = 'opacity 0.4s ease';
           panel.style.opacity = '0';
-          setTimeout(function () {
+          hideInnerTimer = setTimeout(function () {
             panel.classList.add('hidden');
             panel.style.opacity = '';
             panel.style.transition = '';
@@ -281,8 +285,12 @@
         });
       },
       resetTone: function () {
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        if (hideInnerTimer) { clearTimeout(hideInnerTimer); hideInnerTimer = null; }
         if (panel) {
-          panel.classList.remove('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
+          panel.style.opacity = '';
+          panel.style.transition = '';
+          panel.classList.remove('hidden', 'border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
           panel.classList.add('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
         }
         if (bar) {
