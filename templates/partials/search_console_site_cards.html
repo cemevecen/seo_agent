@@ -49,7 +49,7 @@
               <div class="inline-flex w-full flex-wrap rounded-full border border-slate-200 bg-slate-100 p-1 sm:w-auto" data-search-console-device-switch>
                 <button
                   type="button"
-                  class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition data-[active=true]:bg-slate-900 data-[active=true]:text-white sm:flex-none"
+                  class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none"
                   data-device-toggle="mobile"
                   data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}"
                 >
@@ -57,7 +57,7 @@
                 </button>
                 <button
                   type="button"
-                  class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition data-[active=true]:bg-slate-900 data-[active=true]:text-white sm:flex-none"
+                  class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none"
                   data-device-toggle="desktop"
                   data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}"
                 >
