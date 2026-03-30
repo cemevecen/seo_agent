@@ -64,7 +64,7 @@
     </div>
   </div>
 
-  <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
       <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Search Clicks</p>
       <p class="mt-3 text-3xl font-bold tracking-tight text-slate-900">{{ card.search_console.clicks_label }}</p>
@@ -81,9 +81,14 @@
       <p class="mt-2 text-sm text-slate-500">Düşük sayı daha iyi</p>
     </div>
     <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
-      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed</p>
-      <p class="mt-3 text-3xl font-bold tracking-tight {{ card.pagespeed_color }}">{{ card.pagespeed_score }}</p>
-      <p class="mt-2 text-sm text-slate-500">Mobil öncelikli genel skor</p>
+      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Mobile</p>
+      <p class="mt-3 text-3xl font-bold tracking-tight {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
+      <p class="mt-2 text-sm text-slate-500">Mobil performans skoru</p>
+    </div>
+    <div class="rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
+      <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PageSpeed Desktop</p>
+      <p class="mt-3 text-3xl font-bold tracking-tight {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
+      <p class="mt-2 text-sm text-slate-500">Desktop performans skoru</p>
     </div>
   </div>
 

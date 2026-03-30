@@ -1839,6 +1839,8 @@ def _build_dashboard_card(
 ) -> dict:
     ensure_site_alerts(db, site)
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+    mobile_pagespeed_metric = latest.get("pagespeed_mobile_score")
+    desktop_pagespeed_metric = latest.get("pagespeed_desktop_score")
     pagespeed_metric = latest.get("pagespeed_mobile_score") or latest.get("pagespeed_desktop_score")
     crawler_checks = [
         latest.get("crawler_robots_accessible"),
@@ -1862,12 +1864,20 @@ def _build_dashboard_card(
     search_console_report = _search_console_report_payload(db, site_id=site.id)
     search_console_summary = search_console_report.get("summary_current") or {}
     search_console_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
+    mobile_pagespeed_score = float(mobile_pagespeed_metric.value) if mobile_pagespeed_metric is not None else None
+    desktop_pagespeed_score = float(desktop_pagespeed_metric.value) if desktop_pagespeed_metric is not None else None
     return {
         "id": site.id,
         "display_name": site.display_name,
         "domain": site.domain,
         "pagespeed_score": round(pagespeed_score),
         "pagespeed_color": _score_color(pagespeed_score),
+        "pagespeed_mobile_score": round(mobile_pagespeed_score) if mobile_pagespeed_score is not None else None,
+        "pagespeed_mobile_label": str(round(mobile_pagespeed_score)) if mobile_pagespeed_score is not None else "—",
+        "pagespeed_mobile_color": _score_color(mobile_pagespeed_score) if mobile_pagespeed_score is not None else "text-slate-400",
+        "pagespeed_desktop_score": round(desktop_pagespeed_score) if desktop_pagespeed_score is not None else None,
+        "pagespeed_desktop_label": str(round(desktop_pagespeed_score)) if desktop_pagespeed_score is not None else "—",
+        "pagespeed_desktop_color": _score_color(desktop_pagespeed_score) if desktop_pagespeed_score is not None else "text-slate-400",
         "crawler_ok": all(metric and metric.value >= 1 for metric in crawler_checks if metric is not None),
         "check_count": len(available_metrics),
         "last_updated": format_local_datetime(last_updated, fallback="Henuz veri yok"),
