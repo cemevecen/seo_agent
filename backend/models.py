@@ -52,6 +52,9 @@ class Site(Base):
     external_profile: Mapped["ExternalSite | None"] = relationship(
         "ExternalSite", back_populates="site", cascade="all, delete-orphan", uselist=False
     )
+    external_onboarding_jobs: Mapped[list["ExternalOnboardingJob"]] = relationship(
+        "ExternalOnboardingJob", back_populates="site", cascade="all, delete-orphan"
+    )
 
 
 class SiteCredential(Base):
@@ -82,6 +85,26 @@ class ExternalSite(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     site: Mapped["Site"] = relationship("Site", back_populates="external_profile")
+
+
+class ExternalOnboardingJob(Base):
+    """External onboarding ilerleme durumunu processler arasi kalici saklar."""
+
+    __tablename__ = "external_onboarding_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running", index=True)
+    percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="external_onboarding_jobs")
 
 
 class Metric(Base):

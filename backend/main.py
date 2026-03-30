@@ -48,7 +48,7 @@ from backend.collectors.search_console import collect_search_console_alert_metri
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, init_db
-from backend.models import CollectorRun, ExternalSite, PageSpeedPayloadSnapshot, Site
+from backend.models import CollectorRun, ExternalOnboardingJob, ExternalSite, PageSpeedPayloadSnapshot, Site
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -77,8 +77,6 @@ STATIC_DIR = BASE_DIR / "static"
 LOGGER = logging.getLogger(__name__)
 DAILY_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
-EXTERNAL_ONBOARDING_JOB_LOCK = threading.Lock()
-EXTERNAL_ONBOARDING_JOBS: dict[str, dict] = {}
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
 EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 420
 
@@ -669,84 +667,132 @@ def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> 
     return results
 
 
-def _cleanup_external_onboarding_jobs() -> None:
-    cutoff_ts = time.time() - EXTERNAL_ONBOARDING_JOB_TTL_SECONDS
-    stale_ids = [
-        job_id
-        for job_id, state in EXTERNAL_ONBOARDING_JOBS.items()
-        if float(state.get("created_ts", 0.0)) < cutoff_ts
-    ]
-    for job_id in stale_ids:
-        EXTERNAL_ONBOARDING_JOBS.pop(job_id, None)
+def _cleanup_external_onboarding_jobs(db) -> None:
+    cutoff = datetime.utcnow() - timedelta(seconds=EXTERNAL_ONBOARDING_JOB_TTL_SECONDS)
+    try:
+        (
+            db.query(ExternalOnboardingJob)
+            .filter(ExternalOnboardingJob.updated_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+    except OperationalError as exc:
+        db.rollback()
+        if _is_sqlite_lock_error(exc):
+            LOGGER.warning("External onboarding cleanup skipped due lock.")
+            return
+        raise
 
 
-def _create_external_onboarding_job(*, site_id: int, domain: str) -> str:
-    job_id = uuid4().hex
+def _job_to_dict(job: ExternalOnboardingJob) -> dict:
+    return {
+        "job_id": job.job_id,
+        "site_id": int(job.site_id),
+        "domain": str(job.domain or ""),
+        "status": str(job.status or "running"),
+        "percent": int(job.percent or 0),
+        "title": str(job.title or ""),
+        "detail": str(job.detail or ""),
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
+
+
+def _create_external_onboarding_job(db, *, site_id: int, domain: str) -> tuple[str, bool]:
     now = datetime.utcnow()
-    with EXTERNAL_ONBOARDING_JOB_LOCK:
-        _cleanup_external_onboarding_jobs()
-        EXTERNAL_ONBOARDING_JOBS[job_id] = {
-            "job_id": job_id,
-            "site_id": site_id,
-            "domain": domain,
-            "status": "running",
-            "percent": 3,
-            "title": "Onboarding başlatıldı",
-            "detail": "External ölçüm kuyruğa alındı.",
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-            "created_ts": time.time(),
-            "finished_at": None,
-        }
-    return job_id
+    _cleanup_external_onboarding_jobs(db)
+
+    stale_cutoff = now - timedelta(seconds=EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS)
+    stale_running = (
+        db.query(ExternalOnboardingJob)
+        .filter(ExternalOnboardingJob.status == "running", ExternalOnboardingJob.updated_at < stale_cutoff)
+        .all()
+    )
+    for row in stale_running:
+        row.status = "failed"
+        row.percent = 100
+        row.title = "Onboarding zaman aşımına uğradı"
+        row.detail = "İşlem beklenenden uzun sürdü. Yeniden deneyin veya logları kontrol edin."
+        row.finished_at = now
+        row.updated_at = now
+
+    existing_running = (
+        db.query(ExternalOnboardingJob)
+        .filter(ExternalOnboardingJob.site_id == site_id, ExternalOnboardingJob.status == "running")
+        .order_by(ExternalOnboardingJob.updated_at.desc(), ExternalOnboardingJob.id.desc())
+        .first()
+    )
+    if existing_running:
+        return str(existing_running.job_id), False
+
+    job_id = uuid4().hex
+    db.add(
+        ExternalOnboardingJob(
+            job_id=job_id,
+            site_id=site_id,
+            domain=domain,
+            status="running",
+            percent=3,
+            title="Onboarding başlatıldı",
+            detail="External ölçüm kuyruğa alındı.",
+            created_at=now,
+            updated_at=now,
+            finished_at=None,
+        )
+    )
+    db.commit()
+    return job_id, True
 
 
 def _is_sqlite_lock_error(exc: Exception) -> bool:
     return "database is locked" in str(exc).lower()
 
 
-def _commit_with_retry(db, *, attempts: int = 3, wait_seconds: float = 0.3) -> None:
-    for attempt in range(1, attempts + 1):
+def _set_external_onboarding_job(job_id: str, **updates) -> None:
+    with SessionLocal() as db:
+        job = db.query(ExternalOnboardingJob).filter(ExternalOnboardingJob.job_id == job_id).first()
+        if job is None:
+            return
+        for key, value in updates.items():
+            if hasattr(job, key):
+                setattr(job, key, value)
+        job.updated_at = datetime.utcnow()
         try:
             db.commit()
-            return
-        except OperationalError as exc:  # noqa: PERF203
+        except OperationalError as exc:
             db.rollback()
-            if not _is_sqlite_lock_error(exc) or attempt >= attempts:
-                raise
-            time.sleep(wait_seconds * attempt)
-
-
-def _set_external_onboarding_job(job_id: str, **updates) -> None:
-    now = datetime.utcnow().isoformat()
-    with EXTERNAL_ONBOARDING_JOB_LOCK:
-        state = EXTERNAL_ONBOARDING_JOBS.get(job_id)
-        if not state:
-            return
-        state.update(updates)
-        state["updated_at"] = now
+            if _is_sqlite_lock_error(exc):
+                LOGGER.warning("External onboarding job update skipped due lock: job_id=%s", job_id)
+                return
+            raise
 
 
 def _get_external_onboarding_job(job_id: str) -> dict | None:
-    with EXTERNAL_ONBOARDING_JOB_LOCK:
-        _cleanup_external_onboarding_jobs()
-        state = EXTERNAL_ONBOARDING_JOBS.get(job_id)
-        if not state:
+    with SessionLocal() as db:
+        job = db.query(ExternalOnboardingJob).filter(ExternalOnboardingJob.job_id == job_id).first()
+        if job is None:
             return None
-        status = str(state.get("status") or "")
-        created_ts = float(state.get("created_ts") or 0.0)
-        if status == "running" and created_ts > 0 and (time.time() - created_ts) > EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS:
-            state.update(
-                {
-                    "status": "failed",
-                    "percent": 100,
-                    "title": "Onboarding zaman aşımına uğradı",
-                    "detail": "İşlem beklenenden uzun sürdü. Yeniden deneyin veya logları kontrol edin.",
-                    "finished_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                }
-            )
-        return dict(state)
+
+        if job.status == "running":
+            timeout_cutoff = datetime.utcnow() - timedelta(seconds=EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS)
+            if job.updated_at and job.updated_at < timeout_cutoff:
+                job.status = "failed"
+                job.percent = 100
+                job.title = "Onboarding zaman aşımına uğradı"
+                job.detail = "İşlem beklenenden uzun sürdü. Yeniden deneyin veya logları kontrol edin."
+                job.finished_at = datetime.utcnow()
+                job.updated_at = datetime.utcnow()
+                try:
+                    db.commit()
+                except OperationalError as exc:
+                    db.rollback()
+                    if _is_sqlite_lock_error(exc):
+                        pass
+                    else:
+                        raise
+
+        snapshot = _job_to_dict(job)
+        return snapshot
 
 
 def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
@@ -760,7 +806,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 percent=100,
                 title="Onboarding başarısız",
                 detail="Site kaydı bulunamadı.",
-                finished_at=datetime.utcnow().isoformat(),
+                finished_at=datetime.utcnow(),
             )
             return
 
@@ -808,7 +854,15 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
             }
 
-            db.commit()
+            try:
+                db.commit()
+            except OperationalError as exc:
+                db.rollback()
+                if _is_sqlite_lock_error(exc):
+                    has_error = True
+                    results["onboarding"] = {"state": "failed", "error": "database is locked"}
+                else:
+                    raise
             notify_result_map(
                 trigger_source="manual",
                 site=site,
@@ -830,7 +884,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                     percent=100,
                     title="Onboarding tamamlandı (kısmi hata)",
                     detail="Bazı adımlar hata verdi. Kartlardaki durum ve log detaylarını kontrol edin.",
-                    finished_at=datetime.utcnow().isoformat(),
+                    finished_at=datetime.utcnow(),
                 )
             else:
                 _set_external_onboarding_job(
@@ -839,7 +893,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                     percent=100,
                     title="Onboarding tamamlandı",
                     detail="External ölçümler tamamlandı, kartlar güncellendi.",
-                    finished_at=datetime.utcnow().isoformat(),
+                    finished_at=datetime.utcnow(),
                 )
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -856,7 +910,7 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 percent=100,
                 title="Onboarding başarısız",
                 detail=str(exc),
-                finished_at=datetime.utcnow().isoformat(),
+                finished_at=datetime.utcnow(),
             )
 
 
@@ -3098,7 +3152,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
 
         db.add(site)
         try:
-            _commit_with_retry(db, attempts=4, wait_seconds=0.25)
+            db.commit()
             db.refresh(site)
         except OperationalError as exc:
             if _is_sqlite_lock_error(exc):
@@ -3114,7 +3168,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
         if not _is_external_site(db, site.id):
             db.add(ExternalSite(site_id=site.id))
             try:
-                _commit_with_retry(db, attempts=4, wait_seconds=0.25)
+                db.commit()
             except OperationalError as exc:
                 if _is_sqlite_lock_error(exc):
                     return JSONResponse(
@@ -3126,8 +3180,9 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
                     )
                 raise
 
-        job_id = _create_external_onboarding_job(site_id=site.id, domain=site.domain)
-        background_tasks.add_task(_run_external_onboarding_background, site.id, job_id)
+        job_id, created_new = _create_external_onboarding_job(db, site_id=site.id, domain=site.domain)
+        if created_new:
+            background_tasks.add_task(_run_external_onboarding_background, site.id, job_id)
 
         return {
             "ok": True,
@@ -3137,7 +3192,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
                 "display_name": site.display_name,
             },
             "job_id": job_id,
-            "summary": "External site eklendi. Ilk olcumler arka planda baslatildi.",
+            "summary": "External site eklendi. Ilk olcumler arka planda baslatildi." if created_new else "Bu site icin onboarding zaten devam ediyor.",
         }
 
 
@@ -3151,26 +3206,47 @@ def external_onboarding_job_status(job_id: str):
 
 @app.delete("/external/sites/{site_id}")
 def public_sites_delete_site(request: Request, site_id: int):
-    with SessionLocal() as db:
-        site = db.query(Site).filter(Site.id == site_id).first()
-        if site is None:
-            return JSONResponse({"ok": False, "error": "Site bulunamadı."}, status_code=404)
-        marker = db.query(ExternalSite).filter(ExternalSite.site_id == site.id).first()
-        if marker is None:
-            return JSONResponse({"ok": False, "error": "Site external profilinde değil."}, status_code=404)
+    last_lock_error = False
+    for attempt in range(1, 5):
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None:
+                return JSONResponse({"ok": False, "error": "Site bulunamadı."}, status_code=404)
+            marker = db.query(ExternalSite).filter(ExternalSite.site_id == site.id).first()
+            if marker is None:
+                return JSONResponse({"ok": False, "error": "Site external profilinde değil."}, status_code=404)
 
-        db.delete(site)
-        db.commit()
-        if request.headers.get("HX-Request") == "true":
-            return templates.TemplateResponse(
-                request,
-                "partials/public_site_cards.html",
-                context={
-                    "request": request,
-                    "public_sites": _public_sites_payload(db),
-                },
-            )
-        return JSONResponse({"ok": True, "deleted_id": site_id})
+            db.delete(site)
+            try:
+                db.commit()
+            except OperationalError as exc:
+                db.rollback()
+                if _is_sqlite_lock_error(exc):
+                    last_lock_error = True
+                    time.sleep(0.25 * attempt)
+                    continue
+                raise
+
+            if request.headers.get("HX-Request") == "true":
+                return templates.TemplateResponse(
+                    request,
+                    "partials/public_site_cards.html",
+                    context={
+                        "request": request,
+                        "public_sites": _public_sites_payload(db),
+                    },
+                )
+            return JSONResponse({"ok": True, "deleted_id": site_id})
+
+    if last_lock_error:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Silme işlemi sırasında veritabanı kilidi oluştu. Lütfen tekrar deneyin.",
+            },
+            status_code=503,
+        )
+    return JSONResponse({"ok": False, "error": "Silme işlemi tamamlanamadı."}, status_code=500)
 
 
 @app.post("/external/refresh/{site_id}")
