@@ -60,7 +60,7 @@ def fetch_text(
         charset = exc.headers.get_content_charset() or "utf-8"
         status = exc.code
         body = exc.read().decode(charset, errors="ignore")
-    except URLError:
+    except (URLError, TimeoutError, OSError):
         status = 0
         body = ""
 

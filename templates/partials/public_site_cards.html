@@ -51,6 +51,11 @@
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Crawler</p>
             <p class="mt-2 text-lg font-semibold text-slate-900">{{ site.crawler_audited_urls }} URL</p>
             <p class="mt-1 text-xs text-slate-500">Kırık: {{ site.crawler_broken_links }} · Zincir: {{ site.crawler_redirect_chains }}</p>
+            {% if site.crawler_status == 'started' %}
+              <p class="mt-1 text-xs font-semibold text-amber-700">Durum: Arka planda taraniyor</p>
+            {% elif site.crawler_status == 'failed' %}
+              <p class="mt-1 text-xs font-semibold text-rose-700">Durum: Son crawler denemesi basarisiz</p>
+            {% endif %}
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">CrUX</p>

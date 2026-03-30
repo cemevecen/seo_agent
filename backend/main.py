@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
@@ -661,6 +661,39 @@ def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> 
         "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
     }
     return results
+
+
+def _run_external_onboarding_background(site_id: int) -> None:
+    # External onboarding UI'ini bloklamamak için olcumleri arka planda calistirir.
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return
+        try:
+            result = _refresh_public_site_measurements(db, site, force=True)
+            db.commit()
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                result=result,
+                action_label="External onboarding arka plan olcumu",
+            )
+            if isinstance(result.get("crawler"), dict):
+                notify_crawler_audit_emails(
+                    db=db,
+                    site=site,
+                    result=result.get("crawler"),
+                    trigger_source="manual",
+                )
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("External onboarding background run failed for site_id=%s: %s", site_id, exc)
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                result={"state": "failed", "error": str(exc)},
+                action_label="External onboarding arka plan olcumu",
+            )
 
 
 def _run_daily_search_console_refresh_job() -> None:
@@ -1951,6 +1984,7 @@ def _public_sites_payload(db) -> list[dict]:
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        crawler_run = _latest_provider_run(db, site_id=site.id, provider="crawler", strategy="sitewide")
         last_updated = max((metric.collected_at for metric in latest.values()), default=site.created_at)
 
         rows.append(
@@ -1964,6 +1998,7 @@ def _public_sites_payload(db) -> list[dict]:
                 "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
                 "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
                 "crawler_audited_urls": crawler_link_audit.get("audited_urls", 0),
+                "crawler_status": str(crawler_run.status or "").lower() if crawler_run and crawler_run.status else "never",
                 "crux_ready": bool(mobile_crux or desktop_crux),
                 "warehouse": warehouse,
             }
@@ -2869,7 +2904,7 @@ def _normalize_external_domain(raw_value: str) -> str:
 
 
 @app.post("/external/sites")
-async def public_sites_create_site(request: Request):
+async def public_sites_create_site(request: Request, background_tasks: BackgroundTasks):
     with SessionLocal() as db:
         content_type = (request.headers.get("content-type") or "").lower()
         if "application/json" in content_type:
@@ -2905,33 +2940,17 @@ async def public_sites_create_site(request: Request):
             db.add(ExternalSite(site_id=site.id))
             db.commit()
 
-        results = _refresh_public_site_measurements(db, site, force=True)
-        db.commit()
-        notify_result_map(
-            trigger_source="manual",
-            site=site,
-            results=results,
-            action_label="External site ekleme ve ilk tarama",
-        )
-        if isinstance(results.get("crawler"), dict):
-            notify_crawler_audit_emails(
-                db=db,
-                site=site,
-                result=results.get("crawler"),
-                trigger_source="manual",
-            )
+        background_tasks.add_task(_run_external_onboarding_background, site.id)
 
-        return JSONResponse(
-            {
-                "ok": True,
-                "site": {
-                    "id": site.id,
-                    "domain": site.domain,
-                    "display_name": site.display_name,
-                },
-                "summary": _summarize_manual_measurement(results),
-            }
-        )
+        return {
+            "ok": True,
+            "site": {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+            },
+            "summary": "External site eklendi. Ilk olcumler arka planda baslatildi.",
+        }
 
 
 @app.delete("/external/sites/{site_id}")

@@ -109,6 +109,19 @@
         target: '#public-site-list',
         swap: 'innerHTML'
       });
+
+      var refreshCount = 0;
+      var maxRefresh = 8;
+      var interval = setInterval(function () {
+        htmx.ajax('GET', '/external/site-list', {
+          target: '#public-site-list',
+          swap: 'innerHTML'
+        });
+        refreshCount += 1;
+        if (refreshCount >= maxRefresh) {
+          clearInterval(interval);
+        }
+      }, 10000);
     } catch (error) {
       setExternalFeedback('Istek sirasinda bir hata olustu.', true);
     } finally {
