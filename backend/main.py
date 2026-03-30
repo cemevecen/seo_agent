@@ -1884,6 +1884,15 @@ def _build_dashboard_card(
     ]
     mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
     desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
+    base_crawler_issues: list[str] = []
+    if _metric_value(latest, "crawler_robots_accessible", 0.0) < 1.0:
+        base_crawler_issues.append("robots.txt")
+    if _metric_value(latest, "crawler_sitemap_exists", 0.0) < 1.0:
+        base_crawler_issues.append("sitemap")
+    if _metric_value(latest, "crawler_schema_found", 0.0) < 1.0:
+        base_crawler_issues.append("schema")
+    if _metric_value(latest, "crawler_canonical_found", 0.0) < 1.0:
+        base_crawler_issues.append("canonical")
     base_crawler_ok = all(
         _metric_value(latest, metric_name, 0.0) >= 1.0
         for metric_name in (
@@ -1896,7 +1905,7 @@ def _build_dashboard_card(
     broken_links_ok = crawler_link_audit["broken_links"] <= 0
     redirect_chain_ok = crawler_link_audit["redirect_chains"] <= 0
     crawler_ok = base_crawler_ok and broken_links_ok and redirect_chain_ok
-    crawler_status_parts: list[str] = []
+    crawler_status_parts: list[str] = list(base_crawler_issues)
     if crawler_link_audit["broken_links"] > 0:
         crawler_status_parts.append(f'{crawler_link_audit["broken_links"]} kırık link')
     if crawler_link_audit["redirect_chains"] > 0:
