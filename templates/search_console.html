@@ -620,9 +620,6 @@
 
       const button = card.querySelector('[data-site-expand-toggle]');
       const panel = card.querySelector('[data-site-expand-panel]');
-      const icon = card.querySelector('[data-site-expand-icon]');
-      const label = card.querySelector('[data-site-expand-label]');
-      const trigger = card.querySelector('[data-site-expand-trigger]');
 
       if (!button || !panel) {
         return;
@@ -632,28 +629,6 @@
         card.dataset.expanded = expanded ? 'true' : 'false';
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         panel.classList.toggle('hidden', !expanded);
-        if (icon) {
-          icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
-          if (expanded) {
-            icon.classList.remove('bg-slate-800/15');
-            icon.classList.add('bg-white/15');
-          } else {
-            icon.classList.remove('bg-white/15');
-            icon.classList.add('bg-slate-800/15');
-          }
-        }
-        if (label) {
-          label.textContent = expanded ? 'Detayları Gizle' : 'Detayları Aç';
-        }
-        if (trigger) {
-          trigger.classList.toggle('bg-slate-700', expanded);
-          trigger.classList.toggle('text-white', expanded);
-          trigger.classList.toggle('border-transparent', expanded);
-          trigger.classList.toggle('bg-slate-200', !expanded);
-          trigger.classList.toggle('text-slate-800', !expanded);
-          trigger.classList.toggle('border-slate-300', !expanded);
-          trigger.classList.toggle('border', !expanded);
-        }
         if (expanded) {
           window.setTimeout(function () {
             fitSearchConsoleText(panel);
@@ -667,12 +642,6 @@
         setExpanded(button.getAttribute('aria-expanded') !== 'true');
       };
       button.addEventListener('click', toggleFromHeader);
-      if (trigger) {
-        trigger.addEventListener('click', function (e) {
-          e.stopPropagation();
-          toggleFromHeader();
-        });
-      }
 
       setExpanded(card.dataset.expanded === 'true');
     });
