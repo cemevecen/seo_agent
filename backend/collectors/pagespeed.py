@@ -152,14 +152,33 @@ def _request_pagespeed_payload(request_url: str, *, timeout_seconds: int) -> dic
             return json.loads(response.read().decode("utf-8"))
     except Exception:
         # Google PSI bazen urllib tarafinda beklemeye dusuyor; curl genellikle daha guvenilir donuyor.
-        result = subprocess.run(
-            ["curl", "-sS", "--max-time", str(timeout_seconds), request_url],
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds + 5,
-            check=True,
-        )
-        return json.loads(result.stdout)
+        try:
+            result = subprocess.run(
+                [
+                    "curl",
+                    "-sS",
+                    "--max-time",
+                    str(timeout_seconds),
+                    "--connect-timeout",
+                    str(max(2, min(timeout_seconds, 6))),
+                    request_url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds + 5,
+                check=True,
+            )
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as exc:
+            stderr = (exc.stderr or "").strip()
+            stdout = (exc.stdout or "").strip()
+            error_text = stderr or stdout or str(exc)
+            code = int(getattr(exc, "returncode", 1) or 1)
+            if code == 28:
+                raise TimeoutError(f"PageSpeed request timeout (curl 28): {error_text[:220]}") from exc
+            raise URLError(f"PageSpeed curl failed (exit {code}): {error_text[:220]}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(f"PageSpeed subprocess timeout after {timeout_seconds}s") from exc
 
 
 def _extract_lighthouse_metrics(payload: dict) -> dict[str, float]:
@@ -1059,7 +1078,7 @@ def _fetch_pagespeed_with_retries(
             if exc.code not in {408, 429, 500, 502, 503, 504}:
                 raise RuntimeError(f"{strategy} istegi reddedildi ({exc.code}). {details}".strip()) from exc
             last_error = RuntimeError(f"{strategy} istegi gecici olarak basarisiz oldu ({exc.code}). {details}".strip())
-        except (TimeoutError, socket.timeout, URLError) as exc:
+        except (TimeoutError, socket.timeout, URLError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             last_error = exc
 
         LOGGER.warning("PageSpeed %s denemesi %s/%s basarisiz oldu: %s", strategy, attempt, attempts, last_error)

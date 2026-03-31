@@ -221,6 +221,8 @@ def _fetch_crux_history(
     max_identifier_attempts: int | None = None,
 ) -> tuple[dict, dict]:
     last_error: Exception | None = None
+    saw_no_data = False
+    attempted_identifiers: list[str] = []
 
     def _status_code(exc: Exception) -> int | None:
         if isinstance(exc, HTTPError):
@@ -233,6 +235,7 @@ def _fetch_crux_history(
     for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
         if max_identifier_attempts and idx >= max_identifier_attempts:
             break
+        attempted_identifiers.append(identifier["value"])
         body_payload = {identifier["type"]: identifier["value"], "formFactor": form_factor, "metrics": list(METRIC_LABELS.keys())}
         try:
             payload = _request_crux_record(CRUX_HISTORY_ENDPOINT, body_payload, request_timeout=request_timeout)
@@ -245,8 +248,8 @@ def _fetch_crux_history(
             }
         except (HTTPError, requests.HTTPError) as exc:
             if _status_code(exc) == 404:
-                # 404 means no data for this identifier. Stop and raise a specific exception.
-                raise CruxNoDataError(f"No CrUX history data for identifier: {identifier['value']}") from exc
+                saw_no_data = True
+                continue
             # For other HTTP errors, we can let them be raised.
             raise
         except (URLError, TimeoutError, requests.RequestException) as exc:
@@ -256,6 +259,9 @@ def _fetch_crux_history(
 
     if last_error is not None:
         raise last_error
+    if saw_no_data:
+        joined = ", ".join(attempted_identifiers) if attempted_identifiers else domain
+        raise CruxNoDataError(f"No CrUX history data for identifiers: {joined}")
     raise RuntimeError("CrUX history verisi alinamadi.")
 
 
@@ -267,6 +273,8 @@ def _fetch_crux_current(
     max_identifier_attempts: int | None = None,
 ) -> tuple[dict, dict]:
     last_error: Exception | None = None
+    saw_no_data = False
+    attempted_identifiers: list[str] = []
 
     def _status_code(exc: Exception) -> int | None:
         if isinstance(exc, HTTPError):
@@ -279,6 +287,7 @@ def _fetch_crux_current(
     for idx, identifier in enumerate(_candidate_identifiers(domain, form_factor)):
         if max_identifier_attempts and idx >= max_identifier_attempts:
             break
+        attempted_identifiers.append(identifier["value"])
         body_payload = {identifier["type"]: identifier["value"], "formFactor": form_factor, "metrics": list(METRIC_LABELS.keys())}
         try:
             payload = _request_crux_record(CRUX_CURRENT_ENDPOINT, body_payload, request_timeout=request_timeout)
@@ -292,8 +301,8 @@ def _fetch_crux_current(
             }
         except (HTTPError, requests.HTTPError) as exc:
             if _status_code(exc) == 404:
-                # 404 means no data for this identifier. Stop and raise a specific exception.
-                raise CruxNoDataError(f"No CrUX current data for identifier: {identifier['value']}") from exc
+                saw_no_data = True
+                continue
             raise
         except (URLError, TimeoutError, requests.RequestException) as exc:
             last_error = exc
@@ -301,6 +310,9 @@ def _fetch_crux_current(
 
     if last_error is not None:
         raise last_error
+    if saw_no_data:
+        joined = ", ".join(attempted_identifiers) if attempted_identifiers else domain
+        raise CruxNoDataError(f"No CrUX current data for identifiers: {joined}")
     raise RuntimeError("CrUX guncel veri kaydi alinamadi.")
 
 

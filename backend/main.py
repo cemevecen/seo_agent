@@ -687,9 +687,9 @@ def _collect_pagespeed_external_fast(db, site: Site) -> dict:
     return collect_pagespeed_metrics(
         db,
         site,
-        request_timeout=8,
-        max_retries=0,
-        retry_backoff_seconds=0,
+        request_timeout=12,
+        max_retries=1,
+        retry_backoff_seconds=1.0,
     )
 
 
