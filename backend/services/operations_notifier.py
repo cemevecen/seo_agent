@@ -49,6 +49,7 @@ SYSTEM_LABELS = {
     "crawler": "Crawler",
     "search_console": "Search Console",
     "search_console_alerts": "Alert Refresh",
+    "ga4": "GA4",
     "crux_history": "CrUX History",
     "url_inspection": "URL Inspection",
 }

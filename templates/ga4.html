@@ -5,27 +5,415 @@
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-2">
-        <form hx-post="/ga4/refresh-all?days=30" hx-target="#ga4-site-list" hx-swap="innerHTML">
-          <button type="submit" class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto">
-            Tüm Siteleri Yenile
-          </button>
-        </form>
+        <button
+          id="refresh-ga4-sites-button"
+          type="button"
+          class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          onclick="refreshGa4Sites(this)"
+        >
+          Tüm Siteleri Yenile
+        </button>
         <p class="text-sm text-slate-500">
-          Son 30 gün ve önceki 30 gün için oturum, kullanıcı, kanal, kaynak/ortam ve haber hariç sayfa kırılımları çekilir; kartlar Search Console düzenine benzer.
+          Son 30 gün ve önceki 30 gün için oturum, kullanıcı, kanal, kaynak/ortam ve haber hariç sayfa kırılımları çekilir; yenileme sırasında aşağıda canlı ilerleme gösterilir.
         </p>
       </div>
     </div>
 
+    <div id="ga4-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-violet-200 bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(109,40,217,0.35)] ring-1 ring-white/70 backdrop-blur-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-800/80">Canlı ilerleme</p>
+          <p id="ga4-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
+          <p id="ga4-progress-detail" class="mt-1 text-sm text-slate-600">GA4 Data API akışı başlatılıyor.</p>
+        </div>
+        <p id="ga4-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
+      </div>
+      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/80 ring-1 ring-violet-100 shadow-inner">
+        <div id="ga4-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#7c3aed_0%,#6366f1_45%,#14b8a6_100%)] shadow-[0_0_26px_rgba(124,58,237,0.35)] transition-all duration-500" style="width: 0%"></div>
+      </div>
+    </div>
+
     <div id="ga4-site-list" hx-get="/ga4/site-list" hx-trigger="load" hx-swap="innerHTML">
-      <div class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-sm ring-1 ring-white/75">
-        <p class="text-sm font-semibold text-slate-900">GA4 kartları yükleniyor…</p>
-        <p class="mt-1 text-sm text-slate-600">Liste isteği tamamlanınca özet ve tablolar görünecek.</p>
+      <div id="ga4-page-load-panel" class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa yükleniyor</p>
+            <p id="ga4-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
+            <p id="ga4-page-load-detail" class="mt-1 text-sm text-slate-600">GA4 kart listesi için istek gönderiliyor.</p>
+          </div>
+          <div class="text-right">
+            <p id="ga4-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
+            <p id="ga4-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
+          </div>
+        </div>
+        <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
+          <div id="ga4-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#7c3aed_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-500" style="width: 8%"></div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+  function createGa4PageLoadController() {
+    const panel = document.getElementById('ga4-page-load-panel');
+    const title = document.getElementById('ga4-page-load-title');
+    const detail = document.getElementById('ga4-page-load-detail');
+    const percent = document.getElementById('ga4-page-load-percent');
+    const elapsed = document.getElementById('ga4-page-load-elapsed');
+    const bar = document.getElementById('ga4-page-load-bar');
+    const start = performance.now();
+    let timer = null;
+
+    function secondsText() {
+      return ((performance.now() - start) / 1000).toFixed(1) + ' sn';
+    }
+
+    function render(step) {
+      if (!panel || !title || !detail || !percent || !elapsed || !bar) {
+        return;
+      }
+      title.textContent = step.title;
+      detail.textContent = step.detail;
+      percent.textContent = String(step.percent) + '%';
+      elapsed.textContent = secondsText();
+      bar.style.width = String(step.percent) + '%';
+    }
+
+    function startPendingLoop() {
+      if (timer) {
+        return;
+      }
+      timer = window.setInterval(function () {
+        const current = parseInt((bar && bar.style.width) || '8', 10) || 8;
+        const next = Math.min(current + 1, 94);
+        if (next <= current) {
+          return;
+        }
+        render({
+          percent: next,
+          title: 'Liste bekleniyor',
+          detail: 'HTMX isteği sürüyor; GA4 kartları gelince alan kapanacak.',
+        });
+      }, 500);
+    }
+
+    render({
+      percent: 8,
+      title: 'Kabuk hazırlanıyor',
+      detail: 'GA4 sayfası açılıyor, site listesi isteniyor.',
+    });
+
+    return {
+      domReady: function () {
+        render({
+          percent: 24,
+          title: 'DOM hazır',
+          detail: 'Liste isteği için altyapı hazır.',
+        });
+      },
+      requestStarted: function () {
+        render({
+          percent: 48,
+          title: 'İstek gönderildi',
+          detail: 'Sunucuya /ga4/site-list çağrısı yapıldı.',
+        });
+        startPendingLoop();
+      },
+      responseReceived: function () {
+        render({
+          percent: 76,
+          title: 'Yanıt alındı',
+          detail: 'HTML alındı, kartlar yerleştiriliyor.',
+        });
+      },
+      swapped: function () {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        render({
+          percent: 100,
+          title: 'Hazır',
+          detail: 'GA4 kartları yüklendi.',
+        });
+        window.setTimeout(function () {
+          if (panel) {
+            panel.style.transition = 'opacity 220ms ease';
+            panel.style.opacity = '0';
+            window.setTimeout(function () {
+              if (panel && panel.parentElement) {
+                panel.remove();
+              }
+            }, 220);
+          }
+        }, 160);
+      },
+      fail: function () {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        if (panel) {
+          panel.classList.remove('border-slate-200');
+          panel.classList.add('border-rose-200', 'bg-rose-50');
+        }
+        if (bar) {
+          bar.classList.add('bg-rose-600');
+        }
+        render({
+          percent: Math.max(parseInt((bar && bar.style.width) || '18', 10) || 18, 18),
+          title: 'Liste yüklenemedi',
+          detail: 'İlk liste isteği tamamlanamadı. Sayfayı yenileyip tekrar dene.',
+        });
+      },
+    };
+  }
+
+  const ga4PageLoad = createGa4PageLoadController();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      ga4PageLoad.domReady();
+    });
+  } else {
+    ga4PageLoad.domReady();
+  }
+
+  function createGa4ProgressController(config) {
+    const panel = document.getElementById('ga4-progress-panel');
+    const title = document.getElementById('ga4-progress-title');
+    const detail = document.getElementById('ga4-progress-detail');
+    const percent = document.getElementById('ga4-progress-percent');
+    const bar = document.getElementById('ga4-progress-bar');
+    const steps = config.steps || [];
+    let index = 0;
+    let timer = null;
+    let tailTimer = null;
+    let hideTimer = null;
+    let hideInnerTimer = null;
+
+    function render(step) {
+      if (!panel || !title || !detail || !percent || !bar) {
+        return;
+      }
+      panel.classList.remove('hidden');
+      panel.style.opacity = '';
+      panel.style.transition = '';
+      title.textContent = step.title || config.title || 'Yenileniyor';
+      detail.textContent = step.detail || config.detail || 'İşlem sürüyor.';
+      percent.textContent = String(step.percent || 0) + '%';
+      bar.style.width = String(step.percent || 0) + '%';
+    }
+
+    render({
+      percent: 6,
+      title: config.title,
+      detail: config.detail,
+    });
+
+    if (steps.length) {
+      timer = window.setInterval(function () {
+        if (index >= steps.length) {
+          window.clearInterval(timer);
+          timer = null;
+          tailTimer = window.setInterval(function () {
+            const current = parseInt((bar && bar.style.width) || '0', 10) || 0;
+            const next = Math.min(current + 1, config.maxPendingPercent || 98);
+            if (next <= current) {
+              window.clearInterval(tailTimer);
+              tailTimer = null;
+              return;
+            }
+            render({
+              percent: next,
+              title: config.pendingTitle || 'Son adımlar',
+              detail: config.pendingDetail || 'Sunucu yanıtı bekleniyor; GA4 raporları yazılıyor.',
+            });
+          }, config.tailInterval || 650);
+          return;
+        }
+        render(steps[index]);
+        index += 1;
+      }, config.interval || 850);
+    }
+
+    return {
+      complete: function (doneTitle, doneDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+        }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
+        }
+        render({
+          percent: 100,
+          title: doneTitle || 'Tamamlandı',
+          detail: doneDetail || 'Kartlar güncellendi.',
+        });
+        hideTimer = setTimeout(function () {
+          if (!panel) {
+            return;
+          }
+          panel.style.transition = 'opacity 0.4s ease';
+          panel.style.opacity = '0';
+          hideInnerTimer = setTimeout(function () {
+            panel.classList.add('hidden');
+            panel.style.opacity = '';
+            panel.style.transition = '';
+          }, 400);
+        }, 1500);
+      },
+      fail: function (errorTitle, errorDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+        }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
+        }
+        if (panel) {
+          panel.classList.remove('border-violet-200');
+          panel.classList.add('border-rose-200', 'bg-rose-50');
+        }
+        if (bar) {
+          bar.classList.remove('bg-[linear-gradient(90deg,#7c3aed_0%,#6366f1_45%,#14b8a6_100%)]');
+          bar.classList.add('bg-rose-500');
+        }
+        render({
+          percent: Math.max(parseInt((bar && bar.style.width) || '12', 10) || 12, 12),
+          title: errorTitle || 'Yenileme başarısız',
+          detail: errorDetail || 'GA4 verisi çekilirken hata oluştu.',
+        });
+      },
+      resetTone: function () {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+        if (hideInnerTimer) {
+          clearTimeout(hideInnerTimer);
+          hideInnerTimer = null;
+        }
+        if (panel) {
+          panel.style.opacity = '';
+          panel.style.transition = '';
+          panel.classList.remove('hidden', 'border-rose-200', 'bg-rose-50');
+          panel.classList.add('border-violet-200');
+        }
+        if (bar) {
+          bar.classList.remove('bg-rose-500');
+          bar.classList.add('bg-[linear-gradient(90deg,#7c3aed_0%,#6366f1_45%,#14b8a6_100%)]');
+        }
+      },
+    };
+  }
+
+  function refreshGa4Sites(button) {
+    const trigger = button || document.getElementById('refresh-ga4-sites-button');
+    const target = document.getElementById('ga4-site-list');
+    const original = trigger ? trigger.textContent : '';
+    const progress = createGa4ProgressController({
+      title: 'GA4 tüm siteler yenileniyor',
+      detail: 'Bağlı property’ler için Data API ile son 30 gün + önceki 30 gün raporları çekiliyor.',
+      steps: [
+        { percent: 14, title: 'Bağlantılar kontrol ediliyor', detail: 'Service account ve site property eşlemeleri doğrulanıyor.' },
+        { percent: 30, title: 'KPI ve kanal raporları', detail: 'Oturum, kullanıcı ve kanal kırılımları alınıyor.' },
+        { percent: 48, title: 'Sayfa ve kaynak tabloları', detail: 'Haber hariç sayfa ve kaynak/ortam satırları yazılıyor.' },
+        { percent: 64, title: 'Veritabanı', detail: 'Metrikler ve GA4 snapshot kayıtları güncelleniyor.' },
+        { percent: 82, title: 'Kartlar hazırlanıyor', detail: 'Sunucu yanıtı tamamlanıyor; liste HTML üretiliyor.' },
+      ],
+      pendingTitle: 'Sunucu işliyor',
+      pendingDetail: 'Çok sayıda API çağrısı sürüyor; tamamlanınca kartlar yenilenecek.',
+      maxPendingPercent: 97,
+    });
+    progress.resetTone();
+    if (trigger) {
+      trigger.disabled = true;
+      trigger.textContent = 'Yenileniyor…';
+    }
+
+    fetch('/ga4/refresh-all?days=30', {
+      method: 'POST',
+      headers: { 'HX-Request': 'true' },
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('refresh failed');
+        }
+        return response.text();
+      })
+      .then(function (html) {
+        if (target) {
+          target.innerHTML = html;
+          window.setTimeout(function () {
+            initGa4Panels(target);
+          }, 50);
+        }
+        progress.complete('Tüm siteler güncellendi', 'GA4 kartları yeni verilerle yenilendi. Operasyon özeti e-posta ile iletilebilir.');
+      })
+      .catch(function (error) {
+        console.warn('GA4 bulk refresh failed:', error);
+        progress.fail('Yenileme tamamlanamadı', 'Sunucu hatası veya GA4 ayarı eksik olabilir. Log ve .env kontrolü yap.');
+      })
+      .finally(function () {
+        if (trigger) {
+          trigger.disabled = false;
+          trigger.textContent = original;
+        }
+      });
+  }
+
+  function refreshGa4SingleSite(siteId, siteDomain, button) {
+    const target = document.getElementById('ga4-site-list');
+    const original = button ? button.textContent : '';
+    const progress = createGa4ProgressController({
+      title: (siteDomain || 'Site') + ' — GA4 yenileniyor',
+      detail: 'Bu site için GA4 raporları çekiliyor.',
+      steps: [
+        { percent: 22, title: 'Property eşlemesi', detail: 'Site için tanımlı GA4 property kullanılıyor.' },
+        { percent: 45, title: 'Raporlar', detail: 'KPI, kanal, sayfa ve kaynak verileri alınıyor.' },
+        { percent: 72, title: 'Kayıt', detail: 'Veritabanına yazılıyor.' },
+      ],
+      pendingTitle: 'İşlem sürüyor',
+      pendingDetail: 'API yanıtı bekleniyor.',
+    });
+    progress.resetTone();
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Yenileniyor…';
+    }
+
+    fetch('/ga4/refresh/' + encodeURIComponent(siteId) + '?days=30', {
+      method: 'POST',
+      headers: { 'HX-Request': 'true' },
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('refresh failed');
+        }
+        return response.text();
+      })
+      .then(function (html) {
+        if (target) {
+          target.innerHTML = html;
+          window.setTimeout(function () {
+            initGa4Panels(target);
+          }, 50);
+        }
+        progress.complete('Güncellendi', (siteDomain || 'Site') + ' için GA4 kartları yenilendi.');
+      })
+      .catch(function (error) {
+        console.warn('GA4 site refresh failed:', error);
+        progress.fail('Yenileme başarısız', 'Bu site için GA4 verisi alınamadı.');
+      })
+      .finally(function () {
+        if (button) {
+          button.disabled = false;
+          button.textContent = original;
+        }
+      });
+  }
+
   function initGa4Tables(root) {
     (root || document).querySelectorAll('[data-ga4-table]').forEach(function (table) {
       if (table.dataset.tableReady === '1') {
@@ -169,6 +557,7 @@
           window.setTimeout(function () {
             initGa4Tables(panel);
             initGa4ProfileSwitches(panel);
+            bindGa4SiteRefreshButtons(panel);
           }, 60);
         }
       };
@@ -181,15 +570,49 @@
     });
   }
 
+  function bindGa4SiteRefreshButtons(root) {
+    (root || document).querySelectorAll('[data-ga4-site-refresh]').forEach(function (btn) {
+      if (btn.dataset.bound === '1') {
+        return;
+      }
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        const siteId = btn.getAttribute('data-ga4-site-refresh');
+        const domain = btn.getAttribute('data-site-domain') || '';
+        refreshGa4SingleSite(siteId, domain, btn);
+      });
+    });
+  }
+
   function initGa4Panels(root) {
     initGa4Expandables(root);
     initGa4ProfileSwitches(root);
     initGa4Tables(root);
+    bindGa4SiteRefreshButtons(root);
   }
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target && event.target.id === 'ga4-site-list') {
-      initGa4Panels(event.target);
+      ga4PageLoad.swapped();
+      window.setTimeout(function () {
+        initGa4Panels(event.target);
+      }, 50);
+    }
+  });
+
+  document.body.addEventListener('htmx:beforeRequest', function (event) {
+    if (event.target && event.target.id === 'ga4-site-list') {
+      ga4PageLoad.requestStarted();
+    }
+  });
+
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    if (event.target && event.target.id === 'ga4-site-list') {
+      if (event.detail && event.detail.successful) {
+        ga4PageLoad.responseReceived();
+      } else {
+        ga4PageLoad.fail();
+      }
     }
   });
 

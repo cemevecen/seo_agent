@@ -258,11 +258,14 @@
 
           {% if site.ga4.connected %}
             <div class="flex flex-wrap items-center gap-2">
-              <form hx-post="/ga4/refresh/{{ site.id }}?days=30" hx-target="#ga4-site-list" hx-swap="innerHTML">
-                <button type="submit" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-                  GA4 Verisini Yenile (30g)
-                </button>
-              </form>
+              <button
+                type="button"
+                data-ga4-site-refresh="{{ site.id }}"
+                data-site-domain="{{ site.domain }}"
+                class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                GA4 Verisini Yenile (30g)
+              </button>
             </div>
           {% endif %}
         </div>

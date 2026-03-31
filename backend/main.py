@@ -57,7 +57,7 @@ from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, g
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
-from backend.services.ga4_auth import get_ga4_connection_status
+from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
 from backend.services.metric_store import get_latest_metrics
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
@@ -4176,10 +4176,33 @@ def ga4_refresh_site(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
+        if not ga4_is_configured():
+            return HTMLResponse("GA4 service account ayarlı değil.", status_code=503)
+        conn = get_ga4_connection_status(db, site.id)
+        if not conn.get("connected"):
+            return HTMLResponse("Bu site için GA4 property tanımlı değil.", status_code=422)
         from backend.collectors.ga4 import collect_ga4_channel_sessions
 
-        collect_ga4_channel_sessions(db, site, days=days)
-        db.commit()
+        try:
+            result = collect_ga4_channel_sessions(db, site, days=days)
+            db.commit()
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                results={"ga4": result},
+                action_label="GA4 verisini yenile",
+                system_key_map={"ga4": "ga4"},
+            )
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            notify_system_trigger(
+                trigger_source="manual",
+                system_key="ga4",
+                site=site,
+                result={"state": "failed", "error": str(exc)},
+                action_label="GA4 verisini yenile",
+            )
+            return HTMLResponse(f"GA4 yenileme başarısız: {exc}", status_code=500)
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
@@ -4194,13 +4217,35 @@ def ga4_refresh_all(request: Request):
         days = int(raw_days) if raw_days else 30
     except ValueError:
         days = 30
+    if not ga4_is_configured():
+        return HTMLResponse("GA4 service account ayarlı değil (.env: GA4_SERVICE_ACCOUNT_FILE / JSON).", status_code=503)
     with SessionLocal() as db:
         from backend.collectors.ga4 import collect_ga4_channel_sessions
 
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
         for site in sites:
-            collect_ga4_channel_sessions(db, site, days=days)
-        db.commit()
+            conn = get_ga4_connection_status(db, site.id)
+            if not conn.get("connected"):
+                continue
+            try:
+                result = collect_ga4_channel_sessions(db, site, days=days)
+                db.commit()
+                notify_result_map(
+                    trigger_source="manual",
+                    site=site,
+                    results={"ga4": result},
+                    action_label="Tüm GA4 sitelerini yenile",
+                    system_key_map={"ga4": "ga4"},
+                )
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                notify_system_trigger(
+                    trigger_source="manual",
+                    system_key="ga4",
+                    site=site,
+                    result={"state": "failed", "error": str(exc)},
+                    action_label="Tüm GA4 sitelerini yenile",
+                )
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
