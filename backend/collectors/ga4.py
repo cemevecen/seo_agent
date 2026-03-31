@@ -90,7 +90,27 @@ def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> F
     )
 
 
+def _dimension_header_names(response) -> list[str]:
+    headers = getattr(response, "dimension_headers", None) or []
+    return [str(getattr(h, "name", "") or "") for h in headers]
+
+
+def _date_range_bucket(dr_raw: str) -> str | None:
+    """GA4 çoklu dateRange yanıtında: 'last' | 'prev' | None."""
+    s = (dr_raw or "").strip().lower()
+    if s in ("date_range_0", "daterange_0"):
+        return "last"
+    if s in ("date_range_1", "daterange_1"):
+        return "prev"
+    if "date_range_0" in s or s.endswith("range_0"):
+        return "last"
+    if "date_range_1" in s or s.endswith("range_1"):
+        return "prev"
+    return None
+
+
 def _pair_metric_values(metric_values: list, n_metrics: int) -> list[tuple[float, float]]:
+    """Tek satırda metrikler iki tarih aralığı için sırayla [m0_r0, m0_r1, m1_r0, m1_r1, ...] ise çiftler."""
     out: list[tuple[float, float]] = []
     for i in range(n_metrics):
         lo = 2 * i
@@ -109,6 +129,7 @@ def _run_kpi_totals(
     prev_start: str,
     prev_end: str,
 ) -> tuple[dict[str, float], dict[str, float]]:
+    """Çoklu dateRange: GA4 çoğu zaman `dateRange` boyutu ile satır başına tek aralık döner (docs)."""
     names = list(KPI_METRIC_NAMES)
     request = RunReportRequest(
         property=f"properties/{property_id}",
@@ -123,11 +144,79 @@ def _run_kpi_totals(
     z = {k: 0.0 for k in names}
     if not response.rows:
         return z.copy(), z.copy()
+
+    dh = _dimension_header_names(response)
+    if "dateRange" in dh:
+        dr_idx = dh.index("dateRange")
+        last_d = z.copy()
+        prev_d = z.copy()
+        for row in response.rows:
+            if dr_idx >= len(row.dimension_values):
+                continue
+            bucket = _date_range_bucket(str(row.dimension_values[dr_idx].value or ""))
+            if bucket is None:
+                continue
+            target = last_d if bucket == "last" else prev_d
+            for i, name in enumerate(names):
+                if i < len(row.metric_values):
+                    target[name] = float(row.metric_values[i].value or 0.0)
+        return last_d, prev_d
+
+    if len(response.rows) == 2 and not dh:
+        r0, r1 = response.rows[0], response.rows[1]
+        if len(r0.metric_values) == len(names) and len(r1.metric_values) == len(names):
+            last_d = {names[i]: float(r0.metric_values[i].value or 0.0) for i in range(len(names))}
+            prev_d = {names[i]: float(r1.metric_values[i].value or 0.0) for i in range(len(names))}
+            return last_d, prev_d
+
     row = response.rows[0]
-    pairs = _pair_metric_values(list(row.metric_values), len(names))
-    last_d = {names[i]: pairs[i][0] for i in range(len(names))}
-    prev_d = {names[i]: pairs[i][1] for i in range(len(names))}
-    return last_d, prev_d
+    mv = list(row.metric_values)
+    if len(mv) == len(names) * 2:
+        pairs = _pair_metric_values(mv, len(names))
+        last_d = {names[i]: pairs[i][0] for i in range(len(names))}
+        prev_d = {names[i]: pairs[i][1] for i in range(len(names))}
+        return last_d, prev_d
+    if len(mv) == len(names):
+        last_d = {names[i]: float(mv[i].value or 0.0) for i in range(len(names))}
+        return last_d, z.copy()
+    return z.copy(), z.copy()
+
+
+def _merge_two_range_metric_rows(
+    response,
+    *,
+    key_dim: str,
+) -> dict[str, tuple[float, float]]:
+    """Çoklu dateRange ile GA4'ün eklediği `dateRange` boyutuna göre birleştir: anahtar -> (last, prev)."""
+    dh = _dimension_header_names(response)
+    acc: dict[str, dict[str, float]] = {}
+
+    def _ensure(k: str) -> dict[str, float]:
+        if k not in acc:
+            acc[k] = {"last": 0.0, "prev": 0.0}
+        return acc[k]
+
+    if "dateRange" in dh and key_dim in dh:
+        dr_idx = dh.index("dateRange")
+        key_idx = dh.index(key_dim)
+        for row in response.rows:
+            if max(dr_idx, key_idx) >= len(row.dimension_values):
+                continue
+            key = str(row.dimension_values[key_idx].value or "")
+            dr = str(row.dimension_values[dr_idx].value or "")
+            bucket = _date_range_bucket(dr)
+            if bucket is None:
+                continue
+            val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+            _ensure(key)[bucket] = val
+        return {k: (v["last"], v["prev"]) for k, v in acc.items()}
+
+    for row in response.rows:
+        key = str(row.dimension_values[0].value or "")
+        last_v = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
+        prev_v = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
+        acc[key] = {"last": last_v, "prev": prev_v}
+    return {k: (v["last"], v["prev"]) for k, v in acc.items()}
 
 
 def _run_landing_pages_excl_news(
@@ -156,11 +245,9 @@ def _run_landing_pages_excl_news(
         req_kwargs["dimension_filter"] = filt
     response = client.run_report(RunReportRequest(**req_kwargs))
 
+    merged = _merge_two_range_metric_rows(response, key_dim="landingPagePlusQueryString")
     rows: list[dict] = []
-    for row in response.rows:
-        page = str(row.dimension_values[0].value or "")
-        last_v = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
-        prev_v = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
+    for page, (last_v, prev_v) in merged.items():
         delta = last_v - prev_v
         delta_pct = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if last_v > 0 else 0.0)
         rows.append(
@@ -199,11 +286,9 @@ def _run_session_source_medium(
             limit=max(10, min(int(limit), 250)),
         )
     )
+    merged = _merge_two_range_metric_rows(response, key_dim="sessionSourceMedium")
     rows: list[dict] = []
-    for row in response.rows:
-        sm = str(row.dimension_values[0].value or "")
-        last_v = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
-        prev_v = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
+    for sm, (last_v, prev_v) in merged.items():
         delta = last_v - prev_v
         delta_pct = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if last_v > 0 else 0.0)
         rows.append(
@@ -215,6 +300,7 @@ def _run_session_source_medium(
                 "delta_pct": delta_pct,
             }
         )
+    rows.sort(key=lambda item: item["last_total"], reverse=True)
     return rows[:50]
 
 
@@ -285,12 +371,10 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
             )
             response = client.run_report(request)
 
+            merged_ch = _merge_two_range_metric_rows(response, key_dim="sessionDefaultChannelGroup")
             last_by_channel: dict[str, float] = {}
             prev_by_channel: dict[str, float] = {}
-            for row in response.rows:
-                channel = str(row.dimension_values[0].value or "")
-                last_value = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
-                prev_value = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
+            for channel, (last_value, prev_value) in merged_ch.items():
                 last_by_channel[channel] = last_value
                 prev_by_channel[channel] = prev_value
 
@@ -440,11 +524,9 @@ def fetch_ga4_landing_pages(
             req_kwargs["dimension_filter"] = filt
     response = client.run_report(RunReportRequest(**req_kwargs))
 
+    merged = _merge_two_range_metric_rows(response, key_dim="landingPagePlusQueryString")
     rows: list[dict] = []
-    for row in response.rows:
-        page = str(row.dimension_values[0].value or "")
-        last_value = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
-        prev_value = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
+    for page, (last_value, prev_value) in merged.items():
         delta = last_value - prev_value
         delta_pct = (delta / prev_value * 100.0) if prev_value > 0 else (100.0 if last_value > 0 else 0.0)
         rows.append(
