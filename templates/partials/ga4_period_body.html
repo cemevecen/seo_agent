@@ -193,7 +193,14 @@
           data-delta="{{ row.delta }}"
           data-delta-pct="{{ row.delta_pct }}"
         >
-          <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium text-slate-900 break-words sm:px-3 sm:py-3">{{ row.page }}</td>
+          <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium break-words sm:px-3 sm:py-3">
+            {% set _pu = row.page | ga4_abs_page_url(site.domain) %}
+            {% if _pu %}
+              <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" class="text-sky-800 underline decoration-sky-300 underline-offset-2 hover:text-sky-950">{{ row.page }}</a>
+            {% else %}
+              <span class="text-slate-900">{{ row.page }}</span>
+            {% endif %}
+          </td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-sky-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-sky-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:px-3 sm:py-3">{{ row.delta | tr_int }}</td>
@@ -241,7 +248,14 @@
           data-delta="{{ row.delta }}"
           data-delta-pct="{{ row.delta_pct }}"
         >
-          <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium text-slate-900 break-words sm:px-3 sm:py-3">{{ row.source_medium }}</td>
+          <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium break-words sm:px-3 sm:py-3">
+            {% set _su = row.source_medium | ga4_source_href %}
+            {% if _su %}
+              <a href="{{ _su }}" target="_blank" rel="noopener noreferrer" class="text-violet-800 underline decoration-violet-300 underline-offset-2 hover:text-violet-950">{{ row.source_medium }}</a>
+            {% else %}
+              <span class="text-slate-900">{{ row.source_medium }}</span>
+            {% endif %}
+          </td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:px-3 sm:py-3">{{ row.delta | tr_int }}</td>

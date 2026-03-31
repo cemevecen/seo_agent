@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
 from ipaddress import ip_address, ip_network
 from pathlib import Path
-from urllib.parse import parse_qsl, unquote, urlparse
+from urllib.parse import parse_qsl, quote, unquote, urlparse
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -196,12 +196,57 @@ def _format_tr_int(value) -> str:
     return f"{number:,}".replace(",", ".")
 
 
+def _ga4_site_host(domain: str | None) -> str | None:
+    d = (domain or "").strip()
+    if not d:
+        return None
+    d = d.lower().lstrip("http://").lstrip("https://").split("/")[0].rstrip("/")
+    return d or None
+
+
+def _filter_ga4_abs_page_url(path, domain) -> str:
+    """Jinja: {{ row.page | ga4_abs_page_url(site.domain) }}"""
+    p = (path or "").strip() if path is not None else ""
+    d = _ga4_site_host(str(domain) if domain is not None else None)
+    if not p or not d:
+        return ""
+    if p.startswith(("http://", "https://")):
+        return p
+    if not p.startswith("/"):
+        p = "/" + p
+    return f"https://{d}{quote(p, safe='/-._~%?&=#@!$()*+,;:')}"
+
+
+def _filter_ga4_site_root(domain) -> str:
+    """Jinja: {{ site.domain | ga4_site_root }}"""
+    d = _ga4_site_host(str(domain) if domain is not None else None)
+    return f"https://{d}/" if d else ""
+
+
+def _filter_ga4_source_href(sm) -> str:
+    """Jinja: {{ row.source_medium | ga4_source_href }} — referral host veya tam URL."""
+    s = (sm or "").strip() if sm is not None else ""
+    if not s:
+        return ""
+    low = s.lower()
+    if low.startswith("http://") or low.startswith("https://"):
+        return s.split()[0]
+    if " / " in s:
+        left = s.split(" / ")[0].strip()
+        if re.fullmatch(r"[\w.-]+\.[a-zA-Z]{2,}", left):
+            return f"https://{left}"
+    return ""
+
+
 jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
 jinja_env.filters["signed_max_two_decimals"] = _format_signed_max_two_decimals
 jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
 jinja_env.filters["tr_int"] = _format_tr_int
+jinja_env.filters["ga4_abs_page_url"] = _filter_ga4_abs_page_url
+jinja_env.filters["ga4_site_root"] = _filter_ga4_site_root
+jinja_env.filters["ga4_source_href"] = _filter_ga4_source_href
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -4526,6 +4571,7 @@ def ga4_pages_partial(request: Request, site_id: int):
                 "days": days,
                 "profile": profile,
                 "property_id": property_id,
+                "site_domain": site.domain,
             },
         )
 

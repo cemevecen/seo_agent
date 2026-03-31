@@ -16,8 +16,22 @@
             aria-expanded="true"
             aria-controls="ga4-panel-{{ site.id }}"
           >
-            <h5 class="text-xl font-semibold text-slate-900">{{ site.display_name }}</h5>
-            <p class="mt-1 break-all text-sm text-slate-600">{{ site.domain }}</p>
+            <h5 class="text-xl font-semibold text-slate-900">
+              {% set _root_title = site.domain | ga4_site_root %}
+              {% if _root_title %}
+                <a href="{{ _root_title }}" target="_blank" rel="noopener noreferrer" class="text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-sky-900">{{ site.display_name }}</a>
+              {% else %}
+                {{ site.display_name }}
+              {% endif %}
+            </h5>
+            <p class="mt-1 break-all text-sm text-slate-600">
+              {% set _root = site.domain | ga4_site_root %}
+              {% if _root %}
+                <a href="{{ _root }}" target="_blank" rel="noopener noreferrer" class="text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900">{{ site.domain }}</a>
+              {% else %}
+                {{ site.domain }}
+              {% endif %}
+            </p>
           </button>
           <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
             {% if site.ga4.connected and site.profiles %}

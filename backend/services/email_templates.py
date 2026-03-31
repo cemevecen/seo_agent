@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from html import escape
+from urllib.parse import quote
 
 
 # GA4 özet e-posta: yalnızca Değişim sütunu — işaretli yüzde eşikleri
 GA4_DIGEST_DELTA_DARK_ABS = 120.0
 GA4_DIGEST_DELTA_RED_ABS = 70.0
-GA4_DIGEST_DELTA_ROSE_ABS = 35.0
 # Site sütunu yok; 5 sütunlu tablolarda Değişim bu indekste
 GA4_DIGEST_DELTA_COL = 2
 
@@ -24,7 +25,7 @@ _STY = {
 
 
 def ga4_digest_style_for_delta_pct(signed_pct: float | None) -> str:
-    """Değişim sütunu: artış → koyu/açık yeşil; düşüş → koyu/açık kırmızı (|%| eşikleri aynı)."""
+    """Değişim sütunu: artış → yeşil tonları; düşüş → kırmızı tonları. Sıfır dışı her değişim en az açık ton alır."""
     if signed_pct is None:
         return ""
     try:
@@ -32,7 +33,7 @@ def ga4_digest_style_for_delta_pct(signed_pct: float | None) -> str:
         ap = abs(signed)
     except (TypeError, ValueError):
         return ""
-    if ap < GA4_DIGEST_DELTA_ROSE_ABS or signed == 0:
+    if signed == 0:
         return ""
     if signed > 0:
         if ap >= GA4_DIGEST_DELTA_DARK_ABS:
@@ -294,19 +295,117 @@ def ga4_digest_styled_table(
     )
 
 
-def _ga4_digest_delta_signed_from_dicts(dicts: list[dict]) -> list[float | None]:
-    """Değişim sütunu için satır başına işaretli % (kanal satırında Değişim yok → None)."""
-    out: list[float | None] = []
-    for d in dicts:
-        kind = str(d.get("kind") or "")
-        if kind == "channel":
-            out.append(None)
-            continue
+def _parse_digest_delta_pct_display(s: str) -> float | None:
+    """E-posta hücresi biçimi: '%-26,7', '%1.234,5' (TR) → float."""
+    t = (s or "").strip()
+    if not t or t == "—":
+        return None
+    if t.startswith("%"):
+        t = t[1:].strip()
+    if not t:
+        return None
+    if t.count(",") == 1 and "." in t:
+        left, right = t.rsplit(",", 1)
+        left = left.replace(".", "")
+        t = f"{left}.{right}"
+    else:
+        t = t.replace(".", "").replace(",", ".") if "," in t else t
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _ga4_digest_signed_pct_one(d: dict) -> float | None:
+    """Renklendirme ile aynı işaretli %; kanal yok."""
+    kind = str(d.get("kind") or "")
+    if kind == "channel":
+        return None
+    raw = d.get("pct_value")
+    if raw is not None and str(raw).strip() != "":
         try:
-            out.append(float(d.get("pct_value") or 0))
+            return float(raw)
         except (TypeError, ValueError):
-            out.append(None)
-    return out
+            pass
+    return _parse_digest_delta_pct_display(str(d.get("delta_pct") or ""))
+
+
+def _ga4_digest_delta_signed_from_dicts(dicts: list[dict]) -> list[float | None]:
+    """Değişim sütunu için satır başına işaretli % (kanal → None)."""
+    return [_ga4_digest_signed_pct_one(d) for d in dicts]
+
+
+def _digest_site_host(domain: str | None) -> str | None:
+    d = (domain or "").strip()
+    if not d:
+        return None
+    d = d.lower().lstrip("http://").lstrip("https://").split("/")[0].rstrip("/")
+    return d or None
+
+
+def _digest_site_root_url(domain: str | None) -> str | None:
+    h = _digest_site_host(domain)
+    return f"https://{h}/" if h else None
+
+
+def _digest_normalize_page_url(domain: str | None, path: str | None) -> str | None:
+    p = (path or "").strip()
+    if not p:
+        return None
+    if p.startswith(("http://", "https://")):
+        return p
+    h = _digest_site_host(domain)
+    if not h:
+        return None
+    if not p.startswith("/"):
+        p = "/" + p
+    return f"https://{h}{quote(p, safe='/-._~%?&=#@!$()*+,;:')}"
+
+
+def _digest_source_medium_url(source_medium: str) -> str | None:
+    s = (source_medium or "").strip()
+    if not s:
+        return None
+    low = s.lower()
+    if low.startswith("http://") or low.startswith("https://"):
+        first = s.split()[0]
+        return first if first.startswith("http") else None
+    if " / " in s:
+        left = s.split(" / ")[0].strip()
+        if re.fullmatch(r"[\w.-]+\.[a-zA-Z]{2,}", left):
+            return f"https://{left}"
+    return None
+
+
+def _digest_anchor(text: str, href: str | None) -> str:
+    if not href:
+        return escape(text)
+    return (
+        f'<a href="{escape(href, quote=True)}" target="_blank" rel="noopener noreferrer" '
+        f'style="color:#1d4ed8;text-decoration:underline;">{escape(text)}</a>'
+    )
+
+
+def _ga4_digest_profile_cell(d: dict) -> str:
+    return _digest_anchor(str(d.get("profile") or ""), _digest_site_root_url(str(d.get("domain") or "")))
+
+
+def _ga4_digest_detail_cell(d: dict) -> str:
+    kind = str(d.get("kind") or "")
+    dom = str(d.get("domain") or "")
+    if kind == "kpi":
+        return _digest_anchor(str(d.get("metric_label") or ""), _digest_site_root_url(dom))
+    if kind == "page":
+        path = str(d.get("path") or "")
+        disp = path[:220]
+        return _digest_anchor(disp, _digest_normalize_page_url(dom, path))
+    if kind == "source":
+        sm = str(d.get("source_medium") or "")
+        disp = sm[:220]
+        return _digest_anchor(disp, _digest_source_medium_url(sm))
+    if kind == "channel":
+        return _digest_anchor(str(d.get("channel") or ""), _digest_site_root_url(dom))
+    return escape(str(d.get("metric_label") or ""))
 
 
 def ga4_digest_critical_table(rows: list[dict]) -> str:
@@ -319,8 +418,8 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
         if kind == "kpi":
             data_rows.append(
                 [
-                    str(d.get("profile") or ""),
-                    str(d.get("metric_label") or ""),
+                    _ga4_digest_profile_cell(d),
+                    _ga4_digest_detail_cell(d),
                     str(d.get("delta_pct") or ""),
                     str(d.get("last") or ""),
                     str(d.get("prev") or ""),
@@ -329,8 +428,8 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
         elif kind == "page":
             data_rows.append(
                 [
-                    str(d.get("profile") or ""),
-                    str(d.get("path") or "")[:220],
+                    _ga4_digest_profile_cell(d),
+                    _ga4_digest_detail_cell(d),
                     str(d.get("delta_pct") or ""),
                     str(d.get("last") or ""),
                     str(d.get("prev") or ""),
@@ -339,8 +438,8 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
         elif kind == "source":
             data_rows.append(
                 [
-                    str(d.get("profile") or ""),
-                    str(d.get("source_medium") or "")[:220],
+                    _ga4_digest_profile_cell(d),
+                    _ga4_digest_detail_cell(d),
                     str(d.get("delta_pct") or ""),
                     str(d.get("last") or ""),
                     str(d.get("prev") or ""),
@@ -349,8 +448,8 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
         elif kind == "channel":
             data_rows.append(
                 [
-                    str(d.get("profile") or ""),
-                    str(d.get("channel") or ""),
+                    _ga4_digest_profile_cell(d),
+                    _ga4_digest_detail_cell(d),
                     "—",
                     str(d.get("sessions") or ""),
                     "—",
@@ -387,8 +486,8 @@ def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
     if kpis:
         kr = [
             [
-                str(x.get("profile") or ""),
-                str(x.get("metric_label") or ""),
+                _ga4_digest_profile_cell(x),
+                _ga4_digest_detail_cell(x),
                 str(x.get("delta_pct") or ""),
                 str(x.get("last") or ""),
                 str(x.get("prev") or ""),
@@ -408,8 +507,8 @@ def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
     if pages:
         pr = [
             [
-                str(x.get("profile") or ""),
-                str(x.get("path") or "")[:220],
+                _ga4_digest_profile_cell(x),
+                _ga4_digest_detail_cell(x),
                 str(x.get("delta_pct") or ""),
                 str(x.get("last") or ""),
                 str(x.get("prev") or ""),
@@ -429,8 +528,8 @@ def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
     if sources:
         sr = [
             [
-                str(x.get("profile") or ""),
-                str(x.get("source_medium") or "")[:220],
+                _ga4_digest_profile_cell(x),
+                _ga4_digest_detail_cell(x),
                 str(x.get("delta_pct") or ""),
                 str(x.get("last") or ""),
                 str(x.get("prev") or ""),
@@ -450,8 +549,8 @@ def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
     if channels:
         cr = [
             [
-                str(x.get("profile") or ""),
-                str(x.get("channel") or ""),
+                _ga4_digest_profile_cell(x),
+                _ga4_digest_detail_cell(x),
                 str(x.get("sessions") or ""),
             ]
             for x in channels

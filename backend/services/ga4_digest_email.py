@@ -74,7 +74,7 @@ def _exclude_digest_ga_dim_placeholder(s: str) -> bool:
 
 def balance_digest_entries_half_up_down(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Yüzde satırları: n adet varsa en fazla n//2 artış ve n//2 düşüş (|Δ%| büyükten).
-    Ör. n=40 → 20 pozitif + 20 negatif (yeterli adet varsa); kalan havuzdan doldurma yok.
+    Satırlar artış / düşüş sırayla aralıklı (yeşil-kırmızı görünür); önce tüm artışlar bloklanmaz.
     pct=0 nötrler ve kanal satırları sonda."""
 
     def pct(e: dict[str, Any]) -> float:
@@ -99,11 +99,66 @@ def balance_digest_entries_half_up_down(entries: list[dict[str, Any]]) -> list[d
         return channels
 
     half = n // 2
-    out = pos[:half] + neg[:half]
+    pos_part = pos[:half]
+    neg_part = neg[:half]
+    out: list[dict[str, Any]] = []
+    for i in range(half):
+        if i < len(pos_part):
+            out.append(pos_part[i])
+        if i < len(neg_part):
+            out.append(neg_part[i])
     out.extend(neutral)
     channels.sort(key=lambda e: -float(e.get("sessions_raw") or 0))
     out.extend(channels)
     return out
+
+
+def _digest_entry_signed_pct(entry: dict[str, Any]) -> float | None:
+    """Kanal hariç işaretli yüzde; kanal veya anlamsız için None."""
+    if str(entry.get("kind") or "") == "channel":
+        return None
+    try:
+        return float(entry.get("pct_value") or 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _select_ranked_notes_balanced(
+    candidates: list[tuple[float, int, dict[str, Any]]],
+    *,
+    max_notes: int,
+) -> list[tuple[float, int, dict[str, Any]]]:
+    """MAX_NOTES havuzunu önce yarı artış / yarı düşüş (skor sırası) ile doldurur; böylece düşüşler listeden düşmez."""
+    if not candidates:
+        return []
+    pos: list[tuple[float, int, dict[str, Any]]] = []
+    neg: list[tuple[float, int, dict[str, Any]]] = []
+    rest: list[tuple[float, int, dict[str, Any]]] = []
+    for t in candidates:
+        entry = t[2]
+        sp = _digest_entry_signed_pct(entry)
+        if sp is None:
+            rest.append(t)
+            continue
+        if sp > 0:
+            pos.append(t)
+        elif sp < 0:
+            neg.append(t)
+        else:
+            rest.append(t)
+    pos.sort(key=lambda x: -float(x[0]))
+    neg.sort(key=lambda x: -float(x[0]))
+    half = max_notes // 2
+    out = list(pos[:half]) + list(neg[:half])
+    rem = max_notes - len(out)
+    if rem > 0:
+        pool = pos[half:] + neg[half:]
+        pool.sort(key=lambda x: -float(x[0]))
+        out.extend(pool[:rem])
+    if len(out) < max_notes:
+        rest.sort(key=lambda x: -float(x[0]))
+        out.extend(rest[: max_notes - len(out)])
+    return out[:max_notes]
 
 
 def _digest_entry_key(d: dict[str, Any]) -> str:
@@ -458,7 +513,7 @@ def _build_bucket_digest(
         if prev is None or float(score) > prev[0]:
             best_by_key[k] = (float(score), ai, entry)
 
-    ranked = sorted(best_by_key.values(), key=lambda x: -x[0])[:MAX_NOTES]
+    ranked = _select_ranked_notes_balanced(list(best_by_key.values()), max_notes=MAX_NOTES)
 
     buckets: list[list[dict[str, Any]]] = [[] for _ in range(n_areas)]
     for _sc, area_idx, entry in ranked:

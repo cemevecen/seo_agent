@@ -18,7 +18,14 @@
       <tbody>
         {% for row in rows %}
           <tr class="border-b border-slate-100">
-            <td class="max-w-[min(100vw,28rem)] px-2 py-2 font-medium text-slate-900 break-words sm:px-3" title="{{ row.page }}">{{ row.page }}</td>
+            <td class="max-w-[min(100vw,28rem)] px-2 py-2 font-medium break-words sm:px-3" title="{{ row.page }}">
+              {% set _pu = row.page | ga4_abs_page_url(site_domain) %}
+              {% if _pu %}
+                <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" class="text-sky-800 underline decoration-sky-300 underline-offset-2 hover:text-sky-950">{{ row.page }}</a>
+              {% else %}
+                <span class="text-slate-900">{{ row.page }}</span>
+              {% endif %}
+            </td>
             <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-700 sm:px-3">{{ row.last_total | tr_int }}</td>
             <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-700 sm:px-3">{{ row.prev_total | tr_int }}</td>
             <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:px-3">
