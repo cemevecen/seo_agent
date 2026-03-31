@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from html import escape
-from urllib.parse import quote
+
+from backend.locale import tr as tr_locale
+from backend.services.ga4_page_urls import ga4_email_page_url, ga4_site_host
 
 
 # GA4 özet e-posta: yalnızca Değişim sütunu — işaretli yüzde eşikleri
@@ -234,7 +236,7 @@ def ga4_digest_meta_table(rows: list[tuple[str, str]]) -> str:
         'style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
         '<tr><td colspan="2" style="padding:12px 16px;background:linear-gradient(90deg,#f8fafc 0%,#ffffff 100%);'
         'border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;'
-        'color:#64748b;">Özet bilgi</td></tr>'
+        f'color:#64748b;">{escape(tr_locale.GA4_DIGEST_META_TABLE_CAPTION)}</td></tr>'
         f"{body}"
         "</table>"
     )
@@ -335,31 +337,9 @@ def _ga4_digest_delta_signed_from_dicts(dicts: list[dict]) -> list[float | None]
     return [_ga4_digest_signed_pct_one(d) for d in dicts]
 
 
-def _digest_site_host(domain: str | None) -> str | None:
-    d = (domain or "").strip()
-    if not d:
-        return None
-    d = d.lower().lstrip("http://").lstrip("https://").split("/")[0].rstrip("/")
-    return d or None
-
-
 def _digest_site_root_url(domain: str | None) -> str | None:
-    h = _digest_site_host(domain)
+    h = ga4_site_host(domain)
     return f"https://{h}/" if h else None
-
-
-def _digest_normalize_page_url(domain: str | None, path: str | None) -> str | None:
-    p = (path or "").strip()
-    if not p:
-        return None
-    if p.startswith(("http://", "https://")):
-        return p
-    h = _digest_site_host(domain)
-    if not h:
-        return None
-    if not p.startswith("/"):
-        p = "/" + p
-    return f"https://{h}{quote(p, safe='/-._~%?&=#@!$()*+,;:')}"
 
 
 def _digest_source_medium_url(source_medium: str) -> str | None:
@@ -397,8 +377,14 @@ def _ga4_digest_detail_cell(d: dict) -> str:
         return _digest_anchor(str(d.get("metric_label") or ""), _digest_site_root_url(dom))
     if kind == "page":
         path = str(d.get("path") or "")
-        disp = path[:220]
-        return _digest_anchor(disp, _digest_normalize_page_url(dom, path))
+        disp = str(d.get("page_label") or path)[:220]
+        href = ga4_email_page_url(
+            site_domain=dom,
+            path=path,
+            page_host=str(d.get("page_host") or ""),
+            stored_page_url=str(d.get("page_url") or ""),
+        )
+        return _digest_anchor(disp, href or None)
     if kind == "source":
         sm = str(d.get("source_medium") or "")
         disp = sm[:220]
@@ -467,7 +453,7 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
         'style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;">'
         '<tr><td style="padding:14px 12px 10px 14px;">'
         '<p style="margin:0 0 10px 0;font-size:11px;font-weight:800;letter-spacing:0.12em;color:#475569;">'
-        "ÖNEMLİ</p>"
+        f"{escape(tr_locale.GA4_DIGEST_CRITICAL_SECTION_LABEL)}</p>"
         f"{inner}"
         "</td></tr></table>"
     )
@@ -594,7 +580,7 @@ def render_ga4_digest_email(
             '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">'
             '<tr><td style="padding:18px 0 10px 0;">'
             '<p style="margin:0;font-size:11px;font-weight:800;letter-spacing:0.12em;color:#94a3b8;text-transform:uppercase;">'
-            "Kritik vurgular</p>"
+            f"{escape(tr_locale.GA4_DIGEST_CRITICAL_HIGHLIGHTS_TITLE)}</p>"
             "</td></tr>"
             f'<tr><td style="padding:0 0 8px 0;">{ga4_digest_critical_table(critical_rows)}</td></tr>'
             "</table>"
@@ -609,7 +595,7 @@ def render_ga4_digest_email(
     body_inner = "".join(body_rows)
     return f"""
 <!doctype html>
-<html>
+<html lang="{escape(tr_locale.HTML_LANG)}">
   <body style="margin:0;padding:0;background:#e8eef7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#e8eef7;">
       <tr>
@@ -655,7 +641,7 @@ def render_email_shell(
     section_html = "".join(sections)
     return f"""
 <!doctype html>
-<html>
+<html lang="{escape(tr_locale.HTML_LANG)}">
   <body style="margin:0;padding:0;background:#eef3fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3fb;">
       <tr>

@@ -63,6 +63,13 @@ from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
 from backend.services.ga4_digest_email import ga4_digest_bucket_for_domain, send_ga4_weekly_digest_emails
+from backend.services.ga4_page_urls import (
+    enrich_ga4_page_rows as _enrich_ga4_page_rows,
+    ga4_fallback_page_url as _ga4_fallback_page_url,
+    ga4_row_page_href as _ga4_row_page_href,
+    ga4_row_page_label as _ga4_row_page_label,
+    ga4_site_host as _ga4_site_host,
+)
 from backend.services.operations_notifier import (
     notify_crawler_audit_emails,
     notify_missed_scheduled_refreshes,
@@ -196,25 +203,9 @@ def _format_tr_int(value) -> str:
     return f"{number:,}".replace(",", ".")
 
 
-def _ga4_site_host(domain: str | None) -> str | None:
-    d = (domain or "").strip()
-    if not d:
-        return None
-    d = d.lower().lstrip("http://").lstrip("https://").split("/")[0].rstrip("/")
-    return d or None
-
-
 def _filter_ga4_abs_page_url(path, domain) -> str:
-    """Jinja: {{ row.page | ga4_abs_page_url(site.domain) }}"""
-    p = (path or "").strip() if path is not None else ""
-    d = _ga4_site_host(str(domain) if domain is not None else None)
-    if not p or not d:
-        return ""
-    if p.startswith(("http://", "https://")):
-        return p
-    if not p.startswith("/"):
-        p = "/" + p
-    return f"https://{d}{quote(p, safe='/-._~%?&=#@!$()*+,;:')}"
+    """Jinja: path + site domain (GA4 host yoksa)."""
+    return _ga4_fallback_page_url(path, str(domain) if domain is not None else None)
 
 
 def _filter_ga4_site_root(domain) -> str:
@@ -247,6 +238,8 @@ jinja_env.filters["tr_int"] = _format_tr_int
 jinja_env.filters["ga4_abs_page_url"] = _filter_ga4_abs_page_url
 jinja_env.filters["ga4_site_root"] = _filter_ga4_site_root
 jinja_env.filters["ga4_source_href"] = _filter_ga4_source_href
+jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
+jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -4349,7 +4342,7 @@ def _ga4_profile_payload_for_period(
         "pageviews_pct_change": _ga4_period_pct_change(pageviews_last, pageviews_prev),
         "organic_share_pct": organic_share,
         "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(pd)],
-        "pages_no_news": pl.get("pages_no_news") or [],
+        "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
         "sources": pl.get("sources") or [],
         "daily_trend": pl.get("daily_trend")
         or {
@@ -4559,6 +4552,7 @@ def ga4_pages_partial(request: Request, site_id: int):
                 rows = snap_pages
             else:
                 rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=50, exclude_news=True)
+            rows = _enrich_ga4_page_rows(rows)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 

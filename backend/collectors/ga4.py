@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models import Site
 from backend.services.ga4_auth import GA4_SCOPES, get_ga4_credentials_record, load_ga4_properties, load_ga4_service_account_info
+from backend.services.ga4_page_urls import ga4_canonical_page_url
 from backend.services.metric_store import save_metrics
 from backend.services.warehouse import finish_collector_run, save_ga4_report_snapshot, start_collector_run
 
@@ -217,6 +218,42 @@ def _run_dim_sessions_single_range(
     return out
 
 
+def _run_landing_host_path_sessions_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    *,
+    start: str,
+    end: str,
+    limit: int,
+    dimension_filter: FilterExpression | None = None,
+) -> dict[str, float]:
+    """hostName + landingPagePlusQueryString -> sessions (anahtar: host\\x1fpath)."""
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="hostName"),
+            Dimension(name="landingPagePlusQueryString"),
+        ],
+        "metrics": [Metric(name="sessions")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(10, min(int(limit), 250)),
+        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+    }
+    if dimension_filter is not None:
+        req_kwargs["dimension_filter"] = dimension_filter
+    response = client.run_report(RunReportRequest(**req_kwargs))
+    out: dict[str, float] = {}
+    for row in response.rows:
+        if len(row.dimension_values) < 2:
+            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = str(row.dimension_values[1].value or "").strip()
+        key = f"{host}\x1f{path}"
+        val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        out[key] = val
+    return out
+
+
 def _merge_period_maps(
     last_map: dict[str, float],
     prev_map: dict[str, float],
@@ -237,19 +274,17 @@ def _run_landing_pages_excl_news(
 ) -> list[dict]:
     filt = _landing_exclude_filter("landingPagePlusQueryString")
     lim = max(10, min(int(limit), 250))
-    last_map = _run_dim_sessions_single_range(
+    last_map = _run_landing_host_path_sessions_single_range(
         client,
         property_id,
-        "landingPagePlusQueryString",
         start=last_start,
         end=last_end,
         limit=lim,
         dimension_filter=filt,
     )
-    prev_map = _run_dim_sessions_single_range(
+    prev_map = _run_landing_host_path_sessions_single_range(
         client,
         property_id,
-        "landingPagePlusQueryString",
         start=prev_start,
         end=prev_end,
         limit=lim,
@@ -257,12 +292,22 @@ def _run_landing_pages_excl_news(
     )
     merged = _merge_period_maps(last_map, prev_map)
     rows: list[dict] = []
-    for page, (last_v, prev_v) in merged.items():
+    for key, (last_v, prev_v) in merged.items():
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
         delta = last_v - prev_v
         delta_pct = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if last_v > 0 else 0.0)
         rows.append(
             {
-                "page": page,
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
                 "last_total": last_v,
                 "prev_total": prev_v,
                 "delta": delta,
@@ -536,6 +581,57 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
         return {"state": "failed", "error": str(exc)}
 
 
+def fetch_ga4_top_landing_audit(
+    *,
+    property_id: str,
+    days: int = 30,
+    limit: int = 500,
+    exclude_news: bool = True,
+) -> list[dict]:
+    """Tek dönem: son N gün host + landing path, sessions sıralı (link denetimi / rapor).
+
+    GA4 RunReport limit üst sınırı 500 (tek istek).
+    """
+    safe_days = max(1, int(days))
+    safe_limit = max(5, min(int(limit or 500), 500))
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=safe_days - 1)
+    client = _client()
+    filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="hostName"),
+            Dimension(name="landingPagePlusQueryString"),
+        ],
+        "metrics": [Metric(name="sessions")],
+        "date_ranges": [DateRange(start_date=start.isoformat(), end_date=end.isoformat())],
+        "limit": safe_limit,
+        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+    }
+    if filt is not None:
+        req_kwargs["dimension_filter"] = filt
+    response = client.run_report(RunReportRequest(**req_kwargs))
+    rows: list[dict] = []
+    for row in response.rows or []:
+        if len(row.dimension_values) < 2:
+            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = str(row.dimension_values[1].value or "").strip()
+        sessions = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
+        rows.append(
+            {
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
+                "sessions": sessions,
+            }
+        )
+    return rows
+
+
 def fetch_ga4_landing_pages(
     *,
     property_id: str,
@@ -551,19 +647,17 @@ def fetch_ga4_landing_pages(
 
     client = _client()
     filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None
-    last_map = _run_dim_sessions_single_range(
+    last_map = _run_landing_host_path_sessions_single_range(
         client,
         property_id,
-        "landingPagePlusQueryString",
         start=last_start,
         end=last_end,
         limit=safe_limit,
         dimension_filter=filt,
     )
-    prev_map = _run_dim_sessions_single_range(
+    prev_map = _run_landing_host_path_sessions_single_range(
         client,
         property_id,
-        "landingPagePlusQueryString",
         start=prev_start,
         end=prev_end,
         limit=safe_limit,
@@ -571,12 +665,22 @@ def fetch_ga4_landing_pages(
     )
     merged = _merge_period_maps(last_map, prev_map)
     rows: list[dict] = []
-    for page, (last_value, prev_value) in merged.items():
+    for key, (last_value, prev_value) in merged.items():
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
         delta = last_value - prev_value
         delta_pct = (delta / prev_value * 100.0) if prev_value > 0 else (100.0 if last_value > 0 else 0.0)
         rows.append(
             {
-                "page": page,
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
                 "last_total": last_value,
                 "prev_total": prev_value,
                 "delta": delta,

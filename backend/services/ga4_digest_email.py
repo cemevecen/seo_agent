@@ -8,7 +8,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.locale import tr as tr_locale
 from backend.models import Site
+from backend.services.ga4_page_urls import enrich_ga4_page_rows, ga4_row_page_href, ga4_row_page_label
 from backend.services.email_templates import render_ga4_digest_email
 from backend.services.mailer import send_email
 from backend.services.operations_notifier import TRIGGER_SOURCE_LABELS, operations_recipients
@@ -384,7 +386,7 @@ def _collect_notes_for_profile(
                 )
             )
 
-    for row in (pl.get("pages_no_news") or [])[:40]:
+    for row in enrich_ga4_page_rows(pl.get("pages_no_news"))[:40]:
         if not isinstance(row, dict):
             continue
         page = str(row.get("page") or "")[:500]
@@ -395,6 +397,13 @@ def _collect_notes_for_profile(
         dp = float(row.get("delta_pct") or 0)
         crit = _is_critical("page", dp)
         ai = 3 if bucket == "doviz" else 1
+        page_row = {
+            "page": page,
+            "page_host": str(row.get("page_host") or "").strip(),
+            "page_url": str(row.get("page_url") or "").strip(),
+        }
+        page_href = ga4_row_page_href(page_row, domain)
+        page_label = ga4_row_page_label(page_row, domain)
         notes.append(
             (
                 _score(dp, last_v),
@@ -404,6 +413,9 @@ def _collect_notes_for_profile(
                     "domain": domain,
                     "profile": prof_label,
                     "path": page,
+                    "page_host": page_row["page_host"],
+                    "page_url": page_href,
+                    "page_label": page_label,
                     "delta_pct": _fmt_pct(dp),
                     "pct_value": float(dp),
                     "last": _fmt_num(last_v),
@@ -586,10 +598,10 @@ def send_ga4_weekly_digest_emails(
         ]
         subject = f"SEO Agent GA4: {title_prefix} — haftalık özet ({ts_label})"
         html = render_ga4_digest_email(
-            eyebrow="SEO Agent Operations",
+            eyebrow=tr_locale.GA4_DIGEST_EYEBROW,
             title=f"GA4 haftalık karşılaştırma — {title_prefix}",
             tone="blue",
-            status_label="GA4 Özet",
+            status_label=tr_locale.GA4_DIGEST_STATUS_LABEL,
             meta_rows=summary_rows,
             critical_rows=critical_rows[:24],
             area_blocks=area_blocks,
