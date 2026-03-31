@@ -226,7 +226,7 @@ text-slate-500
         class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
         data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
       >
-        CrUX + URL Inspection Yenile
+        PSI + CrUX + URL Inspection Yenile
       </button>
     </div>
   </div>
@@ -236,7 +236,7 @@ text-slate-500
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklaşık İlerleme</p>
         <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
-        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600">CrUX History ve URL Inspection verileri dış kaynaklardan yeniden alınacak.</p>
+        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600">PageSpeed Insights, CrUX History ve URL Inspection verileri dış kaynaklardan yeniden alınacak.</p>
       </div>
       <p id="data-explorer-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
     </div>
@@ -788,10 +788,11 @@ text-slate-500
       const progressPercent = document.getElementById('data-explorer-progress-percent');
       const progressBar = document.getElementById('data-explorer-progress-bar');
       const progressSteps = [
-        { percent: 18, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
-        { percent: 43, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu güncel durum için yeniden isteniyor.' },
-        { percent: 71, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
-        { percent: 91, title: 'Sayfa yenileniyor', detail: 'Yeni CrUX ve Inspection panelleri gösterilmek üzere hazırlanıyor.' },
+        { percent: 16, title: 'PageSpeed Insights çağrısı yapılıyor', detail: 'Lighthouse PSI lab ölçümleri ve audit bölümleri güncelleniyor.' },
+        { percent: 40, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
+        { percent: 64, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu güncel durum için yeniden isteniyor.' },
+        { percent: 82, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
+        { percent: 93, title: 'Sayfa yenileniyor', detail: 'Yeni PSI, CrUX ve Inspection panelleri gösterilmek üzere hazırlanıyor.' },
       ];
       let progressTimer = null;
       let progressTailTimer = null;
@@ -820,7 +821,7 @@ text-slate-500
         renderProgress({
           percent: 7,
           title: 'Data Explorer yenilemesi başlatıldı',
-          detail: 'Bu buton CrUX History ve URL Inspection için gerçek refresh çağırır.',
+          detail: 'Bu buton PSI, CrUX History ve URL Inspection için gerçek refresh çağırır.',
         });
         let stepIndex = 0;
         progressTimer = window.setInterval(function () {
@@ -860,7 +861,7 @@ text-slate-500
           renderProgress({
             percent: 100,
             title: 'Data Explorer güncellendi',
-            detail: 'Yeni CrUX ve URL Inspection verileri yükleniyor.',
+            detail: 'Yeni PSI, CrUX ve URL Inspection verileri yükleniyor.',
           });
           setTimeout(function () {
             window.location.reload();
@@ -879,7 +880,7 @@ text-slate-500
           renderProgress({
             percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
             title: 'Data Explorer yenilenemedi',
-            detail: 'CrUX veya URL Inspection akışı tamamlanamadı. Backend loglarını kontrol et.',
+            detail: 'PSI, CrUX veya URL Inspection akışı tamamlanamadı. Backend loglarını kontrol et.',
           });
           refreshButton.textContent = 'Yenileme başarısız';
           setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);

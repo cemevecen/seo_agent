@@ -3837,21 +3837,35 @@ def api_refresh_data_explorer(request: Request, domain: str):
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
-        results: dict[str, dict] = {}
+        search_console_connected = _is_search_console_connected(db, site.id)
+        results = _refresh_site_detail_measurements(
+            db,
+            site,
+            include_pagespeed=True,
+            include_crawler=False,
+            include_search_console=False,
+            force=True,
+        )
         try:
             results["crux_history"] = collect_crux_history(db, site)
         except Exception as exc:  # noqa: BLE001
             results["crux_history"] = {"state": "failed", "error": str(exc)}
-        try:
-            results["url_inspection"] = collect_url_inspection(db, site)
-        except Exception as exc:  # noqa: BLE001
-            results["url_inspection"] = {"state": "failed", "error": str(exc)}
+        if search_console_connected:
+            try:
+                results["url_inspection"] = collect_url_inspection(db, site)
+            except Exception as exc:  # noqa: BLE001
+                results["url_inspection"] = {"state": "failed", "error": str(exc)}
+        else:
+            results["url_inspection"] = {
+                "state": "skipped",
+                "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
+            }
         db.commit()
         notify_result_map(
             trigger_source="manual",
             site=site,
             results=results,
-            action_label="Data Explorer manuel refresh",
+            action_label="Data Explorer manuel refresh (PSI + CrUX + URL Inspection)",
         )
         return JSONResponse(
             {
