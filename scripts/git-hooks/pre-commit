@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Şifre / anahtar içeren dosyaların yanlışlıkla commit edilmesini engeller.
+set -euo pipefail
+
+blocked=0
+while IFS= read -r path; do
+  [ -z "${path:-}" ] && continue
+  case "$path" in
+    .env|.env.local|.compose.env) echo "[pre-commit] ENGELLENDİ: $path"; blocked=1 ;;
+    keys/*) echo "[pre-commit] ENGELLENDİ: $path (keys/ klasörü)"; blocked=1 ;;
+    *.pem|*.p12|*.pfx) echo "[pre-commit] ENGELLENDİ: $path (sertifika/anahtar)"; blocked=1 ;;
+    *service-account*.json|seo-agent-*.json|*-credentials.json|credentials.json)
+      echo "[pre-commit] ENGELLENDİ: $path (credential json şüphesi)"
+      blocked=1
+      ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [ "$blocked" -ne 0 ]; then
+  echo ""
+  echo "Commit iptal: Yukarıdaki dosyalar repoya gitmemeli. .gitignore ve güvenlik kurallarına bakın."
+  exit 1
+fi
+
+# Staged içerikte PEM private key
+if git diff --cached -p 2>/dev/null | grep -E '^\+' | grep -q "BEGIN PRIVATE KEY"; then
+  echo "[pre-commit] ENGELLENDİ: staged değişikliklerde PRIVATE KEY satırı bulundu."
+  exit 1
+fi
+
+exit 0

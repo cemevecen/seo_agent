@@ -172,6 +172,32 @@
     }
   }
 
+  function handleGa4Save(event, siteId) {
+    const feedback = document.getElementById(`ga4-save-feedback-${siteId}`);
+    if (!feedback) {
+      refreshSiteList();
+      return;
+    }
+
+    if (event.detail && event.detail.successful) {
+      feedback.textContent = 'Kaydedildi';
+      feedback.className = 'text-xs font-medium text-emerald-600';
+      window.setTimeout(() => {
+        feedback.textContent = '';
+        feedback.className = 'text-xs font-medium text-slate-500';
+      }, 2200);
+      refreshSiteList();
+      return;
+    }
+
+    feedback.textContent = 'Kaydedilemedi';
+    feedback.className = 'text-xs font-medium text-rose-600';
+    window.setTimeout(() => {
+      feedback.textContent = '';
+      feedback.className = 'text-xs font-medium text-slate-500';
+    }, 2600);
+  }
+
   function refreshAlertRules() {
     htmx.ajax('GET', '/settings/alert-thresholds', { target: '#alert-thresholds', swap: 'innerHTML' });
   }

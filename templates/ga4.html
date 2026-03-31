@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div data-header-title="GA4" class="space-y-6">
+  <div class="rounded-[2rem] bg-white px-6 py-7 shadow-sm ring-1 ring-slate-200">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">GA4 Trafik Kaynakları</p>
+        <h3 class="mt-2 text-3xl font-bold tracking-tight text-slate-900">Son 30 gün özeti</h3>
+        <p class="mt-2 text-sm text-slate-600">Her profil (web / mweb / android / ios) için “son 30 gün vs önceki 30 gün” sessions karşılaştırması.</p>
+      </div>
+      <form hx-post="/ga4/refresh-all?days=30" hx-target="#ga4-site-list" hx-swap="innerHTML">
+        <button type="submit" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+          Tüm siteleri yenile (30g)
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="ga4-site-list">
+    {% include "partials/ga4_site_cards.html" %}
+  </div>
+</div>
+{% endblock %}
+

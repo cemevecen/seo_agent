@@ -9,6 +9,7 @@
           <th class="px-3 py-2 font-medium">Profil</th>
           <th class="px-3 py-2 font-medium">Durum</th>
           <th class="px-3 py-2 font-medium">Search Console</th>
+          <th class="px-3 py-2 font-medium">GA4</th>
           <th class="px-3 py-2 font-medium">İşlem</th>
         </tr>
       </thead>
@@ -58,6 +59,73 @@
                 {% else %}
                   <span class="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500">OAuth ayarı bekleniyor</span>
                 {% endif %}
+              </div>
+            </td>
+            <td class="px-3 py-2">
+              <div class="flex flex-col gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  {% if site.ga4.connected %}
+                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.ga4.label }}</span>
+                  {% else %}
+                    <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">{{ site.ga4.label }}</span>
+                  {% endif %}
+                  {% for profile_key, pid in (site.ga4.properties or {}).items() %}
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">{{ profile_key }}#{{ pid }}</span>
+                  {% endfor %}
+                </div>
+                <form
+                  class="grid grid-cols-2 gap-2 xl:grid-cols-4"
+                  hx-post="/api/sites/{{ site.id }}/ga4"
+                  hx-swap="none"
+                  hx-on::after-request="handleGa4Save(event, {{ site.id }})"
+                >
+                  <input
+                    type="text"
+                    name="ga4_property_web"
+                    value="{{ (site.ga4.properties or {}).get('web','') }}"
+                    placeholder="web property id"
+                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                  />
+                  <input
+                    type="text"
+                    name="ga4_property_mweb"
+                    value="{{ (site.ga4.properties or {}).get('mweb','') }}"
+                    placeholder="mweb property id"
+                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                  />
+                  <input
+                    type="text"
+                    name="ga4_property_android"
+                    value="{{ (site.ga4.properties or {}).get('android','') }}"
+                    placeholder="android property id"
+                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                  />
+                  <input
+                    type="text"
+                    name="ga4_property_ios"
+                    value="{{ (site.ga4.properties or {}).get('ios','') }}"
+                    placeholder="ios property id"
+                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                  />
+                  <div class="col-span-2 flex flex-wrap items-center gap-2 xl:col-span-4">
+                  <button
+                    type="submit"
+                    class="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Kaydet
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-md border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                    hx-post="/api/ga4/{{ site.id }}/refresh?days=30"
+                    hx-swap="none"
+                    hx-on::after-request="refreshSiteList()"
+                  >
+                    Son 30 günü çek
+                  </button>
+                  <span id="ga4-save-feedback-{{ site.id }}" class="text-xs font-medium text-slate-500"></span>
+                  </div>
+                </form>
               </div>
             </td>
             <td class="px-3 py-2">

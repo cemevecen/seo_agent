@@ -13,6 +13,7 @@ from backend.collectors.pagespeed import collect_pagespeed_metrics
 from backend.models import Site, SiteCredential
 from backend.rate_limiter import limiter
 from backend.services.crypto import encrypt_text
+from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties, upsert_ga4_properties
 from backend.services.search_console_auth import get_search_console_connection_status
 
 router = APIRouter(tags=["sites"])
@@ -141,3 +142,36 @@ async def create_site_credential(request: Request, site_id: int, db: Session = D
             "credential_type": credential.credential_type,
         }
     }
+
+
+@router.post("/sites/{site_id}/ga4", status_code=status.HTTP_201_CREATED)
+@limiter.limit("60/minute")
+async def upsert_site_ga4_property(request: Request, site_id: int, db: Session = Depends(get_db)):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site bulunamadı.")
+
+    form = await request.form()
+    existing = load_ga4_properties(get_ga4_credentials_record(db, site.id))
+    updates: dict[str, str] = {}
+    for key in ("web", "mweb", "android", "ios"):
+        form_key = f"ga4_property_{key}"
+        if form_key in form:
+            updates[key] = str(form.get(form_key, "")).strip()
+
+    # Backward compat: tek alan ile "web"e yaz
+    if not updates and "ga4_property_id" in form:
+        updates["web"] = str(form.get("ga4_property_id", "")).strip()
+
+    merged = dict(existing)
+    for k, v in updates.items():
+        if v:
+            merged[k] = v
+        elif k in merged:
+            del merged[k]
+
+    if not merged:
+        raise HTTPException(status_code=422, detail="En az bir GA4 property ID girmen gerekiyor.")
+
+    record = upsert_ga4_properties(db, site.id, merged)
+    return {"ok": True, "item": {"id": record.id, "site_id": record.site_id, "credential_type": record.credential_type}}

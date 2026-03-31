@@ -36,6 +36,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 
 from backend.api.alerts import router as alerts_router
+from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -56,6 +57,8 @@ from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, g
 from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
+from backend.services.ga4_auth import get_ga4_connection_status
+from backend.services.metric_store import get_latest_metrics
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
@@ -148,16 +151,43 @@ def _ms_to_exact_seconds(value) -> str:
     return _format_exact(seconds)
 
 
+def _format_tr_int(value) -> str:
+    """3.729.980 gibi TR binlik ayıracı ile formatlar."""
+    if value is None or value == "":
+        return "0"
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return "0"
+        try:
+            value = float(value.replace(".", "").replace(",", "."))
+        except ValueError:
+            return value
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return str(value)
+    # Python: 1,234,567 -> TR: 1.234.567
+    return f"{number:,}".replace(",", ".")
+
+
 jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
 jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
+jinja_env.filters["tr_int"] = _format_tr_int
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+# API routers
+app.include_router(alerts_router, prefix="/api")
+app.include_router(metrics_router, prefix="/api")
+app.include_router(sites_router, prefix="/api")
+app.include_router(ga4_router, prefix="/api")
 
 PERIOD_DAYS_MAP = {
     "daily": 1,
@@ -243,10 +273,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         },
     )
 
-# Site yönetimi endpoint'leri JSON API altında toplanır.
-app.include_router(sites_router, prefix="/api")
-app.include_router(metrics_router, prefix="/api")
-app.include_router(alerts_router, prefix="/api")
+# (legacy) Router include blokları yukarı taşındı.
 
 
 @app.on_event("startup")
@@ -388,6 +415,7 @@ def _settings_sites_payload(db) -> list[dict]:
                 "display_name": site.display_name,
                 "is_active": site.is_active,
                 "search_console": get_search_console_connection_status(db, site.id),
+                "ga4": get_ga4_connection_status(db, site.id),
             }
         )
     return rows
@@ -4017,6 +4045,154 @@ def settings_site_list(request: Request):
             request,
             "partials/site_list.html",
             context={"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
+        )
+
+
+def _ga4_sites_payload(db) -> list[dict]:
+    sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    rows: list[dict] = []
+    for site in sites:
+        latest = {m.metric_type: m.value for m in get_latest_metrics(db, site.id)}
+        ga4_status = get_ga4_connection_status(db, site.id)
+        profiles: dict[str, dict] = {}
+
+        def pick(metric_key: str) -> float:
+            try:
+                return float(latest.get(metric_key, 0.0) or 0.0)
+            except Exception:  # noqa: BLE001
+                return 0.0
+
+        def channels_for(profile: str) -> list[tuple[str, float]]:
+            prefix = f"ga4_{profile}_sessions_last30d_channel__"
+            items = []
+            for key, value in latest.items():
+                if key.startswith(prefix):
+                    label = key.replace(prefix, "").replace("_", " ")
+                    items.append((label, float(value or 0.0)))
+            items.sort(key=lambda x: x[1], reverse=True)
+            return items[:4]
+
+        for profile in ("web", "mweb", "android", "ios"):
+            last_total = pick(f"ga4_{profile}_sessions_last30d_total")
+            prev_total = pick(f"ga4_{profile}_sessions_prev30d_total")
+            wow = pick(f"ga4_{profile}_sessions_wow_change_pct")
+            if last_total <= 0 and prev_total <= 0:
+                continue
+            organic = pick(f"ga4_{profile}_sessions_last30d_channel__organic_search")
+            organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
+            profiles[profile] = {
+                "property_id": (ga4_status.get("properties") or {}).get(profile, ""),
+                "last_total": last_total,
+                "prev_total": prev_total,
+                "wow_change_pct": wow,
+                "organic_share_pct": organic_share,
+                "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(profile)],
+            }
+
+        rows.append(
+            {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "ga4": ga4_status,
+                "profiles": profiles,
+            }
+        )
+    rows.sort(key=lambda item: _preferred_site_order_key(item.get("domain"), item.get("display_name")))
+    return rows
+
+
+@app.get("/ga4")
+def ga4_page(request: Request):
+    with SessionLocal() as db:
+        payload = {
+            "site_name": "GA4",
+            "sites": get_sidebar_sites(),
+            "ga4_sites": _ga4_sites_payload(db),
+        }
+    return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
+
+
+@app.post("/ga4/refresh/{site_id}")
+def ga4_refresh_site(request: Request, site_id: int):
+    raw_days = (request.query_params.get("days") or "").strip()
+    try:
+        days = int(raw_days) if raw_days else 30
+    except ValueError:
+        days = 30
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        from backend.collectors.ga4 import collect_ga4_channel_sessions
+
+        collect_ga4_channel_sessions(db, site, days=days)
+        db.commit()
+        return templates.TemplateResponse(
+            request,
+            "partials/ga4_site_cards.html",
+            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+        )
+
+
+@app.post("/ga4/refresh-all")
+def ga4_refresh_all(request: Request):
+    raw_days = (request.query_params.get("days") or "").strip()
+    try:
+        days = int(raw_days) if raw_days else 30
+    except ValueError:
+        days = 30
+    with SessionLocal() as db:
+        from backend.collectors.ga4 import collect_ga4_channel_sessions
+
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        for site in sites:
+            collect_ga4_channel_sessions(db, site, days=days)
+        db.commit()
+        return templates.TemplateResponse(
+            request,
+            "partials/ga4_site_cards.html",
+            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+        )
+
+
+@app.get("/ga4/pages/{site_id}")
+def ga4_pages_partial(request: Request, site_id: int):
+    profile = (request.query_params.get("profile") or "").strip().lower()
+    raw_days = (request.query_params.get("days") or "").strip()
+    try:
+        days = int(raw_days) if raw_days else 30
+    except ValueError:
+        days = 30
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+
+        ga4_status = get_ga4_connection_status(db, site.id)
+        properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+        property_id = str(properties.get(profile) or "").strip()
+        if not property_id:
+            return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
+
+        from backend.collectors.ga4 import fetch_ga4_landing_pages
+
+        try:
+            rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=50)
+        except Exception as exc:  # noqa: BLE001
+            return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
+
+        return templates.TemplateResponse(
+            request,
+            "partials/ga4_pages_table.html",
+            context={
+                "request": request,
+                "rows": rows,
+                "days": days,
+                "profile": profile,
+                "property_id": property_id,
+            },
         )
 
 

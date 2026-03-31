@@ -1,4 +1,5 @@
 .env
+.env.local
 .compose.env
 .venv/
 __pycache__/
@@ -8,3 +9,9 @@ __pycache__/
 *.db-shm
 *.db-wal
 seo-agent-*.json
+keys/
+secrets/
+*.pem
+*.p12
+*.pfx
+*.service-account.json

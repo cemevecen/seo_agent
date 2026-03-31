@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     gemini_api_key: str
     encryption_key: str
 
+    # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
+    ga4_service_account_json: str = ""
+    ga4_service_account_file: str = ""
+
     # Uygulama sadece localhost üzerinde dinlenecek şekilde varsayılanlanır.
     app_host: str = "127.0.0.1"
     allowed_client_ips: str = ""
