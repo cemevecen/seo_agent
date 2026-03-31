@@ -1,5 +1,7 @@
 .env
 .env.local
+.env.*
+!.env.example
 .compose.env
 .venv/
 __pycache__/

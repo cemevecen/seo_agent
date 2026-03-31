@@ -127,6 +127,23 @@ def data_table(headers: list[str], rows: list[list[str]]) -> str:
     )
 
 
+def html_unordered_list(items: list[str]) -> str:
+    """E-posta içi madde işaretli liste (sıralı önem notları için)."""
+    if not items:
+        return '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b;">Bu bölümde madde yok.</p>'
+    lis = []
+    for item in items:
+        rendered = item if ("<" in item and ">" in item) else escape(item)
+        lis.append(
+            f'<li style="margin:0 0 10px 0;font-size:14px;line-height:1.6;color:#334155;">{rendered}</li>'
+        )
+    return (
+        '<ul style="margin:8px 0 0 0;padding-left:20px;">'
+        + "".join(lis)
+        + "</ul>"
+    )
+
+
 def note_box(title: str, body: str, *, tone: str = "slate") -> str:
     colors = _palette(tone)
     body_html = escape(body).replace("\n", "<br>")
@@ -153,6 +170,145 @@ def section(title: str, content: str, *, subtitle: str = "") -> str:
         f'<div style="margin-top:14px;">{content}</div>'
         "</td></tr>"
     )
+
+
+def ga4_digest_meta_table(rows: list[tuple[str, str]]) -> str:
+    """İki sütunlu özet tablosu (etiket | değer)."""
+    body = ""
+    for label, value in rows:
+        body += (
+            "<tr>"
+            f'<td style="padding:11px 16px;width:34%;vertical-align:top;border-bottom:1px solid #f1f5f9;'
+            f'font-size:13px;font-weight:700;color:#64748b;">{escape(label)}</td>'
+            f'<td style="padding:11px 16px;vertical-align:top;border-bottom:1px solid #f1f5f9;'
+            f'font-size:14px;line-height:1.5;color:#0f172a;">{escape(value)}</td>'
+            "</tr>"
+        )
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
+        '<tr><td colspan="2" style="padding:12px 16px;background:linear-gradient(90deg,#f8fafc 0%,#ffffff 100%);'
+        'border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;'
+        'color:#64748b;">Özet bilgi</td></tr>'
+        f"{body}"
+        "</table>"
+    )
+
+
+def ga4_digest_critical_row(body_text: str) -> str:
+    """Tek kritik satırı: sol etiket sütunu + sağ içerik (pembe kart)."""
+    safe = escape(body_text).replace("\n", "<br>")
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="margin:0 0 10px 0;border-collapse:collapse;">'
+        "<tr>"
+        '<td style="padding:0;">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="border-collapse:collapse;border:1px solid #fecdd3;border-radius:14px;background:#fffafb;">'
+        "<tr>"
+        '<td width="84" valign="top" style="padding:14px 10px 14px 16px;font-size:11px;font-weight:800;'
+        'letter-spacing:0.08em;color:#be123c;">ÖNEMLİ</td>'
+        f'<td valign="top" style="padding:14px 16px 14px 0;font-size:14px;line-height:1.55;color:#334155;">{safe}</td>'
+        "</tr></table>"
+        "</td>"
+        "</tr></table>"
+    )
+
+
+def ga4_digest_area_table(area_title: str, items: list[str]) -> str:
+    """Alan başlığı + numaralı satırlar."""
+    if not items:
+        return ""
+    rows_html = ""
+    for idx, raw in enumerate(items, start=1):
+        cell = raw if ("<" in raw and ">" in raw) else escape(raw)
+        rows_html += (
+            "<tr>"
+            f'<td width="40" valign="top" style="padding:12px 6px 12px 14px;border-bottom:1px solid #f1f5f9;'
+            f'font-size:12px;font-weight:800;color:#94a3b8;">{idx}</td>'
+            f'<td valign="top" style="padding:12px 14px 12px 0;border-bottom:1px solid #f1f5f9;'
+            f'font-size:14px;line-height:1.55;color:#334155;">{cell}</td>'
+            "</tr>"
+        )
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="margin:0 0 20px 0;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
+        '<tr><td colspan="2" style="padding:13px 16px;background:linear-gradient(180deg,#f1f5f9 0%,#ffffff 55%);'
+        'border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:800;letter-spacing:0.04em;color:#0f172a;">'
+        f"{escape(area_title)}"
+        "</td></tr>"
+        f"{rows_html}"
+        "</table>"
+    )
+
+
+def render_ga4_digest_email(
+    *,
+    eyebrow: str,
+    title: str,
+    tone: str,
+    status_label: str,
+    meta_rows: list[tuple[str, str]],
+    critical_lines: list[str],
+    area_blocks: list[tuple[str, list[str]]],
+) -> str:
+    """
+    GA4 haftalık özet için tablo mimarili HTML (giriş paragrafı yok).
+    """
+    colors = _palette(tone)
+    meta_html = ga4_digest_meta_table(meta_rows)
+    crit_block = ""
+    if critical_lines:
+        crit_rows = "".join(ga4_digest_critical_row(line) for line in critical_lines[:24])
+        crit_block = (
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">'
+            '<tr><td style="padding:22px 0 12px 0;">'
+            '<p style="margin:0;font-size:11px;font-weight:800;letter-spacing:0.12em;color:#94a3b8;text-transform:uppercase;">'
+            "Kritik vurgular</p>"
+            "</td></tr></table>"
+            f"{crit_rows}"
+        )
+    areas_html = "".join(
+        ga4_digest_area_table(area_title, items) for area_title, items in area_blocks if items
+    )
+    body_rows: list[str] = [f'<tr><td style="padding:0 28px 12px 28px;">{meta_html}</td></tr>']
+    if crit_block:
+        body_rows.append(f'<tr><td style="padding:0 28px 4px 28px;">{crit_block}</td></tr>')
+    body_rows.append(f'<tr><td style="padding:0 28px 28px 28px;">{areas_html}</td></tr>')
+    body_inner = "".join(body_rows)
+    return f"""
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#e8eef7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#e8eef7;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:0 4px 14px 4px;font-size:11px;line-height:1.4;color:#64748b;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;">
+                {escape(eyebrow)}
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#ffffff;border:1px solid #dbe4f0;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px rgba(15,23,42,0.07);">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:26px 28px 22px 28px;background:linear-gradient(145deg, {colors["surface"]} 0%, #ffffff 42%, {colors["accent_soft"]} 100%);border-bottom:1px solid #e2e8f0;">
+                      <p style="margin:0 0 10px 0;">{status_chip(status_label, tone=tone)}</p>
+                      <h1 style="margin:0;font-size:28px;line-height:1.2;color:#0f172a;font-weight:800;letter-spacing:-0.02em;">{escape(title)}</h1>
+                    </td>
+                  </tr>
+                  {body_inner}
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+""".strip()
 
 
 def render_email_shell(

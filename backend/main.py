@@ -62,6 +62,7 @@ from backend.services.metric_store import get_latest_metrics
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
+from backend.services.ga4_digest_email import ga4_digest_bucket_for_domain, send_ga4_weekly_digest_emails
 from backend.services.operations_notifier import (
     notify_crawler_audit_emails,
     notify_missed_scheduled_refreshes,
@@ -4413,15 +4414,15 @@ def ga4_refresh_site(request: Request, site_id: int):
         try:
             collect_ga4_channel_sessions(db, site, days=30)
             collect_ga4_channel_sessions(db, site, days=7)
-            result = {"state": "success", "windows": ["30d", "7d"]}
             db.commit()
-            notify_result_map(
-                trigger_source="manual",
-                site=site,
-                results={"ga4": result},
-                action_label="GA4 verisini yenile",
-                system_key_map={"ga4": "ga4"},
-            )
+            bucket = ga4_digest_bucket_for_domain(site.domain)
+            if bucket:
+                send_ga4_weekly_digest_emails(
+                    db,
+                    trigger_source="manual",
+                    action_label="GA4 verisini yenile",
+                    only_buckets=frozenset({bucket}),
+                )
         except Exception as exc:  # noqa: BLE001
             db.rollback()
             notify_system_trigger(
@@ -4448,6 +4449,7 @@ def ga4_refresh_all(request: Request):
 
         external_site_ids = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        any_ga4_ok = False
         for site in sites:
             if site.id in external_site_ids:
                 continue
@@ -4457,15 +4459,8 @@ def ga4_refresh_all(request: Request):
             try:
                 collect_ga4_channel_sessions(db, site, days=30)
                 collect_ga4_channel_sessions(db, site, days=7)
-                result = {"state": "success", "windows": ["30d", "7d"]}
                 db.commit()
-                notify_result_map(
-                    trigger_source="manual",
-                    site=site,
-                    results={"ga4": result},
-                    action_label="Tüm GA4 sitelerini yenile",
-                    system_key_map={"ga4": "ga4"},
-                )
+                any_ga4_ok = True
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
                 notify_system_trigger(
@@ -4475,6 +4470,12 @@ def ga4_refresh_all(request: Request):
                     result={"state": "failed", "error": str(exc)},
                     action_label="Tüm GA4 sitelerini yenile",
                 )
+        if any_ga4_ok:
+            send_ga4_weekly_digest_emails(
+                db,
+                trigger_source="manual",
+                action_label="Tüm GA4 sitelerini yenile",
+            )
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
