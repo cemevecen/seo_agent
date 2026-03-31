@@ -1,38 +1,89 @@
 {% if ga4_sites %}
-  <div class="grid gap-4 xl:grid-cols-2">
+  <div class="grid gap-4 xl:grid-cols-2" data-ga4-split-root>
     {% for site in ga4_sites %}
       <section
         class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:bg-white"
         data-ga4-expandable
+        data-ga4-site-card
+        data-site-id="{{ site.id }}"
         data-expanded="true"
       >
-        <button
-          type="button"
-          class="flex w-full flex-col gap-4 text-left lg:min-h-[6.75rem] lg:flex-row lg:items-center lg:justify-between"
-          data-site-expand-toggle
-          aria-expanded="true"
-          aria-controls="ga4-panel-{{ site.id }}"
-        >
-          <div class="min-w-0 flex-1">
+        <div class="flex w-full flex-col gap-3 lg:min-h-[6.75rem] lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <button
+            type="button"
+            class="min-w-0 flex-1 text-left"
+            data-site-expand-toggle
+            aria-expanded="true"
+            aria-controls="ga4-panel-{{ site.id }}"
+          >
             <h5 class="text-xl font-semibold text-slate-900">{{ site.display_name }}</h5>
             <p class="mt-1 break-all text-sm text-slate-600">{{ site.domain }}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2 lg:max-w-[18rem] lg:justify-end">
-            {% if site.ga4.connected %}
-              <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{{ site.ga4.label }}</span>
-            {% else %}
-              <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ site.ga4.label }}</span>
+          </button>
+          <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
+            {% if site.ga4.connected and site.profiles %}
+            <div
+              class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch]"
+              data-ga4-period-switch
+              role="tablist"
+              aria-label="GA4 comparison window"
+            >
+              <button
+                type="button"
+                role="tab"
+                class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-3 py-2 text-sm font-semibold text-white transition sm:px-4"
+                data-ga4-period-toggle="30"
+                data-active="true"
+              >
+                30d
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition sm:px-4"
+                data-ga4-period-toggle="7"
+                data-active="false"
+              >
+                7d
+              </button>
+            </div>
             {% endif %}
-            <span class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-200" data-site-expand-trigger aria-hidden="true">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full border border-transparent bg-slate-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors duration-200"
+              data-site-expand-trigger
+            >
               <span data-site-expand-label>Detayları Gizle</span>
               <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform duration-200" data-site-expand-icon>
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
               </span>
-            </span>
+            </button>
+            {% if ga4_sites|length > 1 %}
+            <button
+              type="button"
+              data-ga4-focus-toggle="{{ site.id }}"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 hover:text-violet-900"
+              title="Tam genişlikte göster"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-ga4-split-reset
+              class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100"
+              title="İki sütunlu görünüme dön"
+            >
+              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+              </svg>
+              <span class="hidden sm:inline">İkiye böl</span>
+            </button>
+            {% endif %}
           </div>
-        </button>
+        </div>
 
         <div id="ga4-panel-{{ site.id }}" class="mt-6 space-y-6" data-site-expand-panel>
           {% if not site.ga4.connected %}
@@ -44,214 +95,62 @@
               Bu site için GA4 profilinde henüz oturum verisi yok. Yenile ile tekrar deneyin.
             </div>
           {% else %}
-            <div class="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 overflow-hidden">
-              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div class="min-w-0">
-                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">GA4 Özeti</p>
-                  <h6 class="mt-2 text-lg font-semibold text-slate-900">Son 30 gün ve önceki 30 gün</h6>
-                  <p class="mt-2 text-sm text-slate-500">
-                    Kayan dönem karşılaştırması. Sayfa tablosunda haber tipi URL’ler (ör. /haber/, /news/, /gundem/) hariç tutulur; liste .env içindeki <code class="text-xs">GA4_EXCLUDE_PATH_SUBSTRINGS</code> ile özelleştirilebilir.
-                  </p>
+            <div class="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 overflow-hidden">
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">GA4 summary</p>
+                  <div data-ga4-period-heading="30">
+                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last 30 days vs previous 30 days</h6>
+                  </div>
+                  <div data-ga4-period-heading="7" class="hidden">
+                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last 7 days vs previous 7 days</h6>
+                  </div>
                 </div>
-                <div class="inline-flex flex-wrap rounded-full border border-slate-200 bg-slate-100 p-1" data-ga4-profile-switch>
-                  {% for pk in ['web', 'mweb', 'android', 'ios'] %}
-                    {% if pk in site.profiles %}
-                      <button
-                        type="button"
-                        class="rounded-full px-4 py-2 text-sm font-semibold transition"
-                        data-ga4-profile-toggle="{{ pk }}"
-                        data-active="{{ 'true' if pk == site.default_profile else 'false' }}"
-                      >
-                        {{ pk }}
-                      </button>
-                    {% endif %}
-                  {% endfor %}
+                <div class="flex w-full shrink-0 flex-col items-stretch gap-3 lg:w-auto lg:items-end lg:pt-0.5">
+                  <div class="w-full lg:w-auto">
+                    <p class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 lg:hidden">Platform</p>
+                    <div
+                      class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 bg-slate-100 p-1 [-webkit-overflow-scrolling:touch] lg:max-w-none lg:justify-end"
+                      data-ga4-profile-switch
+                      role="tablist"
+                      aria-label="GA4 platform selection"
+                    >
+                      {% for pk in ['web', 'mweb', 'android', 'ios'] %}
+                        {% if pk in site.profiles %}
+                          <button
+                            type="button"
+                            role="tab"
+                            class="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition sm:px-4"
+                            data-ga4-profile-toggle="{{ pk }}"
+                            data-active="{{ 'true' if pk == site.default_profile else 'false' }}"
+                          >
+                            {{ pk }}
+                          </button>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {% for pk in ['web', 'mweb', 'android', 'ios'] %}
-                {% set p = site.profiles.get(pk) %}
-                {% if p %}
-                  {% set sessions_diff = p.last_total - p.prev_total %}
-                  {% set users_diff = p.users_last - p.users_prev %}
-                  {% set engaged_diff = p.engaged_last - p.engaged_prev %}
-                  {% set er_diff = p.engagement_rate_last_pct - p.engagement_rate_prev_pct %}
-                  {% set sessions_class = 'text-emerald-600' if sessions_diff >= 0 else 'text-rose-600' %}
-                  {% set users_class = 'text-emerald-600' if users_diff >= 0 else 'text-rose-600' %}
-                  {% set engaged_class = 'text-emerald-600' if engaged_diff >= 0 else 'text-rose-600' %}
-                  {% set er_class = 'text-emerald-600' if er_diff >= 0 else 'text-rose-600' %}
-
-                  <div
-                    data-ga4-profile-panel="{{ pk }}"
-                    class="{% if pk != site.default_profile %}hidden {% endif %}space-y-5"
-                  >
-                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-600">
-                      <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">#{{ p.property_id }}</span>
-                      <span>Oturum Δ {{ p.wow_change_pct | exact_signed }}%</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 md:gap-4">
-                      <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500 sm:text-sm sm:tracking-normal">Oturum</p>
-                        <p class="mt-3 font-bold leading-none tabular-nums {{ sessions_class }} text-2xl sm:text-3xl">{{ p.last_total | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Son 30 gün</p>
-                        <p class="mt-4 font-semibold leading-tight text-slate-900 tabular-nums">{{ p.prev_total | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Önceki 30 gün</p>
-                      </article>
-                      <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500 sm:text-sm sm:tracking-normal">Kullanıcı</p>
-                        <p class="mt-3 font-bold leading-none tabular-nums {{ users_class }} text-2xl sm:text-3xl">{{ p.users_last | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Son 30 gün</p>
-                        <p class="mt-4 font-semibold leading-tight text-slate-900 tabular-nums">{{ p.users_prev | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Önceki 30 gün</p>
-                      </article>
-                      <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500 sm:text-sm sm:tracking-normal">Etkileşimli oturum</p>
-                        <p class="mt-3 font-bold leading-none tabular-nums {{ engaged_class }} text-2xl sm:text-3xl">{{ p.engaged_last | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Son 30 gün</p>
-                        <p class="mt-4 font-semibold leading-tight text-slate-900 tabular-nums">{{ p.engaged_prev | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Önceki 30 gün</p>
-                      </article>
-                      <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500 sm:text-sm sm:tracking-normal">Etkileşim oranı</p>
-                        <p class="mt-3 font-bold leading-none tabular-nums {{ er_class }} text-2xl sm:text-3xl">{{ p.engagement_rate_last_pct | max_two_decimals }}%</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Son 30 gün</p>
-                        <p class="mt-4 font-semibold leading-tight text-slate-900 tabular-nums">{{ p.engagement_rate_prev_pct | max_two_decimals }}%</p>
-                        <p class="mt-1 text-xs text-slate-500 sm:text-sm">Önceki 30 gün</p>
-                      </article>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
-                      <article class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Yeni kullanıcı</p>
-                        <p class="mt-2 text-xl font-bold text-slate-900">{{ p.new_users_last | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500">önceki: {{ p.new_users_prev | tr_int }}</p>
-                      </article>
-                      <article class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Ort. oturum süresi</p>
-                        <p class="mt-2 text-xl font-bold text-slate-900">{{ p.avg_session_last_sec | default(0) | int | tr_int }} sn</p>
-                        <p class="mt-1 text-xs text-slate-500">önceki: {{ p.avg_session_prev_sec | default(0) | int | tr_int }} sn</p>
-                      </article>
-                      <article class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
-                        <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Sayfa / ekran görüntüleme</p>
-                        <p class="mt-2 text-xl font-bold text-slate-900">{{ p.pageviews_last | tr_int }}</p>
-                        <p class="mt-1 text-xs text-slate-500">önceki: {{ p.pageviews_prev | tr_int }}</p>
-                      </article>
-                    </div>
-
-                    <div>
-                      <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Kanal özeti (son 30 gün)</p>
-                      <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                        {% for row in p.top_channels %}
-                          <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <span class="text-sm font-semibold text-slate-700">{{ row.label }}</span>
-                            <span class="text-sm font-semibold text-slate-900">{{ row.value | tr_int }}</span>
-                          </div>
-                        {% endfor %}
-                        <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 sm:col-span-2">
-                          <span class="text-sm font-semibold text-slate-700">Organic payı (son 30 gün)</span>
-                          <span class="text-sm font-semibold text-slate-900">{{ p.organic_share_pct | max_two_decimals }}%</span>
-                        </div>
+              {% for period_key in ['30', '7'] %}
+                <div
+                  data-ga4-period-panel="{{ period_key }}"
+                  class="{% if period_key == '7' %}hidden {% endif %}space-y-5"
+                >
+                  {% for pk in ['web', 'mweb', 'android', 'ios'] %}
+                    {% if pk in site.profiles %}
+                      {% set p = site.profiles[pk].periods[period_key] %}
+                      {% set period_days = p.period_days %}
+                      <div
+                        data-ga4-profile-panel="{{ pk }}"
+                        class="{% if pk != site.default_profile %}hidden {% endif %}space-y-5"
+                      >
+                        {% include 'partials/ga4_period_body.html' %}
                       </div>
-                    </div>
-
-                    <div class="overflow-x-auto rounded-2xl border border-slate-200">
-                      <p class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">Sayfalar (haber hariç)</p>
-                      <table class="min-w-[920px] w-full text-sm" data-ga4-table>
-                        <thead class="border-b border-slate-200 text-slate-500">
-                          <tr>
-                            <th class="px-3 py-3 text-left">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="page" data-sort-type="string">Sayfa / link</button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="last" data-sort-type="number">Oturum<br><span class="text-xs font-normal">Son 30 gün</span></button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="prev" data-sort-type="number">Oturum<br><span class="text-xs font-normal">Önceki 30 gün</span></button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="delta" data-sort-type="number">Fark</button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="deltaPct" data-sort-type="number">Δ %</button>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {% for row in p.pages_no_news %}
-                            <tr
-                              class="border-b border-slate-100 hover:bg-slate-50"
-                              data-ga4-row="1"
-                              data-page="{{ row.page|lower }}"
-                              data-last="{{ row.last_total }}"
-                              data-prev="{{ row.prev_total }}"
-                              data-delta="{{ row.delta }}"
-                              data-delta-pct="{{ row.delta_pct }}"
-                            >
-                              <td class="max-w-[20rem] px-3 py-3 text-left font-medium text-slate-900 break-words">{{ row.page }}</td>
-                              <td class="px-3 py-3 text-right text-sky-700">{{ row.last_total | tr_int }}</td>
-                              <td class="px-3 py-3 text-right text-sky-600">{{ row.prev_total | tr_int }}</td>
-                              <td class="px-3 py-3 text-right font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ row.delta | tr_int }}</td>
-                              <td class="px-3 py-3 text-right font-semibold {% if row.delta_pct < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ row.delta_pct | exact_signed }}%</td>
-                            </tr>
-                          {% else %}
-                            <tr>
-                              <td colspan="5" class="px-3 py-6 text-center text-slate-500">Sayfa kırılımı için veri yok. Yenile ile toplayın.</td>
-                            </tr>
-                          {% endfor %}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div class="overflow-x-auto rounded-2xl border border-slate-200">
-                      <p class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">Kaynak / ortam</p>
-                      <table class="min-w-[920px] w-full text-sm" data-ga4-table>
-                        <thead class="border-b border-slate-200 text-slate-500">
-                          <tr>
-                            <th class="px-3 py-3 text-left">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="source" data-sort-type="string">Kaynak / ortam</button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="last" data-sort-type="number">Oturum<br><span class="text-xs font-normal">Son 30 gün</span></button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="prev" data-sort-type="number">Oturum<br><span class="text-xs font-normal">Önceki 30 gün</span></button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="delta" data-sort-type="number">Fark</button>
-                            </th>
-                            <th class="px-3 py-3 text-right">
-                              <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="deltaPct" data-sort-type="number">Δ %</button>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {% for row in p.sources %}
-                            <tr
-                              class="border-b border-slate-100 hover:bg-slate-50"
-                              data-ga4-row="1"
-                              data-source="{{ row.source_medium|lower }}"
-                              data-last="{{ row.last_total }}"
-                              data-prev="{{ row.prev_total }}"
-                              data-delta="{{ row.delta }}"
-                              data-delta-pct="{{ row.delta_pct }}"
-                            >
-                              <td class="max-w-[24rem] px-3 py-3 text-left font-medium text-slate-900 break-words">{{ row.source_medium }}</td>
-                              <td class="px-3 py-3 text-right text-violet-700">{{ row.last_total | tr_int }}</td>
-                              <td class="px-3 py-3 text-right text-violet-600">{{ row.prev_total | tr_int }}</td>
-                              <td class="px-3 py-3 text-right font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ row.delta | tr_int }}</td>
-                              <td class="px-3 py-3 text-right font-semibold {% if row.delta_pct < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ row.delta_pct | exact_signed }}%</td>
-                            </tr>
-                          {% else %}
-                            <tr>
-                              <td colspan="5" class="px-3 py-6 text-center text-slate-500">Kaynak kırılımı için veri yok.</td>
-                            </tr>
-                          {% endfor %}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
               {% endfor %}
             </div>
           {% endif %}
@@ -264,7 +163,7 @@
                 data-site-domain="{{ site.domain }}"
                 class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                GA4 Verisini Yenile (30g)
+                Refresh GA4 (7d + 30d)
               </button>
             </div>
           {% endif %}

@@ -7,12 +7,18 @@ from sqlalchemy.orm import Session
 
 from backend.collectors.ga4 import collect_ga4_channel_sessions
 from backend.database import get_db
-from backend.models import Site
+from backend.models import ExternalSite, Site
 from backend.rate_limiter import limiter
 from backend.services.ga4_auth import get_ga4_connection_status
 from backend.services.metric_store import get_latest_metrics
 
 router = APIRouter(tags=["ga4"])
+
+
+def _is_external_site(db: Session, site_id: int) -> bool:
+    return (
+        db.query(ExternalSite.id).filter(ExternalSite.site_id == site_id).first() is not None
+    )
 
 
 @router.get("/ga4/{site_id}/status")
@@ -21,6 +27,8 @@ def ga4_status(request: Request, site_id: int, db: Session = Depends(get_db)):
     site = db.query(Site).filter(Site.id == site_id).first()
     if not site:
         raise HTTPException(status_code=404, detail="Site bulunamadı.")
+    if _is_external_site(db, site.id):
+        raise HTTPException(status_code=404, detail="External site GA4 listesinde değil.")
     return {"site_id": site.id, "domain": site.domain, "ga4": get_ga4_connection_status(db, site.id)}
 
 
@@ -30,6 +38,8 @@ def ga4_refresh(request: Request, site_id: int, db: Session = Depends(get_db)):
     site = db.query(Site).filter(Site.id == site_id).first()
     if not site:
         raise HTTPException(status_code=404, detail="Site bulunamadı.")
+    if _is_external_site(db, site.id):
+        raise HTTPException(status_code=404, detail="External site GA4 listesinde değil.")
     profile = (request.query_params.get("profile") or "").strip().lower() or None
     raw_days = (request.query_params.get("days") or "").strip()
     try:
@@ -47,6 +57,8 @@ def ga4_latest(request: Request, site_id: int, db: Session = Depends(get_db)):
     site = db.query(Site).filter(Site.id == site_id).first()
     if not site:
         raise HTTPException(status_code=404, detail="Site bulunamadı.")
+    if _is_external_site(db, site.id):
+        raise HTTPException(status_code=404, detail="External site GA4 listesinde değil.")
 
     latest = {m.metric_type: m for m in get_latest_metrics(db, site_id)}
     items = []

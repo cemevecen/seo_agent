@@ -90,34 +90,31 @@ def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> F
     )
 
 
-def _dimension_header_names(response) -> list[str]:
-    headers = getattr(response, "dimension_headers", None) or []
-    return [str(getattr(h, "name", "") or "") for h in headers]
-
-
-def _date_range_bucket(dr_raw: str) -> str | None:
-    """GA4 çoklu dateRange yanıtında: 'last' | 'prev' | None."""
-    s = (dr_raw or "").strip().lower()
-    if s in ("date_range_0", "daterange_0"):
-        return "last"
-    if s in ("date_range_1", "daterange_1"):
-        return "prev"
-    if "date_range_0" in s or s.endswith("range_0"):
-        return "last"
-    if "date_range_1" in s or s.endswith("range_1"):
-        return "prev"
-    return None
-
-
-def _pair_metric_values(metric_values: list, n_metrics: int) -> list[tuple[float, float]]:
-    """Tek satırda metrikler iki tarih aralığı için sırayla [m0_r0, m0_r1, m1_r0, m1_r1, ...] ise çiftler."""
-    out: list[tuple[float, float]] = []
-    for i in range(n_metrics):
-        lo = 2 * i
-        last = float(metric_values[lo].value or 0.0) if lo < len(metric_values) else 0.0
-        prev = float(metric_values[lo + 1].value or 0.0) if lo + 1 < len(metric_values) else 0.0
-        out.append((last, prev))
-    return out
+def _run_kpi_for_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    *,
+    start: str,
+    end: str,
+) -> dict[str, float]:
+    """Tek tarih aralığında KPI toplamları (çoklu dateRange parse hatası yok)."""
+    names = list(KPI_METRIC_NAMES)
+    response = client.run_report(
+        RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[],
+            metrics=[Metric(name=n) for n in names],
+            date_ranges=[DateRange(start_date=start, end_date=end)],
+        )
+    )
+    z = {k: 0.0 for k in names}
+    if not response.rows:
+        return z
+    row = response.rows[0]
+    for i, name in enumerate(names):
+        if i < len(row.metric_values):
+            z[name] = float(row.metric_values[i].value or 0.0)
+    return z
 
 
 def _run_kpi_totals(
@@ -129,94 +126,103 @@ def _run_kpi_totals(
     prev_start: str,
     prev_end: str,
 ) -> tuple[dict[str, float], dict[str, float]]:
-    """Çoklu dateRange: GA4 çoğu zaman `dateRange` boyutu ile satır başına tek aralık döner (docs)."""
-    names = list(KPI_METRIC_NAMES)
-    request = RunReportRequest(
-        property=f"properties/{property_id}",
-        dimensions=[],
-        metrics=[Metric(name=n) for n in names],
-        date_ranges=[
-            DateRange(name="last", start_date=last_start, end_date=last_end),
-            DateRange(name="prev", start_date=prev_start, end_date=prev_end),
-        ],
-    )
-    response = client.run_report(request)
-    z = {k: 0.0 for k in names}
-    if not response.rows:
-        return z.copy(), z.copy()
-
-    dh = _dimension_header_names(response)
-    if "dateRange" in dh:
-        dr_idx = dh.index("dateRange")
-        last_d = z.copy()
-        prev_d = z.copy()
-        for row in response.rows:
-            if dr_idx >= len(row.dimension_values):
-                continue
-            bucket = _date_range_bucket(str(row.dimension_values[dr_idx].value or ""))
-            if bucket is None:
-                continue
-            target = last_d if bucket == "last" else prev_d
-            for i, name in enumerate(names):
-                if i < len(row.metric_values):
-                    target[name] = float(row.metric_values[i].value or 0.0)
-        return last_d, prev_d
-
-    if len(response.rows) == 2 and not dh:
-        r0, r1 = response.rows[0], response.rows[1]
-        if len(r0.metric_values) == len(names) and len(r1.metric_values) == len(names):
-            last_d = {names[i]: float(r0.metric_values[i].value or 0.0) for i in range(len(names))}
-            prev_d = {names[i]: float(r1.metric_values[i].value or 0.0) for i in range(len(names))}
-            return last_d, prev_d
-
-    row = response.rows[0]
-    mv = list(row.metric_values)
-    if len(mv) == len(names) * 2:
-        pairs = _pair_metric_values(mv, len(names))
-        last_d = {names[i]: pairs[i][0] for i in range(len(names))}
-        prev_d = {names[i]: pairs[i][1] for i in range(len(names))}
-        return last_d, prev_d
-    if len(mv) == len(names):
-        last_d = {names[i]: float(mv[i].value or 0.0) for i in range(len(names))}
-        return last_d, z.copy()
-    return z.copy(), z.copy()
+    last_d = _run_kpi_for_single_range(client, property_id, start=last_start, end=last_end)
+    prev_d = _run_kpi_for_single_range(client, property_id, start=prev_start, end=prev_end)
+    return last_d, prev_d
 
 
-def _merge_two_range_metric_rows(
-    response,
+def _empty_daily_trend() -> dict[str, list]:
+    return {
+        "dates": [],
+        "sessions": [],
+        "totalUsers": [],
+        "engagedSessions": [],
+        "engagementRate": [],
+    }
+
+
+def _run_daily_kpi_trend(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
     *,
-    key_dim: str,
-) -> dict[str, tuple[float, float]]:
-    """Çoklu dateRange ile GA4'ün eklediği `dateRange` boyutuna göre birleştir: anahtar -> (last, prev)."""
-    dh = _dimension_header_names(response)
-    acc: dict[str, dict[str, float]] = {}
+    start: str,
+    end: str,
+) -> dict[str, list]:
+    """Son tarih aralığında günlük: sessions, users, engagedSessions, engagementRate (0–100)."""
+    trend_metrics = ("sessions", "totalUsers", "engagedSessions", "engagementRate")
+    response = client.run_report(
+        RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="date")],
+            metrics=[Metric(name=n) for n in trend_metrics],
+            date_ranges=[DateRange(start_date=start, end_date=end)],
+            limit=5000,
+            order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name="date"))],
+        )
+    )
+    dates: list[str] = []
+    sessions: list[float] = []
+    users: list[float] = []
+    engaged: list[float] = []
+    er_pct: list[float] = []
+    for row in response.rows:
+        raw = str(row.dimension_values[0].value or "")
+        if len(raw) == 8 and raw.isdigit():
+            d_iso = f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
+        else:
+            d_iso = raw
+        dates.append(d_iso)
+        vals = row.metric_values
+        sessions.append(float(vals[0].value or 0) if len(vals) > 0 else 0.0)
+        users.append(float(vals[1].value or 0) if len(vals) > 1 else 0.0)
+        engaged.append(float(vals[2].value or 0) if len(vals) > 2 else 0.0)
+        er_raw = float(vals[3].value or 0) if len(vals) > 3 else 0.0
+        er_pct.append(er_raw * 100.0 if er_raw <= 1.0 else er_raw)
+    return {
+        "dates": dates,
+        "sessions": sessions,
+        "totalUsers": users,
+        "engagedSessions": engaged,
+        "engagementRate": er_pct,
+    }
 
-    def _ensure(k: str) -> dict[str, float]:
-        if k not in acc:
-            acc[k] = {"last": 0.0, "prev": 0.0}
-        return acc[k]
 
-    if "dateRange" in dh and key_dim in dh:
-        dr_idx = dh.index("dateRange")
-        key_idx = dh.index(key_dim)
-        for row in response.rows:
-            if max(dr_idx, key_idx) >= len(row.dimension_values):
-                continue
-            key = str(row.dimension_values[key_idx].value or "")
-            dr = str(row.dimension_values[dr_idx].value or "")
-            bucket = _date_range_bucket(dr)
-            if bucket is None:
-                continue
-            val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
-            _ensure(key)[bucket] = val
-        return {k: (v["last"], v["prev"]) for k, v in acc.items()}
-
+def _run_dim_sessions_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    dimension_name: str,
+    *,
+    start: str,
+    end: str,
+    limit: int,
+    dimension_filter: FilterExpression | None = None,
+) -> dict[str, float]:
+    """Tek dönem: boyut başına oturum sayısı."""
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [Dimension(name=dimension_name)],
+        "metrics": [Metric(name="sessions")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(10, min(int(limit), 250)),
+        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+    }
+    if dimension_filter is not None:
+        req_kwargs["dimension_filter"] = dimension_filter
+    response = client.run_report(RunReportRequest(**req_kwargs))
+    out: dict[str, float] = {}
     for row in response.rows:
         key = str(row.dimension_values[0].value or "")
-        last_v = float(row.metric_values[0].value or 0.0) if len(row.metric_values) > 0 else 0.0
-        prev_v = float(row.metric_values[1].value or 0.0) if len(row.metric_values) > 1 else 0.0
-        acc[key] = {"last": last_v, "prev": prev_v}
-    return {k: (v["last"], v["prev"]) for k, v in acc.items()}
+        val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        out[key] = val
+    return out
+
+
+def _merge_period_maps(
+    last_map: dict[str, float],
+    prev_map: dict[str, float],
+) -> dict[str, tuple[float, float]]:
+    keys = set(last_map) | set(prev_map)
+    return {k: (float(last_map.get(k, 0.0)), float(prev_map.get(k, 0.0))) for k in keys}
 
 
 def _run_landing_pages_excl_news(
@@ -230,22 +236,26 @@ def _run_landing_pages_excl_news(
     limit: int = 100,
 ) -> list[dict]:
     filt = _landing_exclude_filter("landingPagePlusQueryString")
-    req_kwargs: dict = {
-        "property": f"properties/{property_id}",
-        "dimensions": [Dimension(name="landingPagePlusQueryString")],
-        "metrics": [Metric(name="sessions")],
-        "date_ranges": [
-            DateRange(name="last", start_date=last_start, end_date=last_end),
-            DateRange(name="prev", start_date=prev_start, end_date=prev_end),
-        ],
-        "limit": max(10, min(int(limit), 250)),
-        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
-    }
-    if filt is not None:
-        req_kwargs["dimension_filter"] = filt
-    response = client.run_report(RunReportRequest(**req_kwargs))
-
-    merged = _merge_two_range_metric_rows(response, key_dim="landingPagePlusQueryString")
+    lim = max(10, min(int(limit), 250))
+    last_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "landingPagePlusQueryString",
+        start=last_start,
+        end=last_end,
+        limit=lim,
+        dimension_filter=filt,
+    )
+    prev_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "landingPagePlusQueryString",
+        start=prev_start,
+        end=prev_end,
+        limit=lim,
+        dimension_filter=filt,
+    )
+    merged = _merge_period_maps(last_map, prev_map)
     rows: list[dict] = []
     for page, (last_v, prev_v) in merged.items():
         delta = last_v - prev_v
@@ -273,20 +283,26 @@ def _run_session_source_medium(
     prev_end: str,
     limit: int = 60,
 ) -> list[dict]:
-    response = client.run_report(
-        RunReportRequest(
-            property=f"properties/{property_id}",
-            dimensions=[Dimension(name="sessionSourceMedium")],
-            metrics=[Metric(name="sessions")],
-            date_ranges=[
-                DateRange(name="last", start_date=last_start, end_date=last_end),
-                DateRange(name="prev", start_date=prev_start, end_date=prev_end),
-            ],
-            order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
-            limit=max(10, min(int(limit), 250)),
-        )
+    lim = max(10, min(int(limit), 250))
+    last_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "sessionSourceMedium",
+        start=last_start,
+        end=last_end,
+        limit=lim,
+        dimension_filter=None,
     )
-    merged = _merge_two_range_metric_rows(response, key_dim="sessionSourceMedium")
+    prev_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "sessionSourceMedium",
+        start=prev_start,
+        end=prev_end,
+        limit=lim,
+        dimension_filter=None,
+    )
+    merged = _merge_period_maps(last_map, prev_map)
     rows: list[dict] = []
     for sm, (last_v, prev_v) in merged.items():
         delta = last_v - prev_v
@@ -358,20 +374,25 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
         (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
 
         for profile_key, property_id in _profiles_to_fetch():
-            request = RunReportRequest(
-                property=f"properties/{property_id}",
-                dimensions=[Dimension(name="sessionDefaultChannelGroup")],
-                metrics=[Metric(name="sessions")],
-                date_ranges=[
-                    DateRange(name=f"last{safe_days}d", start_date=last_start, end_date=last_end),
-                    DateRange(name=f"prev{safe_days}d", start_date=prev_start, end_date=prev_end),
-                ],
-                order_bys=[],
+            last_map_ch = _run_dim_sessions_single_range(
+                client,
+                property_id,
+                "sessionDefaultChannelGroup",
+                start=last_start,
+                end=last_end,
                 limit=100,
+                dimension_filter=None,
             )
-            response = client.run_report(request)
-
-            merged_ch = _merge_two_range_metric_rows(response, key_dim="sessionDefaultChannelGroup")
+            prev_map_ch = _run_dim_sessions_single_range(
+                client,
+                property_id,
+                "sessionDefaultChannelGroup",
+                start=prev_start,
+                end=prev_end,
+                limit=100,
+                dimension_filter=None,
+            )
+            merged_ch = _merge_period_maps(last_map_ch, prev_map_ch)
             last_by_channel: dict[str, float] = {}
             prev_by_channel: dict[str, float] = {}
             for channel, (last_value, prev_value) in merged_ch.items():
@@ -385,13 +406,15 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
             prefix = f"ga4_{profile_key}_sessions_"
             metrics[f"{prefix}last{safe_days}d_total"] = float(last_total)
             metrics[f"{prefix}prev{safe_days}d_total"] = float(prev_total)
-            metrics[f"{prefix}wow_change_pct"] = float(wow_pct)
+            ds = f"_{safe_days}d"
+            metrics[f"{prefix}wow_change_pct{ds}"] = float(wow_pct)
+            if safe_days == 30:
+                metrics[f"{prefix}wow_change_pct"] = float(wow_pct)
             for channel, value in last_by_channel.items():
                 metrics[f"{prefix}last{safe_days}d_channel__{slugify(channel)}"] = float(value)
             for channel, value in prev_by_channel.items():
                 metrics[f"{prefix}prev{safe_days}d_channel__{slugify(channel)}"] = float(value)
 
-            # KPI + tablolar
             try:
                 last_kpi, prev_kpi = _run_kpi_totals(
                     client,
@@ -405,6 +428,21 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 LOGGER.warning("GA4 KPI raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 last_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
                 prev_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
+
+            # KPI raporu ile kanal toplamları tek kaynak olsun (snapshot/metrik tutarlılığı)
+            last_kpi["sessions"] = float(last_total)
+            prev_kpi["sessions"] = float(prev_total)
+
+            try:
+                daily_trend = _run_daily_kpi_trend(
+                    client,
+                    property_id,
+                    start=last_start,
+                    end=last_end,
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("GA4 günlük KPI trend başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                daily_trend = _empty_daily_trend()
 
             try:
                 pages_rows = _run_landing_pages_excl_news(
@@ -434,6 +472,7 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
 
             payload = {
                 "summary": {"last": last_kpi, "prev": prev_kpi},
+                "daily_trend": daily_trend,
                 "pages_no_news": pages_rows,
                 "sources": sources_rows,
                 "exclude_path_substrings": _exclude_path_substrings(),
@@ -453,8 +492,11 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
             )
 
             for key in KPI_METRIC_NAMES:
-                metrics[f"ga4_{profile_key}_kpi_last_{key}"] = float(last_kpi.get(key, 0.0))
-                metrics[f"ga4_{profile_key}_kpi_prev_{key}"] = float(prev_kpi.get(key, 0.0))
+                metrics[f"ga4_{profile_key}_kpi_last_{key}{ds}"] = float(last_kpi.get(key, 0.0))
+                metrics[f"ga4_{profile_key}_kpi_prev_{key}{ds}"] = float(prev_kpi.get(key, 0.0))
+                if safe_days == 30:
+                    metrics[f"ga4_{profile_key}_kpi_last_{key}"] = float(last_kpi.get(key, 0.0))
+                    metrics[f"ga4_{profile_key}_kpi_prev_{key}"] = float(prev_kpi.get(key, 0.0))
 
             summaries[profile_key] = {
                 "property_id": property_id,
@@ -508,23 +550,26 @@ def fetch_ga4_landing_pages(
     (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
 
     client = _client()
-    req_kwargs: dict = {
-        "property": f"properties/{property_id}",
-        "dimensions": [Dimension(name="landingPagePlusQueryString")],
-        "metrics": [Metric(name="sessions")],
-        "date_ranges": [
-            DateRange(name=f"last{safe_days}d", start_date=last_start, end_date=last_end),
-            DateRange(name=f"prev{safe_days}d", start_date=prev_start, end_date=prev_end),
-        ],
-        "limit": safe_limit,
-    }
-    if exclude_news:
-        filt = _landing_exclude_filter("landingPagePlusQueryString")
-        if filt is not None:
-            req_kwargs["dimension_filter"] = filt
-    response = client.run_report(RunReportRequest(**req_kwargs))
-
-    merged = _merge_two_range_metric_rows(response, key_dim="landingPagePlusQueryString")
+    filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None
+    last_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "landingPagePlusQueryString",
+        start=last_start,
+        end=last_end,
+        limit=safe_limit,
+        dimension_filter=filt,
+    )
+    prev_map = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "landingPagePlusQueryString",
+        start=prev_start,
+        end=prev_end,
+        limit=safe_limit,
+        dimension_filter=filt,
+    )
+    merged = _merge_period_maps(last_map, prev_map)
     rows: list[dict] = []
     for page, (last_value, prev_value) in merged.items():
         delta = last_value - prev_value

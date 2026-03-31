@@ -5,32 +5,32 @@
   </div>
 
   <div class="mt-3 overflow-x-auto">
-    <table class="min-w-full text-left text-sm">
+    <table class="w-max max-w-full min-w-0 text-left text-sm">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
-          <th class="px-3 py-2 font-medium">Landing page</th>
-          <th class="px-3 py-2 font-medium">Son</th>
-          <th class="px-3 py-2 font-medium">Önceki</th>
-          <th class="px-3 py-2 font-medium">Δ</th>
-          <th class="px-3 py-2 font-medium">Δ%</th>
+          <th class="px-2 py-2 font-medium sm:px-3">Landing page</th>
+          <th class="whitespace-nowrap px-2 py-2 text-right font-medium sm:px-3">Son</th>
+          <th class="whitespace-nowrap px-2 py-2 text-right font-medium sm:px-3">Önceki</th>
+          <th class="whitespace-nowrap px-2 py-2 text-right font-medium sm:px-3">Δ</th>
+          <th class="whitespace-nowrap px-2 py-2 text-right font-medium sm:px-3">Δ%</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
           <tr class="border-b border-slate-100">
-            <td class="px-3 py-2 font-medium text-slate-900 max-w-[34rem] truncate" title="{{ row.page }}">{{ row.page }}</td>
-            <td class="px-3 py-2 text-slate-700">{{ row.last_total | tr_int }}</td>
-            <td class="px-3 py-2 text-slate-700">{{ row.prev_total | tr_int }}</td>
-            <td class="px-3 py-2 font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">
+            <td class="max-w-[min(100vw,28rem)] px-2 py-2 font-medium text-slate-900 break-words sm:px-3" title="{{ row.page }}">{{ row.page }}</td>
+            <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-700 sm:px-3">{{ row.last_total | tr_int }}</td>
+            <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-700 sm:px-3">{{ row.prev_total | tr_int }}</td>
+            <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold {% if row.delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:px-3">
               {{ row.delta | tr_int }}
             </td>
-            <td class="px-3 py-2 font-semibold {% if row.delta_pct < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">
-              {{ row.delta_pct | exact_signed }}%
+            <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold {% if row.delta_pct < 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:px-3">
+              {{ row.delta_pct | signed_max_two_decimals }}%
             </td>
           </tr>
         {% else %}
           <tr>
-            <td colspan="5" class="px-3 py-6 text-center text-slate-500">Veri yok.</td>
+            <td colspan="5" class="px-2 py-6 text-center text-slate-500 sm:px-3">Veri yok.</td>
           </tr>
         {% endfor %}
       </tbody>

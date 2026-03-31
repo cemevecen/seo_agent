@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+  /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
+    min-width: 0 !important;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] th:first-child,
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] td:first-child {
+    width: 38%;
+    max-width: none !important;
+  }
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] th:nth-child(n + 2),
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] td:nth-child(n + 2) {
+    width: 10.33%;
+  }
+</style>
 <div class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -604,8 +621,8 @@
       const button = card.querySelector('[data-site-expand-toggle]');
       const panel = card.querySelector('[data-site-expand-panel]');
       const icon = card.querySelector('[data-site-expand-icon]');
-      const label = button ? button.querySelector('[data-site-expand-label]') : null;
-      const trigger = button ? button.querySelector('[data-site-expand-trigger]') : null;
+      const label = card.querySelector('[data-site-expand-label]');
+      const trigger = card.querySelector('[data-site-expand-trigger]');
 
       if (!button || !panel) {
         return;
@@ -617,13 +634,25 @@
         panel.classList.toggle('hidden', !expanded);
         if (icon) {
           icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+          if (expanded) {
+            icon.classList.remove('bg-slate-800/15');
+            icon.classList.add('bg-white/15');
+          } else {
+            icon.classList.remove('bg-white/15');
+            icon.classList.add('bg-slate-800/15');
+          }
         }
         if (label) {
           label.textContent = expanded ? 'Detayları Gizle' : 'Detayları Aç';
         }
         if (trigger) {
-          trigger.classList.toggle('bg-sky-700', !expanded);
-          trigger.classList.toggle('bg-sky-800', expanded);
+          trigger.classList.toggle('bg-slate-700', expanded);
+          trigger.classList.toggle('text-white', expanded);
+          trigger.classList.toggle('border-transparent', expanded);
+          trigger.classList.toggle('bg-slate-200', !expanded);
+          trigger.classList.toggle('text-slate-800', !expanded);
+          trigger.classList.toggle('border-slate-300', !expanded);
+          trigger.classList.toggle('border', !expanded);
         }
         if (expanded) {
           window.setTimeout(function () {
@@ -634,16 +663,98 @@
         }
       };
 
-      button.addEventListener('click', function () {
+      const toggleFromHeader = function () {
         setExpanded(button.getAttribute('aria-expanded') !== 'true');
-      });
+      };
+      button.addEventListener('click', toggleFromHeader);
+      if (trigger) {
+        trigger.addEventListener('click', function (e) {
+          e.stopPropagation();
+          toggleFromHeader();
+        });
+      }
 
       setExpanded(card.dataset.expanded === 'true');
     });
   }
 
+  function initSearchConsoleSplitView(root) {
+    (root || document).querySelectorAll('[data-sc-split-root]').forEach(function (grid) {
+      if (grid.dataset.scSplitBound === '1') {
+        return;
+      }
+      grid.dataset.scSplitBound = '1';
+
+      var cards = grid.querySelectorAll('[data-sc-site-card]');
+      if (cards.length < 2) {
+        return;
+      }
+
+      function applyFocus(focusId) {
+        var fid = focusId ? String(focusId) : '';
+        grid.dataset.scFocus = fid;
+        grid.classList.toggle('sc-split--focused', Boolean(fid));
+        cards.forEach(function (card) {
+          var sid = String(card.getAttribute('data-site-id') || '');
+          var expandBtn = card.querySelector('[data-sc-focus-toggle]');
+          var resetBtn = card.querySelector('[data-sc-split-reset]');
+          if (fid && sid === fid) {
+            card.classList.remove('hidden');
+            card.classList.add('xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.add('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.remove('hidden');
+            }
+          } else if (fid) {
+            card.classList.add('hidden');
+            card.classList.remove('xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.add('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.add('hidden');
+            }
+          } else {
+            card.classList.remove('hidden', 'xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.remove('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.add('hidden');
+            }
+          }
+        });
+        window.setTimeout(function () {
+          initSearchConsoleTables(grid);
+          renderSearchConsoleTrendCharts(grid);
+          fitSearchConsoleText(grid);
+        }, 40);
+      }
+
+      grid.querySelectorAll('[data-sc-focus-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applyFocus(btn.getAttribute('data-sc-focus-toggle'));
+        });
+      });
+      grid.querySelectorAll('[data-sc-split-reset]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applyFocus('');
+        });
+      });
+
+      applyFocus(grid.dataset.scFocus || '');
+    });
+  }
+
   function initSearchConsolePanels(root) {
     initSearchConsoleExpandables(root);
+    initSearchConsoleSplitView(root);
     initSearchConsoleDeviceSwitches(root);
     bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);

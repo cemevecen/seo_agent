@@ -1,22 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+  /* Tam genişlik kart modunda tablolar içerik kadar dar kalmasın (w-max kalkar) */
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] {
+    width: 100%;
+    table-layout: fixed;
+  }
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] th:first-child,
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] td:first-child {
+    width: 46%;
+    max-width: none;
+  }
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] th:nth-child(n + 2),
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] td:nth-child(n + 2) {
+    width: 13.5%;
+  }
+</style>
 <div data-header-title="GA4" class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div class="space-y-2">
-        <button
-          id="refresh-ga4-sites-button"
-          type="button"
-          class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-          onclick="refreshGa4Sites(this)"
-        >
-          Tüm Siteleri Yenile
-        </button>
-        <p class="text-sm text-slate-500">
-          Son 30 gün ve önceki 30 gün için oturum, kullanıcı, kanal, kaynak/ortam ve haber hariç sayfa kırılımları çekilir; yenileme sırasında aşağıda canlı ilerleme gösterilir.
-        </p>
-      </div>
+      <button
+        id="refresh-ga4-sites-button"
+        type="button"
+        class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        onclick="refreshGa4Sites(this)"
+      >
+        Tüm Siteleri Yenile
+      </button>
     </div>
 
     <div id="ga4-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-violet-200 bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(109,40,217,0.35)] ring-1 ring-white/70 backdrop-blur-sm">
@@ -332,7 +343,7 @@
       trigger.textContent = 'Yenileniyor…';
     }
 
-    fetch('/ga4/refresh-all?days=30', {
+    fetch('/ga4/refresh-all', {
       method: 'POST',
       headers: { 'HX-Request': 'true' },
     })
@@ -383,7 +394,7 @@
       button.textContent = 'Yenileniyor…';
     }
 
-    fetch('/ga4/refresh/' + encodeURIComponent(siteId) + '?days=30', {
+    fetch('/ga4/refresh/' + encodeURIComponent(siteId), {
       method: 'POST',
       headers: { 'HX-Request': 'true' },
     })
@@ -412,6 +423,43 @@
           button.textContent = original;
         }
       });
+  }
+
+  function fitGa4Text(root) {
+    const scope = root || document;
+    const baseFontSize = parseFloat(window.getComputedStyle(document.documentElement).fontSize || '16');
+    scope.querySelectorAll('[data-fit-text]').forEach(function (element) {
+      if (element.closest('.hidden')) {
+        return;
+      }
+      const maxRem = parseFloat(element.dataset.fitTextMax || '3');
+      const minRem = parseFloat(element.dataset.fitTextMin || '1');
+      const maxPx = maxRem * baseFontSize;
+      const minPx = minRem * baseFontSize;
+
+      element.style.fontSize = maxPx + 'px';
+      if (!element.parentElement) {
+        return;
+      }
+
+      let nextSize = maxPx;
+      const par = element.parentElement;
+      const maxWidth =
+        (par && par.clientWidth) ||
+        element.clientWidth ||
+        (par && par.parentElement && par.parentElement.clientWidth) ||
+        0;
+      const maxHeight = par ? par.clientHeight : 0;
+
+      if (maxWidth <= 0) {
+        return;
+      }
+
+      while (nextSize > minPx && (element.scrollWidth > maxWidth || (maxHeight && element.scrollHeight > maxHeight))) {
+        nextSize -= 0.5;
+        element.style.fontSize = nextSize + 'px';
+      }
+    });
   }
 
   function initGa4Tables(root) {
@@ -479,6 +527,187 @@
     });
   }
 
+  function renderGa4TrendCharts(root) {
+    (root || document).querySelectorAll('[data-ga4-kpi-trend]').forEach(function (element) {
+      if (element.closest('.hidden')) {
+        return;
+      }
+      if (element.dataset.chartReady === '1') {
+        if (window.Plotly) {
+          window.requestAnimationFrame(function () {
+            Plotly.Plots.resize(element);
+          });
+        }
+        return;
+      }
+      var renderChart = function (attempt) {
+        if (element.dataset.chartReady === '1') {
+          return;
+        }
+        if (!window.Plotly) {
+          if (attempt < 10) {
+            window.setTimeout(function () {
+              renderChart(attempt + 1);
+            }, 250);
+          }
+          return;
+        }
+        var raw = element.getAttribute('data-ga4-daily-trend') || '{}';
+        var trend;
+        try {
+          trend = JSON.parse(raw);
+        } catch (err) {
+          return;
+        }
+        if (!trend.dates || !trend.dates.length) {
+          return;
+        }
+        try {
+          var traces = [
+            {
+              x: trend.dates,
+              y: trend.sessions || [],
+              type: 'scatter',
+              mode: 'lines',
+              name: 'Sessions',
+              line: { color: '#4f83e3', width: 2.5 },
+              yaxis: 'y',
+            },
+            {
+              x: trend.dates,
+              y: trend.totalUsers || [],
+              type: 'scatter',
+              mode: 'lines',
+              name: 'Users',
+              line: { color: '#0d9488', width: 2.5 },
+              yaxis: 'y',
+            },
+            {
+              x: trend.dates,
+              y: trend.engagedSessions || [],
+              type: 'scatter',
+              mode: 'lines',
+              name: 'Engaged sessions',
+              line: { color: '#7c3aed', width: 2.5 },
+              yaxis: 'y',
+            },
+            {
+              x: trend.dates,
+              y: trend.engagementRate || [],
+              type: 'scatter',
+              mode: 'lines',
+              name: 'Engagement rate',
+              line: { color: '#dd7a2a', width: 2.5 },
+              yaxis: 'y2',
+            },
+          ];
+          Plotly.newPlot(
+            element,
+            traces,
+            {
+              autosize: true,
+              height: 360,
+              margin: { l: 56, r: 56, t: 16, b: 88 },
+              paper_bgcolor: 'rgba(0,0,0,0)',
+              plot_bgcolor: 'rgba(0,0,0,0)',
+              legend: {
+                orientation: 'h',
+                x: 0,
+                y: -0.2,
+                xanchor: 'left',
+                yanchor: 'top',
+                font: { size: 11 },
+              },
+              xaxis: {
+                gridcolor: '#e2e8f0',
+                automargin: true,
+                type: 'date',
+                tickangle: -35,
+                tickfont: { size: 10 },
+              },
+              yaxis: {
+                title: 'Sessions / Users / Engaged',
+                gridcolor: '#e2e8f0',
+                zeroline: false,
+                automargin: true,
+              },
+              yaxis2: {
+                title: 'Eng. rate %',
+                overlaying: 'y',
+                side: 'right',
+                zeroline: false,
+                automargin: true,
+                showgrid: false,
+              },
+              hovermode: 'x unified',
+            },
+            { displayModeBar: false, responsive: true }
+          ).then(function () {
+            element.dataset.chartReady = '1';
+            window.requestAnimationFrame(function () {
+              Plotly.Plots.resize(element);
+            });
+            window.setTimeout(function () {
+              Plotly.Plots.resize(element);
+            }, 150);
+          });
+        } catch (error) {
+          console.warn('GA4 trend render failed:', error);
+        }
+      };
+      renderChart(0);
+    });
+  }
+
+  function initGa4PeriodSwitch(root) {
+    (root || document).querySelectorAll('[data-ga4-period-switch]').forEach(function (switcher) {
+      if (switcher.dataset.periodBound === '1') {
+        return;
+      }
+      switcher.dataset.periodBound = '1';
+      const card = switcher.closest('section');
+      const buttons = switcher.querySelectorAll('[data-ga4-period-toggle]');
+      const activate = function (periodKey) {
+        buttons.forEach(function (button) {
+          const isActive = button.dataset.ga4PeriodToggle === periodKey;
+          button.dataset.active = isActive ? 'true' : 'false';
+          button.classList.toggle('bg-violet-900', isActive);
+          button.classList.toggle('text-white', isActive);
+          button.classList.toggle('text-slate-600', !isActive);
+        });
+        if (card) {
+          card.querySelectorAll('[data-ga4-period-panel]').forEach(function (panel) {
+            const isActive = panel.dataset.ga4PeriodPanel === periodKey;
+            panel.classList.toggle('hidden', !isActive);
+          });
+          card.querySelectorAll('[data-ga4-period-heading]').forEach(function (heading) {
+            const isActive = heading.dataset.ga4PeriodHeading === periodKey;
+            heading.classList.toggle('hidden', !isActive);
+          });
+        }
+        window.setTimeout(function () {
+          initGa4Tables(card || document);
+          fitGa4Text(card || document);
+          renderGa4TrendCharts(card || document);
+        }, 40);
+      };
+
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activate(button.dataset.ga4PeriodToggle);
+        });
+      });
+
+      var initial =
+        Array.from(buttons).find(function (button) {
+          return button.dataset.active === 'true';
+        }) || buttons[0];
+      if (initial) {
+        activate(initial.dataset.ga4PeriodToggle);
+      }
+    });
+  }
+
   function initGa4ProfileSwitches(root) {
     (root || document).querySelectorAll('[data-ga4-profile-switch]').forEach(function (switcher) {
       if (switcher.dataset.switchReady === '1') {
@@ -503,6 +732,8 @@
         }
         window.setTimeout(function () {
           initGa4Tables(hostCard || document);
+          fitGa4Text(hostCard || document);
+          renderGa4TrendCharts(hostCard || document);
         }, 40);
       };
 
@@ -532,8 +763,8 @@
       const button = card.querySelector('[data-site-expand-toggle]');
       const panel = card.querySelector('[data-site-expand-panel]');
       const icon = card.querySelector('[data-site-expand-icon]');
-      const label = button ? button.querySelector('[data-site-expand-label]') : null;
-      const trigger = button ? button.querySelector('[data-site-expand-trigger]') : null;
+      const label = card.querySelector('[data-site-expand-label]');
+      const trigger = card.querySelector('[data-site-expand-trigger]');
 
       if (!button || !panel) {
         return;
@@ -545,26 +776,48 @@
         panel.classList.toggle('hidden', !expanded);
         if (icon) {
           icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+          if (expanded) {
+            icon.classList.remove('bg-slate-800/15');
+            icon.classList.add('bg-white/15');
+          } else {
+            icon.classList.remove('bg-white/15');
+            icon.classList.add('bg-slate-800/15');
+          }
         }
         if (label) {
           label.textContent = expanded ? 'Detayları Gizle' : 'Detayları Aç';
         }
         if (trigger) {
-          trigger.classList.toggle('bg-slate-900', expanded);
-          trigger.classList.toggle('bg-slate-800', !expanded);
+          trigger.classList.toggle('bg-slate-700', expanded);
+          trigger.classList.toggle('text-white', expanded);
+          trigger.classList.toggle('border-transparent', expanded);
+          trigger.classList.toggle('bg-slate-200', !expanded);
+          trigger.classList.toggle('text-slate-800', !expanded);
+          trigger.classList.toggle('border-slate-300', !expanded);
+          trigger.classList.toggle('border', !expanded);
         }
         if (expanded) {
           window.setTimeout(function () {
             initGa4Tables(panel);
+            initGa4PeriodSwitch(panel);
             initGa4ProfileSwitches(panel);
             bindGa4SiteRefreshButtons(panel);
+            fitGa4Text(panel);
+            renderGa4TrendCharts(panel);
           }, 60);
         }
       };
 
-      button.addEventListener('click', function () {
+      const toggleFromHeader = function () {
         setExpanded(button.getAttribute('aria-expanded') !== 'true');
-      });
+      };
+      button.addEventListener('click', toggleFromHeader);
+      if (trigger) {
+        trigger.addEventListener('click', function (e) {
+          e.stopPropagation();
+          toggleFromHeader();
+        });
+      }
 
       setExpanded(card.dataset.expanded === 'true');
     });
@@ -584,12 +837,99 @@
     });
   }
 
+  function initGa4SplitView(root) {
+    (root || document).querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
+      if (grid.dataset.ga4SplitBound === '1') {
+        return;
+      }
+      grid.dataset.ga4SplitBound = '1';
+
+      var cards = grid.querySelectorAll('[data-ga4-site-card]');
+      if (cards.length < 2) {
+        return;
+      }
+
+      function applyFocus(focusId) {
+        var fid = focusId ? String(focusId) : '';
+        grid.dataset.ga4Focus = fid;
+        grid.classList.toggle('ga4-split--focused', Boolean(fid));
+        cards.forEach(function (card) {
+          var sid = String(card.getAttribute('data-site-id') || '');
+          var expandBtn = card.querySelector('[data-ga4-focus-toggle]');
+          var resetBtn = card.querySelector('[data-ga4-split-reset]');
+          if (fid && sid === fid) {
+            card.classList.remove('hidden');
+            card.classList.add('xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.add('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.remove('hidden');
+            }
+          } else if (fid) {
+            card.classList.add('hidden');
+            card.classList.remove('xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.add('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.add('hidden');
+            }
+          } else {
+            card.classList.remove('hidden', 'xl:col-span-2');
+            if (expandBtn) {
+              expandBtn.classList.remove('hidden');
+            }
+            if (resetBtn) {
+              resetBtn.classList.add('hidden');
+            }
+          }
+        });
+        window.setTimeout(function () {
+          initGa4Tables(grid);
+          fitGa4Text(grid);
+          renderGa4TrendCharts(grid);
+        }, 40);
+      }
+
+      grid.querySelectorAll('[data-ga4-focus-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applyFocus(btn.getAttribute('data-ga4-focus-toggle'));
+        });
+      });
+      grid.querySelectorAll('[data-ga4-split-reset]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applyFocus('');
+        });
+      });
+
+      applyFocus(grid.dataset.ga4Focus || '');
+    });
+  }
+
   function initGa4Panels(root) {
     initGa4Expandables(root);
+    initGa4SplitView(root);
+    initGa4PeriodSwitch(root);
     initGa4ProfileSwitches(root);
     initGa4Tables(root);
     bindGa4SiteRefreshButtons(root);
+    window.requestAnimationFrame(function () {
+      fitGa4Text(root);
+      renderGa4TrendCharts(root);
+    });
   }
+
+  window.addEventListener('resize', function () {
+    window.requestAnimationFrame(function () {
+      fitGa4Text(document);
+      renderGa4TrendCharts(document);
+    });
+  });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target && event.target.id === 'ga4-site-list') {

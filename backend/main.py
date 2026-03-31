@@ -8,7 +8,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation, ROUND_DOWN
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlparse
@@ -142,6 +142,29 @@ def _format_exact_signed(value) -> str:
     return f"{sign}{_format_exact(decimal_value)}"
 
 
+def _format_signed_max_two_decimals(value) -> str:
+    """Δ % gibi yüzde farkları: en fazla 2 ondalık, yuvarlanmış, işaretli (+/-)."""
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    clipped = decimal_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    normalized = format(clipped.normalize(), "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    if normalized in {"", "-0"}:
+        normalized = "0"
+    if clipped > 0:
+        return f"+{normalized}"
+    if clipped < 0:
+        return normalized
+    return "0"
+
+
 def _ms_to_exact_seconds(value) -> str:
     if value is None:
         return "N/A"
@@ -175,6 +198,7 @@ def _format_tr_int(value) -> str:
 jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
+jinja_env.filters["signed_max_two_decimals"] = _format_signed_max_two_decimals
 jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
 jinja_env.filters["tr_int"] = _format_tr_int
 templates = Jinja2Templates(env=jinja_env)
@@ -4057,79 +4081,285 @@ def _ga4_engagement_rate_pct(raw: float) -> float:
     return v * 100.0 if v <= 1.0 else v
 
 
+def _ga4_period_pct_change(last: float, prev: float) -> float:
+    """Önceki döneme göre yüzde değişim; prev=0 iken last>0 ise +100% kabul."""
+    try:
+        lv = float(last or 0.0)
+        pv = float(prev or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if pv > 0.0:
+        return (lv - pv) / pv * 100.0
+    if lv > 0.0:
+        return 100.0
+    return 0.0
+
+
+def _ga4_profile_payload_for_period(
+    db,
+    *,
+    site_id: int,
+    profile: str,
+    period_days: int,
+    latest: dict[str, float],
+    prop_id: str,
+) -> dict:
+    """Tek GA4 profili için son N gün vs önceki N gün kart yükü (snapshot + metrik fallback)."""
+
+    def pick(metric_key: str) -> float:
+        try:
+            return float(latest.get(metric_key, 0.0) or 0.0)
+        except Exception:  # noqa: BLE001
+            return 0.0
+
+    pd = int(period_days) if int(period_days) > 0 else 30
+    sk = f"_{pd}d"
+
+    def channels_for(pd_days: int) -> list[tuple[str, float]]:
+        prefix = f"ga4_{profile}_sessions_last{pd_days}d_channel__"
+        items = []
+        for key, value in latest.items():
+            if key.startswith(prefix):
+                label = key.replace(prefix, "").replace("_", " ")
+                items.append((label, float(value or 0.0)))
+        items.sort(key=lambda x: x[1], reverse=True)
+        return items[:4]
+
+    def sum_channel_prefix(prefix: str) -> float:
+        total = 0.0
+        for key, value in latest.items():
+            if key.startswith(prefix):
+                try:
+                    total += float(value or 0.0)
+                except (TypeError, ValueError):
+                    continue
+        return total
+
+    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=pd)
+    pl = (snap or {}).get("payload") or {}
+    summary = pl.get("summary") or {}
+    last_s = summary.get("last") or {}
+    prev_s = summary.get("prev") or {}
+
+    # Snapshot KPI: 0 oturum geçerli olabilir; None/boş ise metrik tablosuna düş.
+    _ls_raw = last_s.get("sessions")
+    if _ls_raw is not None and _ls_raw != "":
+        try:
+            last_total = float(_ls_raw)
+        except (TypeError, ValueError):
+            last_total = 0.0
+    else:
+        last_total = 0.0
+    if last_total <= 0:
+        last_total = float(
+            pick(f"ga4_{profile}_sessions_last{pd}d_total")
+            or (pick(f"ga4_{profile}_sessions_last30d_total") if pd == 30 else 0.0)
+            or 0.0
+        )
+    _ps_raw = prev_s.get("sessions")
+    if _ps_raw is not None and _ps_raw != "":
+        try:
+            prev_total = float(_ps_raw)
+        except (TypeError, ValueError):
+            prev_total = 0.0
+    else:
+        prev_total = 0.0
+    if prev_total <= 0:
+        prev_total = float(
+            pick(f"ga4_{profile}_sessions_prev{pd}d_total")
+            or (pick(f"ga4_{profile}_sessions_prev30d_total") if pd == 30 else 0.0)
+            or 0.0
+        )
+
+    # Kanal kırılımı toplamları (skaler prev/last ile tutarsızlık veya eksik metrik düzeltmesi)
+    ch_last_sum = sum_channel_prefix(f"ga4_{profile}_sessions_last{pd}d_channel__")
+    ch_prev_sum = sum_channel_prefix(f"ga4_{profile}_sessions_prev{pd}d_channel__")
+    if ch_last_sum > 0 and (last_total <= 0 or abs(last_total - ch_last_sum) > max(1.0, 0.05 * ch_last_sum)):
+        last_total = ch_last_sum
+    if ch_prev_sum > 0 and (prev_total <= 0 or abs(prev_total - ch_prev_sum) > max(1.0, 0.05 * ch_prev_sum)):
+        prev_total = ch_prev_sum
+
+    # Snapshot'ta sessions=0 iken kanal/metriklerde trafik varsa özet KPI bloğu eski/hatalıdır; skaler metriklere güven.
+    if snap and last_total > 0:
+        _sv = last_s.get("sessions")
+        _snap_sess_bad = False
+        if _sv is not None and _sv != "":
+            try:
+                _snap_sess_bad = float(_sv) <= 0
+            except (TypeError, ValueError):
+                _snap_sess_bad = False
+        if _snap_sess_bad:
+            last_s = {}
+            prev_s = {}
+
+    wow = _ga4_period_pct_change(last_total, prev_total)
+
+    organic = pick(f"ga4_{profile}_sessions_last{pd}d_channel__organic_search")
+    organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
+
+    users_last = float(
+        last_s.get("totalUsers")
+        or pick(f"ga4_{profile}_kpi_last_totalUsers{sk}")
+        or (pick(f"ga4_{profile}_kpi_last_totalUsers") if pd == 30 else 0.0)
+        or 0.0
+    )
+    users_prev = float(
+        prev_s.get("totalUsers")
+        or pick(f"ga4_{profile}_kpi_prev_totalUsers{sk}")
+        or (pick(f"ga4_{profile}_kpi_prev_totalUsers") if pd == 30 else 0.0)
+        or 0.0
+    )
+    new_users_last = float(
+        last_s.get("newUsers")
+        or pick(f"ga4_{profile}_kpi_last_newUsers{sk}")
+        or (pick(f"ga4_{profile}_kpi_last_newUsers") if pd == 30 else 0.0)
+        or 0.0
+    )
+    new_users_prev = float(
+        prev_s.get("newUsers")
+        or pick(f"ga4_{profile}_kpi_prev_newUsers{sk}")
+        or (pick(f"ga4_{profile}_kpi_prev_newUsers") if pd == 30 else 0.0)
+        or 0.0
+    )
+    engaged_last = float(
+        last_s.get("engagedSessions")
+        or pick(f"ga4_{profile}_kpi_last_engagedSessions{sk}")
+        or (pick(f"ga4_{profile}_kpi_last_engagedSessions") if pd == 30 else 0.0)
+        or 0.0
+    )
+    engaged_prev = float(
+        prev_s.get("engagedSessions")
+        or pick(f"ga4_{profile}_kpi_prev_engagedSessions{sk}")
+        or (pick(f"ga4_{profile}_kpi_prev_engagedSessions") if pd == 30 else 0.0)
+        or 0.0
+    )
+    _erl = last_s.get("engagementRate")
+    if _erl is None or _erl == "":
+        _erl = pick(f"ga4_{profile}_kpi_last_engagementRate{sk}") or (
+            pick(f"ga4_{profile}_kpi_last_engagementRate") if pd == 30 else 0.0
+        )
+    engagement_rate_last_pct = _ga4_engagement_rate_pct(_erl)
+    _erp = prev_s.get("engagementRate")
+    if _erp is None or _erp == "":
+        _erp = pick(f"ga4_{profile}_kpi_prev_engagementRate{sk}") or (
+            pick(f"ga4_{profile}_kpi_prev_engagementRate") if pd == 30 else 0.0
+        )
+    engagement_rate_prev_pct = _ga4_engagement_rate_pct(_erp)
+    avg_session_last_sec = float(
+        last_s.get("averageSessionDuration")
+        or pick(f"ga4_{profile}_kpi_last_averageSessionDuration{sk}")
+        or (pick(f"ga4_{profile}_kpi_last_averageSessionDuration") if pd == 30 else 0.0)
+        or 0.0
+    )
+    avg_session_prev_sec = float(
+        prev_s.get("averageSessionDuration")
+        or pick(f"ga4_{profile}_kpi_prev_averageSessionDuration{sk}")
+        or (pick(f"ga4_{profile}_kpi_prev_averageSessionDuration") if pd == 30 else 0.0)
+        or 0.0
+    )
+    pageviews_last = float(
+        last_s.get("screenPageViews")
+        or pick(f"ga4_{profile}_kpi_last_screenPageViews{sk}")
+        or (pick(f"ga4_{profile}_kpi_last_screenPageViews") if pd == 30 else 0.0)
+        or 0.0
+    )
+    pageviews_prev = float(
+        prev_s.get("screenPageViews")
+        or pick(f"ga4_{profile}_kpi_prev_screenPageViews{sk}")
+        or (pick(f"ga4_{profile}_kpi_prev_screenPageViews") if pd == 30 else 0.0)
+        or 0.0
+    )
+
+    return {
+        "property_id": prop_id,
+        "period_days": pd,
+        "ranges": {
+            "last_start": (snap or {}).get("last_start") or "",
+            "last_end": (snap or {}).get("last_end") or "",
+            "prev_start": (snap or {}).get("prev_start") or "",
+            "prev_end": (snap or {}).get("prev_end") or "",
+        },
+        "last_total": last_total,
+        "prev_total": prev_total,
+        "wow_change_pct": wow,
+        "sessions_pct_change": _ga4_period_pct_change(last_total, prev_total),
+        "users_last": users_last,
+        "users_prev": users_prev,
+        "users_pct_change": _ga4_period_pct_change(users_last, users_prev),
+        "new_users_last": new_users_last,
+        "new_users_prev": new_users_prev,
+        "new_users_pct_change": _ga4_period_pct_change(new_users_last, new_users_prev),
+        "engaged_last": engaged_last,
+        "engaged_prev": engaged_prev,
+        "engaged_pct_change": _ga4_period_pct_change(engaged_last, engaged_prev),
+        "engagement_rate_last_pct": engagement_rate_last_pct,
+        "engagement_rate_prev_pct": engagement_rate_prev_pct,
+        "engagement_rate_pct_change": _ga4_period_pct_change(engagement_rate_last_pct, engagement_rate_prev_pct),
+        "avg_session_last_sec": avg_session_last_sec,
+        "avg_session_prev_sec": avg_session_prev_sec,
+        "avg_session_pct_change": _ga4_period_pct_change(avg_session_last_sec, avg_session_prev_sec),
+        "pageviews_last": pageviews_last,
+        "pageviews_prev": pageviews_prev,
+        "pageviews_pct_change": _ga4_period_pct_change(pageviews_last, pageviews_prev),
+        "organic_share_pct": organic_share,
+        "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(pd)],
+        "pages_no_news": pl.get("pages_no_news") or [],
+        "sources": pl.get("sources") or [],
+        "daily_trend": pl.get("daily_trend")
+        or {
+            "dates": [],
+            "sessions": [],
+            "totalUsers": [],
+            "engagedSessions": [],
+            "engagementRate": [],
+        },
+        "has_snapshot": bool(snap),
+        "has_period_data": bool(
+            snap
+            or last_total > 0
+            or prev_total > 0
+            or ch_last_sum > 0
+            or ch_prev_sum > 0
+        ),
+    }
+
+
 def _ga4_sites_payload(db) -> list[dict]:
+    external_site_ids = _external_site_ids(db)
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
     rows: list[dict] = []
     for site in sites:
+        if site.id in external_site_ids:
+            continue
         latest = {m.metric_type: m.value for m in get_latest_metrics(db, site.id)}
         ga4_status = get_ga4_connection_status(db, site.id)
         profiles: dict[str, dict] = {}
-
-        def pick(metric_key: str) -> float:
-            try:
-                return float(latest.get(metric_key, 0.0) or 0.0)
-            except Exception:  # noqa: BLE001
-                return 0.0
-
-        def channels_for(profile: str) -> list[tuple[str, float]]:
-            prefix = f"ga4_{profile}_sessions_last30d_channel__"
-            items = []
-            for key, value in latest.items():
-                if key.startswith(prefix):
-                    label = key.replace(prefix, "").replace("_", " ")
-                    items.append((label, float(value or 0.0)))
-            items.sort(key=lambda x: x[1], reverse=True)
-            return items[:4]
 
         for profile in ("web", "mweb", "android", "ios"):
             prop_id = str((ga4_status.get("properties") or {}).get(profile, "") or "").strip()
             if not prop_id:
                 continue
 
-            snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=30)
-            pl = (snap or {}).get("payload") or {}
-            summary = pl.get("summary") or {}
-            last_s = summary.get("last") or {}
-            prev_s = summary.get("prev") or {}
-
-            last_total = float(last_s.get("sessions") or pick(f"ga4_{profile}_sessions_last30d_total") or 0.0)
-            prev_total = float(prev_s.get("sessions") or pick(f"ga4_{profile}_sessions_prev30d_total") or 0.0)
-            wow = pick(f"ga4_{profile}_sessions_wow_change_pct")
-
-            organic = pick(f"ga4_{profile}_sessions_last30d_channel__organic_search")
-            organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
             profiles[profile] = {
                 "property_id": prop_id,
-                "ranges": {
-                    "last_start": (snap or {}).get("last_start") or "",
-                    "last_end": (snap or {}).get("last_end") or "",
-                    "prev_start": (snap or {}).get("prev_start") or "",
-                    "prev_end": (snap or {}).get("prev_end") or "",
+                "periods": {
+                    "30": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=30,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
+                    "7": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=7,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
                 },
-                "last_total": last_total,
-                "prev_total": prev_total,
-                "wow_change_pct": wow,
-                "users_last": float(last_s.get("totalUsers") or pick(f"ga4_{profile}_kpi_last_totalUsers") or 0.0),
-                "users_prev": float(prev_s.get("totalUsers") or pick(f"ga4_{profile}_kpi_prev_totalUsers") or 0.0),
-                "new_users_last": float(last_s.get("newUsers") or pick(f"ga4_{profile}_kpi_last_newUsers") or 0.0),
-                "new_users_prev": float(prev_s.get("newUsers") or pick(f"ga4_{profile}_kpi_prev_newUsers") or 0.0),
-                "engaged_last": float(last_s.get("engagedSessions") or pick(f"ga4_{profile}_kpi_last_engagedSessions") or 0.0),
-                "engaged_prev": float(prev_s.get("engagedSessions") or pick(f"ga4_{profile}_kpi_prev_engagedSessions") or 0.0),
-                "engagement_rate_last_pct": _ga4_engagement_rate_pct(
-                    last_s.get("engagementRate") if last_s else pick(f"ga4_{profile}_kpi_last_engagementRate")
-                ),
-                "engagement_rate_prev_pct": _ga4_engagement_rate_pct(
-                    prev_s.get("engagementRate") if prev_s else pick(f"ga4_{profile}_kpi_prev_engagementRate")
-                ),
-                "avg_session_last_sec": float(last_s.get("averageSessionDuration") or pick(f"ga4_{profile}_kpi_last_averageSessionDuration") or 0.0),
-                "avg_session_prev_sec": float(prev_s.get("averageSessionDuration") or pick(f"ga4_{profile}_kpi_prev_averageSessionDuration") or 0.0),
-                "pageviews_last": float(last_s.get("screenPageViews") or pick(f"ga4_{profile}_kpi_last_screenPageViews") or 0.0),
-                "pageviews_prev": float(prev_s.get("screenPageViews") or pick(f"ga4_{profile}_kpi_prev_screenPageViews") or 0.0),
-                "organic_share_pct": organic_share,
-                "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(profile)],
-                "pages_no_news": pl.get("pages_no_news") or [],
-                "sources": pl.get("sources") or [],
-                "has_snapshot": bool(snap),
             }
 
         rows.append(
@@ -4167,15 +4397,12 @@ def ga4_site_list(request: Request):
 
 @app.post("/ga4/refresh/{site_id}")
 def ga4_refresh_site(request: Request, site_id: int):
-    raw_days = (request.query_params.get("days") or "").strip()
-    try:
-        days = int(raw_days) if raw_days else 30
-    except ValueError:
-        days = 30
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("Bu site GA4 listesinde yer almaz (external).", status_code=404)
         if not ga4_is_configured():
             return HTMLResponse("GA4 service account ayarlı değil.", status_code=503)
         conn = get_ga4_connection_status(db, site.id)
@@ -4184,7 +4411,9 @@ def ga4_refresh_site(request: Request, site_id: int):
         from backend.collectors.ga4 import collect_ga4_channel_sessions
 
         try:
-            result = collect_ga4_channel_sessions(db, site, days=days)
+            collect_ga4_channel_sessions(db, site, days=30)
+            collect_ga4_channel_sessions(db, site, days=7)
+            result = {"state": "success", "windows": ["30d", "7d"]}
             db.commit()
             notify_result_map(
                 trigger_source="manual",
@@ -4212,23 +4441,23 @@ def ga4_refresh_site(request: Request, site_id: int):
 
 @app.post("/ga4/refresh-all")
 def ga4_refresh_all(request: Request):
-    raw_days = (request.query_params.get("days") or "").strip()
-    try:
-        days = int(raw_days) if raw_days else 30
-    except ValueError:
-        days = 30
     if not ga4_is_configured():
         return HTMLResponse("GA4 service account ayarlı değil (.env: GA4_SERVICE_ACCOUNT_FILE / JSON).", status_code=503)
     with SessionLocal() as db:
         from backend.collectors.ga4 import collect_ga4_channel_sessions
 
+        external_site_ids = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
         for site in sites:
+            if site.id in external_site_ids:
+                continue
             conn = get_ga4_connection_status(db, site.id)
             if not conn.get("connected"):
                 continue
             try:
-                result = collect_ga4_channel_sessions(db, site, days=days)
+                collect_ga4_channel_sessions(db, site, days=30)
+                collect_ga4_channel_sessions(db, site, days=7)
+                result = {"state": "success", "windows": ["30d", "7d"]}
                 db.commit()
                 notify_result_map(
                     trigger_source="manual",
@@ -4266,6 +4495,8 @@ def ga4_pages_partial(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("Bu site GA4 listesinde yer almaz (external).", status_code=404)
 
         ga4_status = get_ga4_connection_status(db, site.id)
         properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
