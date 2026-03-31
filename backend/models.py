@@ -49,6 +49,9 @@ class Site(Base):
     url_inspection_snapshots: Mapped[list["UrlInspectionSnapshot"]] = relationship(
         "UrlInspectionSnapshot", back_populates="site", cascade="all, delete-orphan"
     )
+    ga4_report_snapshots: Mapped[list["Ga4ReportSnapshot"]] = relationship(
+        "Ga4ReportSnapshot", back_populates="site", cascade="all, delete-orphan"
+    )
     external_profile: Mapped["ExternalSite | None"] = relationship(
         "ExternalSite", back_populates="site", cascade="all, delete-orphan", uselist=False
     )
@@ -229,6 +232,28 @@ class SearchConsoleQuerySnapshot(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     site: Mapped["Site"] = relationship("Site", back_populates="search_console_query_snapshots")
+
+
+class Ga4ReportSnapshot(Base):
+    """GA4 profil bazlı özet KPI, sayfa ve kaynak kırılımları (JSON)."""
+
+    __tablename__ = "ga4_report_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    profile: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    period_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30, index=True)
+    last_start: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    last_end: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    prev_start: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    prev_end: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="ga4_report_snapshots")
 
 
 class CruxHistorySnapshot(Base):

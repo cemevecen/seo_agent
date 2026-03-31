@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
     ga4_service_account_json: str = ""
     ga4_service_account_file: str = ""
+    # GA4 landing sayfa filtresi: virgülle ayrılmış path alt dizeleri (haber vb. hariç)
+    ga4_exclude_path_substrings: str = "/haber/,/news/,/gundem/"
 
     # Uygulama sadece localhost üzerinde dinlenecek şekilde varsayılanlanır.
     app_host: str = "127.0.0.1"

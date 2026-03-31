@@ -2,24 +2,199 @@
 
 {% block content %}
 <div data-header-title="GA4" class="space-y-6">
-  <div class="rounded-[2rem] bg-white px-6 py-7 shadow-sm ring-1 ring-slate-200">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500">GA4 Trafik Kaynakları</p>
-        <h3 class="mt-2 text-3xl font-bold tracking-tight text-slate-900">Son 30 gün özeti</h3>
-        <p class="mt-2 text-sm text-slate-600">Her profil (web / mweb / android / ios) için “son 30 gün vs önceki 30 gün” sessions karşılaştırması.</p>
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="space-y-2">
+        <form hx-post="/ga4/refresh-all?days=30" hx-target="#ga4-site-list" hx-swap="innerHTML">
+          <button type="submit" class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto">
+            Tüm Siteleri Yenile
+          </button>
+        </form>
+        <p class="text-sm text-slate-500">
+          Son 30 gün ve önceki 30 gün için oturum, kullanıcı, kanal, kaynak/ortam ve haber hariç sayfa kırılımları çekilir; kartlar Search Console düzenine benzer.
+        </p>
       </div>
-      <form hx-post="/ga4/refresh-all?days=30" hx-target="#ga4-site-list" hx-swap="innerHTML">
-        <button type="submit" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-          Tüm siteleri yenile (30g)
-        </button>
-      </form>
+    </div>
+
+    <div id="ga4-site-list" hx-get="/ga4/site-list" hx-trigger="load" hx-swap="innerHTML">
+      <div class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-sm ring-1 ring-white/75">
+        <p class="text-sm font-semibold text-slate-900">GA4 kartları yükleniyor…</p>
+        <p class="mt-1 text-sm text-slate-600">Liste isteği tamamlanınca özet ve tablolar görünecek.</p>
+      </div>
     </div>
   </div>
-
-  <div id="ga4-site-list">
-    {% include "partials/ga4_site_cards.html" %}
-  </div>
 </div>
-{% endblock %}
 
+<script>
+  function initGa4Tables(root) {
+    (root || document).querySelectorAll('[data-ga4-table]').forEach(function (table) {
+      if (table.dataset.tableReady === '1') {
+        return;
+      }
+      table.dataset.tableReady = '1';
+      const tbody = table.querySelector('tbody');
+      if (!tbody) {
+        return;
+      }
+      const buttons = table.querySelectorAll('[data-sort-key]');
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          const key = button.dataset.sortKey;
+          const type = button.dataset.sortType || 'string';
+          const currentDirection = button.dataset.sortDirection === 'asc' ? 'asc' : 'desc';
+          const nextDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+          buttons.forEach(function (item) {
+            item.dataset.sortDirection = '';
+          });
+          button.dataset.sortDirection = nextDirection;
+          const rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+            return row.hasAttribute('data-ga4-row');
+          });
+          function read(row) {
+            if (key === 'page') {
+              return row.dataset.page || '';
+            }
+            if (key === 'source') {
+              return row.dataset.source || '';
+            }
+            if (key === 'deltaPct') {
+              return parseFloat(row.dataset.deltaPct || '0');
+            }
+            if (key === 'last') {
+              return parseFloat(row.dataset.last || '0');
+            }
+            if (key === 'prev') {
+              return parseFloat(row.dataset.prev || '0');
+            }
+            if (key === 'delta') {
+              return parseFloat(row.dataset.delta || '0');
+            }
+            return '';
+          }
+          rows.sort(function (left, right) {
+            const leftValue = read(left);
+            const rightValue = read(right);
+            if (type === 'number') {
+              const leftNumber = typeof leftValue === 'number' ? leftValue : parseFloat(leftValue || '0');
+              const rightNumber = typeof rightValue === 'number' ? rightValue : parseFloat(rightValue || '0');
+              return nextDirection === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;
+            }
+            return nextDirection === 'asc'
+              ? String(leftValue || '').localeCompare(String(rightValue || ''), 'tr')
+              : String(rightValue || '').localeCompare(String(leftValue || ''), 'tr');
+          });
+          rows.forEach(function (row) {
+            tbody.appendChild(row);
+          });
+        });
+      });
+    });
+  }
+
+  function initGa4ProfileSwitches(root) {
+    (root || document).querySelectorAll('[data-ga4-profile-switch]').forEach(function (switcher) {
+      if (switcher.dataset.switchReady === '1') {
+        return;
+      }
+      switcher.dataset.switchReady = '1';
+      const hostCard = switcher.closest('section');
+      const buttons = switcher.querySelectorAll('[data-ga4-profile-toggle]');
+      const activate = function (profileKey) {
+        buttons.forEach(function (button) {
+          const isActive = button.dataset.ga4ProfileToggle === profileKey;
+          button.dataset.active = isActive ? 'true' : 'false';
+          button.classList.toggle('bg-slate-900', isActive);
+          button.classList.toggle('text-white', isActive);
+          button.classList.toggle('text-slate-600', !isActive);
+        });
+        if (hostCard) {
+          hostCard.querySelectorAll('[data-ga4-profile-panel]').forEach(function (panel) {
+            const isActive = panel.dataset.ga4ProfilePanel === profileKey;
+            panel.classList.toggle('hidden', !isActive);
+          });
+        }
+        window.setTimeout(function () {
+          initGa4Tables(hostCard || document);
+        }, 40);
+      };
+
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activate(button.dataset.ga4ProfileToggle);
+        });
+      });
+
+      const initialButton =
+        Array.from(buttons).find(function (button) {
+          return button.dataset.active === 'true';
+        }) || buttons[0];
+      if (initialButton) {
+        activate(initialButton.dataset.ga4ProfileToggle);
+      }
+    });
+  }
+
+  function initGa4Expandables(root) {
+    (root || document).querySelectorAll('[data-ga4-expandable]').forEach(function (card) {
+      if (card.dataset.expandReady === '1') {
+        return;
+      }
+      card.dataset.expandReady = '1';
+
+      const button = card.querySelector('[data-site-expand-toggle]');
+      const panel = card.querySelector('[data-site-expand-panel]');
+      const icon = card.querySelector('[data-site-expand-icon]');
+      const label = button ? button.querySelector('[data-site-expand-label]') : null;
+      const trigger = button ? button.querySelector('[data-site-expand-trigger]') : null;
+
+      if (!button || !panel) {
+        return;
+      }
+
+      const setExpanded = function (expanded) {
+        card.dataset.expanded = expanded ? 'true' : 'false';
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        panel.classList.toggle('hidden', !expanded);
+        if (icon) {
+          icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        if (label) {
+          label.textContent = expanded ? 'Detayları Gizle' : 'Detayları Aç';
+        }
+        if (trigger) {
+          trigger.classList.toggle('bg-slate-900', expanded);
+          trigger.classList.toggle('bg-slate-800', !expanded);
+        }
+        if (expanded) {
+          window.setTimeout(function () {
+            initGa4Tables(panel);
+            initGa4ProfileSwitches(panel);
+          }, 60);
+        }
+      };
+
+      button.addEventListener('click', function () {
+        setExpanded(button.getAttribute('aria-expanded') !== 'true');
+      });
+
+      setExpanded(card.dataset.expanded === 'true');
+    });
+  }
+
+  function initGa4Panels(root) {
+    initGa4Expandables(root);
+    initGa4ProfileSwitches(root);
+    initGa4Tables(root);
+  }
+
+  document.body.addEventListener('htmx:afterSwap', function (event) {
+    if (event.target && event.target.id === 'ga4-site-list') {
+      initGa4Panels(event.target);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initGa4Panels(document);
+  });
+</script>
+{% endblock %}

@@ -71,6 +71,7 @@ from backend.services.operations_notifier import (
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
+    get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
     get_latest_url_inspection_snapshot,
     get_site_warehouse_summary,
@@ -4048,6 +4049,14 @@ def settings_site_list(request: Request):
         )
 
 
+def _ga4_engagement_rate_pct(raw: float) -> float:
+    try:
+        v = float(raw or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return v * 100.0 if v <= 1.0 else v
+
+
 def _ga4_sites_payload(db) -> list[dict]:
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
     rows: list[dict] = []
@@ -4073,20 +4082,54 @@ def _ga4_sites_payload(db) -> list[dict]:
             return items[:4]
 
         for profile in ("web", "mweb", "android", "ios"):
-            last_total = pick(f"ga4_{profile}_sessions_last30d_total")
-            prev_total = pick(f"ga4_{profile}_sessions_prev30d_total")
-            wow = pick(f"ga4_{profile}_sessions_wow_change_pct")
-            if last_total <= 0 and prev_total <= 0:
+            prop_id = str((ga4_status.get("properties") or {}).get(profile, "") or "").strip()
+            if not prop_id:
                 continue
+
+            snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=30)
+            pl = (snap or {}).get("payload") or {}
+            summary = pl.get("summary") or {}
+            last_s = summary.get("last") or {}
+            prev_s = summary.get("prev") or {}
+
+            last_total = float(last_s.get("sessions") or pick(f"ga4_{profile}_sessions_last30d_total") or 0.0)
+            prev_total = float(prev_s.get("sessions") or pick(f"ga4_{profile}_sessions_prev30d_total") or 0.0)
+            wow = pick(f"ga4_{profile}_sessions_wow_change_pct")
+
             organic = pick(f"ga4_{profile}_sessions_last30d_channel__organic_search")
             organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
             profiles[profile] = {
-                "property_id": (ga4_status.get("properties") or {}).get(profile, ""),
+                "property_id": prop_id,
+                "ranges": {
+                    "last_start": (snap or {}).get("last_start") or "",
+                    "last_end": (snap or {}).get("last_end") or "",
+                    "prev_start": (snap or {}).get("prev_start") or "",
+                    "prev_end": (snap or {}).get("prev_end") or "",
+                },
                 "last_total": last_total,
                 "prev_total": prev_total,
                 "wow_change_pct": wow,
+                "users_last": float(last_s.get("totalUsers") or pick(f"ga4_{profile}_kpi_last_totalUsers") or 0.0),
+                "users_prev": float(prev_s.get("totalUsers") or pick(f"ga4_{profile}_kpi_prev_totalUsers") or 0.0),
+                "new_users_last": float(last_s.get("newUsers") or pick(f"ga4_{profile}_kpi_last_newUsers") or 0.0),
+                "new_users_prev": float(prev_s.get("newUsers") or pick(f"ga4_{profile}_kpi_prev_newUsers") or 0.0),
+                "engaged_last": float(last_s.get("engagedSessions") or pick(f"ga4_{profile}_kpi_last_engagedSessions") or 0.0),
+                "engaged_prev": float(prev_s.get("engagedSessions") or pick(f"ga4_{profile}_kpi_prev_engagedSessions") or 0.0),
+                "engagement_rate_last_pct": _ga4_engagement_rate_pct(
+                    last_s.get("engagementRate") if last_s else pick(f"ga4_{profile}_kpi_last_engagementRate")
+                ),
+                "engagement_rate_prev_pct": _ga4_engagement_rate_pct(
+                    prev_s.get("engagementRate") if prev_s else pick(f"ga4_{profile}_kpi_prev_engagementRate")
+                ),
+                "avg_session_last_sec": float(last_s.get("averageSessionDuration") or pick(f"ga4_{profile}_kpi_last_averageSessionDuration") or 0.0),
+                "avg_session_prev_sec": float(prev_s.get("averageSessionDuration") or pick(f"ga4_{profile}_kpi_prev_averageSessionDuration") or 0.0),
+                "pageviews_last": float(last_s.get("screenPageViews") or pick(f"ga4_{profile}_kpi_last_screenPageViews") or 0.0),
+                "pageviews_prev": float(prev_s.get("screenPageViews") or pick(f"ga4_{profile}_kpi_prev_screenPageViews") or 0.0),
                 "organic_share_pct": organic_share,
                 "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(profile)],
+                "pages_no_news": pl.get("pages_no_news") or [],
+                "sources": pl.get("sources") or [],
+                "has_snapshot": bool(snap),
             }
 
         rows.append(
@@ -4096,6 +4139,7 @@ def _ga4_sites_payload(db) -> list[dict]:
                 "display_name": site.display_name,
                 "ga4": ga4_status,
                 "profiles": profiles,
+                "default_profile": next((k for k in ("web", "mweb", "android", "ios") if k in profiles), "web"),
             }
         )
     rows.sort(key=lambda item: _preferred_site_order_key(item.get("domain"), item.get("display_name")))
@@ -4104,13 +4148,21 @@ def _ga4_sites_payload(db) -> list[dict]:
 
 @app.get("/ga4")
 def ga4_page(request: Request):
-    with SessionLocal() as db:
-        payload = {
-            "site_name": "GA4",
-            "sites": get_sidebar_sites(),
-            "ga4_sites": _ga4_sites_payload(db),
-        }
+    payload = {
+        "site_name": "GA4",
+        "sites": get_sidebar_sites(),
+    }
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
+
+
+@app.get("/ga4/site-list")
+def ga4_site_list(request: Request):
+    with SessionLocal() as db:
+        return templates.TemplateResponse(
+            request,
+            "partials/ga4_site_cards.html",
+            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+        )
 
 
 @app.post("/ga4/refresh/{site_id}")
@@ -4179,7 +4231,12 @@ def ga4_pages_partial(request: Request, site_id: int):
         from backend.collectors.ga4 import fetch_ga4_landing_pages
 
         try:
-            rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=50)
+            snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=days)
+            snap_pages = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
+            if snap_pages:
+                rows = snap_pages
+            else:
+                rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=50, exclude_news=True)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 

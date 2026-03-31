@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.models import (
     CollectorRun,
     CruxHistorySnapshot,
+    Ga4ReportSnapshot,
     LighthouseAuditRecord,
     PageSpeedPayloadSnapshot,
     SearchConsoleQuerySnapshot,
@@ -207,6 +208,71 @@ def get_latest_search_console_rows(
     ]
 
 
+def save_ga4_report_snapshot(
+    db: Session,
+    *,
+    site_id: int,
+    profile: str,
+    period_days: int,
+    last_start: str,
+    last_end: str,
+    prev_start: str,
+    prev_end: str,
+    payload: dict,
+    collected_at: datetime,
+    collector_run_id: int | None = None,
+) -> Ga4ReportSnapshot:
+    row = Ga4ReportSnapshot(
+        site_id=site_id,
+        collector_run_id=collector_run_id,
+        profile=str(profile).strip().lower(),
+        period_days=int(period_days),
+        last_start=last_start,
+        last_end=last_end,
+        prev_start=prev_start,
+        prev_end=prev_end,
+        payload_json=json.dumps(payload or {}, ensure_ascii=True),
+        collected_at=collected_at,
+    )
+    db.add(row)
+    return row
+
+
+def get_latest_ga4_report_snapshot(
+    db: Session,
+    *,
+    site_id: int,
+    profile: str,
+    period_days: int = 30,
+) -> dict | None:
+    row = (
+        db.query(Ga4ReportSnapshot)
+        .filter(
+            Ga4ReportSnapshot.site_id == site_id,
+            Ga4ReportSnapshot.profile == str(profile).strip().lower(),
+            Ga4ReportSnapshot.period_days == int(period_days),
+        )
+        .order_by(Ga4ReportSnapshot.collected_at.desc(), Ga4ReportSnapshot.id.desc())
+        .first()
+    )
+    if row is None:
+        return None
+    try:
+        payload = json.loads(row.payload_json or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    return {
+        "profile": row.profile,
+        "period_days": row.period_days,
+        "last_start": row.last_start,
+        "last_end": row.last_end,
+        "prev_start": row.prev_start,
+        "prev_end": row.prev_end,
+        "collected_at": row.collected_at.isoformat(),
+        "payload": payload,
+    }
+
+
 def get_site_warehouse_summary(db: Session, *, site_id: int) -> dict:
     latest_runs = (
         db.query(CollectorRun)
@@ -248,6 +314,9 @@ def get_site_warehouse_summary(db: Session, *, site_id: int) -> dict:
             .filter(UrlInspectionSnapshot.site_id == site_id)
             .scalar()
             or 0
+        ),
+        "ga4_report_snapshots": int(
+            db.query(func.count(Ga4ReportSnapshot.id)).filter(Ga4ReportSnapshot.site_id == site_id).scalar() or 0
         ),
         "latest_runs": [
             {
