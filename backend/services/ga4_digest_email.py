@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -18,6 +19,11 @@ GA4_DIGEST_SINEMA_DOMAINS = frozenset({"sinemalar.com", "www.sinemalar.com", "m.
 
 MIN_NOTES = 20
 MAX_NOTES = 50
+
+# Referral kaynağı: profil oturumlarına göre payı bundan küçükse özet/hesaplara alınmaz
+GA4_DIGEST_REFERRAL_MIN_SESSION_SHARE = 0.01
+# Sıralama skoru: düşüşler (negatif %) daha yüksek ağırlık
+GA4_DIGEST_DECLINE_SCORE_MULT = 1.38
 
 DOVIZ_AREA_TITLES = (
     "Alan 1 — Trafik ve oturum (7g / önceki 7g)",
@@ -37,6 +43,80 @@ PROFILE_LABELS = {
     "android": "Android",
     "ios": "iOS",
 }
+
+# Haber kategori URL'leri mail özetine alınmaz: ...-haberleri/ segmenti ve bilinen sabitler
+_RE_DIGEST_HABERLERI = re.compile(r"/[^/]+-haberleri/", re.IGNORECASE)
+
+
+def _exclude_digest_landing_path(path: str) -> bool:
+    p = (path or "").strip()
+    if not p:
+        return True
+    low = p.lower()
+    if "/gundem-haberleri/" in low:
+        return True
+    if "/altin-ve-degerli-metal-haberleri/" in low:
+        return True
+    if _RE_DIGEST_HABERLERI.search(p):
+        return True
+    return False
+
+
+def _exclude_digest_ga_dim_placeholder(s: str) -> bool:
+    """GA boyut değerleri: (not set), (other) — mail ve seçimde yok."""
+    t = (s or "").strip().lower()
+    if "(not set)" in t or "(other)" in t:
+        return True
+    if "not%20set" in t or "(not%20set)" in t:
+        return True
+    return False
+
+
+def balance_digest_entries_half_up_down(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Yüzde satırları: n adet varsa en fazla n//2 artış ve n//2 düşüş (|Δ%| büyükten).
+    Ör. n=40 → 20 pozitif + 20 negatif (yeterli adet varsa); kalan havuzdan doldurma yok.
+    pct=0 nötrler ve kanal satırları sonda."""
+
+    def pct(e: dict[str, Any]) -> float:
+        try:
+            return float(e.get("pct_value") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    if not entries:
+        return []
+    channels = [e for e in entries if e.get("kind") == "channel"]
+    rest = [e for e in entries if e.get("kind") != "channel"]
+    pos = [e for e in rest if pct(e) > 0]
+    neg = [e for e in rest if pct(e) < 0]
+    neutral = [e for e in rest if pct(e) == 0]
+    pos.sort(key=lambda e: -abs(pct(e)))
+    neg.sort(key=lambda e: -abs(pct(e)))
+
+    n = len(rest)
+    if n == 0:
+        channels.sort(key=lambda e: -float(e.get("sessions_raw") or 0))
+        return channels
+
+    half = n // 2
+    out = pos[:half] + neg[:half]
+    out.extend(neutral)
+    channels.sort(key=lambda e: -float(e.get("sessions_raw") or 0))
+    out.extend(channels)
+    return out
+
+
+def _digest_entry_key(d: dict[str, Any]) -> str:
+    k = str(d.get("kind") or "")
+    if k == "kpi":
+        return f"kpi:{d.get('domain')}:{d.get('profile')}:{d.get('metric_label')}"
+    if k == "page":
+        return f"page:{d.get('domain')}:{d.get('profile')}:{d.get('path')}"
+    if k == "source":
+        return f"src:{d.get('domain')}:{d.get('profile')}:{d.get('source_medium')}"
+    if k == "channel":
+        return f"ch:{d.get('domain')}:{d.get('profile')}:{d.get('channel')}"
+    return str(d)
 
 
 def ga4_digest_bucket_for_domain(domain: str | None) -> str | None:
@@ -72,16 +152,38 @@ def _import_profile_payload():
     return _ga4_profile_payload_for_period, get_ga4_connection_status, get_latest_metrics
 
 
-def _score(abs_pct: float, volume: float) -> float:
+def _score(pct: float, volume: float) -> float:
     try:
         v = max(1.0, float(volume))
     except (TypeError, ValueError):
         v = 1.0
     try:
-        p = abs(float(abs_pct))
+        p = abs(float(pct))
     except (TypeError, ValueError):
         p = 0.0
-    return p * math.log10(v + 10.0)
+    base = p * math.log10(v + 10.0)
+    try:
+        signed = float(pct)
+    except (TypeError, ValueError):
+        signed = 0.0
+    if signed < 0:
+        base *= GA4_DIGEST_DECLINE_SCORE_MULT
+    return base
+
+
+def _is_small_referral_row(source_medium: str, last_sessions: float, profile_sessions: float) -> bool:
+    """Referral ortamı; son dönem oturum payı eşiğin altındaysa çıkar."""
+    sm = (source_medium or "").lower()
+    if "referral" not in sm:
+        return False
+    try:
+        lt = float(profile_sessions)
+        lv = float(last_sessions)
+    except (TypeError, ValueError):
+        return True
+    if lt <= 0:
+        return True
+    return (lv / lt) < GA4_DIGEST_REFERRAL_MIN_SESSION_SHARE
 
 
 def _is_critical(metric: str, pct: float) -> bool:
@@ -102,82 +204,106 @@ def _collect_notes_for_profile(
     profile: str,
     pl: dict[str, Any],
     bucket: str,
-) -> tuple[list[tuple[float, int, str, bool]], list[str]]:
-    """(score, area_index, text, is_critical), critical_only_lines"""
+) -> list[tuple[float, int, dict[str, Any]]]:
+    """(score, area_index, digest_entry) — entry dict kind: kpi | page | source | channel."""
     prof_label = PROFILE_LABELS.get(profile, profile)
-    notes: list[tuple[float, int, str, bool]] = []
-    critical_lines: list[str] = []
+    notes: list[tuple[float, int, dict[str, Any]]] = []
 
-    def add(area_idx: int, metric: str, text: str, pct: float, vol: float) -> None:
+    def add_kpi(
+        area_idx: int,
+        metric: str,
+        metric_label: str,
+        pct: float,
+        vol: float,
+        last_s: str,
+        prev_s: str,
+        *,
+        last_raw: float | None = None,
+        prev_raw: float | None = None,
+    ) -> None:
         crit = _is_critical(metric, pct)
-        if crit:
-            text = f"KRİTİK — {text}"
-        notes.append((_score(pct, vol), area_idx, text, crit))
-        if crit:
-            critical_lines.append(text)
+        notes.append(
+            (
+                _score(pct, vol),
+                area_idx,
+                {
+                    "kind": "kpi",
+                    "domain": domain,
+                    "profile": prof_label,
+                    "metric_label": metric_label,
+                    "delta_pct": _fmt_pct(pct),
+                    "pct_value": float(pct),
+                    "last": last_s,
+                    "prev": prev_s,
+                    "last_raw": last_raw,
+                    "prev_raw": prev_raw,
+                    "critical": crit,
+                },
+            )
+        )
 
     if not pl.get("has_period_data"):
-        return notes, critical_lines
+        return notes
 
     lt = float(pl.get("last_total") or 0)
     pt = float(pl.get("prev_total") or 0)
     sp = float(pl.get("sessions_pct_change") or 0)
     if bucket == "doviz":
-        add(0, "sessions", f"{domain} ({prof_label}): Oturumlar {_fmt_pct(sp)} değişti (son 7g {_fmt_num(lt)} vs önceki 7g {_fmt_num(pt)}).", sp, lt)
+        add_kpi(0, "sessions", "Oturumlar (toplam)", sp, lt, _fmt_num(lt), _fmt_num(pt), last_raw=lt, prev_raw=pt)
     else:
-        add(0, "sessions", f"{domain} ({prof_label}): Oturumlar {_fmt_pct(sp)} — son 7g {_fmt_num(lt)} / önceki 7g {_fmt_num(pt)}.", sp, lt)
+        add_kpi(0, "sessions", "Oturumlar (toplam)", sp, lt, _fmt_num(lt), _fmt_num(pt), last_raw=lt, prev_raw=pt)
 
     ul = float(pl.get("users_last") or 0)
     up = float(pl.get("users_prev") or 0)
     uc = float(pl.get("users_pct_change") or 0)
     if bucket == "doviz":
-        add(1, "users", f"{domain} ({prof_label}): Kullanıcılar {_fmt_pct(uc)} (son {_fmt_num(ul)} / önce {_fmt_num(up)}).", uc, ul)
+        add_kpi(1, "users", "Kullanıcılar", uc, ul, _fmt_num(ul), _fmt_num(up), last_raw=ul, prev_raw=up)
     else:
-        add(0, "users", f"{domain} ({prof_label}): Kullanıcılar {_fmt_pct(uc)} (son {_fmt_num(ul)} / önce {_fmt_num(up)}).", uc, ul)
+        add_kpi(0, "users", "Kullanıcılar", uc, ul, _fmt_num(ul), _fmt_num(up), last_raw=ul, prev_raw=up)
 
     nl = float(pl.get("new_users_last") or 0)
     np = float(pl.get("new_users_prev") or 0)
     nc = float(pl.get("new_users_pct_change") or 0)
     if bucket == "doviz":
-        add(1, "new_users", f"{domain} ({prof_label}): Yeni kullanıcılar {_fmt_pct(nc)} (son {_fmt_num(nl)} / önce {_fmt_num(np)}).", nc, nl)
+        add_kpi(1, "new_users", "Yeni kullanıcılar", nc, nl, _fmt_num(nl), _fmt_num(np), last_raw=nl, prev_raw=np)
     else:
-        add(0, "new_users", f"{domain} ({prof_label}): Yeni kullanıcılar {_fmt_pct(nc)} (son {_fmt_num(nl)} / önce {_fmt_num(np)}).", nc, nl)
+        add_kpi(0, "new_users", "Yeni kullanıcılar", nc, nl, _fmt_num(nl), _fmt_num(np), last_raw=nl, prev_raw=np)
 
     el = float(pl.get("engaged_last") or 0)
     ep = float(pl.get("engaged_prev") or 0)
     ec = float(pl.get("engaged_pct_change") or 0)
     if bucket == "doviz":
-        add(2, "engaged", f"{domain} ({prof_label}): Etkileşimli oturumlar {_fmt_pct(ec)} (son {_fmt_num(el)} / önce {_fmt_num(ep)}).", ec, el)
+        add_kpi(2, "engaged", "Etkileşimli oturumlar", ec, el, _fmt_num(el), _fmt_num(ep), last_raw=el, prev_raw=ep)
     else:
-        add(1, "engaged", f"{domain} ({prof_label}): Etkileşimli oturumlar {_fmt_pct(ec)} (son {_fmt_num(el)} / önce {_fmt_num(ep)}).", ec, el)
+        add_kpi(1, "engaged", "Etkileşimli oturumlar", ec, el, _fmt_num(el), _fmt_num(ep), last_raw=el, prev_raw=ep)
 
     erl = float(pl.get("engagement_rate_last_pct") or 0)
     erp = float(pl.get("engagement_rate_prev_pct") or 0)
     erc = float(pl.get("engagement_rate_pct_change") or 0)
     if bucket == "doviz":
-        add(2, "engagement_rate", f"{domain} ({prof_label}): Etkileşim oranı {_fmt_pct(erc)} (son {_fmt_pct(erl)} / önce {_fmt_pct(erp)}).", erc, el)
+        add_kpi(2, "engagement_rate", "Etkileşim oranı", erc, el, _fmt_pct(erl), _fmt_pct(erp), last_raw=erl, prev_raw=erp)
     else:
-        add(1, "engagement_rate", f"{domain} ({prof_label}): Etkileşim oranı {_fmt_pct(erc)} (son {_fmt_pct(erl)} / önce {_fmt_pct(erp)}).", erc, el)
+        add_kpi(1, "engagement_rate", "Etkileşim oranı", erc, el, _fmt_pct(erl), _fmt_pct(erp), last_raw=erl, prev_raw=erp)
 
     asl = float(pl.get("avg_session_last_sec") or 0)
     asp = float(pl.get("avg_session_prev_sec") or 0)
     asc = float(pl.get("avg_session_pct_change") or 0)
     if bucket == "doviz":
-        add(2, "avg_session", f"{domain} ({prof_label}): Ort. oturum süresi {_fmt_pct(asc)} (son {_fmt_num(asl, decimals=1)} sn / önce {_fmt_num(asp, decimals=1)} sn).", asc, el)
+        add_kpi(2, "avg_session", "Ort. oturum süresi (sn)", asc, el, _fmt_num(asl, decimals=1), _fmt_num(asp, decimals=1), last_raw=asl, prev_raw=asp)
     else:
-        add(1, "avg_session", f"{domain} ({prof_label}): Ort. oturum süresi {_fmt_pct(asc)} (son {_fmt_num(asl, decimals=1)} sn / önce {_fmt_num(asp, decimals=1)} sn).", asc, el)
+        add_kpi(1, "avg_session", "Ort. oturum süresi (sn)", asc, el, _fmt_num(asl, decimals=1), _fmt_num(asp, decimals=1), last_raw=asl, prev_raw=asp)
 
     pvl = float(pl.get("pageviews_last") or 0)
     pvp = float(pl.get("pageviews_prev") or 0)
     pvc = float(pl.get("pageviews_pct_change") or 0)
     if bucket == "doviz":
-        add(2, "pageviews", f"{domain} ({prof_label}): Sayfa görüntüleme {_fmt_pct(pvc)} (son {_fmt_num(pvl)} / önce {_fmt_num(pvp)}).", pvc, pvl)
+        add_kpi(2, "pageviews", "Sayfa görüntüleme", pvc, pvl, _fmt_num(pvl), _fmt_num(pvp), last_raw=pvl, prev_raw=pvp)
     else:
-        add(0, "pageviews", f"{domain} ({prof_label}): Sayfa görüntüleme {_fmt_pct(pvc)} (son {_fmt_num(pvl)} / önce {_fmt_num(pvp)}).", pvc, pvl)
+        add_kpi(0, "pageviews", "Sayfa görüntüleme", pvc, pvl, _fmt_num(pvl), _fmt_num(pvp), last_raw=pvl, prev_raw=pvp)
 
     org = float(pl.get("organic_share_pct") or 0)
     if bucket == "doviz":
-        add(3, "organic", f"{domain} ({prof_label}): Organik arama payı (son 7g oturum içinde) ~{_fmt_pct(org)}.", org, lt)
+        add_kpi(3, "organic", "Organik arama payı (tahmini)", org, lt, _fmt_pct(org), "—", last_raw=org, prev_raw=None)
 
     for ch in (pl.get("top_channels") or [])[:6]:
         if not isinstance(ch, dict):
@@ -185,48 +311,89 @@ def _collect_notes_for_profile(
         label = str(ch.get("label") or "")
         val = float(ch.get("value") or 0)
         if label:
-            if bucket == "doviz":
-                notes.append((_score(0.0, val), 3, f"{domain} ({prof_label}): Kanal «{label}» son 7g {_fmt_num(val)} oturum.", False))
-            else:
-                notes.append((_score(0.0, val), 1, f"{domain} ({prof_label}): Kanal «{label}» son 7g {_fmt_num(val)} oturum.", False))
+            ai = 3 if bucket == "doviz" else 1
+            notes.append(
+                (
+                    _score(0.0, val),
+                    ai,
+                    {
+                        "kind": "channel",
+                        "domain": domain,
+                        "profile": prof_label,
+                        "channel": label,
+                        "sessions": _fmt_num(val),
+                        "sessions_raw": float(val),
+                        "pct_value": 0.0,
+                        "critical": False,
+                    },
+                )
+            )
 
     for row in (pl.get("pages_no_news") or [])[:40]:
         if not isinstance(row, dict):
             continue
-        page = str(row.get("page") or "")[:120]
-        if not page:
+        page = str(row.get("page") or "")[:500]
+        if not page or _exclude_digest_landing_path(page) or _exclude_digest_ga_dim_placeholder(page):
             continue
-        delta_pct = float(row.get("delta_pct") or 0)
         last_v = float(row.get("last_total") or 0)
         prev_v = float(row.get("prev_total") or 0)
-        dp = float(delta_pct)
+        dp = float(row.get("delta_pct") or 0)
         crit = _is_critical("page", dp)
-        t = f"{domain} ({prof_label}): Sayfa oturumu {_fmt_pct(dp)} — «{page}» (son {_fmt_num(last_v)} / önce {_fmt_num(prev_v)})."
-        if crit:
-            t = f"KRİTİK — {t}"
-            critical_lines.append(t)
         ai = 3 if bucket == "doviz" else 1
-        notes.append((_score(dp, last_v), ai, t, crit))
+        notes.append(
+            (
+                _score(dp, last_v),
+                ai,
+                {
+                    "kind": "page",
+                    "domain": domain,
+                    "profile": prof_label,
+                    "path": page,
+                    "delta_pct": _fmt_pct(dp),
+                    "pct_value": float(dp),
+                    "last": _fmt_num(last_v),
+                    "prev": _fmt_num(prev_v),
+                    "last_raw": last_v,
+                    "prev_raw": prev_v,
+                    "critical": crit,
+                },
+            )
+        )
 
     for row in (pl.get("sources") or [])[:40]:
         if not isinstance(row, dict):
             continue
-        sm = str(row.get("source_medium") or "")[:120]
-        if not sm:
+        sm = str(row.get("source_medium") or "")[:500]
+        if not sm or _exclude_digest_ga_dim_placeholder(sm):
             continue
-        delta_pct = float(row.get("delta_pct") or 0)
         last_v = float(row.get("last_total") or 0)
+        if _is_small_referral_row(sm, last_v, lt):
+            continue
         prev_v = float(row.get("prev_total") or 0)
-        dp = float(delta_pct)
+        dp = float(row.get("delta_pct") or 0)
         crit = _is_critical("source", dp)
-        t = f"{domain} ({prof_label}): Kaynak/ortam {_fmt_pct(dp)} — «{sm}» (son {_fmt_num(last_v)} / önce {_fmt_num(prev_v)})."
-        if crit:
-            t = f"KRİTİK — {t}"
-            critical_lines.append(t)
         ai = 3 if bucket == "doviz" else 1
-        notes.append((_score(dp, last_v), ai, t, crit))
+        notes.append(
+            (
+                _score(dp, last_v),
+                ai,
+                {
+                    "kind": "source",
+                    "domain": domain,
+                    "profile": prof_label,
+                    "source_medium": sm,
+                    "delta_pct": _fmt_pct(dp),
+                    "pct_value": float(dp),
+                    "last": _fmt_num(last_v),
+                    "prev": _fmt_num(prev_v),
+                    "last_raw": last_v,
+                    "prev_raw": prev_v,
+                    "critical": crit,
+                },
+            )
+        )
 
-    return notes, critical_lines
+    return notes
 
 
 def _build_bucket_digest(
@@ -234,14 +401,13 @@ def _build_bucket_digest(
     *,
     bucket: str,
     site_ids: list[int],
-) -> tuple[list[tuple[str, list[str]]], list[str], list[str]] | None:
-    """Dönüş: (alan_blokları, kritik_satırlar, domain_listesi) veya None."""
+) -> tuple[list[tuple[str, list[dict[str, Any]]]], list[dict[str, Any]], list[str]] | None:
+    """Dönüş: (alan_blokları dict satırları, kritik_satırlar tablo satırları, domain_listesi) veya None."""
     _ga4_profile_payload_for_period, get_ga4_connection_status, get_latest_metrics = _import_profile_payload()
     from backend.main import _external_site_ids
 
     external = _external_site_ids(db)
-    all_notes: list[tuple[float, int, str, bool]] = []
-    all_critical: list[str] = []
+    all_notes: list[tuple[float, int, dict[str, Any]]] = []
     domains_seen: list[str] = []
 
     for site_id in site_ids:
@@ -268,51 +434,50 @@ def _build_bucket_digest(
                 latest=latest,
                 prop_id=prop_id,
             )
-            n, crit = _collect_notes_for_profile(
-                domain=site.domain,
-                profile=profile,
-                pl=pl,
-                bucket=bucket,
+            all_notes.extend(
+                _collect_notes_for_profile(
+                    domain=site.domain,
+                    profile=profile,
+                    pl=pl,
+                    bucket=bucket,
+                )
             )
-            all_notes.extend(n)
-            all_critical.extend(crit)
 
     if not all_notes:
         return None
 
     area_titles = DOVIZ_AREA_TITLES if bucket == "doviz" else SINEMA_AREA_TITLES
     n_areas = len(area_titles)
-    best_by_text: dict[str, tuple[float, int, str]] = {}
-    for score, area_idx, text, _crit in all_notes:
-        if not text:
+    best_by_key: dict[str, tuple[float, int, dict[str, Any]]] = {}
+    for score, area_idx, entry in all_notes:
+        if not entry:
             continue
         ai = min(max(int(area_idx), 0), n_areas - 1)
-        prev = best_by_text.get(text)
+        k = _digest_entry_key(entry)
+        prev = best_by_key.get(k)
         if prev is None or float(score) > prev[0]:
-            best_by_text[text] = (float(score), ai, text)
-    ranked = sorted(best_by_text.values(), key=lambda x: -x[0])[:MAX_NOTES]
+            best_by_key[k] = (float(score), ai, entry)
 
-    buckets: list[list[str]] = [[] for _ in range(n_areas)]
-    for _sc, area_idx, text in ranked:
-        buckets[area_idx].append(text)
+    ranked = sorted(best_by_key.values(), key=lambda x: -x[0])[:MAX_NOTES]
+
+    buckets: list[list[dict[str, Any]]] = [[] for _ in range(n_areas)]
+    for _sc, area_idx, entry in ranked:
+        buckets[area_idx].append(entry)
 
     if not any(buckets):
         return None
 
-    uniq_crit: list[str] = []
-    if all_critical:
-        s2: set[str] = set()
-        for c in sorted(all_critical, key=len, reverse=True):
-            if c not in s2:
-                s2.add(c)
-                uniq_crit.append(c)
+    crit_rows = balance_digest_entries_half_up_down(
+        [dict(e) for _, _, e in ranked if e.get("critical")]
+    )
 
-    area_blocks: list[tuple[str, list[str]]] = []
+    area_blocks: list[tuple[str, list[dict[str, Any]]]] = []
     for i, title in enumerate(area_titles):
-        items = buckets[i] if i < len(buckets) else []
+        raw = buckets[i] if i < len(buckets) else []
+        items = balance_digest_entries_half_up_down(raw)
         area_blocks.append((title, items))
 
-    return area_blocks, uniq_crit, domains_seen
+    return area_blocks, crit_rows, domains_seen
 
 
 def send_ga4_weekly_digest_emails(
@@ -355,7 +520,7 @@ def send_ga4_weekly_digest_emails(
         built = _build_bucket_digest(db, bucket=bucket, site_ids=site_ids)
         if not built:
             return
-        area_blocks, critical_lines, domains_seen = built
+        area_blocks, critical_rows, domains_seen = built
         summary_rows = [
             ("Mail tipi", "GA4 haftalık özet"),
             ("Tetik", ts_label),
@@ -371,7 +536,7 @@ def send_ga4_weekly_digest_emails(
             tone="blue",
             status_label="GA4 Özet",
             meta_rows=summary_rows,
-            critical_lines=critical_lines[:24],
+            critical_rows=critical_rows[:24],
             area_blocks=area_blocks,
         )
         if send_email(subject, html, recipients=recipients):

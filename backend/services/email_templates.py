@@ -5,6 +5,50 @@ from __future__ import annotations
 from html import escape
 
 
+# GA4 özet e-posta: yalnızca Değişim sütunu — işaretli yüzde eşikleri
+GA4_DIGEST_DELTA_DARK_ABS = 120.0
+GA4_DIGEST_DELTA_RED_ABS = 70.0
+GA4_DIGEST_DELTA_ROSE_ABS = 35.0
+# Site sütunu yok; 5 sütunlu tablolarda Değişim bu indekste
+GA4_DIGEST_DELTA_COL = 2
+
+# Tablo vurgusu: satır zeminini boyama; yalnızca metin rengi + kalınlık (koyu/açık yeşil ve kırmızı)
+_STY = {
+    "g_d": "color:#14532d;font-weight:800;",
+    "g_m": "color:#15803d;font-weight:700;",
+    "g_l": "color:#22c55e;font-weight:700;",
+    "r_d": "color:#7f1d1d;font-weight:800;",
+    "r_m": "color:#b91c1c;font-weight:700;",
+    "r_l": "color:#dc2626;font-weight:600;",
+}
+
+
+def ga4_digest_style_for_delta_pct(signed_pct: float | None) -> str:
+    """Değişim sütunu: artış → koyu/açık yeşil; düşüş → koyu/açık kırmızı (|%| eşikleri aynı)."""
+    if signed_pct is None:
+        return ""
+    try:
+        signed = float(signed_pct)
+        ap = abs(signed)
+    except (TypeError, ValueError):
+        return ""
+    if ap < GA4_DIGEST_DELTA_ROSE_ABS or signed == 0:
+        return ""
+    if signed > 0:
+        if ap >= GA4_DIGEST_DELTA_DARK_ABS:
+            return _STY["g_d"]
+        if ap >= GA4_DIGEST_DELTA_RED_ABS:
+            return _STY["g_m"]
+        return _STY["g_l"]
+    if signed < 0:
+        if ap >= GA4_DIGEST_DELTA_DARK_ABS:
+            return _STY["r_d"]
+        if ap >= GA4_DIGEST_DELTA_RED_ABS:
+            return _STY["r_m"]
+        return _STY["r_l"]
+    return ""
+
+
 PALETTES = {
     "blue": {
         "accent": "#2563eb",
@@ -195,50 +239,240 @@ def ga4_digest_meta_table(rows: list[tuple[str, str]]) -> str:
     )
 
 
-def ga4_digest_critical_row(body_text: str) -> str:
-    """Tek kritik satırı: sol etiket sütunu + sağ içerik (pembe kart)."""
-    safe = escape(body_text).replace("\n", "<br>")
+def ga4_digest_styled_table(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    caption: str = "",
+    delta_col_index: int | None = None,
+    delta_signed_pct_per_row: list[float | None] | None = None,
+) -> str:
+    """Excel benzeri grid; yalnızca Değişim sütununda metin rengi (eşik vurgusu)."""
+    if not rows:
+        return ""
+    cap = (
+        f'<p style="margin:0 0 8px 0;font-size:12px;font-weight:700;color:#64748b;">{escape(caption)}</p>'
+        if caption
+        else ""
+    )
+    th = "".join(
+        f'<th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:800;letter-spacing:0.06em;'
+        f'text-transform:uppercase;color:#475569;border-bottom:2px solid #cbd5e1;background:#f1f5f9;">'
+        f"{escape(h)}</th>"
+        for h in headers
+    )
+    body = ""
+    for i, row in enumerate(rows):
+        zebra = "#fafafa" if i % 2 == 0 else "#ffffff"
+        tds = ""
+        for j, c in enumerate(row):
+            cell = c if ("<" in c and ">" in c) else escape(c)
+            extra = ""
+            if (
+                delta_col_index is not None
+                and j == delta_col_index
+                and delta_signed_pct_per_row is not None
+                and i < len(delta_signed_pct_per_row)
+            ):
+                extra = ga4_digest_style_for_delta_pct(delta_signed_pct_per_row[i])
+            base = (
+                "padding:10px 8px;font-size:13px;line-height:1.45;"
+                "border-bottom:1px solid #e2e8f0;vertical-align:top;"
+            )
+            if extra:
+                tds += f'<td style="{base}background:{zebra};{extra}">{cell}</td>'
+            else:
+                tds += (
+                    f'<td style="{base}color:#334155;background:{zebra};">{cell}</td>'
+                )
+        body += f"<tr>{tds}</tr>"
     return (
+        f'{cap}'
         '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
-        'style="margin:0 0 10px 0;border-collapse:collapse;">'
-        "<tr>"
-        '<td style="padding:0;">'
-        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
-        'style="border-collapse:collapse;border:1px solid #fecdd3;border-radius:14px;background:#fffafb;">'
-        "<tr>"
-        '<td width="84" valign="top" style="padding:14px 10px 14px 16px;font-size:11px;font-weight:800;'
-        'letter-spacing:0.08em;color:#be123c;">ÖNEMLİ</td>'
-        f'<td valign="top" style="padding:14px 16px 14px 0;font-size:14px;line-height:1.55;color:#334155;">{safe}</td>'
-        "</tr></table>"
-        "</td>"
-        "</tr></table>"
+        'style="border-collapse:collapse;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#ffffff;">'
+        f"<thead><tr>{th}</tr></thead><tbody>{body}</tbody></table>"
     )
 
 
-def ga4_digest_area_table(area_title: str, items: list[str]) -> str:
-    """Alan başlığı + numaralı satırlar."""
-    if not items:
+def _ga4_digest_delta_signed_from_dicts(dicts: list[dict]) -> list[float | None]:
+    """Değişim sütunu için satır başına işaretli % (kanal satırında Değişim yok → None)."""
+    out: list[float | None] = []
+    for d in dicts:
+        kind = str(d.get("kind") or "")
+        if kind == "channel":
+            out.append(None)
+            continue
+        try:
+            out.append(float(d.get("pct_value") or 0))
+        except (TypeError, ValueError):
+            out.append(None)
+    return out
+
+
+def ga4_digest_critical_table(rows: list[dict]) -> str:
+    """Kritik satırlar — tek tablo. Sütun: Profil, Hedef, Değişim, Son 7g, Önceki 7g."""
+    if not rows:
         return ""
-    rows_html = ""
-    for idx, raw in enumerate(items, start=1):
-        cell = raw if ("<" in raw and ">" in raw) else escape(raw)
-        rows_html += (
-            "<tr>"
-            f'<td width="40" valign="top" style="padding:12px 6px 12px 14px;border-bottom:1px solid #f1f5f9;'
-            f'font-size:12px;font-weight:800;color:#94a3b8;">{idx}</td>'
-            f'<td valign="top" style="padding:12px 14px 12px 0;border-bottom:1px solid #f1f5f9;'
-            f'font-size:14px;line-height:1.55;color:#334155;">{cell}</td>'
-            "</tr>"
-        )
+    data_rows: list[list[str]] = []
+    for d in rows:
+        kind = str(d.get("kind") or "")
+        if kind == "kpi":
+            data_rows.append(
+                [
+                    str(d.get("profile") or ""),
+                    str(d.get("metric_label") or ""),
+                    str(d.get("delta_pct") or ""),
+                    str(d.get("last") or ""),
+                    str(d.get("prev") or ""),
+                ]
+            )
+        elif kind == "page":
+            data_rows.append(
+                [
+                    str(d.get("profile") or ""),
+                    str(d.get("path") or "")[:220],
+                    str(d.get("delta_pct") or ""),
+                    str(d.get("last") or ""),
+                    str(d.get("prev") or ""),
+                ]
+            )
+        elif kind == "source":
+            data_rows.append(
+                [
+                    str(d.get("profile") or ""),
+                    str(d.get("source_medium") or "")[:220],
+                    str(d.get("delta_pct") or ""),
+                    str(d.get("last") or ""),
+                    str(d.get("prev") or ""),
+                ]
+            )
+        elif kind == "channel":
+            data_rows.append(
+                [
+                    str(d.get("profile") or ""),
+                    str(d.get("channel") or ""),
+                    "—",
+                    str(d.get("sessions") or ""),
+                    "—",
+                ]
+            )
+    delta_signed = _ga4_digest_delta_signed_from_dicts(rows)
+    inner = ga4_digest_styled_table(
+        ["Profil", "Hedef / ayrıntı", "Değişim", "Son 7 gün", "Önceki 7 gün"],
+        data_rows,
+        delta_col_index=GA4_DIGEST_DELTA_COL,
+        delta_signed_pct_per_row=delta_signed,
+    )
     return (
         '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
-        'style="margin:0 0 20px 0;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
-        '<tr><td colspan="2" style="padding:13px 16px;background:linear-gradient(180deg,#f1f5f9 0%,#ffffff 55%);'
+        'style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;">'
+        '<tr><td style="padding:14px 12px 10px 14px;">'
+        '<p style="margin:0 0 10px 0;font-size:11px;font-weight:800;letter-spacing:0.12em;color:#475569;">'
+        "ÖNEMLİ</p>"
+        f"{inner}"
+        "</td></tr></table>"
+    )
+
+
+def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
+    """Alan: KPI / sayfa / kaynak / kanal alt tabloları."""
+    if not items:
+        return ""
+    kpis = [x for x in items if x.get("kind") == "kpi"]
+    pages = [x for x in items if x.get("kind") == "page"]
+    sources = [x for x in items if x.get("kind") == "source"]
+    channels = [x for x in items if x.get("kind") == "channel"]
+    parts: list[str] = []
+
+    if kpis:
+        kr = [
+            [
+                str(x.get("profile") or ""),
+                str(x.get("metric_label") or ""),
+                str(x.get("delta_pct") or ""),
+                str(x.get("last") or ""),
+                str(x.get("prev") or ""),
+            ]
+            for x in kpis
+        ]
+        da = _ga4_digest_delta_signed_from_dicts(kpis)
+        parts.append(
+            ga4_digest_styled_table(
+                ["Profil", "Metrik", "Değişim", "Son 7 gün", "Önceki 7 gün"],
+                kr,
+                caption="Temel metrikler (haftalık karşılaştırma)",
+                delta_col_index=GA4_DIGEST_DELTA_COL,
+                delta_signed_pct_per_row=da,
+            )
+        )
+    if pages:
+        pr = [
+            [
+                str(x.get("profile") or ""),
+                str(x.get("path") or "")[:220],
+                str(x.get("delta_pct") or ""),
+                str(x.get("last") or ""),
+                str(x.get("prev") or ""),
+            ]
+            for x in pages
+        ]
+        da = _ga4_digest_delta_signed_from_dicts(pages)
+        parts.append(
+            ga4_digest_styled_table(
+                ["Profil", "Landing yolu", "Değişim", "Son 7 gün", "Önceki 7 gün"],
+                pr,
+                caption="Landing sayfalar (haber kategorileri hariç)",
+                delta_col_index=GA4_DIGEST_DELTA_COL,
+                delta_signed_pct_per_row=da,
+            )
+        )
+    if sources:
+        sr = [
+            [
+                str(x.get("profile") or ""),
+                str(x.get("source_medium") or "")[:220],
+                str(x.get("delta_pct") or ""),
+                str(x.get("last") or ""),
+                str(x.get("prev") or ""),
+            ]
+            for x in sources
+        ]
+        da = _ga4_digest_delta_signed_from_dicts(sources)
+        parts.append(
+            ga4_digest_styled_table(
+                ["Profil", "Kaynak / ortam", "Değişim", "Son 7 gün", "Önceki 7 gün"],
+                sr,
+                caption="Trafik kaynakları",
+                delta_col_index=GA4_DIGEST_DELTA_COL,
+                delta_signed_pct_per_row=da,
+            )
+        )
+    if channels:
+        cr = [
+            [
+                str(x.get("profile") or ""),
+                str(x.get("channel") or ""),
+                str(x.get("sessions") or ""),
+            ]
+            for x in channels
+        ]
+        parts.append(
+            ga4_digest_styled_table(
+                ["Profil", "Kanal", "Oturum (son 7 gün)"],
+                cr,
+                caption="Öne çıkan kanallar",
+            )
+        )
+
+    inner = "".join(f'<div style="margin:0 0 16px 0;">{p}</div>' for p in parts)
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="margin:0 0 22px 0;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
+        '<tr><td style="padding:14px 14px 10px 14px;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 60%);'
         'border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:800;letter-spacing:0.04em;color:#0f172a;">'
         f"{escape(area_title)}"
         "</td></tr>"
-        f"{rows_html}"
-        "</table>"
+        f'<tr><td style="padding:14px;">{inner}</td></tr></table>'
     )
 
 
@@ -249,27 +483,25 @@ def render_ga4_digest_email(
     tone: str,
     status_label: str,
     meta_rows: list[tuple[str, str]],
-    critical_lines: list[str],
-    area_blocks: list[tuple[str, list[str]]],
+    critical_rows: list[dict],
+    area_blocks: list[tuple[str, list[dict]]],
 ) -> str:
-    """
-    GA4 haftalık özet için tablo mimarili HTML (giriş paragrafı yok).
-    """
+    """GA4 haftalık özet için tablo mimarili HTML."""
     colors = _palette(tone)
     meta_html = ga4_digest_meta_table(meta_rows)
     crit_block = ""
-    if critical_lines:
-        crit_rows = "".join(ga4_digest_critical_row(line) for line in critical_lines[:24])
+    if critical_rows:
         crit_block = (
             '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">'
-            '<tr><td style="padding:22px 0 12px 0;">'
+            '<tr><td style="padding:18px 0 10px 0;">'
             '<p style="margin:0;font-size:11px;font-weight:800;letter-spacing:0.12em;color:#94a3b8;text-transform:uppercase;">'
             "Kritik vurgular</p>"
-            "</td></tr></table>"
-            f"{crit_rows}"
+            "</td></tr>"
+            f'<tr><td style="padding:0 0 8px 0;">{ga4_digest_critical_table(critical_rows)}</td></tr>'
+            "</table>"
         )
     areas_html = "".join(
-        ga4_digest_area_table(area_title, items) for area_title, items in area_blocks if items
+        ga4_digest_area_block(area_title, items) for area_title, items in area_blocks if items
     )
     body_rows: list[str] = [f'<tr><td style="padding:0 28px 12px 28px;">{meta_html}</td></tr>']
     if crit_block:
