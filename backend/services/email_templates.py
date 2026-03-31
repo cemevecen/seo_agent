@@ -459,6 +459,127 @@ def ga4_digest_critical_table(rows: list[dict]) -> str:
     )
 
 
+def _ga4_digest_ga4_prop_numeric(property_id: str | None) -> str:
+    raw = str(property_id or "").strip()
+    if raw.startswith("properties/"):
+        return raw.replace("properties/", "", 1).strip()
+    return raw
+
+
+def _ga4_analytics_explorer_url(property_id: str | None) -> str:
+    pid = _ga4_digest_ga4_prop_numeric(property_id)
+    if not pid.isdigit():
+        return ""
+    return f"https://analytics.google.com/analytics/web/?hl=tr#/p{pid}/reports/reportinghub"
+
+
+def _fmt_ga4_wow_cell(field: str, raw) -> str:
+    if raw is None:
+        return "—"
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return "—"
+    if field == "engagementRate":
+        p = v * 100.0 if v <= 1.0 else v
+        return f"%{p:.1f}".replace(".", ",")
+    if field == "averageSessionDuration":
+        return f"{v:.1f}".replace(".", ",")
+    return f"{v:,.0f}".replace(",", ".")
+
+
+def _wow_pct_delta_display(prev: float, last: float) -> str:
+    try:
+        pv = float(prev or 0.0)
+        lv = float(last or 0.0)
+    except (TypeError, ValueError):
+        return "—"
+    if pv <= 0 and lv <= 0:
+        return "—"
+    if pv <= 0:
+        return "+100%"
+    return f"{((lv - pv) / pv * 100):+.1f}%".replace(".", ",")
+
+
+def ga4_digest_same_weekday_section(items: list[dict]) -> str:
+    """GA4 özet e-postası: son tam gün vs bir önceki haftanın aynı günü KPI tablosu + Analytics linki."""
+    if not items:
+        return ""
+    th = (
+        '<th style="padding:10px 8px;text-align:left;font-size:11px;font-weight:800;letter-spacing:0.06em;'
+        'text-transform:uppercase;color:#475569;border-bottom:2px solid #cbd5e1;background:#f1f5f9;">'
+    )
+    blocks: list[str] = []
+    for it in items:
+        domain = escape(str(it.get("domain") or ""))
+        prof = escape(str(it.get("profile") or ""))
+        ref_d = escape(str(it.get("reference_date") or ""))
+        prev_d = escape(str(it.get("previous_week_date") or ""))
+        wd = escape(str(it.get("weekday_label_tr") or ""))
+        last = it.get("last") if isinstance(it.get("last"), dict) else {}
+        prev = it.get("prev") if isinstance(it.get("prev"), dict) else {}
+        href = _ga4_analytics_explorer_url(it.get("property_id"))
+        link_block = ""
+        if href:
+            link_block = (
+                f'<p style="margin:0 0 10px 0;font-size:13px;line-height:1.55;color:#475569;">'
+                f'<a href="{escape(href, quote=True)}" target="_blank" rel="noopener noreferrer" '
+                f'style="color:#1d4ed8;text-decoration:underline;">Google Analytics — {domain} ({prof})</a>'
+                f" · {wd}: <strong>{prev_d}</strong> → <strong>{ref_d}</strong></p>"
+            )
+        row_cells = ""
+        for field in tr_locale.GA4_DIGEST_WOW_KPI_FIELDS:
+            lbl = tr_locale.GA4_KPI_LABELS.get(field, field)
+            pv = prev.get(field)
+            lv = last.get(field)
+            try:
+                pv_f = float(pv) if pv is not None else None
+                lv_f = float(lv) if lv is not None else None
+            except (TypeError, ValueError):
+                pv_f = lv_f = None
+            delta = "—"
+            if pv_f is not None and lv_f is not None:
+                delta = _wow_pct_delta_display(pv_f, lv_f)
+            row_cells += (
+                "<tr>"
+                f'<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155;">{escape(lbl)}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155;">{_fmt_ga4_wow_cell(field, pv)}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155;">{_fmt_ga4_wow_cell(field, lv)}</td>'
+                f'<td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155;">{escape(delta)}</td>'
+                "</tr>"
+            )
+        tbl = (
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+            'style="border-collapse:collapse;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#ffffff;">'
+            "<thead><tr>"
+            f'{th}Metrik</th>'
+            f'{th}Önceki hafta aynı gün</th>'
+            f'{th}Son gün</th>'
+            f'{th}Δ %</th>'
+            "</tr></thead>"
+            f"<tbody>{row_cells}</tbody></table>"
+        )
+        blocks.append(f'<div style="margin-bottom:18px;">{link_block}{tbl}</div>')
+
+    cap = (
+        f'<p style="margin:0 0 10px 0;font-size:13px;line-height:1.55;color:#64748b;">'
+        f"{escape(tr_locale.GA4_DIGEST_SAME_WEEKDAY_SUBTITLE)}</p>"
+    )
+    title_row = (
+        '<tr><td style="padding:14px 14px 10px 14px;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 60%);'
+        'border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:800;letter-spacing:0.04em;color:#0f172a;">'
+        f"{escape(tr_locale.GA4_DIGEST_SAME_WEEKDAY_TITLE)}"
+        "</td></tr>"
+    )
+    inner = "".join(blocks)
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="margin:0 0 18px 0;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">'
+        f"{title_row}"
+        f'<tr><td style="padding:14px;">{cap}{inner}</td></tr></table>'
+    )
+
+
 def ga4_digest_area_block(area_title: str, items: list[dict]) -> str:
     """Alan: KPI / sayfa / kaynak / kanal alt tabloları."""
     if not items:
@@ -570,6 +691,7 @@ def render_ga4_digest_email(
     meta_rows: list[tuple[str, str]],
     critical_rows: list[dict],
     area_blocks: list[tuple[str, list[dict]]],
+    same_weekday_section_html: str = "",
 ) -> str:
     """GA4 haftalık özet için tablo mimarili HTML."""
     colors = _palette(tone)
@@ -589,6 +711,10 @@ def render_ga4_digest_email(
         ga4_digest_area_block(area_title, items) for area_title, items in area_blocks if items
     )
     body_rows: list[str] = [f'<tr><td style="padding:0 28px 12px 28px;">{meta_html}</td></tr>']
+    if same_weekday_section_html:
+        body_rows.append(
+            f'<tr><td style="padding:0 28px 8px 28px;">{same_weekday_section_html}</td></tr>'
+        )
     if crit_block:
         body_rows.append(f'<tr><td style="padding:0 28px 4px 28px;">{crit_block}</td></tr>')
     body_rows.append(f'<tr><td style="padding:0 28px 28px 28px;">{areas_html}</td></tr>')

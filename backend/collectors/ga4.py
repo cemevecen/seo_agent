@@ -20,6 +20,7 @@ from google.oauth2 import service_account
 from sqlalchemy.orm import Session
 
 from backend.config import settings
+from backend.locale.tr import weekday_tr
 from backend.models import Site
 from backend.services.ga4_auth import GA4_SCOPES, get_ga4_credentials_record, load_ga4_properties, load_ga4_service_account_info
 from backend.services.ga4_page_urls import ga4_canonical_page_url
@@ -515,12 +516,26 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 LOGGER.warning("GA4 kaynak/ortam raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 sources_rows = []
 
+            wow_ref = date.fromisoformat(last_end)
+            wow_prev = wow_ref - timedelta(days=7)
+            wow_last_kpi = _run_kpi_for_single_range(client, property_id, start=last_end, end=last_end)
+            wow_prev_kpi = _run_kpi_for_single_range(
+                client, property_id, start=wow_prev.isoformat(), end=wow_prev.isoformat()
+            )
             payload = {
                 "summary": {"last": last_kpi, "prev": prev_kpi},
                 "daily_trend": daily_trend,
                 "pages_no_news": pages_rows,
                 "sources": sources_rows,
                 "exclude_path_substrings": _exclude_path_substrings(),
+                "same_weekday_kpi": {
+                    "reference_date": last_end,
+                    "previous_week_date": wow_prev.isoformat(),
+                    "weekday_label_tr": weekday_tr(wow_ref),
+                    "last": wow_last_kpi,
+                    "prev": wow_prev_kpi,
+                    "property_id": property_id,
+                },
             }
             save_ga4_report_snapshot(
                 db,

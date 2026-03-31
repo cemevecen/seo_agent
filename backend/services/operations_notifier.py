@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
+from html import escape
+from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 
@@ -158,6 +160,80 @@ def _format_comparison_delta(field: str, previous, current) -> str:
     return f"{delta:+,.0f}".replace(",", ".")
 
 
+def _fmt_date_tr(iso: str | None) -> str:
+    if not iso:
+        return "-"
+    try:
+        d = date.fromisoformat(str(iso)[:10])
+        return d.strftime("%d.%m.%Y")
+    except (ValueError, TypeError):
+        return str(iso)
+
+
+def _gsc_performance_url(property_url: str) -> str:
+    pu = (property_url or "").strip()
+    if not pu:
+        return ""
+    return f"https://search.google.com/search-console/performance/search-analytics?resource_id={quote(pu, safe='')}&hl=tr"
+
+
+def _same_weekday_sc_comparison_rows(result: dict | None) -> list[list[str]]:
+    """Son gün vs bir önceki haftanın aynı günü (Search Console günlük özet)."""
+    if not isinstance(result, dict):
+        return []
+    comp = result.get("comparison")
+    if not isinstance(comp, dict):
+        return []
+    sw = comp.get("same_weekday_day")
+    if not isinstance(sw, dict):
+        return []
+    cur = sw.get("current_day_summary") or {}
+    prev = sw.get("previous_week_same_weekday_summary") or {}
+    if not isinstance(cur, dict) or not isinstance(prev, dict):
+        return []
+    rows: list[list[str]] = []
+    for field, label in COMPARISON_FIELDS:
+        before = prev.get(field)
+        after = cur.get(field)
+        if before is None and after is None:
+            continue
+        rows.append(
+            [
+                label,
+                _format_comparison_value(field, before),
+                _format_comparison_value(field, after),
+                _format_comparison_delta(field, before, after),
+            ]
+        )
+    return rows
+
+
+def _same_weekday_sc_links_paragraph(result: dict | None) -> str:
+    if not isinstance(result, dict):
+        return ""
+    comp = result.get("comparison")
+    if not isinstance(comp, dict):
+        return ""
+    sw = comp.get("same_weekday_day")
+    if not isinstance(sw, dict):
+        return ""
+    pu = str(sw.get("property_url") or "").strip()
+    if not pu:
+        return ""
+    href = _gsc_performance_url(pu)
+    if not href:
+        return ""
+    ref_d = _fmt_date_tr(str(sw.get("reference_date") or ""))
+    prev_d = _fmt_date_tr(str(sw.get("previous_week_date") or ""))
+    wd = escape(str(sw.get("weekday_label_tr") or ""))
+    return (
+        f'<p style="margin:0;font-size:13px;line-height:1.6;color:#475569;">'
+        f"Performans raporu: <a href=\"{escape(href, quote=True)}\" target=\"_blank\" rel=\"noopener noreferrer\" "
+        f'style="color:#1d4ed8;">Search Console — {wd}</a> '
+        f"(karşılaştırma: <strong>{prev_d}</strong> → <strong>{ref_d}</strong>).</p>"
+    )
+
+
 def _comparison_rows(result: dict | None) -> list[list[str]]:
     if not isinstance(result, dict):
         return []
@@ -276,6 +352,8 @@ def _trigger_email_body(
     details: list[tuple[str, str]] = []
     detail_rows: list[list[str]] = []
     comparison_rows: list[list[str]] = []
+    same_weekday_rows: list[list[str]] = []
+    same_weekday_links_html: str = ""
     summary_cards: list[dict[str, str]] = []
     if isinstance(result, dict):
         if result.get("reason"):
@@ -290,6 +368,8 @@ def _trigger_email_body(
         elif result.get("summary"):
             details.append(("Özet", str(result["summary"])))
         comparison_rows = _comparison_rows(result)
+        same_weekday_rows = _same_weekday_sc_comparison_rows(result)
+        same_weekday_links_html = _same_weekday_sc_links_paragraph(result)
         if result.get("state"):
             details.append(("Durum", str(result["state"])))
         elif result.get("source"):
@@ -337,6 +417,18 @@ def _trigger_email_body(
                 data_table(["Alan", "Önceki 7 Gün", "Son 7 Gün", "Fark"], comparison_rows),
             )
         )
+    if same_weekday_rows:
+        sw_title = "Haftalık aynı gün (son gün vs önceki haftanın aynı günü)"
+        sw_sub = (
+            "Search Console’daki son tam gün ile bir önceki haftanın aynı hafta günü (ör. Çarşamba–Çarşamba) kıyaslanır."
+        )
+        sw_inner = data_table(
+            ["Alan", "Önceki hafta aynı gün", "Son gün", "Fark"],
+            same_weekday_rows,
+        )
+        if same_weekday_links_html:
+            sw_inner = f'<div style="margin-bottom:12px;">{same_weekday_links_html}</div>{sw_inner}'
+        sections.append(section(sw_title, sw_inner, subtitle=sw_sub))
     return render_email_shell(
         eyebrow="SEO Agent Operations",
         title=f"{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi",

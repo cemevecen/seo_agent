@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     scheduled_refresh_monitor_interval_minutes: int = 15
     scheduled_refresh_monitor_grace_minutes: int = 45
 
+    # GA4 günlük toplama (Ankara saati; Search Console 04:00, tam yenileme 05:00 ile sıralı)
+    ga4_scheduled_refresh_enabled: bool = True
+    ga4_scheduled_refresh_hour: int = 4
+    ga4_scheduled_refresh_minute: int = 30
+    ga4_scheduled_refresh_site_spacing_seconds: int = 15
+
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"
     live_refresh_timeout: int = 8

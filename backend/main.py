@@ -349,10 +349,16 @@ def on_startup() -> None:
         SCHEDULER = _build_daily_refresh_scheduler()
         if SCHEDULER is not None:
             SCHEDULER.start()
+            ga4_sched = (
+                f", GA4={int(settings.ga4_scheduled_refresh_hour):02d}:{int(settings.ga4_scheduled_refresh_minute):02d}"
+                if settings.ga4_scheduled_refresh_enabled
+                else ""
+            )
             LOGGER.info(
-                "Scheduled jobs started. Search Console=%02d:%02d, full refresh=%02d:%02d %s.",
+                "Scheduled jobs started. Search Console=%02d:%02d%s, full refresh=%02d:%02d %s.",
                 int(settings.search_console_scheduled_refresh_hour),
                 int(settings.search_console_scheduled_refresh_minute),
+                ga4_sched,
                 int(settings.scheduled_refresh_hour),
                 int(settings.scheduled_refresh_minute),
                 settings.scheduled_refresh_timezone,
@@ -1336,6 +1342,59 @@ def _run_daily_refresh_job() -> None:
         DAILY_REFRESH_LOCK.release()
 
 
+def _run_daily_ga4_refresh_job() -> None:
+    if not ga4_is_configured():
+        LOGGER.info("Daily GA4 refresh skipped: GA4 service account not configured.")
+        return
+    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Daily GA4 refresh skipped because another scheduled job is still in progress.")
+        return
+
+    try:
+        LOGGER.info("Daily GA4 refresh started.")
+        from backend.collectors.ga4 import collect_ga4_channel_sessions
+
+        with SessionLocal() as db:
+            external_site_ids = _external_site_ids(db)
+            sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+            eligible = [
+                site
+                for site in sites
+                if site.id not in external_site_ids and get_ga4_connection_status(db, site.id).get("connected")
+            ]
+            any_ga4_ok = False
+            for index, site in enumerate(eligible):
+                LOGGER.info("Daily GA4 refresh processing site=%s", site.domain)
+                try:
+                    collect_ga4_channel_sessions(db, site, days=30)
+                    collect_ga4_channel_sessions(db, site, days=7)
+                    db.commit()
+                    any_ga4_ok = True
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    LOGGER.warning("Daily GA4 refresh failed for %s: %s", site.domain, exc)
+                    notify_system_trigger(
+                        trigger_source="system",
+                        system_key="ga4",
+                        site=site,
+                        result={"state": "failed", "error": str(exc)},
+                        action_label="Günlük GA4 yenilemesi",
+                    )
+                if index < len(eligible) - 1:
+                    time.sleep(max(0, int(settings.ga4_scheduled_refresh_site_spacing_seconds)))
+
+            if any_ga4_ok:
+                send_ga4_weekly_digest_emails(
+                    db,
+                    trigger_source="system",
+                    action_label="Günlük GA4 yenilemesi",
+                )
+
+        LOGGER.info("Daily GA4 refresh completed.")
+    finally:
+        DAILY_REFRESH_LOCK.release()
+
+
 def _run_scheduled_refresh_monitor_job() -> None:
     with SessionLocal() as db:
         sent_subjects = notify_missed_scheduled_refreshes(db)
@@ -1394,6 +1453,22 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                 timezone=timezone,
             ),
             id="daily-site-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.ga4_scheduled_refresh_enabled:
+        scheduler.add_job(
+            _run_daily_ga4_refresh_job,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.ga4_scheduled_refresh_hour))),
+                minute=max(0, min(59, int(settings.ga4_scheduled_refresh_minute))),
+                timezone=timezone,
+            ),
+            id="daily-ga4-refresh",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -4352,6 +4427,7 @@ def _ga4_profile_payload_for_period(
             "engagedSessions": [],
             "engagementRate": [],
         },
+        "same_weekday_kpi": pl.get("same_weekday_kpi") if isinstance(pl.get("same_weekday_kpi"), dict) else {},
         "has_snapshot": bool(snap),
         "has_period_data": bool(
             snap

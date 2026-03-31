@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from sqlalchemy.orm import Session
 
 from backend.config import settings
+from backend.locale.tr import weekday_tr
 from backend.models import Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
@@ -1235,6 +1236,27 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     )
     current_7d_summary = period_summaries["current"]
     previous_7d_summary = period_summaries["previous"]
+
+    same_weekday_day_summary: dict | None = None
+    try:
+        wow_ref = date.fromisoformat(str(payload.get("current_date") or ""))
+        wow_prev = wow_ref - timedelta(days=7)
+
+        def _rows_for_day(target: date) -> list[dict]:
+            key = target.isoformat()
+            return [r for r in trend_28d_rows if str(r.get("date") or "") == key]
+
+        same_weekday_day_summary = {
+            "reference_date": wow_ref.isoformat(),
+            "weekday_label_tr": weekday_tr(wow_ref),
+            "previous_week_date": wow_prev.isoformat(),
+            "current_day_summary": _build_period_summary(_rows_for_day(wow_ref)),
+            "previous_week_same_weekday_summary": _build_period_summary(_rows_for_day(wow_prev)),
+            "property_url": site_url,
+        }
+    except (ValueError, TypeError, OSError):
+        same_weekday_day_summary = None
+
     trend_summary_by_device = _build_recent_trend_summary_by_device(
         trend_28d_rows,
         start_date=date.fromisoformat(str(payload.get("start_date") or "")),
@@ -1338,6 +1360,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         "comparison": {
             "current_7d_summary": current_7d_summary,
             "previous_7d_summary": previous_7d_summary,
+            "same_weekday_day": same_weekday_day_summary,
         },
         "source": "live",
         "error": None,

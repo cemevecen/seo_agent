@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from backend.locale import tr as tr_locale
 from backend.models import Site
 from backend.services.ga4_page_urls import enrich_ga4_page_rows, ga4_row_page_href, ga4_row_page_label
-from backend.services.email_templates import render_ga4_digest_email
+from backend.services.email_templates import ga4_digest_same_weekday_section, render_ga4_digest_email
 from backend.services.mailer import send_email
 from backend.services.operations_notifier import TRIGGER_SOURCE_LABELS, operations_recipients
 from backend.services.timezone_utils import format_local_datetime, now_local
@@ -468,14 +468,17 @@ def _build_bucket_digest(
     *,
     bucket: str,
     site_ids: list[int],
-) -> tuple[list[tuple[str, list[dict[str, Any]]]], list[dict[str, Any]], list[str]] | None:
-    """Dönüş: (alan_blokları dict satırları, kritik_satırlar tablo satırları, domain_listesi) veya None."""
+) -> tuple[
+    list[tuple[str, list[dict[str, Any]]]], list[dict[str, Any]], list[str], str
+] | None:
+    """Dönüş: (alan_blokları, kritik_satırlar, domain_listesi, aynı_gün_html) veya None."""
     _ga4_profile_payload_for_period, get_ga4_connection_status, get_latest_metrics = _import_profile_payload()
     from backend.main import _external_site_ids
 
     external = _external_site_ids(db)
     all_notes: list[tuple[float, int, dict[str, Any]]] = []
     domains_seen: list[str] = []
+    same_weekday_items: list[dict[str, Any]] = []
 
     for site_id in site_ids:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -501,6 +504,20 @@ def _build_bucket_digest(
                 latest=latest,
                 prop_id=prop_id,
             )
+            sw = pl.get("same_weekday_kpi") or {}
+            if isinstance(sw, dict) and sw.get("last") and sw.get("prev"):
+                same_weekday_items.append(
+                    {
+                        "domain": site.domain,
+                        "profile": PROFILE_LABELS.get(profile, profile),
+                        "reference_date": sw.get("reference_date"),
+                        "previous_week_date": sw.get("previous_week_date"),
+                        "weekday_label_tr": sw.get("weekday_label_tr"),
+                        "last": sw.get("last") or {},
+                        "prev": sw.get("prev") or {},
+                        "property_id": sw.get("property_id"),
+                    }
+                )
             all_notes.extend(
                 _collect_notes_for_profile(
                     domain=site.domain,
@@ -510,7 +527,7 @@ def _build_bucket_digest(
                 )
             )
 
-    if not all_notes:
+    if not all_notes and not same_weekday_items:
         return None
 
     area_titles = DOVIZ_AREA_TITLES if bucket == "doviz" else SINEMA_AREA_TITLES
@@ -531,7 +548,7 @@ def _build_bucket_digest(
     for _sc, area_idx, entry in ranked:
         buckets[area_idx].append(entry)
 
-    if not any(buckets):
+    if not any(buckets) and not same_weekday_items:
         return None
 
     crit_rows = balance_digest_entries_half_up_down(
@@ -544,7 +561,8 @@ def _build_bucket_digest(
         items = balance_digest_entries_half_up_down(raw)
         area_blocks.append((title, items))
 
-    return area_blocks, crit_rows, domains_seen
+    sw_html = ga4_digest_same_weekday_section(same_weekday_items)
+    return area_blocks, crit_rows, domains_seen, sw_html
 
 
 def send_ga4_weekly_digest_emails(
@@ -587,7 +605,7 @@ def send_ga4_weekly_digest_emails(
         built = _build_bucket_digest(db, bucket=bucket, site_ids=site_ids)
         if not built:
             return
-        area_blocks, critical_rows, domains_seen = built
+        area_blocks, critical_rows, domains_seen, same_weekday_html = built
         summary_rows = [
             ("Mail tipi", "GA4 haftalık özet"),
             ("Tetik", ts_label),
@@ -605,6 +623,7 @@ def send_ga4_weekly_digest_emails(
             meta_rows=summary_rows,
             critical_rows=critical_rows[:24],
             area_blocks=area_blocks,
+            same_weekday_section_html=same_weekday_html,
         )
         if send_email(subject, html, recipients=recipients):
             subjects.append(subject)
