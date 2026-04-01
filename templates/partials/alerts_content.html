@@ -344,7 +344,10 @@ async function loadAlertDetails(alertId, card) {
       dailyButton.classList.toggle('cursor-not-allowed', !dailyUsable);
     }
 
-    const initialType = weeklyUsable ? 'weekly' : dailyUsable ? 'daily' : 'weekly';
+    const preferDaily = (typeof selectedPeriodDays !== 'undefined' && selectedPeriodDays === 1);
+    const initialType = preferDaily
+      ? (dailyUsable ? 'daily' : weeklyUsable ? 'weekly' : 'daily')
+      : (weeklyUsable ? 'weekly' : dailyUsable ? 'daily' : 'weekly');
     const allBtns = card.querySelectorAll('.comparison-btn');
     allBtns.forEach(b => {
       if (b.dataset.comparison === initialType) {
