@@ -2958,6 +2958,40 @@ def _public_explorer_context(domain: str) -> dict:
         }
 
 
+def _build_dashboard_card_slim(db, site, *, recent_alerts_cache: list[dict]) -> dict:
+    """Dashboard ilk yüklemesi için hafif kart verisi (overview/drops/opportunities).
+
+    Tam kart yerine sadece 4 DB sorgusu: latest_metrics, sc_run, 7d_current, 7d_previous.
+    Tam kart HTMX ile lazy load edilir.
+    """
+    latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+    mobile_score = latest.get("pagespeed_mobile_score")
+    pagespeed_score = float(mobile_score.value) if mobile_score else 0.0
+    crawler_ok = all(
+        _metric_value(latest, m, 0.0) >= 1.0
+        for m in ("crawler_robots_accessible", "crawler_sitemap_exists", "crawler_schema_found", "crawler_canonical_found")
+    )
+    search_console_status = _search_console_status(db, latest, site.id)
+    sc_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
+    site_alerts = [a for a in recent_alerts_cache if a.get("domain") == site.domain]
+    current_rows_7 = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+    previous_rows_7 = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+    top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
+    return {
+        "id": site.id,
+        "display_name": site.display_name,
+        "domain": site.domain,
+        "pagespeed_score": round(pagespeed_score),
+        "crawler_ok": crawler_ok,
+        "alert_count": len(site_alerts),
+        "top_queries": top_queries,
+        "search_console": {
+            "status": search_console_status,
+            "last_run_dt": sc_run.requested_at if sc_run else None,
+        },
+    }
+
+
 def _dashboard_cards() -> list[dict]:
     # Dashboard için tüm site kartı özetlerini üretir.
     with SessionLocal() as db:
@@ -3671,21 +3705,42 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 
 @app.get("/")
 def dashboard(request: Request):
-    # Jinja2 template'i başlangıç ekranını render eder.
+    """Dashboard ilk yüklemesi: slim veri ile anında render, site kartları HTMX lazy load."""
     with SessionLocal() as db:
         recent_alerts = get_recent_alerts(db, limit=100)
-        site_cards = _dashboard_cards_with_db(db, recent_alerts_cache=recent_alerts)
+        external_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        slim_cards = [_build_dashboard_card_slim(db, site, recent_alerts_cache=recent_alerts) for site in sites]
+        period = _resolve_period(request.query_params.get("period"))[0]
         payload = {
             "site_name": "SEO Agent Dashboard",
             "sites": get_sidebar_sites(),
-            "period": _resolve_period(request.query_params.get("period"))[0],
-            "overview_items": _build_dashboard_overview(site_cards, recent_alerts),
+            "period": period,
+            "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
             "critical_alerts": recent_alerts[:6],
-            "site_cards": site_cards,
-            "top_drop_items": _build_dashboard_top_drops(site_cards, limit=6),
-            "opportunity_items": _build_dashboard_opportunities(site_cards, limit=8),
+            "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
+            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6),
+            "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8),
         }
     return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
+
+
+@app.get("/dashboard/cards/{site_id}", response_class=HTMLResponse)
+def dashboard_card_lazy(request: Request, site_id: int):
+    """HTMX lazy loading ile tek site kartı render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        recent_alerts = get_recent_alerts(db, limit=100)
+        card = _build_dashboard_card(db, site, recent_alerts_cache=recent_alerts)
+    period = _resolve_period(request.query_params.get("period"))[0]
+    return templates.TemplateResponse(
+        request,
+        "partials/dashboard_site_card.html",
+        context={"request": request, "card": card, "period": period},
+    )
 
 
 @app.get("/design/lighthouse-minimal-options", response_class=HTMLResponse)
