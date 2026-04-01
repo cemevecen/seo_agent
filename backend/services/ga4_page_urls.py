@@ -359,8 +359,19 @@ def ga4_row_page_href(row: dict | None, site_domain: str | None) -> str:
     return ga4_fallback_page_url(row.get("page"), site_domain)
 
 
+_NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
+
+
+def _is_news_detail_path(path: str) -> bool:
+    """Son path segmenti sayısal ID olan haber/makale detay sayfalarını tespit eder."""
+    return bool(_NEWS_DETAIL_PATH_RE.search(path))
+
+
 def enrich_ga4_page_rows(rows: list | None) -> list:
-    """Snapshot satırlarında page_url eksikse page_host + page ile tamamla (/ga4 ve partial uyumu)."""
+    """Snapshot satırlarında page_url eksikse page_host + page ile tamamla (/ga4 ve partial uyumu).
+
+    Haber detay sayfaları (son path segmenti sayısal ID olanlar) otomatik filtrelenir.
+    """
     if not rows:
         return []
     out: list = []
@@ -368,10 +379,12 @@ def enrich_ga4_page_rows(rows: list | None) -> list:
         if not isinstance(r, dict):
             out.append(r)
             continue
+        pg = str(r.get("page") or "").strip()
+        if _is_news_detail_path(pg):
+            continue
         row = dict(r)
         pu = (row.get("page_url") or "").strip()
         ph = str(row.get("page_host") or "").strip()
-        pg = str(row.get("page") or "").strip()
         if ph and pg and not _is_ga4_placeholder_host(ph):
             new_u = ga4_canonical_page_url(ph, pg)
             if new_u:
