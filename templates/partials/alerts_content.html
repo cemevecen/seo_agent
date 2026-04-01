@@ -54,14 +54,14 @@
           <div class="flex items-center justify-between gap-3">
             <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
               {% if alert.display_query %}
-                <span class="text-xs font-medium text-slate-800 truncate">'{{ alert.display_query }}'</span>
+                <span class="text-sm font-medium text-slate-800 truncate">'{{ alert.display_query }}'</span>
               {% endif %}
-              <span class="text-xs {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-500{% endif %} shrink-0">{{ alert.display_metric }}</span>
+              <span class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-500{% endif %} shrink-0">{{ alert.display_metric }}</span>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-              <span class="text-[11px] text-slate-400">{{ alert.triggered_at }}</span>
-              <span class="text-[11px] {% if alert.sent_mail %}text-green-600{% else %}text-amber-500{% endif %}">{% if alert.sent_mail %}✓{% else %}⧗{% endif %}</span>
-              <button class="px-2 py-0.5 text-[11px] bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors toggle-details">Detay</button>
+              <span class="text-xs text-slate-400">{{ alert.triggered_at }}</span>
+              <span class="text-xs {% if alert.sent_mail %}text-green-600{% else %}text-amber-500{% endif %}">{% if alert.sent_mail %}✓{% else %}⧗{% endif %}</span>
+              <button class="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors toggle-details">Detay</button>
             </div>
           </div>
 
