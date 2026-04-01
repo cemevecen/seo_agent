@@ -115,10 +115,9 @@
               class="{% if period_key != '1' %}hidden {% endif %}space-y-5 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 overflow-hidden"
             >
               <div class="min-w-0">
-                <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Search Console özeti</p>
+                <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Search Console</p>
                 <h6 class="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">{{ period.heading }}</h6>
                 <p class="mt-2 text-sm text-slate-500">{{ period.subtitle }}</p>
-                <p class="mt-1 text-xs text-slate-400">Cihaz kırılımı için üstteki Mobile / Desktop seçimini kullanın.</p>
               </div>
 
               {% for device_key, view in period.views.items() %}
@@ -145,7 +144,7 @@
                     {% set position_pct_class = 'text-emerald-600' if pp < 0 else ('text-rose-600' if pp > 0 else 'text-slate-500') %}
 
                     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
-                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Tıklama</p>
+                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Clicks</p>
                       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
                         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ clicks_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ view.clicks_pct_change | signed_max_two_decimals }}%</p>
                         <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ clicks_value_class }} sm:text-[11px]" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.clicks or 0).replace(",", ",") }}</p>
@@ -158,7 +157,7 @@
                     </article>
 
                     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
-                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Gösterim</p>
+                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Impressions</p>
                       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
                         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ impressions_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ view.impressions_pct_change | signed_max_two_decimals }}%</p>
                         <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ impressions_value_class }} sm:text-[11px]" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.impressions or 0).replace(",", ",") }}</p>
@@ -184,7 +183,7 @@
                     </article>
 
                     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
-                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Pozisyon</p>
+                      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Position</p>
                       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
                         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ position_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ view.position_pct_change | signed_max_two_decimals }}%</p>
                         <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ position_value_class }} sm:text-[11px]" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
@@ -211,25 +210,25 @@
                       <thead class="border-b border-slate-200 text-slate-500">
                         <tr>
                           <th class="px-2 py-2.5 text-left sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="query" data-sort-type="string">En üst sorgular</button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="query" data-sort-type="string">Top queries</button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksCurrent" data-sort-type="number">Tıklama<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksCurrent" data-sort-type="number">Clicks<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksPrevious" data-sort-type="number">Tıklama<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksPrevious" data-sort-type="number">Clicks<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksDiff" data-sort-type="number">Tıklama<br><span class="text-xs font-normal">Fark</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="clicksDiff" data-sort-type="number">Clicks<br><span class="text-xs font-normal">Change</span></button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionCurrent" data-sort-type="number">Pozisyon<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionCurrent" data-sort-type="number">Position<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionPrevious" data-sort-type="number">Pozisyon<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionPrevious" data-sort-type="number">Position<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button>
                           </th>
                           <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionDiff" data-sort-type="number">Pozisyon<br><span class="text-xs font-normal">Fark</span></button>
+                            <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="positionDiff" data-sort-type="number">Position<br><span class="text-xs font-normal">Change</span></button>
                           </th>
                         </tr>
                       </thead>
