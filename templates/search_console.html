@@ -883,6 +883,14 @@
       window.setTimeout(function () {
         initSearchConsolePanels(event.target);
       }, 50);
+      return;
+    }
+    // Lazy-load: her SC kart ayrı ayrı swap'lanıyor (outerHTML)
+    var target = event.target;
+    if (target && (target.dataset.scSiteCard !== undefined || (target.id && target.id.indexOf('sc-card-') === 0))) {
+      window.setTimeout(function () {
+        initSearchConsolePanels(target);
+      }, 50);
     }
   });
 
