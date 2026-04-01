@@ -1,6 +1,6 @@
 <div id="dashboard-card-{{ card.id }}" class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
 
-  {{/* Progress panel */}}
+  {# Progress panel #}
   <div
     id="dashboard-progress-panel-{{ card.id }}"
     data-dashboard-progress-panel
@@ -18,7 +18,7 @@
     </div>
   </div>
 
-  {{/* Header */}}
+  {# Header #}
   <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-slate-100">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
@@ -50,7 +50,7 @@
     <div class="mx-4 mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">{{ card.flash_message }}</div>
   {% endif %}
 
-  {{/* Metrics grid */}}
+  {# Metrics grid #}
   <div class="grid grid-cols-5 divide-x divide-slate-100 border-b border-slate-100">
     <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Clicks</p>
@@ -79,10 +79,10 @@
     </div>
   </div>
 
-  {{/* Bottom: SC status + alerts */}}
+  {# Bottom: SC status + alerts #}
   <div class="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
 
-    {{/* SC status */}}
+    {# SC status #}
     <div class="px-4 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
@@ -110,7 +110,7 @@
       </div>
     </div>
 
-    {{/* Recent alerts */}}
+    {# Recent alerts #}
     <div class="px-4 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Son Uyarılar</p>
