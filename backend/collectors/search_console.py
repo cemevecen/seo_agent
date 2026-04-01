@@ -617,10 +617,15 @@ def _build_trend_summary(
         while day <= end:
             key = day.isoformat()
             row = daily_map.get(key, {})
+            row_clicks = float(row.get("clicks", 0.0))
+            row_impressions = float(row.get("impressions", 0.0))
+            row_ctr = (row_clicks / row_impressions * 100.0) if row_impressions > 0 else 0.0
             output.append(
                 {
                     "date": key,
-                    "clicks": float(row.get("clicks", 0.0)),
+                    "clicks": row_clicks,
+                    "impressions": row_impressions,
+                    "ctr": round(row_ctr, 4),
                     "position": float(row.get("position", 0.0)),
                 }
             )
@@ -635,6 +640,10 @@ def _build_trend_summary(
         "current_dates": [row["date"] for row in current],
         "previous_clicks": [row["clicks"] for row in previous],
         "current_clicks": [row["clicks"] for row in current],
+        "previous_impressions": [row["impressions"] for row in previous],
+        "current_impressions": [row["impressions"] for row in current],
+        "previous_ctr": [row["ctr"] for row in previous],
+        "current_ctr": [row["ctr"] for row in current],
         "previous_position": [row["position"] for row in previous],
         "current_position": [row["position"] for row in current],
     }
@@ -675,22 +684,29 @@ def _build_recent_trend_summary(
     labels: list[str] = []
     dates: list[str] = []
     clicks_series: list[float] = []
+    impressions_series: list[float] = []
+    ctr_series: list[float] = []
     position_series: list[float] = []
     day = start_date
     while day <= end_date:
         key = day.isoformat()
         bucket = aggregated_by_day.get(key) or {}
-        impressions = float(bucket.get("impressions") or 0.0)
+        daily_clicks = float(bucket.get("clicks") or 0.0)
+        daily_impressions = float(bucket.get("impressions") or 0.0)
         weighted_position_total = float(bucket.get("weighted_position_total") or 0.0)
-        if impressions > 0:
-            position = weighted_position_total / impressions
+        if daily_impressions > 0:
+            position = weighted_position_total / daily_impressions
+            daily_ctr = (daily_clicks / daily_impressions) * 100.0
         else:
             fallback_total = float(bucket.get("fallback_position_total") or 0.0)
             fallback_count = float(bucket.get("fallback_position_count") or 0.0)
             position = (fallback_total / fallback_count) if fallback_count > 0 else 0.0
+            daily_ctr = 0.0
         labels.append(day.strftime("%d.%m"))
         dates.append(key)
-        clicks_series.append(float(bucket.get("clicks") or 0.0))
+        clicks_series.append(daily_clicks)
+        impressions_series.append(daily_impressions)
+        ctr_series.append(round(daily_ctr, 4))
         position_series.append(position)
         day += timedelta(days=1)
 
@@ -699,6 +715,8 @@ def _build_recent_trend_summary(
         "labels": labels,
         "dates": dates,
         "clicks": clicks_series,
+        "impressions": impressions_series,
+        "ctr": ctr_series,
         "position": position_series,
     }
 

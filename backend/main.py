@@ -667,12 +667,20 @@ def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
     if str(sanitized.get("mode") or "") == "last_28d":
         clicks = list(sanitized.get("clicks") or [])
+        impressions = list(sanitized.get("impressions") or [])
+        ctr = list(sanitized.get("ctr") or [])
         positions = list(sanitized.get("position") or [])
         for index in range(min(len(clicks), len(positions))):
             if float(clicks[index] or 0.0) == 0.0 and float(positions[index] or 0.0) == 0.0:
                 clicks[index] = None
                 positions[index] = None
+                if index < len(impressions):
+                    impressions[index] = None
+                if index < len(ctr):
+                    ctr[index] = None
         sanitized["clicks"] = clicks
+        sanitized["impressions"] = impressions
+        sanitized["ctr"] = ctr
         sanitized["position"] = positions
         return sanitized
     for prefix in ("current", "previous"):
@@ -724,6 +732,8 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
     dates = list(t.get("dates") or [])
     labels = list(t.get("labels") or [])
     clicks = list(t.get("clicks") or [])
+    impressions = list(t.get("impressions") or [])
+    ctr = list(t.get("ctr") or [])
     position = list(t.get("position") or [])
     L = min(len(dates), len(clicks), len(position))
     if L == 0:
@@ -737,6 +747,8 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
         "dates": dates[-take:],
         "labels": labels[-take:] if len(labels) >= take else labels,
         "clicks": clicks[-take:],
+        "impressions": impressions[-take:] if len(impressions) >= take else impressions,
+        "ctr": ctr[-take:] if len(ctr) >= take else ctr,
         "position": position[-take:],
     }
 

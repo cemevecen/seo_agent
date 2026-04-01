@@ -422,49 +422,80 @@
           const isLast28Days = trend.mode === 'last_28d';
           const labels = trend.labels || ['1', '2', '3', '4', '5', '6', '7'];
           const xValues = isLast28Days ? (trend.dates || labels) : labels;
-          const currentClicks = isLast28Days ? (trend.clicks || []) : (trend.current_clicks || []);
-          const previousClicks = isLast28Days ? [] : (trend.previous_clicks || []);
-          const currentPosition = isLast28Days ? (trend.position || []) : (trend.current_position || []);
-          const previousPosition = isLast28Days ? [] : (trend.previous_position || []);
+
+          // Current period series
+          const currentClicks      = isLast28Days ? (trend.clicks || [])       : (trend.current_clicks || []);
+          const currentImpressions = isLast28Days ? (trend.impressions || [])  : (trend.current_impressions || []);
+          const currentCtr         = isLast28Days ? (trend.ctr || [])          : (trend.current_ctr || []);
+          const currentPosition    = isLast28Days ? (trend.position || [])     : (trend.current_position || []);
+
+          // Previous period series (comparison mode only)
+          const previousClicks      = isLast28Days ? [] : (trend.previous_clicks || []);
+          const previousImpressions = isLast28Days ? [] : (trend.previous_impressions || []);
+          const previousCtr         = isLast28Days ? [] : (trend.previous_ctr || []);
+          const previousPosition    = isLast28Days ? [] : (trend.previous_position || []);
+
+          const periodLabel = isLast28Days ? '' : ' (dönem)';
+
           const traces = [
             {
-              x: xValues,
-              y: currentClicks,
-              type: 'scatter',
-              mode: 'lines',
-              name: isLast28Days ? 'Clicks' : 'Clicks 7G',
-              line: { color: '#4f83e3', width: 3 },
+              x: xValues, y: currentClicks,
+              type: 'scatter', mode: 'lines',
+              name: 'Clicks' + periodLabel,
+              line: { color: '#3b82f6', width: 2.5 },
               yaxis: 'y1',
             },
             {
-              x: xValues,
-              y: currentPosition,
-              type: 'scatter',
-              mode: 'lines',
-              name: isLast28Days ? 'Position' : 'Position 7G',
-              line: { color: '#dd7a2a', width: 3 },
+              x: xValues, y: currentImpressions,
+              type: 'scatter', mode: 'lines',
+              name: 'Impressions' + periodLabel,
+              line: { color: '#8b5cf6', width: 2.5 },
+              yaxis: 'y3',
+            },
+            {
+              x: xValues, y: currentCtr,
+              type: 'scatter', mode: 'lines',
+              name: 'CTR %' + periodLabel,
+              line: { color: '#10b981', width: 2.5 },
+              yaxis: 'y4',
+            },
+            {
+              x: xValues, y: currentPosition,
+              type: 'scatter', mode: 'lines',
+              name: 'Position' + periodLabel,
+              line: { color: '#f97316', width: 2.5 },
               yaxis: 'y2',
-            }
+            },
           ];
 
           if (!isLast28Days) {
             traces.push(
               {
-                x: xValues,
-                y: previousClicks,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Tıklama Önceki 7G',
-                line: { color: '#4f83e3', width: 3, dash: 'dash' },
+                x: xValues, y: previousClicks,
+                type: 'scatter', mode: 'lines',
+                name: 'Clicks (önceki)',
+                line: { color: '#3b82f6', width: 1.5, dash: 'dash' },
                 yaxis: 'y1',
               },
               {
-                x: xValues,
-                y: previousPosition,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Pozisyon Önceki 7G',
-                line: { color: '#dd7a2a', width: 3, dash: 'dash' },
+                x: xValues, y: previousImpressions,
+                type: 'scatter', mode: 'lines',
+                name: 'Impressions (önceki)',
+                line: { color: '#8b5cf6', width: 1.5, dash: 'dash' },
+                yaxis: 'y3',
+              },
+              {
+                x: xValues, y: previousCtr,
+                type: 'scatter', mode: 'lines',
+                name: 'CTR % (önceki)',
+                line: { color: '#10b981', width: 1.5, dash: 'dash' },
+                yaxis: 'y4',
+              },
+              {
+                x: xValues, y: previousPosition,
+                type: 'scatter', mode: 'lines',
+                name: 'Position (önceki)',
+                line: { color: '#f97316', width: 1.5, dash: 'dash' },
                 yaxis: 'y2',
               }
             );
@@ -476,13 +507,13 @@
             {
               autosize: true,
               height: 360,
-              margin: { l: 56, r: 56, t: 20, b: 92 },
+              margin: { l: 52, r: 52, t: 20, b: 100 },
               paper_bgcolor: 'rgba(0,0,0,0)',
               plot_bgcolor: 'rgba(0,0,0,0)',
               legend: {
                 orientation: 'h',
                 x: 0,
-                y: -0.22,
+                y: -0.26,
                 xanchor: 'left',
                 yanchor: 'top',
                 font: { size: 11 },
@@ -495,14 +526,40 @@
                 tickfont: { size: isLast28Days ? 10 : 12 },
                 tickformat: isLast28Days ? '%d.%m' : undefined,
               },
-              yaxis: { title: 'Clicks', gridcolor: '#e2e8f0', zeroline: false, automargin: true },
+              // y1: Clicks (left)
+              yaxis: {
+                title: { text: 'Clicks', font: { color: '#3b82f6', size: 11 } },
+                tickfont: { color: '#3b82f6', size: 10 },
+                gridcolor: '#e2e8f0',
+                zeroline: false,
+                automargin: true,
+              },
+              // y2: Position (right, reversed)
               yaxis2: {
-                title: 'Position',
+                title: { text: 'Position', font: { color: '#f97316', size: 11 } },
+                tickfont: { color: '#f97316', size: 10 },
                 overlaying: 'y',
                 side: 'right',
                 autorange: 'reversed',
                 zeroline: false,
                 automargin: true,
+                showgrid: false,
+              },
+              // y3: Impressions (left, separate scale, ticks hidden)
+              yaxis3: {
+                overlaying: 'y',
+                side: 'left',
+                showticklabels: false,
+                showgrid: false,
+                zeroline: false,
+              },
+              // y4: CTR (right, separate scale, ticks hidden)
+              yaxis4: {
+                overlaying: 'y',
+                side: 'right',
+                showticklabels: false,
+                showgrid: false,
+                zeroline: false,
               },
               hovermode: 'x unified',
             },
