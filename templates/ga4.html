@@ -913,6 +913,16 @@
         initGa4Panels(event.target);
       }, 50);
     }
+    // Pages tablosu HTMX ile yüklendi — sort butonlarını etkinleştir
+    var el = event.detail && event.detail.elt;
+    if (el && el.dataset && el.dataset.ga4PagesPlaceholder !== undefined) {
+      var swapped = event.target;
+      if (swapped) {
+        window.setTimeout(function () {
+          initGa4Tables(swapped.closest('section') || swapped);
+        }, 30);
+      }
+    }
   });
 
   document.body.addEventListener('htmx:beforeRequest', function (event) {
