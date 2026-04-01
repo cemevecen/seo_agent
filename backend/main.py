@@ -5093,19 +5093,22 @@ def ga4_pages_partial(request: Request, site_id: int):
         from backend.collectors.ga4 import fetch_ga4_landing_pages
 
         try:
-            snap_days = days
             if days == 1:
-                snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=7) or get_latest_ga4_report_snapshot(
-                    db, site_id=site.id, profile=profile, period_days=30
+                # 1g: grafik 7g snapshot ile aynı kalır; landing listesi ayrı — dün vs geçen haftanın aynı günü (7g snapshot pages_no_news kullanılmaz)
+                rows = fetch_ga4_landing_pages(
+                    property_id=property_id,
+                    days=1,
+                    limit=50,
+                    exclude_news=True,
+                    same_weekday_day=True,
                 )
             else:
-                snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=snap_days)
-            snap_pages = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
-            if snap_pages:
-                rows = snap_pages
-            else:
-                fetch_days = 7 if days == 1 else days
-                rows = fetch_ga4_landing_pages(property_id=property_id, days=fetch_days, limit=50, exclude_news=True)
+                snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=days)
+                snap_pages = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
+                if snap_pages:
+                    rows = snap_pages
+                else:
+                    rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=50, exclude_news=True)
             rows = _enrich_ga4_page_rows(rows)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
@@ -5113,6 +5116,67 @@ def ga4_pages_partial(request: Request, site_id: int):
         return templates.TemplateResponse(
             request,
             "partials/ga4_pages_table.html",
+            context={
+                "request": request,
+                "rows": rows,
+                "days": days,
+                "profile": profile,
+                "property_id": property_id,
+                "site_domain": site.domain,
+            },
+        )
+
+
+@app.get("/ga4/sources/{site_id}")
+def ga4_sources_partial(request: Request, site_id: int):
+    profile = (request.query_params.get("profile") or "").strip().lower()
+    raw_days = (request.query_params.get("days") or "").strip()
+    try:
+        days = int(raw_days) if raw_days else 30
+    except ValueError:
+        days = 30
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("Bu site GA4 listesinde yer almaz (external).", status_code=404)
+
+        ga4_status = get_ga4_connection_status(db, site.id)
+        properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+        property_id = str(properties.get(profile) or "").strip()
+        if not property_id:
+            return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
+
+        from backend.collectors.ga4 import fetch_ga4_session_source_medium
+
+        try:
+            if days == 1:
+                rows = fetch_ga4_session_source_medium(
+                    property_id=property_id,
+                    days=1,
+                    limit=50,
+                    same_weekday_day=True,
+                )
+            else:
+                snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=days)
+                snap_sources = ((snap or {}).get("payload") or {}).get("sources") or []
+                if snap_sources:
+                    rows = snap_sources
+                else:
+                    rows = fetch_ga4_session_source_medium(
+                        property_id=property_id,
+                        days=days,
+                        limit=50,
+                        same_weekday_day=False,
+                    )
+        except Exception as exc:  # noqa: BLE001
+            return HTMLResponse(f"GA4 kaynak/ortam verisi çekilemedi: {exc}", status_code=500)
+
+        return templates.TemplateResponse(
+            request,
+            "partials/ga4_sources_table.html",
             context={
                 "request": request,
                 "rows": rows,

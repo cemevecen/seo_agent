@@ -61,6 +61,20 @@ def _calendar_windows(days: int) -> tuple[tuple[str, str], tuple[str, str]]:
     )
 
 
+def _same_weekday_day_windows() -> tuple[tuple[str, str], tuple[str, str]]:
+    """Son tam gün (dün) vs 7 gün önceki aynı takvim günü — same_weekday KPI / 1g kart ile uyumlu."""
+    yesterday = date.today() - timedelta(days=1)
+    last_start = yesterday.isoformat()
+    last_end = yesterday.isoformat()
+    wow_prev = yesterday - timedelta(days=7)
+    prev_start = wow_prev.isoformat()
+    prev_end = wow_prev.isoformat()
+    return (
+        (last_start, last_end),
+        (prev_start, prev_end),
+    )
+
+
 def _exclude_path_substrings() -> list[str]:
     raw = (getattr(settings, "ga4_exclude_path_substrings", None) or "").strip()
     if not raw:
@@ -669,12 +683,19 @@ def fetch_ga4_landing_pages(
     days: int = 30,
     limit: int = 50,
     exclude_news: bool = True,
+    same_weekday_day: bool = False,
 ) -> list[dict]:
-    """Landing page kırılımı: son N gün vs önceki N gün sessions."""
+    """Landing page kırılımı: son N gün vs önceki N gün sessions.
+
+    same_weekday_day=True: 1g modu — son tam gün vs bir önceki haftanın aynı günü (7g snapshot listesiyle karıştırma).
+    """
 
     safe_days = int(days) if int(days) > 0 else 30
     safe_limit = max(5, min(int(limit or 50), 200))
-    (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
+    if same_weekday_day:
+        (last_start, last_end), (prev_start, prev_end) = _same_weekday_day_windows()
+    else:
+        (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
 
     client = _client()
     filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None
@@ -724,3 +745,30 @@ def fetch_ga4_landing_pages(
         rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
     return rows
+
+
+def fetch_ga4_session_source_medium(
+    *,
+    property_id: str,
+    days: int = 30,
+    limit: int = 50,
+    same_weekday_day: bool = False,
+) -> list[dict]:
+    """sessionSourceMedium: son N gün vs önceki N gün veya 1g same-weekday çifti."""
+
+    safe_days = int(days) if int(days) > 0 else 30
+    lim = max(10, min(int(limit or 50), 250))
+    if same_weekday_day:
+        (last_start, last_end), (prev_start, prev_end) = _same_weekday_day_windows()
+    else:
+        (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
+    client = _client()
+    return _run_session_source_medium(
+        client,
+        property_id,
+        last_start=last_start,
+        last_end=last_end,
+        prev_start=prev_start,
+        prev_end=prev_end,
+        limit=lim,
+    )

@@ -16,6 +16,18 @@
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] td:nth-child(n + 2) {
     width: 13.5%;
   }
+  @keyframes ga4-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(280%);
+    }
+  }
+  .ga4-htmx-indeterminate-fill {
+    width: 42%;
+    animation: ga4-indeterminate 1.15s ease-in-out infinite;
+  }
 </style>
 <div data-header-title="GA4" class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -28,6 +40,37 @@
       >
         Tüm Siteleri Yenile
       </button>
+    </div>
+
+    <div id="ga4-page-load-panel" class="mb-4 rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa yükleniyor</p>
+          <p id="ga4-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
+          <p id="ga4-page-load-detail" class="mt-1 text-sm text-slate-600">GA4 kart listesi için istek gönderiliyor.</p>
+        </div>
+        <div class="text-right">
+          <p id="ga4-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
+          <p id="ga4-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
+        </div>
+      </div>
+      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
+        <div id="ga4-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#7c3aed_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-300" style="width: 8%"></div>
+      </div>
+    </div>
+
+    <div
+      id="ga4-htmx-activity-bar"
+      class="mb-4 hidden rounded-2xl border border-violet-100 bg-white/95 p-3 shadow-sm ring-1 ring-slate-100"
+      aria-live="polite"
+    >
+      <div class="flex items-center justify-between gap-3 text-xs text-slate-600">
+        <span id="ga4-htmx-activity-label">Tablo ve grafik istekleri sürüyor</span>
+        <span id="ga4-htmx-activity-count" class="font-semibold tabular-nums text-violet-800">0</span>
+      </div>
+      <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
+        <div class="ga4-htmx-indeterminate-fill h-full rounded-full bg-gradient-to-r from-violet-500 via-indigo-500 to-violet-400"></div>
+      </div>
     </div>
 
     <div id="ga4-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-violet-200 bg-[linear-gradient(135deg,rgba(237,233,254,0.95),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(109,40,217,0.35)] ring-1 ring-white/70 backdrop-blur-sm">
@@ -45,21 +88,28 @@
     </div>
 
     <div id="ga4-site-list" hx-get="/ga4/site-list" hx-trigger="load" hx-swap="innerHTML">
-      <div id="ga4-page-load-panel" class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa yükleniyor</p>
-            <p id="ga4-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
-            <p id="ga4-page-load-detail" class="mt-1 text-sm text-slate-600">GA4 kart listesi için istek gönderiliyor.</p>
+      <div class="grid gap-4 xl:grid-cols-2" aria-hidden="true">
+        {% for _ in [0, 1] %}
+          <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0 flex-1 space-y-2.5 animate-pulse">
+                <div class="h-6 max-w-[14rem] rounded-lg bg-slate-200"></div>
+                <div class="h-4 max-w-[18rem] rounded bg-slate-200"></div>
+              </div>
+              <div class="flex shrink-0 animate-pulse gap-1">
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {% for __ in [0, 1, 2, 3] %}
+                <div class="h-[4.5rem] animate-pulse rounded-2xl bg-slate-200/90"></div>
+              {% endfor %}
+            </div>
+            <div class="mt-4 h-28 animate-pulse rounded-2xl bg-slate-200/80"></div>
           </div>
-          <div class="text-right">
-            <p id="ga4-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
-            <p id="ga4-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
-          </div>
-        </div>
-        <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
-          <div id="ga4-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#7c3aed_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-500" style="width: 8%"></div>
-        </div>
+        {% endfor %}
       </div>
     </div>
   </div>
@@ -73,22 +123,49 @@
     const percent = document.getElementById('ga4-page-load-percent');
     const elapsed = document.getElementById('ga4-page-load-elapsed');
     const bar = document.getElementById('ga4-page-load-bar');
-    const start = performance.now();
+    const boot = performance.now();
+    let requestStart = boot;
     let timer = null;
+    let elapsedTick = null;
+    let xhrFloor = 8;
+    let lastTitle = 'Kabuk hazırlanıyor';
+    let lastDetail = 'GA4 sayfası açılıyor, site listesi isteniyor.';
 
-    function secondsText() {
-      return ((performance.now() - start) / 1000).toFixed(1) + ' sn';
+    function secondsText(from) {
+      return ((performance.now() - from) / 1000).toFixed(1) + ' sn';
     }
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !elapsed || !bar) {
         return;
       }
+      lastTitle = step.title;
+      lastDetail = step.detail;
       title.textContent = step.title;
       detail.textContent = step.detail;
-      percent.textContent = String(step.percent) + '%';
-      elapsed.textContent = secondsText();
-      bar.style.width = String(step.percent) + '%';
+      const pct = Math.max(step.percent || 0, xhrFloor);
+      percent.textContent = String(pct) + '%';
+      elapsed.textContent = secondsText(requestStart);
+      bar.style.width = String(pct) + '%';
+    }
+
+    function startElapsedTick() {
+      if (elapsedTick) {
+        return;
+      }
+      elapsedTick = window.setInterval(function () {
+        if (!elapsed) {
+          return;
+        }
+        elapsed.textContent = secondsText(requestStart);
+      }, 100);
+    }
+
+    function stopElapsedTick() {
+      if (elapsedTick) {
+        window.clearInterval(elapsedTick);
+        elapsedTick = null;
+      }
     }
 
     function startPendingLoop() {
@@ -96,17 +173,18 @@
         return;
       }
       timer = window.setInterval(function () {
-        const current = parseInt((bar && bar.style.width) || '8', 10) || 8;
+        const current = Math.max(parseInt((bar && bar.style.width) || '8', 10) || 8, xhrFloor);
         const next = Math.min(current + 1, 94);
         if (next <= current) {
           return;
         }
+        xhrFloor = next;
         render({
           percent: next,
           title: 'Liste bekleniyor',
-          detail: 'HTMX isteği sürüyor; GA4 kartları gelince alan kapanacak.',
+          detail: 'Sunucu yanıtı bekleniyor; indirme tamamlanınca kartlar yerleşecek.',
         });
-      }, 500);
+      }, 450);
     }
 
     render({
@@ -118,24 +196,42 @@
     return {
       domReady: function () {
         render({
-          percent: 24,
+          percent: 22,
           title: 'DOM hazır',
           detail: 'Liste isteği için altyapı hazır.',
         });
       },
       requestStarted: function () {
+        requestStart = performance.now();
+        xhrFloor = 40;
+        startElapsedTick();
         render({
-          percent: 48,
+          percent: 44,
           title: 'İstek gönderildi',
-          detail: 'Sunucuya /ga4/site-list çağrısı yapıldı.',
+          detail: 'Sunucuya /ga4/site-list çağrısı yapıldı; yanıt indiriliyor.',
         });
         startPendingLoop();
       },
-      responseReceived: function () {
+      /** XHR download progress (Content-Length varsa gerçek oran). */
+      downloadProgress: function (loaded, total) {
+        if (!total || total <= 0) {
+          return;
+        }
+        const ratio = Math.min(1, loaded / total);
+        const mapped = Math.round(42 + ratio * 48);
+        xhrFloor = Math.max(xhrFloor, mapped);
         render({
-          percent: 76,
+          percent: xhrFloor,
+          title: lastTitle,
+          detail: 'HTML indiriliyor (' + Math.round(ratio * 100) + '%)…',
+        });
+      },
+      responseReceived: function () {
+        xhrFloor = Math.max(xhrFloor, 78);
+        render({
+          percent: 82,
           title: 'Yanıt alındı',
-          detail: 'HTML alındı, kartlar yerleştiriliyor.',
+          detail: 'HTML tamamlandı, kartlar yerleştiriliyor.',
         });
       },
       swapped: function () {
@@ -143,6 +239,8 @@
           window.clearInterval(timer);
           timer = null;
         }
+        stopElapsedTick();
+        xhrFloor = 100;
         render({
           percent: 100,
           title: 'Hazır',
@@ -158,13 +256,14 @@
               }
             }, 220);
           }
-        }, 160);
+        }, 200);
       },
       fail: function () {
         if (timer) {
           window.clearInterval(timer);
           timer = null;
         }
+        stopElapsedTick();
         if (panel) {
           panel.classList.remove('border-slate-200');
           panel.classList.add('border-rose-200', 'bg-rose-50');
@@ -182,6 +281,23 @@
   }
 
   const ga4PageLoad = createGa4PageLoadController();
+
+  var ga4SiteListBootstrapped = false;
+  var ga4HtmxNestedPending = 0;
+
+  function updateGa4ActivityBar() {
+    var wrap = document.getElementById('ga4-htmx-activity-bar');
+    var countEl = document.getElementById('ga4-htmx-activity-count');
+    if (!wrap || !countEl) {
+      return;
+    }
+    if (ga4SiteListBootstrapped && ga4HtmxNestedPending > 0) {
+      wrap.classList.remove('hidden');
+      countEl.textContent = String(ga4HtmxNestedPending);
+    } else {
+      wrap.classList.add('hidden');
+    }
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
@@ -908,14 +1024,21 @@
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target && event.target.id === 'ga4-site-list') {
+      ga4HtmxNestedPending = 0;
+      updateGa4ActivityBar();
+      ga4SiteListBootstrapped = true;
       ga4PageLoad.swapped();
       window.setTimeout(function () {
         initGa4Panels(event.target);
       }, 50);
     }
-    // Pages tablosu HTMX ile yüklendi — sort butonlarını etkinleştir
+    // Pages / Session source tabloları HTMX ile yüklendi — sort butonlarını etkinleştir
     var el = event.detail && event.detail.elt;
-    if (el && el.dataset && el.dataset.ga4PagesPlaceholder !== undefined) {
+    if (
+      el &&
+      el.dataset &&
+      (el.dataset.ga4PagesPlaceholder !== undefined || el.dataset.ga4SourcesPlaceholder !== undefined)
+    ) {
       var swapped = event.target;
       if (swapped) {
         window.setTimeout(function () {
@@ -926,18 +1049,46 @@
   });
 
   document.body.addEventListener('htmx:beforeRequest', function (event) {
-    if (event.target && event.target.id === 'ga4-site-list') {
+    var t = event.target;
+    var list = document.getElementById('ga4-site-list');
+    if (!t || !list) {
+      return;
+    }
+    if (t.id === 'ga4-site-list') {
       ga4PageLoad.requestStarted();
+      var xhr = event.detail && event.detail.xhr;
+      if (xhr && xhr.addEventListener) {
+        xhr.addEventListener('progress', function (e) {
+          if (e.lengthComputable && e.total > 0) {
+            ga4PageLoad.downloadProgress(e.loaded, e.total);
+          }
+        });
+      }
+      return;
+    }
+    if (ga4SiteListBootstrapped && list.contains(t)) {
+      ga4HtmxNestedPending += 1;
+      updateGa4ActivityBar();
     }
   });
 
   document.body.addEventListener('htmx:afterRequest', function (event) {
-    if (event.target && event.target.id === 'ga4-site-list') {
+    var t = event.target;
+    var list = document.getElementById('ga4-site-list');
+    if (!t || !list) {
+      return;
+    }
+    if (t.id === 'ga4-site-list') {
       if (event.detail && event.detail.successful) {
         ga4PageLoad.responseReceived();
       } else {
         ga4PageLoad.fail();
       }
+      return;
+    }
+    if (ga4SiteListBootstrapped && list.contains(t)) {
+      ga4HtmxNestedPending = Math.max(0, ga4HtmxNestedPending - 1);
+      updateGa4ActivityBar();
     }
   });
 

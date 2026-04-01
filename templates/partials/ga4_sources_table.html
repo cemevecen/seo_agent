@@ -10,12 +10,12 @@
 {% endif %}
 
 <div class="overflow-x-auto rounded-2xl border border-slate-200">
-  <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold text-slate-800 sm:px-3">Pages (excl. news)</p>
+  <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold text-slate-800 sm:px-3">Session source / medium</p>
   <table class="w-max max-w-full min-w-0 text-sm" data-ga4-table>
     <thead class="border-b border-slate-200 text-slate-500">
       <tr>
         <th class="px-2 py-2.5 text-left sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="page" data-sort-type="string">Landing page</button>
+          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="source" data-sort-type="string">Session source / medium</button>
         </th>
         <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
           <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="last" data-sort-type="number">Sessions<br><span class="text-xs font-normal">{{ last_l }}</span></button>
@@ -36,29 +36,28 @@
         <tr
           class="border-b border-slate-100 hover:bg-slate-50"
           data-ga4-row="1"
-          data-page="{{ (row | ga4_row_page_label(site_domain))|lower }}"
+          data-source="{{ row.source_medium|lower }}"
           data-last="{{ row.last_total }}"
           data-prev="{{ row.prev_total }}"
           data-delta="{{ row.delta }}"
           data-delta-pct="{{ row.delta_pct }}"
         >
           <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium break-words sm:px-3 sm:py-3">
-            {% set _pu = row | ga4_row_page_href(site_domain) %}
-            {% set _pl = row | ga4_row_page_label(site_domain) %}
-            {% if _pu %}
-              <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" class="text-sky-800 underline decoration-sky-300 underline-offset-2 hover:text-sky-950">{{ _pl }}</a>
+            {% set _su = row.source_medium | ga4_source_href %}
+            {% if _su %}
+              <a href="{{ _su }}" target="_blank" rel="noopener noreferrer" class="text-violet-800 underline decoration-violet-300 underline-offset-2 hover:text-violet-950">{{ row.source_medium }}</a>
             {% else %}
-              <span class="text-slate-900">{{ _pl }}</span>
+              <span class="text-slate-900">{{ row.source_medium }}</span>
             {% endif %}
           </td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-sky-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-sky-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
+          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
+          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold sm:px-3 sm:py-3 {% if row.delta < 0 %}text-red-800{% elif row.delta > 0 %}text-emerald-700{% else %}text-slate-600{% endif %}">{{ row.delta | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.delta_pct < 0 %}text-red-800{% else %}text-emerald-700{% endif %} sm:px-3 sm:py-3">{{ row.delta_pct | signed_max_two_decimals }}%</td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="5" class="px-2 py-6 text-center text-slate-500 sm:px-3">No page breakdown for this window. Refresh to collect.</td>
+          <td colspan="5" class="px-2 py-6 text-center text-slate-500 sm:px-3">No source breakdown for this window. Refresh to collect.</td>
         </tr>
       {% endfor %}
     </tbody>
