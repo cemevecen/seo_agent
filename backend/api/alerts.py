@@ -161,7 +161,7 @@ def _build_search_console_comparison(
             cards.append(
                 _comparison_card(
                     "Fark",
-                    f"{change:+.3f} puan",
+                    f"{change:+.3f}",
                     f"{change_pct:+.1f}%",
                     "red" if change < 0 else "green",
                 )

@@ -148,7 +148,7 @@ def _format_comparison_delta(field: str, previous, current) -> str:
     delta = current_numeric - previous_numeric
     if field == "ctr":
         direction = "artış" if delta > 0 else "düşüş" if delta < 0 else "değişmedi"
-        return f"{delta:+.2f} puan ({direction})".replace(".", ",")
+        return f"{delta:+.2f} ({direction})".replace(".", ",")
     if field == "position":
         if delta < 0:
             note = "iyileşme"
