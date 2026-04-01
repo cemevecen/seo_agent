@@ -45,8 +45,17 @@
                 type="button"
                 role="tab"
                 class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-3 py-2 text-sm font-semibold text-white transition sm:px-4"
-                data-ga4-period-toggle="30"
+                data-ga4-period-toggle="1"
                 data-active="true"
+              >
+                1d
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition sm:px-4"
+                data-ga4-period-toggle="30"
+                data-active="false"
               >
                 30d
               </button>
@@ -101,7 +110,10 @@
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
                 <div class="min-w-0 flex-1">
                   <p class="text-xs uppercase tracking-[0.18em] text-slate-500">GA4 summary</p>
-                  <div data-ga4-period-heading="30">
+                  <div data-ga4-period-heading="1">
+                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last full day vs same weekday last week</h6>
+                  </div>
+                  <div data-ga4-period-heading="30" class="hidden">
                     <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last 30 days vs previous 30 days</h6>
                   </div>
                   <div data-ga4-period-heading="7" class="hidden">
@@ -135,10 +147,10 @@
                 </div>
               </div>
 
-              {% for period_key in ['30', '7'] %}
+              {% for period_key in ['1', '30', '7'] %}
                 <div
                   data-ga4-period-panel="{{ period_key }}"
-                  class="{% if period_key == '7' %}hidden {% endif %}space-y-5"
+                  class="{% if period_key != '1' %}hidden {% endif %}space-y-5"
                 >
                   {% for pk in ['web', 'mweb', 'android', 'ios'] %}
                     {% if pk in site.profiles %}

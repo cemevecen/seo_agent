@@ -562,42 +562,48 @@
         if (!trend.dates || !trend.dates.length) {
           return;
         }
+        var shortSeries = trend.dates.length <= 2;
+        var lineMode = shortSeries ? 'lines+markers' : 'lines';
         try {
           var traces = [
             {
               x: trend.dates,
               y: trend.sessions || [],
               type: 'scatter',
-              mode: 'lines',
+              mode: lineMode,
               name: 'Sessions',
               line: { color: '#4f83e3', width: 2.5 },
+              marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
             {
               x: trend.dates,
               y: trend.totalUsers || [],
               type: 'scatter',
-              mode: 'lines',
+              mode: lineMode,
               name: 'Users',
               line: { color: '#0d9488', width: 2.5 },
+              marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
             {
               x: trend.dates,
               y: trend.engagedSessions || [],
               type: 'scatter',
-              mode: 'lines',
+              mode: lineMode,
               name: 'Engaged sessions',
               line: { color: '#7c3aed', width: 2.5 },
+              marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
             {
               x: trend.dates,
               y: trend.engagementRate || [],
               type: 'scatter',
-              mode: 'lines',
+              mode: lineMode,
               name: 'Engagement rate',
               line: { color: '#dd7a2a', width: 2.5 },
+              marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y2',
             },
           ];

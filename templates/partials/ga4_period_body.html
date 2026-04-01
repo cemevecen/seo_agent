@@ -1,13 +1,29 @@
 {% set pd = period_days | int %}
-{% set last_l = 'Last 7 days' if pd == 7 else 'Last 30 days' %}
-{% set prev_l = 'Previous 7 days' if pd == 7 else 'Previous 30 days' %}
-{% set ch_l = 'Channel summary (last 7 days)' if pd == 7 else 'Channel summary (last 30 days)' %}
-{% set org_l = 'Organic share (last 7 days)' if pd == 7 else 'Organic share (last 30 days)' %}
+{% if pd == 1 %}
+  {% set last_l = 'Last full day' %}
+  {% set prev_l = 'Same weekday last week' %}
+  {% set ch_l = 'Channel summary (7d snapshot — reference)' %}
+  {% set org_l = 'Organic share (7d snapshot)' %}
+{% elif pd == 7 %}
+  {% set last_l = 'Last 7 days' %}
+  {% set prev_l = 'Previous 7 days' %}
+  {% set ch_l = 'Channel summary (last 7 days)' %}
+  {% set org_l = 'Organic share (last 7 days)' %}
+{% else %}
+  {% set last_l = 'Last 30 days' %}
+  {% set prev_l = 'Previous 30 days' %}
+  {% set ch_l = 'Channel summary (last 30 days)' %}
+  {% set org_l = 'Organic share (last 30 days)' %}
+{% endif %}
 
 {% set _has_period = p.has_period_data if p.has_period_data is defined else p.has_snapshot %}
 {% if not _has_period %}
   <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-    No {{ pd }}-day GA4 snapshot yet. Use <strong>Refresh</strong> to collect this window.
+    {% if pd == 1 %}
+      No same-weekday KPI yet. Run <strong>Refresh GA4 (7d + 30d)</strong> so a snapshot includes last full day vs same weekday last week.
+    {% else %}
+      No {{ pd }}-day GA4 snapshot yet. Use <strong>Refresh</strong> to collect this window.
+    {% endif %}
   </div>
 {% endif %}
 
@@ -99,7 +115,7 @@
 {% set dt = p.daily_trend | default({}) %}
 {% if _has_period %}
 <div class="space-y-2">
-  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Daily trend — {% if pd == 7 %}last 7 days{% else %}last 30 days{% endif %}</p>
+  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Daily trend — {% if pd == 1 or pd == 7 %}last 7 days{% else %}last 30 days{% endif %}</p>
   {% if dt.dates and dt.dates|length > 0 %}
   <div
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
