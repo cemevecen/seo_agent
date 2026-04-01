@@ -3683,7 +3683,7 @@ def dashboard(request: Request):
             "critical_alerts": recent_alerts[:6],
             "site_cards": site_cards,
             "top_drop_items": _build_dashboard_top_drops(site_cards, limit=6),
-            "opportunity_items": _build_dashboard_opportunities(site_cards, limit=4),
+            "opportunity_items": _build_dashboard_opportunities(site_cards, limit=8),
         }
     return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
 
