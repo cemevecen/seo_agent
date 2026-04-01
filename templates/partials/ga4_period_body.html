@@ -53,12 +53,6 @@
 {% set avg_session_pct_class = pct_pos if asp > 0 else (pct_neg if asp < 0 else pct_zero) %}
 {% set pageviews_pct_class = pct_pos if pvp > 0 else (pct_neg if pvp < 0 else pct_zero) %}
 
-<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 text-xs sm:text-sm">
-  <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tabular-nums text-slate-700">Property #{{ p.property_id }}</span>
-  {% set wow = (p.wow_change_pct | default(0)) | float %}
-  <span class="font-semibold tabular-nums text-slate-700">Sessions Δ {% if wow > 0 %}+{% endif %}{{ wow | max_two_decimals }}%</span>
-</div>
-
 <div class="w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]" data-ga4-kpi-row>
   <div class="grid w-full min-w-0 grid-cols-4 gap-2 sm:gap-3 md:gap-4">
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
@@ -114,8 +108,6 @@
 
 {% set dt = p.daily_trend | default({}) %}
 {% if _has_period %}
-<div class="space-y-2">
-  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Daily trend — {% if pd == 1 or pd == 7 %}last 7 days{% else %}last 30 days{% endif %}</p>
   {% if dt.dates and dt.dates|length > 0 %}
   <div
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
@@ -128,7 +120,6 @@
     No daily series for this window yet. Use <strong>Refresh GA4 (7d + 30d)</strong> to collect.
   </div>
   {% endif %}
-</div>
 {% endif %}
 
 <div class="w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]" data-ga4-kpi-secondary>

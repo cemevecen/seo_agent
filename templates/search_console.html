@@ -17,6 +17,18 @@
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] td:nth-child(n + 2) {
     width: 10.33%;
   }
+  @keyframes sc-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(280%);
+    }
+  }
+  .sc-htmx-indeterminate-fill {
+    width: 42%;
+    animation: sc-indeterminate 1.15s ease-in-out infinite;
+  }
 </style>
 <div class="space-y-6">
   <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -30,6 +42,37 @@
         >
           Tüm Siteleri Yenile
         </button>
+      </div>
+    </div>
+
+    <div id="search-console-page-load-panel" class="mb-4 rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa yükleniyor</p>
+          <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
+          <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console site listesi için istek gönderiliyor.</p>
+        </div>
+        <div class="text-right">
+          <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
+          <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
+        </div>
+      </div>
+      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
+        <div id="search-console-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#0ea5e9_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-300" style="width: 8%"></div>
+      </div>
+    </div>
+
+    <div
+      id="search-console-htmx-activity-bar"
+      class="mb-4 hidden rounded-2xl border border-sky-100 bg-white/95 p-3 shadow-sm ring-1 ring-slate-100"
+      aria-live="polite"
+    >
+      <div class="flex items-center justify-between gap-3 text-xs text-slate-600">
+        <span id="search-console-htmx-activity-label">Kart ve veri istekleri sürüyor</span>
+        <span id="search-console-htmx-activity-count" class="font-semibold tabular-nums text-sky-800">0</span>
+      </div>
+      <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
+        <div class="sc-htmx-indeterminate-fill h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400"></div>
       </div>
     </div>
 
@@ -48,21 +91,28 @@
     </div>
 
     <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
-      <div id="search-console-page-load-panel" class="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa Yükleniyor</p>
-            <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
-            <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console sayfası açılıyor, ilk liste isteği hazırlanıyor.</p>
+      <div class="grid gap-4 xl:grid-cols-2" aria-hidden="true">
+        {% for _ in [0, 1] %}
+          <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0 flex-1 space-y-2.5 animate-pulse">
+                <div class="h-6 max-w-[14rem] rounded-lg bg-slate-200"></div>
+                <div class="h-4 max-w-[18rem] rounded bg-slate-200"></div>
+              </div>
+              <div class="flex shrink-0 animate-pulse gap-1">
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+                <div class="h-9 w-11 rounded-full bg-slate-200"></div>
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {% for __ in [0, 1, 2, 3] %}
+                <div class="h-[4.5rem] animate-pulse rounded-2xl bg-slate-200/90"></div>
+              {% endfor %}
+            </div>
+            <div class="mt-4 h-28 animate-pulse rounded-2xl bg-slate-200/80"></div>
           </div>
-          <div class="text-right">
-            <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
-            <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
-          </div>
-        </div>
-        <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
-          <div id="search-console-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#0f766e_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-500" style="width: 8%"></div>
-        </div>
+        {% endfor %}
       </div>
     </div>
   </div>
@@ -76,22 +126,49 @@
     const percent = document.getElementById('search-console-page-load-percent');
     const elapsed = document.getElementById('search-console-page-load-elapsed');
     const bar = document.getElementById('search-console-page-load-bar');
-    const start = performance.now();
+    const boot = performance.now();
+    let requestStart = boot;
     let timer = null;
+    let elapsedTick = null;
+    let xhrFloor = 8;
+    let lastTitle = 'Kabuk hazırlanıyor';
+    let lastDetail = 'Search Console sayfası açılıyor, site listesi isteniyor.';
 
-    function secondsText() {
-      return ((performance.now() - start) / 1000).toFixed(1) + ' sn';
+    function secondsText(from) {
+      return ((performance.now() - from) / 1000).toFixed(1) + ' sn';
     }
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !elapsed || !bar) {
         return;
       }
+      lastTitle = step.title;
+      lastDetail = step.detail;
       title.textContent = step.title;
       detail.textContent = step.detail;
-      percent.textContent = String(step.percent) + '%';
-      elapsed.textContent = secondsText();
-      bar.style.width = String(step.percent) + '%';
+      const pct = Math.max(step.percent || 0, xhrFloor);
+      percent.textContent = String(pct) + '%';
+      elapsed.textContent = secondsText(requestStart);
+      bar.style.width = String(pct) + '%';
+    }
+
+    function startElapsedTick() {
+      if (elapsedTick) {
+        return;
+      }
+      elapsedTick = window.setInterval(function () {
+        if (!elapsed) {
+          return;
+        }
+        elapsed.textContent = secondsText(requestStart);
+      }, 100);
+    }
+
+    function stopElapsedTick() {
+      if (elapsedTick) {
+        window.clearInterval(elapsedTick);
+        elapsedTick = null;
+      }
     }
 
     function startPendingLoop() {
@@ -99,46 +176,64 @@
         return;
       }
       timer = window.setInterval(function () {
-        const current = parseInt((bar && bar.style.width) || '8', 10) || 8;
+        const current = Math.max(parseInt((bar && bar.style.width) || '8', 10) || 8, xhrFloor);
         const next = Math.min(current + 1, 94);
         if (next <= current) {
           return;
         }
+        xhrFloor = next;
         render({
           percent: next,
-          title: 'Liste verisi bekleniyor',
-          detail: 'HTMX isteği devam ediyor; Search Console kartları gelince alan otomatik kapanacak.',
+          title: 'Liste bekleniyor',
+          detail: 'Sunucu yanıtı bekleniyor; indirme tamamlanınca kartlar yerleşecek.',
         });
-      }, 500);
+      }, 450);
     }
 
     render({
       percent: 8,
       title: 'Kabuk hazırlanıyor',
-      detail: 'Search Console sayfası açılıyor, ilk liste isteği hazırlanıyor.',
+      detail: 'Search Console sayfası açılıyor, site listesi isteniyor.',
     });
 
     return {
       domReady: function () {
         render({
-          percent: 24,
+          percent: 22,
           title: 'DOM hazır',
-          detail: 'Sayfa kabuğu tarayıcıda kuruldu, liste isteği için altyapı hazır.',
+          detail: 'Liste isteği için altyapı hazır.',
         });
       },
       requestStarted: function () {
+        requestStart = performance.now();
+        xhrFloor = 40;
+        startElapsedTick();
         render({
-          percent: 48,
-          title: 'Liste isteği gönderildi',
-          detail: 'Search Console site listesi için HTMX isteği sunucuya gönderildi.',
+          percent: 44,
+          title: 'İstek gönderildi',
+          detail: 'Sunucuya /search-console/site-list çağrısı yapıldı; yanıt indiriliyor.',
         });
         startPendingLoop();
       },
-      responseReceived: function () {
+      downloadProgress: function (loaded, total) {
+        if (!total || total <= 0) {
+          return;
+        }
+        const ratio = Math.min(1, loaded / total);
+        const mapped = Math.round(42 + ratio * 48);
+        xhrFloor = Math.max(xhrFloor, mapped);
         render({
-          percent: 76,
+          percent: xhrFloor,
+          title: lastTitle,
+          detail: 'HTML indiriliyor (' + Math.round(ratio * 100) + '%)…',
+        });
+      },
+      responseReceived: function () {
+        xhrFloor = Math.max(xhrFloor, 78);
+        render({
+          percent: 82,
           title: 'Yanıt alındı',
-          detail: 'Sunucudan liste HTML yanıtı alındı, sayfaya yerleştiriliyor.',
+          detail: 'HTML tamamlandı, kartlar yerleştiriliyor.',
         });
       },
       swapped: function () {
@@ -146,9 +241,11 @@
           window.clearInterval(timer);
           timer = null;
         }
+        stopElapsedTick();
+        xhrFloor = 100;
         render({
           percent: 100,
-          title: 'Sayfa hazır',
+          title: 'Hazır',
           detail: 'Search Console kartları yüklendi.',
         });
         window.setTimeout(function () {
@@ -161,19 +258,19 @@
               }
             }, 220);
           }
-        }, 160);
+        }, 200);
       },
       fail: function () {
         if (timer) {
           window.clearInterval(timer);
           timer = null;
         }
+        stopElapsedTick();
         if (panel) {
           panel.classList.remove('border-slate-200', 'bg-slate-50');
           panel.classList.add('border-rose-200', 'bg-rose-50');
         }
         if (bar) {
-          bar.classList.remove('bg-slate-700');
           bar.classList.add('bg-rose-600');
         }
         render({
@@ -186,6 +283,23 @@
   }
 
   const searchConsolePageLoad = createSearchConsolePageLoadController();
+
+  var scSiteListBootstrapped = false;
+  var scHtmxNestedPending = 0;
+
+  function updateSearchConsoleActivityBar() {
+    var wrap = document.getElementById('search-console-htmx-activity-bar');
+    var countEl = document.getElementById('search-console-htmx-activity-count');
+    if (!wrap || !countEl) {
+      return;
+    }
+    if (scSiteListBootstrapped && scHtmxNestedPending > 0) {
+      wrap.classList.remove('hidden');
+      countEl.textContent = String(scHtmxNestedPending);
+    } else {
+      wrap.classList.add('hidden');
+    }
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
@@ -776,16 +890,29 @@
   }
 
   function initSearchConsoleSplitView(root) {
-    (root || document).querySelectorAll('[data-sc-split-root]').forEach(function (grid) {
-      if (grid.dataset.scSplitBound === '1') {
-        return;
+    var scope = document;
+    if (root && root.nodeType === 1) {
+      if (root.id === 'search-console-site-list') {
+        scope = root;
+      } else if (root.closest) {
+        var scList = root.closest('#search-console-site-list');
+        if (scList) {
+          scope = scList;
+        } else {
+          scope = root;
+        }
       }
-      grid.dataset.scSplitBound = '1';
+    }
 
+    scope.querySelectorAll('[data-sc-split-root]').forEach(function (grid) {
       var cards = grid.querySelectorAll('[data-sc-site-card]');
       if (cards.length < 2) {
         return;
       }
+      if (grid.dataset.scSplitBound === '1') {
+        return;
+      }
+      grid.dataset.scSplitBound = '1';
 
       function applyFocus(focusId) {
         var fid = focusId ? String(focusId) : '';
@@ -936,34 +1063,74 @@
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target && event.target.id === 'search-console-site-list') {
+      scHtmxNestedPending = 0;
+      updateSearchConsoleActivityBar();
+      scSiteListBootstrapped = true;
       searchConsolePageLoad.swapped();
       window.setTimeout(function () {
         initSearchConsolePanels(event.target);
       }, 50);
       return;
     }
-    // Lazy-load: her SC kart ayrı ayrı swap'lanıyor (outerHTML)
+    // Lazy-load: kart outerHTML ile gelir; split/grid üst konteynerde — tüm listeyi yeniden bağla
+    var scList = document.getElementById('search-console-site-list');
+    var detail = event.detail || {};
+    var elt = detail.elt;
     var target = event.target;
-    if (target && (target.dataset.scSiteCard !== undefined || (target.id && target.id.indexOf('sc-card-') === 0))) {
+    var cardId =
+      (elt && elt.id && elt.id.indexOf('sc-card-') === 0) ||
+      (target && target.id && target.id.indexOf('sc-card-') === 0);
+    var cardData =
+      (target && target.getAttribute && target.getAttribute('data-sc-site-card') !== null) ||
+      (elt && elt.getAttribute && elt.getAttribute('data-sc-site-card') !== null);
+    if (scList && (cardId || cardData)) {
       window.setTimeout(function () {
-        initSearchConsolePanels(target);
+        initSearchConsolePanels(scList);
       }, 50);
     }
   });
 
   document.body.addEventListener('htmx:beforeRequest', function (event) {
-    if (event.target && event.target.id === 'search-console-site-list') {
+    var t = event.target;
+    var list = document.getElementById('search-console-site-list');
+    if (!t || !list) {
+      return;
+    }
+    if (t.id === 'search-console-site-list') {
       searchConsolePageLoad.requestStarted();
+      var xhr = event.detail && event.detail.xhr;
+      if (xhr && xhr.addEventListener) {
+        xhr.addEventListener('progress', function (e) {
+          if (e.lengthComputable && e.total > 0) {
+            searchConsolePageLoad.downloadProgress(e.loaded, e.total);
+          }
+        });
+      }
+      return;
+    }
+    if (scSiteListBootstrapped && list.contains(t)) {
+      scHtmxNestedPending += 1;
+      updateSearchConsoleActivityBar();
     }
   });
 
   document.body.addEventListener('htmx:afterRequest', function (event) {
-    if (event.target && event.target.id === 'search-console-site-list') {
+    var t = event.target;
+    var list = document.getElementById('search-console-site-list');
+    if (!t || !list) {
+      return;
+    }
+    if (t.id === 'search-console-site-list') {
       if (event.detail && event.detail.successful) {
         searchConsolePageLoad.responseReceived();
       } else {
         searchConsolePageLoad.fail();
       }
+      return;
+    }
+    if (scSiteListBootstrapped && list.contains(t)) {
+      scHtmxNestedPending = Math.max(0, scHtmxNestedPending - 1);
+      updateSearchConsoleActivityBar();
     }
   });
 </script>

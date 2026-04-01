@@ -838,6 +838,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 
     periods: dict[str, dict] = {}
     for period_key, pd_days, cur_lbl, prev_lbl, trend_days in (
+        # 1g: tablo etiketleri aşağıda range_last/range_prev (kesin tarih) ile doldurulur
         ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
         ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
         ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
@@ -900,6 +901,12 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 
             _cur = summary_current if isinstance(summary_current, dict) else {}
             _prev = summary_previous if isinstance(summary_previous, dict) else {}
+            if period_key == "1":
+                tbl_cur = (range_last or "").strip() or cur_lbl
+                tbl_prev = (range_prev or "").strip() or prev_lbl
+            else:
+                tbl_cur = cur_lbl
+                tbl_prev = prev_lbl
             views[device_key] = {
                 "device_code": device_code,
                 "device_label": device_label,
@@ -908,8 +915,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 "summary_previous": summary_previous,
                 "trend": chart_trend,
                 "top_queries": device_top,
-                "table_label_current": cur_lbl,
-                "table_label_previous": prev_lbl,
+                "table_label_current": tbl_cur,
+                "table_label_previous": tbl_prev,
                 "range_last": range_last,
                 "range_prev": range_prev,
                 "clicks_pct_change": _ga4_period_pct_change(
@@ -931,15 +938,27 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             }
 
         mv = views.get("mobile") or {}
-        periods[period_key] = {
-            "period_days": pd_days,
-            "heading": f"{cur_lbl} ve {prev_lbl.lower()}",
-            "subtitle": (
+        _rl = (mv.get("range_last") or "").strip()
+        _rp = (mv.get("range_prev") or "").strip()
+        if period_key == "1" and _rl and _rp:
+            _heading = f"{_rl} · {_rp}"
+            _subtitle = f"Güncel: {_rl} · Karşılaştırma: {_rp}"
+            _lc = _rl
+            _lp = _rp
+        else:
+            _heading = f"{cur_lbl} ve {prev_lbl.lower()}"
+            _subtitle = (
                 f"Güncel dönem: {mv.get('range_last') or '—'} · "
                 f"Karşılaştırma: {mv.get('range_prev') or '—'}"
-            ),
-            "label_current": cur_lbl,
-            "label_previous": prev_lbl,
+            )
+            _lc = cur_lbl
+            _lp = prev_lbl
+        periods[period_key] = {
+            "period_days": pd_days,
+            "heading": _heading,
+            "subtitle": _subtitle,
+            "label_current": _lc,
+            "label_previous": _lp,
             "trend_caption": "Son 7 günün günlük trendi"
             if pd_days in (1, 7)
             else "Son 30 günün günlük trendi",

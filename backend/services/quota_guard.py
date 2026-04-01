@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,6 +11,10 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models import ApiUsage, Site
 from backend.services.alert_engine import emit_custom_alert
+
+# SQLite: api_usages satirlari ayni anda iki is parcacigindan yazilirsa "database is locked" olur.
+# Kota kontrolunu ve (gerekirse) commit'i tekillestirir.
+_API_USAGE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -74,6 +79,11 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
     if not settings.quota_guard_enabled:
         return QuotaDecision(allowed=True, reason="quota guard disabled")
 
+    with _API_USAGE_LOCK:
+        return _consume_api_quota_impl(db, site, provider, units)
+
+
+def _consume_api_quota_impl(db: Session, site: Site, provider: str, units: int) -> QuotaDecision:
     now = datetime.utcnow()
     warning_ratio = max(0.0, min(settings.quota_warning_ratio, 0.99))
 
@@ -112,7 +122,9 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
     day_row.updated_at = now
     month_row.call_count = next_month
     month_row.updated_at = now
-    db.commit()
+    # Commit burada yapilmaz: caller (ornegin collect_search_console_metrics) tek transaction'da
+    # snapshot ile birlikte commit eder; SQLite'da cift yazim kilidi riskini azaltir.
+    db.flush()
     return QuotaDecision(
         allowed=True,
         reason=(
