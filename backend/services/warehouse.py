@@ -208,6 +208,71 @@ def get_latest_search_console_rows(
     ]
 
 
+def get_latest_search_console_rows_batch(
+    db: Session,
+    *,
+    site_id: int,
+    scopes: list[str],
+) -> dict[str, list[dict]]:
+    """Birden fazla scope için SC satırlarını 2 sorguda toplu çeker (N×2 yerine)."""
+    if not scopes:
+        return {}
+
+    # 1. Her scope için en son collected_at'ı tek sorguda al
+    from sqlalchemy import case, literal_column, tuple_ as sq_tuple
+    rows_max = (
+        db.query(
+            SearchConsoleQuerySnapshot.data_scope,
+            func.max(SearchConsoleQuerySnapshot.collected_at).label("max_ts"),
+        )
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope.in_(scopes),
+        )
+        .group_by(SearchConsoleQuerySnapshot.data_scope)
+        .all()
+    )
+    scope_to_ts: dict[str, object] = {row.data_scope: row.max_ts for row in rows_max if row.max_ts is not None}
+    if not scope_to_ts:
+        return {scope: [] for scope in scopes}
+
+    # 2. Tüm scope+timestamp çiftleri için tek SELECT
+    from sqlalchemy import and_, or_
+    conditions = [
+        and_(
+            SearchConsoleQuerySnapshot.data_scope == scope,
+            SearchConsoleQuerySnapshot.collected_at == ts,
+        )
+        for scope, ts in scope_to_ts.items()
+    ]
+    all_rows = (
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            or_(*conditions),
+        )
+        .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
+        .all()
+    )
+
+    result: dict[str, list[dict]] = {scope: [] for scope in scopes}
+    for row in all_rows:
+        result.setdefault(row.data_scope, []).append(
+            {
+                "query": row.query,
+                "property_url": row.property_url,
+                "device": row.device,
+                "clicks": float(row.clicks),
+                "impressions": float(row.impressions),
+                "ctr": float(row.ctr),
+                "position": float(row.position),
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+            }
+        )
+    return result
+
+
 def save_ga4_report_snapshot(
     db: Session,
     *,

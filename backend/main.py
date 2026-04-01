@@ -83,6 +83,7 @@ from backend.services.warehouse import (
     get_latest_crux_snapshot,
     get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
+    get_latest_search_console_rows_batch,
     get_latest_url_inspection_snapshot,
     get_site_warehouse_summary,
 )
@@ -754,12 +755,17 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
 
 
 def _search_console_report_payload(db, *, site_id: int) -> dict:
-    current_rows_7 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
-    previous_rows_7 = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
-    current_rows_30 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_30d")
-    previous_rows_30 = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_30d")
-    current_rows_1 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_day")
-    previous_rows_wow = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_week_same_weekday")
+    _sc_batch = get_latest_search_console_rows_batch(
+        db,
+        site_id=site_id,
+        scopes=["current_7d", "previous_7d", "current_30d", "previous_30d", "current_day", "previous_week_same_weekday"],
+    )
+    current_rows_7 = _sc_batch.get("current_7d", [])
+    previous_rows_7 = _sc_batch.get("previous_7d", [])
+    current_rows_30 = _sc_batch.get("current_30d", [])
+    previous_rows_30 = _sc_batch.get("previous_30d", [])
+    current_rows_1 = _sc_batch.get("current_day", [])
+    previous_rows_wow = _sc_batch.get("previous_week_same_weekday", [])
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
@@ -5110,19 +5116,13 @@ def settings_alert_thresholds(request: Request):
 
 @app.get("/search-console")
 def search_console_page(request: Request):
-    with SessionLocal() as db:
-        search_console_schedule_label = (
-            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
-            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
-        )
-        payload = {
-            "site_name": "Search Console",
-            "sites": get_sidebar_sites(),
-            "oauth_ready": oauth_is_configured(),
-            "oauth_redirect_uri": settings.google_oauth_redirect_uri,
-            "search_console_sites": _search_console_sites_payload(db),
-            "search_console_schedule_label": search_console_schedule_label,
-        }
+    # Site kartları HTMX ile lazy load edildiğinden burada ağır veri hesabı yapılmaz.
+    payload = {
+        "site_name": "Search Console",
+        "sites": get_sidebar_sites(),
+        "oauth_ready": oauth_is_configured(),
+        "oauth_redirect_uri": settings.google_oauth_redirect_uri,
+    }
     return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
 
 
@@ -5153,8 +5153,10 @@ def search_console_single_site_card(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("", status_code=404)
+        # site_count: tek COUNT sorgusu, tüm objeleri çekme
         external_ids = _external_site_ids(db)
-        site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
+        from sqlalchemy import func as sqlfunc
+        site_count = db.query(sqlfunc.count(Site.id)).filter(Site.id.notin_(external_ids)).scalar() or 1
         schedule_label = (
             f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
             f"{int(settings.search_console_scheduled_refresh_minute):02d}"
