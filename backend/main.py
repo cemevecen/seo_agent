@@ -862,6 +862,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
 
+            _cur = summary_current if isinstance(summary_current, dict) else {}
+            _prev = summary_previous if isinstance(summary_previous, dict) else {}
             views[device_key] = {
                 "device_code": device_code,
                 "device_label": device_label,
@@ -874,6 +876,22 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 "table_label_previous": prev_lbl,
                 "range_last": range_last,
                 "range_prev": range_prev,
+                "clicks_pct_change": _ga4_period_pct_change(
+                    float(_cur.get("clicks") or 0),
+                    float(_prev.get("clicks") or 0),
+                ),
+                "impressions_pct_change": _ga4_period_pct_change(
+                    float(_cur.get("impressions") or 0),
+                    float(_prev.get("impressions") or 0),
+                ),
+                "ctr_pct_change": _ga4_period_pct_change(
+                    float(_cur.get("ctr") or 0),
+                    float(_prev.get("ctr") or 0),
+                ),
+                "position_pct_change": _ga4_period_pct_change(
+                    float(_cur.get("position") or 0),
+                    float(_prev.get("position") or 0),
+                ),
             }
 
         mv = views.get("mobile") or {}
