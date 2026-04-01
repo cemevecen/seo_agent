@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timedelta
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
@@ -65,6 +66,17 @@ def _exclude_path_substrings() -> list[str]:
     if not raw:
         return ["/haber/", "/news/", "/gundem/"]
     return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+# Son path segmenti sayısal ID olan haber/makale detay sayfalarını tespit et.
+# Örnek: /gundem-haberleri/baslik/837872  →  haber detayı (çıkar)
+#         /gundem-haberleri               →  kategori sayfası (koru)
+_NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
+
+
+def _is_news_detail_path(path: str) -> bool:
+    """Path'in son segmenti sayısal ID ise haber detay sayfasıdır."""
+    return bool(_NEWS_DETAIL_PATH_RE.search(path))
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
@@ -315,6 +327,8 @@ def _run_landing_pages_excl_news(
                 "delta_pct": delta_pct,
             }
         )
+    # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
+    rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
     return rows[:50]
 
@@ -644,6 +658,8 @@ def fetch_ga4_top_landing_audit(
                 "sessions": sessions,
             }
         )
+    if exclude_news:
+        rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     return rows
 
 
@@ -703,5 +719,8 @@ def fetch_ga4_landing_pages(
             }
         )
 
+    # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
+    if exclude_news:
+        rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
     return rows
