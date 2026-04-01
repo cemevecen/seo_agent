@@ -934,43 +934,46 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     }
 
 
+def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
+    """Tek bir site için tam Search Console kart verisi üretir."""
+    latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+    status = _search_console_status(db, latest, site.id)
+    connection = get_search_console_connection_status(db, site.id)
+    last_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
+    cooldown_active = _latest_collector_run_recent(
+        db,
+        site_id=site.id,
+        provider="search_console",
+        cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
+    )
+    return {
+        "id": site.id,
+        "domain": site.domain,
+        "display_name": site.display_name,
+        "is_active": site.is_active,
+        "connection": connection,
+        "status": status,
+        "last_run_status": str(last_run.status or "").upper() if last_run and last_run.status else "NEVER",
+        "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
+        "last_run_error": str(last_run.error_message or "") if last_run else "",
+        "cooldown_active": cooldown_active,
+        "manual_mode_label": f"{schedule_label} otomatik + manuel",
+        "report": _search_console_report_payload(db, site_id=site.id),
+    }
+
+
 def _search_console_sites_payload(db) -> list[dict]:
     external_site_ids = _external_site_ids(db)
     sites = db.query(Site).order_by(Site.created_at.desc()).all()
-    rows: list[dict] = []
     schedule_label = (
         f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
         f"{int(settings.search_console_scheduled_refresh_minute):02d}"
     )
-    for site in sites:
-        if site.id in external_site_ids:
-            continue
-        latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-        status = _search_console_status(db, latest, site.id)
-        connection = get_search_console_connection_status(db, site.id)
-        last_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
-        cooldown_active = _latest_collector_run_recent(
-            db,
-            site_id=site.id,
-            provider="search_console",
-            cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
-        )
-        rows.append(
-            {
-                "id": site.id,
-                "domain": site.domain,
-                "display_name": site.display_name,
-                "is_active": site.is_active,
-                "connection": connection,
-                "status": status,
-                "last_run_status": str(last_run.status or "").upper() if last_run and last_run.status else "NEVER",
-                "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
-                "last_run_error": str(last_run.error_message or "") if last_run else "",
-                "cooldown_active": cooldown_active,
-                "manual_mode_label": f"{schedule_label} otomatik + manuel",
-                "report": _search_console_report_payload(db, site_id=site.id),
-            }
-        )
+    rows = [
+        _search_console_single_site_data(db, site, schedule_label)
+        for site in sites
+        if site.id not in external_site_ids
+    ]
     rows.sort(key=lambda row: _preferred_site_order_key(row.get("domain"), row.get("display_name")))
     return rows
 
@@ -5113,16 +5116,48 @@ def search_console_page(request: Request):
 
 @app.get("/search-console/site-list")
 def search_console_site_list(request: Request):
+    """Site listesini anlık render eder; her kart lazy HTMX ile ayrı yüklenir."""
     with SessionLocal() as db:
-        return templates.TemplateResponse(
-            request,
-            "partials/search_console_site_cards.html",
-            context={
-                "request": request,
-                "search_console_sites": _search_console_sites_payload(db),
-                "oauth_ready": oauth_is_configured(),
-            },
+        external_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name) for s in sites]
+    return templates.TemplateResponse(
+        request,
+        "partials/search_console_site_cards.html",
+        context={
+            "request": request,
+            "lazy_mode": True,
+            "lazy_site_ids": lazy_site_ids,
+            "oauth_ready": oauth_is_configured(),
+        },
+    )
+
+
+@app.get("/search-console/site/{site_id}", response_class=HTMLResponse)
+def search_console_single_site_card(request: Request, site_id: int):
+    """HTMX lazy loading ile tek site kartını tam veriyle render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        external_ids = _external_site_ids(db)
+        site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
+        schedule_label = (
+            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
         )
+        site_data = _search_console_single_site_data(db, site, schedule_label)
+    return templates.TemplateResponse(
+        request,
+        "partials/sc_single_site_card.html",
+        context={
+            "request": request,
+            "site": site_data,
+            "oauth_ready": oauth_is_configured(),
+            "site_count": site_count,
+        },
+    )
 
 
 @app.post("/search-console/refresh-all")
@@ -5160,12 +5195,17 @@ def search_console_refresh_all(request: Request):
                 items=sc_batch,
                 db=db,
             )
+        # Refresh-all sonrası her kart lazy yeniden yüklenir
+        external_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
         return templates.TemplateResponse(
             request,
             "partials/search_console_site_cards.html",
             context={
                 "request": request,
-                "search_console_sites": _search_console_sites_payload(db),
+                "lazy_mode": True,
+                "lazy_site_ids": [(s.id, s.display_name) for s in sites],
                 "oauth_ready": oauth_is_configured(),
             },
         )
@@ -5194,13 +5234,22 @@ def search_console_manual_refresh(request: Request, site_id: int):
             results=results,
             action_label="Search Console verisini yenile",
         )
+        # Yalnızca bu site kartını döndür — hx-target="closest section" veya #sc-card-{id}
+        schedule_label = (
+            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+        )
+        external_ids = _external_site_ids(db)
+        site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
+        site_data = _search_console_single_site_data(db, site, schedule_label)
         return templates.TemplateResponse(
             request,
-            "partials/search_console_site_cards.html",
+            "partials/sc_single_site_card.html",
             context={
                 "request": request,
-                "search_console_sites": _search_console_sites_payload(db),
+                "site": site_data,
                 "oauth_ready": oauth_is_configured(),
+                "site_count": site_count,
             },
         )
 
@@ -5212,13 +5261,21 @@ def search_console_disconnect_from_header(request: Request, site_id: int):
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
         delete_oauth_credentials(db, site_id)
+        schedule_label = (
+            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+        )
+        external_ids = _external_site_ids(db)
+        site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
+        site_data = _search_console_single_site_data(db, site, schedule_label)
         return templates.TemplateResponse(
             request,
-            "partials/search_console_site_cards.html",
+            "partials/sc_single_site_card.html",
             context={
                 "request": request,
-                "search_console_sites": _search_console_sites_payload(db),
+                "site": site_data,
                 "oauth_ready": oauth_is_configured(),
+                "site_count": site_count,
             },
         )
 
