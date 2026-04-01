@@ -51,12 +51,11 @@
     <!-- DEBUG: Total alerts={{ recent_alerts|length }}, Doviz count={{ recent_alerts|selectattr('domain', 'equalto', 'doviz.com')|list|length }} -->
     <div id="alerts-container" style="display: flex; flex-direction: column; gap: 0.75rem; overflow: visible;">
       {% for alert in recent_alerts %}
-        <div class="alert-card rounded-2xl border border-slate-200 transition-all overflow-visible" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" data-alert-category="{% if alert.display_tone == 'rose' %}ctr{% elif alert.display_tone == 'amber' %}impression{% elif alert.display_tone == 'sky' %}position{% else %}other{% endif %}" style="padding: 1rem; overflow: visible;">
+        <div class="alert-card rounded-2xl border border-slate-200 transition-all overflow-visible {% if 'sinemalar' in alert.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in alert.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}" data-alert-id="{{ alert.id }}" data-domain="{{ alert.domain }}" data-alert-category="{% if alert.display_tone == 'rose' %}ctr{% elif alert.display_tone == 'amber' %}impression{% elif alert.display_tone == 'sky' %}position{% else %}other{% endif %}" style="padding: 1rem; overflow: visible;">
           <!-- Alert Header (Display Only) -->
           <div class="flex items-center justify-between gap-4">
             <div class="flex-1">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
                 {% if alert.display_device_code %}
                   <span class="text-[11px] px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold">{{ alert.display_device_code }}</span>
                 {% endif %}
