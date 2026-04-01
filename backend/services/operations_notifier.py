@@ -341,14 +341,16 @@ def _should_send_trigger_email(result: dict | None) -> bool:
     return True
 
 
-def _trigger_email_body(
-    *,
-    trigger_source: str,
-    system_label: str,
-    site: Site | None,
-    result: dict | None,
-    action_label: str,
-) -> str:
+def _site_heading_row(domain: str) -> str:
+    return (
+        '<tr><td style="padding:22px 32px 10px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">'
+        f'<p style="margin:0;font-size:17px;font-weight:800;color:#0f172a;letter-spacing:-0.02em;">{escape(domain)}</p>'
+        "</td></tr>"
+    )
+
+
+def _site_detail_section_rows(result: dict | None) -> list[str]:
+    """Tek site için tetik özeti blokları (önceki 'tetiklendi' mailinin içeriği; özet tablosu hariç)."""
     details: list[tuple[str, str]] = []
     detail_rows: list[list[str]] = []
     comparison_rows: list[list[str]] = []
@@ -375,43 +377,30 @@ def _trigger_email_body(
         elif result.get("source"):
             details.append(("Kaynak", str(result["source"])))
 
-    summary_rows = [
-        ("Mail tipi", "Bilgilendirme"),
-        ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
-        ("Sistem", system_label),
-        ("Aksiyon", action_label),
-        ("Site", site.domain if site is not None else "Tüm sistem"),
-        ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
-    ]
-    sections = [
-        section(
-            "Ozet",
-            summary_table(summary_rows),
-        )
-    ]
+    rows: list[str] = []
     if summary_cards:
-        sections.append(
+        rows.append(
             section(
                 "Kritik Özet",
                 stat_cards(summary_cards),
             )
         )
     if details:
-        sections.append(
+        rows.append(
             section(
                 "Calisma Detaylari",
                 summary_table(details),
             )
         )
     if detail_rows:
-        sections.append(
+        rows.append(
             section(
                 "Metrik Dökümü",
                 data_table(["Alan", "Değer"], detail_rows),
             )
         )
     if comparison_rows:
-        sections.append(
+        rows.append(
             section(
                 "Karşılaştırmalı Veri",
                 data_table(["Alan", "Önceki 7 Gün", "Son 7 Gün", "Fark"], comparison_rows),
@@ -428,10 +417,95 @@ def _trigger_email_body(
         )
         if same_weekday_links_html:
             sw_inner = f'<div style="margin-bottom:12px;">{same_weekday_links_html}</div>{sw_inner}'
-        sections.append(section(sw_title, sw_inner, subtitle=sw_sub))
+        rows.append(section(sw_title, sw_inner, subtitle=sw_sub))
+    return rows
+
+
+def _consolidated_tone(items: list[tuple[Site | None, dict | None]]) -> str:
+    for _s, r in items:
+        if _result_tone(r) == "rose":
+            return "rose"
+    for _s, r in items:
+        if _result_tone(r) == "amber":
+            return "amber"
+    return "blue"
+
+
+def send_consolidated_system_email(
+    *,
+    system_key: str,
+    trigger_source: str,
+    action_label: str,
+    items: list[tuple[Site | None, dict | None]],
+    db: Session | None = None,
+    notification_key: str | None = None,
+) -> bool:
+    """
+    Aynı sistem için tek konu başlıklı özet maili; eski 'tetiklendi' içeriği site bloklarının sonunda.
+    """
+    system_label = SYSTEM_LABELS.get(system_key, system_key.replace("_", " ").title())
+    kept: list[tuple[Site | None, dict]] = []
+    for site, result in items:
+        if result is None:
+            continue
+        if not _should_send_trigger_email(result):
+            continue
+        kept.append((site, result))
+    if not kept:
+        return False
+    ts_label = TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)
+    subject = f"SEO Agent: {system_label} — {action_label} ({ts_label})"
+    global_rows = [
+        ("Mail tipi", "Operasyon özeti"),
+        ("Tetik tipi", ts_label),
+        ("Sistem", system_label),
+        ("Aksiyon", action_label),
+        ("Site sayısı", str(len(kept))),
+        ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
+    ]
+    sections: list[str] = [section("Özet", summary_table(global_rows))]
+    for site, result in kept:
+        domain = site.domain if site is not None else "Tüm sistem"
+        sections.append(_site_heading_row(domain))
+        sections.extend(_site_detail_section_rows(result))
+    body = render_email_shell(
+        eyebrow="SEO Agent Operations",
+        title=f"{system_label} — {action_label}",
+        intro="",
+        tone=_consolidated_tone(kept),
+        status_label="Operasyon özeti",
+        sections=sections,
+    )
+    return _send_operations_email(subject, body, notification_key=notification_key, db=db)
+
+
+def _trigger_email_body(
+    *,
+    trigger_source: str,
+    system_label: str,
+    site: Site | None,
+    result: dict | None,
+    action_label: str,
+) -> str:
+    """Tek site tam HTML (test / nadir kullanım); üretimde send_consolidated_system_email tercih edilir."""
+    summary_rows = [
+        ("Mail tipi", "Bilgilendirme"),
+        ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
+        ("Sistem", system_label),
+        ("Aksiyon", action_label),
+        ("Site", site.domain if site is not None else "Tüm sistem"),
+        ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
+    ]
+    sections = [
+        section(
+            "Ozet",
+            summary_table(summary_rows),
+        )
+    ]
+    sections.extend(_site_detail_section_rows(result))
     return render_email_shell(
         eyebrow="SEO Agent Operations",
-        title=f"{system_label} sistemi {TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)} tetiklendi",
+        title=f"{system_label} — {action_label}",
         intro="",
         tone=_result_tone(result),
         status_label="Bilgilendirme",
@@ -471,17 +545,11 @@ def notify_system_trigger(
     if not _should_send_trigger_email(result):
         return False
     system_label = SYSTEM_LABELS.get(system_key, system_key.replace("_", " ").title())
-    source_label = TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)
-    subject = f"SEO Agent: {system_label} sistemi {source_label} tetiklendi"
-    return _send_operations_email(
-        subject,
-        _trigger_email_body(
-            trigger_source=trigger_source,
-            system_label=system_label,
-            site=site,
-            result=result,
-            action_label=action_label or system_label,
-        ),
+    return send_consolidated_system_email(
+        system_key=system_key,
+        trigger_source=trigger_source,
+        action_label=action_label or system_label,
+        items=[(site, result)],
     )
 
 
@@ -495,12 +563,13 @@ def notify_result_map(
 ) -> None:
     key_map = system_key_map or {}
     for result_key, result_value in (results or {}).items():
-        notify_system_trigger(
+        sys_key = key_map.get(result_key, result_key)
+        payload = result_value if isinstance(result_value, dict) else {"summary": result_value}
+        send_consolidated_system_email(
+            system_key=sys_key,
             trigger_source=trigger_source,
-            system_key=key_map.get(result_key, result_key),
-            site=site,
-            result=result_value if isinstance(result_value, dict) else {"summary": result_value},
             action_label=action_label,
+            items=[(site, payload)],
         )
 
 
@@ -808,6 +877,111 @@ def _crawler_summary_cards(link_audit: dict) -> list[dict[str, str]]:
     ]
 
 
+def _crawler_site_report_sections(site: Site, link_audit: dict) -> list[str]:
+    issue_rows = _crawler_issue_rows(link_audit)
+    summary_rows = [
+        ("Site", site.domain),
+        ("Kaynak seçimi", str(link_audit.get("source_strategy") or "URL listesi")),
+        ("Kaynak sayfa", _format_tr_number(link_audit.get("source_pages"), decimals=0)),
+        ("Taranan URL", _format_tr_number(link_audit.get("audited_urls"), decimals=0)),
+        ("Maks. hop", _format_tr_number(link_audit.get("max_hops"), decimals=0)),
+    ]
+    return [
+        section("Özet", summary_table(summary_rows), subtitle="Günlük koşuda kullanılan kapsam ve taranan URL sayısı."),
+        section("Kritik Kartlar", stat_cards(_crawler_summary_cards(link_audit)), subtitle="En önemli crawler metrikleri."),
+        section(
+            "Sorunlu URL Örnekleri",
+            data_table(["Durum", "Hedef URL", "Final URL", "Durum Zinciri", "Kaynak Sayfalar"], issue_rows)
+            if issue_rows
+            else note_box("Temiz Sonuç", "Bu günlük koşuda örnek tabloya girecek kırık veya yönlendirmeli URL bulunmadı.", tone="emerald"),
+            subtitle="Tablo, tıklayıp kontrol etmen gereken örnek URL'leri gösterir.",
+        ),
+    ]
+
+
+def _crawler_site_issue_note_section() -> str:
+    """Tek mailde rapor tabloları tekrarlanmasın; eski ayrı uyarı mailindeki eylem özeti."""
+    return section(
+        "Uyarı — ne yapılmalı",
+        note_box(
+            "Önerilen aksiyon",
+            "Kırık URL'leri kaldır veya doğru hedefe yönlendir. 301/302 kullanan dahili linkleri doğrudan final URL'ye çevir. Zincir görülen URL'leri tek adımlı hedefe indir.",
+            tone="amber",
+        ),
+        subtitle="Aşağıda özet ve örnek tabloda bu site için tespit edilen sorunlar yer alır.",
+    )
+
+
+def notify_crawler_audit_emails_batch(
+    db: Session,
+    items: list[tuple[Site, dict | None]],
+    trigger_source: str,
+) -> list[str]:
+    """Tüm dahili siteler için tek günlük crawler raporu (rapor + varsa uyarı blokları bir arada)."""
+    parsed: list[tuple[Site, dict, dict]] = []
+    for site, result in items:
+        link_audit = _crawler_summary_from_result(result)
+        rid = str((result or {}).get("collector_run_id") or "").strip()
+        if not link_audit or not rid:
+            continue
+        parsed.append((site, result or {}, link_audit))
+
+    if not parsed:
+        return []
+
+    ts_label = TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)
+    batch_key = f"crawler-batch:{now_local().date().isoformat()}:{trigger_source}"
+    if trigger_source == "system" and _delivery_exists(db, notification_type="operations", notification_key=batch_key):
+        return []
+
+    any_issue = False
+    for _site, _res, la in parsed:
+        if any(int(la.get(key) or 0) > 0 for key in ("broken_links", "redirect_chains", "redirect_301_links", "redirect_302_links")):
+            any_issue = True
+            break
+
+    global_rows = [
+        ("Mail tipi", "Crawler günlük özet"),
+        ("Tetik tipi", ts_label),
+        ("Site sayısı", str(len(parsed))),
+        ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
+    ]
+    sections: list[str] = [
+        section(
+            "Genel",
+            summary_table(global_rows),
+            subtitle="Site içi taranan URL'lerin son durumu; kırık URL, yönlendirme ve redirect zinciri dağılımı.",
+        ),
+    ]
+    for site, _res, link_audit in parsed:
+        sections.append(_site_heading_row(site.domain))
+        sections.extend(_crawler_site_report_sections(site, link_audit))
+        has_issue = any(int(link_audit.get(key) or 0) > 0 for key in ("broken_links", "redirect_chains", "redirect_301_links", "redirect_302_links"))
+        if has_issue:
+            sections.append(_crawler_site_issue_note_section())
+
+    subject = f"SEO Agent: Crawler — günlük özet ({ts_label})"
+    title = "Crawler — günlük özet"
+    intro = (
+        "Aşağıda tüm dahili siteler için günlük crawler sonuçları yer alır. "
+        "Uyarı gerektiren bulgular ilgili site bloklarında ek bölümlerle listelenir."
+        if any_issue
+        else "Aşağıda tüm dahili siteler için günlük crawler sonuçları yer alır."
+    )
+    body = render_email_shell(
+        eyebrow="SEO Agent Operations",
+        title=title,
+        intro=intro,
+        tone="amber" if any_issue else "blue",
+        status_label="Günlük Rapor" if not any_issue else "Günlük Rapor / Uyarı",
+        sections=sections,
+    )
+    nk = batch_key if trigger_source == "system" else None
+    if _send_operations_email(subject, body, notification_key=nk, db=db):
+        return [subject]
+    return []
+
+
 def notify_crawler_audit_emails(
     *,
     db: Session,
@@ -815,77 +989,4 @@ def notify_crawler_audit_emails(
     result: dict | None,
     trigger_source: str,
 ) -> list[str]:
-    link_audit = _crawler_summary_from_result(result)
-    collector_run_id = str((result or {}).get("collector_run_id") or "").strip()
-    if not link_audit or not collector_run_id:
-        return []
-
-    subjects: list[str] = []
-    issue_rows = _crawler_issue_rows(link_audit)
-    summary_rows = [
-        ("Site", site.domain),
-        ("Tetik tipi", TRIGGER_SOURCE_LABELS.get(trigger_source, trigger_source)),
-        ("Kaynak seçimi", str(link_audit.get("source_strategy") or "URL listesi")),
-        ("Kaynak sayfa", _format_tr_number(link_audit.get("source_pages"), decimals=0)),
-        ("Taranan URL", _format_tr_number(link_audit.get("audited_urls"), decimals=0)),
-        ("Maks. hop", _format_tr_number(link_audit.get("max_hops"), decimals=0)),
-    ]
-
-    if trigger_source == "system":
-        report_key = f"crawler-report:{site.id}:{collector_run_id}"
-        if not _delivery_exists(db, notification_type="operations", notification_key=report_key):
-            report_subject = f"SEO Agent: {site.domain} günlük crawler raporu"
-            report_body = render_email_shell(
-                eyebrow="SEO Agent Operations",
-                title=f"{site.domain} günlük crawler raporu",
-                intro="Site içi taranan URL'lerin son durum özeti aşağıda yer alır. Bu rapor kırık URL, 301/302 yönlendirme ve redirect zinciri dağılımını tek bakışta gösterir.",
-                tone="blue",
-                status_label="Günlük Rapor",
-                sections=[
-                    section("Özet", summary_table(summary_rows), subtitle="Günlük koşuda kullanılan kapsam ve taranan URL sayısı."),
-                    section("Kritik Kartlar", stat_cards(_crawler_summary_cards(link_audit)), subtitle="En önemli crawler metrikleri."),
-                    section(
-                        "Sorunlu URL Örnekleri",
-                        data_table(["Durum", "Hedef URL", "Final URL", "Durum Zinciri", "Kaynak Sayfalar"], issue_rows)
-                        if issue_rows
-                        else note_box("Temiz Sonuç", "Bu günlük koşuda örnek tabloya girecek kırık veya yönlendirmeli URL bulunmadı.", tone="emerald"),
-                        subtitle="Tablo, tıklayıp kontrol etmen gereken örnek URL'leri gösterir.",
-                    ),
-                ],
-            )
-            if _send_operations_email(report_subject, report_body, notification_key=report_key, db=db):
-                subjects.append(report_subject)
-
-    has_issue = any(int(link_audit.get(key) or 0) > 0 for key in ("broken_links", "redirect_chains", "redirect_301_links", "redirect_302_links"))
-    if has_issue:
-        issue_key = f"crawler-issue:{site.id}:{collector_run_id}"
-        if not _delivery_exists(db, notification_type="operations", notification_key=issue_key):
-            issue_subject = f"SEO Agent UYARI: {site.domain} crawler sorunları bulundu"
-            issue_body = render_email_shell(
-                eyebrow="SEO Agent Operations",
-                title=f"Uyarı: {site.domain} crawler sorunları bulundu",
-                intro="Bu mail bir sorun bildirir. İç linklerde kırık hedef, yönlendirme veya redirect zinciri tespit edildi.",
-                tone="amber",
-                status_label="Uyarı",
-                sections=[
-                    section("Özet", summary_table(summary_rows), subtitle="Sorun çıkan koşunun kısa özeti."),
-                    section("Kritik Kartlar", stat_cards(_crawler_summary_cards(link_audit)), subtitle="Hangi problem tipinin öne çıktığı burada görülür."),
-                    section(
-                        "Sorunlu URL Tablosu",
-                        data_table(["Durum", "Hedef URL", "Final URL", "Durum Zinciri", "Kaynak Sayfalar"], issue_rows),
-                        subtitle="Final URL ve bu linkin hangi kaynak sayfalarda bulunduğu birlikte gösterilir.",
-                    ),
-                    section(
-                        "Yorum",
-                        note_box(
-                            "Ne Yapılmalı",
-                            "Kırık URL'leri kaldır veya doğru hedefe yönlendir. 301/302 kullanan dahili linkleri doğrudan final URL'ye çevir. Zincir görülen URL'leri tek adımlı hedefe indir.",
-                            tone="amber",
-                        ),
-                    ),
-                ],
-            )
-            if _send_operations_email(issue_subject, issue_body, notification_key=issue_key, db=db):
-                subjects.append(issue_subject)
-
-    return subjects
+    return notify_crawler_audit_emails_batch(db, [(site, result)], trigger_source)

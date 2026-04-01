@@ -72,9 +72,11 @@ from backend.services.ga4_page_urls import (
 )
 from backend.services.operations_notifier import (
     notify_crawler_audit_emails,
+    notify_crawler_audit_emails_batch,
     notify_missed_scheduled_refreshes,
     notify_result_map,
     notify_system_trigger,
+    send_consolidated_system_email,
 )
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
@@ -1102,19 +1104,6 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                     results["onboarding"] = {"state": "failed", "error": "database is locked"}
                 else:
                     raise
-            notify_result_map(
-                trigger_source="manual",
-                site=site,
-                results=results,
-                action_label="External onboarding arka plan olcumu",
-            )
-            if isinstance(results.get("crawler"), dict) and str(results.get("crawler", {}).get("state") or "") != "queued":
-                notify_crawler_audit_emails(
-                    db=db,
-                    site=site,
-                    result=results.get("crawler"),
-                    trigger_source="manual",
-                )
 
             if has_error:
                 _set_external_onboarding_job(
@@ -1148,12 +1137,6 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
         except Exception as exc:  # noqa: BLE001
             db.rollback()
             LOGGER.warning("External onboarding background run failed for site_id=%s: %s", site_id, exc)
-            notify_result_map(
-                trigger_source="manual",
-                site=site,
-                results={"onboarding": {"state": "failed", "error": str(exc)}},
-                action_label="External onboarding arka plan olcumu",
-            )
             _set_external_onboarding_job(
                 job_id,
                 status="failed",
@@ -1172,37 +1155,35 @@ def _run_daily_search_console_refresh_job() -> None:
     try:
         LOGGER.info("Daily Search Console refresh started.")
         with SessionLocal() as db:
+            external = _external_site_ids(db)
             connected_sites = [
                 site
                 for site in _active_sites(db)
-                if get_search_console_connection_status(db, site.id).get("connected")
+                if site.id not in external and get_search_console_connection_status(db, site.id).get("connected")
             ]
+            sc_batch: list[tuple[Site, dict]] = []
 
             for index, site in enumerate(connected_sites):
                 LOGGER.info("Daily Search Console refresh processing site=%s", site.domain)
                 try:
                     result = collect_search_console_metrics(db, site)
                     db.commit()
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="search_console",
-                        site=site,
-                        result=result,
-                        action_label="Günlük Search Console yenilemesi",
-                    )
+                    sc_batch.append((site, result))
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily Search Console refresh failed for %s: %s", site.domain, exc)
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="search_console",
-                        site=site,
-                        result={"state": "failed", "error": str(exc)},
-                        action_label="Günlük Search Console yenilemesi",
-                    )
+                    sc_batch.append((site, {"state": "failed", "error": str(exc)}))
 
                 if index < len(connected_sites) - 1:
                     time.sleep(max(0, int(settings.search_console_scheduled_refresh_site_spacing_seconds)))
+
+            if sc_batch:
+                send_consolidated_system_email(
+                    system_key="search_console",
+                    trigger_source="system",
+                    action_label="Günlük Search Console yenilemesi",
+                    items=sc_batch,
+                )
 
         LOGGER.info("Daily Search Console refresh completed.")
     finally:
@@ -1217,33 +1198,31 @@ def _run_daily_alert_refresh_job() -> None:
     try:
         LOGGER.info("Daily alert refresh started.")
         with SessionLocal() as db:
-            sites = _active_sites(db)
+            external = _external_site_ids(db)
+            sites = [s for s in _active_sites(db) if s.id not in external]
+            alert_batch: list[tuple[Site, dict]] = []
 
             for index, site in enumerate(sites):
                 LOGGER.info("Daily alert refresh processing site=%s", site.domain)
                 try:
                     result = collect_search_console_alert_metrics(db, site, send_notifications=True)
                     db.commit()
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="search_console_alerts",
-                        site=site,
-                        result=result,
-                        action_label="Günlük alert yenilemesi",
-                    )
+                    alert_batch.append((site, result))
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily alert refresh failed for %s: %s", site.domain, exc)
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="search_console_alerts",
-                        site=site,
-                        result={"state": "failed", "error": str(exc)},
-                        action_label="Günlük alert yenilemesi",
-                    )
+                    alert_batch.append((site, {"state": "failed", "error": str(exc)}))
 
                 if index < len(sites) - 1:
                     time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+            if alert_batch:
+                send_consolidated_system_email(
+                    system_key="search_console_alerts",
+                    trigger_source="system",
+                    action_label="Günlük alert yenilemesi",
+                    items=alert_batch,
+                )
 
         LOGGER.info("Daily alert refresh completed.")
     finally:
@@ -1258,7 +1237,12 @@ def _run_daily_refresh_job() -> None:
     try:
         LOGGER.info("Daily refresh started.")
         with SessionLocal() as db:
-            sites = _active_sites(db)
+            external = _external_site_ids(db)
+            sites = [s for s in _active_sites(db) if s.id not in external]
+            pagespeed_batch: list[tuple[Site, dict]] = []
+            crawler_batch: list[tuple[Site, dict]] = []
+            crux_batch: list[tuple[Site, dict]] = []
+            url_batch: list[tuple[Site, dict]] = []
 
             for index, site in enumerate(sites):
                 connection = get_search_console_connection_status(db, site.id)
@@ -1277,65 +1261,56 @@ def _run_daily_refresh_job() -> None:
                     force=True,
                 )
                 db.commit()
-                notify_result_map(
-                    trigger_source="system",
-                    site=site,
-                    results=results,
-                    action_label="Günlük site yenilemesi",
-                )
+                if isinstance(results.get("pagespeed"), dict):
+                    pagespeed_batch.append((site, results["pagespeed"]))
                 if isinstance(results.get("crawler"), dict):
-                    notify_crawler_audit_emails(
-                        db=db,
-                        site=site,
-                        result=results.get("crawler"),
-                        trigger_source="system",
-                    )
+                    crawler_batch.append((site, results["crawler"]))
 
                 try:
                     crux_result = collect_crux_history(db, site)
                     db.commit()
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="crux_history",
-                        site=site,
-                        result=crux_result,
-                        action_label="Günlük CrUX yenilemesi",
-                    )
+                    crux_batch.append((site, crux_result))
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="crux_history",
-                        site=site,
-                        result={"state": "failed", "error": str(exc)},
-                        action_label="Günlük CrUX yenilemesi",
-                    )
+                    crux_batch.append((site, {"state": "failed", "error": str(exc)}))
 
                 if connection.get("connected"):
                     try:
                         inspection_result = collect_url_inspection(db, site)
                         db.commit()
-                        notify_system_trigger(
-                            trigger_source="system",
-                            system_key="url_inspection",
-                            site=site,
-                            result=inspection_result,
-                            action_label="Günlük URL Inspection yenilemesi",
-                        )
+                        url_batch.append((site, inspection_result))
                     except Exception as exc:  # noqa: BLE001
                         db.rollback()
                         LOGGER.warning("Daily refresh URL Inspection failed for %s: %s", site.domain, exc)
-                        notify_system_trigger(
-                            trigger_source="system",
-                            system_key="url_inspection",
-                            site=site,
-                            result={"state": "failed", "error": str(exc)},
-                            action_label="Günlük URL Inspection yenilemesi",
-                        )
+                        url_batch.append((site, {"state": "failed", "error": str(exc)}))
 
                 if index < len(sites) - 1:
                     time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+            if pagespeed_batch:
+                send_consolidated_system_email(
+                    system_key="pagespeed",
+                    trigger_source="system",
+                    action_label="Günlük site yenilemesi (PageSpeed)",
+                    items=pagespeed_batch,
+                )
+            if crawler_batch:
+                notify_crawler_audit_emails_batch(db, crawler_batch, "system")
+            if crux_batch:
+                send_consolidated_system_email(
+                    system_key="crux_history",
+                    trigger_source="system",
+                    action_label="Günlük CrUX yenilemesi",
+                    items=crux_batch,
+                )
+            if url_batch:
+                send_consolidated_system_email(
+                    system_key="url_inspection",
+                    trigger_source="system",
+                    action_label="Günlük URL Inspection yenilemesi",
+                    items=url_batch,
+                )
 
         LOGGER.info("Daily refresh completed.")
     finally:
@@ -1363,6 +1338,7 @@ def _run_daily_ga4_refresh_job() -> None:
                 if site.id not in external_site_ids and get_ga4_connection_status(db, site.id).get("connected")
             ]
             any_ga4_ok = False
+            ga4_failures: list[tuple[str, str]] = []
             for index, site in enumerate(eligible):
                 LOGGER.info("Daily GA4 refresh processing site=%s", site.domain)
                 try:
@@ -1373,21 +1349,16 @@ def _run_daily_ga4_refresh_job() -> None:
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily GA4 refresh failed for %s: %s", site.domain, exc)
-                    notify_system_trigger(
-                        trigger_source="system",
-                        system_key="ga4",
-                        site=site,
-                        result={"state": "failed", "error": str(exc)},
-                        action_label="Günlük GA4 yenilemesi",
-                    )
+                    ga4_failures.append((site.domain, str(exc)))
                 if index < len(eligible) - 1:
                     time.sleep(max(0, int(settings.ga4_scheduled_refresh_site_spacing_seconds)))
 
-            if any_ga4_ok:
+            if any_ga4_ok or ga4_failures:
                 send_ga4_weekly_digest_emails(
                     db,
                     trigger_source="system",
                     action_label="Günlük GA4 yenilemesi",
+                    collect_failures=ga4_failures,
                 )
 
         LOGGER.info("Daily GA4 refresh completed.")
@@ -4119,6 +4090,7 @@ def alerts_refresh(request: Request):
     with SessionLocal() as db:
         external_ids = _external_site_ids(db)
         sites = [site for site in _active_sites(db) if site.id not in external_ids]
+        alert_batch: list[tuple[Site, dict]] = []
         for index, site in enumerate(sites):
             try:
                 results = {
@@ -4129,27 +4101,24 @@ def alerts_refresh(request: Request):
                     )
                 }
                 db.commit()
-                notify_system_trigger(
-                    trigger_source="manual",
-                    system_key="search_console_alerts",
-                    site=site,
-                    result=results["search_console"],
-                    action_label="Uyarıları yenile",
-                )
+                alert_batch.append((site, results["search_console"]))
                 summaries.append({"site": site.domain, "results": results})
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
-                notify_system_trigger(
-                    trigger_source="manual",
-                    system_key="search_console_alerts",
-                    site=site,
-                    result={"state": "failed", "error": str(exc)},
-                    action_label="Uyarıları yenile",
-                )
+                alert_batch.append((site, {"state": "failed", "error": str(exc)}))
                 summaries.append({"site": site.domain, "error": str(exc)})
 
             if index < len(sites) - 1:
                 time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+        if alert_batch:
+            send_consolidated_system_email(
+                system_key="search_console_alerts",
+                trigger_source="manual",
+                action_label="Uyarıları yenile",
+                items=alert_batch,
+                db=db,
+            )
 
         return JSONResponse(
             {
@@ -4539,13 +4508,22 @@ def ga4_refresh_site(request: Request, site_id: int):
                 )
         except Exception as exc:  # noqa: BLE001
             db.rollback()
-            notify_system_trigger(
-                trigger_source="manual",
-                system_key="ga4",
-                site=site,
-                result={"state": "failed", "error": str(exc)},
-                action_label="GA4 verisini yenile",
-            )
+            bucket = ga4_digest_bucket_for_domain(site.domain)
+            if bucket:
+                send_ga4_weekly_digest_emails(
+                    db,
+                    trigger_source="manual",
+                    action_label="GA4 verisini yenile",
+                    only_buckets=frozenset({bucket}),
+                    collect_failures=[(site.domain, str(exc))],
+                )
+            else:
+                send_consolidated_system_email(
+                    system_key="ga4",
+                    trigger_source="manual",
+                    action_label="GA4 verisini yenile",
+                    items=[(site, {"state": "failed", "error": str(exc)})],
+                )
             return HTMLResponse(f"GA4 yenileme başarısız: {exc}", status_code=500)
         return templates.TemplateResponse(
             request,
@@ -4564,6 +4542,7 @@ def ga4_refresh_all(request: Request):
         external_site_ids = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
         any_ga4_ok = False
+        ga4_failures: list[tuple[str, str]] = []
         for site in sites:
             if site.id in external_site_ids:
                 continue
@@ -4577,18 +4556,13 @@ def ga4_refresh_all(request: Request):
                 any_ga4_ok = True
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
-                notify_system_trigger(
-                    trigger_source="manual",
-                    system_key="ga4",
-                    site=site,
-                    result={"state": "failed", "error": str(exc)},
-                    action_label="Tüm GA4 sitelerini yenile",
-                )
-        if any_ga4_ok:
+                ga4_failures.append((site.domain, str(exc)))
+        if any_ga4_ok or ga4_failures:
             send_ga4_weekly_digest_emails(
                 db,
                 trigger_source="manual",
                 action_label="Tüm GA4 sitelerini yenile",
+                collect_failures=ga4_failures,
             )
         return templates.TemplateResponse(
             request,
@@ -4689,8 +4663,12 @@ def search_console_site_list(request: Request):
 @app.post("/search-console/refresh-all")
 def search_console_refresh_all(request: Request):
     with SessionLocal() as db:
+        external = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
-        for index, site in enumerate(sites):
+        sc_batch: list[tuple[Site, dict]] = []
+        for site in sites:
+            if site.id in external:
+                continue
             connection = get_search_console_connection_status(db, site.id)
             if not connection.get("connected"):
                 continue
@@ -4704,21 +4682,19 @@ def search_console_refresh_all(request: Request):
                     force=True,
                 )
                 db.commit()
-                notify_result_map(
-                    trigger_source="manual",
-                    site=site,
-                    results=results,
-                    action_label="Tüm Search Console sitelerini yenile",
-                )
+                if isinstance(results.get("search_console"), dict):
+                    sc_batch.append((site, results["search_console"]))
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
-                notify_system_trigger(
-                    trigger_source="manual",
-                    system_key="search_console",
-                    site=site,
-                    result={"state": "failed", "error": str(exc)},
-                    action_label="Tüm Search Console sitelerini yenile",
-                )
+                sc_batch.append((site, {"state": "failed", "error": str(exc)}))
+        if sc_batch:
+            send_consolidated_system_email(
+                system_key="search_console",
+                trigger_source="manual",
+                action_label="Tüm Search Console sitelerini yenile",
+                items=sc_batch,
+                db=db,
+            )
         return templates.TemplateResponse(
             request,
             "partials/search_console_site_cards.html",
@@ -4736,6 +4712,8 @@ def search_console_manual_refresh(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("Bu site için Search Console raporu gönderilmez (external).", status_code=404)
         results = _refresh_site_detail_measurements(
             db,
             site,

@@ -153,8 +153,8 @@ class OperationsNotifierTest(unittest.TestCase):
                 trigger_source="system",
             )
 
-        self.assertEqual(len(subjects), 2)
-        self.assertEqual(send_email.call_count, 2)
+        self.assertEqual(len(subjects), 1)
+        self.assertEqual(send_email.call_count, 1)
         combined_html = "\n".join(call.args[1] for call in send_email.call_args_list)
         self.assertIn("Final URL", combined_html)
         self.assertIn("https://example.com/yeni", combined_html)

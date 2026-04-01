@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from html import escape
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -11,7 +12,12 @@ from sqlalchemy.orm import Session
 from backend.locale import tr as tr_locale
 from backend.models import Site
 from backend.services.ga4_page_urls import enrich_ga4_page_rows, ga4_row_page_href, ga4_row_page_label
-from backend.services.email_templates import ga4_digest_same_weekday_section, render_ga4_digest_email
+from backend.services.email_templates import (
+    ga4_digest_same_weekday_section,
+    render_email_shell,
+    render_ga4_digest_email,
+    section,
+)
 from backend.services.mailer import send_email
 from backend.services.operations_notifier import TRIGGER_SOURCE_LABELS, operations_recipients
 from backend.services.timezone_utils import format_local_datetime, now_local
@@ -565,12 +571,43 @@ def _build_bucket_digest(
     return area_blocks, crit_rows, domains_seen, sw_html
 
 
+def _ga4_collect_failures_footer_html(bucket: str, collect_failures: list[tuple[str, str]] | None) -> str:
+    """Günlük GA4 toplama hatalarını özet tablo HTML (mail gövdesi sonuna)."""
+    if not collect_failures:
+        return ""
+    rows = [(d, e) for d, e in collect_failures if ga4_digest_bucket_for_domain(d) == bucket]
+    if not rows:
+        return ""
+    inner = "".join(
+        "<tr>"
+        f'<td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#0f172a;">{escape(d)}</td>'
+        f'<td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#b91c1c;">{escape(e)}</td>'
+        "</tr>"
+        for d, e in rows
+    )
+    cap = (
+        '<p style="margin:0 0 10px 0;font-size:12px;font-weight:800;letter-spacing:0.06em;color:#64748b;text-transform:uppercase;">'
+        "Günlük yenileme — hata özeti</p>"
+    )
+    tbl = (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'style="border-collapse:collapse;border:1px solid #fecaca;border-radius:12px;overflow:hidden;background:#fff7ed;">'
+        "<thead><tr>"
+        '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:800;color:#9a3412;background:#ffedd5;">Site</th>'
+        '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:800;color:#9a3412;background:#ffedd5;">Hata</th>'
+        "</tr></thead>"
+        f"<tbody>{inner}</tbody></table>"
+    )
+    return cap + tbl
+
+
 def send_ga4_weekly_digest_emails(
     db: Session,
     *,
     trigger_source: str,
     action_label: str,
     only_buckets: frozenset[str] | None = None,
+    collect_failures: list[tuple[str, str]] | None = None,
 ) -> list[str]:
     """
     Döviz ve Sinemalar için ayrı HTML e-posta gönderir.
@@ -602,8 +639,30 @@ def send_ga4_weekly_digest_emails(
     def send_one(bucket: str, site_ids: list[int], title_prefix: str) -> None:
         if bucket not in want or not site_ids:
             return
+        fail_footer = _ga4_collect_failures_footer_html(bucket, collect_failures)
         built = _build_bucket_digest(db, bucket=bucket, site_ids=site_ids)
         if not built:
+            if not fail_footer:
+                return
+            summary_rows = [
+                ("Mail tipi", "GA4 haftalık özet"),
+                ("Tetik", ts_label),
+                ("Aksiyon", action_label),
+                ("Kapsam", title_prefix),
+                ("Siteler", "-"),
+                ("Zaman", format_local_datetime(now_local(), include_suffix=True)),
+            ]
+            subject = f"SEO Agent GA4: {title_prefix} — yenileme hataları ({ts_label})"
+            html = render_email_shell(
+                eyebrow=tr_locale.GA4_DIGEST_EYEBROW,
+                title=f"GA4 yenileme hataları — {title_prefix}",
+                intro="Özet veri oluşturulamadı; günlük toplama sırasında aşağıdaki hatalar kaydedildi.",
+                tone="rose",
+                status_label="Hata",
+                sections=[section("Hatalar", fail_footer)],
+            )
+            if send_email(subject, html, recipients=recipients):
+                subjects.append(subject)
             return
         area_blocks, critical_rows, domains_seen, same_weekday_html = built
         summary_rows = [
@@ -624,6 +683,7 @@ def send_ga4_weekly_digest_emails(
             critical_rows=critical_rows[:24],
             area_blocks=area_blocks,
             same_weekday_section_html=same_weekday_html,
+            footer_extra_html=fail_footer,
         )
         if send_email(subject, html, recipients=recipients):
             subjects.append(subject)

@@ -692,6 +692,7 @@ def render_ga4_digest_email(
     critical_rows: list[dict],
     area_blocks: list[tuple[str, list[dict]]],
     same_weekday_section_html: str = "",
+    footer_extra_html: str = "",
 ) -> str:
     """GA4 haftalık özet için tablo mimarili HTML."""
     colors = _palette(tone)
@@ -718,6 +719,8 @@ def render_ga4_digest_email(
     if crit_block:
         body_rows.append(f'<tr><td style="padding:0 28px 4px 28px;">{crit_block}</td></tr>')
     body_rows.append(f'<tr><td style="padding:0 28px 28px 28px;">{areas_html}</td></tr>')
+    if footer_extra_html:
+        body_rows.append(f'<tr><td style="padding:0 28px 28px 28px;">{footer_extra_html}</td></tr>')
     body_inner = "".join(body_rows)
     return f"""
 <!doctype html>
