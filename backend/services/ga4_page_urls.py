@@ -380,7 +380,10 @@ def enrich_ga4_page_rows(rows: list | None) -> list:
             out.append(r)
             continue
         pg = str(r.get("page") or "").strip()
+        ph_check = str(r.get("page_host") or "").strip()
         if _is_news_detail_path(pg):
+            continue
+        if _is_ga4_placeholder_path(pg) or _is_ga4_placeholder_host(ph_check):
             continue
         row = dict(r)
         pu = (row.get("page_url") or "").strip()
