@@ -50,33 +50,93 @@
     <div class="mx-4 mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">{{ card.flash_message }}</div>
   {% endif %}
 
+  {# Period label #}
+  {% if card.search_console.has_1d_data %}
+    <div class="flex items-center gap-1.5 px-4 pt-2 pb-0">
+      <span class="text-[10px] text-slate-400">1g karşılaştırma:</span>
+      <span class="text-[10px] font-semibold text-slate-600">{{ card.search_console.range_1d or "Dün" }}</span>
+      <span class="text-[10px] text-slate-400">vs</span>
+      <span class="text-[10px] text-slate-500">{{ card.search_console.range_1d_prev or "Geçen haftanın aynı günü" }}</span>
+    </div>
+  {% endif %}
+
   {# Metrics grid #}
-  <div class="grid grid-cols-5 divide-x divide-slate-100 border-b border-slate-100">
-    <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
+  <div class="grid grid-cols-5 divide-x divide-slate-100 border-b border-slate-100 mt-2">
+
+    {# Clicks #}
+    <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Clicks</p>
-      <p class="mt-1.5 text-xl font-bold text-slate-900">{{ card.search_console.clicks_label }}</p>
-      <p class="mt-0.5 text-[10px] text-slate-400">7g toplam</p>
+      {% if card.search_console.has_1d_data %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.clicks_1d_label }}</p>
+        {% set ch = card.search_console.clicks_1d_change %}
+        {% if ch > 0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
+        {% elif ch < -0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-rose-500">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+        {% else %}
+          <p class="mt-0.5 text-[10px] text-slate-400">—</p>
+        {% endif %}
+        <p class="mt-0.5 text-[9px] text-slate-300">dün</p>
+      {% else %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.clicks_label }}</p>
+        <p class="mt-0.5 text-[10px] text-slate-400">7g toplam</p>
+      {% endif %}
     </div>
-    <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
+
+    {# CTR #}
+    <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CTR</p>
-      <p class="mt-1.5 text-xl font-bold text-slate-900">{{ card.search_console.ctr_label }}</p>
-      <p class="mt-0.5 text-[10px] text-slate-400">ort. oran</p>
+      {% if card.search_console.has_1d_data %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.ctr_1d_label }}</p>
+        {% set ch = card.search_console.ctr_1d_change %}
+        {% if ch > 0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
+        {% elif ch < -0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-rose-500">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+        {% else %}
+          <p class="mt-0.5 text-[10px] text-slate-400">—</p>
+        {% endif %}
+        <p class="mt-0.5 text-[9px] text-slate-300">dün</p>
+      {% else %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.ctr_label }}</p>
+        <p class="mt-0.5 text-[10px] text-slate-400">ort. oran</p>
+      {% endif %}
     </div>
-    <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
+
+    {# Position #}
+    <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Position</p>
-      <p class="mt-1.5 text-xl font-bold text-slate-900">{{ card.search_console.position_label }}</p>
-      <p class="mt-0.5 text-[10px] text-slate-400">ort. sıra</p>
+      {% if card.search_console.has_1d_data %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.position_1d_label }}</p>
+        {% set ch = card.search_console.position_1d_change %}
+        {% if ch > 0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
+        {% elif ch < -0.5 %}
+          <p class="mt-0.5 text-[10px] font-semibold text-rose-500">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+        {% else %}
+          <p class="mt-0.5 text-[10px] text-slate-400">—</p>
+        {% endif %}
+        <p class="mt-0.5 text-[9px] text-slate-300">dün · ort. sıra</p>
+      {% else %}
+        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.position_label }}</p>
+        <p class="mt-0.5 text-[10px] text-slate-400">ort. sıra</p>
+      {% endif %}
     </div>
-    <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
+
+    {# Mobile PageSpeed #}
+    <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mobile</p>
-      <p class="mt-1.5 text-xl font-bold {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
+      <p class="mt-1 text-xl font-bold {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
       <p class="mt-0.5 text-[10px] text-slate-400">{{ card.pagespeed_status.mobile.label }}</p>
     </div>
-    <div class="flex flex-col items-center justify-center px-2 py-4 text-center">
+
+    {# Desktop PageSpeed #}
+    <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Desktop</p>
-      <p class="mt-1.5 text-xl font-bold {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
+      <p class="mt-1 text-xl font-bold {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
       <p class="mt-0.5 text-[10px] text-slate-400">{{ card.pagespeed_status.desktop.label }}</p>
     </div>
+
   </div>
 
   {# Bottom: SC status + alerts #}

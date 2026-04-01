@@ -912,6 +912,12 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 
     legacy_views = periods["7"]["views"]
 
+    # 1g tüm-cihaz özeti (kart deltaleri için)
+    sw_cur = sw_day.get("current_day_summary") if isinstance(sw_day.get("current_day_summary"), dict) else {}
+    sw_prev = sw_day.get("previous_week_same_weekday_summary") if isinstance(sw_day.get("previous_week_same_weekday_summary"), dict) else {}
+    summary_1d_cur = _summarize_search_console_rows(current_rows_1) if current_rows_1 else sw_cur
+    summary_1d_prev = _summarize_search_console_rows(previous_rows_wow) if previous_rows_wow else sw_prev
+
     return {
         "has_data": bool(current_rows_7 or previous_rows_7 or top_queries),
         "summary_current": current_summary,
@@ -921,6 +927,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         "default_device": "mobile",
         "views": legacy_views,
         "periods": periods,
+        "summary_current_1d": summary_1d_cur,
+        "summary_previous_1d": summary_1d_prev,
+        "range_current_1d": _format_sc_tr_date(ref_d_global) or "",
+        "range_previous_1d": _format_sc_tr_date(prev_wow_d_global) or "",
     }
 
 
@@ -3030,6 +3040,16 @@ def _build_dashboard_card(
     search_console_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
     mobile_pagespeed_score = float(mobile_pagespeed_metric.value) if mobile_pagespeed_metric is not None else None
     desktop_pagespeed_score = float(desktop_pagespeed_metric.value) if desktop_pagespeed_metric is not None else None
+    sc_1d_cur = search_console_report.get("summary_current_1d") or {}
+    sc_1d_prev = search_console_report.get("summary_previous_1d") or {}
+    sc_1d_clicks_cur = float(sc_1d_cur.get("clicks") or 0.0)
+    sc_1d_clicks_prev = float(sc_1d_prev.get("clicks") or 0.0)
+    sc_1d_ctr_cur = float(sc_1d_cur.get("ctr") or 0.0)
+    sc_1d_ctr_prev = float(sc_1d_prev.get("ctr") or 0.0)
+    sc_1d_pos_cur = float(sc_1d_cur.get("position") or 0.0)
+    sc_1d_pos_prev = float(sc_1d_prev.get("position") or 0.0)
+    sc_1d_imp_cur = float(sc_1d_cur.get("impressions") or 0.0)
+    sc_1d_imp_prev = float(sc_1d_prev.get("impressions") or 0.0)
     return {
         "id": site.id,
         "display_name": site.display_name,
@@ -3062,6 +3082,22 @@ def _build_dashboard_card(
             "last_run_status": str(search_console_run.status or "").upper() if search_console_run and search_console_run.status else "NEVER",
             "last_run_at": _format_optional_datetime(search_console_run.requested_at if search_console_run else None),
             "last_run_dt": search_console_run.requested_at if search_console_run else None,
+            # 1g karşılaştırma verileri
+            "clicks_1d_label": _format_compact_number(sc_1d_clicks_cur) if sc_1d_clicks_cur else "—",
+            "clicks_1d_change": _ga4_period_pct_change(sc_1d_clicks_cur, sc_1d_clicks_prev),
+            "clicks_1d_has_data": bool(sc_1d_clicks_cur or sc_1d_clicks_prev),
+            "ctr_1d_label": f"{_format_max_two_decimals(sc_1d_ctr_cur)}%" if sc_1d_ctr_cur else "—",
+            "ctr_1d_change": _ga4_period_pct_change(sc_1d_ctr_cur, sc_1d_ctr_prev),
+            "ctr_1d_has_data": bool(sc_1d_ctr_cur or sc_1d_ctr_prev),
+            "position_1d_label": _format_max_two_decimals(sc_1d_pos_cur) if sc_1d_pos_cur else "—",
+            "position_1d_change": _ga4_period_pct_change(sc_1d_pos_prev, sc_1d_pos_cur),  # reversed: lower pos = better
+            "position_1d_has_data": bool(sc_1d_pos_cur or sc_1d_pos_prev),
+            "impressions_1d_label": _format_compact_number(sc_1d_imp_cur) if sc_1d_imp_cur else "—",
+            "impressions_1d_change": _ga4_period_pct_change(sc_1d_imp_cur, sc_1d_imp_prev),
+            "impressions_1d_has_data": bool(sc_1d_imp_cur or sc_1d_imp_prev),
+            "range_1d": search_console_report.get("range_current_1d", ""),
+            "range_1d_prev": search_console_report.get("range_previous_1d", ""),
+            "has_1d_data": bool(sc_1d_clicks_cur or sc_1d_ctr_cur or sc_1d_pos_cur),
         },
         "pagespeed_status": {
             "mobile_updated_at": mobile_status["updated_at"],
