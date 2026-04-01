@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/cemevecen/Desktop/seo_agent/seo-agent/backend/main.py", line 21, in <module>
-    from backend.api.alerts import router as alerts_router
-ModuleNotFoundError: No module named 'backend'

@@ -17,3 +17,7 @@ secrets/
 *.p12
 *.pfx
 *.service-account.json
+
+# Runtime / server logs
+server.log
+*.log
