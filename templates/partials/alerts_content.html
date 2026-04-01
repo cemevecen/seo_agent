@@ -73,9 +73,6 @@
                 {% endif %}
               </div>
               <div class="mt-2 space-y-1">
-                <p class="text-base font-semibold {% if alert.display_tone == 'rose' %}text-rose-700{% elif alert.display_tone == 'amber' %}text-amber-700{% elif alert.display_tone == 'sky' %}text-sky-700{% else %}text-slate-800{% endif %}">
-                  {{ alert.display_title }}
-                </p>
                 {% if alert.display_query %}
                   <p class="text-sm font-medium text-slate-900">'{{ alert.display_query }}'</p>
                 {% endif %}
