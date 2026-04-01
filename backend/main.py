@@ -781,23 +781,41 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     sw_day = summary_payload.get("same_weekday_day") if isinstance(summary_payload.get("same_weekday_day"), dict) else {}
     sw_by_device = sw_day.get("by_device") if isinstance(sw_day.get("by_device"), dict) else {}
 
-    trend_summary = _sanitize_search_console_trend(
+    _raw_trend_summary = (
         summary_payload.get("trend_28d_summary")
         or summary_payload.get("trend_7d_summary")
-        or {
-            "mode": "last_28d",
-            "labels": [],
-            "dates": [],
-            "clicks": [],
-            "position": [],
-        }
+        or {}
     )
-    top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
-    trend_summary_by_device = (
+    _raw_trend_by_device = (
         summary_payload.get("trend_28d_summary_by_device")
         or summary_payload.get("trend_7d_summary_by_device")
         or {}
     )
+    # Eski veriye impressions/ctr yoksa trend_28d_rows'dan in-flight recompute et
+    _stored_trend_rows = summary_payload.get("trend_28d_rows") or []
+    if _stored_trend_rows and (not _raw_trend_summary.get("impressions") or not _raw_trend_summary.get("ctr")):
+        from backend.collectors.search_console import _build_recent_trend_summary, _build_recent_trend_summary_by_device
+        try:
+            _dates = [r.get("date") for r in _stored_trend_rows if r.get("date")]
+            if _dates:
+                from datetime import date as _date_cls
+                _start = _date_cls.fromisoformat(min(_dates))
+                _end = _date_cls.fromisoformat(max(_dates))
+                _raw_trend_summary = _build_recent_trend_summary(_stored_trend_rows, start_date=_start, end_date=_end)
+                _raw_trend_by_device = _build_recent_trend_summary_by_device(_stored_trend_rows, start_date=_start, end_date=_end)
+        except Exception:
+            pass
+    trend_summary = _sanitize_search_console_trend(_raw_trend_summary or {
+        "mode": "last_28d",
+        "labels": [],
+        "dates": [],
+        "clicks": [],
+        "impressions": [],
+        "ctr": [],
+        "position": [],
+    })
+    top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
+    trend_summary_by_device = _raw_trend_by_device
 
     range_7_last = _scope_range_from_rows(current_rows_7)
     range_7_prev = _scope_range_from_rows(previous_rows_7)

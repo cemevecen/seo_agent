@@ -1462,6 +1462,17 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "same_weekday_day": same_weekday_day_summary,
             "trend_28d_summary": trend_summary,
             "trend_28d_summary_by_device": trend_summary_by_device,
+            # Ham günlük satırlar (impressions/ctr backfill için)
+            "trend_28d_rows": [
+                {
+                    "date": r.get("date", ""),
+                    "device": r.get("device", "ALL"),
+                    "clicks": float(r.get("clicks") or 0.0),
+                    "impressions": float(r.get("impressions") or 0.0),
+                    "position": float(r.get("position") or 0.0),
+                }
+                for r in trend_28d_rows
+            ],
         },
         row_count=current_row_count
         + current_day_row_count
