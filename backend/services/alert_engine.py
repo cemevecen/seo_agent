@@ -741,6 +741,7 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
                 "display_tone": presentation["tone"],
                 "display_device_code": presentation.get("device_code") or "",
                 "triggered_at": format_local_datetime(log.triggered_at),
+                "triggered_at_iso": log.triggered_at.strftime("%Y-%m-%dT%H:%M:%S"),
                 "sent_mail": log.sent_mail,
             }
         )
