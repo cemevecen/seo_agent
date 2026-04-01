@@ -849,17 +849,27 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             fallback_end_date=date.today() - timedelta(days=1),
         )
         end_date = latest_supported_end_date
+        # 28 günlük query özeti (mevcut metriklerle uyumlu)
         start_date = end_date - timedelta(days=27)
+        # Günlük trend: son 30 tam gün (1d/30d grafikleri için)
+        trend_start_date = end_date - timedelta(days=29)
         current_date = end_date
         previous_date = end_date - timedelta(days=1)
+        same_weekday_previous_date = end_date - timedelta(days=7)
         current_7d_start = end_date - timedelta(days=6)
         previous_7d_end = current_7d_start - timedelta(days=1)
         previous_7d_start = previous_7d_end - timedelta(days=6)
+        current_30d_start = end_date - timedelta(days=29)
+        previous_30d_end = current_30d_start - timedelta(days=1)
+        previous_30d_start = previous_30d_end - timedelta(days=29)
         current_rows: list[dict] = []
         current_day_rows: list[dict] = []
         previous_rows: list[dict] = []
+        previous_week_same_weekday_rows: list[dict] = []
         current_7d_rows: list[dict] = []
         previous_7d_rows: list[dict] = []
+        current_30d_rows: list[dict] = []
+        previous_30d_rows: list[dict] = []
         trend_28d_rows: list[dict] = []
 
         for target in targets:
@@ -868,16 +878,24 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             current_rows.extend(_fetch_search_console_rows(service, property_url, start_date, end_date, device=device))
             current_day_rows.extend(_fetch_search_console_rows(service, property_url, current_date, current_date, device=device))
             previous_rows.extend(_fetch_search_console_rows(service, property_url, previous_date, previous_date, device=device))
+            previous_week_same_weekday_rows.extend(
+                _fetch_search_console_rows(service, property_url, same_weekday_previous_date, same_weekday_previous_date, device=device)
+            )
             current_7d_rows.extend(_fetch_search_console_rows(service, property_url, current_7d_start, end_date, device=device))
             previous_7d_rows.extend(_fetch_search_console_rows(service, property_url, previous_7d_start, previous_7d_end, device=device))
-            trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, start_date, end_date, device=device))
+            current_30d_rows.extend(_fetch_search_console_rows(service, property_url, current_30d_start, end_date, device=device))
+            previous_30d_rows.extend(_fetch_search_console_rows(service, property_url, previous_30d_start, previous_30d_end, device=device))
+            trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, trend_start_date, end_date, device=device))
 
         return {
             "rows": current_rows,
             "current_day": current_day_rows,
             "previous_day": previous_rows,
+            "previous_week_same_weekday_rows": previous_week_same_weekday_rows,
             "current_7d_rows": current_7d_rows,
             "previous_7d_rows": previous_7d_rows,
+            "current_30d_rows": current_30d_rows,
+            "previous_30d_rows": previous_30d_rows,
             "trend_28d_rows": trend_28d_rows,
             "source": "live",
             "error": None,
@@ -885,12 +903,19 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "property_urls_by_device": {str(target["device"]): str(target["property_url"]) for target in targets},
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
+            "trend_start_date": trend_start_date.isoformat(),
+            "trend_end_date": end_date.isoformat(),
             "current_date": current_date.isoformat(),
             "previous_date": previous_date.isoformat(),
+            "same_weekday_previous_date": same_weekday_previous_date.isoformat(),
             "current_7d_start": current_7d_start.isoformat(),
             "current_7d_end": end_date.isoformat(),
             "previous_7d_start": previous_7d_start.isoformat(),
             "previous_7d_end": previous_7d_end.isoformat(),
+            "current_30d_start": current_30d_start.isoformat(),
+            "current_30d_end": end_date.isoformat(),
+            "previous_30d_start": previous_30d_start.isoformat(),
+            "previous_30d_end": previous_30d_end.isoformat(),
         }
     except Exception as exc:
         LOGGER.warning("Search Console failed for %s due to credential/API error: %s", site.domain, exc)
@@ -1148,7 +1173,7 @@ def fetch_search_console_query_comparison(
 
 def collect_search_console_metrics(db: Session, site: Site) -> dict:
     """Son 28 gün query/ranking özetini çıkarır ve veritabanına kaydeder."""
-    decision = consume_api_quota(db, site, provider="search_console", units=5)
+    decision = consume_api_quota(db, site, provider="search_console", units=8)
     if not decision.allowed:
         return {
             "site_id": site.id,
@@ -1174,8 +1199,11 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     previous_rows = payload.get("previous_day", [])
     current_day_rows = payload.get("current_day_rows", [])
     previous_day_rows = payload.get("previous_day_rows", [])
+    previous_week_same_weekday_rows = payload.get("previous_week_same_weekday_rows", [])
     current_7d_rows = payload.get("current_7d_rows", [])
     previous_7d_rows = payload.get("previous_7d_rows", [])
+    current_30d_rows = payload.get("current_30d_rows", [])
+    previous_30d_rows = payload.get("previous_30d_rows", [])
     trend_28d_rows = payload.get("trend_28d_rows", [])
     source = payload.get("source", "failed")
     error = payload.get("error")
@@ -1237,6 +1265,17 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     current_7d_summary = period_summaries["current"]
     previous_7d_summary = period_summaries["previous"]
 
+    current_30d_summary = _summarize_rows(current_30d_rows)
+    previous_30d_summary = _summarize_rows(previous_30d_rows)
+    current_30d_summary_by_device = {
+        "MOBILE": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+        "DESKTOP": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+    }
+    previous_30d_summary_by_device = {
+        "MOBILE": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+        "DESKTOP": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+    }
+
     same_weekday_day_summary: dict | None = None
     try:
         wow_ref = date.fromisoformat(str(payload.get("current_date") or ""))
@@ -1246,26 +1285,46 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             key = target.isoformat()
             return [r for r in trend_28d_rows if str(r.get("date") or "") == key]
 
+        by_device_sw: dict[str, dict[str, dict[str, float]]] = {}
+        for device_code in ("MOBILE", "DESKTOP"):
+            by_device_sw[device_code] = {
+                "current_day_summary": _build_period_summary(
+                    [r for r in _rows_for_day(wow_ref) if str(r.get("device") or "").upper() == device_code]
+                ),
+                "previous_week_same_weekday_summary": _build_period_summary(
+                    [r for r in _rows_for_day(wow_prev) if str(r.get("device") or "").upper() == device_code]
+                ),
+            }
+
         same_weekday_day_summary = {
             "reference_date": wow_ref.isoformat(),
             "weekday_label_tr": weekday_tr(wow_ref),
             "previous_week_date": wow_prev.isoformat(),
             "current_day_summary": _build_period_summary(_rows_for_day(wow_ref)),
             "previous_week_same_weekday_summary": _build_period_summary(_rows_for_day(wow_prev)),
+            "by_device": by_device_sw,
             "property_url": site_url,
         }
     except (ValueError, TypeError, OSError):
         same_weekday_day_summary = None
 
+    _trend_start = str(payload.get("trend_start_date") or payload.get("start_date") or "")
+    _trend_end = str(payload.get("trend_end_date") or payload.get("end_date") or "")
+    try:
+        trend_range_start = date.fromisoformat(_trend_start)
+        trend_range_end = date.fromisoformat(_trend_end)
+    except (ValueError, TypeError, OSError):
+        trend_range_start = date.fromisoformat(str(payload.get("start_date") or ""))
+        trend_range_end = date.fromisoformat(str(payload.get("end_date") or ""))
     trend_summary_by_device = _build_recent_trend_summary_by_device(
         trend_28d_rows,
-        start_date=date.fromisoformat(str(payload.get("start_date") or "")),
-        end_date=date.fromisoformat(str(payload.get("end_date") or "")),
+        start_date=trend_range_start,
+        end_date=trend_range_end,
     )
     trend_summary = _build_recent_trend_summary(
         trend_28d_rows,
-        start_date=date.fromisoformat(str(payload.get("start_date") or "")),
-        end_date=date.fromisoformat(str(payload.get("end_date") or "")),
+        start_date=trend_range_start,
+        end_date=trend_range_end,
     )
     save_metrics(db, site.id, metrics, collected_at)
     current_row_count = save_search_console_query_rows(
@@ -1323,6 +1382,39 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         end_date=str(payload.get("previous_7d_end") or ""),
         collector_run_id=collector_run.id,
     )
+    current_30d_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="current_30d",
+        rows=current_30d_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("current_30d_start") or ""),
+        end_date=str(payload.get("current_30d_end") or ""),
+        collector_run_id=collector_run.id,
+    )
+    previous_30d_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="previous_30d",
+        rows=previous_30d_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("previous_30d_start") or ""),
+        end_date=str(payload.get("previous_30d_end") or ""),
+        collector_run_id=collector_run.id,
+    )
+    previous_week_same_weekday_row_count = save_search_console_query_rows(
+        db,
+        site_id=site.id,
+        property_url=site_url,
+        data_scope="previous_week_same_weekday",
+        rows=previous_week_same_weekday_rows,
+        collected_at=collected_at,
+        start_date=str(payload.get("same_weekday_previous_date") or ""),
+        end_date=str(payload.get("same_weekday_previous_date") or ""),
+        collector_run_id=collector_run.id,
+    )
     finish_collector_run(
         db,
         collector_run,
@@ -1345,10 +1437,22 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "previous_7d_summary_by_device": {
                 device: values["previous"] for device, values in period_summaries["by_device"].items()
             },
+            "current_30d_summary": current_30d_summary,
+            "previous_30d_summary": previous_30d_summary,
+            "current_30d_summary_by_device": current_30d_summary_by_device,
+            "previous_30d_summary_by_device": previous_30d_summary_by_device,
+            "same_weekday_day": same_weekday_day_summary,
             "trend_28d_summary": trend_summary,
             "trend_28d_summary_by_device": trend_summary_by_device,
         },
-        row_count=current_row_count + current_day_row_count + previous_row_count + current_7d_row_count + previous_7d_row_count,
+        row_count=current_row_count
+        + current_day_row_count
+        + previous_row_count
+        + current_7d_row_count
+        + previous_7d_row_count
+        + current_30d_row_count
+        + previous_30d_row_count
+        + previous_week_same_weekday_row_count,
     )
     # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
     db.commit()

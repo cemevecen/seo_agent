@@ -585,10 +585,14 @@
           button.classList.toggle('text-white', isActive);
           button.classList.toggle('text-slate-600', !isActive);
         });
-        hostCard.querySelectorAll('[data-device-panel]').forEach(function (panel) {
-          const isActive = panel.dataset.devicePanel === deviceKey;
-          panel.classList.toggle('hidden', !isActive);
-        });
+        const activePeriod = hostCard ? hostCard.querySelector('[data-sc-period-panel]:not(.hidden)') : null;
+        const scope = activePeriod || hostCard;
+        if (scope) {
+          scope.querySelectorAll('[data-device-panel]').forEach(function (panel) {
+            const isActive = panel.dataset.devicePanel === deviceKey;
+            panel.classList.toggle('hidden', !isActive);
+          });
+        }
         window.setTimeout(function () {
           initSearchConsoleTables(hostCard);
           renderSearchConsoleTrendCharts(hostCard);
@@ -607,6 +611,76 @@
       }) || buttons[0];
       if (initialButton) {
         activateDevice(initialButton.dataset.deviceToggle);
+      }
+    });
+  }
+
+  function initSearchConsolePeriodSwitch(root) {
+    (root || document).querySelectorAll('[data-sc-period-switch]').forEach(function (switcher) {
+      if (switcher.dataset.periodBound === '1') {
+        return;
+      }
+      switcher.dataset.periodBound = '1';
+      const hostCard = switcher.closest('section');
+      const buttons = switcher.querySelectorAll('[data-sc-period-toggle]');
+      const syncDeviceForActivePeriod = function () {
+        if (!hostCard) {
+          return;
+        }
+        const devSwitch = hostCard.querySelector('[data-search-console-device-switch]');
+        if (!devSwitch) {
+          return;
+        }
+        const activeBtn =
+          devSwitch.querySelector('[data-device-toggle][data-active="true"]') ||
+          devSwitch.querySelector('[data-device-toggle]');
+        if (!activeBtn) {
+          return;
+        }
+        const dk = activeBtn.dataset.deviceToggle;
+        const activePeriod = hostCard.querySelector('[data-sc-period-panel]:not(.hidden)');
+        if (!activePeriod) {
+          return;
+        }
+        activePeriod.querySelectorAll('[data-device-panel]').forEach(function (panel) {
+          const isActive = panel.dataset.devicePanel === dk;
+          panel.classList.toggle('hidden', !isActive);
+        });
+      };
+      const activatePeriod = function (periodKey) {
+        buttons.forEach(function (button) {
+          const isActive = button.dataset.scPeriodToggle === periodKey;
+          button.dataset.active = isActive ? 'true' : 'false';
+          button.classList.toggle('bg-violet-900', isActive);
+          button.classList.toggle('text-white', isActive);
+          button.classList.toggle('text-slate-600', !isActive);
+        });
+        if (hostCard) {
+          hostCard.querySelectorAll('[data-sc-period-panel]').forEach(function (panel) {
+            const isActive = panel.dataset.scPeriodPanel === periodKey;
+            panel.classList.toggle('hidden', !isActive);
+          });
+        }
+        window.setTimeout(function () {
+          syncDeviceForActivePeriod();
+          initSearchConsoleTables(hostCard);
+          renderSearchConsoleTrendCharts(hostCard);
+          fitSearchConsoleText(hostCard);
+        }, 40);
+      };
+
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activatePeriod(button.dataset.scPeriodToggle);
+        });
+      });
+
+      var initial =
+        Array.from(buttons).find(function (button) {
+          return button.dataset.active === 'true';
+        }) || buttons[0];
+      if (initial) {
+        activatePeriod(initial.dataset.scPeriodToggle);
       }
     });
   }
@@ -724,6 +798,7 @@
   function initSearchConsolePanels(root) {
     initSearchConsoleExpandables(root);
     initSearchConsoleSplitView(root);
+    initSearchConsolePeriodSwitch(root);
     initSearchConsoleDeviceSwitches(root);
     bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);

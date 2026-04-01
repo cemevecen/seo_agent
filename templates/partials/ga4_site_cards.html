@@ -54,19 +54,19 @@
                 type="button"
                 role="tab"
                 class="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition sm:px-4"
-                data-ga4-period-toggle="30"
+                data-ga4-period-toggle="7"
                 data-active="false"
               >
-                30d
+                7d
               </button>
               <button
                 type="button"
                 role="tab"
                 class="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition sm:px-4"
-                data-ga4-period-toggle="7"
+                data-ga4-period-toggle="30"
                 data-active="false"
               >
-                7d
+                30d
               </button>
             </div>
             {% endif %}
@@ -107,18 +107,22 @@
             </div>
           {% else %}
             <div class="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 overflow-hidden">
-              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
                 <div class="min-w-0 flex-1">
-                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">GA4 summary</p>
-                  <div data-ga4-period-heading="1">
-                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last full day vs same weekday last week</h6>
-                  </div>
-                  <div data-ga4-period-heading="30" class="hidden">
-                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last 30 days vs previous 30 days</h6>
-                  </div>
-                  <div data-ga4-period-heading="7" class="hidden">
-                    <h6 class="mt-2 text-lg font-semibold leading-snug text-slate-900 sm:text-xl">Last 7 days vs previous 7 days</h6>
-                  </div>
+                  {% set _dp = site.default_profile %}
+                  {% if _dp in site.profiles %}
+                    {% for period_key in ['1', '7', '30'] %}
+                      {% set _pr = site.profiles[_dp].periods[period_key] %}
+                      <div
+                        data-ga4-period-heading="{{ period_key }}"
+                        class="{% if period_key != '1' %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600"
+                      >
+                        {% if _pr.ranges and (_pr.ranges.last_end or _pr.ranges.prev_end) %}
+                          {{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }} vs {{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  {% endif %}
                 </div>
                 <div class="flex w-full shrink-0 flex-col items-stretch gap-3 lg:w-auto lg:items-end lg:pt-0.5">
                   <div class="w-full lg:w-auto">
@@ -147,7 +151,7 @@
                 </div>
               </div>
 
-              {% for period_key in ['1', '30', '7'] %}
+              {% for period_key in ['1', '7', '30'] %}
                 <div
                   data-ga4-period-panel="{{ period_key }}"
                   class="{% if period_key != '1' %}hidden {% endif %}space-y-5"

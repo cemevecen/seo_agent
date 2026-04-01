@@ -243,6 +243,18 @@ def _filter_ga4_iso_ddmmyy(value) -> str:
         return s[:10] if s else "—"
 
 
+def _filter_ga4_iso_ddmmyyyy(value) -> str:
+    """ISO tarih (YYYY-MM-DD) → dd.mm.yyyy (tam tarih)."""
+    if value is None or value == "":
+        return "—"
+    s = str(value).strip()
+    try:
+        d = date.fromisoformat(s[:10])
+        return d.strftime("%d.%m.%Y")
+    except (ValueError, TypeError, OSError):
+        return s[:10] if s else "—"
+
+
 jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
@@ -253,6 +265,7 @@ jinja_env.filters["ga4_abs_page_url"] = _filter_ga4_abs_page_url
 jinja_env.filters["ga4_site_root"] = _filter_ga4_site_root
 jinja_env.filters["ga4_source_href"] = _filter_ga4_source_href
 jinja_env.filters["ga4_iso_ddmmyy"] = _filter_ga4_iso_ddmmyy
+jinja_env.filters["ga4_iso_ddmmyyyy"] = _filter_ga4_iso_ddmmyyyy
 jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
 templates = Jinja2Templates(env=jinja_env)
@@ -676,19 +689,80 @@ def _sanitize_search_console_trend(trend: dict) -> dict:
     return sanitized
 
 
+def _format_sc_tr_date(iso_date: str) -> str:
+    raw = str(iso_date or "").strip()
+    if not raw:
+        return ""
+    try:
+        d = datetime.fromisoformat(raw[:10]).date()
+        return f"{d.day:02d}.{d.month:02d}.{d.year}"
+    except (ValueError, TypeError, OSError):
+        return raw
+
+
+def _format_sc_tr_date_range(start_iso: str, end_iso: str) -> str:
+    a = _format_sc_tr_date(start_iso)
+    b = _format_sc_tr_date(end_iso)
+    if not a and not b:
+        return ""
+    if a == b:
+        return a
+    return f"{a} – {b}"
+
+
+def _scope_range_from_rows(rows: list[dict]) -> tuple[str, str]:
+    if not rows:
+        return ("", "")
+    first = rows[0]
+    return (str(first.get("start_date") or ""), str(first.get("end_date") or ""))
+
+
+def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
+    t = dict(trend or {})
+    if str(t.get("mode") or "") != "last_28d":
+        return t
+    dates = list(t.get("dates") or [])
+    labels = list(t.get("labels") or [])
+    clicks = list(t.get("clicks") or [])
+    position = list(t.get("position") or [])
+    L = min(len(dates), len(clicks), len(position))
+    if L == 0:
+        return t
+    take = max(0, min(int(last_n), L))
+    if take == 0:
+        return t
+    return {
+        **t,
+        "mode": "last_28d",
+        "dates": dates[-take:],
+        "labels": labels[-take:] if len(labels) >= take else labels,
+        "clicks": clicks[-take:],
+        "position": position[-take:],
+    }
+
+
 def _search_console_report_payload(db, *, site_id: int) -> dict:
-    current_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
-    previous_rows = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
+    current_rows_7 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
+    previous_rows_7 = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
+    current_rows_30 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_30d")
+    previous_rows_30 = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_30d")
+    current_rows_1 = get_latest_search_console_rows(db, site_id=site_id, data_scope="current_day")
+    previous_rows_wow = get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_week_same_weekday")
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
         provider="search_console",
         strategy="all",
     )
-    current_summary = summary_payload.get("current_7d_summary") or _summarize_search_console_rows(current_rows)
-    previous_summary = summary_payload.get("previous_7d_summary") or _summarize_search_console_rows(previous_rows)
-    current_summary_by_device = summary_payload.get("current_7d_summary_by_device") or {}
-    previous_summary_by_device = summary_payload.get("previous_7d_summary_by_device") or {}
+    current_summary = summary_payload.get("current_7d_summary") or _summarize_search_console_rows(current_rows_7)
+    previous_summary = summary_payload.get("previous_7d_summary") or _summarize_search_console_rows(previous_rows_7)
+    current_7d_by_device = summary_payload.get("current_7d_summary_by_device") or {}
+    previous_7d_by_device = summary_payload.get("previous_7d_summary_by_device") or {}
+    current_30d_by_device = summary_payload.get("current_30d_summary_by_device") or {}
+    previous_30d_by_device = summary_payload.get("previous_30d_summary_by_device") or {}
+    sw_day = summary_payload.get("same_weekday_day") if isinstance(summary_payload.get("same_weekday_day"), dict) else {}
+    sw_by_device = sw_day.get("by_device") if isinstance(sw_day.get("by_device"), dict) else {}
+
     trend_summary = _sanitize_search_console_trend(
         summary_payload.get("trend_28d_summary")
         or summary_payload.get("trend_7d_summary")
@@ -700,44 +774,135 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             "position": [],
         }
     )
-    top_queries = _build_search_console_top_queries(current_rows, previous_rows, limit=50)
+    top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
     trend_summary_by_device = (
         summary_payload.get("trend_28d_summary_by_device")
         or summary_payload.get("trend_7d_summary_by_device")
         or {}
     )
 
-    views: dict[str, dict] = {}
-    for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
-        device_code = device_key.upper()
-        filtered_current_rows = _filter_search_console_rows_by_device(current_rows, device_code)
-        filtered_previous_rows = _filter_search_console_rows_by_device(previous_rows, device_code)
-        device_trend = _sanitize_search_console_trend(trend_summary_by_device.get(device_code) or {
-            "mode": "last_28d",
-            "labels": [],
-            "dates": [],
-            "clicks": [],
-            "position": [],
-        })
-        device_top_queries = _build_search_console_top_queries(filtered_current_rows, filtered_previous_rows, limit=50)
-        views[device_key] = {
-            "device_code": device_code,
-            "device_label": device_label,
-            "has_data": bool(filtered_current_rows or filtered_previous_rows or device_top_queries),
-            "summary_current": current_summary_by_device.get(device_code) or _summarize_search_console_rows(filtered_current_rows),
-            "summary_previous": previous_summary_by_device.get(device_code) or _summarize_search_console_rows(filtered_previous_rows),
-            "trend": device_trend,
-            "top_queries": device_top_queries,
+    range_7_last = _scope_range_from_rows(current_rows_7)
+    range_7_prev = _scope_range_from_rows(previous_rows_7)
+    range_30_last = _scope_range_from_rows(current_rows_30)
+    range_30_prev = _scope_range_from_rows(previous_rows_30)
+    # 1g kartları: referans ve WoW tarihleri (özet JSON veya snapshot satırlarından)
+    ref_d_global = str(sw_day.get("reference_date") or "").strip()
+    if not ref_d_global:
+        _s1, _e1 = _scope_range_from_rows(current_rows_1)
+        ref_d_global = (_e1 or _s1 or range_7_last[1] or "").strip()
+    prev_wow_d_global = str(sw_day.get("previous_week_date") or "").strip()
+    if not prev_wow_d_global:
+        _sws, _swe = _scope_range_from_rows(previous_rows_wow)
+        prev_wow_d_global = (_swe or _sws or "").strip()
+    if not prev_wow_d_global and ref_d_global:
+        try:
+            prev_wow_d_global = (date.fromisoformat(ref_d_global[:10]) - timedelta(days=7)).isoformat()
+        except (ValueError, TypeError, OSError):
+            prev_wow_d_global = ""
+
+    periods: dict[str, dict] = {}
+    for period_key, pd_days, cur_lbl, prev_lbl, trend_days in (
+        ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
+        ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
+        ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
+    ):
+        views: dict[str, dict] = {}
+        for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
+            device_code = device_key.upper()
+            empty_trend = {
+                "mode": "last_28d",
+                "labels": [],
+                "dates": [],
+                "clicks": [],
+                "position": [],
+            }
+            base_trend = _sanitize_search_console_trend(trend_summary_by_device.get(device_code) or empty_trend)
+
+            if period_key == "1":
+                fc = _filter_search_console_rows_by_device(current_rows_1, device_code)
+                fp = _filter_search_console_rows_by_device(previous_rows_wow, device_code)
+                sw_dev = sw_by_device.get(device_code) if isinstance(sw_by_device.get(device_code), dict) else {}
+                sc = sw_dev.get("current_day_summary") if isinstance(sw_dev.get("current_day_summary"), dict) else None
+                sp = (
+                    sw_dev.get("previous_week_same_weekday_summary")
+                    if isinstance(sw_dev.get("previous_week_same_weekday_summary"), dict)
+                    else None
+                )
+                q_cur = _summarize_search_console_rows(fc)
+                q_prev = _summarize_search_console_rows(fp)
+                # Sorgu satırları varsa özetleri API/query toplamından al; günlük trend özeti sıfır dönebiliyor
+                summary_current = q_cur if fc else (sc or q_cur)
+                summary_previous = q_prev if fp else (sp or q_prev)
+                device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                range_last = (
+                    _format_sc_tr_date(ref_d_global)
+                    or _format_sc_tr_date_range(*_scope_range_from_rows(fc))
+                )
+                range_prev = (
+                    _format_sc_tr_date(prev_wow_d_global)
+                    or _format_sc_tr_date_range(*_scope_range_from_rows(fp))
+                )
+            elif period_key == "7":
+                fc = _filter_search_console_rows_by_device(current_rows_7, device_code)
+                fp = _filter_search_console_rows_by_device(previous_rows_7, device_code)
+                summary_current = current_7d_by_device.get(device_code) or _summarize_search_console_rows(fc)
+                summary_previous = previous_7d_by_device.get(device_code) or _summarize_search_console_rows(fp)
+                device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                range_last = _format_sc_tr_date_range(*range_7_last)
+                range_prev = _format_sc_tr_date_range(*range_7_prev)
+            else:
+                fc = _filter_search_console_rows_by_device(current_rows_30, device_code)
+                fp = _filter_search_console_rows_by_device(previous_rows_30, device_code)
+                summary_current = current_30d_by_device.get(device_code) or _summarize_search_console_rows(fc)
+                summary_previous = previous_30d_by_device.get(device_code) or _summarize_search_console_rows(fp)
+                device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                range_last = _format_sc_tr_date_range(*range_30_last)
+                range_prev = _format_sc_tr_date_range(*range_30_prev)
+
+            views[device_key] = {
+                "device_code": device_code,
+                "device_label": device_label,
+                "has_data": bool(fc or fp or device_top),
+                "summary_current": summary_current,
+                "summary_previous": summary_previous,
+                "trend": chart_trend,
+                "top_queries": device_top,
+                "table_label_current": cur_lbl,
+                "table_label_previous": prev_lbl,
+                "range_last": range_last,
+                "range_prev": range_prev,
+            }
+
+        mv = views.get("mobile") or {}
+        periods[period_key] = {
+            "period_days": pd_days,
+            "heading": f"{cur_lbl} ve {prev_lbl.lower()}",
+            "subtitle": (
+                f"Güncel dönem: {mv.get('range_last') or '—'} · "
+                f"Karşılaştırma: {mv.get('range_prev') or '—'}"
+            ),
+            "label_current": cur_lbl,
+            "label_previous": prev_lbl,
+            "trend_caption": "Son 7 günün günlük trendi"
+            if pd_days in (1, 7)
+            else "Son 30 günün günlük trendi",
+            "views": views,
         }
 
+    legacy_views = periods["7"]["views"]
+
     return {
-        "has_data": bool(current_rows or previous_rows or top_queries),
+        "has_data": bool(current_rows_7 or previous_rows_7 or top_queries),
         "summary_current": current_summary,
         "summary_previous": previous_summary,
         "trend": trend_summary,
         "top_queries": top_queries,
         "default_device": "mobile",
-        "views": views,
+        "views": legacy_views,
+        "periods": periods,
     }
 
 
@@ -4611,19 +4776,19 @@ def _ga4_sites_payload(db) -> list[dict]:
                         latest=latest,
                         prop_id=prop_id,
                     ),
-                    "30": _ga4_profile_payload_for_period(
-                        db,
-                        site_id=site.id,
-                        profile=profile,
-                        period_days=30,
-                        latest=latest,
-                        prop_id=prop_id,
-                    ),
                     "7": _ga4_profile_payload_for_period(
                         db,
                         site_id=site.id,
                         profile=profile,
                         period_days=7,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
+                    "30": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=30,
                         latest=latest,
                         prop_id=prop_id,
                     ),

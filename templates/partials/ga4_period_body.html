@@ -64,8 +64,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Sessions</p>
       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ sessions_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.last_total | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ sessions_pct_class }} sm:text-[11px]" title="vs previous period">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ sessions_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ sessions_class }} sm:text-[11px]" title="{{ last_l }}">{{ p.last_total | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-500 sm:text-xs">{{ last_l }}</p>
       <div class="mt-2 min-w-0 sm:mt-3">
@@ -76,8 +76,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Users</p>
       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ users_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.users_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ users_pct_class }} sm:text-[11px]" title="vs previous period">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ users_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ users_class }} sm:text-[11px]" title="{{ last_l }}">{{ p.users_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-500 sm:text-xs">{{ last_l }}</p>
       <div class="mt-2 min-w-0 sm:mt-3">
@@ -88,8 +88,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4 md:p-5">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 sm:text-xs sm:tracking-[0.12em]">Engaged sessions</p>
       <div class="mt-2 min-w-0 flex-1 sm:mt-3">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ engaged_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.engaged_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ engaged_pct_class }} sm:text-[11px]" title="vs previous period">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ engaged_pct_class }}" data-fit-text data-fit-text-max="2.45" data-fit-text-min="1.05">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ engaged_class }} sm:text-[11px]" title="{{ last_l }}">{{ p.engaged_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-500 sm:text-xs">{{ last_l }}</p>
       <div class="mt-2 min-w-0 sm:mt-3">
