@@ -94,11 +94,11 @@ function initializeAlertsView() {
       const allBtns = card.querySelectorAll('.comparison-btn');
       allBtns.forEach(b => {
         if (b.dataset.comparison === comparisonType) {
-          b.classList.remove('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200', 'hover:bg-slate-200');
-          b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+          b.classList.remove('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+          b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
         } else {
-          b.classList.add('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200', 'hover:bg-slate-200');
-          b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+          b.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+          b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
         }
       });
       
@@ -361,11 +361,11 @@ async function loadAlertDetails(alertId, card) {
     const allBtns = card.querySelectorAll('.comparison-btn');
     allBtns.forEach(b => {
       if (b.dataset.comparison === initialType) {
-        b.classList.remove('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200', 'hover:bg-slate-200');
-        b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+        b.classList.remove('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+        b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
       } else {
-        b.classList.add('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200', 'hover:bg-slate-200');
-        b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'active');
+        b.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+        b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
       }
     });
     
@@ -422,13 +422,13 @@ function renderComparisonData(alertId, comparisonType) {
       let html = '';
       const typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
       const toneMap = {
-        blue: 'bg-sky-50 border-sky-100 text-slate-900 dark:text-slate-100',
+        blue: 'bg-sky-50 dark:bg-slate-900/60 border-sky-100 dark:border-slate-600 text-slate-900 dark:text-slate-100',
         slate: 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100',
-        red: 'bg-rose-50 border-rose-100 text-rose-700',
-        green: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+        red: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/50 text-rose-700 dark:text-rose-300',
+        green: 'bg-emerald-50 dark:bg-emerald-950/35 border-emerald-100 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300',
       };
 
-      html += `<div class="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 sm:p-5">`;
+      html += `<div class="rounded-2xl border border-sky-100 dark:border-slate-600 bg-sky-50/70 dark:bg-slate-900/70 p-4 sm:p-5">`;
       html += `<p class="text-xs font-semibold tracking-[0.16em] text-slate-500 dark:text-slate-400 uppercase mb-3">${typeLabel}</p>`;
 
       if (comparison.message) {
@@ -466,7 +466,7 @@ function renderComparisonData(alertId, comparisonType) {
           const change = detail.change || 0;
           const isImprovement = detail.is_improvement;
           const isNeutral = isImprovement === null || isImprovement === undefined;
-          const statusClass = isNeutral ? 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50' : isImprovement ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50';
+          const statusClass = isNeutral ? 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50' : isImprovement ? 'text-green-600 dark:text-emerald-400 bg-green-50 dark:bg-emerald-950/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40';
           const statusIcon = isNeutral ? '→' : isImprovement ? '↓' : '↑';
           const statusText = isNeutral ? 'Değişmedi' : isImprovement ? 'İyileşme' : 'Kötüleşme';
           const changeStr = change > 0 ? `+${change.toFixed(1)}` : change < 0 ? change.toFixed(1) : '0.0';
@@ -492,113 +492,194 @@ function renderComparisonData(alertId, comparisonType) {
   }
 }
 
-// Site filter functionality
-function initializeFilter() {
-  const filterSelect = document.getElementById('site-filter');
-  const filterTabs = document.querySelectorAll('.alert-type-tab');
-  const periodTabs = document.querySelectorAll('.alert-period-tab');
-  const container = document.getElementById('alerts-container');
-  let selectedType = 'all';
-  let selectedPeriodDays = 7;
+// Site filter — state + delegation (HTMX ile sayfa tekrar gelse bile tek listener; Tailwind safelist HTML'de)
+let __alertsSelectedType = 'all';
+let __alertsSelectedPeriodDays = 7;
+let __alertsFilterDelegationBound = false;
 
-  function applyFilters() {
-    if (!container) {
+function applyAlertsFilters() {
+  const container = document.getElementById('alerts-container');
+  const filterSelect = document.getElementById('site-filter');
+  if (!container) {
+    return;
+  }
+  const alertCards = container.querySelectorAll('.alert-card');
+  const selectedDomain = filterSelect ? filterSelect.value : '';
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - __alertsSelectedPeriodDays);
+
+  alertCards.forEach(card => {
+    const cardDomain = card.dataset.domain;
+    const cardCategory = (card.getAttribute('data-alert-category') || card.dataset.alertCategory || 'other').trim();
+    const triggeredAt = card.dataset.triggeredAt ? new Date(card.dataset.triggeredAt) : null;
+    const triggeredOk = triggeredAt && !Number.isNaN(triggeredAt.getTime());
+    const domainMatches = selectedDomain === '' || cardDomain === selectedDomain;
+    const typeMatches = __alertsSelectedType === 'all' || cardCategory === __alertsSelectedType;
+    const periodMatches = !triggeredOk || triggeredAt >= cutoff;
+    card.style.display = domainMatches && typeMatches && periodMatches ? 'block' : 'none';
+  });
+
+  const visibleCards = Array.from(alertCards).filter(card => card.style.display !== 'none');
+  let emptyState = container.querySelector('.empty-state');
+  if (visibleCards.length === 0) {
+    if (!emptyState) {
+      emptyState = document.createElement('div');
+      emptyState.className = 'empty-state rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-slate-500 dark:text-slate-400';
+      container.appendChild(emptyState);
+    }
+    emptyState.textContent = 'Bu filtreye uygun alarm kaydı bulunamadı.';
+    emptyState.style.display = 'block';
+  } else if (emptyState) {
+    emptyState.style.display = 'none';
+  }
+}
+
+function resetAlertTypeTabToInactive(item) {
+  item.classList.remove(
+    'ring-2',
+    'ring-offset-0',
+    'ring-offset-2',
+    'ring-slate-300',
+    'ring-slate-400',
+    'dark:ring-slate-500',
+    'dark:ring-offset-slate-900',
+    'bg-slate-900',
+    'text-white',
+    'bg-rose-600',
+    'bg-sky-600',
+    'bg-amber-500'
+  );
+  const f = item.dataset.alertFilter;
+  if (f === 'all') {
+    item.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200');
+  } else if (f === 'ctr') {
+    item.classList.add('bg-rose-50', 'text-rose-700', 'dark:bg-rose-950/45', 'dark:text-rose-300');
+  } else if (f === 'position') {
+    item.classList.add('bg-sky-50', 'text-sky-700', 'dark:bg-sky-950/45', 'dark:text-sky-300');
+  } else if (f === 'impression') {
+    item.classList.add('bg-amber-50', 'text-amber-700', 'dark:bg-amber-950/40', 'dark:text-amber-300');
+  }
+}
+
+function activateAlertTypeTab(tab) {
+  const filterTabs = tab.closest('#alerts-view')?.querySelectorAll('.alert-type-tab');
+  if (!filterTabs) {
+    return;
+  }
+  filterTabs.forEach(resetAlertTypeTabToInactive);
+
+  const selectedType = tab.dataset.alertFilter || 'all';
+  tab.classList.remove(
+    'bg-slate-100',
+    'dark:bg-slate-800/70',
+    'text-slate-700',
+    'dark:text-slate-200',
+    'bg-rose-50',
+    'text-rose-700',
+    'dark:bg-rose-950/45',
+    'dark:text-rose-300',
+    'bg-sky-50',
+    'text-sky-700',
+    'dark:bg-sky-950/45',
+    'dark:text-sky-300',
+    'bg-amber-50',
+    'text-amber-700',
+    'dark:bg-amber-950/40',
+    'dark:text-amber-300'
+  );
+
+  if (selectedType === 'all') {
+    tab.classList.add('bg-slate-900', 'text-white');
+  } else if (selectedType === 'ctr') {
+    tab.classList.add('bg-rose-600', 'text-white');
+  } else if (selectedType === 'position') {
+    tab.classList.add('bg-sky-600', 'text-white');
+  } else if (selectedType === 'impression') {
+    tab.classList.add('bg-amber-500', 'text-white');
+  }
+  /* ring-offset yok — koyu modda beyaz halka oluşmaz */
+  tab.classList.add('ring-2', 'ring-offset-0', 'ring-slate-400', 'dark:ring-slate-500');
+}
+
+function syncAlertTypeTabsFromState() {
+  const view = document.getElementById('alerts-view');
+  if (!view) {
+    return;
+  }
+  const tab = view.querySelector(`.alert-type-tab[data-alert-filter="${__alertsSelectedType}"]`);
+  if (tab) {
+    activateAlertTypeTab(tab);
+  }
+}
+
+function syncPeriodTabsFromState() {
+  const view = document.getElementById('alerts-view');
+  if (!view) {
+    return;
+  }
+  const periodTabs = view.querySelectorAll('.alert-period-tab');
+  periodTabs.forEach(t => {
+    t.classList.remove('bg-slate-900', 'text-white');
+    t.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300');
+  });
+  const active = view.querySelector(`.alert-period-tab[data-period="${__alertsSelectedPeriodDays}"]`);
+  if (active) {
+    active.classList.remove('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300');
+    active.classList.add('bg-slate-900', 'text-white');
+  }
+}
+
+function bindAlertsFilterDelegationOnce() {
+  if (__alertsFilterDelegationBound) {
+    return;
+  }
+  __alertsFilterDelegationBound = true;
+
+  document.body.addEventListener('click', function (e) {
+    const view = document.getElementById('alerts-view');
+    if (!view) {
       return;
     }
-    const alertCards = document.querySelectorAll('#alerts-container .alert-card');
-    const selectedDomain = filterSelect ? filterSelect.value : '';
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - selectedPeriodDays);
-
-    alertCards.forEach(card => {
-      const cardDomain = card.dataset.domain;
-      const cardCategory = (card.getAttribute('data-alert-category') || card.dataset.alertCategory || 'other').trim();
-      const triggeredAt = card.dataset.triggeredAt ? new Date(card.dataset.triggeredAt) : null;
-      const triggeredOk = triggeredAt && !Number.isNaN(triggeredAt.getTime());
-      const domainMatches = selectedDomain === '' || cardDomain === selectedDomain;
-      const typeMatches = selectedType === 'all' || cardCategory === selectedType;
-      const periodMatches = !triggeredOk || triggeredAt >= cutoff;
-      card.style.display = domainMatches && typeMatches && periodMatches ? 'block' : 'none';
-    });
-
-    const visibleCards = Array.from(alertCards).filter(card => card.style.display !== 'none');
-    let emptyState = container.querySelector('.empty-state');
-    if (visibleCards.length === 0) {
-      if (!emptyState) {
-        emptyState = document.createElement('div');
-        emptyState.className = 'empty-state rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-slate-500 dark:text-slate-400';
-        container.appendChild(emptyState);
-      }
-      emptyState.textContent = 'Bu filtreye uygun alarm kaydı bulunamadı.';
-      emptyState.style.display = 'block';
-    } else if (emptyState) {
-      emptyState.style.display = 'none';
+    const typeTab = e.target.closest('.alert-type-tab');
+    if (typeTab && view.contains(typeTab)) {
+      e.preventDefault();
+      __alertsSelectedType = typeTab.dataset.alertFilter || 'all';
+      activateAlertTypeTab(typeTab);
+      applyAlertsFilters();
+      return;
     }
-  }
-
-  if (filterSelect) {
-    filterSelect.addEventListener('change', applyFilters);
-  }
-
-  filterTabs.forEach(tab => {
-    tab.addEventListener('click', function() {
-      selectedType = tab.dataset.alertFilter || 'all';
-      filterTabs.forEach(item => {
-        item.classList.remove('ring-2', 'ring-offset-2', 'ring-slate-300');
-        if (item.dataset.alertFilter === 'all') {
-          item.classList.remove('bg-slate-900', 'text-white');
-          item.classList.add('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200');
-        } else if (item.dataset.alertFilter === 'ctr') {
-          item.classList.remove('bg-rose-600', 'text-white');
-          item.classList.add('bg-rose-50', 'text-rose-700');
-        } else if (item.dataset.alertFilter === 'position') {
-          item.classList.remove('bg-sky-600', 'text-white');
-          item.classList.add('bg-sky-50', 'text-sky-700');
-        } else if (item.dataset.alertFilter === 'impression') {
-          item.classList.remove('bg-amber-500', 'text-white');
-          item.classList.add('bg-amber-50', 'text-amber-700');
-        }
-      });
-
-      if (selectedType === 'all') {
-        tab.classList.remove('bg-slate-100 dark:bg-slate-800/70', 'text-slate-700 dark:text-slate-200');
-        tab.classList.add('bg-slate-900', 'text-white');
-      } else if (selectedType === 'ctr') {
-        tab.classList.remove('bg-rose-50', 'text-rose-700');
-        tab.classList.add('bg-rose-600', 'text-white');
-      } else if (selectedType === 'position') {
-        tab.classList.remove('bg-sky-50', 'text-sky-700');
-        tab.classList.add('bg-sky-600', 'text-white');
-      } else if (selectedType === 'impression') {
-        tab.classList.remove('bg-amber-50', 'text-amber-700');
-        tab.classList.add('bg-amber-500', 'text-white');
-      }
-      tab.classList.add('ring-2', 'ring-offset-2', 'ring-slate-300');
-      applyFilters();
-    });
-  });
-
-  periodTabs.forEach(tab => {
-    tab.addEventListener('click', function() {
-      selectedPeriodDays = parseInt(tab.dataset.period, 10);
+    const periodTab = e.target.closest('.alert-period-tab');
+    if (periodTab && view.contains(periodTab)) {
+      e.preventDefault();
+      __alertsSelectedPeriodDays = parseInt(periodTab.dataset.period, 10) || 7;
       try {
-        window.__alertsSelectedPeriodDays = selectedPeriodDays;
-      } catch (e) {}
-      periodTabs.forEach(t => {
-        t.classList.remove('bg-slate-900', 'text-white');
-        t.classList.add('bg-slate-100 dark:bg-slate-800/70', 'text-slate-600 dark:text-slate-300');
-      });
-      tab.classList.remove('bg-slate-100 dark:bg-slate-800/70', 'text-slate-600 dark:text-slate-300');
-      tab.classList.add('bg-slate-900', 'text-white');
-      applyFilters();
-    });
+        window.__alertsSelectedPeriodDays = __alertsSelectedPeriodDays;
+      } catch (err) {}
+      syncPeriodTabsFromState();
+      applyAlertsFilters();
+    }
   });
 
-  try {
-    window.__alertsSelectedPeriodDays = selectedPeriodDays;
-  } catch (e) {}
+  document.body.addEventListener('change', function (e) {
+    if (e.target.id !== 'site-filter') {
+      return;
+    }
+    const view = document.getElementById('alerts-view');
+    if (!view || !view.contains(e.target)) {
+      return;
+    }
+    applyAlertsFilters();
+  });
+}
 
-  applyFilters();
+function initializeFilter() {
+  bindAlertsFilterDelegationOnce();
+  try {
+    window.__alertsSelectedPeriodDays = __alertsSelectedPeriodDays;
+  } catch (e) {}
+  syncPeriodTabsFromState();
+  syncAlertTypeTabsFromState();
+  applyAlertsFilters();
 }
 
 function autoOpenSelectedAlertFromRoute() {
@@ -619,7 +700,7 @@ function autoOpenSelectedAlertFromRoute() {
     return;
   }
 
-  card.classList.add('ring-2', 'ring-sky-200', 'shadow-sm');
+  card.classList.add('ring-2', 'ring-sky-200', 'dark:ring-sky-700', 'shadow-sm');
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (!details.classList.contains('show')) {
     button.click();

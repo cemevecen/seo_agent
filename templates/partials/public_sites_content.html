@@ -4,17 +4,21 @@
   data-header-title="External Siteler"
   data-header-explorer-href="/external"
 >
-  <section class="rounded-[2rem] border border-orange-200 bg-[linear-gradient(120deg,rgba(255,247,237,0.95),rgba(255,255,255,0.98)_45%,rgba(254,242,242,0.9))] p-6 shadow-[0_24px_60px_-38px_rgba(194,65,12,0.45)] ring-1 ring-white/70">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-700/80">External Zone</p>
-        <h3 class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">External Siteler</h3>
-        <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.</p>
+  <section
+    class="rounded-[2rem] border border-orange-200 bg-[linear-gradient(120deg,rgba(255,247,237,0.95),rgba(255,255,255,0.98)_45%,rgba(254,242,242,0.9))] p-5 shadow-[0_24px_60px_-38px_rgba(194,65,12,0.45)] ring-1 ring-white/70 dark:border-orange-900/50 dark:bg-[linear-gradient(125deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96)_42%,rgba(67,20,7,0.55))] dark:shadow-[0_24px_50px_-36px_rgba(0,0,0,0.65)] dark:ring-slate-700/90 sm:p-6"
+  >
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-700/80 dark:text-orange-400/90">External Zone</p>
+        <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">External Siteler</h3>
+        <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
+          Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.
+        </p>
       </div>
       <button
         type="button"
         id="refresh-public-sites-all"
-        class="rounded-full bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500"
+        class="w-full shrink-0 rounded-full bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500 dark:bg-orange-700 dark:hover:bg-orange-600 sm:w-auto"
         onclick="refreshAllPublicSites(this)"
       >
         Tüm External Siteleri Yenile
@@ -64,7 +68,7 @@
         </div>
         <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
       </div>
-      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-white/70 dark:bg-slate-800/70 ring-1 ring-sky-100 dark:ring-sky-900/40">
+      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-sky-200/70 dark:ring-sky-900/45">
         <div id="external-onboarding-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
       </div>
     </div>

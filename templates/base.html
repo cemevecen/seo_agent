@@ -34,6 +34,54 @@
   <script>
     tailwind.config = { darkMode: 'class' };
   </script>
+  <style id="seo-dark-form-controls">
+    /* Native form controls stay light unless we force dark UI + explicit fields */
+    html.dark {
+      color-scheme: dark;
+    }
+    html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+    html.dark textarea,
+    html.dark select {
+      background-color: #1e293b;
+      color: #f1f5f9;
+      border-color: #475569;
+    }
+    html.dark input::placeholder,
+    html.dark textarea::placeholder {
+      color: #94a3b8;
+    }
+    html.dark input:focus,
+    html.dark textarea:focus,
+    html.dark select:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px #334155;
+      border-color: #64748b;
+    }
+    html.dark input:disabled,
+    html.dark textarea:disabled,
+    html.dark select:disabled {
+      opacity: 0.6;
+    }
+    html.dark input[type="checkbox"],
+    html.dark input[type="radio"] {
+      accent-color: #38bdf8;
+      border-color: #475569;
+    }
+    html.dark input[type="file"]::file-selector-button {
+      background-color: #334155;
+      color: #e2e8f0;
+      border: 1px solid #475569;
+      border-radius: 0.375rem;
+      padding: 0.25rem 0.5rem;
+      margin-right: 0.5rem;
+    }
+  </style>
+  <style id="seo-dark-skeleton-progress">
+    /* Skeleton (animate-pulse) açık gri — CDN veya eksik dark: için yedek */
+    html.dark .animate-pulse [class*="bg-slate-200"] {
+      background-color: rgb(51 65 85) !important;
+    }
+  </style>
   <!-- HTMX CDN -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <!-- Plotly CDN -->
@@ -69,14 +117,14 @@
     </aside>
 
     <main class="min-w-0 flex-1">
-      <header class="border-b border-slate-200 bg-white px-4 py-4 sm:px-6 dark:border-slate-700 dark:bg-slate-900">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex min-w-0 flex-1 items-center justify-between gap-3 sm:justify-start">
-            <div class="flex min-w-0 items-center gap-3">
+      <header class="border-b border-slate-200 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex flex-col gap-3">
+          <div class="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+            <div class="flex min-w-0 flex-1 items-start gap-2 sm:items-center sm:gap-3">
               <button
                 id="sidebar-toggle"
                 type="button"
-                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 sm:mt-0 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                 aria-expanded="true"
                 aria-controls="sidebar"
                 title="Sidebar Daralt/Genişlet"
@@ -85,12 +133,17 @@
                   <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
                 </svg>
               </button>
-              <h2 id="header-site-title" class="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{{ site_name or "SEO Agent Dashboard" }}</h2>
+              <h2
+                id="header-site-title"
+                class="min-w-0 flex-1 text-base font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere] [word-break:break-word] sm:text-lg sm:leading-tight md:text-xl lg:max-w-[min(100%,42rem)] lg:truncate xl:max-w-[min(100%,52rem)] dark:text-slate-100"
+              >
+                {{ site_name or "SEO Agent Dashboard" }}
+              </h2>
             </div>
             <button
               id="theme-toggle"
               type="button"
-              class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 sm:ml-2 lg:ml-3"
+              class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               title="Açık / koyu tema"
               aria-label="Tema değiştir"
             >
@@ -103,15 +156,18 @@
               <span class="sr-only">Tema</span>
             </button>
           </div>
-          <div class="hidden flex-wrap items-center gap-3 text-sm lg:flex">
-            <a href="/" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</a>
-            <a href="/search-console" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Search Console</a>
-            <a href="/ga4" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">GA4</a>
-            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">PageSpeed</a>
-            <a href="/external" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">External</a>
-            <a href="/alerts" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Uyarılar</a>
-            <a href="/settings" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Ayarlar</a>
-          </div>
+          <nav
+            class="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-slate-200 pt-3 text-[11px] font-medium dark:border-slate-700 sm:gap-x-3 sm:text-xs md:text-sm"
+            aria-label="Ana gezinme"
+          >
+            <a href="/" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</a>
+            <a href="/search-console" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Search Console</a>
+            <a href="/ga4" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">GA4</a>
+            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">PageSpeed</a>
+            <a href="/external" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">External</a>
+            <a href="/alerts" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Uyarılar</a>
+            <a href="/settings" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Ayarlar</a>
+          </nav>
         </div>
       </header>
 

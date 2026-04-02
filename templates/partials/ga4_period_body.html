@@ -1,7 +1,7 @@
 {% set pd = period_days | int %}
 {% if pd == 1 %}
   {% set last_l = 'Last full day' %}
-  {% set prev_l = 'Same weekday last week' %}
+  {% set prev_l = 'last wday' %}
   {% set ch_l = 'Channel summary (7d snapshot — reference)' %}
   {% set org_l = 'Organic share (7d snapshot)' %}
 {% elif pd == 7 %}
@@ -30,15 +30,12 @@
 {% set sessions_diff = p.last_total - p.prev_total %}
 {% set users_diff = p.users_last - p.users_prev %}
 {% set engaged_diff = p.engaged_last - p.engaged_prev %}
-{% set er_diff = p.engagement_rate_last_pct - p.engagement_rate_prev_pct %}
 {% set sessions_class = 'text-emerald-600' if sessions_diff >= 0 else 'text-rose-600' %}
 {% set users_class = 'text-emerald-600' if users_diff >= 0 else 'text-rose-600' %}
 {% set engaged_class = 'text-emerald-600' if engaged_diff >= 0 else 'text-rose-600' %}
-{% set er_class = 'text-emerald-600' if er_diff >= 0 else 'text-rose-600' %}
 {% set sp = (p.sessions_pct_change | default(0)) | float %}
 {% set up = (p.users_pct_change | default(0)) | float %}
 {% set ep = (p.engaged_pct_change | default(0)) | float %}
-{% set erp = (p.engagement_rate_pct_change | default(0)) | float %}
 {% set nup = (p.new_users_pct_change | default(0)) | float %}
 {% set asp = (p.avg_session_pct_change | default(0)) | float %}
 {% set pvp = (p.pageviews_pct_change | default(0)) | float %}
@@ -48,18 +45,17 @@
 {% set sessions_pct_class = pct_pos if sp > 0 else (pct_neg if sp < 0 else pct_zero) %}
 {% set users_pct_class = pct_pos if up > 0 else (pct_neg if up < 0 else pct_zero) %}
 {% set engaged_pct_class = pct_pos if ep > 0 else (pct_neg if ep < 0 else pct_zero) %}
-{% set er_pct_class = pct_pos if erp > 0 else (pct_neg if erp < 0 else pct_zero) %}
 {% set new_users_pct_class = pct_pos if nup > 0 else (pct_neg if nup < 0 else pct_zero) %}
 {% set avg_session_pct_class = pct_pos if asp > 0 else (pct_neg if asp < 0 else pct_zero) %}
 {% set pageviews_pct_class = pct_pos if pvp > 0 else (pct_neg if pvp < 0 else pct_zero) %}
 
-{# Tüm 7 KPI kutusu tek grid'de — aynı hizada, aynı yükseklikte #}
+{# 6 KPI kutusu (engagement rate kutusu kaldırıldı) #}
 <div class="w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]" data-ga4-kpi-row>
-  <div class="grid w-full min-w-0 grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:grid-cols-7">
+  <div class="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:gap-4 lg:grid-cols-3 xl:grid-cols-6">
 
     {# 1 — Sessions (primary) #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Sessions</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Sessions">Sessions</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ sessions_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.last_total | tr_int }}</p>
@@ -69,7 +65,7 @@
 
     {# 2 — Users #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Users</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Users">Users</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.users_last | tr_int }}</p>
@@ -79,7 +75,7 @@
 
     {# 3 — Engaged sessions #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Engaged</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Engaged sessions">Engaged</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ engaged_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.engaged_last | tr_int }}</p>
@@ -87,19 +83,9 @@
       <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.engaged_prev | tr_int }}</p>
     </article>
 
-    {# 4 — Engagement rate #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Eng. rate</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ er_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engagement_rate_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.engagement_rate_last_pct | max_two_decimals }}%</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.engagement_rate_prev_pct | max_two_decimals }}%</p>
-    </article>
-
-    {# 5 — New users #}
+    {# 4 — New users #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">New users</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="New users">New users</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ new_users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.new_users_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.new_users_last | tr_int }}</p>
@@ -107,9 +93,9 @@
       <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.new_users_prev | tr_int }}</p>
     </article>
 
-    {# 6 — Avg session duration #}
+    {# 5 — Avg session duration #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Avg. session</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Avg. session">Avg. session</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ avg_session_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.avg_session_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.avg_session_last_sec | default(0) | int | tr_int }} s</p>
@@ -117,9 +103,9 @@
       <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.avg_session_prev_sec | default(0) | int | tr_int }} s</p>
     </article>
 
-    {# 7 — Screen page views #}
+    {# 6 — Screen page views #}
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Page views</p>
+      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Page views">Page views</p>
       <div class="mt-2 min-w-0 flex-1">
         <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ pageviews_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.pageviews_pct_change | signed_max_two_decimals }}%</p>
         <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.pageviews_last | tr_int }}</p>
@@ -180,7 +166,7 @@
   class="rounded-2xl border border-slate-200 dark:border-slate-700"
 >
   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Pages (excl. news)</p>
-  <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse">Yükleniyor…</div>
+  <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
 </div>
 
 <div
@@ -191,5 +177,5 @@
   class="rounded-2xl border border-slate-200 dark:border-slate-700"
 >
   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
-  <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse">Yükleniyor…</div>
+  <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
 </div>

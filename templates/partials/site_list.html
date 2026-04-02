@@ -1,50 +1,50 @@
 {% if sites %}
-  <div class="overflow-x-auto">
-    <table class="min-w-full text-left text-sm">
-      <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
+  <div class="-mx-1 min-w-0 max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/30 [scrollbar-width:thin] dark:border-slate-700 dark:bg-slate-950/20 sm:mx-0">
+    <table class="w-full min-w-[920px] text-left text-xs sm:min-w-[1000px] sm:text-sm">
+      <thead class="sticky top-0 z-[1] bg-slate-50 text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
         <tr>
-          <th class="px-3 py-2 font-medium">ID</th>
-          <th class="px-3 py-2 font-medium">Domain</th>
-          <th class="px-3 py-2 font-medium">Görünen Ad</th>
-          <th class="px-3 py-2 font-medium">Profil</th>
-          <th class="px-3 py-2 font-medium">Durum</th>
-          <th class="px-3 py-2 font-medium">Search Console</th>
-          <th class="px-3 py-2 font-medium">GA4</th>
-          <th class="px-3 py-2 font-medium">İşlem</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">ID</th>
+          <th class="min-w-[7rem] px-2 py-2 font-medium sm:px-3">Domain</th>
+          <th class="min-w-[6rem] px-2 py-2 font-medium sm:px-3">Görünen Ad</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Profil</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Durum</th>
+          <th class="min-w-[12rem] px-2 py-2 font-medium sm:px-3">Search Console</th>
+          <th class="min-w-[16rem] px-2 py-2 font-medium sm:min-w-[18rem] sm:px-3">GA4</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">İşlem</th>
         </tr>
       </thead>
       <tbody>
         {% for site in sites %}
           <tr class="border-b border-slate-100 dark:border-slate-800">
-            <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ site.id }}</td>
-            <td class="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{{ site.domain }}</td>
-            <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ site.display_name }}</td>
-            <td class="px-3 py-2">
+            <td class="whitespace-nowrap px-2 py-2 text-slate-700 dark:text-slate-200 sm:px-3">{{ site.id }}</td>
+            <td class="max-w-[10rem] break-words px-2 py-2 font-medium text-slate-900 dark:text-slate-100 sm:max-w-none sm:px-3">{{ site.domain }}</td>
+            <td class="max-w-[8rem] break-words px-2 py-2 text-slate-700 dark:text-slate-200 sm:max-w-none sm:px-3">{{ site.display_name }}</td>
+            <td class="align-top px-2 py-2 sm:px-3">
               {% if site.search_console.connected %}
-                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Verified</span>
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Verified</span>
               {% else %}
-                <span class="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700">External</span>
+                <span class="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700 dark:bg-orange-950/45 dark:text-orange-300">External</span>
               {% endif %}
             </td>
-            <td class="px-3 py-2">
+            <td class="align-top px-2 py-2 sm:px-3">
               {% if site.is_active %}
-                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Aktif</span>
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Aktif</span>
               {% else %}
-                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">Pasif</span>
+                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">Pasif</span>
               {% endif %}
             </td>
-            <td class="px-3 py-2">
-              <div class="flex items-center gap-2">
+            <td class="min-w-0 align-top px-2 py-2 sm:px-3">
+              <div class="flex min-w-0 flex-wrap items-center gap-2">
                 {% if site.search_console.connected %}
-                  <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.search_console.label }}</span>
+                  <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ site.search_console.label }}</span>
                 {% else %}
-                  <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">{{ site.search_console.label }}</span>
+                  <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ site.search_console.label }}</span>
                 {% endif %}
                 {% if site.search_console.method == 'oauth' %}
-                  <form hx-post="/api/search-console/oauth/disconnect/{{ site.id }}" hx-target="#site-list" hx-swap="innerHTML">
+                  <form class="inline" hx-post="/api/search-console/oauth/disconnect/{{ site.id }}" hx-target="#site-list" hx-swap="innerHTML">
                     <button
                       type="submit"
-                      class="rounded-md border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                      class="rounded-md border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/50"
                     >
                       Kaldır
                     </button>
@@ -52,7 +52,7 @@
                 {% elif oauth_ready %}
                   <a
                     href="/api/search-console/oauth/start/{{ site.id }}?next=/settings"
-                    class="rounded-md border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"
+                    class="rounded-md border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-950/40"
                   >
                     Google ile Bağlan
                   </a>
@@ -61,20 +61,20 @@
                 {% endif %}
               </div>
             </td>
-            <td class="px-3 py-2">
-              <div class="flex flex-col gap-2">
-                <div class="flex flex-wrap items-center gap-2">
+            <td class="min-w-0 align-top px-2 py-2 sm:px-3">
+              <div class="flex min-w-0 flex-col gap-2">
+                <div class="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
                   {% if site.ga4.connected %}
-                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.ga4.label }}</span>
+                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ site.ga4.label }}</span>
                   {% else %}
-                    <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">{{ site.ga4.label }}</span>
+                    <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ site.ga4.label }}</span>
                   {% endif %}
                   {% for profile_key, pid in (site.ga4.properties or {}).items() %}
-                    <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">{{ profile_key }}#{{ pid }}</span>
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ profile_key }}#{{ pid }}</span>
                   {% endfor %}
                 </div>
                 <form
-                  class="grid grid-cols-2 gap-2 xl:grid-cols-4"
+                  class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
                   hx-post="/api/sites/{{ site.id }}/ga4"
                   hx-swap="none"
                   hx-on::after-request="handleGa4Save(event, {{ site.id }})"
@@ -107,7 +107,7 @@
                     placeholder="ios property id"
                     class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
-                  <div class="col-span-2 flex flex-wrap items-center gap-2 xl:col-span-4">
+                  <div class="col-span-1 flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-4">
                   <button
                     type="submit"
                     class="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"
@@ -116,7 +116,7 @@
                   </button>
                   <button
                     type="button"
-                    class="rounded-md border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                    class="rounded-md border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/45"
                     hx-post="/api/ga4/{{ site.id }}/refresh?days=30"
                     hx-swap="none"
                     hx-on::after-request="refreshSiteList()"
@@ -128,11 +128,11 @@
                 </form>
               </div>
             </td>
-            <td class="px-3 py-2">
-              <div class="flex items-center gap-2">
+            <td class="align-top px-2 py-2 sm:px-3">
+              <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  class="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                  class="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/45"
                   hx-delete="/api/sites/{{ site.id }}"
                   hx-swap="none"
                   hx-on::after-request="handleSiteDelete(event)"
@@ -142,7 +142,7 @@
                 {% if not site.search_console.connected %}
                   <a
                     href="/external-explorer/{{ site.domain }}"
-                    class="rounded-md border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
+                    class="rounded-md border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-950/40"
                     hx-get="/external-explorer/{{ site.domain }}"
                     hx-target="#content"
                     hx-swap="innerHTML"

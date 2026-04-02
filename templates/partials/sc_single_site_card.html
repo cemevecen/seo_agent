@@ -75,14 +75,6 @@
             class="{% if device_key != site.report.default_device %}hidden {% endif %}flex min-h-0 flex-col space-y-4 sm:space-y-5"
           >
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 items-stretch">
-              {% set clicks_diff = (view.summary_current.clicks or 0) - (view.summary_previous.clicks or 0) %}
-              {% set impressions_diff = (view.summary_current.impressions or 0) - (view.summary_previous.impressions or 0) %}
-              {% set ctr_diff = (view.summary_current.ctr or 0) - (view.summary_previous.ctr or 0) %}
-              {% set position_diff = (view.summary_current.position or 0) - (view.summary_previous.position or 0) %}
-              {% set clicks_value_class = 'text-emerald-600' if clicks_diff >= 0 else 'text-rose-600' %}
-              {% set impressions_value_class = 'text-emerald-600' if impressions_diff >= 0 else 'text-rose-600' %}
-              {% set ctr_value_class = 'text-emerald-600' if ctr_diff >= 0 else 'text-rose-600' %}
-              {% set position_value_class = 'text-emerald-600' if position_diff < 0 else 'text-rose-600' if position_diff > 0 else 'text-slate-500 dark:text-slate-400' %}
               {% set cp = (view.clicks_pct_change | default(0)) | float %}
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
               {% set tp = (view.ctr_pct_change | default(0)) | float %}
@@ -97,7 +89,7 @@
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
                     <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ clicks_pct_class }}">{{ view.clicks_pct_change | signed_max_two_decimals }}%</p>
-                    <p class="truncate text-sm font-semibold tabular-nums leading-tight {{ clicks_value_class }} sm:text-base" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.clicks or 0).replace(",", ",") }}</p>
+                    <p class="truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.clicks or 0).replace(",", ",") }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
@@ -112,7 +104,7 @@
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
                     <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ impressions_pct_class }}">{{ view.impressions_pct_change | signed_max_two_decimals }}%</p>
-                    <p class="truncate text-sm font-semibold tabular-nums leading-tight {{ impressions_value_class }} sm:text-base" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.impressions or 0).replace(",", ",") }}</p>
+                    <p class="truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ view.table_label_current }}">{{ "{:,.0f}".format(view.summary_current.impressions or 0).replace(",", ",") }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
@@ -127,7 +119,7 @@
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
                     <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ ctr_pct_class }}">{{ view.ctr_pct_change | signed_max_two_decimals }}%</p>
-                    <p class="truncate text-sm font-semibold tabular-nums leading-tight {{ ctr_value_class }} sm:text-base" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.ctr or 0) }}%</p>
+                    <p class="truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.ctr or 0) }}%</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
@@ -142,7 +134,7 @@
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
                     <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ position_pct_class }}">{{ view.position_pct_change | signed_max_two_decimals }}%</p>
-                    <p class="truncate text-sm font-semibold tabular-nums leading-tight {{ position_value_class }} sm:text-base" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
+                    <p class="truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
@@ -164,12 +156,12 @@
                 <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                   <tr>
                     <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2.5 text-left shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="query" data-sort-type="string">Top queries</button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksCurrent" data-sort-type="number">Clicks<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksPrevious" data-sort-type="number">Clicks<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksDiff" data-sort-type="number">Clicks<br><span class="text-xs font-normal">Change</span></button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionCurrent" data-sort-type="number">Position<br><span class="text-xs font-normal">{{ view.table_label_current }}</span></button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionPrevious" data-sort-type="number">Position<br><span class="text-xs font-normal">{{ view.table_label_previous }}</span></button></th>
-                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionDiff" data-sort-type="number">Position<br><span class="text-xs font-normal">Change</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksCurrent" data-sort-type="number">Clicks <span class="text-xs font-normal tabular-nums">{{ view.table_label_current }}</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksPrevious" data-sort-type="number">Clicks <span class="text-xs font-normal tabular-nums">{{ view.table_label_previous }}</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="clicksDiff" data-sort-type="number">Clicks <span class="text-xs font-normal">Change</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionCurrent" data-sort-type="number">Position <span class="text-xs font-normal tabular-nums">{{ view.table_label_current }}</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionPrevious" data-sort-type="number">Position <span class="text-xs font-normal tabular-nums">{{ view.table_label_previous }}</span></button></th>
+                    <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3"><button type="button" class="whitespace-nowrap font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="positionDiff" data-sort-type="number">Position <span class="text-xs font-normal">Change</span></button></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -185,12 +177,12 @@
                       data-position-diff="{{ row.position_diff }}"
                     >
                       <td class="sticky left-0 z-[1] max-w-[min(100vw,28rem)] bg-white px-2 py-2.5 text-left text-xs font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-words shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:py-3 sm:text-sm">{{ row.query }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-blue-600 sm:px-3 sm:py-3">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-blue-500 sm:px-3 sm:py-3">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.clicks_diff >= 0 %}text-blue-700{% else %}text-rose-700{% endif %} sm:px-3 sm:py-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-orange-600 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_current) }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-orange-500 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_previous) }}</td>
-                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.position_diff < 0 %}text-emerald-700{% elif row.position_diff > 0 %}text-rose-700{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+.2f}".format(row.position_diff) }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_current) }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_previous) }}</td>
+                      <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.position_diff < 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+.2f}".format(row.position_diff) }}</td>
                     </tr>
                   {% else %}
                     <tr>
