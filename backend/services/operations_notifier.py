@@ -443,6 +443,8 @@ def send_consolidated_system_email(
     """
     Aynı sistem için tek konu başlıklı özet maili; eski 'tetiklendi' içeriği site bloklarının sonunda.
     """
+    if not settings.operations_trigger_email_enabled:
+        return False
     system_label = SYSTEM_LABELS.get(system_key, system_key.replace("_", " ").title())
     kept: list[tuple[Site | None, dict]] = []
     for site, result in items:
