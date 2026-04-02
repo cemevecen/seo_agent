@@ -282,9 +282,53 @@ def _build_search_console_comparison(
             ),
             _comparison_card("Fark", delta_value, delta_detail, "red"),
         ]
+    elif metric_type == "search_console_position_drop":
+        if comparison_type == "weekly":
+            current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+            previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+        else:
+            current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_day")
+            previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
+
+        current_pos = _weighted_position(current_rows) if current_rows else None
+        previous_pos = _weighted_position(previous_rows) if previous_rows else None
+        change = (current_pos - previous_pos) if current_pos is not None and previous_pos is not None else None
+        position_state = _position_change_state(change)
+
+        if comparison_type == "daily":
+            message = (
+                "Pozisyon dün ile önceki gün arasında iyileşmiş." if position_state == "improved"
+                else "Pozisyon dün ile önceki gün arasında kötüleşmiş." if position_state == "worsened"
+                else "Yeterli günlük pozisyon verisi bulunamadı." if change is None
+                else "Pozisyon dün ile önceki gün arasında değişmemiş."
+            )
+        else:
+            message = (
+                "Ortalama pozisyon son 7 gün ile önceki 7 gün arasında iyileşmiş." if position_state == "improved"
+                else "Ortalama pozisyon son 7 gün ile önceki 7 gün arasında kötüleşmiş." if position_state == "worsened"
+                else "Yeterli haftalık pozisyon verisi bulunamadı." if change is None
+                else "Ortalama pozisyon son 7 gün ile önceki 7 gün arasında değişmemiş."
+            )
+
+        cards = [
+            _comparison_card(current_label, _format_decimal(current_pos, 1), "Ağırlıklı ort. pozisyon", "blue"),
+            _comparison_card(previous_label, _format_decimal(previous_pos, 1), "Ağırlıklı ort. pozisyon", "slate"),
+        ]
+        if change is not None:
+            cards.append(
+                _comparison_card(
+                    "Fark",
+                    f"{change:+.1f}",
+                    "pozisyon farkı (- = iyileşme)",
+                    "green" if position_state == "improved" else "red" if position_state == "worsened" else "slate",
+                )
+            )
+        else:
+            cards.append(_comparison_card("Fark", "N/A", "veri yetersiz", "slate"))
     else:
-        message = "Bu alert tipi Search Console kayıt karşılaştırmasıyla açıklandı."
-        cards = [_comparison_card("Durum", "Hazır", "", "blue")]
+        # Bilinmeyen SC tipi — message-only, no cards
+        message = "Bu alert için Search Console karşılaştırma verisi bu formatta desteklenmiyor."
+        cards = []
 
     return {
         "message": message,
@@ -401,42 +445,86 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
     
     past_value = sum(m.value for m in past_metrics) / len(past_metrics) if past_metrics else None
     
-    # Mesaj oluştur
-    result = {}
-    
+    _BINARY_METRICS = {
+        "crawler_robots_accessible", "crawler_sitemap_exists",
+        "crawler_schema_found", "crawler_canonical_found",
+    }
+    _SCORE_METRICS = {"pagespeed_mobile_score", "pagespeed_desktop_score"}
+    _COUNT_METRICS = {"crawler_broken_links_count", "crawler_redirect_chain_count"}
+
+    def _fmt_val(mt: str, v: float | None) -> tuple[str, str]:
+        if v is None:
+            return "N/A", ""
+        if mt in _BINARY_METRICS:
+            return ("✓ Var" if v >= 1.0 else "✗ Yok"), ""
+        if mt in _SCORE_METRICS:
+            return f"{v:.0f}", "/ 100"
+        if mt in _COUNT_METRICS:
+            return f"{int(v)}", "adet"
+        return f"{v:.2f}", ""
+
+    current_label_short = "Tetiklenme Günü"
+    prev_disp, prev_unit = _fmt_val(metric_type, past_value)
+    curr_disp, curr_unit = _fmt_val(metric_type, current_value)
+
+    cards: list[dict] = []
+
     if current_value is None or past_value is None:
         message = f"{comparison_label} ile karşılaştırma için yeterli veri yok."
+        cards = [
+            _comparison_card(current_label_short, curr_disp, curr_unit, "blue"),
+            _comparison_card(comparison_label, prev_disp, prev_unit, "slate"),
+            _comparison_card("Fark", "N/A", "veri yetersiz", "slate"),
+        ]
     else:
         change = current_value - past_value
         change_pct = (change / past_value * 100) if past_value != 0 else 0
-        direction = "↑ artış" if change > 0 else "↓ azalış" if change < 0 else "→ değişiklik yok"
-        
-        message = (
-            f"<strong>{comparison_label} ile karşılaştırma:</strong><br>"
-            f"Mevcut: {current_value:.2f} vs {comparison_label}: {past_value:.2f}<br>"
-            f"Değişim: {direction} ({change:+.2f}, {change_pct:+.1f}%)"
-        )
-    
-    result["message"] = message
-    result["comparison_type"] = comparison_type  # Help frontend know which comparison this is
-    
-    # Search Console alertları için query details ekle
-    # IMPORTANT: Parse message AND ADD TIME PERIOD INFO if applicable
-    if alert_log_message and metric_type in ["search_console_dropped_queries", "search_console_biggest_drop"]:
-        query_details = _extract_query_details_from_message(alert_log_message)
-        if query_details:
-            # Ensure query_details is always a list for consistent template handling
-            if isinstance(query_details, dict):
-                query_details = [query_details]
+
+        if metric_type in _BINARY_METRICS:
+            if current_value < 1.0 and past_value >= 1.0:
+                message = "Bu sorun yeni ortaya çıkmış — önceden herşey yolundaydı."
+                delta_val, delta_detail, delta_tone = "Yeni sorun", "önceden Var", "red"
+            elif current_value >= 1.0 and past_value < 1.0:
+                message = "Sorun giderilmiş — önceki periyotta yoktu."
+                delta_val, delta_detail, delta_tone = "Düzeldi", "önceden Yok", "green"
+            elif current_value < 1.0 and past_value < 1.0:
+                message = "Sorun sürüyor — önceki periyotta da mevcuttu."
+                delta_val, delta_detail, delta_tone = "Devam ediyor", "iki dönem de Yok", "red"
             else:
-                query_details = list(query_details)
-            
-            # Add comparison_type to each query detail for clarity
-            for detail in query_details:
-                detail["comparison_type"] = comparison_type
-            
-            result["query_details"] = query_details
-    
+                message = "Sorun yok — her iki dönemde de durum normal."
+                delta_val, delta_detail, delta_tone = "Normal", "iki dönem de Var", "slate"
+        elif metric_type in _SCORE_METRICS:
+            direction = "iyileşmiş" if change > 0 else "kötüleşmiş" if change < 0 else "değişmemiş"
+            message = f"PageSpeed skoru {comparison_label.lower()} ile karşılaştırıldığında {direction}."
+            delta_tone = "green" if change > 0 else "red" if change < 0 else "slate"
+            delta_val = f"{change:+.0f}"
+            delta_detail = f"{change_pct:+.1f}%"
+        elif metric_type in _COUNT_METRICS:
+            direction = "azalmış" if change < 0 else "artmış" if change > 0 else "değişmemiş"
+            message = f"Sayı {comparison_label.lower()} ile karşılaştırıldığında {direction}."
+            delta_tone = "green" if change < 0 else "red" if change > 0 else "slate"
+            delta_val = f"{change:+.0f}"
+            delta_detail = f"{change_pct:+.1f}%"
+        else:
+            direction = "artmış" if change > 0 else "azalmış" if change < 0 else "değişmemiş"
+            message = f"Değer {comparison_label.lower()} ile karşılaştırıldığında {direction}."
+            delta_tone = "slate"
+            delta_val = f"{change:+.2f}"
+            delta_detail = f"{change_pct:+.1f}%"
+
+        curr_card_detail = curr_unit
+        prev_card_detail = prev_unit
+        cards = [
+            _comparison_card(current_label_short, curr_disp, curr_card_detail, "blue"),
+            _comparison_card(comparison_label, prev_disp, prev_card_detail, "slate"),
+            _comparison_card("Fark", delta_val, delta_detail, delta_tone),
+        ]
+
+    result: dict = {
+        "message": message,
+        "comparison_type": comparison_type,
+        "cards": cards,
+    }
     return result
 
 
