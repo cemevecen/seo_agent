@@ -61,8 +61,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Sessions</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.last_total | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ sessions_pct_class }}">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ sessions_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.last_total | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.prev_total | tr_int }}</p>
     </article>
@@ -71,8 +71,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Users</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.users_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ users_pct_class }}">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.users_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.users_prev | tr_int }}</p>
     </article>
@@ -81,8 +81,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Engaged</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engaged_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ engaged_pct_class }}">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ engaged_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.engaged_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.engaged_prev | tr_int }}</p>
     </article>
@@ -91,8 +91,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Eng. rate</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ er_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engagement_rate_last_pct | max_two_decimals }}%</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ er_pct_class }}">{{ p.engagement_rate_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ er_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engagement_rate_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.engagement_rate_last_pct | max_two_decimals }}%</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.engagement_rate_prev_pct | max_two_decimals }}%</p>
     </article>
@@ -101,8 +101,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/80 p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">New users</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.new_users_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ new_users_pct_class }}">{{ p.new_users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ new_users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.new_users_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.new_users_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.new_users_prev | tr_int }}</p>
     </article>
@@ -111,8 +111,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/80 p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Avg. session</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.avg_session_last_sec | default(0) | int | tr_int }} s</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ avg_session_pct_class }}">{{ p.avg_session_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ avg_session_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.avg_session_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.avg_session_last_sec | default(0) | int | tr_int }} s</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.avg_session_prev_sec | default(0) | int | tr_int }} s</p>
     </article>
@@ -121,8 +121,8 @@
     <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/80 p-2.5 sm:p-4">
       <p class="text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">Page views</p>
       <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums text-slate-900" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.pageviews_last | tr_int }}</p>
-        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight {{ pageviews_pct_class }}">{{ p.pageviews_pct_change | signed_max_two_decimals }}%</p>
+        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ pageviews_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.pageviews_pct_change | signed_max_two_decimals }}%</p>
+        <p class="mt-1 truncate text-[10px] font-semibold tabular-nums leading-tight text-slate-600">{{ p.pageviews_last | tr_int }}</p>
       </div>
       <p class="mt-1 text-[10px] text-slate-400">{{ prev_l }}: {{ p.pageviews_prev | tr_int }}</p>
     </article>
