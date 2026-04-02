@@ -1,13 +1,11 @@
 ---
-description: Proje kökü, git remote ve son senkron commit — oturumlar arası bağlam
+description: Proje kökü, git remote — oturumlar arası bağlam (HEAD için repoda git kullanın)
 alwaysApply: false
 ---
 
-# seo-agent — senkron özeti
+# seo-agent — depo bağlamı
 
-Bu dosya **manuel güncellenir**; büyük git push/commit sonrası tarih ve hash güncellenmeli.
-
-- **Depo kökü:** `seo-agent/` (tam yol genelde `.../seo_agent/seo-agent`).
+- **Kök:** `seo-agent/` (tam yol genelde `.../seo_agent/seo-agent`).
 - **GitHub:** `https://github.com/cemevecen/seo_agent` — dal: **`main`**.
-- **Son doğrulanan commit (`origin/main` ile yerel uyumlu):** `9f811dc` — 2026-04-02 — *fix(GA4): KPI kutularında last/prev gösterimi ve taşma (ellipsis) düzeni*
+- **Güncel commit:** repoda `git log -1 --format='%h %ci %s'` ile doğrulanır; yerel ile uzak eşitleme: `git fetch && git status` / `git pull origin main`.
 - **Geliştirme:** Cursor; `.env` ve secret dosyalar repoda yok (bkz. `security-secrets.mdc`).
