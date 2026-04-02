@@ -41,7 +41,7 @@ from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
-from backend.collectors.crux_history import collect_crux_history, histogram_status_timeseries
+from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
     STRATEGY_METRIC_MAP,
     collect_pagespeed_metrics,
@@ -82,7 +82,6 @@ from backend.services.operations_notifier import (
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
-    get_latest_crux_snapshot_with_payload,
     get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
     get_latest_search_console_rows_batch,
@@ -273,10 +272,6 @@ jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
-
-from backend.routes_cwv import router as cwv_router  # noqa: E402
-
-app.include_router(cwv_router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -2866,57 +2861,6 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
     return formatted
 
 
-def _build_cwv_form_factor_payload(snapshot_with_payload: dict | None) -> dict | None:
-    if not snapshot_with_payload:
-        return None
-    hist_raw = (snapshot_with_payload.get("payload") or {}).get("history") or {}
-    record = hist_raw.get("record") if isinstance(hist_raw, dict) else {}
-    histogram = histogram_status_timeseries(record)
-    p75_series = _format_crux_series({"summary": snapshot_with_payload.get("summary") or {}})
-    return {
-        "collected_at": snapshot_with_payload.get("collected_at"),
-        "target_url": snapshot_with_payload.get("target_url"),
-        "histogram": histogram,
-        "p75_series": p75_series,
-        "has_histogram": bool(histogram.get("metrics")),
-    }
-
-
-def _build_cwv_site_payload(db, site: Site) -> dict:
-    mobile = get_latest_crux_snapshot_with_payload(db, site_id=site.id, form_factor="mobile")
-    desktop = get_latest_crux_snapshot_with_payload(db, site_id=site.id, form_factor="desktop")
-    return {
-        "id": site.id,
-        "display_name": site.display_name,
-        "domain": site.domain,
-        "mobile": _build_cwv_form_factor_payload(mobile),
-        "desktop": _build_cwv_form_factor_payload(desktop),
-    }
-
-
-def _dashboard_cwv_quick_lines(db, sites: list[Site]) -> list[dict]:
-    """Dashboard özet: mobil LCP p75 son nokta + toplama zamanı (payloadsız)."""
-    lines: list[dict] = []
-    for site in sites:
-        snap = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
-        summary = (snap or {}).get("summary") or {}
-        series = summary.get("series") or {}
-        lcp = series.get("largest_contentful_paint") or {}
-        pts = lcp.get("points") or []
-        last = pts[-1] if pts else None
-        val = last.get("value") if isinstance(last, dict) else None
-        lines.append(
-            {
-                "id": site.id,
-                "display_name": site.display_name,
-                "domain": site.domain,
-                "lcp_p75_ms": val,
-                "collected_at": (snap or {}).get("collected_at"),
-            }
-        )
-    return lines
-
-
 def _data_explorer_context(domain: str) -> dict:
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -3850,27 +3794,8 @@ def dashboard(request: Request):
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
             "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8),
-            "cwv_quick_lines": _dashboard_cwv_quick_lines(db, sites),
         }
     return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
-
-
-def _core_web_vitals_page_impl(request: Request):
-    with SessionLocal() as db:
-        external_ids = _external_site_ids(db)
-        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
-        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        cwv_sites = [_build_cwv_site_payload(db, s) for s in sites]
-    return templates.TemplateResponse(
-        request,
-        "core_web_vitals.html",
-        context={
-            "request": request,
-            "site_name": "Core Web Vitals",
-            "sites": get_sidebar_sites(),
-            "cwv_sites": cwv_sites,
-        },
-    )
 
 
 @app.get("/dashboard/cards/{site_id}", response_class=HTMLResponse)
