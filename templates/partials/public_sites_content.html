@@ -62,15 +62,21 @@
     <div id="external-onboarding-progress-panel" class="mt-4 hidden rounded-[1.4rem] border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-sky-200/70 backdrop-blur-sm dark:border-slate-600 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)] dark:ring-slate-600/70">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-300/90">External Progress</p>
-          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-400">External Progress</p>
+          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-50">Hazırlanıyor</p>
           <p id="external-onboarding-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ölçüm adımları başlatılıyor.</p>
         </div>
-        <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
+        <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-50">0%</p>
       </div>
-      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-sky-200/70 dark:ring-sky-900/45">
+      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-sky-200/70 dark:bg-slate-700/90 dark:ring-slate-600/80">
         <div id="external-onboarding-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
       </div>
+    </div>
+    {# Tailwind CDN: setExternalOnboardingTone(isError) ile eklenen hata paneli sınıfları #}
+    <div class="pointer-events-none hidden h-0 overflow-hidden p-0" aria-hidden="true">
+      <span
+        class="border-rose-200 bg-gradient-to-br from-rose-50 via-white to-rose-50/90 shadow-[0_22px_55px_-34px_rgba(244,63,94,0.35)] ring-1 ring-rose-200/70 backdrop-blur-sm dark:border-rose-900/55 dark:from-rose-950/35 dark:via-slate-900 dark:to-slate-900 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.45)] dark:ring-rose-900/35"
+      ></span>
     </div>
   </section>
 
@@ -86,7 +92,9 @@
       return;
     }
     feedback.textContent = message || '';
-    feedback.className = 'mt-3 text-sm ' + (isError ? 'text-rose-600' : 'text-emerald-700');
+    feedback.className =
+      'mt-3 text-sm ' +
+      (isError ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400');
   }
 
   function renderExternalOnboardingProgress(step) {
@@ -107,31 +115,60 @@
     bar.style.width = String(percentValue) + '%';
   }
 
+  var __extProgressPanelSuccess = [
+    'rounded-[1.4rem]',
+    'border',
+    'border-sky-200/90',
+    'bg-gradient-to-br',
+    'from-sky-50',
+    'via-white',
+    'to-cyan-50/90',
+    'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+    'ring-1',
+    'ring-sky-200/70',
+    'backdrop-blur-sm',
+    'dark:border-slate-600',
+    'dark:from-slate-900',
+    'dark:via-slate-900',
+    'dark:to-slate-800',
+    'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+    'dark:ring-slate-600/70',
+  ];
+  var __extProgressPanelError = [
+    'rounded-[1.4rem]',
+    'border',
+    'border-rose-200',
+    'bg-gradient-to-br',
+    'from-rose-50',
+    'via-white',
+    'to-rose-50/90',
+    'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.35)]',
+    'ring-1',
+    'ring-rose-200/70',
+    'backdrop-blur-sm',
+    'dark:border-rose-900/55',
+    'dark:from-rose-950/35',
+    'dark:via-slate-900',
+    'dark:to-slate-900',
+    'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.45)]',
+    'dark:ring-rose-900/35',
+  ];
+
   function setExternalOnboardingTone(isError) {
     var panel = document.getElementById('external-onboarding-progress-panel');
     var bar = document.getElementById('external-onboarding-progress-bar');
     if (!panel || !bar) {
       return;
     }
+    var removeAll = __extProgressPanelSuccess.concat(__extProgressPanelError);
+    removeAll.forEach(function (c) {
+      panel.classList.remove(c);
+    });
+
     if (isError) {
-      panel.classList.remove(
-        'border-sky-200',
-        'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
-        'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
-        'dark:border-slate-600',
-        'dark:bg-slate-900/90',
-        'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
-        'dark:ring-slate-700/80'
-      );
-      panel.classList.add(
-        'border-rose-200',
-        'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
-        'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
-        'dark:border-rose-900/60',
-        'dark:bg-rose-950/45',
-        'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
-        'dark:ring-rose-900/40'
-      );
+      __extProgressPanelError.forEach(function (c) {
+        panel.classList.add(c);
+      });
       bar.classList.remove(
         'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
         'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
@@ -147,24 +184,9 @@
       return;
     }
 
-    panel.classList.remove(
-      'border-rose-200',
-      'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
-      'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
-      'dark:border-rose-900/60',
-      'dark:bg-rose-950/45',
-      'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
-      'dark:ring-rose-900/40'
-    );
-    panel.classList.add(
-      'border-sky-200',
-      'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
-      'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
-      'dark:border-slate-600',
-      'dark:bg-slate-900/90',
-      'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
-      'dark:ring-slate-700/80'
-    );
+    __extProgressPanelSuccess.forEach(function (c) {
+      panel.classList.add(c);
+    });
     bar.classList.remove(
       'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
       'shadow-[0_0_26px_rgba(244,63,94,0.28)]',

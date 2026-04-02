@@ -315,6 +315,15 @@
 
   const ga4PageLoad = createGa4PageLoadController();
 
+  /** data-ga4-* için getAttribute: dataset.ga4PeriodToggle vb. bazı tarayıcılarda eşlenmeyebilir. */
+  function ga4DataAttr(el, name) {
+    if (!el || !el.getAttribute) {
+      return '';
+    }
+    var v = el.getAttribute(name);
+    return v == null ? '' : String(v);
+  }
+
   var ga4SiteListBootstrapped = false;
   var ga4HtmxNestedPending = 0;
   var ga4ActivityMinVisibleMs = 1400;
@@ -934,8 +943,8 @@
   function triggerGa4Load(panel) {
     if (!panel || panel.classList.contains('hidden')) return;
     panel.querySelectorAll('[data-ga4-pages-placeholder],[data-ga4-sources-placeholder]').forEach(function (el) {
-      if (!el.dataset.ga4Loaded) {
-        el.dataset.ga4Loaded = '1';
+      if (!ga4DataAttr(el, 'data-ga4-loaded')) {
+        el.setAttribute('data-ga4-loaded', '1');
         htmx.trigger(el, 'ga4-load');
       }
     });
@@ -950,8 +959,9 @@
       const card = switcher.closest('section');
       const buttons = switcher.querySelectorAll('[data-ga4-period-toggle]');
       const activate = function (periodKey) {
+        var pk = periodKey == null ? '' : String(periodKey);
         buttons.forEach(function (button) {
-          const isActive = button.dataset.ga4PeriodToggle === periodKey;
+          const isActive = ga4DataAttr(button, 'data-ga4-period-toggle') === pk;
           button.dataset.active = isActive ? 'true' : 'false';
           button.classList.toggle('bg-violet-900', isActive);
           button.classList.toggle('dark:bg-violet-600', isActive);
@@ -961,7 +971,7 @@
         });
         if (card) {
           card.querySelectorAll('[data-ga4-period-panel]').forEach(function (panel) {
-            const isActive = panel.dataset.ga4PeriodPanel === periodKey;
+            const isActive = ga4DataAttr(panel, 'data-ga4-period-panel') === pk;
             panel.classList.toggle('hidden', !isActive);
             if (isActive) {
               // Aktif period panelindeki aktif profile panelindeki placeholder'ları tetikle
@@ -977,7 +987,7 @@
             }
           });
           card.querySelectorAll('[data-ga4-period-heading]').forEach(function (heading) {
-            const isActive = heading.dataset.ga4PeriodHeading === periodKey;
+            const isActive = ga4DataAttr(heading, 'data-ga4-period-heading') === pk;
             heading.classList.toggle('hidden', !isActive);
           });
         }
@@ -990,7 +1000,7 @@
 
       buttons.forEach(function (button) {
         button.addEventListener('click', function () {
-          activate(button.dataset.ga4PeriodToggle);
+          activate(ga4DataAttr(button, 'data-ga4-period-toggle'));
         });
       });
 
@@ -999,7 +1009,7 @@
           return button.dataset.active === 'true';
         }) || buttons[0];
       if (initial) {
-        activate(initial.dataset.ga4PeriodToggle);
+        activate(ga4DataAttr(initial, 'data-ga4-period-toggle'));
       }
     });
   }
@@ -1013,8 +1023,9 @@
       const hostCard = switcher.closest('section');
       const buttons = switcher.querySelectorAll('[data-ga4-profile-toggle]');
       const activate = function (profileKey) {
+        var prk = profileKey == null ? '' : String(profileKey);
         buttons.forEach(function (button) {
-          const isActive = button.dataset.ga4ProfileToggle === profileKey;
+          const isActive = ga4DataAttr(button, 'data-ga4-profile-toggle') === prk;
           button.dataset.active = isActive ? 'true' : 'false';
           button.classList.toggle('bg-slate-900', isActive);
           button.classList.toggle('dark:bg-slate-600', isActive);
@@ -1024,7 +1035,7 @@
         });
         if (hostCard) {
           hostCard.querySelectorAll('[data-ga4-profile-panel]').forEach(function (panel) {
-            const isActive = panel.dataset.ga4ProfilePanel === profileKey;
+            const isActive = ga4DataAttr(panel, 'data-ga4-profile-panel') === prk;
             panel.classList.toggle('hidden', !isActive);
             if (isActive) {
               // Sadece aktif period panelinin içindekini tetikle
@@ -1044,7 +1055,7 @@
 
       buttons.forEach(function (button) {
         button.addEventListener('click', function () {
-          activate(button.dataset.ga4ProfileToggle);
+          activate(ga4DataAttr(button, 'data-ga4-profile-toggle'));
         });
       });
 
@@ -1053,7 +1064,7 @@
           return button.dataset.active === 'true';
         }) || buttons[0];
       if (initialButton) {
-        activate(initialButton.dataset.ga4ProfileToggle);
+        activate(ga4DataAttr(initialButton, 'data-ga4-profile-toggle'));
       }
     });
   }
@@ -1206,22 +1217,24 @@
   });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
-    if (event.target && event.target.id === 'ga4-site-list') {
+    var detail = event.detail || {};
+    var swapTarget = detail.target || event.target;
+    if (swapTarget && swapTarget.id === 'ga4-site-list') {
       ga4HtmxNestedPending = 0;
       updateGa4ActivityBar();
       ga4SiteListBootstrapped = true;
       ga4PageLoad.swapped();
       window.setTimeout(function () {
-        initGa4Panels(event.target);
+        initGa4Panels(swapTarget);
       }, 50);
     }
     // Pages / Session source tabloları HTMX ile yüklendi — sort butonlarını etkinleştir
-    var el = event.detail && event.detail.elt;
+    var el = detail.elt;
     if (
       el &&
-      el.dataset &&
-      (el.dataset.ga4PagesPlaceholder !== undefined || el.dataset.ga4SourcesPlaceholder !== undefined)
+      (el.hasAttribute('data-ga4-pages-placeholder') || el.hasAttribute('data-ga4-sources-placeholder'))
     ) {
+      /* outerHTML swap sonrası yeni kök için event.target doğru düğüm; detail.target eski placeholder olabilir */
       var swapped = event.target;
       if (swapped) {
         window.setTimeout(function () {

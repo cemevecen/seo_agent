@@ -4434,7 +4434,7 @@ def alerts_page(request: Request):
     with SessionLocal() as db:
         alert_rows = _exclude_external_alerts(db, get_recent_alerts(db, limit=100))
         payload = {
-            "site_name": "Uyarılar",
+            "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
@@ -4493,7 +4493,7 @@ def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
     with SessionLocal() as db:
         payload = {
-            "site_name": "Ayarlar",
+            "site_name": "Settings",
             "sites": get_sidebar_sites(),
             "alert_rules": get_alert_rules(db),
             "quota_status": get_quota_status(db),

@@ -48,66 +48,26 @@ if (!style) {
   document.head.appendChild(style);
 }
 
+/** Tıklanan düğüm metin ise closest yok; chip/detay tıklamaları için gerekli. */
+function alertsEventTargetElement(e) {
+  const t = e.target;
+  if (!t) {
+    return null;
+  }
+  if (t.nodeType === 1) {
+    return t;
+  }
+  return t.parentElement;
+}
+
 function initializeAlertsView() {
   const root = document.getElementById('alerts-view');
-  if (!root || root.dataset.seoAlertsBound === '1') {
+  if (!root) {
     return;
   }
   initializeFilter();
   initializeRefreshButton();
-
-  document.querySelectorAll('.toggle-details').forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const card = this.closest('.alert-card');
-      const details = card.querySelector('.alert-details');
-      const alertId = card.dataset.alertId;
-      
-      if (details.classList.contains('show')) {
-        // Hide
-        details.classList.remove('show');
-        this.textContent = 'Detay';
-      } else {
-        // Show
-        details.classList.add('show');
-        loadAlertDetails(alertId, card);
-        this.textContent = 'Gizle';
-      }
-    });
-  });
-  
-  document.querySelectorAll('.comparison-btn').forEach(btn => {
-    btn.addEventListener('click', async function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this.dataset.disabled === 'true') {
-        return;
-      }
-      
-      const alertId = this.dataset.alertId;
-      const comparisonType = this.dataset.comparison;
-      const card = this.closest('.alert-card');
-      
-      // Button styling
-      const allBtns = card.querySelectorAll('.comparison-btn');
-      allBtns.forEach(b => {
-        if (b.dataset.comparison === comparisonType) {
-          b.classList.remove('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
-          b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
-        } else {
-          b.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
-          b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
-        }
-      });
-      
-      // Load and render the selected comparison type.
-      await loadComparisonData(alertId, comparisonType);
-      renderComparisonData(alertId, comparisonType);
-    });
-  });
-  root.dataset.seoAlertsBound = '1';
+  bindAlertsDetailDelegationOnce();
 }
 
 window.seoInitAlertsPage = function seoInitAlertsPage() {
@@ -117,6 +77,79 @@ window.seoInitAlertsPage = function seoInitAlertsPage() {
   initializeAlertsView();
   window.setTimeout(autoOpenSelectedAlertFromRoute, 80);
 };
+
+let __alertsDetailDelegationBound = false;
+
+function bindAlertsDetailDelegationOnce() {
+  if (__alertsDetailDelegationBound) {
+    return;
+  }
+  __alertsDetailDelegationBound = true;
+
+  document.body.addEventListener('click', function (e) {
+    const view = document.getElementById('alerts-view');
+    if (!view) {
+      return;
+    }
+    const el = alertsEventTargetElement(e);
+    if (!el) {
+      return;
+    }
+
+    const toggleBtn = el.closest('.toggle-details');
+    if (toggleBtn && view.contains(toggleBtn)) {
+      e.preventDefault();
+      e.stopPropagation();
+      const card = toggleBtn.closest('.alert-card');
+      if (!card) {
+        return;
+      }
+      const details = card.querySelector('.alert-details');
+      const alertId = card.getAttribute('data-alert-id') || card.dataset.alertId;
+      if (!details || alertId == null || alertId === '') {
+        return;
+      }
+
+      if (details.classList.contains('show')) {
+        details.classList.remove('show');
+        toggleBtn.textContent = 'Detay';
+      } else {
+        details.classList.add('show');
+        loadAlertDetails(String(alertId), card);
+        toggleBtn.textContent = 'Gizle';
+      }
+      return;
+    }
+
+    const compBtn = el.closest('.comparison-btn');
+    if (compBtn && view.contains(compBtn)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (compBtn.getAttribute('data-disabled') === 'true' || compBtn.dataset.disabled === 'true') {
+        return;
+      }
+      const alertId = compBtn.getAttribute('data-alert-id') || compBtn.dataset.alertId;
+      const comparisonType = compBtn.getAttribute('data-comparison') || compBtn.dataset.comparison;
+      const card = compBtn.closest('.alert-card');
+      if (!card || !comparisonType) {
+        return;
+      }
+      const allBtns = card.querySelectorAll('.comparison-btn');
+      allBtns.forEach(function (b) {
+        if (b.dataset.comparison === comparisonType) {
+          b.classList.remove('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+          b.classList.add('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
+        } else {
+          b.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
+          b.classList.remove('bg-blue-100', 'text-blue-700', 'hover:bg-blue-200', 'dark:bg-sky-950/50', 'dark:text-sky-300', 'dark:hover:bg-sky-900/60', 'active');
+        }
+      });
+      loadComparisonData(alertId, comparisonType).then(function () {
+        renderComparisonData(alertId, comparisonType);
+      });
+    }
+  });
+}
 
 (function () {
   function runAlertsInit() {
@@ -147,16 +180,14 @@ window.seoInitAlertsPage = function seoInitAlertsPage() {
   document.body.addEventListener('htmx:afterSettle', scheduleAlertsInitFromHtmx);
 })();
 
+let __alertsRefreshDelegationBound = false;
+
 function initializeRefreshButton() {
-  const button = document.getElementById('refresh-alerts-button');
-  if (!button) {
+  if (__alertsRefreshDelegationBound) {
     return;
   }
-  const panel = document.getElementById('alerts-progress-panel');
-  const title = document.getElementById('alerts-progress-title');
-  const detail = document.getElementById('alerts-progress-detail');
-  const percent = document.getElementById('alerts-progress-percent');
-  const bar = document.getElementById('alerts-progress-bar');
+  __alertsRefreshDelegationBound = true;
+
   const steps = [
     { percent: 16, title: 'Site listesi hazırlanıyor', detail: 'Alert yenileme akışı için tüm aktif siteler sıralanıyor.' },
     { percent: 38, title: 'Search Console verileri karşılaştırılıyor', detail: 'Her site için son kayıt verileri yeniden değerlendiriliyor.' },
@@ -167,48 +198,67 @@ function initializeRefreshButton() {
   let timer = null;
   let tailTimer = null;
 
-  function renderProgress(step) {
-    panel.classList.remove('hidden');
-    title.textContent = step.title;
-    detail.textContent = step.detail;
-    percent.textContent = String(step.percent) + '%';
-    bar.style.width = String(step.percent) + '%';
-  }
+  document.body.addEventListener('click', async function (e) {
+    const el = alertsEventTargetElement(e);
+    const button = el && el.closest ? el.closest('#refresh-alerts-button') : null;
+    if (!button) {
+      return;
+    }
+    const view = document.getElementById('alerts-view');
+    if (!view || !view.contains(button)) {
+      return;
+    }
 
-  function resetTone() {
-    panel.classList.remove(
-      'border-rose-200',
-      'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
-      'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
-      'dark:border-rose-900/60',
-      'dark:bg-rose-950/45',
-      'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
-      'dark:ring-rose-900/40'
-    );
-    panel.classList.add(
-      'border-sky-200',
-      'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
-      'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
-      'dark:border-slate-600',
-      'dark:bg-slate-900/90',
-      'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
-      'dark:ring-slate-700/80'
-    );
-    bar.classList.remove(
-      'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
-      'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
-      'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
-      'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
-    );
-    bar.classList.add(
-      'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
-      'shadow-[0_0_22px_rgba(14,165,233,0.28)]',
-      'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
-      'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
-    );
-  }
+    const panel = document.getElementById('alerts-progress-panel');
+    const title = document.getElementById('alerts-progress-title');
+    const detail = document.getElementById('alerts-progress-detail');
+    const percent = document.getElementById('alerts-progress-percent');
+    const bar = document.getElementById('alerts-progress-bar');
+    if (!panel || !title || !detail || !percent || !bar) {
+      return;
+    }
 
-  button.addEventListener('click', async function() {
+    function renderProgress(step) {
+      panel.classList.remove('hidden');
+      title.textContent = step.title;
+      detail.textContent = step.detail;
+      percent.textContent = String(step.percent) + '%';
+      bar.style.width = String(step.percent) + '%';
+    }
+
+    function resetTone() {
+      panel.classList.remove(
+        'border-rose-200',
+        'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
+        'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
+        'dark:border-rose-900/60',
+        'dark:bg-rose-950/45',
+        'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
+        'dark:ring-rose-900/40'
+      );
+      panel.classList.add(
+        'border-sky-200',
+        'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
+        'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+        'dark:border-slate-600',
+        'dark:bg-slate-900/90',
+        'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+        'dark:ring-slate-700/80'
+      );
+      bar.classList.remove(
+        'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
+        'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
+        'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
+        'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
+      );
+      bar.classList.add(
+        'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
+        'shadow-[0_0_22px_rgba(14,165,233,0.28)]',
+        'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
+        'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
+      );
+    }
+
     const originalText = button.textContent;
     button.disabled = true;
     button.textContent = 'Yenileniyor...';
@@ -509,9 +559,10 @@ function applyAlertsFilters() {
   cutoff.setDate(cutoff.getDate() - __alertsSelectedPeriodDays);
 
   alertCards.forEach(card => {
-    const cardDomain = card.dataset.domain;
+    const cardDomain = card.getAttribute('data-domain') || card.dataset.domain;
     const cardCategory = (card.getAttribute('data-alert-category') || card.dataset.alertCategory || 'other').trim();
-    const triggeredAt = card.dataset.triggeredAt ? new Date(card.dataset.triggeredAt) : null;
+    const triggeredRaw = card.getAttribute('data-triggered-at') || card.dataset.triggeredAt;
+    const triggeredAt = triggeredRaw ? new Date(triggeredRaw) : null;
     const triggeredOk = triggeredAt && !Number.isNaN(triggeredAt.getTime());
     const domainMatches = selectedDomain === '' || cardDomain === selectedDomain;
     const typeMatches = __alertsSelectedType === 'all' || cardCategory === __alertsSelectedType;
@@ -640,18 +691,22 @@ function bindAlertsFilterDelegationOnce() {
     if (!view) {
       return;
     }
-    const typeTab = e.target.closest('.alert-type-tab');
+    const el = alertsEventTargetElement(e);
+    if (!el) {
+      return;
+    }
+    const typeTab = el.closest('.alert-type-tab');
     if (typeTab && view.contains(typeTab)) {
       e.preventDefault();
-      __alertsSelectedType = typeTab.dataset.alertFilter || 'all';
+      __alertsSelectedType = typeTab.getAttribute('data-alert-filter') || typeTab.dataset.alertFilter || 'all';
       activateAlertTypeTab(typeTab);
       applyAlertsFilters();
       return;
     }
-    const periodTab = e.target.closest('.alert-period-tab');
+    const periodTab = el.closest('.alert-period-tab');
     if (periodTab && view.contains(periodTab)) {
       e.preventDefault();
-      __alertsSelectedPeriodDays = parseInt(periodTab.dataset.period, 10) || 7;
+      __alertsSelectedPeriodDays = parseInt(periodTab.getAttribute('data-period') || periodTab.dataset.period, 10) || 7;
       try {
         window.__alertsSelectedPeriodDays = __alertsSelectedPeriodDays;
       } catch (err) {}
