@@ -781,6 +781,18 @@
     });
   }
 
+  // Bir panel görünür hale gelince içindeki henüz yüklenmemiş
+  // placeholder'lara ga4-load event'i gönderir (HTMX fetch tetikler).
+  function triggerGa4Load(panel) {
+    if (!panel || panel.classList.contains('hidden')) return;
+    panel.querySelectorAll('[data-ga4-pages-placeholder],[data-ga4-sources-placeholder]').forEach(function (el) {
+      if (!el.dataset.ga4Loaded) {
+        el.dataset.ga4Loaded = '1';
+        htmx.trigger(el, 'ga4-load');
+      }
+    });
+  }
+
   function initGa4PeriodSwitch(root) {
     (root || document).querySelectorAll('[data-ga4-period-switch]').forEach(function (switcher) {
       if (switcher.dataset.periodBound === '1') {
@@ -801,6 +813,18 @@
           card.querySelectorAll('[data-ga4-period-panel]').forEach(function (panel) {
             const isActive = panel.dataset.ga4PeriodPanel === periodKey;
             panel.classList.toggle('hidden', !isActive);
+            if (isActive) {
+              // Aktif period panelindeki aktif profile panelindeki placeholder'ları tetikle
+              panel.querySelectorAll('[data-ga4-profile-panel]').forEach(function (pp) {
+                if (!pp.classList.contains('hidden')) {
+                  triggerGa4Load(pp);
+                }
+              });
+              // Hiç profile panel yoksa direkt period paneline bak
+              if (!panel.querySelector('[data-ga4-profile-panel]')) {
+                triggerGa4Load(panel);
+              }
+            }
           });
           card.querySelectorAll('[data-ga4-period-heading]').forEach(function (heading) {
             const isActive = heading.dataset.ga4PeriodHeading === periodKey;
@@ -850,6 +874,13 @@
           hostCard.querySelectorAll('[data-ga4-profile-panel]').forEach(function (panel) {
             const isActive = panel.dataset.ga4ProfilePanel === profileKey;
             panel.classList.toggle('hidden', !isActive);
+            if (isActive) {
+              // Sadece aktif period panelinin içindekini tetikle
+              const periodPanel = panel.closest('[data-ga4-period-panel]');
+              if (!periodPanel || !periodPanel.classList.contains('hidden')) {
+                triggerGa4Load(panel);
+              }
+            }
           });
         }
         window.setTimeout(function () {

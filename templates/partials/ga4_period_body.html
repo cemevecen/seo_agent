@@ -170,7 +170,7 @@
 <div
   data-ga4-pages-placeholder
   hx-get="/ga4/pages/{{ site.id }}?days={{ period_days }}&profile={{ pk }}"
-  hx-trigger="revealed"
+  hx-trigger="ga4-load"
   hx-swap="outerHTML"
   class="overflow-x-auto rounded-2xl border border-slate-200"
 >
@@ -181,7 +181,7 @@
 <div
   data-ga4-sources-placeholder
   hx-get="/ga4/sources/{{ site.id }}?days={{ period_days }}&profile={{ pk }}"
-  hx-trigger="revealed"
+  hx-trigger="ga4-load"
   hx-swap="outerHTML"
   class="overflow-x-auto rounded-2xl border border-slate-200"
 >
