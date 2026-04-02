@@ -1,13 +1,13 @@
 {% if public_sites %}
   <div class="grid gap-4 xl:grid-cols-2">
     {% for site in public_sites %}
-      <article class="rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-slate-100">
+      <article class="rounded-[1.7rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="min-w-0">
-            <p class="text-xs uppercase tracking-[0.2em] text-slate-500">External Site</p>
-            <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{{ site.display_name }}</h4>
-            <p class="mt-1 break-all text-sm text-slate-600">{{ site.domain }}</p>
-            <p class="mt-2 text-xs text-slate-500">Son güncelleme: {{ site.last_updated }}</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">External Site</p>
+            <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{{ site.display_name }}</h4>
+            <p class="mt-1 break-all text-sm text-slate-600 dark:text-slate-300">{{ site.domain }}</p>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Son güncelleme: {{ site.last_updated }}</p>
           </div>
           <div class="flex flex-wrap gap-2">
             <form hx-post="/external/refresh/{{ site.id }}" hx-target="#public-site-list" hx-swap="innerHTML">
@@ -39,35 +39,35 @@
         </div>
 
         <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Mobile PSI</p>
-            <p class="mt-2 text-2xl font-black {% if site.pagespeed_mobile is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ site.pagespeed_mobile if site.pagespeed_mobile is not none else 'N/A' }}</p>
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mobile PSI</p>
+            <p class="mt-2 text-2xl font-black {% if site.pagespeed_mobile is not none %}text-slate-900 dark:text-slate-100{% else %}text-slate-400{% endif %}">{{ site.pagespeed_mobile if site.pagespeed_mobile is not none else 'N/A' }}</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Desktop PSI</p>
-            <p class="mt-2 text-2xl font-black {% if site.pagespeed_desktop is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ site.pagespeed_desktop if site.pagespeed_desktop is not none else 'N/A' }}</p>
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Desktop PSI</p>
+            <p class="mt-2 text-2xl font-black {% if site.pagespeed_desktop is not none %}text-slate-900 dark:text-slate-100{% else %}text-slate-400{% endif %}">{{ site.pagespeed_desktop if site.pagespeed_desktop is not none else 'N/A' }}</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Crawler</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ site.crawler_audited_urls }} URL</p>
-            <p class="mt-1 text-xs text-slate-500">Kırık: {{ site.crawler_broken_links }} · Zincir: {{ site.crawler_redirect_chains }}</p>
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ site.crawler_audited_urls }} URL</p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kırık: {{ site.crawler_broken_links }} · Zincir: {{ site.crawler_redirect_chains }}</p>
             {% if site.crawler_status == 'started' %}
               <p class="mt-1 text-xs font-semibold text-amber-700">Durum: Arka planda taraniyor</p>
             {% elif site.crawler_status == 'failed' %}
               <p class="mt-1 text-xs font-semibold text-rose-700">Durum: Son crawler denemesi basarisiz</p>
             {% endif %}
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">CrUX</p>
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">CrUX</p>
             <p class="mt-2 text-lg font-semibold {% if site.crux_ready %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Hazır' if site.crux_ready else 'Bekleniyor' }}</p>
-            <p class="mt-1 text-xs text-slate-500">Snapshot: {{ site.warehouse.crux_history_snapshots }}</p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Snapshot: {{ site.warehouse.crux_history_snapshots }}</p>
           </div>
         </div>
 
-        <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+        <div class="mt-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Uyarılar</p>
-            <span class="text-xs font-medium text-slate-500">Toplam {{ site.alerts["total"] }} kayıt</span>
+            <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Uyarılar</p>
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Toplam {{ site.alerts["total"] }} kayıt</span>
           </div>
 
           <div class="mt-2 flex flex-wrap gap-2">
@@ -75,23 +75,23 @@
             <span class="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Impression/Uyarı: {{ site.alerts["breakdown"]["amber"] }}</span>
             <span class="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Pozisyon: {{ site.alerts["breakdown"]["sky"] }}</span>
             <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">İyileşme: {{ site.alerts["breakdown"]["emerald"] }}</span>
-            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Diğer: {{ site.alerts["breakdown"]["other"] }}</span>
+            <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200">Diğer: {{ site.alerts["breakdown"]["other"] }}</span>
           </div>
 
           {% if site.alerts["items"] %}
-            <details class="mt-3 rounded-xl border border-slate-200 bg-white" {% if site.alerts["total"] <= 8 %}open{% endif %}>
-              <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-slate-800">
+            <details class="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" {% if site.alerts["total"] <= 8 %}open{% endif %}>
+              <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
                 {{ site.alerts["total"] }} uyarıyı göster / gizle
               </summary>
-              <div class="max-h-[32rem] space-y-2 overflow-y-auto border-t border-slate-200 p-3">
+              <div class="max-h-[32rem] space-y-2 overflow-y-auto border-t border-slate-200 dark:border-slate-700 p-3">
               {% for alert in site.alerts["items"] %}
-                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-sm font-semibold text-slate-900">{{ alert.domain }}</span>
+                        <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ alert.domain }}</span>
                         {% if alert.display_device_code %}
-                          <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{{ alert.display_device_code }}</span>
+                          <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">{{ alert.display_device_code }}</span>
                         {% endif %}
                         {% if alert.display_tone == 'rose' %}
                           <span class="rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">CTR</span>
@@ -106,21 +106,21 @@
                         {% endif %}
                       </div>
                       <div class="mt-2 space-y-1">
-                        <p class="text-sm font-semibold {% if alert.display_tone == 'rose' %}text-rose-700{% elif alert.display_tone == 'amber' %}text-amber-700{% elif alert.display_tone == 'sky' %}text-sky-700{% else %}text-slate-800{% endif %}">
+                        <p class="text-sm font-semibold {% if alert.display_tone == 'rose' %}text-rose-700{% elif alert.display_tone == 'amber' %}text-amber-700{% elif alert.display_tone == 'sky' %}text-sky-700{% else %}text-slate-800 dark:text-slate-100{% endif %}">
                           {{ alert.display_title }}
                         </p>
                         {% if alert.display_query %}
-                          <p class="text-sm font-medium text-slate-900">'{{ alert.display_query }}'</p>
+                          <p class="text-sm font-medium text-slate-900 dark:text-slate-100">'{{ alert.display_query }}'</p>
                         {% endif %}
-                        <p class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-600{% endif %}">{{ alert.display_metric }}</p>
-                        <details class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
-                          <summary class="cursor-pointer text-xs font-medium text-slate-600">Ham alert kırılımı</summary>
-                          <p class="mt-1 text-xs text-slate-600">{{ alert.message }}</p>
+                        <p class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ alert.display_metric }}</p>
+                        <details class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-1">
+                          <summary class="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">Ham alert kırılımı</summary>
+                          <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ alert.message }}</p>
                         </details>
                       </div>
                     </div>
                     <div class="text-right">
-                      <p class="text-xs text-slate-500">{{ alert.triggered_at }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{ alert.triggered_at }}</p>
                       <p class="mt-1 text-xs {% if alert.sent_mail %}text-green-600{% else %}text-amber-600{% endif %}">
                         {% if alert.sent_mail %}✓ Mail gönderildi{% else %}⧗ Mail bekliyor{% endif %}
                       </p>
@@ -131,7 +131,7 @@
               </div>
             </details>
           {% else %}
-            <div class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+            <div class="mt-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
               Bu external site için henüz alarm kaydı oluşmadı.
             </div>
           {% endif %}
@@ -140,7 +140,7 @@
     {% endfor %}
   </div>
 {% else %}
-  <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-sm text-slate-500">
+  <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
     Henuz external site bulunmuyor.
   </div>
 {% endif %}

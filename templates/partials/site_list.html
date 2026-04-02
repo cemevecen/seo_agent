@@ -1,7 +1,7 @@
 {% if sites %}
   <div class="overflow-x-auto">
     <table class="min-w-full text-left text-sm">
-      <thead class="bg-slate-50 text-slate-600">
+      <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
         <tr>
           <th class="px-3 py-2 font-medium">ID</th>
           <th class="px-3 py-2 font-medium">Domain</th>
@@ -15,10 +15,10 @@
       </thead>
       <tbody>
         {% for site in sites %}
-          <tr class="border-b border-slate-100">
-            <td class="px-3 py-2 text-slate-700">{{ site.id }}</td>
-            <td class="px-3 py-2 font-medium text-slate-900">{{ site.domain }}</td>
-            <td class="px-3 py-2 text-slate-700">{{ site.display_name }}</td>
+          <tr class="border-b border-slate-100 dark:border-slate-800">
+            <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ site.id }}</td>
+            <td class="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{{ site.domain }}</td>
+            <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ site.display_name }}</td>
             <td class="px-3 py-2">
               {% if site.search_console.connected %}
                 <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Verified</span>
@@ -30,7 +30,7 @@
               {% if site.is_active %}
                 <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">Aktif</span>
               {% else %}
-                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">Pasif</span>
+                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">Pasif</span>
               {% endif %}
             </td>
             <td class="px-3 py-2">
@@ -38,7 +38,7 @@
                 {% if site.search_console.connected %}
                   <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.search_console.label }}</span>
                 {% else %}
-                  <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">{{ site.search_console.label }}</span>
+                  <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">{{ site.search_console.label }}</span>
                 {% endif %}
                 {% if site.search_console.method == 'oauth' %}
                   <form hx-post="/api/search-console/oauth/disconnect/{{ site.id }}" hx-target="#site-list" hx-swap="innerHTML">
@@ -57,7 +57,7 @@
                     Google ile Bağlan
                   </a>
                 {% else %}
-                  <span class="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500">OAuth ayarı bekleniyor</span>
+                  <span class="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">OAuth ayarı bekleniyor</span>
                 {% endif %}
               </div>
             </td>
@@ -67,10 +67,10 @@
                   {% if site.ga4.connected %}
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700">{{ site.ga4.label }}</span>
                   {% else %}
-                    <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600">{{ site.ga4.label }}</span>
+                    <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:text-slate-300">{{ site.ga4.label }}</span>
                   {% endif %}
                   {% for profile_key, pid in (site.ga4.properties or {}).items() %}
-                    <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">{{ profile_key }}#{{ pid }}</span>
+                    <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">{{ profile_key }}#{{ pid }}</span>
                   {% endfor %}
                 </div>
                 <form
@@ -84,33 +84,33 @@
                     name="ga4_property_web"
                     value="{{ (site.ga4.properties or {}).get('web','') }}"
                     placeholder="web property id"
-                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                    class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
                   <input
                     type="text"
                     name="ga4_property_mweb"
                     value="{{ (site.ga4.properties or {}).get('mweb','') }}"
                     placeholder="mweb property id"
-                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                    class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
                   <input
                     type="text"
                     name="ga4_property_android"
                     value="{{ (site.ga4.properties or {}).get('android','') }}"
                     placeholder="android property id"
-                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                    class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
                   <input
                     type="text"
                     name="ga4_property_ios"
                     value="{{ (site.ga4.properties or {}).get('ios','') }}"
                     placeholder="ios property id"
-                    class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none ring-slate-200 focus:ring"
+                    class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
                   <div class="col-span-2 flex flex-wrap items-center gap-2 xl:col-span-4">
                   <button
                     type="submit"
-                    class="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    class="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"
                   >
                     Kaydet
                   </button>
@@ -123,7 +123,7 @@
                   >
                     Son 30 günü çek
                   </button>
-                  <span id="ga4-save-feedback-{{ site.id }}" class="text-xs font-medium text-slate-500"></span>
+                  <span id="ga4-save-feedback-{{ site.id }}" class="text-xs font-medium text-slate-500 dark:text-slate-400"></span>
                   </div>
                 </form>
               </div>
@@ -159,7 +159,7 @@
     </table>
   </div>
 {% else %}
-  <div class="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+  <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
     Henüz kayıtlı site bulunmuyor.
   </div>
 {% endif %}

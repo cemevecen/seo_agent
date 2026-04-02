@@ -1,28 +1,28 @@
-<div id="dashboard-card-{{ card.id }}" class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
+<div id="dashboard-card-{{ card.id }}" class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 overflow-hidden">
 
   {# Progress panel #}
   <div
     id="dashboard-progress-panel-{{ card.id }}"
     data-dashboard-progress-panel
-    class="hidden border-b border-sky-100 bg-sky-50 px-4 py-3"
+    class="hidden border-b border-sky-100 bg-sky-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80"
   >
     <div class="flex items-center justify-between gap-4">
       <div>
-        <p data-dashboard-progress-title class="text-sm font-semibold text-slate-900">Hazırlanıyor</p>
-        <p data-dashboard-progress-detail class="text-xs text-slate-500">Canlı veri yenileniyor...</p>
+        <p data-dashboard-progress-title class="text-sm font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
+        <p data-dashboard-progress-detail class="text-xs text-slate-500 dark:text-slate-400">Canlı veri yenileniyor...</p>
       </div>
-      <p data-dashboard-progress-percent class="text-lg font-bold text-slate-800">0%</p>
+      <p data-dashboard-progress-percent class="text-lg font-bold text-slate-800 dark:text-slate-100">0%</p>
     </div>
-    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white ring-1 ring-sky-100">
-      <div data-dashboard-progress-bar class="h-full rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-teal-400 transition-all duration-500" style="width: 0%"></div>
+    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white dark:bg-slate-900 ring-1 ring-sky-100 dark:ring-sky-900/40">
+      <div data-dashboard-progress-bar class="h-full rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-teal-400 transition-all duration-500 dark:from-cyan-400 dark:via-sky-400 dark:to-emerald-400 dark:shadow-[0_0_16px_rgba(34,211,238,0.25)]" style="width: 0%"></div>
     </div>
   </div>
 
   {# Header #}
-  <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-slate-100">
+  <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
-        <h4 class="text-lg font-bold tracking-tight text-slate-900">{{ card.display_name }}</h4>
+        <h4 class="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ card.display_name }}</h4>
         <span class="text-xs text-slate-400">{{ card.domain }}</span>
       </div>
       <p class="text-[11px] text-slate-400 mt-0.5">{{ card.last_updated }}</p>
@@ -32,14 +32,14 @@
         type="button"
         data-dashboard-measure-button
         data-dashboard-card-id="{{ card.id }}"
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-900 hover:text-slate-900"
+        class="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 transition hover:border-slate-900 hover:text-slate-900 dark:text-slate-100"
         hx-post="/dashboard/cards/{{ card.id }}/measure?period={{ period }}"
         hx-target="#dashboard-card-{{ card.id }}"
         hx-swap="outerHTML"
         hx-disabled-elt="this"
       >Ölç</button>
       <a href="/search-console"
-         class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-900 hover:text-slate-900">SC</a>
+         class="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 transition hover:border-slate-900 hover:text-slate-900 dark:text-slate-100">SC</a>
       <a href="/data-explorer/{{ card.domain }}"
          class="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
          hx-get="/data-explorer/{{ card.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">PageSpeed</a>
@@ -54,20 +54,20 @@
   {% if card.search_console.has_1d_data %}
     <div class="flex items-center gap-1.5 px-4 pt-2 pb-0">
       <span class="text-[10px] text-slate-400">1g karşılaştırma:</span>
-      <span class="text-[10px] font-semibold text-slate-600">{{ card.search_console.range_1d or "Dün" }}</span>
+      <span class="text-[10px] font-semibold text-slate-600 dark:text-slate-300">{{ card.search_console.range_1d or "Dün" }}</span>
       <span class="text-[10px] text-slate-400">vs</span>
-      <span class="text-[10px] text-slate-500">{{ card.search_console.range_1d_prev or "Geçen haftanın aynı günü" }}</span>
+      <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ card.search_console.range_1d_prev or "Geçen haftanın aynı günü" }}</span>
     </div>
   {% endif %}
 
   {# Metrics grid #}
-  <div class="grid grid-cols-5 divide-x divide-slate-100 border-b border-slate-100 mt-2">
+  <div class="grid grid-cols-5 divide-x divide-slate-100 border-b border-slate-100 dark:border-slate-800 mt-2">
 
     {# Clicks #}
     <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Clicks</p>
       {% if card.search_console.has_1d_data %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.clicks_1d_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.clicks_1d_label }}</p>
         {% set ch = card.search_console.clicks_1d_change %}
         {% if ch > 0.5 %}
           <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
@@ -78,7 +78,7 @@
         {% endif %}
         <p class="mt-0.5 text-[9px] text-slate-300">dün</p>
       {% else %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.clicks_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.clicks_label }}</p>
         <p class="mt-0.5 text-[10px] text-slate-400">7g toplam</p>
       {% endif %}
     </div>
@@ -87,7 +87,7 @@
     <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CTR</p>
       {% if card.search_console.has_1d_data %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.ctr_1d_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.ctr_1d_label }}</p>
         {% set ch = card.search_console.ctr_1d_change %}
         {% if ch > 0.5 %}
           <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
@@ -98,7 +98,7 @@
         {% endif %}
         <p class="mt-0.5 text-[9px] text-slate-300">dün</p>
       {% else %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.ctr_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.ctr_label }}</p>
         <p class="mt-0.5 text-[10px] text-slate-400">ort. oran</p>
       {% endif %}
     </div>
@@ -107,7 +107,7 @@
     <div class="flex flex-col items-center justify-center px-2 py-3 text-center">
       <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Position</p>
       {% if card.search_console.has_1d_data %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.position_1d_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.position_1d_label }}</p>
         {% set ch = card.search_console.position_1d_change %}
         {% if ch > 0.5 %}
           <p class="mt-0.5 text-[10px] font-semibold text-emerald-600">↑ {{ "%.1f"|format(ch) }}%</p>
@@ -118,7 +118,7 @@
         {% endif %}
         <p class="mt-0.5 text-[9px] text-slate-300">dün · ort. sıra</p>
       {% else %}
-        <p class="mt-1 text-xl font-bold text-slate-900">{{ card.search_console.position_label }}</p>
+        <p class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{{ card.search_console.position_label }}</p>
         <p class="mt-0.5 text-[10px] text-slate-400">ort. sıra</p>
       {% endif %}
     </div>
@@ -149,17 +149,17 @@
         <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
       </div>
       <div class="grid grid-cols-3 gap-1.5">
-        <div class="rounded-lg bg-slate-50 px-2 py-1.5 text-center ring-1 ring-slate-100">
+        <div class="rounded-lg bg-slate-50 dark:bg-slate-900/50 px-2 py-1.5 text-center ring-1 ring-slate-100 dark:ring-slate-800">
           <p class="text-[9px] font-semibold uppercase text-slate-400">Clicks</p>
-          <p class="text-xs font-bold text-slate-800">{{ card.search_console.clicks_label }}</p>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ card.search_console.clicks_label }}</p>
         </div>
-        <div class="rounded-lg bg-slate-50 px-2 py-1.5 text-center ring-1 ring-slate-100">
+        <div class="rounded-lg bg-slate-50 dark:bg-slate-900/50 px-2 py-1.5 text-center ring-1 ring-slate-100 dark:ring-slate-800">
           <p class="text-[9px] font-semibold uppercase text-slate-400">CTR</p>
-          <p class="text-xs font-bold text-slate-800">{{ card.search_console.ctr_label }}</p>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ card.search_console.ctr_label }}</p>
         </div>
-        <div class="rounded-lg bg-slate-50 px-2 py-1.5 text-center ring-1 ring-slate-100">
+        <div class="rounded-lg bg-slate-50 dark:bg-slate-900/50 px-2 py-1.5 text-center ring-1 ring-slate-100 dark:ring-slate-800">
           <p class="text-[9px] font-semibold uppercase text-slate-400">Pos.</p>
-          <p class="text-xs font-bold text-slate-800">{{ card.search_console.position_label }}</p>
+          <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ card.search_console.position_label }}</p>
         </div>
       </div>
       <div class="mt-2 flex items-center gap-2">
@@ -175,18 +175,18 @@
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Son Uyarılar</p>
         <a href="/alerts"
-           class="text-[10px] font-semibold text-slate-400 hover:text-slate-700 transition"
+           class="text-[10px] font-semibold text-slate-400 hover:text-slate-700 dark:text-slate-200 transition"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">{{ card.alert_count }} uyarı →</a>
       </div>
       <div class="space-y-1">
         {% for alert in card.recent_alerts %}
           <a
             href="/alerts?selected_alert={{ alert.id }}"
-            class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-slate-50"
+            class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80"
             hx-get="/alerts?selected_alert={{ alert.id }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
           >
             <span class="h-1.5 w-1.5 shrink-0 rounded-full {% if alert.display_tone == 'rose' %}bg-rose-500{% elif alert.display_tone == 'amber' %}bg-amber-500{% elif alert.display_tone == 'sky' %}bg-sky-500{% else %}bg-slate-400{% endif %}"></span>
-            <span class="font-medium text-slate-700 truncate">{% if alert.display_query %}'{{ alert.display_query }}'{% else %}{{ alert.display_title }}{% endif %}</span>
+            <span class="font-medium text-slate-700 dark:text-slate-200 truncate">{% if alert.display_query %}'{{ alert.display_query }}'{% else %}{{ alert.display_title }}{% endif %}</span>
             <span class="shrink-0 text-[10px] text-slate-400">{{ alert.display_metric | truncate(20, true, '…') }}</span>
           </a>
         {% else %}

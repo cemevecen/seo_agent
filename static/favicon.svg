@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="SEO Agent">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- kucuk boyutta okunakli: yukselen bar grafigi -->
+  <rect x="5" y="19" width="5.5" height="8" rx="1.2" fill="url(#bar1)"/>
+  <rect x="13.25" y="13" width="5.5" height="14" rx="1.2" fill="url(#bar2)"/>
+  <rect x="21.5" y="7" width="5.5" height="20" rx="1.2" fill="url(#bar3)"/>
+  <path d="M5 24.5 L12 17 L18.5 19.5 L27 9" stroke="rgba(255,255,255,0.35)" stroke-width="1.25" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

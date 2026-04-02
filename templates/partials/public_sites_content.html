@@ -8,8 +8,8 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-700/80">External Zone</p>
-        <h3 class="mt-2 text-3xl font-black tracking-tight text-slate-900">External Siteler</h3>
-        <p class="mt-2 max-w-3xl text-sm text-slate-600">Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.</p>
+        <h3 class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">External Siteler</h3>
+        <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.</p>
       </div>
       <button
         type="button"
@@ -22,12 +22,12 @@
     </div>
   </section>
 
-  <section class="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm ring-1 ring-slate-100">
+  <section class="rounded-[1.8rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">External Onboarding</p>
-        <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Domain veya URL Ekle</h4>
-        <p class="mt-2 text-sm text-slate-600">Girilen domain/url otomatik normalize edilir ve ilk PageSpeed, Crawler, CrUX verileri hemen çekilir.</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">External Onboarding</p>
+        <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Domain veya URL Ekle</h4>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Girilen domain/url otomatik normalize edilir ve ilk PageSpeed, Crawler, CrUX verileri hemen çekilir.</p>
       </div>
       <form id="external-site-form" class="grid w-full gap-3 lg:max-w-3xl lg:grid-cols-[2fr_1.2fr_auto]" onsubmit="submitExternalSite(event)">
         <input
@@ -35,7 +35,7 @@
           id="external-domain-input"
           name="domain"
           placeholder="ornek.com veya https://ornek.com/urun"
-          class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
+          class="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
           required
         />
         <input
@@ -43,7 +43,7 @@
           id="external-display-name-input"
           name="display_name"
           placeholder="Gorunen ad (opsiyonel)"
-          class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
+          class="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
         />
         <button
           type="submit"
@@ -55,17 +55,17 @@
       </form>
     </div>
     <div id="external-site-feedback" class="mt-3 text-sm"></div>
-    <div id="external-onboarding-progress-panel" class="mt-4 hidden rounded-[1.4rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm">
+    <div id="external-onboarding-progress-panel" class="mt-4 hidden rounded-[1.4rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/90 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)] dark:ring-slate-700/80">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">External Progress</p>
-          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
-          <p id="external-onboarding-progress-detail" class="mt-1 text-sm text-slate-600">Ölçüm adımları başlatılıyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-300/90">External Progress</p>
+          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
+          <p id="external-onboarding-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ölçüm adımları başlatılıyor.</p>
         </div>
-        <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
+        <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
       </div>
-      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-white/70 ring-1 ring-sky-100">
-        <div id="external-onboarding-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500" style="width: 0%"></div>
+      <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-white/70 dark:bg-slate-800/70 ring-1 ring-sky-100 dark:ring-sky-900/40">
+        <div id="external-onboarding-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
       </div>
     </div>
   </section>
@@ -110,17 +110,69 @@
       return;
     }
     if (isError) {
-      panel.classList.remove('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
-      panel.classList.add('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
-      bar.classList.remove('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
-      bar.classList.add('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
+      panel.classList.remove(
+        'border-sky-200',
+        'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
+        'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+        'dark:border-slate-600',
+        'dark:bg-slate-900/90',
+        'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+        'dark:ring-slate-700/80'
+      );
+      panel.classList.add(
+        'border-rose-200',
+        'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
+        'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
+        'dark:border-rose-900/60',
+        'dark:bg-rose-950/45',
+        'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
+        'dark:ring-rose-900/40'
+      );
+      bar.classList.remove(
+        'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
+        'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
+        'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
+        'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
+      );
+      bar.classList.add(
+        'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
+        'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
+        'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
+        'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
+      );
       return;
     }
 
-    panel.classList.remove('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
-    panel.classList.add('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
-    bar.classList.remove('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
-    bar.classList.add('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
+    panel.classList.remove(
+      'border-rose-200',
+      'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
+      'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
+      'dark:border-rose-900/60',
+      'dark:bg-rose-950/45',
+      'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
+      'dark:ring-rose-900/40'
+    );
+    panel.classList.add(
+      'border-sky-200',
+      'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
+      'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+      'dark:border-slate-600',
+      'dark:bg-slate-900/90',
+      'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+      'dark:ring-slate-700/80'
+    );
+    bar.classList.remove(
+      'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
+      'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
+      'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
+      'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
+    );
+    bar.classList.add(
+      'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
+      'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
+      'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
+      'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
+    );
   }
 
   function closeExternalOnboardingProgress(delayMs) {

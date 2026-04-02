@@ -4,14 +4,42 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ site_name or "SEO Agent Dashboard" }}</title>
+  {# favicon_v: önbellek kırma; ikon güncellenince artır #}
+  {% set favicon_v = "3" %}
+  <link rel="icon" href="/favicon.ico?v={{ favicon_v }}" sizes="any" />
+  <link rel="shortcut icon" href="/favicon.ico?v={{ favicon_v }}" />
+  <link rel="icon" href="/static/favicon.svg?v={{ favicon_v }}" type="image/svg+xml" />
+  <link rel="icon" href="/static/favicon-32.png?v={{ favicon_v }}" sizes="32x32" type="image/png" />
+  <link rel="icon" href="/static/favicon-16.png?v={{ favicon_v }}" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ favicon_v }}" sizes="180x180" />
+  <meta name="msapplication-TileImage" content="/apple-touch-icon.png?v={{ favicon_v }}" />
+  <script>
+    (function () {
+      try {
+        var k = 'seo-theme';
+        var v = localStorage.getItem(k);
+        var root = document.documentElement;
+        if (v === 'dark') {
+          root.classList.add('dark');
+        } else if (v === 'light') {
+          root.classList.remove('dark');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          root.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
   <!-- HTMX CDN -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <!-- Plotly CDN -->
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
-<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900">
+<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="flex min-h-screen">
     <aside id="sidebar" class="w-72 shrink-0 overflow-hidden bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
@@ -41,31 +69,48 @@
     </aside>
 
     <main class="min-w-0 flex-1">
-      <header class="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+      <header class="border-b border-slate-200 bg-white px-4 py-4 sm:px-6 dark:border-slate-700 dark:bg-slate-900">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-3">
+          <div class="flex min-w-0 flex-1 items-center justify-between gap-3 sm:justify-start">
+            <div class="flex min-w-0 items-center gap-3">
+              <button
+                id="sidebar-toggle"
+                type="button"
+                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                aria-expanded="true"
+                aria-controls="sidebar"
+                title="Sidebar Daralt/Genişlet"
+              >
+                <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 rotate-180" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <h2 id="header-site-title" class="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{{ site_name or "SEO Agent Dashboard" }}</h2>
+            </div>
             <button
-              id="sidebar-toggle"
+              id="theme-toggle"
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100"
-              aria-expanded="true"
-              aria-controls="sidebar"
-              title="Sidebar Daralt/Genişlet"
+              class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 sm:ml-2 lg:ml-3"
+              title="Açık / koyu tema"
+              aria-label="Tema değiştir"
             >
-              <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 rotate-180" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="hidden h-4 w-4 dark:inline" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
               </svg>
+              <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4 dark:hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+              </svg>
+              <span class="sr-only">Tema</span>
             </button>
-            <h2 id="header-site-title" class="text-lg font-semibold">{{ site_name or "SEO Agent Dashboard" }}</h2>
           </div>
           <div class="hidden flex-wrap items-center gap-3 text-sm lg:flex">
-            <a href="/" class="text-slate-600 hover:text-slate-900">Dashboard</a>
-            <a href="/search-console" class="text-slate-600 hover:text-slate-900">Search Console</a>
-            <a href="/ga4" class="text-slate-600 hover:text-slate-900">GA4</a>
-            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900">PageSpeed</a>
-            <a href="/external" class="text-slate-600 hover:text-slate-900">External</a>
-            <a href="/alerts" class="text-slate-600 hover:text-slate-900">Uyarılar</a>
-            <a href="/settings" class="text-slate-600 hover:text-slate-900">Ayarlar</a>
+            <a href="/" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</a>
+            <a href="/search-console" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Search Console</a>
+            <a href="/ga4" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">GA4</a>
+            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">PageSpeed</a>
+            <a href="/external" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">External</a>
+            <a href="/alerts" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Uyarılar</a>
+            <a href="/settings" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Ayarlar</a>
           </div>
         </div>
       </header>
@@ -185,14 +230,53 @@
         document.title = siteTitle;
       }
 
-      document.body.addEventListener('htmx:afterSwap', function (event) {
-        if (event.target && event.target.id === 'content') {
-          syncHeaderFromContent();
-        }
+      /* HTMX afterSwap target genelde #content degil; swap edilen cocuk dugumdur. */
+      document.body.addEventListener('htmx:afterSwap', function () {
+        syncHeaderFromContent();
       });
 
       syncHeaderFromContent();
     })();
+
+    (function () {
+      var THEME_KEY = 'seo-theme';
+      var root = document.documentElement;
+      var btn = document.getElementById('theme-toggle');
+      function isDark() {
+        return root.classList.contains('dark');
+      }
+      function applyTheme(dark) {
+        if (dark) {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
+        try {
+          localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+        } catch (e) {}
+        try {
+          document.dispatchEvent(new CustomEvent('seo-theme-change', { detail: { dark: dark } }));
+        } catch (e) {}
+      }
+      if (btn) {
+        btn.addEventListener('click', function () {
+          applyTheme(!isDark());
+        });
+      }
+    })();
+
+    window.seoPlotlyTheme = function () {
+      var d = document.documentElement.classList.contains('dark');
+      return {
+        grid: d ? '#334155' : '#e2e8f0',
+        tick: d ? '#cbd5e1' : '#64748b',
+        legend: d ? '#cbd5e1' : '#475569',
+        muted: d ? '#94a3b8' : '#64748b',
+        paper: 'rgba(0,0,0,0)',
+        plot: 'rgba(0,0,0,0)',
+      };
+    };
   </script>
+  <script src="/static/alerts_page.js" defer></script>
 </body>
 </html>

@@ -117,7 +117,8 @@ class Metric(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
-    metric_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    # GA4 kanal anahtarları uzun olabiliyor; 100 char kesilince last/prev çakışıp %0 üretebiliyordu.
+    metric_type: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

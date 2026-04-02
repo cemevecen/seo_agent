@@ -29,15 +29,21 @@
     width: 42%;
     animation: sc-indeterminate 1.15s ease-in-out infinite;
   }
+  /* Plotly katmanı kart başlığına taşıp tıklamayı yutmasın */
+  [data-search-console-trend] {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+  }
 </style>
 <div class="space-y-6">
-  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+  <div class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-2">
         <button
           id="refresh-search-console-sites-button"
           type="button"
-          class="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 sm:w-auto"
+          class="w-full rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-900 hover:text-slate-900 dark:text-slate-100 sm:w-auto"
           onclick="refreshSearchConsoleSites(this)"
         >
           Tüm Siteleri Yenile
@@ -45,55 +51,55 @@
       </div>
     </div>
 
-    <div id="search-console-page-load-panel" class="mb-4 rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
+    <div id="search-console-page-load-panel" class="mb-4 rounded-[1.6rem] border border-slate-200 dark:border-slate-700 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98)_45%,rgba(226,232,240,0.9))] p-5 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-white/75 backdrop-blur-sm">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Sayfa yükleniyor</p>
-          <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900">Kabuk hazırlanıyor</p>
-          <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600">Search Console site listesi için istek gönderiliyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">Sayfa yükleniyor</p>
+          <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Kabuk hazırlanıyor</p>
+          <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Search Console site listesi için istek gönderiliyor.</p>
         </div>
         <div class="text-right">
-          <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800">8%</p>
+          <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">8%</p>
           <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-400">0.0 sn</p>
         </div>
       </div>
-      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-200 shadow-inner">
+      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/85 dark:bg-slate-800/90 ring-1 ring-slate-200 dark:ring-slate-700 shadow-inner">
         <div id="search-console-page-load-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#334155_0%,#475569_35%,#0ea5e9_100%)] shadow-[0_0_24px_rgba(51,65,85,0.26)] transition-all duration-300" style="width: 8%"></div>
       </div>
     </div>
 
     <div
       id="search-console-htmx-activity-bar"
-      class="mb-4 hidden rounded-2xl border border-sky-100 bg-white/95 p-3 shadow-sm ring-1 ring-slate-100"
+      class="mb-4 hidden rounded-2xl border border-sky-100 bg-white/95 dark:bg-slate-800/95 p-3 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800"
       aria-live="polite"
     >
-      <div class="flex items-center justify-between gap-3 text-xs text-slate-600">
+      <div class="flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
         <span id="search-console-htmx-activity-label">Kart ve veri istekleri sürüyor</span>
         <span id="search-console-htmx-activity-count" class="font-semibold tabular-nums text-sky-800">0</span>
       </div>
-      <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
-        <div class="sc-htmx-indeterminate-fill h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400"></div>
+      <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+        <div class="sc-htmx-indeterminate-fill h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 dark:from-cyan-400 dark:via-sky-400 dark:to-teal-400"></div>
       </div>
     </div>
 
-    <div id="search-console-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm">
+    <div id="search-console-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))] p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-white/70 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/90 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)] dark:ring-slate-700/80">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80">Yaklaşık İlerleme</p>
-          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900">Hazırlanıyor</p>
-          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600">Dış kaynaktan veri çekme akışı başlatılıyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80 dark:text-sky-300/90">Yaklaşık İlerleme</p>
+          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
+          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Dış kaynaktan veri çekme akışı başlatılıyor.</p>
         </div>
-        <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800">0%</p>
+        <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
       </div>
-      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/80 ring-1 ring-sky-100 shadow-inner">
-        <div id="search-console-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500" style="width: 0%"></div>
+      <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800/80 ring-1 ring-sky-100 dark:ring-sky-900/40 shadow-inner">
+        <div id="search-console-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
       </div>
     </div>
 
     <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
-      <div class="grid gap-4 xl:grid-cols-2" aria-hidden="true">
+      <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" aria-hidden="true">
         {% for _ in [0, 1] %}
-          <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+          <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shadow-sm">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0 flex-1 space-y-2.5 animate-pulse">
                 <div class="h-6 max-w-[14rem] rounded-lg bg-slate-200"></div>
@@ -267,7 +273,7 @@
         }
         stopElapsedTick();
         if (panel) {
-          panel.classList.remove('border-slate-200', 'bg-slate-50');
+          panel.classList.remove('border-slate-200 dark:border-slate-700', 'bg-slate-50 dark:bg-slate-900/50');
           panel.classList.add('border-rose-200', 'bg-rose-50');
         }
         if (bar) {
@@ -399,12 +405,38 @@
           window.clearInterval(tailTimer);
         }
         if (panel) {
-          panel.classList.remove('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
-          panel.classList.add('border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
+          panel.classList.remove(
+            'border-sky-200',
+            'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
+            'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+            'dark:border-slate-600',
+            'dark:bg-slate-900/90',
+            'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+            'dark:ring-slate-700/80'
+          );
+          panel.classList.add(
+            'border-rose-200',
+            'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
+            'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
+            'dark:border-rose-900/60',
+            'dark:bg-rose-950/45',
+            'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
+            'dark:ring-rose-900/40'
+          );
         }
         if (bar) {
-          bar.classList.remove('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
-          bar.classList.add('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
+          bar.classList.remove(
+            'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
+            'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
+            'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
+            'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
+          );
+          bar.classList.add(
+            'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
+            'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
+            'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
+            'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
+          );
         }
         render({
           percent: Math.max(parseInt((bar && bar.style.width) || '12', 10) || 12, 12),
@@ -418,12 +450,39 @@
         if (panel) {
           panel.style.opacity = '';
           panel.style.transition = '';
-          panel.classList.remove('hidden', 'border-rose-200', 'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]', 'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]');
-          panel.classList.add('border-sky-200', 'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]', 'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]');
+          panel.classList.remove(
+            'hidden',
+            'border-rose-200',
+            'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
+            'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
+            'dark:border-rose-900/60',
+            'dark:bg-rose-950/45',
+            'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
+            'dark:ring-rose-900/40'
+          );
+          panel.classList.add(
+            'border-sky-200',
+            'bg-[linear-gradient(135deg,rgba(224,242,254,0.92),rgba(255,255,255,0.98)_52%,rgba(224,231,255,0.92))]',
+            'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
+            'dark:border-slate-600',
+            'dark:bg-slate-900/90',
+            'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)]',
+            'dark:ring-slate-700/80'
+          );
         }
         if (bar) {
-          bar.classList.remove('bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]', 'shadow-[0_0_26px_rgba(244,63,94,0.28)]');
-          bar.classList.add('bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]', 'shadow-[0_0_26px_rgba(14,165,233,0.38)]');
+          bar.classList.remove(
+            'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
+            'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
+            'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
+            'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
+          );
+          bar.classList.add(
+            'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
+            'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
+            'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
+            'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
+          );
         }
       },
     };
@@ -615,6 +674,11 @@
             );
           }
 
+          const th = window.seoPlotlyTheme
+            ? window.seoPlotlyTheme()
+            : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', muted: '#64748b', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
+          const clickColor = document.documentElement.classList.contains('dark') ? '#60a5fa' : '#3b82f6';
+          const posColor = document.documentElement.classList.contains('dark') ? '#fb923c' : '#f97316';
           Plotly.newPlot(
             element,
             traces,
@@ -622,36 +686,36 @@
               autosize: true,
               height: 360,
               margin: { l: 52, r: 52, t: 20, b: 100 },
-              paper_bgcolor: 'rgba(0,0,0,0)',
-              plot_bgcolor: 'rgba(0,0,0,0)',
+              paper_bgcolor: th.paper,
+              plot_bgcolor: th.plot,
               legend: {
                 orientation: 'h',
                 x: 0,
                 y: -0.26,
                 xanchor: 'left',
                 yanchor: 'top',
-                font: { size: 11 },
+                font: { size: 11, color: th.legend },
               },
               xaxis: {
-                gridcolor: '#e2e8f0',
+                showgrid: false,
                 automargin: true,
                 type: isLast28Days ? 'date' : 'category',
                 tickangle: isLast28Days ? -45 : 0,
-                tickfont: { size: isLast28Days ? 10 : 12 },
+                tickfont: { size: isLast28Days ? 10 : 12, color: th.tick },
                 tickformat: isLast28Days ? '%d.%m' : undefined,
               },
               // y1: Clicks (left)
               yaxis: {
-                title: { text: 'Clicks', font: { color: '#3b82f6', size: 11 } },
-                tickfont: { color: '#3b82f6', size: 10 },
-                gridcolor: '#e2e8f0',
+                title: { text: 'Clicks', font: { color: clickColor, size: 11 } },
+                tickfont: { color: clickColor, size: 10 },
+                showgrid: false,
                 zeroline: false,
                 automargin: true,
               },
               // y2: Position (right, reversed)
               yaxis2: {
-                title: { text: 'Position', font: { color: '#f97316', size: 11 } },
-                tickfont: { color: '#f97316', size: 10 },
+                title: { text: 'Position', font: { color: posColor, size: 11 } },
+                tickfont: { color: posColor, size: 10 },
                 overlaying: 'y',
                 side: 'right',
                 autorange: 'reversed',
@@ -750,8 +814,10 @@
           const isActive = button.dataset.deviceToggle === deviceKey;
           button.dataset.active = isActive ? 'true' : 'false';
           button.classList.toggle('bg-slate-900', isActive);
+          button.classList.toggle('dark:bg-slate-600', isActive);
           button.classList.toggle('text-white', isActive);
           button.classList.toggle('text-slate-600', !isActive);
+          button.classList.toggle('dark:text-slate-300', !isActive);
         });
         const activePeriod = hostCard ? hostCard.querySelector('[data-sc-period-panel]:not(.hidden)') : null;
         const scope = activePeriod || hostCard;
@@ -820,8 +886,10 @@
           const isActive = button.dataset.scPeriodToggle === periodKey;
           button.dataset.active = isActive ? 'true' : 'false';
           button.classList.toggle('bg-violet-900', isActive);
+          button.classList.toggle('dark:bg-violet-600', isActive);
           button.classList.toggle('text-white', isActive);
           button.classList.toggle('text-slate-600', !isActive);
+          button.classList.toggle('dark:text-slate-300', !isActive);
         });
         if (hostCard) {
           hostCard.querySelectorAll('[data-sc-period-panel]').forEach(function (panel) {
@@ -1133,5 +1201,37 @@
       updateSearchConsoleActivityBar();
     }
   });
+
+  function relayoutSearchConsoleTrendChartsTheme() {
+    var th = window.seoPlotlyTheme
+      ? window.seoPlotlyTheme()
+      : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569' };
+    if (!window.Plotly) {
+      return;
+    }
+    var dark = document.documentElement.classList.contains('dark');
+    var clickColor = dark ? '#60a5fa' : '#3b82f6';
+    var posColor = dark ? '#fb923c' : '#f97316';
+    document.querySelectorAll('[data-search-console-trend]').forEach(function (el) {
+      if (el.dataset.chartReady !== '1') {
+        return;
+      }
+      Plotly.relayout(el, {
+        'legend.font.color': th.legend,
+        'xaxis.showgrid': false,
+        'xaxis.tickfont.color': th.tick,
+        'yaxis.showgrid': false,
+        'yaxis.tickfont.color': clickColor,
+        'yaxis.title.font.color': clickColor,
+        'yaxis2.tickfont.color': posColor,
+        'yaxis2.title.font.color': posColor,
+      });
+    });
+  }
+
+  if (!window.__scPlotlyThemeBound) {
+    window.__scPlotlyThemeBound = true;
+    document.addEventListener('seo-theme-change', relayoutSearchConsoleTrendChartsTheme);
+  }
 </script>
 {% endblock %}

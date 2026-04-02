@@ -1,14 +1,14 @@
 {% if lazy_mode %}
   {# İlk yükleme: iskelet kartlar + HTMX lazy load tetikleyicileri #}
   {% if lazy_site_ids %}
-    <div class="grid gap-4 xl:grid-cols-2" data-sc-split-root>
+    <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
       {% for site_id, display_name in lazy_site_ids %}
         <div
           id="sc-card-{{ site_id }}"
           hx-get="/search-console/site/{{ site_id }}"
           hx-trigger="load"
           hx-swap="outerHTML"
-          class="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm"
+          class="flex h-full min-h-0 flex-col animate-pulse rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shadow-sm"
         >
           <div class="flex items-start justify-between gap-4 mb-4">
             <div>
@@ -32,21 +32,21 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+    <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
       Search Console için kayıtlı site bulunmuyor.
     </div>
   {% endif %}
 {% else %}
   {# Yenileme sonrası tam veri (refresh endpoint'lerinden döner) #}
   {% if search_console_sites %}
-    <div class="grid gap-4 xl:grid-cols-2" data-sc-split-root>
+    <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
       {% for site in search_console_sites %}
         {% set site_count = search_console_sites|length %}
         {% include "partials/sc_single_site_card.html" %}
       {% endfor %}
     </div>
   {% else %}
-    <div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+    <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
       Search Console için kayıtlı site bulunmuyor.
     </div>
   {% endif %}

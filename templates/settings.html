@@ -3,9 +3,9 @@
 {% block content %}
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-1">
-    <div class="rounded-xl bg-white p-5 shadow-sm">
-      <h3 class="text-base font-semibold text-slate-900">Site Ekle</h3>
-      <p class="mt-1 text-sm text-slate-500">Form gönderiminden sonra liste HTMX ile yenilenir.</p>
+    <div class="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Site Ekle</h3>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Form gönderiminden sonra liste HTMX ile yenilenir.</p>
 
       <form
         id="site-form"
@@ -15,30 +15,30 @@
         hx-on::after-request="handleSiteCreate(event)"
       >
         <div>
-          <label for="domain" class="mb-1 block text-sm font-medium text-slate-700">Domain</label>
+          <label for="domain" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Domain</label>
           <input
             id="domain"
             name="domain"
             type="text"
             required
             placeholder="ornek.com"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-slate-200 focus:ring"
+            class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
           />
         </div>
 
         <div>
-          <label for="display_name" class="mb-1 block text-sm font-medium text-slate-700">Görünen Ad</label>
+          <label for="display_name" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Görünen Ad</label>
           <input
             id="display_name"
             name="display_name"
             type="text"
             placeholder="Örnek Site"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-slate-200 focus:ring"
+            class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
           />
         </div>
 
-        <label class="flex items-center gap-2 text-sm text-slate-700">
-          <input id="is_active" name="is_active" type="checkbox" checked class="rounded border-slate-300" />
+        <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input id="is_active" name="is_active" type="checkbox" checked class="rounded border-slate-300 dark:border-slate-600" />
           Aktif olarak ekle
         </label>
 
@@ -50,17 +50,17 @@
         </button>
       </form>
 
-      <p id="site-form-feedback" class="mt-3 text-sm text-slate-500"></p>
+      <p id="site-form-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
     </div>
   </div>
 
   <div class="lg:col-span-2">
-    <div class="rounded-xl bg-white p-5 shadow-sm">
+    <div class="rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-base font-semibold text-slate-900">Kayıtlı Siteler</h3>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Kayıtlı Siteler</h3>
         <button
           type="button"
-          class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+          class="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"
           onclick="refreshSiteList()"
         >
           Yenile
@@ -68,15 +68,15 @@
       </div>
 
       <div id="site-list" hx-get="/settings/site-list" hx-trigger="load" hx-swap="innerHTML">
-        <p class="text-sm text-slate-500">Liste yükleniyor...</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Liste yükleniyor...</p>
       </div>
     </div>
 
-    <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
+    <div class="mt-6 rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between gap-4">
         <div>
-          <h3 class="text-base font-semibold text-slate-900">Search Console OAuth</h3>
-          <p class="mt-1 text-sm text-slate-500">Google login ile site bazlı Search Console erişimi ver.</p>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console OAuth</h3>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Google login ile site bazlı Search Console erişimi ver.</p>
         </div>
         {% if oauth_ready %}
           <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">OAuth hazır</span>
@@ -84,22 +84,22 @@
           <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">OAuth ayarı eksik</span>
         {% endif %}
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 text-sm text-slate-700 dark:text-slate-200">
         <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
         {% if not oauth_ready %}
           <p class="mt-2 text-amber-700">.env içinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanımlaman gerekiyor.</p>
         {% else %}
-          <p class="mt-2 text-slate-600">Bağlan butonu site listesinde görünür. Google Cloud OAuth client kaydında bu redirect URI birebir tanımlı olmalı.</p>
+          <p class="mt-2 text-slate-600 dark:text-slate-300">Bağlan butonu site listesinde görünür. Google Cloud OAuth client kaydında bu redirect URI birebir tanımlı olmalı.</p>
         {% endif %}
       </div>
     </div>
 
-    <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
+    <div class="mt-6 rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-base font-semibold text-slate-900">Alert Eşikleri</h3>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Alert Eşikleri</h3>
         <button
           type="button"
-          class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+          class="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"
           onclick="refreshAlertRules()"
         >
           Yenile
@@ -107,19 +107,19 @@
       </div>
 
       <div id="alert-thresholds" hx-get="/settings/alert-thresholds" hx-trigger="load" hx-swap="innerHTML">
-        <p class="text-sm text-slate-500">Alert eşikleri yükleniyor...</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Alert eşikleri yükleniyor...</p>
       </div>
-      <p id="alert-feedback" class="mt-3 text-sm text-slate-500"></p>
+      <p id="alert-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
     </div>
 
-    <div class="mt-6 rounded-xl bg-white p-5 shadow-sm">
+    <div class="mt-6 rounded-xl bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-base font-semibold text-slate-900">API Kota Kontrolü</h3>
-        <p class="text-xs text-slate-500">Günlük ve aylık limit takibi</p>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">API Kota Kontrolü</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400">Günlük ve aylık limit takibi</p>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full text-left text-sm">
-          <thead class="bg-slate-50 text-slate-600">
+          <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
             <tr>
               <th class="px-3 py-2 font-medium">Domain</th>
               <th class="px-3 py-2 font-medium">Provider</th>
@@ -129,15 +129,15 @@
           </thead>
           <tbody>
             {% for row in quota_status %}
-              <tr class="border-b border-slate-100">
-                <td class="px-3 py-2 font-medium text-slate-900">{{ row.domain }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.provider }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.daily_used }}/{{ row.daily_limit }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.monthly_used }}/{{ row.monthly_limit }}</td>
+              <tr class="border-b border-slate-100 dark:border-slate-800">
+                <td class="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{{ row.domain }}</td>
+                <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ row.provider }}</td>
+                <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ row.daily_used }}/{{ row.daily_limit }}</td>
+                <td class="px-3 py-2 text-slate-700 dark:text-slate-200">{{ row.monthly_used }}/{{ row.monthly_limit }}</td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="4" class="px-3 py-6 text-center text-slate-500">Henüz kota kullanımı oluşmadı.</td>
+                <td colspan="4" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">Henüz kota kullanımı oluşmadı.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -184,7 +184,7 @@
       feedback.className = 'text-xs font-medium text-emerald-600';
       window.setTimeout(() => {
         feedback.textContent = '';
-        feedback.className = 'text-xs font-medium text-slate-500';
+        feedback.className = 'text-xs font-medium text-slate-500 dark:text-slate-400';
       }, 2200);
       refreshSiteList();
       return;
@@ -194,7 +194,7 @@
     feedback.className = 'text-xs font-medium text-rose-600';
     window.setTimeout(() => {
       feedback.textContent = '';
-      feedback.className = 'text-xs font-medium text-slate-500';
+      feedback.className = 'text-xs font-medium text-slate-500 dark:text-slate-400';
     }, 2600);
   }
 

@@ -2,13 +2,13 @@
   <div class="grid gap-4 xl:grid-cols-2" data-ga4-split-root>
     {% for site in ga4_sites %}
       <section
-        class="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm transition hover:border-slate-300 hover:bg-white sm:px-5"
+        class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-4 shadow-sm transition hover:border-slate-300 dark:hover:border-slate-600 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800 sm:px-5"
         data-ga4-expandable
         data-ga4-site-card
         data-site-id="{{ site.id }}"
         data-expanded="true"
       >
-        <div class="flex w-full flex-col gap-2 sm:gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+        <div class="relative z-20 flex w-full flex-col gap-2 sm:gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
           <button
             type="button"
             class="min-w-0 flex-1 text-left leading-snug"
@@ -16,15 +16,15 @@
             aria-expanded="true"
             aria-controls="ga4-panel-{{ site.id }}"
           >
-            <h5 class="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">
+            <h5 class="text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100 sm:text-xl">
               {% set _root_title = site.domain | ga4_site_root %}
               {% if _root_title %}
-                <a href="{{ _root_title }}" target="_blank" rel="noopener noreferrer" class="text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-sky-900">{{ site.display_name }}</a>
+                <a href="{{ _root_title }}" target="_blank" rel="noopener noreferrer" class="text-slate-900 dark:text-slate-100 underline decoration-slate-300 underline-offset-2 hover:text-sky-900">{{ site.display_name }}</a>
               {% else %}
                 {{ site.display_name }}
               {% endif %}
             </h5>
-            <p class="mt-0.5 break-all text-sm leading-snug text-slate-600">
+            <p class="mt-0.5 break-all text-sm leading-snug text-slate-600 dark:text-slate-300">
               {% set _root = site.domain | ga4_site_root %}
               {% if _root %}
                 <a href="{{ _root }}" target="_blank" rel="noopener noreferrer" class="text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900">{{ site.domain }}</a>
@@ -36,7 +36,7 @@
           <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-1.5 lg:justify-end">
             {% if site.ga4.connected and site.profiles %}
             <div
-              class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch]"
+              class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
               data-ga4-period-switch
               role="tablist"
               aria-label="GA4 comparison window"
@@ -44,7 +44,7 @@
               <button
                 type="button"
                 role="tab"
-                class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition sm:px-3.5 sm:py-1.5"
+                class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5"
                 data-ga4-period-toggle="1"
                 data-active="true"
               >
@@ -53,7 +53,7 @@
               <button
                 type="button"
                 role="tab"
-                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition sm:px-3.5 sm:py-1.5"
+                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5"
                 data-ga4-period-toggle="7"
                 data-active="false"
               >
@@ -62,7 +62,7 @@
               <button
                 type="button"
                 role="tab"
-                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition sm:px-3.5 sm:py-1.5"
+                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5"
                 data-ga4-period-toggle="30"
                 data-active="false"
               >
@@ -74,7 +74,7 @@
             <button
               type="button"
               data-ga4-focus-toggle="{{ site.id }}"
-              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 hover:text-cyan-900"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 hover:text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80 dark:hover:text-cyan-100"
               title="Tam genişlikte göster"
             >
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
@@ -84,7 +84,7 @@
             <button
               type="button"
               data-ga4-split-reset
-              class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-900 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100"
+              class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-900 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80"
               title="İki sütunlu görünüme dön"
             >
               <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -96,17 +96,17 @@
           </div>
         </div>
 
-        <div id="ga4-panel-{{ site.id }}" class="mt-4 space-y-5 sm:mt-5 sm:space-y-6" data-site-expand-panel>
+        <div id="ga4-panel-{{ site.id }}" class="relative z-0 mt-4 space-y-5 sm:mt-5 sm:space-y-6" data-site-expand-panel>
           {% if not site.ga4.connected %}
             <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {{ site.ga4.label }}
             </div>
           {% elif not site.profiles %}
-            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
               Bu site için GA4 profilinde henüz oturum verisi yok. Yenile ile tekrar deneyin.
             </div>
           {% else %}
-            <div class="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 sm:space-y-5 overflow-hidden">
+            <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5 overflow-hidden">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div class="min-w-0 flex-1">
                   {% set _dp = site.default_profile %}
@@ -115,7 +115,7 @@
                       {% set _pr = site.profiles[_dp].periods[period_key] %}
                       <div
                         data-ga4-period-heading="{{ period_key }}"
-                        class="{% if period_key != '1' %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600"
+                        class="{% if period_key != '1' %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600 dark:text-slate-300"
                       >
                         {% if _pr.ranges and (_pr.ranges.last_end or _pr.ranges.prev_end) %}
                           {{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }} vs {{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
@@ -128,7 +128,7 @@
                   <div class="w-full lg:w-auto">
                     <p class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 lg:hidden">Platform</p>
                     <div
-                      class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 bg-slate-100 p-1 [-webkit-overflow-scrolling:touch] lg:max-w-none lg:justify-end"
+                      class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch] lg:max-w-none lg:justify-end"
                       data-ga4-profile-switch
                       role="tablist"
                       aria-label="GA4 platform selection"
@@ -190,7 +190,7 @@
     {% endfor %}
   </div>
 {% else %}
-  <div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+  <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
     GA4 için kayıtlı site bulunmuyor.
   </div>
 {% endif %}

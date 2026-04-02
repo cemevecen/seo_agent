@@ -701,6 +701,20 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
             print(f"Warning: could not mark alert mails as sent due to DB lock: {exc}")
 
 
+def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: str) -> str:
+    """Chip filtreleri (CTR / Impression / Pozisyon) için UI metrik adı."""
+    mt = str(presentation.get("metric_type") or "")
+    if mt in ("CTR", "Impression", "Pozisyon"):
+        return mt
+    mapping = {
+        "search_console_ctr_drop": "CTR",
+        "search_console_impressions_drop": "Impression",
+        "search_console_position_drop": "Pozisyon",
+        "search_console_biggest_drop": "Pozisyon",
+    }
+    return mapping.get(alert_type, mt or "Genel")
+
+
 def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
     rows = (
@@ -743,6 +757,7 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
                 "triggered_at": format_local_datetime(log.triggered_at),
                 "triggered_at_iso": log.triggered_at.strftime("%Y-%m-%dT%H:%M:%S"),
                 "sent_mail": log.sent_mail,
+                "metric_type": _metric_type_for_alert_filter(presentation, alert.alert_type),
             }
         )
         if len(filtered_alerts) >= limit:

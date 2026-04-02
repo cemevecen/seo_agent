@@ -9,57 +9,65 @@
   {% set prev_l = 'Previous 30 days' %}
 {% endif %}
 
-<div class="overflow-x-auto rounded-2xl border border-slate-200">
-  <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold text-slate-800 sm:px-3">Session source / medium</p>
-  <table class="w-max max-w-full min-w-0 text-sm" data-ga4-table>
-    <thead class="border-b border-slate-200 text-slate-500">
-      <tr>
-        <th class="px-2 py-2.5 text-left sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="source" data-sort-type="string">Session source / medium</button>
-        </th>
-        <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="last" data-sort-type="number">Sessions<br><span class="text-xs font-normal">{{ last_l }}</span></button>
-        </th>
-        <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="prev" data-sort-type="number">Sessions<br><span class="text-xs font-normal">{{ prev_l }}</span></button>
-        </th>
-        <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="delta" data-sort-type="number">Change</button>
-        </th>
-        <th class="whitespace-nowrap px-2 py-2.5 text-right sm:px-3 sm:py-3">
-          <button type="button" class="font-semibold hover:text-slate-900" data-sort-key="deltaPct" data-sort-type="number">Δ %</button>
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-        <tr
-          class="border-b border-slate-100 hover:bg-slate-50"
-          data-ga4-row="1"
-          data-source="{{ row.source_medium|lower }}"
-          data-last="{{ row.last_total }}"
-          data-prev="{{ row.prev_total }}"
-          data-delta="{{ row.delta }}"
-          data-delta-pct="{{ row.delta_pct }}"
-        >
-          <td class="max-w-[min(100vw,28rem)] px-2 py-2.5 text-left font-medium break-words sm:px-3 sm:py-3">
-            {% set _su = row.source_medium | ga4_source_href %}
-            {% if _su %}
-              <a href="{{ _su }}" target="_blank" rel="noopener noreferrer" class="text-violet-800 underline decoration-violet-300 underline-offset-2 hover:text-violet-950">{{ row.source_medium }}</a>
-            {% else %}
-              <span class="text-slate-900">{{ row.source_medium }}</span>
-            {% endif %}
-          </td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-700 sm:px-3 sm:py-3">{{ row.delta | tr_int }}</td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.delta_pct < 0 %}text-red-800{% else %}text-emerald-700{% endif %} sm:px-3 sm:py-3">{{ row.delta_pct | signed_max_two_decimals }}%</td>
-        </tr>
-      {% else %}
+<div class="rounded-2xl border border-slate-200 dark:border-slate-700">
+  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
+  <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+    <table class="w-full min-w-[36rem] text-xs sm:min-w-[42rem] sm:text-sm" data-ga4-table>
+      <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
-          <td colspan="5" class="px-2 py-6 text-center text-slate-500 sm:px-3">No source breakdown for this window. Refresh to collect.</td>
+          <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-1.5 py-2 text-left shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)] sm:px-3 sm:py-3">
+            <button type="button" class="touch-manipulation text-left font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="source" data-sort-type="string">Source / medium</button>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1.5 py-2 text-right sm:px-3 sm:py-3">
+            <button type="button" class="touch-manipulation font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="last" data-sort-type="number" title="Sessions ({{ last_l }})">
+              <span class="hidden sm:inline">Sessions<br><span class="text-xs font-normal">{{ last_l }}</span></span>
+              <span class="sm:hidden text-[10px] leading-tight">Last<br><span class="font-normal text-slate-500 dark:text-slate-400">{{ last_l }}</span></span>
+            </button>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1.5 py-2 text-right sm:px-3 sm:py-3">
+            <button type="button" class="touch-manipulation font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="prev" data-sort-type="number" title="Sessions ({{ prev_l }})">
+              <span class="hidden sm:inline">Sessions<br><span class="text-xs font-normal">{{ prev_l }}</span></span>
+              <span class="sm:hidden text-[10px] leading-tight">Prev<br><span class="font-normal text-slate-500 dark:text-slate-400">{{ prev_l }}</span></span>
+            </button>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1.5 py-2 text-right sm:px-3 sm:py-3">
+            <button type="button" class="touch-manipulation font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="delta" data-sort-type="number"><span class="sm:hidden">Δ</span><span class="hidden sm:inline">Change</span></button>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1.5 py-2 text-right sm:px-3 sm:py-3">
+            <button type="button" class="touch-manipulation font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="deltaPct" data-sort-type="number">Δ %</button>
+          </th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr
+            class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80"
+            data-ga4-row="1"
+            data-source="{{ row.source_medium|lower }}"
+            data-last="{{ row.last_total }}"
+            data-prev="{{ row.prev_total }}"
+            data-delta="{{ row.delta }}"
+            data-delta-pct="{{ row.delta_pct }}"
+          >
+            <td class="sticky left-0 z-[1] max-w-[min(100vw,28rem)] bg-white px-1.5 py-2 text-left text-[11px] font-medium break-words shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-3 sm:py-3 sm:text-sm">
+              {% set _su = row.source_medium | ga4_source_href %}
+              {% if _su %}
+                <a href="{{ _su }}" target="_blank" rel="noopener noreferrer" class="text-violet-800 underline decoration-violet-300 underline-offset-2 hover:text-violet-950">{{ row.source_medium }}</a>
+              {% else %}
+                <span class="text-slate-900 dark:text-slate-100">{{ row.source_medium }}</span>
+              {% endif %}
+            </td>
+            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-violet-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
+            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-violet-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
+            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-700 dark:text-slate-200 sm:px-3 sm:py-3">{{ row.delta | tr_int }}</td>
+            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-[11px] font-semibold sm:px-3 sm:py-3 sm:text-sm {% if row.delta_pct < 0 %}text-red-800{% else %}text-emerald-700{% endif %}">{{ row.delta_pct | signed_max_two_decimals }}%</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="px-2 py-6 text-center text-slate-500 dark:text-slate-400 sm:px-3">No source breakdown for this window. Refresh to collect.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>

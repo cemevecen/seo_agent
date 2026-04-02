@@ -30,6 +30,19 @@ from backend.services.warehouse import finish_collector_run, save_ga4_report_sna
 
 LOGGER = logging.getLogger(__name__)
 
+
+def _channel_pct_change(last_v: float, prev_v: float) -> float:
+    """Önceki döneme göre % değişim (main._ga4_period_pct_change ile aynı mantık)."""
+    try:
+        lv = float(last_v or 0.0)
+        pv = float(prev_v or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if pv > 0.0:
+        return (lv - pv) / pv * 100.0
+    return 100.0 if lv > 0.0 else 0.0
+
+
 KPI_METRIC_NAMES = (
     "sessions",
     "totalUsers",
@@ -550,11 +563,43 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
             wow_prev_kpi = _run_kpi_for_single_range(
                 client, property_id, start=wow_prev.isoformat(), end=wow_prev.isoformat()
             )
+
+            # UI kanal özeti: ham kanal adıyla last/prev eşleştirilir (DB metric anahtarı / JSON slug hatası yok).
+            channel_summary_rows: list[dict] = []
+            for ch_name, last_v in sorted(last_by_channel.items(), key=lambda x: -x[1])[:4]:
+                prev_v = float(prev_by_channel.get(ch_name, 0.0))
+                channel_summary_rows.append(
+                    {
+                        "label": ch_name,
+                        "value": float(last_v),
+                        "pct_change": _channel_pct_change(float(last_v), prev_v),
+                    }
+                )
+            org_last_sess = 0.0
+            org_prev_sess = 0.0
+            for ch_name, v in last_by_channel.items():
+                if slugify(ch_name) == "organic_search":
+                    org_last_sess = float(v)
+                    break
+            for ch_name, v in prev_by_channel.items():
+                if slugify(ch_name) == "organic_search":
+                    org_prev_sess = float(v)
+                    break
+            organic_share_pct = (org_last_sess / last_total * 100.0) if last_total > 0 else 0.0
+            organic_share_prev_pct = (org_prev_sess / prev_total * 100.0) if prev_total > 0 else 0.0
+            organic_share_pct_change = _channel_pct_change(organic_share_pct, organic_share_prev_pct)
+
             payload = {
                 "summary": {"last": last_kpi, "prev": prev_kpi},
                 "daily_trend": daily_trend,
                 "pages_no_news": pages_rows,
                 "sources": sources_rows,
+                "channel_summary_rows": channel_summary_rows,
+                "organic_share_pct": float(organic_share_pct),
+                "organic_share_pct_change": float(organic_share_pct_change),
+                # Kanal kırılımı (slug -> oturum); eski yol / fallback.
+                "channels_last": {slugify(k): float(v) for k, v in last_by_channel.items()},
+                "channels_prev": {slugify(k): float(v) for k, v in prev_by_channel.items()},
                 "exclude_path_substrings": _exclude_path_substrings(),
                 "same_weekday_kpi": {
                     "reference_date": last_end,

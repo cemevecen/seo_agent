@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
@@ -271,6 +272,19 @@ jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico() -> FileResponse:
+    # Tarayıcılar çoğunlukla kökte /favicon.ico ister; sadece /static yetmez.
+    return FileResponse(STATIC_DIR / "favicon.ico", media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+def apple_touch_icon() -> FileResponse:
+    return FileResponse(STATIC_DIR / "apple-touch-icon.png", media_type="image/png")
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -4532,17 +4546,99 @@ def _ga4_sw_float(m: dict | None, key: str) -> float:
         return 0.0
 
 
-def _ga4_channels_for_profile_from_latest(
-    latest: dict[str, float], profile: str, pd_days: int
-) -> list[tuple[str, float]]:
-    prefix = f"ga4_{profile}_sessions_last{pd_days}d_channel__"
-    items: list[tuple[str, float]] = []
+def _ga4_organic_share_from_channel_maps(
+    channels_last: dict[str, float] | None, channels_prev: dict[str, float] | None
+) -> tuple[float, float, float] | None:
+    """Organic Search oturum payı (last %, prev %, pay değişim %). Snapshot kanal haritalarından."""
+    if not isinstance(channels_last, dict) or not isinstance(channels_prev, dict) or not channels_last:
+        return None
+    tl = sum(float(v or 0) for v in channels_last.values())
+    tp = sum(float(v or 0) for v in channels_prev.values())
+    org_l = float(channels_last.get("organic_search", 0) or 0)
+    org_p = float(channels_prev.get("organic_search", 0) or 0)
+    sl = (org_l / tl * 100.0) if tl > 0 else 0.0
+    sp = (org_p / tp * 100.0) if tp > 0 else 0.0
+    return sl, sp, _ga4_period_pct_change(sl, sp)
+
+
+def _ga4_organic_from_snapshot_payload(pl: dict | None) -> tuple[float, float] | None:
+    """Collector'ın snapshot'a yazdığı organic_share_pct + organic_share_pct_change (varsa)."""
+    if not isinstance(pl, dict):
+        return None
+    if "organic_share_pct" not in pl or "organic_share_pct_change" not in pl:
+        return None
+    try:
+        return float(pl.get("organic_share_pct") or 0.0), float(pl.get("organic_share_pct_change") or 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ga4_top_channels_with_pct_change(
+    latest: dict[str, float],
+    profile: str,
+    pd_days: int,
+    snapshot_payload: dict | None = None,
+) -> list[dict]:
+    """Son N gün kanal oturumları vs önceki N gün. Önce snapshot (channel_summary_rows), sonra channels_*, sonra metrics."""
+    pl = snapshot_payload if isinstance(snapshot_payload, dict) else None
+    if isinstance(pl, dict):
+        pre = pl.get("channel_summary_rows")
+        if isinstance(pre, list) and len(pre) > 0:
+            out: list[dict] = []
+            for r in pre[:4]:
+                if not isinstance(r, dict):
+                    continue
+                try:
+                    out.append(
+                        {
+                            "label": str(r.get("label") or ""),
+                            "value": float(r.get("value") or 0),
+                            "pct_change": float(r.get("pct_change") or 0),
+                        }
+                    )
+                except (TypeError, ValueError):
+                    continue
+            if out:
+                return out
+    cl = pl.get("channels_last") if isinstance(pl, dict) else None
+    cp = pl.get("channels_prev") if isinstance(pl, dict) else None
+    if isinstance(cl, dict) and isinstance(cp, dict) and cl:
+        rows: list[tuple[str, float, float, float]] = []
+        for slug, last_val in cl.items():
+            last_v = float(last_val or 0.0)
+            prev_v = float(cp.get(slug, 0.0) or 0.0)
+            pct = _ga4_period_pct_change(last_v, prev_v)
+            label = str(slug).replace("_", " ")
+            rows.append((label, last_v, prev_v, pct))
+        rows.sort(key=lambda x: x[1], reverse=True)
+        out: list[dict] = []
+        for label, last_v, _pv, pct in rows[:4]:
+            out.append({"label": label, "value": last_v, "pct_change": pct})
+        return out
+
+    last_prefix = f"ga4_{profile}_sessions_last{pd_days}d_channel__"
+    prev_prefix = f"ga4_{profile}_sessions_prev{pd_days}d_channel__"
+    rows: list[tuple[str, float, float, float]] = []
     for key, value in latest.items():
-        if key.startswith(prefix):
-            label = key.replace(prefix, "").replace("_", " ")
-            items.append((label, float(value or 0.0)))
-    items.sort(key=lambda x: x[1], reverse=True)
-    return items[:4]
+        if not key.startswith(last_prefix):
+            continue
+        slug = key[len(last_prefix) :]
+        label = slug.replace("_", " ")
+        last_val = float(value or 0.0)
+        prev_val = float(latest.get(f"{prev_prefix}{slug}", 0.0) or 0.0)
+        pct = _ga4_period_pct_change(last_val, prev_val)
+        rows.append((label, last_val, prev_val, pct))
+    rows.sort(key=lambda x: x[1], reverse=True)
+    out: list[dict] = []
+    for label, last_val, _prev_val, pct in rows[:4]:
+        out.append(
+            {
+                "label": label,
+                "value": last_val,
+                "pct_change": pct,
+            }
+        )
+    return out
 
 
 def _ga4_profile_payload_for_same_weekday_day(
@@ -4597,6 +4693,7 @@ def _ga4_profile_payload_for_same_weekday_day(
             "pageviews_prev": 0.0,
             "pageviews_pct_change": 0.0,
             "organic_share_pct": 0.0,
+            "organic_share_pct_change": 0.0,
             "top_channels": [],
             "pages_no_news": [],
             "sources": [],
@@ -4629,9 +4726,25 @@ def _ga4_profile_payload_for_same_weekday_day(
     prev_d = str(swk.get("previous_week_date") or "")
     wow = _ga4_period_pct_change(last_total, prev_total)
 
-    lt7 = float(pick(f"ga4_{profile}_sessions_last7d_total") or 0.0)
-    organic = float(pick(f"ga4_{profile}_sessions_last7d_channel__organic_search") or 0.0)
-    organic_share = (organic / lt7 * 100.0) if lt7 > 0 else 0.0
+    _org_flat_sw = _ga4_organic_from_snapshot_payload(pl)
+    if _org_flat_sw is not None:
+        organic_share, organic_share_pct_change = _org_flat_sw
+    else:
+        _org_sw = _ga4_organic_share_from_channel_maps(
+            pl.get("channels_last") if isinstance(pl.get("channels_last"), dict) else None,
+            pl.get("channels_prev") if isinstance(pl.get("channels_prev"), dict) else None,
+        )
+        if _org_sw is not None:
+            organic_share = _org_sw[0]
+            organic_share_pct_change = _org_sw[2]
+        else:
+            lt7 = float(pick(f"ga4_{profile}_sessions_last7d_total") or 0.0)
+            lt7_prev = float(pick(f"ga4_{profile}_sessions_prev7d_total") or 0.0)
+            organic = float(pick(f"ga4_{profile}_sessions_last7d_channel__organic_search") or 0.0)
+            organic_prev = float(pick(f"ga4_{profile}_sessions_prev7d_channel__organic_search") or 0.0)
+            organic_share = (organic / lt7 * 100.0) if lt7 > 0 else 0.0
+            organic_share_prev = (organic_prev / lt7_prev * 100.0) if lt7_prev > 0 else 0.0
+            organic_share_pct_change = _ga4_period_pct_change(organic_share, organic_share_prev)
 
     # Grafik: 7g snapshot ile aynı günlük seri (2 noktalı WoW çizgisi yanıltıcı oluyordu)
     _dt = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
@@ -4679,7 +4792,8 @@ def _ga4_profile_payload_for_same_weekday_day(
         "pageviews_prev": pageviews_prev,
         "pageviews_pct_change": _ga4_period_pct_change(pageviews_last, pageviews_prev),
         "organic_share_pct": organic_share,
-        "top_channels": [{"label": lbl, "value": val} for (lbl, val) in _ga4_channels_for_profile_from_latest(latest, profile, 7)],
+        "organic_share_pct_change": organic_share_pct_change,
+        "top_channels": _ga4_top_channels_with_pct_change(latest, profile, 7, pl),
         "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
@@ -4712,9 +4826,6 @@ def _ga4_profile_payload_for_period(
             db, site_id=site_id, profile=profile, latest=latest, prop_id=prop_id
         )
     sk = f"_{pd}d"
-
-    def channels_for(pd_days: int) -> list[tuple[str, float]]:
-        return _ga4_channels_for_profile_from_latest(latest, profile, pd_days)
 
     def sum_channel_prefix(prefix: str) -> float:
         total = 0.0
@@ -4785,8 +4896,23 @@ def _ga4_profile_payload_for_period(
 
     wow = _ga4_period_pct_change(last_total, prev_total)
 
-    organic = pick(f"ga4_{profile}_sessions_last{pd}d_channel__organic_search")
-    organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
+    _org_flat_pd = _ga4_organic_from_snapshot_payload(pl)
+    if _org_flat_pd is not None:
+        organic_share, organic_share_pct_change = _org_flat_pd
+    else:
+        _org_pd = _ga4_organic_share_from_channel_maps(
+            pl.get("channels_last") if isinstance(pl.get("channels_last"), dict) else None,
+            pl.get("channels_prev") if isinstance(pl.get("channels_prev"), dict) else None,
+        )
+        if _org_pd is not None:
+            organic_share = _org_pd[0]
+            organic_share_pct_change = _org_pd[2]
+        else:
+            organic = pick(f"ga4_{profile}_sessions_last{pd}d_channel__organic_search")
+            organic_prev = pick(f"ga4_{profile}_sessions_prev{pd}d_channel__organic_search")
+            organic_share = (organic / last_total * 100.0) if last_total > 0 else 0.0
+            organic_share_prev = (organic_prev / prev_total * 100.0) if prev_total > 0 else 0.0
+            organic_share_pct_change = _ga4_period_pct_change(organic_share, organic_share_prev)
 
     users_last = float(
         last_s.get("totalUsers")
@@ -4893,7 +5019,8 @@ def _ga4_profile_payload_for_period(
         "pageviews_prev": pageviews_prev,
         "pageviews_pct_change": _ga4_period_pct_change(pageviews_last, pageviews_prev),
         "organic_share_pct": organic_share,
-        "top_channels": [{"label": lbl, "value": val} for (lbl, val) in channels_for(pd)],
+        "organic_share_pct_change": organic_share_pct_change,
+        "top_channels": _ga4_top_channels_with_pct_change(latest, profile, pd, pl),
         "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
         "sources": pl.get("sources") or [],
         "daily_trend": pl.get("daily_trend")
