@@ -52,7 +52,7 @@
           </td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-700 sm:px-3 sm:py-3">{{ row.last_total | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-violet-600 sm:px-3 sm:py-3">{{ row.prev_total | tr_int }}</td>
-          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold sm:px-3 sm:py-3 {% if row.delta < 0 %}text-red-800{% elif row.delta > 0 %}text-emerald-700{% else %}text-slate-600{% endif %}">{{ row.delta | tr_int }}</td>
+          <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-700 sm:px-3 sm:py-3">{{ row.delta | tr_int }}</td>
           <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.delta_pct < 0 %}text-red-800{% else %}text-emerald-700{% endif %} sm:px-3 sm:py-3">{{ row.delta_pct | signed_max_two_decimals }}%</td>
         </tr>
       {% else %}
