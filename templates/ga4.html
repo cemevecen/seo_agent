@@ -578,69 +578,54 @@
     });
   }
 
-  function initGa4Tables(root) {
-    (root || document).querySelectorAll('[data-ga4-table]').forEach(function (table) {
-      if (table.dataset.tableReady === '1') {
-        return;
-      }
-      table.dataset.tableReady = '1';
-      const tbody = table.querySelector('tbody');
-      if (!tbody) {
-        return;
-      }
-      const buttons = table.querySelectorAll('[data-sort-key]');
-      buttons.forEach(function (button) {
-        button.addEventListener('click', function () {
-          const key = button.dataset.sortKey;
-          const type = button.dataset.sortType || 'string';
-          const currentDirection = button.dataset.sortDirection === 'asc' ? 'asc' : 'desc';
-          const nextDirection = currentDirection === 'asc' ? 'desc' : 'asc';
-          buttons.forEach(function (item) {
-            item.dataset.sortDirection = '';
-          });
-          button.dataset.sortDirection = nextDirection;
-          const rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
-            return row.hasAttribute('data-ga4-row');
-          });
-          function read(row) {
-            if (key === 'page') {
-              return row.dataset.page || '';
-            }
-            if (key === 'source') {
-              return row.dataset.source || '';
-            }
-            if (key === 'deltaPct') {
-              return parseFloat(row.dataset.deltaPct || '0');
-            }
-            if (key === 'last') {
-              return parseFloat(row.dataset.last || '0');
-            }
-            if (key === 'prev') {
-              return parseFloat(row.dataset.prev || '0');
-            }
-            if (key === 'delta') {
-              return parseFloat(row.dataset.delta || '0');
-            }
-            return '';
-          }
-          rows.sort(function (left, right) {
-            const leftValue = read(left);
-            const rightValue = read(right);
-            if (type === 'number') {
-              const leftNumber = typeof leftValue === 'number' ? leftValue : parseFloat(leftValue || '0');
-              const rightNumber = typeof rightValue === 'number' ? rightValue : parseFloat(rightValue || '0');
-              return nextDirection === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;
-            }
-            return nextDirection === 'asc'
-              ? String(leftValue || '').localeCompare(String(rightValue || ''), 'tr')
-              : String(rightValue || '').localeCompare(String(leftValue || ''), 'tr');
-          });
-          rows.forEach(function (row) {
-            tbody.appendChild(row);
-          });
-        });
-      });
+  // Event delegation ile sıralama — tablo DOM'a ne zaman eklenirse eklensin çalışır
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-sort-key]');
+    if (!button) return;
+    var table = button.closest('[data-ga4-table]');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    var key = button.dataset.sortKey;
+    var type = button.dataset.sortType || 'string';
+    var currentDirection = button.dataset.sortDirection === 'asc' ? 'asc' : 'desc';
+    var nextDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+    table.querySelectorAll('[data-sort-key]').forEach(function (b) {
+      b.dataset.sortDirection = '';
     });
+    button.dataset.sortDirection = nextDirection;
+    var rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return row.hasAttribute('data-ga4-row');
+    });
+    function read(row) {
+      if (key === 'page') return row.dataset.page || '';
+      if (key === 'source') return row.dataset.source || '';
+      if (key === 'deltaPct') return parseFloat(row.dataset.deltaPct || '0');
+      if (key === 'last') return parseFloat(row.dataset.last || '0');
+      if (key === 'prev') return parseFloat(row.dataset.prev || '0');
+      if (key === 'delta') return parseFloat(row.dataset.delta || '0');
+      return '';
+    }
+    rows.sort(function (left, right) {
+      var leftValue = read(left);
+      var rightValue = read(right);
+      if (type === 'number') {
+        var leftNumber = typeof leftValue === 'number' ? leftValue : parseFloat(leftValue || '0');
+        var rightNumber = typeof rightValue === 'number' ? rightValue : parseFloat(rightValue || '0');
+        return nextDirection === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;
+      }
+      return nextDirection === 'asc'
+        ? String(leftValue || '').localeCompare(String(rightValue || ''), 'tr')
+        : String(rightValue || '').localeCompare(String(leftValue || ''), 'tr');
+    });
+    rows.forEach(function (row) {
+      tbody.appendChild(row);
+    });
+  });
+
+  function initGa4Tables(root) {
+    // Event delegation kullanıldığından per-table init artık gerekli değil.
+    // Diğer kod initGa4Tables çağırmaya devam edebilir, işlem yok.
   }
 
   function renderGa4TrendCharts(root) {
