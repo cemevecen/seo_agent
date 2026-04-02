@@ -8,6 +8,13 @@
     </div>
     <div class="flex flex-wrap gap-3">
       <a
+        href="/cwv"
+        hx-boost="false"
+        class="rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-900 hover:text-slate-900 dark:text-slate-100"
+      >
+        Core Web Vitals
+      </a>
+      <a
         href="/search-console"
         class="rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-900 hover:text-slate-900 dark:text-slate-100"
       >
@@ -83,6 +90,52 @@
       </div>
     </section>
   </div>
+
+  <section class="rounded-[2rem] bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Core Web Vitals (CrUX)</p>
+        <h4 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Gerçek kullanıcı metrikleri</h4>
+        <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+          CrUX History ile son haftalardaki iyi / geliştirilmeli / zayıf yükleme oranlarını ve p75 eğrilerini izleyin. Search Console’daki URL sayısı grafiği burada yoktur; tam eşleşme için GSC arayüzünü kullanın.
+        </p>
+      </div>
+      <a
+        href="/cwv"
+        hx-boost="false"
+        class="shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-violet-600 dark:hover:bg-violet-500"
+      >
+        CrUX panosuna git
+      </a>
+    </div>
+    {% if cwv_quick_lines %}
+      <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {% for row in cwv_quick_lines %}
+          <a
+            href="/cwv#site-{{ row.id }}"
+            hx-boost="false"
+            class="flex flex-col rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-500"
+          >
+            <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ row.display_name }}</span>
+            <span class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ row.domain }}</span>
+            <span class="mt-1 text-xs tabular-nums text-slate-700 dark:text-slate-200">
+              Mobil LCP p75:
+              {% if row.lcp_p75_ms is not none %}
+                {{ row.lcp_p75_ms | round(0) | int }} ms
+              {% else %}
+                —
+              {% endif %}
+            </span>
+            {% if row.collected_at %}
+              <span class="text-[10px] text-slate-400">Kayıt: {{ row.collected_at }}</span>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">CrUX kaydı yok; Core Web Vitals sayfasından yenileyin.</p>
+    {% endif %}
+  </section>
 
   <section class="rounded-[2rem] bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
