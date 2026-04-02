@@ -321,14 +321,28 @@ function bindMainDelegation() {
       var alertId = card && card.getAttribute('data-alert-id');
       var compType = compBtn.getAttribute('data-comparison');
       if (!alertId || !compType) return;
+      // Active stil
       card.querySelectorAll('.comparison-btn').forEach(function (b) {
         var isActive = b.getAttribute('data-comparison') === compType;
-        b.classList.toggle('bg-blue-100', isActive);
-        b.classList.toggle('text-blue-700', isActive);
+        b.classList.toggle('bg-slate-900', isActive);
+        b.classList.toggle('text-white', isActive);
         b.classList.toggle('bg-slate-100', !isActive);
         b.classList.toggle('text-slate-700', !isActive);
+        b.classList.toggle('dark:bg-slate-700', !isActive);
+        b.classList.toggle('dark:text-slate-200', !isActive);
       });
-      renderComparisonData(alertId, compType);
+      // Cache varsa direkt render, yoksa fetch et
+      if (_compCache[alertId] && _compCache[alertId][compType]) {
+        renderComparisonData(alertId, compType);
+      } else {
+        var infoDiv = document.getElementById('comparison-info-' + alertId);
+        if (infoDiv) infoDiv.textContent = 'Yükleniyor…';
+        loadComparisonData(alertId, compType).then(function () {
+          renderComparisonData(alertId, compType);
+        }).catch(function (err) {
+          if (infoDiv) infoDiv.textContent = 'Hata: ' + err.message;
+        });
+      }
       return;
     }
 
