@@ -56,14 +56,16 @@
         >
           {# ── Kart başlığı ── #}
           <div class="flex items-start gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
-            {# Metric badge #}
-            <span class="mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide
-              {% if cat == 'ctr' %}bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300
-              {% elif cat == 'position' %}bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300
-              {% elif cat == 'impression' %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
-              {% else %}bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}">
-              {{ alert.metric_type if alert.metric_type else 'Diğer' }}
-            </span>
+            {# Metric badge — sabit genişlik: "Schema markup bulunamadı" referans alındı #}
+            <div class="w-44 shrink-0">
+              <span class="inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide
+                {% if cat == 'ctr' %}bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300
+                {% elif cat == 'position' %}bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300
+                {% elif cat == 'impression' %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
+                {% else %}bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}">
+                {{ alert.metric_type if alert.metric_type else 'Diğer' }}
+              </span>
+            </div>
 
             {# Query + metric detail #}
             <div class="min-w-0 flex-1">
