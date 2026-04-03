@@ -115,7 +115,7 @@ function toggleAlertDetail(toggleBtn) {
   var alertId = card.getAttribute('data-alert-id');
   if (details.classList.contains('show')) {
     details.classList.remove('show');
-    toggleBtn.textContent = 'Detay';
+    toggleBtn.textContent = 'Detayına Bak';
   } else {
     details.classList.add('show');
     toggleBtn.textContent = 'Gizle';
@@ -388,17 +388,29 @@ function initAlertsPage() {
   setActivePeriodTab(_alertPeriod);
   applyAlertsFilters();
 
-  // Auto-open selected alert from URL
+  // Auto-open selected alert from URL — tüm filtreler sıfırlanarak detay açılır
   var root = document.getElementById('alerts-view');
   var selectedId = root && root.getAttribute('data-selected-alert-id');
   if (selectedId && selectedId.trim()) {
     setTimeout(function () {
       var card = document.querySelector('.alert-card[data-alert-id="' + selectedId.trim() + '"]');
       if (!card) return;
-      var btn = card.querySelector('.toggle-details');
-      if (btn) toggleAlertDetail(btn);
+      // Kart hangi filtre altında olursa olsun görünür yap
+      _alertType = 'all';
+      setActiveTypeTab('all');
+      var filterSelect = document.getElementById('site-filter');
+      if (filterSelect) filterSelect.value = '';
+      applyAlertsFilters();
+      // Kart display:none kalmasın
+      card.style.display = '';
+      // Detayı aç (zaten açık değilse)
+      var details = card.querySelector('.alert-details');
+      if (details && !details.classList.contains('show')) {
+        var btn = card.querySelector('.toggle-details');
+        if (btn) toggleAlertDetail(btn);
+      }
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
+    }, 150);
   }
 }
 
