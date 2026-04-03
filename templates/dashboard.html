@@ -60,12 +60,16 @@
     </section>
 
     <section class="rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-      <div class="mb-3">
+      <div class="flex items-center justify-between gap-4 mb-3">
         <h4 class="text-base font-semibold text-slate-900 dark:text-slate-100">Hızlı kayıp alanları</h4>
+        <a href="/search-console" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition"
+           hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
       </div>
       <div class="space-y-1.5">
         {% for item in top_drop_items %}
-          <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}">
+          <a href="/data-explorer/{{ item.domain }}"
+             class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
+             hx-get="/data-explorer/{{ item.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
             <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
               <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ item.query }}</span>
               <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.metric }}</span>
@@ -74,7 +78,7 @@
               {% endif %}
             </div>
             <span class="shrink-0 text-xs font-medium rounded-full border px-2 py-0.5 {{ item.classes.badge }}">{{ item.reason }}</span>
-          </div>
+          </a>
         {% else %}
           <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
             Son kayıtta belirgin sorgu kaybı görünmüyor.
@@ -138,10 +142,14 @@
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Fırsat Alanları</p>
         <h4 class="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">İyileştirme için hızlı adaylar</h4>
       </div>
+      <a href="/search-console" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition"
+         hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
     </div>
     <div class="grid gap-2 xl:grid-cols-2">
       {% for item in opportunity_items %}
-        <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}">
+        <a href="/data-explorer/{{ item.domain }}"
+           class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
+           hx-get="/data-explorer/{{ item.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
           <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
             <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">'{{ item.query }}'</span>
             <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.detail }}</span>
@@ -150,7 +158,7 @@
             {% endif %}
           </div>
           <span class="shrink-0 text-[11px] font-medium rounded-full border px-2 py-0.5 {{ item.classes.badge }}">{{ item.title }}</span>
-        </div>
+        </a>
       {% else %}
         <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400 xl:col-span-2">
           Şu an öne çıkan fırsat alanı görünmüyor.
