@@ -3043,8 +3043,13 @@ def _safe_pct(v) -> float | None:
 
 
 def _build_crux_cwv_chart(payload: dict) -> dict | None:
-    """CrUX histogramTimeseries'ten GSC tarzı good/needs_improvement/poor zaman serisi."""
-    record = payload.get("record") or {}
+    """CrUX histogramTimeseries'ten GSC tarzı good/needs_improvement/poor zaman serisi.
+
+    Payload DB'de {'history': {'record': ...}, 'current': ...} olarak saklanır.
+    """
+    # history.record veya doğrudan record'dan al
+    history_block = payload.get("history") or {}
+    record = history_block.get("record") or payload.get("record") or {}
     metrics_data = record.get("metrics") or {}
     periods = record.get("collectionPeriods") or []
     if not periods or not metrics_data:
