@@ -115,14 +115,20 @@
           'Redirect zinciri sayısı yüksek': 'redirect',
         } %}
         {% set cat = _cat_map.get(alert.metric_type, 'other') %}
+        {% set domain_key = (alert.domain or '')|lower %}
         <div
-          class="alert-card rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden"
+          class="alert-card relative rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden"
           data-alert-id="{{ alert.id }}"
           data-domain="{{ alert.domain }}"
           data-alert-category="{{ cat }}"
           data-triggered-at="{{ alert.triggered_at_iso }}"
           data-is-external="{{ 'true' if alert.is_external else '' }}"
         >
+          {% if 'doviz.com' in domain_key %}
+            <div class="absolute inset-y-0 left-0 w-1.5 bg-sky-500 dark:bg-sky-400" aria-hidden="true"></div>
+          {% elif 'sinemalar.com' in domain_key %}
+            <div class="absolute inset-y-0 left-0 w-1.5 bg-rose-500 dark:bg-rose-400" aria-hidden="true"></div>
+          {% endif %}
           {# ── Kart başlığı ── #}
           <div class="flex items-start gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
             {# Metric badge — "Schema markup bulunamadı" referans genişlik: w-44 #}

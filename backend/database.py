@@ -68,6 +68,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_sc_site_scope_collected ON search_console_query_snapshots(site_id, data_scope, collected_at)",
         # collector_runs: site_id + provider + strategy + requested_at → _latest_provider_run
         "CREATE INDEX IF NOT EXISTS ix_collector_runs_site_prov_strat ON collector_runs(site_id, provider, strategy, requested_at)",
+        # url audits: latest snapshot ve skor kırılımları
+        "CREATE INDEX IF NOT EXISTS ix_url_audit_site_run_score ON url_audit_records(site_id, collector_run_id, seo_score)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:
@@ -75,4 +77,42 @@ def ensure_indexes() -> None:
                 conn.execute(__import__("sqlalchemy").text(ddl))
             except Exception:  # noqa: BLE001
                 pass  # Index zaten varsa ya da uyumsuz DB ise sessizce geç
+        try:
+            existing_cols = {
+                row[1]
+                for row in conn.execute(__import__("sqlalchemy").text("PRAGMA table_info(url_audit_records)")).fetchall()
+            }
+        except Exception:  # noqa: BLE001
+            existing_cols = set()
+
+        column_ddl = {
+            "content_type": "VARCHAR(120) NOT NULL DEFAULT ''",
+            "sitemap_source": "TEXT NOT NULL DEFAULT ''",
+            "sitemap_lastmod": "VARCHAR(40) NOT NULL DEFAULT ''",
+            "title_length": "INTEGER NOT NULL DEFAULT 0",
+            "meta_description_length": "INTEGER NOT NULL DEFAULT 0",
+            "h1_count": "INTEGER NOT NULL DEFAULT 0",
+            "canonical_matches_final": "BOOLEAN NOT NULL DEFAULT 0",
+            "meta_robots": "TEXT NOT NULL DEFAULT ''",
+            "has_og_description": "BOOLEAN NOT NULL DEFAULT 0",
+            "search_clicks": "FLOAT NOT NULL DEFAULT 0",
+            "search_impressions": "FLOAT NOT NULL DEFAULT 0",
+            "search_ctr": "FLOAT NOT NULL DEFAULT 0",
+            "search_console_seen": "BOOLEAN NOT NULL DEFAULT 0",
+            "indexed_via": "VARCHAR(20) NOT NULL DEFAULT 'none'",
+            "inspection_verdict": "VARCHAR(30) NOT NULL DEFAULT ''",
+            "issue_count": "INTEGER NOT NULL DEFAULT 0",
+            "checks_json": "TEXT NOT NULL DEFAULT '{}'",
+        }
+        for column_name, ddl in column_ddl.items():
+            if column_name in existing_cols:
+                continue
+            try:
+                conn.execute(
+                    __import__("sqlalchemy").text(
+                        f"ALTER TABLE url_audit_records ADD COLUMN {column_name} {ddl}"
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
         conn.commit()

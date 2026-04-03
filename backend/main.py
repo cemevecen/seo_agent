@@ -42,6 +42,7 @@ from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
+from backend.collectors.site_audit import collect_site_audit
 from backend.collectors.pagespeed import (
     STRATEGY_METRIC_MAP,
     collect_pagespeed_metrics,
@@ -85,6 +86,7 @@ from backend.services.warehouse import (
     get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
     get_latest_search_console_rows_batch,
+    get_latest_url_audit_snapshot,
     get_latest_url_inspection_snapshot,
     get_site_warehouse_summary,
 )
@@ -3152,6 +3154,7 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
+        site_audit = get_latest_url_audit_snapshot(db, site_id=site.id)
         inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
         if inspection and inspection.get("summary"):
             inspection_summary = dict(inspection.get("summary") or {})
@@ -3197,6 +3200,7 @@ def _data_explorer_context(domain: str) -> dict:
             "cwv_desktop": desktop_cwv,
             "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
             "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
+            "site_audit": site_audit,
             "url_inspection": inspection,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
@@ -4696,6 +4700,36 @@ def api_refresh_data_explorer(request: Request, domain: str):
         )
 
 
+@app.post("/api/site/{domain}/site-audit/refresh")
+def api_refresh_site_audit(
+    request: Request,
+    domain: str,
+    recent_days: int | None = None,
+    index_mode: str | None = None,
+):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if site is None:
+            return JSONResponse({"error": "Site not found"}, status_code=404)
+
+        result = collect_site_audit(
+            db,
+            site,
+            sitemap_url_limit=settings.site_audit_sitemap_url_limit,
+            request_timeout_seconds=settings.site_audit_request_timeout_seconds,
+            recent_days=recent_days or settings.site_audit_recent_days,
+            index_mode=index_mode or settings.site_audit_index_mode_default,
+        )
+        return JSONResponse(
+            {
+                "site": site.domain,
+                "refreshed": True,
+                "result": result.get("summary") or {},
+                "warehouse": get_site_warehouse_summary(db, site_id=site.id),
+            }
+        )
+
+
 @app.post("/api/site/{domain}/refresh")
 def api_refresh_site_metrics(request: Request, domain: str):
     with SessionLocal() as db:
@@ -5669,11 +5703,13 @@ def settings_alert_thresholds(request: Request):
 @app.get("/search-console")
 def search_console_page(request: Request):
     # Site kartları HTMX ile lazy load edildiğinden burada ağır veri hesabı yapılmaz.
+    site_list_mode = "eager" if str(request.query_params.get("refresh_complete") or "").strip() == "1" else "lazy"
     payload = {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
+        "site_list_mode": site_list_mode,
     }
     return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
 
@@ -5681,10 +5717,27 @@ def search_console_page(request: Request):
 @app.get("/search-console/site-list")
 def search_console_site_list(request: Request):
     """Site listesini anlık render eder; her kart lazy HTMX ile ayrı yüklenir."""
+    mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     with SessionLocal() as db:
         external_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        if mode == "eager":
+            schedule_label = (
+                f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+                f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+            )
+            search_console_sites = [_search_console_single_site_data(db, site, schedule_label) for site in sites]
+            return templates.TemplateResponse(
+                request,
+                "partials/search_console_site_cards.html",
+                context={
+                    "request": request,
+                    "lazy_mode": False,
+                    "search_console_sites": search_console_sites,
+                    "oauth_ready": oauth_is_configured(),
+                },
+            )
         lazy_site_ids = [(s.id, s.display_name) for s in sites]
     return templates.TemplateResponse(
         request,

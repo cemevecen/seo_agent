@@ -96,7 +96,7 @@
       </div>
     </div>
 
-    <div id="search-console-site-list" hx-get="/search-console/site-list" hx-trigger="load" hx-swap="innerHTML">
+    <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}" hx-trigger="load" hx-swap="innerHTML">
       <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" aria-hidden="true">
         {% for _ in [0, 1] %}
           <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shadow-sm">
@@ -507,9 +507,14 @@
     };
   }
 
+  function reloadSearchConsolePage(delayMs) {
+    window.setTimeout(function () {
+      window.location.assign('/search-console?refresh_complete=1');
+    }, Math.max(150, parseInt(delayMs || 0, 10) || 450));
+  }
+
   function refreshSearchConsoleSites(button) {
     const trigger = button || document.getElementById('refresh-search-console-sites-button');
-    const target = document.getElementById('search-console-site-list');
     const original = trigger ? trigger.textContent : '';
     const progress = createSearchConsoleProgressController({
       title: 'Tüm siteler yenileniyor',
@@ -540,14 +545,9 @@
         }
         return response.text();
       })
-      .then(function (html) {
-        if (target) {
-          target.innerHTML = html;
-          window.setTimeout(function () {
-            initSearchConsolePanels(target);
-          }, 50);
-        }
+      .then(function () {
         progress.complete('Tüm siteler güncellendi', 'Search Console kartları yeni verilerle yeniden çizildi.');
+        reloadSearchConsolePage(450);
       })
       .catch(function (error) {
         console.warn('Search Console bulk refresh failed:', error);
@@ -1082,7 +1082,6 @@
       form.dataset.bound = '1';
       form.addEventListener('submit', function (event) {
         event.preventDefault();
-        const target = document.getElementById('search-console-site-list');
         const button = form.querySelector('button[type="submit"]');
         const original = button ? button.textContent : '';
         const siteDomain = form.dataset.siteDomain || 'site';
@@ -1115,14 +1114,9 @@
             }
             return response.text();
           })
-          .then(function (html) {
-            if (target) {
-              target.innerHTML = html;
-              window.setTimeout(function () {
-                initSearchConsolePanels(target);
-              }, 50);
-            }
+          .then(function () {
             progress.complete(siteDomain + ' güncellendi', 'Search Console kartı yeni verilerle yenilendi.');
+            reloadSearchConsolePage(450);
           })
           .catch(function (error) {
             console.warn('Search Console site refresh failed:', error);

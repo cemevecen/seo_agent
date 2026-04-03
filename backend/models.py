@@ -52,6 +52,9 @@ class Site(Base):
     ga4_report_snapshots: Mapped[list["Ga4ReportSnapshot"]] = relationship(
         "Ga4ReportSnapshot", back_populates="site", cascade="all, delete-orphan"
     )
+    url_audit_records: Mapped[list["UrlAuditRecord"]] = relationship(
+        "UrlAuditRecord", back_populates="site", cascade="all, delete-orphan"
+    )
     external_profile: Mapped["ExternalSite | None"] = relationship(
         "ExternalSite", back_populates="site", cascade="all, delete-orphan", uselist=False
     )
@@ -333,6 +336,56 @@ class AlertLog(Base):
     sent_mail: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     alert: Mapped["Alert"] = relationship("Alert", back_populates="logs")
+
+
+class UrlAuditRecord(Base):
+    """Sitemap'ten çekilen her URL için SEO sinyali denetim kaydı."""
+
+    __tablename__ = "url_audit_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    collector_run_id: Mapped[int | None] = mapped_column(ForeignKey("collector_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    final_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content_type: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    sitemap_source: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    sitemap_lastmod: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+
+    # SEO sinyalleri
+    has_title: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    has_meta_description: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    meta_description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    meta_description_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    has_h1: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    h1: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    h1_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    has_canonical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    canonical_matches_final: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    has_schema: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_noindex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    meta_robots: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    has_og_title: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    has_og_description: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    search_clicks: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    search_impressions: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    search_ctr: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    search_console_seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    indexed_via: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
+    inspection_verdict: Mapped[str] = mapped_column(String(30), nullable=False, default="")
+    issue_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checks_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+    # Genel skor: good / needs_improvement / poor
+    seo_score: Mapped[str] = mapped_column(String(30), nullable=False, default="poor", index=True)
+
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site", back_populates="url_audit_records")
 
 
 class ApiUsage(Base):

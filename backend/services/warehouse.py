@@ -15,6 +15,7 @@ from backend.models import (
     LighthouseAuditRecord,
     PageSpeedPayloadSnapshot,
     SearchConsoleQuerySnapshot,
+    UrlAuditRecord,
     UrlInspectionSnapshot,
 )
 from backend.services.timezone_utils import format_local_datetime
@@ -379,6 +380,59 @@ def save_ga4_report_snapshot(
     return row
 
 
+def save_url_audit_records(
+    db: Session,
+    *,
+    site_id: int,
+    rows: list[dict],
+    collected_at: datetime,
+    collector_run_id: int | None = None,
+) -> int:
+    count = 0
+    for row in rows:
+        db.add(
+            UrlAuditRecord(
+                site_id=site_id,
+                collector_run_id=collector_run_id,
+                url=str(row.get("url") or ""),
+                final_url=str(row.get("final_url") or ""),
+                status_code=int(row.get("status_code") or 0),
+                content_type=str(row.get("content_type") or ""),
+                sitemap_source=str(row.get("sitemap_source") or ""),
+                sitemap_lastmod=str(row.get("sitemap_lastmod") or ""),
+                has_title=bool(row.get("has_title")),
+                title=str(row.get("title") or ""),
+                title_length=int(row.get("title_length") or 0),
+                has_meta_description=bool(row.get("has_meta_description")),
+                meta_description=str(row.get("meta_description") or ""),
+                meta_description_length=int(row.get("meta_description_length") or 0),
+                has_h1=bool(row.get("has_h1")),
+                h1=str(row.get("h1") or ""),
+                h1_count=int(row.get("h1_count") or 0),
+                has_canonical=bool(row.get("has_canonical")),
+                canonical_url=str(row.get("canonical_url") or ""),
+                canonical_matches_final=bool(row.get("canonical_matches_final")),
+                has_schema=bool(row.get("has_schema")),
+                is_noindex=bool(row.get("is_noindex")),
+                meta_robots=str(row.get("meta_robots") or ""),
+                has_og_title=bool(row.get("has_og_title")),
+                has_og_description=bool(row.get("has_og_description")),
+                search_clicks=float(row.get("search_clicks") or 0.0),
+                search_impressions=float(row.get("search_impressions") or 0.0),
+                search_ctr=float(row.get("search_ctr") or 0.0),
+                search_console_seen=bool(row.get("search_console_seen")),
+                indexed_via=str(row.get("indexed_via") or "none"),
+                inspection_verdict=str(row.get("inspection_verdict") or ""),
+                issue_count=int(row.get("issue_count") or 0),
+                checks_json=json.dumps(row.get("checks") or {}, ensure_ascii=True),
+                seo_score=str(row.get("seo_score") or "poor"),
+                collected_at=collected_at,
+            )
+        )
+        count += 1
+    return count
+
+
 def get_latest_ga4_report_snapshot(
     db: Session,
     *,
@@ -459,6 +513,9 @@ def get_site_warehouse_summary(db: Session, *, site_id: int) -> dict:
         "ga4_report_snapshots": int(
             db.query(func.count(Ga4ReportSnapshot.id)).filter(Ga4ReportSnapshot.site_id == site_id).scalar() or 0
         ),
+        "url_audit_records": int(
+            db.query(func.count(UrlAuditRecord.id)).filter(UrlAuditRecord.site_id == site_id).scalar() or 0
+        ),
         "latest_runs": [
             {
                 "provider": run.provider,
@@ -473,6 +530,101 @@ def get_site_warehouse_summary(db: Session, *, site_id: int) -> dict:
             }
             for run in latest_runs
         ],
+    }
+
+
+def get_latest_url_audit_snapshot(db: Session, *, site_id: int, row_limit: int = 250) -> dict | None:
+    latest_run = (
+        db.query(CollectorRun)
+        .filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider == "site_audit",
+            CollectorRun.status == "success",
+        )
+        .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
+        .first()
+    )
+    if latest_run is None:
+        return None
+
+    rows = (
+        db.query(UrlAuditRecord)
+        .filter(
+            UrlAuditRecord.site_id == site_id,
+            UrlAuditRecord.collector_run_id == latest_run.id,
+        )
+        .order_by(
+            UrlAuditRecord.issue_count.desc(),
+            UrlAuditRecord.status_code.asc(),
+            UrlAuditRecord.url.asc(),
+        )
+        .limit(max(1, int(row_limit)))
+        .all()
+    )
+    try:
+        summary = json.loads(latest_run.summary_json or "{}")
+    except json.JSONDecodeError:
+        summary = {}
+
+    order = {"poor": 0, "needs_improvement": 1, "good": 2}
+    prepared_rows = []
+    for row in rows:
+        try:
+            checks = json.loads(row.checks_json or "{}")
+        except json.JSONDecodeError:
+            checks = {}
+        prepared_rows.append(
+            {
+                "url": row.url,
+                "final_url": row.final_url,
+                "status_code": int(row.status_code or 0),
+                "content_type": row.content_type,
+                "sitemap_source": row.sitemap_source,
+                "sitemap_lastmod": row.sitemap_lastmod,
+                "has_title": bool(row.has_title),
+                "title": row.title,
+                "title_length": int(row.title_length or 0),
+                "has_meta_description": bool(row.has_meta_description),
+                "meta_description": row.meta_description,
+                "meta_description_length": int(row.meta_description_length or 0),
+                "has_h1": bool(row.has_h1),
+                "h1": row.h1,
+                "h1_count": int(row.h1_count or 0),
+                "has_canonical": bool(row.has_canonical),
+                "canonical_url": row.canonical_url,
+                "canonical_matches_final": bool(row.canonical_matches_final),
+                "has_schema": bool(row.has_schema),
+                "is_noindex": bool(row.is_noindex),
+                "meta_robots": row.meta_robots,
+                "has_og_title": bool(row.has_og_title),
+                "has_og_description": bool(row.has_og_description),
+                "search_clicks": float(row.search_clicks or 0.0),
+                "search_impressions": float(row.search_impressions or 0.0),
+                "search_ctr": float(row.search_ctr or 0.0),
+                "search_console_seen": bool(row.search_console_seen),
+                "indexed_via": row.indexed_via,
+                "inspection_verdict": row.inspection_verdict,
+                "issue_count": int(row.issue_count or 0),
+                "seo_score": row.seo_score,
+                "checks": checks,
+                "score_rank": order.get(row.seo_score, 9),
+            }
+        )
+
+    prepared_rows.sort(
+        key=lambda item: (
+            item["score_rank"],
+            -(item["search_clicks"] or 0.0),
+            -(item["search_impressions"] or 0.0),
+            -item["issue_count"],
+            item["url"],
+        )
+    )
+    return {
+        "collected_at": latest_run.finished_at.isoformat() if latest_run.finished_at else None,
+        "requested_at": latest_run.requested_at.isoformat() if latest_run.requested_at else None,
+        "summary": summary,
+        "rows": prepared_rows,
     }
 
 

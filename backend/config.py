@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     crawler_links_per_page_limit: int = 30
     crawler_sitemap_url_limit: int = 500
     crawler_issue_sample_limit: int = 8
+    site_audit_sitemap_url_limit: int = 2000
+    site_audit_request_timeout_seconds: int = 12
+    site_audit_recent_days: int = 90
+    site_audit_index_mode_default: str = "quick"
+    site_audit_exact_inspection_limit: int = 200
+    site_audit_sc_page_limit: int = 5000
     outbound_min_interval_seconds: float = 2.0
     outbound_cache_ttl_seconds: int = 1800
     outbound_user_agent: str = "SEO-Agent/1.0 (+https://example.com; polite-monitoring)"
