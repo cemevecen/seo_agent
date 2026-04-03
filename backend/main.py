@@ -3547,6 +3547,7 @@ def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> lis
             candidates.append(
                 {
                     "domain": card.get("domain"),
+                    "site_id": card.get("id"),
                     "query": query.get("query"),
                     "reason": reason,
                     "metric": metric,
@@ -3602,6 +3603,7 @@ def _build_dashboard_opportunities(site_cards: list[dict], *, limit: int = 4) ->
             candidates.append(
                 {
                     "domain": card.get("domain"),
+                    "site_id": card.get("id"),
                     "query": query.get("query"),
                     "title": title,
                     "detail": detail,

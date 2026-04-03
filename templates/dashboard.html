@@ -67,9 +67,10 @@
       </div>
       <div class="space-y-1.5">
         {% for item in top_drop_items %}
-          <a href="/data-explorer/{{ item.domain }}"
+          <a href="/search-console"
              class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
-             hx-get="/data-explorer/{{ item.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+             hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+             hx-on::after-settle="(function(){var el=document.getElementById('sc-card-{{ item.site_id }}');if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}})()">
             <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
               <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ item.query }}</span>
               <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.metric }}</span>
@@ -147,9 +148,10 @@
     </div>
     <div class="grid gap-2 xl:grid-cols-2">
       {% for item in opportunity_items %}
-        <a href="/data-explorer/{{ item.domain }}"
+        <a href="/search-console"
            class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
-           hx-get="/data-explorer/{{ item.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+           hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+           hx-on::after-settle="(function(){var el=document.getElementById('sc-card-{{ item.site_id }}');if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}})()">
           <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
             <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">'{{ item.query }}'</span>
             <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.detail }}</span>
