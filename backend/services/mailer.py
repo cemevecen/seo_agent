@@ -70,4 +70,7 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
                     f"Final error: {e}"
                 )
                 return False
+        except OSError as e:
+            logging.error(f"SMTP bağlantı hatası (host: {settings.smtp_host}): {e}")
+            return False
     return False
