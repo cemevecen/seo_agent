@@ -34,6 +34,22 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    container_name: seo_agent_app
+    restart: unless-stopped
+    ports:
+      - "8012:8012"
+    env_file:
+      - .env
+    volumes:
+      - ./keys:/app/keys:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     mail_from: str = ""
     mail_to: str = ""
-    operations_mail_to: str = "cemevecen@nokta.com"
+    operations_mail_to: str = ""
 
     quota_guard_enabled: bool = True
     quota_warning_ratio: float = 0.8
