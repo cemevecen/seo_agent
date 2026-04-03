@@ -2490,6 +2490,167 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
     }
 
 
+def _search_console_status_from_cache(
+    latest: dict[str, object],
+    connection: dict[str, object],
+    has_rows_28d: bool,
+) -> dict[str, object]:
+    """Pre-fetched verilerle SC durumunu hesaplar — ek DB sorgusu yok."""
+    clicks_metric = latest.get("search_console_clicks_28d")
+    has_metric = clicks_metric is not None
+    is_stale = _metric_is_stale(latest, "search_console_clicks_28d") if has_metric else True
+
+    if connection.get("connected") and has_metric and not is_stale:
+        state = "live"
+        label = "Live"
+        badge_class = "border-emerald-200 bg-emerald-50 text-emerald-700"
+        description = "Search Console canli veri"
+    elif connection.get("connected") and (has_metric or has_rows_28d):
+        state = "stale"
+        label = "Güncel değil"
+        badge_class = "border-amber-200 bg-amber-50 text-amber-800"
+        description = "Son başarılı Search Console kaydı gösteriliyor"
+    else:
+        state = "failed"
+        label = "Failed"
+        badge_class = "border-rose-200 bg-rose-50 text-rose-700"
+        description = "Search Console verisi alinamadi"
+
+    return {
+        "state": state,
+        "label": label,
+        "badge_class": badge_class,
+        "description": description,
+        "updated_at": _format_metric_timestamp(clicks_metric),
+        "connection_label": connection.get("label", "Bağlantı yok"),
+        "has_rows": has_rows_28d,
+    }
+
+
+def _get_latest_provider_runs_batch(
+    db,
+    site_ids: list[int],
+    provider: str,
+    strategy: str | None = None,
+) -> "dict[int, CollectorRun | None]":
+    """Multiple sites için latest provider run — tek GROUP BY sorgusu."""
+    from sqlalchemy import func, and_
+
+    if not site_ids:
+        return {}
+    subq_q = (
+        db.query(CollectorRun.site_id, func.max(CollectorRun.requested_at).label("max_ts"))
+        .filter(CollectorRun.site_id.in_(site_ids), CollectorRun.provider == provider)
+    )
+    if strategy:
+        subq_q = subq_q.filter(CollectorRun.strategy == strategy)
+    subq = subq_q.group_by(CollectorRun.site_id).subquery("_lpr_batch")
+
+    runs_q = (
+        db.query(CollectorRun)
+        .join(
+            subq,
+            and_(CollectorRun.site_id == subq.c.site_id, CollectorRun.requested_at == subq.c.max_ts),
+        )
+        .filter(CollectorRun.provider == provider)
+    )
+    if strategy:
+        runs_q = runs_q.filter(CollectorRun.strategy == strategy)
+
+    runs = runs_q.all()
+    result: dict[int, CollectorRun | None] = {sid: None for sid in site_ids}
+    for run in runs:
+        existing = result[run.site_id]
+        if existing is None or run.id > existing.id:
+            result[run.site_id] = run
+    return result
+
+
+def _build_dashboard_slim_cards_batch(
+    db,
+    sites: list,
+    *,
+    recent_alerts_cache: list[dict],
+) -> list[dict]:
+    """Tüm siteler için slim cards — ~5 toplam sorgu (N+1 yerine).
+
+    Tek tek `_build_dashboard_card_slim` çağırmak yerine batched queries kullanır:
+    * get_latest_metrics_batch    : 1 sorgu (N yerine)
+    * get_latest_sc_rows_multi_site: 2 sorgu (6N yerine)
+    * get_sc_connections_batch    : 1 sorgu (2N yerine)
+    * _get_latest_provider_runs_batch: 1 sorgu (N yerine)
+    """
+    if not sites:
+        return []
+
+    from backend.services.metric_store import get_latest_metrics_batch
+    from backend.services.warehouse import get_latest_sc_rows_multi_site
+    from backend.services.search_console_auth import get_sc_connections_batch
+
+    site_ids = [s.id for s in sites]
+
+    # --- 1. Batch: latest metrics (1 subquery) ---
+    all_latest: dict[int, dict] = get_latest_metrics_batch(db, site_ids)
+
+    # --- 2. Batch: SC rows — 2 scope × all sites (2 queries) ---
+    # current_28d sadece has_rows kontrolü için lazım → metrics'ten türetilir (SC sorgusu yok)
+    sc_batch = get_latest_sc_rows_multi_site(
+        db,
+        site_ids=site_ids,
+        scopes=["current_7d", "previous_7d"],
+    )
+
+    # --- 3. Batch: SC connection status (1 query) ---
+    sc_connections = get_sc_connections_batch(db, site_ids)
+
+    # --- 4. Batch: latest SC provider runs (1 query) ---
+    sc_runs = _get_latest_provider_runs_batch(db, site_ids, "search_console", "all")
+
+    cards: list[dict] = []
+    for site in sites:
+        latest = all_latest.get(site.id, {})
+        site_sc = sc_batch.get(site.id, {})
+        current_rows_7 = site_sc.get("current_7d", [])
+        previous_rows_7 = site_sc.get("previous_7d", [])
+        has_rows_28d = latest.get("search_console_clicks_28d") is not None
+        connection = sc_connections.get(
+            site.id, {"connected": False, "method": "none", "label": "Bağlantı yok"}
+        )
+        sc_run = sc_runs.get(site.id)
+
+        mobile_score = latest.get("pagespeed_mobile_score")
+        pagespeed_score = float(mobile_score.value) if mobile_score else 0.0
+        crawler_ok = all(
+            _metric_value(latest, m, 0.0) >= 1.0
+            for m in (
+                "crawler_robots_accessible",
+                "crawler_sitemap_exists",
+                "crawler_schema_found",
+                "crawler_canonical_found",
+            )
+        )
+        search_console_status = _search_console_status_from_cache(latest, connection, has_rows_28d)
+        site_alerts = [a for a in recent_alerts_cache if a.get("domain") == site.domain]
+        top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
+
+        cards.append(
+            {
+                "id": site.id,
+                "display_name": site.display_name,
+                "domain": site.domain,
+                "pagespeed_score": round(pagespeed_score),
+                "crawler_ok": crawler_ok,
+                "alert_count": len(site_alerts),
+                "top_queries": top_queries,
+                "search_console": {
+                    "status": search_console_status,
+                    "last_run_dt": sc_run.requested_at if sc_run else None,
+                },
+            }
+        )
+    return cards
+
+
 def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: str) -> dict[str, str]:
     if state == "live":
         return {
@@ -3779,11 +3940,12 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 def dashboard(request: Request):
     """Dashboard ilk yüklemesi: slim veri ile anında render, site kartları HTMX lazy load."""
     with SessionLocal() as db:
-        recent_alerts = get_recent_alerts(db, limit=100)
+        recent_alerts = get_recent_alerts(db, limit=100, include_external=False)
         external_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        slim_cards = [_build_dashboard_card_slim(db, site, recent_alerts_cache=recent_alerts) for site in sites]
+        # Batched queries: N+1 yerine ~5 toplam sorgu
+        slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts)
         period = _resolve_period(request.query_params.get("period"))[0]
         payload = {
             "site_name": "SEO Agent Dashboard",
@@ -3805,7 +3967,8 @@ def dashboard_card_lazy(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("", status_code=404)
-        recent_alerts = get_recent_alerts(db, limit=100)
+        # Sadece bu site için alert'leri çek (site_id_filter), tüm tabloyu tarama
+        recent_alerts = get_recent_alerts(db, limit=30, include_external=False, site_id_filter=site.id)
         card = _build_dashboard_card(db, site, recent_alerts_cache=recent_alerts)
     period = _resolve_period(request.query_params.get("period"))[0]
     return templates.TemplateResponse(

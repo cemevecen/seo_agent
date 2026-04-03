@@ -273,6 +273,82 @@ def get_latest_search_console_rows_batch(
     return result
 
 
+def get_latest_sc_rows_multi_site(
+    db: Session,
+    *,
+    site_ids: list[int],
+    scopes: list[str],
+) -> "dict[int, dict[str, list[dict]]]":
+    """Multiple sites × scopes için SC satırlarını 2 sorguda toplu çeker (N×site × 2×scope yerine)."""
+    if not site_ids or not scopes:
+        return {sid: {scope: [] for scope in scopes} for sid in site_ids}
+
+    from sqlalchemy import and_, or_
+
+    # 1. Her (site_id, scope) için max collected_at — tek sorgu
+    rows_max = (
+        db.query(
+            SearchConsoleQuerySnapshot.site_id,
+            SearchConsoleQuerySnapshot.data_scope,
+            func.max(SearchConsoleQuerySnapshot.collected_at).label("max_ts"),
+        )
+        .filter(
+            SearchConsoleQuerySnapshot.site_id.in_(site_ids),
+            SearchConsoleQuerySnapshot.data_scope.in_(scopes),
+        )
+        .group_by(SearchConsoleQuerySnapshot.site_id, SearchConsoleQuerySnapshot.data_scope)
+        .all()
+    )
+    site_scope_ts: dict[tuple, object] = {}
+    for row in rows_max:
+        if row.max_ts is not None:
+            site_scope_ts[(row.site_id, row.data_scope)] = row.max_ts
+
+    if not site_scope_ts:
+        return {sid: {scope: [] for scope in scopes} for sid in site_ids}
+
+    # 2. Tüm eşleşen satırları tek SELECT ile çek
+    conditions = [
+        and_(
+            SearchConsoleQuerySnapshot.site_id == sid,
+            SearchConsoleQuerySnapshot.data_scope == scope,
+            SearchConsoleQuerySnapshot.collected_at == ts,
+        )
+        for (sid, scope), ts in site_scope_ts.items()
+    ]
+    all_rows = (
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(or_(*conditions))
+        .order_by(
+            SearchConsoleQuerySnapshot.site_id,
+            SearchConsoleQuerySnapshot.data_scope,
+            SearchConsoleQuerySnapshot.clicks.desc(),
+            SearchConsoleQuerySnapshot.impressions.desc(),
+        )
+        .all()
+    )
+
+    result: dict[int, dict[str, list[dict]]] = {
+        sid: {scope: [] for scope in scopes} for sid in site_ids
+    }
+    for row in all_rows:
+        if row.site_id in result and row.data_scope in result[row.site_id]:
+            result[row.site_id][row.data_scope].append(
+                {
+                    "query": row.query,
+                    "property_url": row.property_url,
+                    "device": row.device,
+                    "clicks": float(row.clicks),
+                    "impressions": float(row.impressions),
+                    "ctr": float(row.ctr),
+                    "position": float(row.position),
+                    "start_date": row.start_date,
+                    "end_date": row.end_date,
+                }
+            )
+    return result
+
+
 def save_ga4_report_snapshot(
     db: Session,
     *,

@@ -147,3 +147,31 @@ def get_search_console_connection_status(db: Session, site_id: int) -> dict[str,
         return {"connected": True, "method": "service_account", "label": "Service account bağlı"}
 
     return {"connected": False, "method": "none", "label": "Bağlantı yok"}
+
+
+def get_sc_connections_batch(db: "Session", site_ids: list[int]) -> "dict[int, dict]":
+    """Multiple sites için SC bağlantı durumunu tek sorguda döndürür."""
+    if not site_ids:
+        return {}
+    creds = (
+        db.query(SiteCredential.site_id, SiteCredential.credential_type)
+        .filter(
+            SiteCredential.site_id.in_(site_ids),
+            SiteCredential.credential_type.in_([OAUTH_CREDENTIAL_TYPE, SERVICE_ACCOUNT_CREDENTIAL_TYPE]),
+        )
+        .all()
+    )
+    cred_by_site: dict[int, set] = {sid: set() for sid in site_ids}
+    for row in creds:
+        cred_by_site[row.site_id].add(row.credential_type)
+
+    result: dict[int, dict] = {}
+    for sid in site_ids:
+        types = cred_by_site[sid]
+        if OAUTH_CREDENTIAL_TYPE in types:
+            result[sid] = {"connected": True, "method": "oauth", "label": "OAuth bağlı"}
+        elif SERVICE_ACCOUNT_CREDENTIAL_TYPE in types:
+            result[sid] = {"connected": True, "method": "service_account", "label": "Service account bağlı"}
+        else:
+            result[sid] = {"connected": False, "method": "none", "label": "Bağlantı yok"}
+    return result

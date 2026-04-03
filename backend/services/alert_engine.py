@@ -730,16 +730,25 @@ def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: s
     return other_map.get(alert_type, mt or "Genel")
 
 
-def get_recent_alerts(db: Session, limit: int = 20, *, include_external: bool = False) -> list[dict]:
+def get_recent_alerts(
+    db: Session,
+    limit: int = 20,
+    *,
+    include_external: bool = False,
+    site_id_filter: int | None = None,
+) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
     from backend.models import ExternalSite  # local import to avoid circular
     external_site_ids: set[int] = {
         int(row.site_id) for row in db.query(ExternalSite.site_id).all()
     }
+    query = db.query(AlertLog, Alert).join(Alert, AlertLog.alert_id == Alert.id)
+    if site_id_filter is not None:
+        query = query.filter(Alert.site_id == site_id_filter)
     rows = (
-        db.query(AlertLog, Alert)
-        .join(Alert, AlertLog.alert_id == Alert.id)
+        query
         .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
+        .limit(max(limit * 8, 200))  # DB-level limit: Python dedup için ~8× buffer
         .all()
     )
     filtered_alerts = []

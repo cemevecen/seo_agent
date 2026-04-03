@@ -33,13 +33,59 @@ def save_metrics(db: Session, site_id: int, metrics: dict[str, float], collected
 
 
 def get_latest_metrics(db: Session, site_id: int) -> list[Metric]:
-    """Her metric_type için en son kaydı döndürür."""
-    rows = db.query(Metric).filter(Metric.site_id == site_id).order_by(Metric.collected_at.desc(), Metric.id.desc()).all()
-    latest_by_type: dict[str, Metric] = {}
-    for row in rows:
-        if row.metric_type not in latest_by_type:
-            latest_by_type[row.metric_type] = row
-    return sorted(latest_by_type.values(), key=lambda item: item.metric_type)
+    """Her metric_type için en son kaydı döndürür — GROUP BY subquery ile."""
+    from sqlalchemy import func
+
+    subq = (
+        db.query(Metric.metric_type, func.max(Metric.collected_at).label("max_ts"))
+        .filter(Metric.site_id == site_id)
+        .group_by(Metric.metric_type)
+        .subquery("_lm_ts")
+    )
+    rows = (
+        db.query(Metric)
+        .join(
+            subq,
+            (Metric.metric_type == subq.c.metric_type) & (Metric.collected_at == subq.c.max_ts),
+        )
+        .filter(Metric.site_id == site_id)
+        .all()
+    )
+    return sorted(rows, key=lambda m: m.metric_type)
+
+
+def get_latest_metrics_batch(db: Session, site_ids: list[int]) -> "dict[int, dict[str, Metric]]":
+    """Multiple sites için latest metrics — tek GROUP BY sorgusu (N sorgu yerine 1)."""
+    if not site_ids:
+        return {}
+    from sqlalchemy import func, and_
+
+    subq = (
+        db.query(
+            Metric.site_id,
+            Metric.metric_type,
+            func.max(Metric.collected_at).label("max_ts"),
+        )
+        .filter(Metric.site_id.in_(site_ids))
+        .group_by(Metric.site_id, Metric.metric_type)
+        .subquery("_lm_batch_ts")
+    )
+    rows = (
+        db.query(Metric)
+        .join(
+            subq,
+            and_(
+                Metric.site_id == subq.c.site_id,
+                Metric.metric_type == subq.c.metric_type,
+                Metric.collected_at == subq.c.max_ts,
+            ),
+        )
+        .all()
+    )
+    result: dict[int, dict[str, Metric]] = {sid: {} for sid in site_ids}
+    for m in rows:
+        result[m.site_id][m.metric_type] = m
+    return result
 
 
 def get_metric_history(db: Session, site_id: int, days: int | None = None) -> dict[str, list[dict]]:
