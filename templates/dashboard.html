@@ -97,6 +97,19 @@
       </div>
       <p class="text-sm text-slate-600 dark:text-slate-300">Kartlar mevcut veriyi özetler. Manuel ölçüm sadece sen tetiklediğinde çalışır.</p>
     </div>
+    {% if lazy_site_ids %}
+    <div id="dash-cards-progress" class="mt-4">
+      <div class="flex items-center justify-between mb-1.5">
+        <span id="dash-cards-label" class="text-xs text-slate-500 dark:text-slate-400 transition-colors duration-300">Kartlar yükleniyor…</span>
+        <span id="dash-cards-count" class="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">0 / {{ lazy_site_ids|length }}</span>
+      </div>
+      <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div id="dash-cards-bar"
+             class="h-full rounded-full transition-all duration-500 ease-out bg-[linear-gradient(90deg,#6366f1,#818cf8)] dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]"
+             style="width:0%"></div>
+      </div>
+    </div>
+    {% endif %}
     <div class="mt-5 grid gap-5 xl:grid-cols-2">
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
@@ -181,6 +194,55 @@
   </div>
 </div>
 <script>
+  /* ── Kart yükleme progress bar ─────────────────────────────────── */
+  (function () {
+    var TOTAL = {{ lazy_site_ids|length }};
+    if (!TOTAL) return;
+    var loaded = 0;
+    var bar    = document.getElementById('dash-cards-bar');
+    var label  = document.getElementById('dash-cards-label');
+    var count  = document.getElementById('dash-cards-count');
+    var wrap   = document.getElementById('dash-cards-progress');
+
+    function tick() {
+      loaded = Math.min(loaded + 1, TOTAL);
+      var pct = Math.round((loaded / TOTAL) * 100);
+      if (bar)   { bar.style.width = pct + '%'; }
+      if (count) { count.textContent = loaded + ' / ' + TOTAL; }
+      if (loaded >= TOTAL) {
+        if (label) {
+          label.textContent = 'Tüm kartlar yüklendi ✓';
+          label.classList.add('!text-emerald-500', 'dark:!text-emerald-400');
+        }
+        if (bar) {
+          bar.classList.remove('bg-[linear-gradient(90deg,#6366f1,#818cf8)]', 'dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]');
+          bar.classList.add('bg-emerald-500', 'dark:bg-emerald-400');
+        }
+        setTimeout(function () {
+          if (wrap) {
+            wrap.style.transition = 'opacity 0.6s ease, max-height 0.6s ease';
+            wrap.style.opacity    = '0';
+            wrap.style.maxHeight  = wrap.scrollHeight + 'px';
+            requestAnimationFrame(function () {
+              wrap.style.maxHeight = '0';
+              wrap.style.overflow  = 'hidden';
+            });
+          }
+        }, 1200);
+      }
+    }
+
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      /* outerHTML swap sırasında event.target → orijinal kart elementi */
+      var t = e.target || (e.detail && e.detail.target);
+      var id = (t && t.id) || '';
+      if (!id.startsWith('dashboard-card-')) return;
+      /* Sadece ilk yükleme: manuel "Ölç" baskısında bar zaten gizli olur */
+      if (loaded < TOTAL) tick();
+    });
+  })();
+
+  /* ── Kart başına yükleme progress ─────────────────────────────── */
   (function () {
     const dashboardProgressTimers = new Map();
 
