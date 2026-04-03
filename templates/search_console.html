@@ -328,6 +328,7 @@
     let tailTimer = null;
     let hideTimer = null;
     let hideInnerTimer = null;
+    const startTime = Date.now();
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !bar) {
@@ -361,15 +362,33 @@
               tailTimer = null;
               return;
             }
+            var elapsedTotal = Math.floor((Date.now() - startTime) / 1000);
+            var elapsedMin = Math.floor(elapsedTotal / 60);
+            var elapsedSec = elapsedTotal % 60;
+            var elapsedStr = elapsedMin > 0
+              ? elapsedMin + ' dk ' + (elapsedSec < 10 ? '0' : '') + elapsedSec + ' sn'
+              : elapsedSec + ' sn';
+            if (percent) { percent.classList.add('animate-pulse'); }
             render({
               percent: next,
               title: config.pendingTitle || 'Son adımlar tamamlanıyor',
-              detail: config.pendingDetail || 'Yanıt bekleniyor, son çizim ve güncelleme adımları sürüyor.',
+              detail: (config.pendingDetail || 'Yanıt bekleniyor, işlem sürüyor.') + ' — Geçen süre: ' + elapsedStr,
             });
           }, config.tailInterval || 700);
           return;
         }
-        render(steps[index]);
+        var stepElapsed = Math.floor((Date.now() - startTime) / 1000);
+        var stepMin = Math.floor(stepElapsed / 60);
+        var stepSec = stepElapsed % 60;
+        var stepTimeStr = stepMin > 0
+          ? stepMin + ' dk ' + (stepSec < 10 ? '0' : '') + stepSec + ' sn'
+          : stepSec + ' sn';
+        var step = steps[index];
+        render({
+          percent: step.percent,
+          title: step.title,
+          detail: step.detail + ' — Geçen süre: ' + stepTimeStr,
+        });
         index += 1;
       }, config.interval || 900);
     }
@@ -382,6 +401,7 @@
         if (tailTimer) {
           window.clearInterval(tailTimer);
         }
+        if (percent) { percent.classList.remove('animate-pulse'); }
         render({
           percent: 100,
           title: doneTitle || 'Tamamlandı',
@@ -519,15 +539,23 @@
     const progress = createSearchConsoleProgressController({
       title: 'Tüm siteler yenileniyor',
       detail: 'Bağlı siteler için Search Console API akışı başlatıldı.',
+      interval: 20000,
+      tailInterval: 15000,
+      maxPendingPercent: 97,
       steps: [
-        { percent: 14, title: 'Bağlantılar kontrol ediliyor', detail: 'OAuth bağlantıları ve property hedefleri kontrol ediliyor.' },
-        { percent: 31, title: 'API çağrıları başladı', detail: 'Bağlı siteler sırayla Search Console API üzerinden yenileniyor.' },
-        { percent: 52, title: 'Kayıt yazılıyor', detail: 'Yeni query, trend ve özet satırları veritabanına yazılıyor.' },
-        { percent: 73, title: 'Alert senkronu hesaplanıyor', detail: 'Yeni Search Console verisine göre ilişkili uyarılar güncelleniyor.' },
-        { percent: 91, title: 'Kartlar hazırlanıyor', detail: 'Ekrandaki tüm kartlar yeni verilerle yeniden oluşturuluyor.' },
+        { percent: 8, title: 'Bağlantılar kontrol ediliyor', detail: 'OAuth bağlantıları ve property hedefleri kontrol ediliyor.' },
+        { percent: 15, title: 'OAuth doğrulaması yapılıyor', detail: 'Erişim tokenleri kontrol ediliyor ve yenileniyor.' },
+        { percent: 24, title: 'API çağrıları başladı', detail: 'Bağlı siteler sırayla Search Console API üzerinden yenileniyor.' },
+        { percent: 33, title: 'İlk site verileri çekiliyor', detail: 'İlk sitenin query ve performans verileri alınıyor.' },
+        { percent: 44, title: 'Query verileri işleniyor', detail: 'Arama sorguları ve tıklama verileri parse ediliyor.' },
+        { percent: 53, title: 'Trend hesaplamaları yapılıyor', detail: 'Haftalık ve aylık trend karşılaştırmaları hesaplanıyor.' },
+        { percent: 62, title: 'Kayıtlar veritabanına yazılıyor', detail: 'Yeni query, trend ve özet satırları veritabanına yazılıyor.' },
+        { percent: 71, title: 'Alert senkronu hesaplanıyor', detail: 'Yeni Search Console verisine göre ilişkili uyarılar güncelleniyor.' },
+        { percent: 79, title: 'Kartlar hazırlanıyor', detail: 'Ekrandaki tüm kartlar yeni verilerle yeniden oluşturuluyor.' },
+        { percent: 85, title: 'Son veriler doğrulanıyor', detail: 'Tüm veriler doğrulanıyor ve önbellek güncelleniyor.' },
       ],
-      pendingTitle: 'Kartlar son kez güncelleniyor',
-      pendingDetail: 'Yanıt bekleniyor; kalan adımlar sırayla tamamlandıkça ilerleme artıyor.',
+      pendingTitle: 'Sunucu yanıtı bekleniyor',
+      pendingDetail: 'API işlemleri devam ediyor, lütfen bekleyin.',
     });
     progress.resetTone();
     if (trigger) {
