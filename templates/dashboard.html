@@ -105,8 +105,8 @@
       </div>
       <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div id="dash-cards-bar"
-             class="h-full rounded-full transition-all duration-500 ease-out bg-[linear-gradient(90deg,#6366f1,#818cf8)] dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]"
-             style="width:0%"></div>
+             class="h-full rounded-full bg-[linear-gradient(90deg,#6366f1,#818cf8)] dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]"
+             style="width:35%;transform:translateX(165%)"></div>
       </div>
     </div>
     {% endif %}
@@ -198,46 +198,87 @@
   (function () {
     var TOTAL = {{ lazy_site_ids|length }};
     if (!TOTAL) return;
-    var loaded = 0;
-    var bar    = document.getElementById('dash-cards-bar');
-    var label  = document.getElementById('dash-cards-label');
-    var count  = document.getElementById('dash-cards-count');
-    var wrap   = document.getElementById('dash-cards-progress');
 
+    var loaded  = 0;
+    var bar     = document.getElementById('dash-cards-bar');
+    var label   = document.getElementById('dash-cards-label');
+    var count   = document.getElementById('dash-cards-count');
+    var wrap    = document.getElementById('dash-cards-progress');
+    var indeterminate = true; /* başlangıçta gidip-gelen mod */
+    var rafId   = null;
+    var pos     = -1;         /* indeterminate bar pozisyonu: -1 → 1 */
+    var dir     = 1;
+
+    /* ── İndeterminate animasyon (translateX gidip gelme) ── */
+    function animateIndeterminate() {
+      if (!indeterminate || !bar) return;
+      pos += dir * 0.018;
+      if (pos >= 1)  { pos =  1; dir = -1; }
+      if (pos <= -1) { pos = -1; dir =  1; }
+      /* bar genişliği %35, translateX ile kaydırılır */
+      bar.style.transform = 'translateX(' + (pos * 100 + 65) + '%)';
+      rafId = requestAnimationFrame(animateIndeterminate);
+    }
+
+    /* ── Determinate moda geç ── */
+    function enterDeterminate() {
+      indeterminate = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      bar.style.transform  = 'none';
+      bar.style.width      = '0%';
+      bar.style.transition = 'width 0.45s ease-out';
+    }
+
+    /* ── Bir kart yüklendi ── */
     function tick() {
+      if (indeterminate) enterDeterminate();
       loaded = Math.min(loaded + 1, TOTAL);
       var pct = Math.round((loaded / TOTAL) * 100);
       if (bar)   { bar.style.width = pct + '%'; }
       if (count) { count.textContent = loaded + ' / ' + TOTAL; }
+
       if (loaded >= TOTAL) {
         if (label) {
           label.textContent = 'Tüm kartlar yüklendi ✓';
-          label.classList.add('!text-emerald-500', 'dark:!text-emerald-400');
+          label.classList.add('!text-emerald-500');
         }
         if (bar) {
-          bar.classList.remove('bg-[linear-gradient(90deg,#6366f1,#818cf8)]', 'dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]');
-          bar.classList.add('bg-emerald-500', 'dark:bg-emerald-400');
+          /* Önce %100 dolsun, sonra renk değişsin */
+          setTimeout(function () {
+            bar.style.transition = 'background 0.4s ease';
+            bar.style.background = '';
+            bar.classList.remove(
+              'bg-[linear-gradient(90deg,#6366f1,#818cf8)]',
+              'dark:bg-[linear-gradient(90deg,#818cf8,#a5b4fc)]'
+            );
+            bar.classList.add('!bg-emerald-500', 'dark:!bg-emerald-400');
+          }, 500);
         }
+        /* Tamamlandıktan 1.8s sonra bar kaybolsun */
         setTimeout(function () {
-          if (wrap) {
-            wrap.style.transition = 'opacity 0.6s ease, max-height 0.6s ease';
-            wrap.style.opacity    = '0';
-            wrap.style.maxHeight  = wrap.scrollHeight + 'px';
+          if (!wrap) return;
+          wrap.style.transition = 'opacity 0.55s ease, max-height 0.55s ease';
+          wrap.style.overflow   = 'hidden';
+          wrap.style.maxHeight  = wrap.scrollHeight + 'px';
+          wrap.style.opacity    = '1';
+          requestAnimationFrame(function () {
             requestAnimationFrame(function () {
+              wrap.style.opacity   = '0';
               wrap.style.maxHeight = '0';
-              wrap.style.overflow  = 'hidden';
             });
-          }
-        }, 1200);
+          });
+        }, 1800);
       }
     }
 
+    /* ── Sayfa açılışında indeterminate başlat ── */
+    animateIndeterminate();
+
+    /* ── Her kart yüklenişinde tick ── */
     document.body.addEventListener('htmx:afterSwap', function (e) {
-      /* outerHTML swap sırasında event.target → orijinal kart elementi */
-      var t = e.target || (e.detail && e.detail.target);
+      var t  = e.target || (e.detail && e.detail.target);
       var id = (t && t.id) || '';
       if (!id.startsWith('dashboard-card-')) return;
-      /* Sadece ilk yükleme: manuel "Ölç" baskısında bar zaten gizli olur */
       if (loaded < TOTAL) tick();
     });
   })();
