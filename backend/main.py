@@ -60,7 +60,6 @@ from backend.services.metric_store import get_latest_metrics, get_metric_history
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
-from backend.services.metric_store import get_latest_metrics
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
 from backend.services.lighthouse_analyzer import get_lighthouse_analysis
