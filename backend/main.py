@@ -3022,6 +3022,110 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
     return formatted
 
 
+_CWV_METRIC_INFO: dict[str, dict] = {
+    "largest_contentful_paint":       {"label": "LCP",  "good": "≤ 2.5s",   "ni": "≤ 4s",    "poor": "> 4s"},
+    "interaction_to_next_paint":      {"label": "INP",  "good": "≤ 200ms",  "ni": "≤ 500ms", "poor": "> 500ms"},
+    "cumulative_layout_shift":        {"label": "CLS",  "good": "≤ 0.1",    "ni": "≤ 0.25",  "poor": "> 0.25"},
+    "first_contentful_paint":         {"label": "FCP",  "good": "≤ 1.8s",   "ni": "≤ 3s",    "poor": "> 3s"},
+    "experimental_time_to_first_byte":{"label": "TTFB", "good": "≤ 0.8s",   "ni": "≤ 1.8s",  "poor": "> 1.8s"},
+}
+
+
+def _safe_pct(v) -> float | None:
+    try:
+        f = float(v)
+        import math as _math
+        if _math.isnan(f) or _math.isinf(f):
+            return None
+        return round(f * 100.0, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_crux_cwv_chart(payload: dict) -> dict | None:
+    """CrUX histogramTimeseries'ten GSC tarzı good/needs_improvement/poor zaman serisi."""
+    record = payload.get("record") or {}
+    metrics_data = record.get("metrics") or {}
+    periods = record.get("collectionPeriods") or []
+    if not periods or not metrics_data:
+        return None
+
+    labels: list[str] = []
+    for period in periods:
+        last_date = (period if isinstance(period, dict) else {}).get("lastDate") or {}
+        y, m, d = last_date.get("year"), last_date.get("month"), last_date.get("day")
+        labels.append(f"{y:04d}-{m:02d}-{d:02d}" if (y and m and d) else "")
+
+    n = len(labels)
+    metric_series: dict[str, dict] = {}
+    all_good: list[list] = []
+    all_poor: list[list] = []
+
+    for metric_key, info in _CWV_METRIC_INFO.items():
+        mp = metrics_data.get(metric_key) or {}
+        hist = mp.get("histogramTimeseries") or []
+        if len(hist) < 3:
+            continue
+        good_raw  = hist[0].get("densities") or []
+        ni_raw    = hist[1].get("densities") or []
+        poor_raw  = hist[2].get("densities") or []
+        good_pct  = [_safe_pct(v) for v in good_raw]
+        ni_pct    = [_safe_pct(v) for v in ni_raw]
+        poor_pct  = [_safe_pct(v) for v in poor_raw]
+        metric_series[metric_key] = {
+            "label": info["label"],
+            "good_threshold": info["good"],
+            "ni_threshold":   info["ni"],
+            "poor_threshold": info["poor"],
+            "good":             {"series": good_pct, "latest": next((v for v in reversed(good_pct) if v is not None), None)},
+            "needs_improvement":{"series": ni_pct,   "latest": next((v for v in reversed(ni_pct)   if v is not None), None)},
+            "poor":             {"series": poor_pct, "latest": next((v for v in reversed(poor_pct)  if v is not None), None)},
+        }
+        if good_pct: all_good.append(good_pct)
+        if poor_pct: all_poor.append(poor_pct)
+
+    if not metric_series:
+        return None
+
+    # Overall classification: good = min(all metrics good); poor = max(all metrics poor)
+    overall_good: list = []
+    overall_poor: list = []
+    overall_ni:   list = []
+    for i in range(n):
+        gv = [s[i] for s in all_good if i < len(s) and s[i] is not None]
+        pv = [s[i] for s in all_poor if i < len(s) and s[i] is not None]
+        if gv and pv:
+            g = round(min(gv), 1)
+            p = round(max(pv), 1)
+            ni = round(max(0.0, 100.0 - g - p), 1)
+            overall_good.append(g); overall_poor.append(p); overall_ni.append(ni)
+        else:
+            overall_good.append(None); overall_poor.append(None); overall_ni.append(None)
+
+    # Issue rows for breakdown table
+    issue_rows: list[dict] = []
+    for metric_key, mdata in metric_series.items():
+        p = mdata["poor"]["latest"]
+        ni = mdata["needs_improvement"]["latest"]
+        if p is not None and p > 0:
+            issue_rows.append({"metric": mdata["label"], "severity": "poor",             "threshold": mdata["poor_threshold"], "share": p})
+        if ni is not None and ni > 0:
+            issue_rows.append({"metric": mdata["label"], "severity": "needs_improvement","threshold": mdata["ni_threshold"],   "share": ni})
+    issue_rows.sort(key=lambda r: (0 if r["severity"] == "poor" else 1, -(r["share"] or 0)))
+
+    def _last(lst): return next((v for v in reversed(lst) if v is not None), None)
+    return {
+        "labels": labels,
+        "overall": {
+            "good":             {"series": overall_good, "latest": _last(overall_good)},
+            "needs_improvement":{"series": overall_ni,   "latest": _last(overall_ni)},
+            "poor":             {"series": overall_poor, "latest": _last(overall_poor)},
+        },
+        "metrics": metric_series,
+        "issue_rows": issue_rows,
+    }
+
+
 def _data_explorer_context(domain: str) -> dict:
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -3064,6 +3168,9 @@ def _data_explorer_context(domain: str) -> dict:
             "URL Inspection verisi henüz yok",
         )
 
+        mobile_cwv  = _build_crux_cwv_chart(mobile_crux.get("payload") or {})  if mobile_crux  else None
+        desktop_cwv = _build_crux_cwv_chart(desktop_crux.get("payload") or {}) if desktop_crux else None
+
         return {
             "site_name": f"PageSpeed - {site.display_name}",
             "sites": get_sidebar_sites(),
@@ -3074,6 +3181,8 @@ def _data_explorer_context(domain: str) -> dict:
             "crux_desktop": desktop_crux,
             "crux_mobile_series": _format_crux_series(mobile_crux, mobile_pagespeed_current),
             "crux_desktop_series": _format_crux_series(desktop_crux, desktop_pagespeed_current),
+            "cwv_mobile": mobile_cwv,
+            "cwv_desktop": desktop_cwv,
             "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
             "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
             "url_inspection": inspection,

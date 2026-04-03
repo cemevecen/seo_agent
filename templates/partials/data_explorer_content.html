@@ -245,6 +245,160 @@ text-slate-500 dark:text-slate-400
     </div>
   </div>
 
+  {# ══ Core Web Vitals Assessment (GSC tarzı) ════════════════════════════════ #}
+  {% if cwv_mobile or cwv_desktop %}
+  <section id="cwv-section" class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+    <div class="flex items-center justify-between gap-3 mb-5">
+      <div>
+        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Core Web Vitals</p>
+        <h4 class="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">URL Sınıflandırma Raporu</h4>
+        <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Kaynak: Chrome User Experience Report (CrUX) · Yüzdelik pay olarak gösterilir</p>
+      </div>
+      {# Sekme butonları #}
+      <div class="flex rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-0.5 gap-0.5">
+        {% if cwv_mobile %}
+        <button onclick="cwvShowTab('mobile')" id="cwv-tab-mobile"
+                class="cwv-tab rounded-[0.6rem] px-4 py-1.5 text-xs font-semibold transition bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm">
+          Mobil
+        </button>
+        {% endif %}
+        {% if cwv_desktop %}
+        <button onclick="cwvShowTab('desktop')" id="cwv-tab-desktop"
+                class="cwv-tab rounded-[0.6rem] px-4 py-1.5 text-xs font-semibold transition text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+          Masaüstü
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Mobil panel ─────────────────────────────────────── #}
+    {% if cwv_mobile %}
+    <div id="cwv-panel-mobile" class="cwv-panel">
+      {# Özet kutuları #}
+      <div class="grid grid-cols-3 gap-3 mb-5">
+        {% set lp = cwv_mobile.overall.poor.latest %}
+        {% set ln = cwv_mobile.overall.needs_improvement.latest %}
+        {% set lg = cwv_mobile.overall.good.latest %}
+        <div class="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-rose-500 dark:text-rose-400 mb-1">Zayıf</p>
+          <p class="text-3xl font-black text-rose-600 dark:text-rose-400 leading-none">{{ ("%.1f"|format(lp)) if lp is not none else "—" }}%</p>
+          <p class="text-[11px] text-rose-500/80 dark:text-rose-400/70 mt-1">URL payı (≥1 metrik zayıf)</p>
+        </div>
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-amber-600 dark:text-amber-400 mb-1">İyileştirme Gerekli</p>
+          <p class="text-3xl font-black text-amber-600 dark:text-amber-400 leading-none">{{ ("%.1f"|format(ln)) if ln is not none else "—" }}%</p>
+          <p class="text-[11px] text-amber-600/70 dark:text-amber-400/70 mt-1">URL payı</p>
+        </div>
+        <div class="rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-emerald-600 dark:text-emerald-400 mb-1">İyi</p>
+          <p class="text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{{ ("%.1f"|format(lg)) if lg is not none else "—" }}%</p>
+          <p class="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-1">URL payı (tüm metrikler iyi)</p>
+        </div>
+      </div>
+      {# Grafik #}
+      <div id="cwv-chart-mobile" class="h-[clamp(220px,28vw,320px)] w-full min-w-0"
+           data-cwv='{{ cwv_mobile|tojson }}'></div>
+      {# Issue tablosu #}
+      {% if cwv_mobile.issue_rows %}
+      <div class="mt-5">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400 mb-2">URL'ler neden iyi değil?</p>
+        <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-800/60">
+              <tr>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Önem</th>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sorun</th>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Eşik</th>
+                <th class="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">URL Payı</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              {% for row in cwv_mobile.issue_rows %}
+              <tr class="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <td class="px-4 py-2.5">
+                  {% if row.severity == 'poor' %}
+                  <span class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40 px-2 py-0.5 text-[11px] font-semibold text-rose-600 dark:text-rose-400">● Zayıf</span>
+                  {% else %}
+                  <span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">● İyileştirme</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-2.5 font-semibold text-slate-800 dark:text-slate-100">{{ row.metric }} sorunu</td>
+                <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400 font-mono text-xs">{{ row.threshold }}</td>
+                <td class="px-4 py-2.5 text-right font-bold {% if row.severity == 'poor' %}text-rose-600 dark:text-rose-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">{{ "%.1f"|format(row.share) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Desktop panel ────────────────────────────────────── #}
+    {% if cwv_desktop %}
+    <div id="cwv-panel-desktop" class="cwv-panel hidden">
+      <div class="grid grid-cols-3 gap-3 mb-5">
+        {% set lp = cwv_desktop.overall.poor.latest %}
+        {% set ln = cwv_desktop.overall.needs_improvement.latest %}
+        {% set lg = cwv_desktop.overall.good.latest %}
+        <div class="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-rose-500 dark:text-rose-400 mb-1">Zayıf</p>
+          <p class="text-3xl font-black text-rose-600 dark:text-rose-400 leading-none">{{ ("%.1f"|format(lp)) if lp is not none else "—" }}%</p>
+          <p class="text-[11px] text-rose-500/80 dark:text-rose-400/70 mt-1">URL payı (≥1 metrik zayıf)</p>
+        </div>
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-amber-600 dark:text-amber-400 mb-1">İyileştirme Gerekli</p>
+          <p class="text-3xl font-black text-amber-600 dark:text-amber-400 leading-none">{{ ("%.1f"|format(ln)) if ln is not none else "—" }}%</p>
+          <p class="text-[11px] text-amber-600/70 dark:text-amber-400/70 mt-1">URL payı</p>
+        </div>
+        <div class="rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest font-semibold text-emerald-600 dark:text-emerald-400 mb-1">İyi</p>
+          <p class="text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{{ ("%.1f"|format(lg)) if lg is not none else "—" }}%</p>
+          <p class="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-1">URL payı (tüm metrikler iyi)</p>
+        </div>
+      </div>
+      <div id="cwv-chart-desktop" class="h-[clamp(220px,28vw,320px)] w-full min-w-0"
+           data-cwv='{{ cwv_desktop|tojson }}'></div>
+      {% if cwv_desktop.issue_rows %}
+      <div class="mt-5">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400 mb-2">URL'ler neden iyi değil?</p>
+        <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-800/60">
+              <tr>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Önem</th>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sorun</th>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Eşik</th>
+                <th class="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">URL Payı</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              {% for row in cwv_desktop.issue_rows %}
+              <tr class="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <td class="px-4 py-2.5">
+                  {% if row.severity == 'poor' %}
+                  <span class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40 px-2 py-0.5 text-[11px] font-semibold text-rose-600 dark:text-rose-400">● Zayıf</span>
+                  {% else %}
+                  <span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">● İyileştirme</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-2.5 font-semibold text-slate-800 dark:text-slate-100">{{ row.metric }} sorunu</td>
+                <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400 font-mono text-xs">{{ row.threshold }}</td>
+                <td class="px-4 py-2.5 text-right font-bold {% if row.severity == 'poor' %}text-rose-600 dark:text-rose-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">{{ "%.1f"|format(row.share) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+
   <div class="grid gap-5 xl:grid-cols-2">
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
@@ -765,6 +919,82 @@ text-slate-500 dark:text-slate-400
         window.setTimeout(resizeCruxCharts, 150);
       });
     }
+
+    /* ── CWV Classification Chart ─────────────────────────────────── */
+    window.cwvShowTab = function (tab) {
+      document.querySelectorAll('.cwv-panel').forEach(function (p) { p.classList.add('hidden'); });
+      document.querySelectorAll('.cwv-tab').forEach(function (b) {
+        var isActive = b.id === 'cwv-tab-' + tab;
+        b.classList.toggle('bg-white',        isActive);
+        b.classList.toggle('dark:bg-slate-700', isActive);
+        b.classList.toggle('text-slate-900',  isActive);
+        b.classList.toggle('dark:text-slate-100', isActive);
+        b.classList.toggle('shadow-sm',       isActive);
+        b.classList.toggle('text-slate-500',  !isActive);
+        b.classList.toggle('dark:text-slate-400', !isActive);
+      });
+      var panel = document.getElementById('cwv-panel-' + tab);
+      if (panel) {
+        panel.classList.remove('hidden');
+        renderCwvChart('cwv-chart-' + tab);
+      }
+    };
+
+    function renderCwvChart(elementId) {
+      var element = document.getElementById(elementId);
+      if (!element || typeof Plotly === 'undefined') return;
+      if (element.dataset.chartReady === '1') { Plotly.Plots.resize(element); return; }
+      var raw = {};
+      try { raw = JSON.parse(element.dataset.cwv || '{}'); } catch (_) {}
+      var labels  = raw.labels  || [];
+      var overall = raw.overall || {};
+      if (!labels.length) {
+        element.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500">Grafik için yeterli CrUX history verisi yok.</div>';
+        return;
+      }
+      var th = window.seoPlotlyTheme
+        ? window.seoPlotlyTheme()
+        : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
+
+      function makeSeries(name, key, color, dash) {
+        var vals = (overall[key] && overall[key].series) || [];
+        return {
+          x: labels, y: vals,
+          type: 'scatter', mode: 'lines+markers', name: name,
+          line: { color: color, width: 2.5, dash: dash || 'solid' },
+          marker: { color: color, size: 5 },
+          hovertemplate: '%{y:.1f}%<extra>' + name + '</extra>',
+        };
+      }
+
+      var traces = [
+        makeSeries('İyi',                  'good',             '#16a34a'),
+        makeSeries('İyileştirme Gerekli',  'needs_improvement','#d97706'),
+        makeSeries('Zayıf',               'poor',             '#e11d48'),
+      ].filter(function (t) { return t.y && t.y.some(function (v) { return v !== null; }); });
+
+      Plotly.newPlot(element, traces, {
+        autosize: true,
+        margin: { t: 10, r: 20, b: 50, l: 48 },
+        paper_bgcolor: th.paper, plot_bgcolor: th.plot,
+        font: { color: th.tick },
+        xaxis: { automargin: true, showgrid: false, tickfont: { color: th.tick } },
+        yaxis: { automargin: true, showgrid: true, gridcolor: th.grid, tickfont: { color: th.tick },
+                 ticksuffix: '%', range: [0, 100] },
+        legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11, color: th.legend } },
+      }, { displayModeBar: false, responsive: true }).then(function () {
+        element.dataset.chartReady = '1';
+      });
+    }
+
+    /* Sayfa açılışında aktif sekmenin grafiğini çiz */
+    (function () {
+      var firstTab = document.querySelector('.cwv-tab');
+      if (firstTab) {
+        var tabName = firstTab.id.replace('cwv-tab-', '');
+        renderCwvChart('cwv-chart-' + tabName);
+      }
+    })();
 
     renderCruxChart('crux-mobile-chart');
     renderCruxChart('crux-desktop-chart');

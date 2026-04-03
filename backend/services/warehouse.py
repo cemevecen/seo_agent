@@ -545,6 +545,7 @@ def get_latest_crux_snapshot(db: Session, *, site_id: int, form_factor: str) -> 
         "form_factor": row.form_factor,
         "target_url": row.target_url,
         "summary": json.loads(row.summary_json or "{}"),
+        "payload": json.loads(row.payload_json or "{}"),
         "collected_at": row.collected_at.isoformat() if row.collected_at else None,
     }
 
