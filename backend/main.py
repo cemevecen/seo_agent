@@ -5558,12 +5558,15 @@ def ga4_refresh_all(request: Request):
                 db.rollback()
                 ga4_failures.append((site.domain, str(exc)))
         if any_ga4_ok or ga4_failures:
-            send_ga4_weekly_digest_emails(
-                db,
-                trigger_source="manual",
-                action_label="Tüm GA4 sitelerini yenile",
-                collect_failures=ga4_failures,
-            )
+            try:
+                send_ga4_weekly_digest_emails(
+                    db,
+                    trigger_source="manual",
+                    action_label="Tüm GA4 sitelerini yenile",
+                    collect_failures=ga4_failures,
+                )
+            except Exception:
+                logging.warning("GA4 refresh-all: bildirim maili gönderilemedi, atlanıyor.")
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
@@ -5806,13 +5809,16 @@ def search_console_refresh_all(request: Request):
                 db.rollback()
                 sc_batch.append((site, {"state": "failed", "error": str(exc)}))
         if sc_batch:
-            send_consolidated_system_email(
-                system_key="search_console",
-                trigger_source="manual",
-                action_label="Tüm Search Console sitelerini yenile",
-                items=sc_batch,
-                db=db,
-            )
+            try:
+                send_consolidated_system_email(
+                    system_key="search_console",
+                    trigger_source="manual",
+                    action_label="Tüm Search Console sitelerini yenile",
+                    items=sc_batch,
+                    db=db,
+                )
+            except Exception:
+                logging.warning("SC refresh-all: bildirim maili gönderilemedi, atlanıyor.")
         # Refresh-all sonrası her kart lazy yeniden yüklenir
         external_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
