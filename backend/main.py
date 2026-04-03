@@ -3119,6 +3119,12 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
     issue_rows.sort(key=lambda r: (0 if r["severity"] == "poor" else 1, -(r["share"] or 0)))
 
     def _last(lst): return next((v for v in reversed(lst) if v is not None), None)
+
+    # GSC tarzı stacked bar için overall'ı da metric_series formatında ver
+    # metric_series'e de x/labels ekle (JS tarafı için)
+    for ms in metric_series.values():
+        ms["labels"] = labels
+
     return {
         "labels": labels,
         "overall": {
@@ -3128,6 +3134,7 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
         },
         "metrics": metric_series,
         "issue_rows": issue_rows,
+        "has_data": True,
     }
 
 
