@@ -3508,7 +3508,33 @@ def _build_dashboard_overview(site_cards: list[dict], recent_alerts: list[dict])
     ]
 
 
-def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> list[dict]:
+def _build_alert_query_lookup(recent_alerts: list[dict]) -> dict[tuple[str, str], int]:
+    """(domain, query_lower) → AlertLog id eşlemesi; SC kayıp alertleri için."""
+    _sc_drop_types = {
+        "search_console_ctr_drop",
+        "search_console_position_drop",
+        "search_console_impression_drop",
+    }
+    lookup: dict[tuple[str, str], int] = {}
+    for a in recent_alerts:
+        if a.get("alert_type") not in _sc_drop_types:
+            continue
+        dq = (a.get("display_query") or "").strip().lower()
+        if not dq:
+            continue
+        key = ((a.get("domain") or "").lower(), dq)
+        if key not in lookup:
+            lookup[key] = a["id"]
+    return lookup
+
+
+def _build_dashboard_top_drops(
+    site_cards: list[dict],
+    *,
+    limit: int = 6,
+    recent_alerts: list[dict] | None = None,
+) -> list[dict]:
+    alert_lookup = _build_alert_query_lookup(recent_alerts or [])
     candidates: list[dict] = []
     seen_queries: set[tuple[str, str]] = set()
     for card in site_cards:
@@ -3544,6 +3570,7 @@ def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> lis
             if not key[1] or key in seen_queries:
                 continue
             seen_queries.add(key)
+            alert_key = ((card.get("domain") or "").lower(), str(query.get("query") or "").strip().lower())
             candidates.append(
                 {
                     "domain": card.get("domain"),
@@ -3554,6 +3581,7 @@ def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> lis
                     "secondary": secondary,
                     "impact": impact,
                     "classes": _dashboard_tone_classes(tone),
+                    "alert_id": alert_lookup.get(alert_key),
                 }
             )
 
@@ -3561,7 +3589,13 @@ def _build_dashboard_top_drops(site_cards: list[dict], *, limit: int = 6) -> lis
     return candidates[:limit]
 
 
-def _build_dashboard_opportunities(site_cards: list[dict], *, limit: int = 4) -> list[dict]:
+def _build_dashboard_opportunities(
+    site_cards: list[dict],
+    *,
+    limit: int = 4,
+    recent_alerts: list[dict] | None = None,
+) -> list[dict]:
+    alert_lookup = _build_alert_query_lookup(recent_alerts or [])
     candidates: list[dict] = []
     seen_queries: set[tuple[str, str]] = set()
     for card in site_cards:
@@ -3600,6 +3634,7 @@ def _build_dashboard_opportunities(site_cards: list[dict], *, limit: int = 4) ->
             if not title or not key[1] or key in seen_queries:
                 continue
             seen_queries.add(key)
+            alert_key = ((card.get("domain") or "").lower(), str(query.get("query") or "").strip().lower())
             candidates.append(
                 {
                     "domain": card.get("domain"),
@@ -3610,6 +3645,7 @@ def _build_dashboard_opportunities(site_cards: list[dict], *, limit: int = 4) ->
                     "action": action,
                     "score": score,
                     "classes": _dashboard_tone_classes(tone),
+                    "alert_id": alert_lookup.get(alert_key),
                 }
             )
 
@@ -3956,8 +3992,8 @@ def dashboard(request: Request):
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
             "critical_alerts": recent_alerts[:6],
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
-            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6),
-            "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8),
+            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6, recent_alerts=recent_alerts),
+            "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
         }
     return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
 
