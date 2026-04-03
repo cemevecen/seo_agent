@@ -4432,12 +4432,14 @@ def api_refresh_site_metrics(request: Request, domain: str):
 def alerts_page(request: Request):
     # Son alarm kayıtlarını listeler.
     with SessionLocal() as db:
-        alert_rows = _exclude_external_alerts(db, get_recent_alerts(db, limit=100))
+        external_domains = _external_site_domains(db)
+        alert_rows = get_recent_alerts(db, limit=100, include_external=True)
         payload = {
             "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
+            "has_external_sites": bool(external_domains),
         }
     template_name = "partials/alerts_content.html" if request.headers.get("HX-Request") == "true" else "alerts.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -4483,7 +4485,7 @@ def alerts_refresh(request: Request):
             {
                 "refreshed": True,
                 "sites": summaries,
-                "recent_alerts": _exclude_external_alerts(db, get_recent_alerts(db, limit=100)),
+                "recent_alerts": get_recent_alerts(db, limit=100, include_external=True),
             }
         )
 

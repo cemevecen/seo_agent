@@ -33,10 +33,20 @@ function applyAlertsFilters() {
   cards.forEach(function (card) {
     var domain = card.getAttribute('data-domain') || '';
     var category = (card.getAttribute('data-alert-category') || 'other').trim();
+    var isExternal = card.getAttribute('data-is-external') === 'true';
     var triggeredRaw = card.getAttribute('data-triggered-at') || '';
     var triggeredAt = triggeredRaw ? new Date(triggeredRaw) : null;
     var periodOk = !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
-    var domainOk = !selectedDomain || domain === selectedDomain;
+
+    var domainOk;
+    if (selectedDomain === '__external__') {
+      domainOk = isExternal;
+    } else if (!selectedDomain) {
+      domainOk = !isExternal; // "Tüm Siteler" → external'ları gizle
+    } else {
+      domainOk = domain === selectedDomain;
+    }
+
     var typeOk = _alertType === 'all' || category === _alertType;
     var show = domainOk && typeOk && periodOk;
     card.style.display = show ? '' : 'none';
@@ -64,27 +74,20 @@ function setActiveTypeTab(activeFilter) {
   view.querySelectorAll('.alert-type-tab').forEach(function (btn) {
     var f = btn.getAttribute('data-alert-filter');
     var isActive = f === activeFilter;
-    // reset
-    btn.classList.remove(
-      'bg-slate-900','text-white',
-      'bg-rose-600','bg-sky-600','bg-amber-500',
-      'bg-slate-100','dark:bg-slate-800/70','text-slate-700','dark:text-slate-200',
-      'bg-rose-50','text-rose-700','dark:bg-rose-950/45','dark:text-rose-300',
-      'bg-sky-50','text-sky-700','dark:bg-sky-950/45','dark:text-sky-300',
-      'bg-amber-50','text-amber-700','dark:bg-amber-950/40','dark:text-amber-300',
-      'ring-2','ring-offset-0','ring-slate-400','dark:ring-slate-500'
-    );
+    var inactiveCls = (btn.getAttribute('data-inactive-cls') || '').split(' ').filter(Boolean);
+
+    // Tüm mevcut renk/ring sınıflarını temizle
+    var toRemove = Array.from(btn.classList).filter(function (c) {
+      return c.startsWith('bg-') || c.startsWith('text-') || c.startsWith('dark:bg-') ||
+             c.startsWith('dark:text-') || c === 'ring-2' || c === 'ring-offset-0' ||
+             c.startsWith('ring-slate') || c.startsWith('dark:ring-slate') || c === 'hover:bg-slate-200';
+    });
+    toRemove.forEach(function (c) { btn.classList.remove(c); });
+
     if (isActive) {
-      if (f === 'all') btn.classList.add('bg-slate-900', 'text-white');
-      else if (f === 'ctr') btn.classList.add('bg-rose-600', 'text-white');
-      else if (f === 'position') btn.classList.add('bg-sky-600', 'text-white');
-      else if (f === 'impression') btn.classList.add('bg-amber-500', 'text-white');
-      btn.classList.add('ring-2', 'ring-offset-0', 'ring-slate-400', 'dark:ring-slate-500');
+      btn.classList.add('bg-slate-900', 'text-white', 'ring-2', 'ring-offset-0', 'ring-slate-400', 'dark:ring-slate-500');
     } else {
-      if (f === 'all') btn.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-700', 'dark:text-slate-200');
-      else if (f === 'ctr') btn.classList.add('bg-rose-50', 'text-rose-700', 'dark:bg-rose-950/45', 'dark:text-rose-300');
-      else if (f === 'position') btn.classList.add('bg-sky-50', 'text-sky-700', 'dark:bg-sky-950/45', 'dark:text-sky-300');
-      else if (f === 'impression') btn.classList.add('bg-amber-50', 'text-amber-700', 'dark:bg-amber-950/40', 'dark:text-amber-300');
+      inactiveCls.forEach(function (c) { btn.classList.add(c); });
     }
   });
 }

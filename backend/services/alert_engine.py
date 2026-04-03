@@ -702,21 +702,40 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
 
 
 def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: str) -> str:
-    """Chip filtreleri (CTR / Impression / Pozisyon) için UI metrik adı."""
+    """Chip filtreleri için UI metrik adı — alert_type → kategori adı."""
     mt = str(presentation.get("metric_type") or "")
-    if mt in ("CTR", "Impression", "Pozisyon"):
-        return mt
-    mapping = {
+    # SC tipler
+    sc_map = {
         "search_console_ctr_drop": "CTR",
         "search_console_impressions_drop": "Impression",
         "search_console_position_drop": "Pozisyon",
         "search_console_biggest_drop": "Pozisyon",
     }
-    return mapping.get(alert_type, mt or "Genel")
+    if alert_type in sc_map:
+        return sc_map[alert_type]
+    # Eğer presentation'dan gelen mt zaten SC chip adı ise kullan
+    if mt in ("CTR", "Impression", "Pozisyon"):
+        return mt
+    # Crawler / PageSpeed tipleri
+    other_map = {
+        "crawler_schema_found": "Schema markup bulunamadı",
+        "crawler_sitemap_exists": "sitemap.xml bulunamadı",
+        "pagespeed_mobile_score": "Mobile PageSpeed düşük",
+        "pagespeed_desktop_score": "Desktop PageSpeed düşük",
+        "crawler_robots_accessible": "robots.txt erişilemiyor",
+        "crawler_canonical_found": "Canonical etiketi bulunamadı",
+        "crawler_broken_links_count": "Kırık iç link sayısı yüksek",
+        "crawler_redirect_chain_count": "Redirect zinciri sayısı yüksek",
+    }
+    return other_map.get(alert_type, mt or "Genel")
 
 
-def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
+def get_recent_alerts(db: Session, limit: int = 20, *, include_external: bool = False) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
+    from backend.models import ExternalSite  # local import to avoid circular
+    external_site_ids: set[int] = {
+        int(row.site_id) for row in db.query(ExternalSite.site_id).all()
+    }
     rows = (
         db.query(AlertLog, Alert)
         .join(Alert, AlertLog.alert_id == Alert.id)
@@ -727,6 +746,9 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
     seen_keys: set[tuple[str, str, str, str, str, str]] = set()
     for log, alert in rows:
         if alert.alert_type == "search_console_dropped_queries":
+            continue
+        is_external = alert.site_id in external_site_ids
+        if is_external and not include_external:
             continue
         presentation = _parse_alert_message(log.message, alert_type=alert.alert_type, domain=log.domain)
         if presentation.get("skip"):
@@ -758,6 +780,7 @@ def get_recent_alerts(db: Session, limit: int = 20) -> list[dict]:
                 "triggered_at_iso": log.triggered_at.strftime("%Y-%m-%dT%H:%M:%S"),
                 "sent_mail": log.sent_mail,
                 "metric_type": _metric_type_for_alert_filter(presentation, alert.alert_type),
+                "is_external": is_external,
             }
         )
         if len(filtered_alerts) >= limit:
