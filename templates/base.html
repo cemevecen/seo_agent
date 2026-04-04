@@ -13,8 +13,11 @@
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
+  <!-- Mobile sidebar backdrop -->
+  <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-slate-900/60 hidden lg:hidden" aria-hidden="true"></div>
+
   <div id="app-shell" class="flex min-h-screen">
-    <aside id="sidebar" class="w-72 shrink-0 overflow-hidden bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 lg:relative lg:z-auto w-72 shrink-0 overflow-hidden bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
       <h1 id="sidebar-title" class="text-xl font-bold">SEO Agent</h1>
       <p id="sidebar-subtitle" class="text-sm text-slate-300 mt-1">İzlenen Siteler</p>
 
@@ -40,14 +43,14 @@
       </nav>
     </aside>
 
-    <main class="min-w-0 flex-1">
+    <main class="min-w-0 flex-1 w-full">
       <header class="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-3">
             <button
               id="sidebar-toggle"
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100"
+              class="inline-flex h-11 w-11 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100"
               aria-expanded="true"
               aria-controls="sidebar"
               title="Sidebar Daralt/Genişlet"
@@ -70,16 +73,62 @@
         </div>
       </header>
 
-      <section id="content" class="p-4 sm:p-6">
+      <section id="content" class="p-4 pb-20 sm:p-6 lg:pb-6">
         {% block content %}{% endblock %}
       </section>
     </main>
   </div>
 
+  <!-- Mobile bottom navigation (lg ve üstünde gizli) -->
+  <nav class="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-white border-t border-slate-200 flex safe-bottom" aria-label="Mobil navigasyon">
+    <a href="/"
+       hx-get="/" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-500 hover:text-slate-900 active:bg-slate-50 transition-colors min-h-[52px]">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+      <span class="text-[10px] font-medium leading-none">Dashboard</span>
+    </a>
+    <a href="/search-console"
+       hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-500 hover:text-slate-900 active:bg-slate-50 transition-colors min-h-[52px]">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <span class="text-[10px] font-medium leading-none">S.Console</span>
+    </a>
+    <a href="/ga4"
+       hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-500 hover:text-slate-900 active:bg-slate-50 transition-colors min-h-[52px]">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      <span class="text-[10px] font-medium leading-none">GA4</span>
+    </a>
+    <a href="/alerts"
+       hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-500 hover:text-slate-900 active:bg-slate-50 transition-colors min-h-[52px]">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+      <span class="text-[10px] font-medium leading-none">Uyarılar</span>
+    </a>
+    <a href="/settings"
+       hx-get="/settings" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-500 hover:text-slate-900 active:bg-slate-50 transition-colors min-h-[52px]">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <span class="text-[10px] font-medium leading-none">Ayarlar</span>
+    </a>
+  </nav>
+
   <script>
     (function () {
       const shell = document.getElementById('app-shell');
       const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
       const title = document.getElementById('sidebar-title');
       const subtitle = document.getElementById('sidebar-subtitle');
       const nav = document.getElementById('sidebar-nav');
@@ -88,6 +137,10 @@
       const linkItems = document.querySelectorAll('.sidebar-link');
       if (!shell || !sidebar || !toggle || !icon) {
         return;
+      }
+
+      function isMobile() {
+        return window.innerWidth < 1024;
       }
 
       function setCollapsed(collapsed) {
@@ -117,7 +170,26 @@
         icon.classList.toggle('rotate-180', !collapsed);
         icon.classList.add('transition-transform', 'duration-300');
         toggle.setAttribute('aria-expanded', String(!collapsed));
-        localStorage.setItem('seo-sidebar-collapsed', collapsed ? '1' : '0');
+
+        // Mobilde backdrop göster/gizle
+        if (backdrop) {
+          if (isMobile() && !collapsed) {
+            backdrop.classList.remove('hidden');
+          } else {
+            backdrop.classList.add('hidden');
+          }
+        }
+
+        if (!isMobile()) {
+          localStorage.setItem('seo-sidebar-collapsed', collapsed ? '1' : '0');
+        }
+      }
+
+      // Backdrop tıklanınca sidebar'ı kapat
+      if (backdrop) {
+        backdrop.addEventListener('click', function () {
+          setCollapsed(true);
+        });
       }
 
       const storedValue = localStorage.getItem('seo-sidebar-collapsed');

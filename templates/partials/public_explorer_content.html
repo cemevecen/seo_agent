@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700/80">External Explorer</p>
-        <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900">{{ display_name }}</h2>
+        <h2 class="mt-2 text-xl font-black tracking-tight text-slate-900 sm:text-3xl">{{ display_name }}</h2>
         <p class="mt-2 break-all text-sm text-slate-600">{{ domain }}</p>
         <p class="mt-3 text-sm text-slate-600">Search Console durumu: <span class="font-semibold text-slate-900">{{ search_console_label }}</span></p>
       </div>
@@ -29,19 +29,19 @@
   <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Mobile PageSpeed</p>
-      <p class="mt-3 text-4xl font-black tracking-tight {% if pagespeed_mobile is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ pagespeed_mobile if pagespeed_mobile is not none else 'N/A' }}</p>
+      <p class="mt-3 text-2xl font-black tracking-tight sm:text-4xl {% if pagespeed_mobile is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ pagespeed_mobile if pagespeed_mobile is not none else 'N/A' }}</p>
     </article>
     <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Desktop PageSpeed</p>
-      <p class="mt-3 text-4xl font-black tracking-tight {% if pagespeed_desktop is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ pagespeed_desktop if pagespeed_desktop is not none else 'N/A' }}</p>
+      <p class="mt-3 text-2xl font-black tracking-tight sm:text-4xl {% if pagespeed_desktop is not none %}text-slate-900{% else %}text-slate-400{% endif %}">{{ pagespeed_desktop if pagespeed_desktop is not none else 'N/A' }}</p>
     </article>
     <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Crawler Kırık Link</p>
-      <p class="mt-3 text-4xl font-black tracking-tight {% if crawler_broken_links > 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">{{ crawler_broken_links }}</p>
+      <p class="mt-3 text-2xl font-black tracking-tight sm:text-4xl {% if crawler_broken_links > 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">{{ crawler_broken_links }}</p>
     </article>
     <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Redirect Zinciri</p>
-      <p class="mt-3 text-4xl font-black tracking-tight {% if crawler_redirect_chains > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ crawler_redirect_chains }}</p>
+      <p class="mt-3 text-2xl font-black tracking-tight sm:text-4xl {% if crawler_redirect_chains > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ crawler_redirect_chains }}</p>
     </article>
   </section>
 
