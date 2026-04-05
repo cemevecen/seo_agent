@@ -6103,6 +6103,23 @@ def admin_cleanup_sc_snapshots(request: Request):
     return JSONResponse({"status": "ok", "details": stats})
 
 
+@app.post("/admin/vacuum")
+def admin_vacuum():
+    """PostgreSQL VACUUM FULL çalıştırır — disk alanını geri kazanır."""
+    if _IS_SQLITE:
+        return JSONResponse({"status": "skip", "reason": "sqlite"})
+    from sqlalchemy import text
+    from backend.database import engine
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("VACUUM FULL search_console_query_snapshots"))
+            conn.execute(text("VACUUM FULL"))
+        return JSONResponse({"status": "ok"})
+    except Exception as exc:
+        logging.exception("VACUUM FULL hatası")
+        return JSONResponse({"status": "error", "detail": str(exc)})
+
+
 @app.get("/admin/db-size")
 def admin_db_size():
     """PostgreSQL veritabanı boyutunu ve tablo bazlı kullanımı gösterir."""

@@ -253,6 +253,7 @@ def get_latest_search_console_rows_batch(
             or_(*conditions),
         )
         .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
+        .limit(5000)
         .all()
     )
 
