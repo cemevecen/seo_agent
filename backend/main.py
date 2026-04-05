@@ -52,8 +52,13 @@ from backend.collectors.pagespeed import (
 from backend.collectors.search_console import collect_search_console_alert_metrics, collect_search_console_metrics, get_top_queries
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
-from backend.database import SessionLocal, init_db
-from backend.models import Alert, CollectorRun, ExternalOnboardingJob, ExternalSite, PageSpeedPayloadSnapshot, Site
+from backend.database import SessionLocal, _IS_SQLITE, init_db
+from backend.models import (
+    Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
+    ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
+    NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
+    SearchConsoleQuerySnapshot, Site, UrlAuditRecord, UrlInspectionSnapshot,
+)
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history
@@ -1738,6 +1743,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             misfire_grace_time=3600,
         )
         job_count += 1
+
+    # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
+    scheduler.add_job(
+        _run_scheduled_db_cleanup_job,
+        trigger=CronTrigger(hour=3, minute=30, timezone=timezone),
+        id="daily-db-retention-cleanup",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 1
 
     if job_count == 0:
         LOGGER.info("All scheduled refresh jobs are disabled via settings.")
@@ -5974,50 +5991,143 @@ def search_console_oauth_disconnect(request: Request, site_id: int):
     )
 
 
-@app.post("/admin/cleanup-sc-snapshots")
-def admin_cleanup_sc_snapshots(request: Request):
-    """Eski Search Console snapshot satırlarını siler. Her site için sadece son snapshot kalır."""
-    from sqlalchemy import func as sqlfunc, and_
+def _run_db_retention_cleanup() -> dict:
+    """Tüm zaman serisi tablolar için eski verileri temizler.
+
+    Her tablo grubu için strateji:
+    - 'keep_latest': Her site (+ varsa ek group key) için sadece son N snapshot kalır
+    - 'keep_days': Belirtilen gün sayısından eski satırlar silinir
+    """
+    from sqlalchemy import and_, func as sqlfunc, text
+
+    stats: dict[str, int] = {}
+
+    # ── keep_latest tabloları: her site+group için sadece son snapshot ──
+    keep_latest_tables = [
+        # (Model, group_columns, label)
+        (SearchConsoleQuerySnapshot, [SearchConsoleQuerySnapshot.data_scope], "search_console_query_snapshots"),
+        (UrlAuditRecord, [], "url_audit_records"),
+        (LighthouseAuditRecord, [LighthouseAuditRecord.strategy], "lighthouse_audit_records"),
+        (PageSpeedPayloadSnapshot, [PageSpeedPayloadSnapshot.strategy], "pagespeed_payload_snapshots"),
+        (PageSpeedAuditSnapshot, [PageSpeedAuditSnapshot.strategy], "pagespeed_audit_snapshots"),
+        (Ga4ReportSnapshot, [], "ga4_report_snapshots"),
+        (CruxHistorySnapshot, [CruxHistorySnapshot.form_factor], "crux_history_snapshots"),
+        (UrlInspectionSnapshot, [], "url_inspection_snapshots"),
+    ]
 
     with SessionLocal() as db:
-        # Her site+data_scope için en son collected_at'ı bul
-        latest_sub = (
-            db.query(
-                SearchConsoleQuerySnapshot.site_id,
-                SearchConsoleQuerySnapshot.data_scope,
-                sqlfunc.max(SearchConsoleQuerySnapshot.collected_at).label("max_ts"),
-            )
-            .group_by(SearchConsoleQuerySnapshot.site_id, SearchConsoleQuerySnapshot.data_scope)
-            .subquery()
-        )
+        for Model, group_cols, table_label in keep_latest_tables:
+            try:
+                group_keys = [Model.site_id] + group_cols
+                latest_sub = (
+                    db.query(
+                        *group_keys,
+                        sqlfunc.max(Model.collected_at).label("max_ts"),
+                    )
+                    .group_by(*group_keys)
+                    .subquery()
+                )
 
-        # En son olmayan tüm satırları sil
-        old_rows = (
-            db.query(SearchConsoleQuerySnapshot)
-            .join(
-                latest_sub,
-                and_(
-                    SearchConsoleQuerySnapshot.site_id == latest_sub.c.site_id,
-                    SearchConsoleQuerySnapshot.data_scope == latest_sub.c.data_scope,
-                ),
-            )
-            .filter(SearchConsoleQuerySnapshot.collected_at < latest_sub.c.max_ts)
-            .all()
-        )
-        count = len(old_rows)
-        for row in old_rows:
-            db.delete(row)
-        db.commit()
+                join_conds = [Model.site_id == latest_sub.c.site_id]
+                for col in group_cols:
+                    join_conds.append(col == latest_sub.c[col.key])
 
-        # VACUUM çalıştır (PostgreSQL disk alanını geri al)
-        try:
-            from sqlalchemy import text
-            db.execute(text("VACUUM ANALYZE search_console_query_snapshots"))
-        except Exception:
-            pass  # SQLite veya yetki sorunu olursa sessizce geç
+                old_rows = (
+                    db.query(Model.id)
+                    .join(latest_sub, and_(*join_conds))
+                    .filter(Model.collected_at < latest_sub.c.max_ts)
+                    .all()
+                )
+                old_ids = [r[0] for r in old_rows]
+                if old_ids:
+                    # Batch delete
+                    batch_size = 500
+                    for i in range(0, len(old_ids), batch_size):
+                        db.query(Model).filter(Model.id.in_(old_ids[i:i + batch_size])).delete(synchronize_session=False)
+                    db.commit()
+                stats[table_label] = len(old_ids)
+            except Exception:
+                logging.exception("Retention cleanup hatası: %s", table_label)
+                db.rollback()
+                stats[table_label] = -1
 
-    logging.info("SC snapshot cleanup: %d eski satır silindi", count)
-    return JSONResponse({"status": "ok", "deleted_rows": count})
+        # ── keep_days tabloları: belirli gün sayısından eski satırlar ──
+        keep_days_tables = [
+            # (Model, time_column, days, label)
+            (CollectorRun, CollectorRun.requested_at, 30, "collector_runs"),
+            (AlertLog, AlertLog.triggered_at, 60, "alert_logs"),
+            (Metric, Metric.collected_at, 90, "metrics"),
+            (NotificationDeliveryLog, NotificationDeliveryLog.sent_at, 30, "notification_delivery_logs"),
+        ]
+        cutoff_now = datetime.utcnow()
+        for Model, time_col, days, table_label in keep_days_tables:
+            try:
+                cutoff = cutoff_now - timedelta(days=days)
+                count = db.query(Model).filter(time_col < cutoff).delete(synchronize_session=False)
+                db.commit()
+                stats[table_label] = count
+            except Exception:
+                logging.exception("Retention cleanup hatası: %s", table_label)
+                db.rollback()
+                stats[table_label] = -1
+
+        # PostgreSQL'de disk alanını geri al
+        if not _IS_SQLITE:
+            try:
+                # VACUUM autocommit gerektirir, session dışında çalıştır
+                from backend.database import engine
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    conn.execute(text("VACUUM ANALYZE"))
+                stats["vacuum"] = 0
+            except Exception:
+                logging.exception("VACUUM ANALYZE hatası")
+                stats["vacuum"] = -1
+
+    total_deleted = sum(v for v in stats.values() if v > 0)
+    logging.info("DB retention cleanup tamamlandı — toplam %d satır silindi: %s", total_deleted, stats)
+    return stats
+
+
+def _run_scheduled_db_cleanup_job() -> None:
+    """APScheduler tarafından çağrılan wrapper."""
+    try:
+        _run_db_retention_cleanup()
+    except Exception:
+        logging.exception("Zamanlanmış DB cleanup hatası")
+
+
+@app.post("/admin/cleanup-sc-snapshots")
+def admin_cleanup_sc_snapshots(request: Request):
+    """Tüm tablolardaki eski verileri temizler (geriye uyumlu endpoint)."""
+    stats = _run_db_retention_cleanup()
+    return JSONResponse({"status": "ok", "details": stats})
+
+
+@app.get("/admin/db-size")
+def admin_db_size():
+    """PostgreSQL veritabanı boyutunu ve tablo bazlı kullanımı gösterir."""
+    from sqlalchemy import text
+    if _IS_SQLITE:
+        import os
+        db_path = settings.database_url.replace("sqlite:///", "")
+        size_bytes = os.path.getsize(db_path) if os.path.exists(db_path) else 0
+        return JSONResponse({"total_mb": round(size_bytes / 1024 / 1024, 2), "engine": "sqlite"})
+
+    from backend.database import engine
+    result = {}
+    with engine.connect() as conn:
+        # Toplam DB boyutu
+        row = conn.execute(text("SELECT pg_database_size(current_database())")).fetchone()
+        result["total_mb"] = round(row[0] / 1024 / 1024, 2) if row else 0
+
+        # Tablo bazlı boyut
+        tables = conn.execute(text(
+            "SELECT relname, pg_total_relation_size(relid) AS size "
+            "FROM pg_catalog.pg_statio_user_tables ORDER BY size DESC"
+        )).fetchall()
+        result["tables"] = [{"table": t[0], "size_mb": round(t[1] / 1024 / 1024, 2)} for t in tables]
+
+    return JSONResponse(result)
 
 
 @app.get("/health")
