@@ -5770,14 +5770,17 @@ def search_console_single_site_card(request: Request, site_id: int):
                 f"{int(settings.search_console_scheduled_refresh_minute):02d}"
             )
             site_data = _search_console_single_site_data(db, site, schedule_label)
-        except Exception:
+        except Exception as exc:
             logging.exception("search_console_single_site_card site_id=%s hata", site_id)
+            import html as _html
+            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
             return HTMLResponse(
                 f'<section id="sc-card-{site_id}" class="rounded-3xl border border-red-300 dark:border-red-700 '
                 f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
                 f'<p class="font-semibold">Kart yüklenemedi</p>'
                 f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu. '
-                f'Sayfayı yenileyerek tekrar deneyin.</p></section>',
+                f'Sayfayı yenileyerek tekrar deneyin.</p>'
+                f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></section>',
                 status_code=200,
             )
     return templates.TemplateResponse(
