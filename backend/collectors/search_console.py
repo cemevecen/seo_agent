@@ -1213,10 +1213,9 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     )
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
-    current_day_rows = payload.get("current_day", [])
-    previous_rows = payload.get("previous_day", [])
-    current_day_rows = payload.get("current_day_rows", [])
-    previous_day_rows = payload.get("previous_day_rows", [])
+    # Payload anahtarları: "current_day" ve "previous_day" (sonuna _rows eklenmez)
+    current_day_rows = payload.get("current_day") or payload.get("current_day_rows") or []
+    previous_rows = payload.get("previous_day") or payload.get("previous_day_rows") or []
     previous_week_same_weekday_rows = payload.get("previous_week_same_weekday_rows", [])
     current_7d_rows = payload.get("current_7d_rows", [])
     previous_7d_rows = payload.get("previous_7d_rows", [])
