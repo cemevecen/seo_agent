@@ -5760,15 +5760,26 @@ def search_console_single_site_card(request: Request, site_id: int):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("", status_code=404)
-        # site_count: tek COUNT sorgusu, tüm objeleri çekme
-        external_ids = _external_site_ids(db)
-        from sqlalchemy import func as sqlfunc
-        site_count = db.query(sqlfunc.count(Site.id)).filter(Site.id.notin_(external_ids)).scalar() or 1
-        schedule_label = (
-            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
-            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
-        )
-        site_data = _search_console_single_site_data(db, site, schedule_label)
+        try:
+            # site_count: tek COUNT sorgusu, tüm objeleri çekme
+            external_ids = _external_site_ids(db)
+            from sqlalchemy import func as sqlfunc
+            site_count = db.query(sqlfunc.count(Site.id)).filter(Site.id.notin_(external_ids)).scalar() or 1
+            schedule_label = (
+                f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+                f"{int(settings.search_console_scheduled_refresh_minute):02d}"
+            )
+            site_data = _search_console_single_site_data(db, site, schedule_label)
+        except Exception:
+            logging.exception("search_console_single_site_card site_id=%s hata", site_id)
+            return HTMLResponse(
+                f'<section id="sc-card-{site_id}" class="rounded-3xl border border-red-300 dark:border-red-700 '
+                f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
+                f'<p class="font-semibold">Kart yüklenemedi</p>'
+                f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu. '
+                f'Sayfayı yenileyerek tekrar deneyin.</p></section>',
+                status_code=200,
+            )
     return templates.TemplateResponse(
         request,
         "partials/sc_single_site_card.html",
