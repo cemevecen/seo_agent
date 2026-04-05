@@ -6105,18 +6105,31 @@ def admin_cleanup_sc_snapshots(request: Request):
 
 @app.post("/admin/vacuum")
 def admin_vacuum():
-    """PostgreSQL VACUUM FULL çalıştırır — disk alanını geri kazanır."""
+    """PostgreSQL VACUUM çalıştırır — disk alanını geri kazanır."""
     if _IS_SQLITE:
         return JSONResponse({"status": "skip", "reason": "sqlite"})
     from sqlalchemy import text
     from backend.database import engine
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            conn.execute(text("VACUUM FULL search_console_query_snapshots"))
-            conn.execute(text("VACUUM FULL"))
+            conn.execute(text("VACUUM ANALYZE"))
         return JSONResponse({"status": "ok"})
     except Exception as exc:
-        logging.exception("VACUUM FULL hatası")
+        logging.exception("VACUUM hatası")
+        return JSONResponse({"status": "error", "detail": str(exc)})
+
+
+@app.post("/admin/truncate-sc-snapshots")
+def admin_truncate_sc_snapshots():
+    """search_console_query_snapshots tablosunu tamamen boşaltır (disk alanını anında geri kazanır)."""
+    from sqlalchemy import text
+    from backend.database import engine
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("TRUNCATE TABLE search_console_query_snapshots RESTART IDENTITY"))
+        return JSONResponse({"status": "ok", "message": "Tablo boşaltıldı. Tüm Siteleri Yenile ile veri tekrar çekilebilir."})
+    except Exception as exc:
+        logging.exception("TRUNCATE hatası")
         return JSONResponse({"status": "error", "detail": str(exc)})
 
 
