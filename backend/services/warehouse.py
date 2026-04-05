@@ -237,41 +237,39 @@ def get_latest_search_console_rows_batch(
     if not scope_to_ts:
         return {scope: [] for scope in scopes}
 
-    # 2. Tüm scope+timestamp çiftleri için tek SELECT
-    from sqlalchemy import and_, or_
-    conditions = [
-        and_(
-            SearchConsoleQuerySnapshot.data_scope == scope,
-            SearchConsoleQuerySnapshot.collected_at == ts,
-        )
-        for scope, ts in scope_to_ts.items()
-    ]
-    all_rows = (
-        db.query(SearchConsoleQuerySnapshot)
-        .filter(
-            SearchConsoleQuerySnapshot.site_id == site_id,
-            or_(*conditions),
-        )
-        .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
-        .limit(5000)
-        .all()
-    )
+    # 2. Her scope için ayrı sorgu — global limit yerine per-scope limit
+    #    Böylece düşük tıklı scope'lar (current_day vb.) yüksek tıklı scope'lar
+    #    tarafından ezilmez.
+    from sqlalchemy import and_
+    PER_SCOPE_LIMIT = 5000  # scope başına max satır (2 device × ~1000-2500 row)
 
     result: dict[str, list[dict]] = {scope: [] for scope in scopes}
-    for row in all_rows:
-        result.setdefault(row.data_scope, []).append(
-            {
-                "query": row.query,
-                "property_url": row.property_url,
-                "device": row.device,
-                "clicks": float(row.clicks),
-                "impressions": float(row.impressions),
-                "ctr": float(row.ctr),
-                "position": float(row.position),
-                "start_date": row.start_date,
-                "end_date": row.end_date,
-            }
+    for scope, ts in scope_to_ts.items():
+        scope_rows = (
+            db.query(SearchConsoleQuerySnapshot)
+            .filter(
+                SearchConsoleQuerySnapshot.site_id == site_id,
+                SearchConsoleQuerySnapshot.data_scope == scope,
+                SearchConsoleQuerySnapshot.collected_at == ts,
+            )
+            .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
+            .limit(PER_SCOPE_LIMIT)
+            .all()
         )
+        for row in scope_rows:
+            result[scope].append(
+                {
+                    "query": row.query,
+                    "property_url": row.property_url,
+                    "device": row.device,
+                    "clicks": float(row.clicks),
+                    "impressions": float(row.impressions),
+                    "ctr": float(row.ctr),
+                    "position": float(row.position),
+                    "start_date": row.start_date,
+                    "end_date": row.end_date,
+                }
+            )
     return result
 
 
