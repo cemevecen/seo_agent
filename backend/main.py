@@ -666,21 +666,39 @@ def _build_search_console_top_queries(current_rows: list[dict], previous_rows: l
     current_map = _aggregate_search_console_queries(current_rows)
     previous_map = _aggregate_search_console_queries(previous_rows)
     items: list[dict] = []
-    for query, current in sorted(current_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
-        previous = previous_map.get(query, {})
-        previous_position = float(previous.get("position", current["position"]))
-        current_position = float(current["position"])
-        items.append(
-            {
-                "query": query,
-                "clicks_current": float(current.get("clicks", 0.0)),
-                "clicks_previous": float(previous.get("clicks", 0.0)),
-                "clicks_diff": float(current.get("clicks", 0.0)) - float(previous.get("clicks", 0.0)),
-                "position_current": current_position,
-                "position_previous": previous_position,
-                "position_diff": current_position - previous_position,
-            }
-        )
+
+    # current verisi varsa: normal karşılaştırma
+    if current_map:
+        for query, current in sorted(current_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
+            previous = previous_map.get(query, {})
+            previous_position = float(previous.get("position", current["position"]))
+            current_position = float(current["position"])
+            items.append(
+                {
+                    "query": query,
+                    "clicks_current": float(current.get("clicks", 0.0)),
+                    "clicks_previous": float(previous.get("clicks", 0.0)),
+                    "clicks_diff": float(current.get("clicks", 0.0)) - float(previous.get("clicks", 0.0)),
+                    "position_current": current_position,
+                    "position_previous": previous_position,
+                    "position_diff": current_position - previous_position,
+                }
+            )
+    elif previous_map:
+        # current boşsa previous verisini göster (henüz veri toplanmamış dönemler için)
+        for query, prev in sorted(previous_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
+            prev_position = float(prev.get("position", 0.0))
+            items.append(
+                {
+                    "query": query,
+                    "clicks_current": 0.0,
+                    "clicks_previous": float(prev.get("clicks", 0.0)),
+                    "clicks_diff": -float(prev.get("clicks", 0.0)),
+                    "position_current": 0.0,
+                    "position_previous": prev_position,
+                    "position_diff": -prev_position,
+                }
+            )
     return items
 
 
