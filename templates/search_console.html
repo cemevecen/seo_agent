@@ -328,7 +328,18 @@
     let tailTimer = null;
     let hideTimer = null;
     let hideInnerTimer = null;
+    let clockTimer = null;
     const startTime = Date.now();
+    let lastBaseDetail = config.detail || 'İşlem sürüyor.';
+
+    function formatElapsed() {
+      var s = Math.floor((Date.now() - startTime) / 1000);
+      var m = Math.floor(s / 60);
+      s = s % 60;
+      return m > 0
+        ? m + ' dk ' + (s < 10 ? '0' : '') + s + ' sn'
+        : s + ' sn';
+    }
 
     function render(step) {
       if (!panel || !title || !detail || !percent || !bar) {
@@ -338,7 +349,8 @@
       panel.style.opacity = '';
       panel.style.transition = '';
       title.textContent = step.title || config.title || 'Yenileniyor';
-      detail.textContent = step.detail || config.detail || 'İşlem sürüyor.';
+      lastBaseDetail = step.detail || config.detail || 'İşlem sürüyor.';
+      detail.textContent = lastBaseDetail + ' — Geçen süre: ' + formatElapsed();
       percent.textContent = String(step.percent || 0) + '%';
       bar.style.width = String(step.percent || 0) + '%';
     }
@@ -348,6 +360,12 @@
       title: config.title,
       detail: config.detail,
     });
+
+    clockTimer = window.setInterval(function () {
+      if (detail) {
+        detail.textContent = lastBaseDetail + ' — Geçen süre: ' + formatElapsed();
+      }
+    }, 1000);
 
     if (steps.length) {
       timer = window.setInterval(function () {
@@ -362,32 +380,20 @@
               tailTimer = null;
               return;
             }
-            var elapsedTotal = Math.floor((Date.now() - startTime) / 1000);
-            var elapsedMin = Math.floor(elapsedTotal / 60);
-            var elapsedSec = elapsedTotal % 60;
-            var elapsedStr = elapsedMin > 0
-              ? elapsedMin + ' dk ' + (elapsedSec < 10 ? '0' : '') + elapsedSec + ' sn'
-              : elapsedSec + ' sn';
             if (percent) { percent.classList.add('animate-pulse'); }
             render({
               percent: next,
               title: config.pendingTitle || 'Son adımlar tamamlanıyor',
-              detail: (config.pendingDetail || 'Yanıt bekleniyor, işlem sürüyor.') + ' — Geçen süre: ' + elapsedStr,
+              detail: config.pendingDetail || 'Yanıt bekleniyor, işlem sürüyor.',
             });
           }, config.tailInterval || 700);
           return;
         }
-        var stepElapsed = Math.floor((Date.now() - startTime) / 1000);
-        var stepMin = Math.floor(stepElapsed / 60);
-        var stepSec = stepElapsed % 60;
-        var stepTimeStr = stepMin > 0
-          ? stepMin + ' dk ' + (stepSec < 10 ? '0' : '') + stepSec + ' sn'
-          : stepSec + ' sn';
         var step = steps[index];
         render({
           percent: step.percent,
           title: step.title,
-          detail: step.detail + ' — Geçen süre: ' + stepTimeStr,
+          detail: step.detail,
         });
         index += 1;
       }, config.interval || 900);
@@ -395,17 +401,16 @@
 
     return {
       complete: function (doneTitle, doneDetail) {
-        if (timer) {
-          window.clearInterval(timer);
-        }
-        if (tailTimer) {
-          window.clearInterval(tailTimer);
-        }
+        if (timer) { window.clearInterval(timer); }
+        if (tailTimer) { window.clearInterval(tailTimer); }
+        if (clockTimer) { window.clearInterval(clockTimer); }
         if (percent) { percent.classList.remove('animate-pulse'); }
+        var totalTime = formatElapsed();
+        lastBaseDetail = (doneDetail || 'Kartlar güncellendi.') + ' (' + totalTime + ')';
         render({
           percent: 100,
           title: doneTitle || 'Tamamlandı',
-          detail: doneDetail || 'Kartlar güncellendi.',
+          detail: lastBaseDetail,
         });
         hideTimer = setTimeout(function () {
           if (!panel) { return; }
@@ -419,12 +424,9 @@
         }, 1500);
       },
       fail: function (errorTitle, errorDetail) {
-        if (timer) {
-          window.clearInterval(timer);
-        }
-        if (tailTimer) {
-          window.clearInterval(tailTimer);
-        }
+        if (timer) { window.clearInterval(timer); }
+        if (tailTimer) { window.clearInterval(tailTimer); }
+        if (clockTimer) { window.clearInterval(clockTimer); }
         if (panel) {
           panel.style.backgroundImage = 'none';
           panel.classList.remove(
