@@ -5974,6 +5974,52 @@ def search_console_oauth_disconnect(request: Request, site_id: int):
     )
 
 
+@app.post("/admin/cleanup-sc-snapshots")
+def admin_cleanup_sc_snapshots(request: Request):
+    """Eski Search Console snapshot satırlarını siler. Her site için sadece son snapshot kalır."""
+    from sqlalchemy import func as sqlfunc, and_
+
+    with SessionLocal() as db:
+        # Her site+data_scope için en son collected_at'ı bul
+        latest_sub = (
+            db.query(
+                SearchConsoleQuerySnapshot.site_id,
+                SearchConsoleQuerySnapshot.data_scope,
+                sqlfunc.max(SearchConsoleQuerySnapshot.collected_at).label("max_ts"),
+            )
+            .group_by(SearchConsoleQuerySnapshot.site_id, SearchConsoleQuerySnapshot.data_scope)
+            .subquery()
+        )
+
+        # En son olmayan tüm satırları sil
+        old_rows = (
+            db.query(SearchConsoleQuerySnapshot)
+            .join(
+                latest_sub,
+                and_(
+                    SearchConsoleQuerySnapshot.site_id == latest_sub.c.site_id,
+                    SearchConsoleQuerySnapshot.data_scope == latest_sub.c.data_scope,
+                ),
+            )
+            .filter(SearchConsoleQuerySnapshot.collected_at < latest_sub.c.max_ts)
+            .all()
+        )
+        count = len(old_rows)
+        for row in old_rows:
+            db.delete(row)
+        db.commit()
+
+        # VACUUM çalıştır (PostgreSQL disk alanını geri al)
+        try:
+            from sqlalchemy import text
+            db.execute(text("VACUUM ANALYZE search_console_query_snapshots"))
+        except Exception:
+            pass  # SQLite veya yetki sorunu olursa sessizce geç
+
+    logging.info("SC snapshot cleanup: %d eski satır silindi", count)
+    return JSONResponse({"status": "ok", "deleted_rows": count})
+
+
 @app.get("/health")
 def health_check():
     # Basit sağlık kontrol endpoint'i JSON döner.
