@@ -6160,6 +6160,36 @@ def admin_db_size():
     return JSONResponse(result)
 
 
+@app.get("/admin/sc-scope-stats")
+def admin_sc_scope_stats():
+    """SC query snapshot tablosundaki scope/device dağılımını gösterir (debug)."""
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        if _IS_SQLITE:
+            rows = db.execute(text(
+                "SELECT site_id, data_scope, device, COUNT(*) as cnt "
+                "FROM search_console_query_snapshots "
+                "GROUP BY site_id, data_scope, device "
+                "ORDER BY site_id, data_scope, device"
+            )).fetchall()
+        else:
+            rows = db.execute(text(
+                "SELECT site_id, data_scope, device, COUNT(*) as cnt "
+                "FROM search_console_query_snapshots "
+                "GROUP BY site_id, data_scope, device "
+                "ORDER BY site_id, data_scope, device"
+            )).fetchall()
+        return JSONResponse({
+            "scopes": [
+                {"site_id": r[0], "data_scope": r[1], "device": r[2], "count": r[3]}
+                for r in rows
+            ]
+        })
+    finally:
+        db.close()
+
+
 @app.get("/health")
 def health_check():
     # Basit sağlık kontrol endpoint'i JSON döner.
