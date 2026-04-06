@@ -1,0 +1,11 @@
+{
+  "name": "seo-agent-assets",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./assets/tailwind-source.css -o ./static/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./assets/tailwind-source.css -o ./static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 .compose.env
+node_modules/
 .venv/
 __pycache__/
 *.pyc
