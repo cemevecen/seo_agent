@@ -288,7 +288,106 @@ def _ai_brief_sites_filter(value: str | None) -> dict:
     return parse_stored_brief_section_for_ui(value)
 
 
+def _ai_brief_normalize_breaks(raw: str) -> str:
+    """LLM bazen <br> yazar; kaçışlı metin olarak görünmesin diye satır sonuna çevir."""
+    import re
+
+    s = str(raw)
+    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)&lt;br\s*/?&gt;", "\n", s)
+    return s
+
+
+def _ai_brief_nl2br(text: str):
+    """Kaçış + satır içi güvenli <br />."""
+    from markupsafe import Markup, escape
+
+    parts = escape(text).splitlines()
+    if not parts:
+        return Markup("")
+    return Markup("<br />\n").join(parts)
+
+
+def _ai_brief_stacked_p(body: str, *, p_class: str):
+    """\\n\\n ile ayrılmış paragrafları <p> olarak döndür; tek paragraf içi \\n → <br />."""
+    from markupsafe import Markup
+
+    chunks = [c.strip() for c in body.split("\n\n") if c.strip()]
+    if not chunks:
+        return Markup("")
+    out: list[str] = []
+    for chunk in chunks:
+        inner = _ai_brief_nl2br(chunk)
+        out.append(f'<p class="{p_class}">{inner}</p>')
+    return Markup("".join(out))
+
+
+def _ai_brief_html_paragraphs(value: str | None):
+    """AI özet metnini çift satır sonundan paragraflara böler; light/dark uyumlu kutular."""
+    from markupsafe import Markup, escape
+
+    if not value or not str(value).strip():
+        return Markup("")
+    normalized = _ai_brief_normalize_breaks(str(value))
+    parts = [p.strip() for p in normalized.split("\n\n") if p.strip()]
+    blocks: list[str] = []
+    label_cls = (
+        "mb-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-800 dark:text-sky-200"
+    )
+    body_cls = "text-[13px] leading-relaxed text-slate-800 dark:text-slate-100"
+    stacked_p_cls = (
+        "mb-2.5 last:mb-0 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100"
+    )
+    plain_cls = f"mb-3 {body_cls}"
+    # Yarı saydam değil: dark modda metin/beyaz karışımı ve düşük kontrast önlenir.
+    card_durum = (
+        "mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 "
+        "dark:border-slate-600 dark:bg-slate-800"
+    )
+    card_neutral = (
+        "mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm shadow-slate-200/40 "
+        "dark:border-slate-600 dark:bg-slate-900 dark:shadow-none"
+    )
+    for p in parts:
+        head = p.lstrip()
+        up = head.upper()
+        with_br = _ai_brief_nl2br(p)
+        if up.startswith("DURUM:") or up.startswith("RAKAMLAR:"):
+            first_ln, _, rest = p.partition("\n")
+            if rest.strip():
+                lbl = escape(first_ln.strip())
+                if up.startswith("RAKAMLAR:"):
+                    body = _ai_brief_nl2br(rest.strip())
+                    blocks.append(
+                        f'<div class="{card_durum}">'
+                        f'<p class="{label_cls}">{lbl}</p><div class="{body_cls}">{body}</div></div>'
+                    )
+                else:
+                    body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls)
+                    blocks.append(
+                        f'<div class="{card_durum}">'
+                        f'<p class="{label_cls}">{lbl}</p><div class="{body_cls} space-y-0">{body}</div></div>'
+                    )
+            else:
+                blocks.append(f'<div class="{plain_cls}">{with_br}</div>')
+        elif up.startswith("NE ANLAMA GELİYOR:") or up.startswith("ÖNCELİK:"):
+            first_ln, _, rest = p.partition("\n")
+            if rest.strip():
+                lbl = escape(first_ln.strip())
+                body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls)
+                blocks.append(
+                    f'<div class="{card_neutral}">'
+                    f'<p class="{label_cls}">{lbl}</p><div class="{body_cls} space-y-0">{body}</div></div>'
+                )
+            else:
+                blocks.append(f'<div class="{plain_cls}">{with_br}</div>')
+        else:
+            blocks.append(f'<div class="{plain_cls}">{with_br}</div>')
+    return Markup("".join(blocks))
+
+
 jinja_env.filters["ai_brief_sites"] = _ai_brief_sites_filter
+jinja_env.filters["ai_brief_html_paragraphs"] = _ai_brief_html_paragraphs
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
@@ -6059,13 +6158,14 @@ def ga4_page(request: Request):
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
 
 
-def _build_ai_brief_charts_map(db, brief) -> dict[str, dict]:
+def _build_ai_brief_charts_ordered(db, brief) -> list[dict]:
+    """AI özeti sayfası: site sırasına göre grafik yükü (Plotly)."""
     from sqlalchemy import func as sqlfunc
 
     from backend.services.ai_daily_brief import build_ai_brief_charts_payload, collect_ordered_domains_for_charts
 
     ext = _external_site_ids(db)
-    chart_map: dict[str, dict] = {}
+    rows: list[dict] = []
     for dom_l in collect_ordered_domains_for_charts(db, brief):
         site_row = (
             db.query(Site)
@@ -6074,9 +6174,17 @@ def _build_ai_brief_charts_map(db, brief) -> dict[str, dict]:
         )
         if site_row is None:
             site_row = db.query(Site).filter(Site.domain == dom_l).first()
-        if site_row is not None and site_row.id not in ext:
-            chart_map[site_row.domain] = build_ai_brief_charts_payload(db, site_row)
-    return chart_map
+        if site_row is None or site_row.id in ext:
+            continue
+        spec = build_ai_brief_charts_payload(db, site_row)
+        rows.append(
+            {
+                "domain": site_row.domain,
+                "baslik": site_row.display_name,
+                "spec": spec,
+            }
+        )
+    return rows
 
 
 def _ai_brief_llm_availability() -> dict[str, bool]:
@@ -6097,6 +6205,7 @@ def ai_daily_brief_page(request: Request):
             "sites": get_sidebar_sites(),
             "ai_brief": brief,
             "ai_brief_llm": _ai_brief_llm_availability(),
+            "ai_brief_charts": _build_ai_brief_charts_ordered(db, brief),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -6129,6 +6238,7 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("groq")):
                 "sites": get_sidebar_sites(),
                 "ai_brief": brief,
                 "ai_brief_llm": _ai_brief_llm_availability(),
+                "ai_brief_charts": _build_ai_brief_charts_ordered(db, brief),
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
     return RedirectResponse(url="/ai", status_code=303)

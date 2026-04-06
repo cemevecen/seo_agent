@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import threading
 from collections import Counter, defaultdict
@@ -33,23 +34,46 @@ LOGGER = logging.getLogger(__name__)
 
 _BRIEF_SECTION_KEYS = ("ga4", "pagespeed", "search_console", "alerts")
 
-# LLM: jenerik özet cümleleri yerine rakam ve çıkarım zorunluluğu
+# LLM: tarama dostu iskelet + stratejik yorum; uygulama profillerinde SEO-organik saçmalığı yasak
 _BRIEF_DATA_FIRST_RULES_TR = """
-SOMUT VERİ VE ÇIKARIM (ZORUNLU — tüm "metin" alanları için geçerli):
-- Her başlık (ga4 / pagespeed / search_console / alerts) ve her proje için metin tamamen veri yorumu ve eyleme dönük çıkarım olmalı; genel tanım veya rapor dili kullanma.
-- İlk cümle mutlaka o projeye ait girdiden alınmış en az bir sayı veya ölçü ile başlasın (ör. oturum sayısı, yüzde değişim, PageSpeed skoru, tıklama/gösterim, ortalama pozisyon, uyarı kaydı sayısı). "İzlenmektedir / değerlendirilmektedir / bakılmaktadır" ile başlama.
-- Her ana paragrafta (çift satır sonu ile ayrılan blok) en az bir somut rakam veya JSON’daki alan adıyla eşleşen ölçü geçsin; yalnızca süreç anlatan cümle yazma.
-- GA4: "ga4_hucreler_1_7_30_gun" içindeki profil, oturum_etiket, oturum_degisim_pct, organik_pay alanlarını metne yansıt; boşsa "veri setinde görünmüyor" de.
-- PageSpeed: "pagespeed" nesnesindeki mobil_guncel, masaustu_guncel ve varsa yaklasik_7g_once / 30g_once veya son_olcumler dizisindeki değerleri adıyla kullan.
-- Search Console: "search_console_ozet" altındaki gun_1, gun_7, gun_30 (ve varsa onceki_7g / onceki_30g) için tıklama, gösterim, ctr, position değerlerini karşılaştır; "Search Console verilerine göre izlenmektedir" gibi ifadeleri KULLANMA.
-- Uyarılar: "bu_projeye_ozel_uyarilar" listesindeki tip, baslik, sorgu, metrik, zaman alanlarından en az üç kaydı metne göm; yalnızca "CTR düşüşü görülmektedir" demek yetmez — hangi uyarı, ne zaman veya hangi metin alanı. Liste boşsa bunu açıkça söyle ve tum_son_uyarilar içinden yalnızca bu domain’e ait olanları kullan.
+ÜSLUP (ZORUNLU — tüm "metin" alanları):
+- Üst düzey değerlendirme: önce iş/trağik anlamı, sonra teknik detay. Metin değerli ve bu projeye özel olsun; boş şablon veya alakasız cümle yasak.
+- Editör gibi yaz: net fiil, okunaklı cümleler. Tek satırda onlarca rakam dökmek yasak (RAKAMLAR maddelerine böl).
+- Her proje + her başlık (ga4, pagespeed, search_console, alerts) için "metin" AYNI sabit iskeleti kullan; blok başlıkları tam şu şekilde (Türkçe, iki nokta üst üste):
 
-KESİNLİKLE KULLANMA (yasak kalıplar ve eş anlamlıları):
-- "… verilerine göre … izlenmektedir / takip edilmektedir / değerlendirilmektedir"
-- "… değerlerine bakıldığında" ile başlayıp ardından somut rakam vermeden genel yorum
-- "çeşitli uyarılar kaydedilmiştir / görülmektedir" gibi sayısız listeleme; yerine uyarı tipi ve bağlam (JSON’dan)
-- "performansları izlenmektedir", "sistematik olarak değerlendirilmelidir" gibi boş normatif cümleler (somut önlem ve rakam olmadan)
-- İki siteyi aynı cümlede şablonla özetleme; her proje metni o projenin JSON alt ağacına dayanmalı.
+DURUM:
+(2–3 cümle: bu başlık altında gidişatın özü + stratejik çerçeve; en az bir somut ölçü JSON’dan.)
+
+RAKAMLAR:
+(4–10 madde; her satır "• " ile başlasın.)
+GA4: 1g / 7g / 30g için Web ve Mobil web satırlarında oturum etiketi, değişim %, varsa organik pay %.
+  • Profil adında Android veya iOS geçen satırlar mobil UYGULAMA oturumudur: yalnızca oturum hacmi ve değişim %; organik pay, organik trafik, arama motoru veya SEO organik dili KULLANMA (anlamsız ve yasak).
+  • "Mobil web" ile "Android/iOS uygulama" profillerini birbirine karıştırma.
+PageSpeed: güncel mobil/masaüstü, 7g kabaca önceki skor, son ölçümlerde ani düşüş/0 gibi anomali.
+Search Console: 1g/7g/30g tıklama, gösterim, CTR, pozisyon; mümkünse önceki dönem kıyısı.
+Uyarılar: her madde bir uyarı (tip, sorgu/metrik, yön).
+
+NE ANLAMA GELİYOR:
+(En az 6 cümle, tercihen 7–10 cümle: bulguları birlikte oku — güçlü/zayıf yönler, risk, fırsat, birbiriyle tutarlılık; spekülasyonu veriyle sınırla. Genel geçer kurum dili yazma.)
+
+ÖNCELİK:
+(2 numaralı ana eylem korunur: "1) …" ve "2) …". Her madde altında birkaç cümle veya net alt adımlar olabilir; toplamda bu blokta en az 6–9 cümle düzeyinde içerik ver — yani önceki tek satırlık maddeleri genişlet.)
+
+OKUNAKLI PARAGRAF YAPISI (ZORUNLU — JSON "metin" içinde kaçışlı satır sonu kullan):
+- DURUM: / NE ANLAMA GELİYOR: / ÖNCELİK: başlık satırından sonra gelen gövdeyi uzun tek paragraf halinde yazma.
+- Tercih 1 — cümle cümle: Her tamamlanmış cümleden sonra çift satır sonu bırak (\\n\\n); her cümle ayrı görsel paragraf olsun.
+- Tercih 2 — konu birimi: Aynı alt konuda 2–3 cümle kalacaksa bunları tek paragraf yap; konu değişince mutlaka \\n\\n ile yeni paragraf başlat. Bir paragrafta dörtten fazla cümle yazma.
+- "1) …" ve "2) …" maddeleri: Numaralı satır kendi başına kalsın; açıklayıcı cümleler varsa her cümleden sonra \\n\\n ver veya madde içi ilgili 2–3 cümleyi bir paragrafta tutup sonraki alt adımı yeni paragrafla ayır.
+- RAKAMLAR: Başlık altında madde listesi kalır; maddeler tek \\n ile alt alta; listeyi gereksiz \\n\\n ile bölme.
+
+UZUNLUK: Proje başına bu başlık (ga4 / pagespeed / search_console / alerts) için toplam yaklaşık 220–360 kelime; tekrar ve kopya yasak.
+SOMUT VERİ: Her blokta JSON’dan gelen alan/sayı; uydurma yok; eksikte "veri setinde görünmüyor" de.
+- İlk satır (DURUM:) "izlenmektedir / kaydedilmiştir" ile başlama.
+
+KESİNLİKLE KULLANMA:
+- Android veya iOS GA4 profili için "organik pay", "organik trafik", "SEO organik" veya Search Console ile doğrudan bağ kurmak
+- "… verileri izlenmektedir / takip edilmektedir" boş kalıpları
+- İki siteyi aynı metinde birleştirmek veya diğer projeden örnek uydurmak
 """
 
 _BRIEF_JOB_LOCK = threading.Lock()
@@ -72,8 +96,8 @@ def _resolve_brief_llm() -> tuple[str, str] | None:
     groq_k = (settings.groq_api_key or "").strip()
     gem_k = (settings.gemini_api_key or "").strip()
     pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
-    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.0-flash").strip()
-    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
+    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
+    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
 
     if pref == "gemini":
         return ("gemini", gm) if gem_k else None
@@ -93,11 +117,56 @@ def _resolve_brief_llm_with_override(provider_override: str | None) -> tuple[str
         return _resolve_brief_llm()
     groq_k = (settings.groq_api_key or "").strip()
     gem_k = (settings.gemini_api_key or "").strip()
-    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.0-flash").strip()
-    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
+    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
+    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
     if o == "groq":
         return ("groq", gq) if groq_k else None
     return ("gemini", gm) if gem_k else None
+
+
+def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str, str]]:
+    """Özet üretimi için sıra: önce tercih, sonra (failover açıksa) diğer sağlayıcı.
+
+    Zamanlanmış iş `provider_override=None` ile çağrılır; `AI_DAILY_BRIEF_PROVIDER` ve failover buna göre sıralar.
+    """
+    groq_k = bool((settings.groq_api_key or "").strip())
+    gem_k = bool((settings.gemini_api_key or "").strip())
+    if not groq_k and not gem_k:
+        return []
+    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
+    failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
+
+    order_slug: list[str] = []
+    ovr = (provider_override or "").strip().lower()
+    if ovr == "groq":
+        order_slug = ["groq"] + (["gemini"] if failover else [])
+    elif ovr == "gemini":
+        order_slug = ["gemini"] + (["groq"] if failover else [])
+    else:
+        pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
+        if pref == "groq":
+            order_slug = ["groq"] + (["gemini"] if failover else [])
+        elif pref == "gemini":
+            order_slug = ["gemini"] + (["groq"] if failover else [])
+        else:
+            if failover:
+                order_slug = ["groq", "gemini"]
+            else:
+                order_slug = ["groq"] if groq_k else ["gemini"]
+
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for p in order_slug:
+        if p in seen:
+            continue
+        if p == "groq" and groq_k:
+            out.append(("groq", gq))
+            seen.add("groq")
+        elif p == "gemini" and gem_k:
+            out.append(("gemini", gm))
+            seen.add("gemini")
+    return out
 
 
 def _try_reserve_llm_calls(n: int) -> bool:
@@ -187,6 +256,21 @@ def _ga4_hucre_ozet(layout: dict) -> list[dict]:
     return cells
 
 
+def _ga4_cells_scrub_app_organic(cells: list[dict]) -> list[dict]:
+    """Android/iOS GA4 stream'lerinde organik pay SEO için anlamsız; LLM girdisinden düşür."""
+    out: list[dict] = []
+    for c in cells:
+        row = dict(c)
+        prof = str(row.get("profil") or "").strip().lower()
+        if prof in ("android", "ios") or "android" in prof or "ios" in prof:
+            row["organik_pay"] = None
+            row["profil_aciklama"] = (
+                "Mobil uygulama (app) akışı — organik arama payı veya GSC ile karşılaştırma yazılmaz."
+            )
+        out.append(row)
+    return out
+
+
 def gather_ai_brief_context(db: Session) -> dict:
     """Dashboard + 1/7/30 gün kırılımları; LLM girdisi."""
     from backend.main import (
@@ -229,7 +313,7 @@ def gather_ai_brief_context(db: Session) -> dict:
         ga4_by_gun: dict[str, list[dict]] = {}
         for gun, pd in (("1", 1), ("7", 7), ("30", 30)):
             layout = _dashboard_ga4_layout(db, site, platform, latest_floats, ga4_conn, period_days=pd)
-            ga4_by_gun[gun] = _ga4_hucre_ozet(layout)
+            ga4_by_gun[gun] = _ga4_cells_scrub_app_organic(_ga4_hucre_ozet(layout))
         hist = get_metric_history(db, site.id, days=35)
         mob_hist = hist.get("pagespeed_mobile_score") or []
         desk_hist = hist.get("pagespeed_desktop_score") or []
@@ -293,7 +377,11 @@ def gather_ai_brief_context(db: Session) -> dict:
     return {
         "tarih": _istanbul_today_str(),
         "saat_dilimi": settings.ai_daily_brief_timezone,
-        "not": "Metinlerde 1, 7 ve 30 günlük verileri tek akışta karşılaştır; ayrı başlıklar şart değil.",
+        "not": (
+            "GA4: Android/iOS profilleri uygulama oturumudur — organik arama/yüzde organik anlatma. "
+            "Organik pay yalnızca Web ve Mobil web satırlarında. "
+            "Üst düzey (stratejik) yorum + somut rakam; alakasız doldurma yok."
+        ),
         "siteler": site_payloads,
         "tum_son_uyarilar": [
             {
@@ -328,14 +416,33 @@ def collect_ordered_domains_for_charts(db: Session, brief: AiDailyBriefReport | 
     return [s.domain.lower() for s in sites]
 
 
+def _chart_finite(x: object | None) -> float | None:
+    try:
+        v = float(x)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    return float(v)
+
+
 def build_ai_brief_charts_payload(db: Session, site: Site) -> dict:
     """Plotly.newPlot için ham seriler (sayfa yükünde güncel metrik)."""
     from backend.main import _summarize_search_console_rows
 
     latest_list = get_latest_metrics(db, site.id)
-    latest_floats = {m.metric_type: float(m.value) for m in latest_list}
+    latest_floats = {}
+    for m in latest_list:
+        fv = _chart_finite(m.value)
+        if fv is not None:
+            latest_floats[m.metric_type] = fv
     mob = latest_floats.get("pagespeed_mobile_score")
     desk = latest_floats.get("pagespeed_desktop_score")
+    hist = get_metric_history(db, site.id, days=40)
+    mob_hist = hist.get("pagespeed_mobile_score") or []
+    desk_hist = hist.get("pagespeed_desktop_score") or []
+    mob_trend = [p for p in _series_tail(mob_hist, max_points=14) if _chart_finite(p.get("deger")) is not None]
+    desk_trend = [p for p in _series_tail(desk_hist, max_points=14) if _chart_finite(p.get("deger")) is not None]
     sc_batch = get_latest_search_console_rows_batch(
         db, site_id=site.id, scopes=["current_day", "current_7d", "current_30d"]
     )
@@ -346,20 +453,20 @@ def build_ai_brief_charts_payload(db: Session, site: Site) -> dict:
     dev: dict[str, float] = defaultdict(float)
     for r in rows7:
         dev[str(r.get("device") or "—")] += float(r.get("clicks") or 0)
-    g7 = latest_floats.get("ga4_web_sessions_last7d_total")
-    g30 = latest_floats.get("ga4_web_sessions_last30d_total")
-    g1 = latest_floats.get("ga4_web_sessions_last1d_total")
+    g7 = _chart_finite(latest_floats.get("ga4_web_sessions_last7d_total"))
+    g30 = _chart_finite(latest_floats.get("ga4_web_sessions_last30d_total"))
+    g1 = _chart_finite(latest_floats.get("ga4_web_sessions_last1d_total"))
     ga4_labels: list[str] = []
     ga4_vals: list[float] = []
     if g1 is not None:
         ga4_labels.append("1g")
-        ga4_vals.append(float(g1))
+        ga4_vals.append(g1)
     if g7 is not None:
         ga4_labels.append("7g")
-        ga4_vals.append(float(g7))
+        ga4_vals.append(g7)
     if g30 is not None:
         ga4_labels.append("30g")
-        ga4_vals.append(float(g30))
+        ga4_vals.append(g30)
     site_alerts = get_recent_alerts(db, limit=200, include_external=False, site_id_filter=site.id)
     ac = Counter(str(a.get("alert_type") or "diger") for a in site_alerts)
     alert_labels = list(ac.keys())[:12]
@@ -368,11 +475,24 @@ def build_ai_brief_charts_payload(db: Session, site: Site) -> dict:
         "domain": site.domain,
         "pagespeed_bar": {
             "labels": ["Mobil", "Masaüstü"],
-            "values": [mob, desk],
+            "values": [mob if mob is not None else None, desk if desk is not None else None],
         },
+        "pagespeed_trends": {"mobil": mob_trend, "masaustu": desk_trend},
         "sc_clicks_bar": {
             "labels": ["1 gün", "7 gün", "30 gün"],
-            "values": [float(s1.get("clicks") or 0), float(s7.get("clicks") or 0), float(s30.get("clicks") or 0)],
+            "values": [
+                float(_chart_finite(s1.get("clicks")) or 0.0),
+                float(_chart_finite(s7.get("clicks")) or 0.0),
+                float(_chart_finite(s30.get("clicks")) or 0.0),
+            ],
+        },
+        "sc_impressions_bar": {
+            "labels": ["1 gün", "7 gün", "30 gün"],
+            "values": [
+                float(_chart_finite(s1.get("impressions")) or 0.0),
+                float(_chart_finite(s7.get("impressions")) or 0.0),
+                float(_chart_finite(s30.get("impressions")) or 0.0),
+            ],
         },
         "sc_device_pie": {
             "labels": list(dev.keys()),
@@ -394,7 +514,7 @@ def _parse_json_object(raw: str) -> dict:
         raise
 
 
-def _gemini_json(prompt: str, *, model_name: str) -> dict:
+def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]]:
     import google.generativeai as genai
 
     genai.configure(api_key=(settings.gemini_api_key or "").strip())
@@ -406,10 +526,17 @@ def _gemini_json(prompt: str, *, model_name: str) -> dict:
         },
     )
     resp = model.generate_content(prompt)
-    return _parse_json_object(resp.text or "")
+    um = getattr(resp, "usage_metadata", None)
+    pt = int(getattr(um, "prompt_token_count", None) or 0) if um is not None else 0
+    ct = int(getattr(um, "candidates_token_count", None) or 0) if um is not None else 0
+    if um is not None and ct <= 0:
+        tot = getattr(um, "total_token_count", None)
+        if tot is not None:
+            ct = max(0, int(tot) - pt)
+    return _parse_json_object(resp.text or ""), (pt, ct)
 
 
-def _groq_chat_json(prompt: str, *, model: str) -> dict:
+def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {(settings.groq_api_key or '').strip()}",
@@ -429,8 +556,15 @@ def _groq_chat_json(prompt: str, *, model: str) -> dict:
                 r = client.post(url, headers=headers, json=body)
                 r.raise_for_status()
                 data = r.json()
+                usage = data.get("usage") or {}
+                pt = int(usage.get("prompt_tokens") or 0)
+                ct = int(usage.get("completion_tokens") or 0)
+                if ct <= 0:
+                    tt = int(usage.get("total_tokens") or 0)
+                    if tt > pt:
+                        ct = max(0, tt - pt)
                 content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-                return _parse_json_object(content)
+                return _parse_json_object(content), (pt, ct)
             except Exception as exc:  # noqa: BLE001
                 last_err = exc
                 continue
@@ -439,10 +573,24 @@ def _groq_chat_json(prompt: str, *, model: str) -> dict:
 
 def _llm_json(prompt: str, *, provider: str, model_name: str) -> dict:
     if provider == "groq":
-        return _groq_chat_json(prompt, model=model_name)
-    if provider == "gemini":
-        return _gemini_json(prompt, model_name=model_name)
-    raise ValueError(f"Bilinmeyen LLM sağlayıcı: {provider}")
+        data, (pt, ct) = _groq_chat_json(prompt, model=model_name)
+    elif provider == "gemini":
+        data, (pt, ct) = _gemini_json(prompt, model_name=model_name)
+    else:
+        raise ValueError(f"Bilinmeyen LLM sağlayıcı: {provider}")
+    if pt or ct:
+        try:
+            from backend.services.llm_spend import record_llm_call_try
+
+            record_llm_call_try(
+                provider=provider,
+                model=model_name,
+                prompt_tokens=pt,
+                completion_tokens=ct,
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("LLM harcama kaydı yazılamadı: %s", exc)
+    return data
 
 
 def _site_order_from_context(context: dict) -> list[tuple[str, str]]:
@@ -529,14 +677,11 @@ def generate_brief_sections(context: dict, *, provider: str, model_name: str) ->
 
 {ctx_json}
 {_BRIEF_DATA_FIRST_RULES_TR}
-YAPILANDIRMA: Girdi JSON içindeki "siteler" dizisindeki her proje için ayrı değerlendirme yaz. Siteleri TEK paragrafta birbirine karıştırma. "domain" alanını girdideki "domain" ile birebir (küçük harf) eşleştir. "baslik" olarak "alan_adi" değerini kullan.
+YAPILANDIRMA: Girdi JSON içindeki "siteler" dizisindeki her proje için ayrı değerlendirme yaz. Siteleri asla tek metinde birleştirme. "domain" birebir (küçük harf). "baslik" = "alan_adi".
 
-GÖREV: Dört ana başlık altında (ga4, pagespeed, search_console, alerts) her projede:
-- En az 500 kelime (proje başına, başlık başına). JSON içinde metin uzun olabilir.
-- Girdi JSON’daki 1, 7 ve 30 günlük özetleri (search_console_ozet, ga4_hucreler_1_7_30_gun, pagespeed tarihçesi, bu_projeye_ozel_uyarilar) tek metin içinde karşılaştırmalı yorumla; ayrı alt başlık zorunlu değil.
-- "Öne çıkanlar:", "Risk:", "Öneri:", "Öncelik:" gibi kısa iç başlıklar kullan (markdown # yok) — her blokta somut rakam veya JSON alanına dayalı çıkarım olsun.
-- Pozitif / negatif gidişatı ayır; ne yapılmalı, erken müdahale, öncelik — mümkünse ölçülebilir hedef veya eşik ile.
-- alerts: yalnızca bu projeye ilişkin uyarıları; JSON’daki kayıtları tek tek veya sayımla bağla, şablon cümle kullanma.
+GÖREV: Dört ana başlık (ga4, pagespeed, search_console, alerts) için her projede "metin" alanı yukarıdaki ZORUNLU iskeleti aynen kullanmalı: DURUM / RAKAMLAR / NE ANLAMA GELİYOR / ÖNCELİK (büyük harf ve iki nokta üst üste ile).
+- Bloklar arasında boş satır bırak (\\\\n\\\\n).
+- alerts başlığında RAKAMLAR maddeleri uyarı kayıtları; uyarı yoksa DURUM’da açıkça belirt.
 
 Çıktı YALNIZCA şu yapıda TEK JSON nesnesi (başka metin yok):
 {{
@@ -569,16 +714,13 @@ def generate_brief_single_pass(
 {_BRIEF_DATA_FIRST_RULES_TR}
 YAPILANDIRMA: "siteler" içindeki her proje için ayrı metin üret; projeleri tek paragrafta birleştirme. "domain" birebir eşleşsin. "baslik" = "alan_adi".
 
-ÜSLUP: Türkçe, TDK’ya yakın yazım, okunaklı paragraflar.
-Her projede (her başlık altında) en az 500 kelime. 1, 7 ve 30 günlük verileri aynı metinde birlikte değerlendir (ayrı bölüm şart değil).
-"Öne çıkanlar:", "Dikkat:", "Öncelikli adımlar:" gibi kısa iç başlıklar kullan (markdown # yok) — altında mutlaka JSON’dan gelen sayı veya alan değeri geçsin.
-
-BAŞLIKLAR: ga4, pagespeed, search_console, alerts — her biri proje nesnelerinden oluşan bir dizi.
-alerts: bu_projeye_ozel_uyarilar kayıtlarını somut kullan; boşsa açıkça belirt.
+Her projede ve her başlıkta (ga4, pagespeed, search_console, alerts) "metin" şu dört bloğu bu sırayla ve bu etiketlerle içermeli: DURUM: / RAKAMLAR: / NE ANLAMA GELİYOR: / ÖNCELİK:
+- Bloklar arasında boş satır (\\n\\n). RAKAMLAR’da madde işareti satırları kullan.
+- alerts: bu_projeye_ozel_uyarilar somut; boşsa DURUM’da yaz.
 
 Çıktı YALNIZCA şu alanlara sahip TEK bir JSON nesnesi olsun:
 - "ga4", "pagespeed", "search_console", "alerts": her biri [{{"domain","baslik","metin"}}] dizisi (girdideki tüm siteler, aynı sıra).
-- "tamam": boolean — Türkçe ve yapı tutarlıysa true; ayrıca metinlerin jenerik şablon içermediğini kendin doğrula.
+- "tamam": boolean — Türkçe, iskelet doğru ve metinler şablon dolgu değilse true.
 
 Kurallar:
 - Markdown yok; metin içinde \\n\\n ile paragraflar.
@@ -608,8 +750,9 @@ def verify_turkish_batch(
     payload = json.dumps(structured, ensure_ascii=False, indent=2)
     prompt = f"""Aşağıdaki JSON, SEO günlük özetidir. Yapı şöyle: her anahtar (ga4, pagespeed, search_console, alerts) bir dizi; her öğe {{"domain","baslik","metin"}}.
 
-GÖREV: Yalnızca "metin" alanlarını Türkçe yazım ve noktalama açısından düzelt (TDK yaklaşımı). domain ve baslik alanlarını aynen koru. Teknik anlamı, TÜM rakamları, uyarı tiplerini, sorgu/metrik alıntılarını ve metin uzunluğunu (≥500 kelime) koru; içeriği kısaltma, özetleme veya jenerik cümlelerle değiştirme.
-Eğer bir metin zaten somut veri içeriyorsa, yazım düzeltmesi dışında cümle yapısını bozma; "izlenmektedir / değerlendirilmektedir" gibi boş ifadelerle değiştirme.
+GÖREV: Yalnızca "metin" alanlarını Türkçe yazım ve noktalama açısından düzelt (TDK yaklaşımı). domain ve baslik alanlarını aynen koru. DURUM:/RAKAMLAR:/NE ANLAMA GELİYOR:/ÖNCELİK: iskeletini ve tüm rakamları koru; içeriği kısaltma veya jenerik cümlelerle değiştirme.
+Paragraf yapısını koru: metindeki \\n\\n ile ayrılmış bölümleri tek paragrafa sıkıştırma; gerekirse anlam birimlerini yine \\n\\n ile ayırılmış tut.
+Boş ifadeleri ("izlenmektedir" vb.) anlamlı özgül cümlelerle değiştirmek yalnızca yazım amaçlı değilse yapma.
 
 Çıktı: Aynı yapıda JSON — "ga4","pagespeed","search_console","alerts" dizileri + "tamam" (boolean).
 
@@ -706,17 +849,16 @@ def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None
 
 
 def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str | None = None) -> None:
-    resolved = _resolve_brief_llm_with_override(provider_override)
-    if not resolved:
-        LOGGER.warning("AI günlük özet atlandı: GROQ_API_KEY veya GEMINI_API_KEY (veya AI_DAILY_BRIEF_PROVIDER) yapılandırılmadı.")
+    try_chain = brief_provider_try_chain(provider_override=provider_override)
+    if not try_chain:
+        LOGGER.warning("AI günlük özet atlandı: GROQ_API_KEY veya GEMINI_API_KEY yapılandırılmadı.")
         return
 
-    provider, model_name = resolved
     single = bool(settings.ai_daily_brief_single_llm_call)
     planned_calls = 1 if single else 2
 
     brief_date = _istanbul_today_str()
-    label_stored = f"{provider}:{model_name}"[:80]
+    label_stored = ""
 
     with SessionLocal() as db:
         existing = db.query(AiDailyBriefReport).filter(AiDailyBriefReport.brief_date == brief_date).first()
@@ -759,22 +901,74 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
             LOGGER.exception("AI brief context failed: %s", exc)
             return
 
-        if not _try_reserve_llm_calls(planned_calls):
+        from backend.services.llm_spend import (
+            estimate_failover_upper_bound_try,
+            estimate_single_attempt_upper_bound_try,
+            preflight_month_budget_allows,
+        )
+
+        worst_try = estimate_failover_upper_bound_try(
+            try_chain=try_chain,
+            context=context,
+            planned_calls_per_attempt=planned_calls,
+        )
+        if not preflight_month_budget_allows(
+            db, marginal_try_upper=worst_try, context_label="ai-brief-failover-worst"
+        ):
             return
 
-        try:
-            if single:
-                final, qc_ok, qc_detail = generate_brief_single_pass(
-                    context, provider=provider, model_name=model_name
+        final: dict[str, str] | None = None
+        qc_ok = False
+        qc_detail = ""
+
+        for provider, model_name in try_chain:
+            marginal_one = estimate_single_attempt_upper_bound_try(
+                provider=provider,
+                context=context,
+                planned_calls_per_attempt=planned_calls,
+            )
+            if not preflight_month_budget_allows(
+                db, marginal_try_upper=marginal_one, context_label=f"ai-brief-{provider}-attempt"
+            ):
+                continue
+            if not _try_reserve_llm_calls(planned_calls):
+                LOGGER.warning(
+                    "AI günlük özet kota sınırı: %s denemesi atlandı (günlük LLM üst sınırı).",
+                    provider,
                 )
-            else:
-                draft = generate_brief_sections(context, provider=provider, model_name=model_name)
-                final, qc_ok, qc_detail = verify_turkish_batch(
-                    draft, provider=provider, model_name=model_name, context=context
+                break
+            try:
+                if single:
+                    final, qc_ok, qc_detail = generate_brief_single_pass(
+                        context, provider=provider, model_name=model_name
+                    )
+                else:
+                    draft = generate_brief_sections(context, provider=provider, model_name=model_name)
+                    final, qc_ok, qc_detail = verify_turkish_batch(
+                        draft, provider=provider, model_name=model_name, context=context
+                    )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning(
+                    "AI özet üretimi %s (%s) ile başarısız: %s",
+                    provider,
+                    model_name,
+                    exc,
                 )
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.exception("AI brief generation failed: %s", exc)
-            _refund_llm_calls(planned_calls)
+                _refund_llm_calls(planned_calls)
+                final = None
+                continue
+
+            label_stored = f"{provider}:{model_name}"[:80]
+            chosen_provider = provider
+            LOGGER.info("AI günlük özet üretildi: sağlayıcı=%s model=%s", provider, model_name)
+            break
+
+        if final is None:
+            if try_chain:
+                LOGGER.error(
+                    "AI günlük özet tüm sağlayıcılarla başarısız (denenen: %s).",
+                    [p for p, _ in try_chain],
+                )
             return
 
         row = existing or AiDailyBriefReport(brief_date=brief_date)

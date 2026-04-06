@@ -109,14 +109,30 @@ class Settings(BaseSettings):
     ai_daily_brief_hour: int = 6
     ai_daily_brief_minute: int = 15
     ai_daily_brief_timezone: str = "Europe/Istanbul"
-    ai_daily_brief_gemini_model: str = "gemini-2.0-flash"
+    # Kalite / maliyet dengesi: Flash ailesi, JSON çıktı ile uyumlu (gerekirse .env ile değiştirin).
+    ai_daily_brief_gemini_model: str = "gemini-2.5-flash"
     # auto: önce Groq anahtarı varsa Groq, yoksa Gemini; kota dostu sıra.
     ai_daily_brief_provider: str = "auto"
-    ai_daily_brief_groq_model: str = "llama-3.3-70b-versatile"
+    # Groq üretim modeli: GPT-OSS 120B — özet kalitesi güçlü; Groq fiyat tablosuna göre .env fiyatlarını güncelleyin.
+    ai_daily_brief_groq_model: str = "openai/gpt-oss-120b"
+    # 429 / kota / erişim hatasında diğer anahtar varsa otomatik Groq ↔ Gemini geçişi (tek üretim turu içinde).
+    ai_daily_brief_provider_failover: bool = True
     # true: üretim + Türkçe tek istekte (günde en fazla yarı yarıya daha az LLM çağrısı).
     ai_daily_brief_single_llm_call: bool = True
-    # Takvim tutamağı: Europe/Istanbul günü başına toplam LLM HTTP çağrısı üst sınırı (tek-istek modunda 1 üretim ≈ 1 çağrı).
-    ai_daily_brief_max_llm_calls_per_calendar_day: int = 4
+    # Takvim tutamağı: Europe/Istanbul günü başına toplam LLM HTTP çağrısı üst sınırı.
+    # Tek-istek modunda 1 başarılı özet ≈ 1 çağrı; failover ile aynı günde en fazla +1 deneme; çift çağrı modunda ×2.
+    ai_daily_brief_max_llm_calls_per_calendar_day: int = 6
+
+    # LLM tahmini harcama (TRY), Europe/Istanbul takvim ayına göre. 0 = TRY tavanı yok (yalnızca günlük çağrı kotası).
+    llm_spend_budget_try: float = 100.0
+    # API faturaları USD ise tahmini çevrim; güncel kur ile .env ayarlayın.
+    llm_spend_usd_to_try: float = 35.0
+    # Groq üretim fiyatı (varsayılan GPT-OSS 120B: input/output $/1M token — console.groq.com)
+    llm_groq_prompt_usd_per_mtok: float = 0.15
+    llm_groq_completion_usd_per_mtok: float = 0.60
+    # Gemini Flash ailesi için kabaca $/1M — model/plana göre .env ile düzeltin.
+    llm_gemini_prompt_usd_per_mtok: float = 0.075
+    llm_gemini_completion_usd_per_mtok: float = 0.30
 
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"

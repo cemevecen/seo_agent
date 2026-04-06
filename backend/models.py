@@ -433,3 +433,14 @@ class AiDailyBriefReport(Base):
     qc_detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     model_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+
+
+class LlmSpendMonth(Base):
+    """Aylık tahmini LLM harcaması (TRY); token fiyatları .env ile kalibre edilir."""
+
+    __tablename__ = "llm_spend_months"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    month_key: Mapped[str] = mapped_column(String(7), nullable=False, unique=True, index=True)
+    total_try: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -2,12 +2,15 @@
 {% set llm_groq = _llm.get('groq', false) if _llm else false %}
 {% set llm_gemini = _llm.get('gemini', false) if _llm else false %}
 {% set llm_default = 'groq' if llm_groq else ('gemini' if llm_gemini else 'groq') %}
+{% set chart_rows = ai_brief_charts if ai_brief_charts is defined else [] %}
 <div
   id="ai-brief-view"
   class="mx-auto max-w-6xl space-y-6"
   data-groq-available="{{ 1 if llm_groq else 0 }}"
   data-gemini-available="{{ 1 if llm_gemini else 0 }}"
 >
+  <script type="application/json" id="ai-brief-charts-spec">{{ chart_rows|tojson }}</script>
+
   {# ── Progress bar ── #}
   <div id="ai-brief-progress" class="mb-4 hidden" aria-live="polite">
     <div class="mb-2 flex items-center justify-between gap-2">
@@ -79,7 +82,7 @@
                     <h5 class="text-sm font-bold text-slate-900 dark:text-white">{{ it.baslik|e }}</h5>
                     <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ it.domain|e }}</span>
                   </div>
-                  <div class="whitespace-pre-wrap text-[13px] leading-[1.7] text-slate-700 dark:text-slate-300">{{ it.metin|e }}</div>
+                  <div class="ai-brief-metin text-slate-800 dark:text-slate-100">{{ it.metin|ai_brief_html_paragraphs }}</div>
                 </div>
               {% endfor %}
             </div>
@@ -100,5 +103,42 @@
       {{ pillar_block("Search Console", "🔍", ai_brief.search_console_text) }}
       {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text) }}
     </div>
+  {% endif %}
+
+  {% if chart_rows %}
+  <section class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Canlı metrik grafikleri">
+    <div class="border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/60">
+      <h3 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Veri özeti · grafik</h3>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">PageSpeed geçmişi, GA4 web oturumu (1g/7g/30g) ve Search Console tıklama/gösterim — özet metninin altında görsel bağlam.</p>
+    </div>
+    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+      {% for row in chart_rows %}
+      <div class="px-4 py-5 sm:px-5" data-ai-brief-chart-row="{{ loop.index0 }}">
+        <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h4 class="text-base font-bold text-slate-900 dark:text-white">{{ row.baslik|e }}</h4>
+          <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ row.domain|e }}</span>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-800/40">
+            <p class="mb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">PageSpeed skoru</p>
+            <div id="ai-brief-plot-ps-{{ loop.index0 }}" class="h-[220px] w-full min-w-0"></div>
+          </div>
+          <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-800/40">
+            <p class="mb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">GA4 · Web oturum</p>
+            <div id="ai-brief-plot-ga4-{{ loop.index0 }}" class="h-[220px] w-full min-w-0"></div>
+          </div>
+          <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-800/40">
+            <p class="mb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Search Console · Tıklama</p>
+            <div id="ai-brief-plot-sc-clicks-{{ loop.index0 }}" class="h-[200px] w-full min-w-0"></div>
+          </div>
+          <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-800/40">
+            <p class="mb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Search Console · Gösterim</p>
+            <div id="ai-brief-plot-sc-impr-{{ loop.index0 }}" class="h-[200px] w-full min-w-0"></div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 </div>
