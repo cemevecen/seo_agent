@@ -212,13 +212,8 @@
           <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.mobile.updated_at }}</p>
           {% if card.pagespeed_mobile_prev_score is not none and card.pagespeed_mobile_prev_date %}
             <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              {% if period == 'daily' %}
-                Kayıtlı dün ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
-                → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
-              {% else %}
-                Pencere başı ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
-                → güncel: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
-              {% endif %}
+              Kayıtlı dün ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
+              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
             </p>
           {% endif %}
         </div>
@@ -233,13 +228,8 @@
           <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.desktop.updated_at }}</p>
           {% if card.pagespeed_desktop_prev_score is not none and card.pagespeed_desktop_prev_date %}
             <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              {% if period == 'daily' %}
-                Kayıtlı dün ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
-                → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
-              {% else %}
-                Pencere başı ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
-                → güncel: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
-              {% endif %}
+              Kayıtlı dün ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
+              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
             </p>
           {% endif %}
         </div>

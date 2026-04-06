@@ -60,12 +60,7 @@ from backend.models import (
 )
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
-from backend.services.metric_store import (
-    get_latest_metrics,
-    get_metric_history,
-    get_metric_day_over_day_score,
-    get_metric_first_last_in_window,
-)
+from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_day_over_day_score
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
@@ -3881,41 +3876,24 @@ def _build_dashboard_card(
     search_console_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
     mobile_pagespeed_score = float(mobile_pagespeed_metric.value) if mobile_pagespeed_metric is not None else None
     desktop_pagespeed_score = float(desktop_pagespeed_metric.value) if desktop_pagespeed_metric is not None else None
-    pagespeed_compare_blurb = _dashboard_pagespeed_compare_blurb(dash_period)
-    if dash_period == "daily":
-        pm_prev, _pm_last, pm_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_mobile_score")
-        pd_prev, _pd_last, pd_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_desktop_score")
-        pagespeed_mobile_change = (
-            _ga4_period_pct_change(float(mobile_pagespeed_score), float(pm_prev))
-            if mobile_pagespeed_score is not None and pm_prev is not None
-            else None
-        )
-        pagespeed_desktop_change = (
-            _ga4_period_pct_change(float(desktop_pagespeed_score), float(pd_prev))
-            if desktop_pagespeed_score is not None and pd_prev is not None
-            else None
-        )
-        pagespeed_mobile_prev_score = round(pm_prev) if pm_prev is not None else None
-        pagespeed_desktop_prev_score = round(pd_prev) if pd_prev is not None else None
-        pagespeed_mobile_prev_date = pm_prev_date.strftime("%d.%m.%Y") if pm_prev_date is not None else None
-        pagespeed_desktop_prev_date = pd_prev_date.strftime("%d.%m.%Y") if pd_prev_date is not None else None
-    else:
-        pm0, pm1, pm_d0, _pm_d1 = get_metric_first_last_in_window(
-            db, site.id, "pagespeed_mobile_score", window_days=period_days
-        )
-        pd0, pd1, pd_d0, _pd_d1 = get_metric_first_last_in_window(
-            db, site.id, "pagespeed_desktop_score", window_days=period_days
-        )
-        pagespeed_mobile_change = (
-            _ga4_period_pct_change(float(pm1), float(pm0)) if pm0 is not None and pm1 is not None else None
-        )
-        pagespeed_desktop_change = (
-            _ga4_period_pct_change(float(pd1), float(pd0)) if pd0 is not None and pd1 is not None else None
-        )
-        pagespeed_mobile_prev_score = round(pm0) if pm0 is not None else None
-        pagespeed_desktop_prev_score = round(pd0) if pd0 is not None else None
-        pagespeed_mobile_prev_date = pm_d0.strftime("%d.%m.%Y") if pm_d0 is not None else None
-        pagespeed_desktop_prev_date = pd_d0.strftime("%d.%m.%Y") if pd_d0 is not None else None
+    # PageSpeed: her zaman son ölçüm vs bir önceki yerel takvim günü (dashboard dönümünden bağımsız)
+    pagespeed_compare_blurb = _dashboard_pagespeed_compare_blurb("daily")
+    pm_prev, _pm_last, pm_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_mobile_score")
+    pd_prev, _pd_last, pd_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_desktop_score")
+    pagespeed_mobile_change = (
+        _ga4_period_pct_change(float(mobile_pagespeed_score), float(pm_prev))
+        if mobile_pagespeed_score is not None and pm_prev is not None
+        else None
+    )
+    pagespeed_desktop_change = (
+        _ga4_period_pct_change(float(desktop_pagespeed_score), float(pd_prev))
+        if desktop_pagespeed_score is not None and pd_prev is not None
+        else None
+    )
+    pagespeed_mobile_prev_score = round(pm_prev) if pm_prev is not None else None
+    pagespeed_desktop_prev_score = round(pd_prev) if pd_prev is not None else None
+    pagespeed_mobile_prev_date = pm_prev_date.strftime("%d.%m.%Y") if pm_prev_date is not None else None
+    pagespeed_desktop_prev_date = pd_prev_date.strftime("%d.%m.%Y") if pd_prev_date is not None else None
     latest_ga4_floats = {k: float(v.value) for k, v in latest.items()}
     ga4_conn = get_ga4_connection_status(db, site.id)
     ga4_layout = _dashboard_ga4_layout(
