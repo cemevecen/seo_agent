@@ -130,6 +130,45 @@ def get_metric_latest_pair(db: Session, site_id: int, metric_type: str) -> tuple
     return older, newest
 
 
+def get_metric_first_last_in_window(
+    db: Session,
+    site_id: int,
+    metric_type: str,
+    *,
+    window_days: int,
+) -> tuple[float | None, float | None, date | None, date | None]:
+    """Son ``window_days`` gün içindeki aynı metrik türünün en eski ve en yeni örneği.
+
+    PageSpeed gibi seyrek ölçümlerde eğilim göstermek için (günlük dışı dönemler).
+    Dönüş: (ilk_değer, son_değer, ilk_yerel_gün, son_yerel_gün).
+    """
+    wd = int(window_days) if int(window_days) > 0 else 1
+    hist = get_metric_history(db, site_id, days=wd)
+    items = hist.get(metric_type) or []
+    if not items:
+        return None, None, None, None
+
+    def _local_day(iso_ts: str) -> date | None:
+        try:
+            raw = str(iso_ts).replace("Z", "+00:00")
+            parsed = datetime.fromisoformat(raw)
+        except (TypeError, ValueError):
+            return None
+        loc = to_local_datetime(parsed)
+        return loc.date() if loc else None
+
+    last_item = items[-1]
+    last_val = float(last_item["value"])
+    last_d = _local_day(str(last_item.get("collected_at") or ""))
+    if len(items) < 2:
+        return None, last_val, None, last_d
+
+    first_item = items[0]
+    first_val = float(first_item["value"])
+    first_d = _local_day(str(first_item.get("collected_at") or ""))
+    return first_val, last_val, first_d, last_d
+
+
 def get_metric_day_over_day_score(
     db: Session, site_id: int, metric_type: str
 ) -> tuple[float | None, float | None, date | None]:

@@ -27,6 +27,9 @@
   </div>
 {% endmacro %}
 
+{# Dashboard dönüm linkleri: platform + tam sayfa — GA4/PageSpeed dahil tüm kutular yenilenir #}
+{% set card_dash_pf = ('&platform=' ~ card.dashboard_platform) if card.dashboard_platform and card.dashboard_platform != 'web' else '' %}
+
 <div id="dashboard-card-{{ card.id }}" class="flex flex-col overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700">
 
   {# Progress panel #}
@@ -105,20 +108,20 @@
             </div>
           {% endfor %}
         </div>
-        <div
+        <nav
           role="group"
-          aria-label="Karşılaştırma dönemi"
+          aria-label="Karşılaştırma dönemi (dashboard)"
           class="inline-flex shrink-0 rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/90"
         >
-          {% for label, pid in [('1g', '1'), ('7g', '7'), ('30g', '30')] %}
-            <button
-              type="button"
-              data-sc-period-btn="{{ pid }}"
-              aria-pressed="{% if pid == sc_segment %}true{% else %}false{% endif %}"
-              class="sc-period-seg dash-fl-seg rounded-md px-2 py-1 font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 sm:px-2.5 sm:py-1 {% if pid == sc_segment %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
-            >{{ label }}</button>
+          {% for label, nav_period in [('1g', 'daily'), ('7g', 'weekly'), ('30g', 'monthly')] %}
+            <a
+              href="/?period={{ nav_period }}{{ card_dash_pf }}"
+              data-sc-period-nav="{{ nav_period }}"
+              {% if period == nav_period %}aria-current="page"{% endif %}
+              class="sc-period-seg dash-fl-seg inline-flex items-center justify-center rounded-md px-2 py-1 font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 sm:px-2.5 sm:py-1 {% if period == nav_period %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
+            >{{ label }}</a>
           {% endfor %}
-        </div>
+        </nav>
       </div>
     {% endif %}
 
@@ -188,9 +191,10 @@
 
     {# PageSpeed #}
     <div class="space-y-2">
-      <div class="dash-compare-row flex min-w-0 items-center gap-2">
+      <div class="dash-compare-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500 ring-2 ring-violet-200/70 dark:ring-violet-900/40" aria-hidden="true"></span>
         <p class="dash-compare-text font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">PageSpeed skorları</p>
+        <span class="dash-fl-cap font-normal normal-case tracking-normal text-slate-400">({{ card.pagespeed_compare_blurb }})</span>
       </div>
       <div class="grid min-w-0 max-w-xl grid-cols-2 gap-3 sm:max-w-none">
         <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
@@ -204,8 +208,13 @@
           <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.mobile.updated_at }}</p>
           {% if card.pagespeed_mobile_prev_score is not none and card.pagespeed_mobile_prev_date %}
             <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              Kayıtlı dün ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
-              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
+              {% if period == 'daily' %}
+                Kayıtlı dün ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
+                → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
+              {% else %}
+                Pencere başı ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
+                → güncel: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
+              {% endif %}
             </p>
           {% endif %}
         </div>
@@ -220,8 +229,13 @@
           <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.desktop.updated_at }}</p>
           {% if card.pagespeed_desktop_prev_score is not none and card.pagespeed_desktop_prev_date %}
             <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              Kayıtlı dün ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
-              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
+              {% if period == 'daily' %}
+                Kayıtlı dün ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
+                → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
+              {% else %}
+                Pencere başı ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
+                → güncel: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
+              {% endif %}
             </p>
           {% endif %}
         </div>
