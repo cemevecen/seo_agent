@@ -1,11 +1,11 @@
-{# Yüzde önde: pozitif = yeşil, negatif = kırmızı (position_change sıra iyileşmesine göre işaretli) #}
-{% macro delta_pct_block(ch, active_cls, neutral_cls) %}
+{# Yüzde önde: pozitif = yeşil, negatif = kırmızı; boyutlar dash-fl-* + container (dash-metric-cell) #}
+{% macro delta_pct_block(ch, pct_cls) %}
   {% if ch > 0.05 %}
-    <p class="{{ active_cls }} text-emerald-600 dark:text-emerald-400">↑ {{ "%.1f"|format(ch) }}%</p>
+    <p class="{{ pct_cls }} text-emerald-600 dark:text-emerald-400">↑ {{ "%.1f"|format(ch) }}%</p>
   {% elif ch < -0.05 %}
-    <p class="{{ active_cls }} text-rose-600 dark:text-rose-400">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+    <p class="{{ pct_cls }} text-rose-600 dark:text-rose-400">↓ {{ "%.1f"|format(ch|abs) }}%</p>
   {% else %}
-    <p class="{{ neutral_cls }} text-slate-400 dark:text-slate-500">—</p>
+    <p class="{{ pct_cls }} text-slate-400 dark:text-slate-500">—</p>
   {% endif %}
 {% endmacro %}
 
@@ -64,11 +64,11 @@
   <div data-dashboard-sc-compare-root class="border-b border-slate-100 dark:border-slate-800">
   <div class="space-y-5 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:bg-slate-950/30">
     {% if card.search_console.has_compare_data %}
-      <div class="flex flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 text-[11px] leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+      <div class="dash-compare-row flex w-full min-w-0 flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div class="min-w-0 flex-1">
           {% for pid in ['1', '7', '30'] %}
             {% set p = pc[pid] %}
-            <div data-sc-period-content="{{ pid }}" class="flex flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != '1' %}hidden{% endif %}">
+            <div data-sc-period-content="{{ pid }}" class="dash-compare-text flex flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != '1' %}hidden{% endif %}">
               <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
               <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
               <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
@@ -87,7 +87,7 @@
               type="button"
               data-sc-period-btn="{{ pid }}"
               aria-pressed="{% if pid == '1' %}true{% else %}false{% endif %}"
-              class="sc-period-seg rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 {% if pid == '1' %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
+              class="sc-period-seg dash-fl-seg rounded-md px-2 py-1 font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 sm:px-2.5 sm:py-1 {% if pid == '1' %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
             >{{ label }}</button>
           {% endfor %}
         </div>
@@ -96,63 +96,63 @@
 
     {# Google Search — günlük / 7g özet #}
     <div class="space-y-2">
-      <div class="flex items-center gap-2">
+      <div class="dash-compare-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 ring-2 ring-sky-200/70 dark:ring-sky-900/50" aria-hidden="true"></span>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Arama performansı</p>
-        <span class="text-[10px] font-normal normal-case tracking-normal text-slate-400">(Search Console)</span>
+        <p class="dash-compare-text font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Arama performansı</p>
+        <span class="dash-fl-cap font-normal normal-case tracking-normal text-slate-400">(Search Console)</span>
       </div>
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div class="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
         {# Clicks #}
-        <div class="flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[8.75rem] sm:px-4 sm:py-5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Clicks</p>
+        <div class="dash-metric-cell flex min-h-[6.5rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.5rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Clicks</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
-                {{ delta_pct_block(p.clicks_change, "mt-2 text-[clamp(1.35rem,4.5vw+0.65rem,2.75rem)] font-bold tabular-nums leading-none tracking-tight sm:text-4xl lg:text-5xl", "mt-2 text-[clamp(1.05rem,3vw+0.45rem,1.75rem)] font-bold tabular-nums leading-none sm:text-2xl") }}
-                <p class="mt-1.5 text-[clamp(1rem,3vw+0.35rem,1.65rem)] font-semibold tabular-nums text-slate-800 dark:text-slate-100 sm:text-2xl lg:text-3xl">{{ p.clicks_label }}</p>
-                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 w-full flex-col items-center">
+                {{ delta_pct_block(p.clicks_change, "dash-fl-pct-hero mt-2 font-bold tabular-nums tracking-tight") }}
+                <p class="dash-fl-val-hero mt-1.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.clicks_label }}</p>
+                <p class="dash-fl-cap mt-1 text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.clicks_label }}</p>
-            <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">7g toplam</p>
+            <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{{ card.search_console.clicks_label }}</p>
+            <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">7g toplam</p>
           {% endif %}
         </div>
 
         {# CTR #}
-        <div class="flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[8.75rem] sm:px-4 sm:py-5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">CTR</p>
+        <div class="dash-metric-cell flex min-h-[6.5rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.5rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">CTR</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
-                {{ delta_pct_block(p.ctr_change, "mt-2 text-[clamp(1.35rem,4.5vw+0.65rem,2.75rem)] font-bold tabular-nums leading-none tracking-tight sm:text-4xl lg:text-5xl", "mt-2 text-[clamp(1.05rem,3vw+0.45rem,1.75rem)] font-bold tabular-nums leading-none sm:text-2xl") }}
-                <p class="mt-1.5 text-[clamp(1rem,3vw+0.35rem,1.65rem)] font-semibold tabular-nums text-slate-800 dark:text-slate-100 sm:text-2xl lg:text-3xl">{{ p.ctr_label }}</p>
-                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 w-full flex-col items-center">
+                {{ delta_pct_block(p.ctr_change, "dash-fl-pct-hero mt-2 font-bold tabular-nums tracking-tight") }}
+                <p class="dash-fl-val-hero mt-1.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.ctr_label }}</p>
+                <p class="dash-fl-cap mt-1 text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.ctr_label }}</p>
-            <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">ort. oran</p>
+            <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{{ card.search_console.ctr_label }}</p>
+            <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">ort. oran</p>
           {% endif %}
         </div>
 
         {# Position #}
-        <div class="col-span-2 flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:col-span-1 sm:min-h-[8.75rem] sm:px-4 sm:py-5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Position</p>
+        <div class="dash-metric-cell col-span-2 flex min-h-[6.5rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:col-span-1 sm:min-h-[7.5rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Position</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
-                {{ delta_pct_block(p.position_change, "mt-2 text-[clamp(1.35rem,4.5vw+0.65rem,2.75rem)] font-bold tabular-nums leading-none tracking-tight sm:text-4xl lg:text-5xl", "mt-2 text-[clamp(1.05rem,3vw+0.45rem,1.75rem)] font-bold tabular-nums leading-none sm:text-2xl") }}
-                <p class="mt-1.5 text-[clamp(1rem,3vw+0.35rem,1.65rem)] font-semibold tabular-nums text-slate-800 dark:text-slate-100 sm:text-2xl lg:text-3xl">{{ p.position_label }}</p>
-                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.position_subcaption }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 w-full flex-col items-center">
+                {{ delta_pct_block(p.position_change, "dash-fl-pct-hero mt-2 font-bold tabular-nums tracking-tight") }}
+                <p class="dash-fl-val-hero mt-1.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.position_label }}</p>
+                <p class="dash-fl-cap mt-1 text-slate-400 dark:text-slate-500">{{ p.position_subcaption }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.position_label }}</p>
-            <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">ort. sıra</p>
+            <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{{ card.search_console.position_label }}</p>
+            <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">ort. sıra</p>
           {% endif %}
         </div>
       </div>
@@ -160,30 +160,30 @@
 
     {# PageSpeed #}
     <div class="space-y-2">
-      <div class="flex items-center gap-2">
+      <div class="dash-compare-row flex min-w-0 items-center gap-2">
         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500 ring-2 ring-violet-200/70 dark:ring-violet-900/40" aria-hidden="true"></span>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">PageSpeed skorları</p>
+        <p class="dash-compare-text font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">PageSpeed skorları</p>
       </div>
-      <div class="grid max-w-xl grid-cols-2 gap-3 sm:max-w-none">
-        <div class="flex min-h-[7.75rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[9rem] sm:px-4 sm:py-5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Mobile</p>
+      <div class="grid min-w-0 max-w-xl grid-cols-2 gap-3 sm:max-w-none">
+        <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Mobile</p>
           {% if card.pagespeed_mobile_change is not none %}
-            {{ delta_pct_block(card.pagespeed_mobile_change, "mt-2 text-[clamp(1.15rem,4.2vw+0.45rem,2.25rem)] font-bold tabular-nums leading-none sm:text-3xl lg:text-4xl", "mt-2 text-lg font-bold tabular-nums leading-none sm:text-2xl") }}
-            <p class="mt-1.5 text-[clamp(1.1rem,3.5vw+0.35rem,1.85rem)] font-bold tabular-nums leading-none sm:text-2xl lg:text-3xl {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
+            {{ delta_pct_block(card.pagespeed_mobile_change, "dash-fl-pct-ps mt-2 font-bold tabular-nums") }}
+            <p class="dash-fl-val-ps mt-1.5 font-bold tabular-nums {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
           {% else %}
-            <p class="mt-2 text-[clamp(1.5rem,5vw+0.35rem,2.6rem)] font-bold tabular-nums leading-none tracking-tight sm:mt-2.5 sm:text-4xl lg:text-5xl {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
+            <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
           {% endif %}
-          <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400 sm:text-xs">{{ card.pagespeed_status.mobile.label }}</p>
+          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">{{ card.pagespeed_status.mobile.label }}</p>
         </div>
-        <div class="flex min-h-[7.75rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[9rem] sm:px-4 sm:py-5">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Desktop</p>
+        <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desktop</p>
           {% if card.pagespeed_desktop_change is not none %}
-            {{ delta_pct_block(card.pagespeed_desktop_change, "mt-2 text-[clamp(1.15rem,4.2vw+0.45rem,2.25rem)] font-bold tabular-nums leading-none sm:text-3xl lg:text-4xl", "mt-2 text-lg font-bold tabular-nums leading-none sm:text-2xl") }}
-            <p class="mt-1.5 text-[clamp(1.1rem,3.5vw+0.35rem,1.85rem)] font-bold tabular-nums leading-none sm:text-2xl lg:text-3xl {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
+            {{ delta_pct_block(card.pagespeed_desktop_change, "dash-fl-pct-ps mt-2 font-bold tabular-nums") }}
+            <p class="dash-fl-val-ps mt-1.5 font-bold tabular-nums {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
           {% else %}
-            <p class="mt-2 text-[clamp(1.5rem,5vw+0.35rem,2.6rem)] font-bold tabular-nums leading-none tracking-tight sm:mt-2.5 sm:text-4xl lg:text-5xl {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
+            <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
           {% endif %}
-          <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400 sm:text-xs">{{ card.pagespeed_status.desktop.label }}</p>
+          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">{{ card.pagespeed_status.desktop.label }}</p>
         </div>
       </div>
     </div>
@@ -191,65 +191,65 @@
 
   {# Search Console özet + uyarılar #}
   <div class="grid grid-cols-1 lg:grid-cols-2">
-    <div class="space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
+    <div class="dash-compare-row space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
+        <div class="min-w-0">
+          <p class="dash-fl-cap font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <p data-sc-period-content="{{ pid }}" class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 {% if pid != '1' %}hidden{% endif %}">{{ p.footer_hint }}</p>
+              <p data-sc-period-content="{{ pid }}" class="dash-compare-text mt-0.5 text-slate-500 dark:text-slate-400 {% if pid != '1' %}hidden{% endif %}">{{ p.footer_hint }}</p>
             {% endfor %}
           {% else %}
-            <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">7 günlük özet</p>
+            <p class="dash-compare-text mt-0.5 text-slate-500 dark:text-slate-400">7 günlük özet</p>
           {% endif %}
         </div>
-        <span class="w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
+        <span class="w-fit shrink-0 rounded-full border px-2.5 py-1 font-semibold dash-fl-cap {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
       </div>
-      <div class="grid grid-cols-3 gap-2 sm:gap-3">
-        <div class="flex min-h-[6.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6.75rem] sm:px-2.5 sm:py-3">
-          <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Clicks</p>
+      <div class="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
+        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Clicks</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %}">
-                {{ delta_pct_block(p.clicks_change, "mt-1.5 text-lg font-bold tabular-nums leading-none sm:text-xl", "mt-1.5 text-sm font-bold tabular-nums leading-none") }}
-                <p class="mt-1 text-sm font-semibold tabular-nums leading-tight text-slate-800 dark:text-slate-100 sm:text-base">{{ p.clicks_label }}</p>
-                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.clicks_compare_line }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex w-full flex-col items-center">
+                {{ delta_pct_block(p.clicks_change, "dash-fl-pct-foot mt-1.5 font-bold tabular-nums") }}
+                <p class="dash-fl-val-foot mt-1 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.clicks_label }}</p>
+                <p class="dash-fl-cmp-foot compare-line mt-0.5 font-medium tabular-nums text-slate-500 dark:text-slate-400" title="Önceki dönem → güncel">{{ p.clicks_compare_line }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.clicks_label }}</p>
+            <p class="dash-fl-val-foot mt-1.5 font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ card.search_console.clicks_label }}</p>
           {% endif %}
         </div>
-        <div class="flex min-h-[6.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6.75rem] sm:px-2.5 sm:py-3">
-          <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">CTR</p>
+        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">CTR</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %}">
-                {{ delta_pct_block(p.ctr_change, "mt-1.5 text-lg font-bold tabular-nums leading-none sm:text-xl", "mt-1.5 text-sm font-bold tabular-nums leading-none") }}
-                <p class="mt-1 text-sm font-semibold tabular-nums leading-tight text-slate-800 dark:text-slate-100 sm:text-base">{{ p.ctr_label }}</p>
-                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.ctr_compare_line }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex w-full flex-col items-center">
+                {{ delta_pct_block(p.ctr_change, "dash-fl-pct-foot mt-1.5 font-bold tabular-nums") }}
+                <p class="dash-fl-val-foot mt-1 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.ctr_label }}</p>
+                <p class="dash-fl-cmp-foot compare-line mt-0.5 font-medium tabular-nums text-slate-500 dark:text-slate-400" title="Önceki dönem → güncel">{{ p.ctr_compare_line }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.ctr_label }}</p>
+            <p class="dash-fl-val-foot mt-1.5 font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ card.search_console.ctr_label }}</p>
           {% endif %}
         </div>
-        <div class="flex min-h-[6.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6.75rem] sm:px-2.5 sm:py-3">
-          <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Pos.</p>
+        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Pos.</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %}">
-                {{ delta_pct_block(p.position_change, "mt-1.5 text-lg font-bold tabular-nums leading-none sm:text-xl", "mt-1.5 text-sm font-bold tabular-nums leading-none") }}
-                <p class="mt-1 text-sm font-semibold tabular-nums leading-tight text-slate-800 dark:text-slate-100 sm:text-base">{{ p.position_label }}</p>
-                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.position_compare_line }}</p>
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex w-full flex-col items-center">
+                {{ delta_pct_block(p.position_change, "dash-fl-pct-foot mt-1.5 font-bold tabular-nums") }}
+                <p class="dash-fl-val-foot mt-1 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.position_label }}</p>
+                <p class="dash-fl-cmp-foot compare-line mt-0.5 font-medium tabular-nums text-slate-500 dark:text-slate-400" title="Önceki dönem → güncel">{{ p.position_compare_line }}</p>
               </div>
             {% endfor %}
           {% else %}
-            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.position_label }}</p>
+            <p class="dash-fl-val-foot mt-1.5 font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ card.search_console.position_label }}</p>
           {% endif %}
         </div>
       </div>
@@ -272,14 +272,14 @@
         {% for alert in card.recent_alerts %}
           <a
             href="/alerts?selected_alert={{ alert.id }}"
-            class="flex flex-col gap-1 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 transition hover:border-slate-200 hover:bg-white dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-600 dark:hover:bg-slate-800/70 sm:flex-row sm:items-center sm:gap-3"
+            class="dash-alert-card flex min-w-0 flex-col gap-1 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 transition hover:border-slate-200 hover:bg-white dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-600 dark:hover:bg-slate-800/70 sm:flex-row sm:items-center sm:gap-3"
             hx-get="/alerts?selected_alert={{ alert.id }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
           >
             <div class="flex min-w-0 items-center gap-2">
               <span class="h-2 w-2 shrink-0 rounded-full {% if alert.display_tone == 'rose' %}bg-rose-500{% elif alert.display_tone == 'amber' %}bg-amber-500{% elif alert.display_tone == 'sky' %}bg-sky-500{% else %}bg-slate-400{% endif %}" aria-hidden="true"></span>
-              <span class="min-w-0 font-medium text-slate-700 dark:text-slate-200">{% if alert.display_query %}'{{ alert.display_query }}'{% else %}{{ alert.display_title }}{% endif %}</span>
+              <span class="dash-fl-alert-title min-w-0 font-medium text-slate-700 dark:text-slate-200">{% if alert.display_query %}'{{ alert.display_query }}'{% else %}{{ alert.display_title }}{% endif %}</span>
             </div>
-            <span class="shrink-0 pl-4 text-[10px] text-slate-500 dark:text-slate-400 sm:pl-0 sm:text-right">{{ alert.display_metric | truncate(24, true, '…') }}</span>
+            <span class="dash-fl-alert-metric shrink-0 pl-4 text-slate-500 dark:text-slate-400 sm:pl-0 sm:text-right">{{ alert.display_metric | truncate(24, true, '…') }}</span>
           </a>
         {% else %}
           <p class="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/50 px-3 py-3 text-center text-xs text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">Aktif uyarı yok</p>

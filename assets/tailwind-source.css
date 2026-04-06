@@ -1,3 +1,85 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dashboard site kartı: kutu genişliğine göre dinamik tipografi (container queries) */
+@layer components {
+  .dash-metric-cell {
+    container-type: inline-size;
+    min-width: 0;
+  }
+
+  .dash-fl-pct-hero {
+    font-size: clamp(0.88rem, 11cqi + 0.42rem, 2.65rem);
+    line-height: 1.08;
+  }
+  .dash-fl-val-hero {
+    font-size: clamp(0.74rem, 6.2cqi + 0.38rem, 1.82rem);
+    line-height: 1.18;
+  }
+  .dash-fl-cap {
+    font-size: clamp(0.56rem, 3cqi + 0.28rem, 0.7rem);
+    line-height: 1.3;
+  }
+  .dash-fl-label {
+    font-size: clamp(0.56rem, 2.6cqi + 0.26rem, 0.72rem);
+    line-height: 1.25;
+  }
+
+  .dash-fl-pct-foot {
+    font-size: clamp(0.76rem, 7.5cqi + 0.34rem, 1.28rem);
+    line-height: 1.1;
+  }
+  .dash-fl-val-foot {
+    font-size: clamp(0.68rem, 4.8cqi + 0.32rem, 1.05rem);
+    line-height: 1.2;
+  }
+  .dash-fl-cmp-foot {
+    font-size: clamp(0.54rem, 3.6cqi + 0.26rem, 0.68rem);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .dash-fl-pct-ps {
+    font-size: clamp(0.82rem, 9.5cqi + 0.38rem, 2.2rem);
+    line-height: 1.08;
+  }
+  .dash-fl-val-ps {
+    font-size: clamp(0.76rem, 6.8cqi + 0.36rem, 1.88rem);
+    line-height: 1.12;
+  }
+
+  .dash-compare-row {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  .dash-compare-text {
+    font-size: clamp(0.6rem, 2.2cqi + 0.34rem, 0.74rem);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .dash-fl-seg {
+    font-size: clamp(0.56rem, 2cqi + 0.3rem, 0.68rem);
+    line-height: 1.2;
+  }
+
+  .dash-fl-fallback-big {
+    font-size: clamp(0.8rem, 9cqi + 0.4rem, 2.45rem);
+    line-height: 1.1;
+  }
+
+  .dash-alert-card {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  .dash-fl-alert-title {
+    font-size: clamp(0.72rem, 3.2cqi + 0.34rem, 0.9rem);
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .dash-fl-alert-metric {
+    font-size: clamp(0.58rem, 2.4cqi + 0.3rem, 0.72rem);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
