@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from backend.config import settings
@@ -26,6 +26,18 @@ def local_schedule_datetime(target_date: date, hour: int, minute: int) -> dateti
 def local_schedule_to_utc_naive(target_date: date, hour: int, minute: int) -> datetime:
     localized = local_schedule_datetime(target_date, hour, minute)
     return localized.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def utc_naive_bounds_for_local_calendar_day(d: date) -> tuple[datetime, datetime]:
+    """Yerel takvim günü `d` için [start, end) aralığı (`Metric.collected_at` ile uyumlu UTC naive)."""
+    tz = app_timezone()
+    utc = ZoneInfo("UTC")
+    start_local = datetime.combine(d, time.min, tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return (
+        start_local.astimezone(utc).replace(tzinfo=None),
+        end_local.astimezone(utc).replace(tzinfo=None),
+    )
 
 
 def to_local_datetime(value: datetime | None) -> datetime | None:

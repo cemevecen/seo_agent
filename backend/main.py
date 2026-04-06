@@ -60,7 +60,7 @@ from backend.models import (
 )
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
-from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_latest_pair
+from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_day_over_day_score
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
@@ -343,6 +343,22 @@ def _format_metric_timestamp(metric) -> str:
     if metric is None:
         return "Henüz veri yok"
     return format_local_datetime(metric.collected_at, fallback="Henüz veri yok")
+
+
+def _format_status_chip_date(value: datetime | None) -> str:
+    """Durum chip'i için takvim tarihi (örn. 06.04.2026)."""
+    return format_local_datetime(value, fmt="%d.%m.%Y", fallback="—", include_suffix=False)
+
+
+def _search_console_latest_snapshot_collected_at(db, site_id: int) -> datetime | None:
+    from sqlalchemy import func
+
+    ts = (
+        db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
+        .filter(SearchConsoleQuerySnapshot.site_id == site_id)
+        .scalar()
+    )
+    return ts if isinstance(ts, datetime) else None
 
 
 def _extract_client_ip(request: Request) -> str:
@@ -1868,7 +1884,9 @@ def _metric_value(latest: dict[str, object], metric_type: str, default: float = 
     return float(metric.value)
 
 
-def _metric_is_stale(latest: dict[str, object], metric_type: str, max_age_minutes: int = 30) -> bool:
+def _metric_is_stale(
+    latest: dict[str, object], metric_type: str, max_age_minutes: int = 30
+) -> bool:
     metric = latest.get(metric_type)
     if metric is None:
         return True
@@ -2525,10 +2543,20 @@ def _build_external_keyword_insights(domain: str, crawler_link_audit: dict, *, l
     }
 
 
-def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_messages: list[str]) -> dict[str, object]:
+def _pagespeed_strategy_status(
+    latest: dict[str, object],
+    strategy: str,
+    alert_messages: list[str],
+    *,
+    max_age_minutes: int = 30,
+) -> dict[str, object]:
     metric = latest.get(f"pagespeed_{strategy}_score")
     has_metric = metric is not None
-    is_stale = _metric_is_stale(latest, f"pagespeed_{strategy}_score") if has_metric else True
+    is_stale = (
+        _metric_is_stale(latest, f"pagespeed_{strategy}_score", max_age_minutes=max_age_minutes)
+        if has_metric
+        else True
+    )
     has_fetch_error = any(f"{strategy} PageSpeed" in message for message in alert_messages)
 
     if has_metric and not is_stale and not has_fetch_error:
@@ -2538,7 +2566,7 @@ def _pagespeed_strategy_status(latest: dict[str, object], strategy: str, alert_m
         description = "Canlı ve güncel veri"
     elif has_metric:
         state = "stale"
-        label = "Güncel değil"
+        label = _format_status_chip_date(metric.collected_at if metric else None)
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
         description = "Son başarılı ölçüm gösteriliyor"
     else:
@@ -2570,7 +2598,10 @@ def _search_console_status(db, latest: dict[str, object], site_id: int) -> dict[
         description = "Search Console canli veri"
     elif connection.get("connected") and (has_metric or has_rows):
         state = "stale"
-        label = "Güncel değil"
+        snap_ts = clicks_metric.collected_at if clicks_metric else None
+        if snap_ts is None and has_rows:
+            snap_ts = _search_console_latest_snapshot_collected_at(db, site_id)
+        label = _format_status_chip_date(snap_ts)
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
         description = "Son başarılı Search Console kaydı gösteriliyor"
     else:
@@ -2607,7 +2638,7 @@ def _search_console_status_from_cache(
         description = "Search Console canli veri"
     elif connection.get("connected") and (has_metric or has_rows_28d):
         state = "stale"
-        label = "Güncel değil"
+        label = _format_status_chip_date(clicks_metric.collected_at if clicks_metric else None)
         badge_class = "border-amber-200 bg-amber-50 text-amber-800"
         description = "Son başarılı Search Console kaydı gösteriliyor"
     else:
@@ -2751,7 +2782,14 @@ def _build_dashboard_slim_cards_batch(
     return cards
 
 
-def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: str) -> dict[str, str]:
+def _data_state_badge(
+    state: str,
+    live_text: str,
+    stale_text: str,
+    failed_text: str,
+    *,
+    stale_collected_at: datetime | None = None,
+) -> dict[str, str]:
     if state == "live":
         return {
             "label": "Live",
@@ -2760,7 +2798,7 @@ def _data_state_badge(state: str, live_text: str, stale_text: str, failed_text: 
         }
     if state == "stale":
         return {
-            "label": "Güncel değil",
+            "label": _format_status_chip_date(stale_collected_at),
             "badge_class": "border-amber-200 bg-amber-50 text-amber-800",
             "description": stale_text,
         }
@@ -3444,6 +3482,42 @@ def _dashboard_cards_with_db(db, *, recent_alerts_cache: list[dict] | None = Non
     return cards
 
 
+def _normalize_dashboard_platform(raw: str | None) -> str:
+    p = (raw or "web").lower().strip().replace("-", "_")
+    if p in ("mobile_web", "mobil_web", "mobilweb", "mweb"):
+        return "mobile_web"
+    if p == "android":
+        return "android"
+    if p == "ios":
+        return "ios"
+    return "web"
+
+
+def _dashboard_sc_device_from_platform(platform: str) -> tuple[str, str | None]:
+    """Search Console `periods.views` anahtarı (desktop|mobile) ve isteğe bağlı kullanıcı notu."""
+    norm = _normalize_dashboard_platform(platform)
+    if norm == "web":
+        return "desktop", None
+    if norm in ("android", "ios"):
+        return (
+            "mobile",
+            "Search Console bu görünümde iOS/Android ayrımı sunmaz; mobil arama verisi gösterilir.",
+        )
+    return "mobile", None
+
+
+def _dashboard_platform_label(platform: str) -> str:
+    return _DASHBOARD_PLATFORM_LABELS.get(_normalize_dashboard_platform(platform), "Web")
+
+
+_DASHBOARD_PLATFORM_LABELS = {
+    "web": "Web",
+    "mobile_web": "Mobil web",
+    "android": "Android",
+    "ios": "iOS",
+}
+
+
 def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
     """Search Console kartı için tek dönem (1g/7g/30g) etiket ve % değişimleri."""
     c = cur if isinstance(cur, dict) else {}
@@ -3480,12 +3554,193 @@ def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
     }
 
 
+def _dashboard_period_pack_for_device(
+    search_console_report: dict,
+    device_key: str,
+) -> tuple[dict, bool, dict, list]:
+    """Seçilen cihaza göre 1g/7g/30g blokları, alt özet, top_queries."""
+    periods = search_console_report.get("periods") or {}
+
+    def _vw(pk: str) -> dict:
+        return ((periods.get(pk) or {}).get("views") or {}).get(device_key) or {}
+
+    v1, v7, v30 = _vw("1"), _vw("7"), _vw("30")
+    s1c = v1.get("summary_current") if isinstance(v1.get("summary_current"), dict) else {}
+    s1p = v1.get("summary_previous") if isinstance(v1.get("summary_previous"), dict) else {}
+    s7c = v7.get("summary_current") if isinstance(v7.get("summary_current"), dict) else {}
+    s7p = v7.get("summary_previous") if isinstance(v7.get("summary_previous"), dict) else {}
+    s30c = v30.get("summary_current") if isinstance(v30.get("summary_current"), dict) else {}
+    s30p = v30.get("summary_previous") if isinstance(v30.get("summary_previous"), dict) else {}
+
+    pc1 = _dashboard_sc_period_metrics(s1c, s1p)
+    pc7 = _dashboard_sc_period_metrics(s7c, s7p)
+    pc30 = _dashboard_sc_period_metrics(s30c, s30p)
+    r1c = (str(v1.get("range_last") or "").strip() or search_console_report.get("range_current_1d", ""))
+    r1p = (str(v1.get("range_prev") or "").strip() or search_console_report.get("range_previous_1d", ""))
+
+    period_compare = {
+        "1": {
+            **pc1,
+            "range_cur": r1c,
+            "range_prev": r1p,
+            "compare_badge": "1g",
+            "delta_caption": "dün",
+            "position_subcaption": "dün · ort. sıra",
+            "footer_hint": "Son tam gün",
+        },
+        "7": {
+            **pc7,
+            "range_cur": search_console_report.get("range_current_7d", ""),
+            "range_prev": search_console_report.get("range_previous_7d", ""),
+            "compare_badge": "7g",
+            "delta_caption": "son 7 gün",
+            "position_subcaption": "ort. sıra · son 7 gün",
+            "footer_hint": "7 günlük özet",
+        },
+        "30": {
+            **pc30,
+            "range_cur": search_console_report.get("range_current_30d", ""),
+            "range_prev": search_console_report.get("range_previous_30d", ""),
+            "compare_badge": "30g",
+            "delta_caption": "son 30 gün",
+            "position_subcaption": "ort. sıra · son 30 gün",
+            "footer_hint": "30 günlük özet",
+        },
+    }
+    has_compare_data = bool(pc1["has_data"] or pc7["has_data"] or pc30["has_data"])
+    top_queries = v7.get("top_queries") if isinstance(v7.get("top_queries"), list) else []
+    if not top_queries:
+        top_queries = list(search_console_report.get("top_queries") or [])
+
+    footer_summary = s7c if s7c else (search_console_report.get("summary_current") or {})
+    return period_compare, has_compare_data, footer_summary, top_queries
+
+
+def _dashboard_pagespeed_primary(platform: str) -> str:
+    return "mobile" if _normalize_dashboard_platform(platform) != "web" else "desktop"
+
+
+_DASHBOARD_GA4_PROFILE_LABELS = {
+    "web": "Web",
+    "mweb": "Mobil web",
+    "android": "Android",
+    "ios": "iOS",
+}
+
+
+def _dashboard_ga4_profile_key(platform_norm: str) -> str:
+    mapping = {"web": "web", "mobile_web": "mweb", "android": "android", "ios": "ios"}
+    return mapping.get(platform_norm, "web")
+
+
+def _dashboard_ga4_compact_block(
+    db,
+    *,
+    site_id: int,
+    profile: str,
+    latest_metrics: dict[str, float],
+    properties: dict,
+) -> dict | None:
+    prop_id = str(properties.get(profile, "") or "").strip()
+    if not prop_id:
+        return None
+    pl = _ga4_profile_payload_for_period(
+        db,
+        site_id=site_id,
+        profile=profile,
+        period_days=1,
+        latest=latest_metrics,
+        prop_id=prop_id,
+    )
+    return {
+        "profile": profile,
+        "label": _DASHBOARD_GA4_PROFILE_LABELS.get(profile, profile),
+        "has_data": bool(pl.get("has_period_data")),
+        "sessions_display": _format_compact_number(float(pl.get("last_total") or 0.0)),
+        "sessions_change": pl.get("sessions_pct_change"),
+        "organic_display": f"{_format_max_two_decimals(float(pl.get('organic_share_pct') or 0.0))}%",
+        "organic_change": pl.get("organic_share_pct_change"),
+    }
+
+
+def _dashboard_ga4_layout_cell(
+    db,
+    *,
+    site_id: int,
+    profile: str,
+    latest_metrics: dict[str, float],
+    properties: dict,
+) -> dict:
+    """Tek GA4 hücresi; property yoksa yine de etiketli placeholder döner (2x2 kutu boş kalmaz)."""
+    b = _dashboard_ga4_compact_block(
+        db, site_id=site_id, profile=profile, latest_metrics=latest_metrics, properties=properties
+    )
+    if b:
+        return b
+    return {
+        "profile": profile,
+        "label": _DASHBOARD_GA4_PROFILE_LABELS.get(profile, profile),
+        "has_data": False,
+        "missing_property": True,
+        "sessions_display": "—",
+        "sessions_change": None,
+        "organic_display": "—",
+    }
+
+
+def _dashboard_ga4_layout(
+    db,
+    site: Site,
+    platform_norm: str,
+    latest_metrics: dict[str, float],
+    ga4_status: dict,
+) -> dict:
+    """GA4 kart yerleşimi: doviz.com → 2x2 (sol web+mweb, sağ android+ios); diğer siteler → sol seçilen profil, sağ eş profil."""
+    if not ga4_status.get("connected"):
+        return {"mode": "none", "col_left": [], "col_right": []}
+    props = ga4_status.get("properties") or {}
+    domain_l = (site.domain or "").strip().lower()
+
+    if domain_l == "doviz.com":
+        return {
+            "mode": "quad",
+            "col_left": [
+                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="web", latest_metrics=latest_metrics, properties=props),
+                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="mweb", latest_metrics=latest_metrics, properties=props),
+            ],
+            "col_right": [
+                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="android", latest_metrics=latest_metrics, properties=props),
+                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="ios", latest_metrics=latest_metrics, properties=props),
+            ],
+        }
+
+    primary = _dashboard_ga4_profile_key(platform_norm)
+    col_left = [
+        _dashboard_ga4_layout_cell(
+            db, site_id=site.id, profile=primary, latest_metrics=latest_metrics, properties=props
+        )
+    ]
+    col_right: list[dict] = []
+    counterpart = {"web": "mweb", "mobile_web": "web", "android": "ios", "ios": "android"}.get(primary)
+    if counterpart:
+        col_right.append(
+            _dashboard_ga4_layout_cell(
+                db, site_id=site.id, profile=counterpart, latest_metrics=latest_metrics, properties=props
+            )
+        )
+    return {"mode": "pair", "col_left": col_left, "col_right": col_right}
+
+
 def _build_dashboard_card(
     db,
     site: Site,
     flash_message: str | None = None,
     recent_alerts_cache: list[dict] | None = None,
+    dashboard_platform: str | None = None,
 ) -> dict:
+    platform_norm = _normalize_dashboard_platform(dashboard_platform)
+    device_key, sc_platform_note = _dashboard_sc_device_from_platform(platform_norm)
+    pagespeed_primary = _dashboard_pagespeed_primary(platform_norm)
     ensure_site_alerts(db, site)
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     mobile_pagespeed_metric = latest.get("pagespeed_mobile_score")
@@ -3502,8 +3757,13 @@ def _build_dashboard_card(
         for alert in recent_site_alerts
         if alert["alert_type"] in {"pagespeed_mobile_fetch_error", "pagespeed_desktop_fetch_error"}
     ]
-    mobile_status = _pagespeed_strategy_status(latest, "mobile", pagespeed_status_alerts)
-    desktop_status = _pagespeed_strategy_status(latest, "desktop", pagespeed_status_alerts)
+    _ps_fresh_minutes = 60 * 32
+    mobile_status = _pagespeed_strategy_status(
+        latest, "mobile", pagespeed_status_alerts, max_age_minutes=_ps_fresh_minutes
+    )
+    desktop_status = _pagespeed_strategy_status(
+        latest, "desktop", pagespeed_status_alerts, max_age_minutes=_ps_fresh_minutes
+    )
     base_crawler_issues: list[str] = []
     if _metric_value(latest, "crawler_robots_accessible", 0.0) < 1.0:
         base_crawler_issues.append("robots.txt")
@@ -3542,51 +3802,17 @@ def _build_dashboard_card(
     crawler_detail = ", ".join(crawler_status_parts) if crawler_status_parts else "robots, sitemap, schema ve site içi link denetimi iyi durumda"
     search_console_status = _search_console_status(db, latest, site.id)
     search_console_report = _search_console_report_payload(db, site_id=site.id)
-    search_console_summary = search_console_report.get("summary_current") or {}
+    period_compare, has_compare_data, footer_summary, device_top_queries = _dashboard_period_pack_for_device(
+        search_console_report,
+        device_key,
+    )
+    pc1 = period_compare["1"]
+    search_console_summary = footer_summary
     search_console_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
     mobile_pagespeed_score = float(mobile_pagespeed_metric.value) if mobile_pagespeed_metric is not None else None
     desktop_pagespeed_score = float(desktop_pagespeed_metric.value) if desktop_pagespeed_metric is not None else None
-    sc_1d_cur = search_console_report.get("summary_current_1d") or {}
-    sc_1d_prev = search_console_report.get("summary_previous_1d") or {}
-    sc_7d_cur = search_console_report.get("summary_current") or {}
-    sc_7d_prev = search_console_report.get("summary_previous") or {}
-    sc_30d_cur = search_console_report.get("summary_current_30d") or {}
-    sc_30d_prev = search_console_report.get("summary_previous_30d") or {}
-    pc1 = _dashboard_sc_period_metrics(sc_1d_cur, sc_1d_prev)
-    pc7 = _dashboard_sc_period_metrics(sc_7d_cur, sc_7d_prev)
-    pc30 = _dashboard_sc_period_metrics(sc_30d_cur, sc_30d_prev)
-    period_compare = {
-        "1": {
-            **pc1,
-            "range_cur": search_console_report.get("range_current_1d", ""),
-            "range_prev": search_console_report.get("range_previous_1d", ""),
-            "compare_badge": "1g",
-            "delta_caption": "dün",
-            "position_subcaption": "dün · ort. sıra",
-            "footer_hint": "Son tam gün",
-        },
-        "7": {
-            **pc7,
-            "range_cur": search_console_report.get("range_current_7d", ""),
-            "range_prev": search_console_report.get("range_previous_7d", ""),
-            "compare_badge": "7g",
-            "delta_caption": "son 7 gün",
-            "position_subcaption": "ort. sıra · son 7 gün",
-            "footer_hint": "7 günlük özet",
-        },
-        "30": {
-            **pc30,
-            "range_cur": search_console_report.get("range_current_30d", ""),
-            "range_prev": search_console_report.get("range_previous_30d", ""),
-            "compare_badge": "30g",
-            "delta_caption": "son 30 gün",
-            "position_subcaption": "ort. sıra · son 30 gün",
-            "footer_hint": "30 günlük özet",
-        },
-    }
-    has_compare_data = bool(pc1["has_data"] or pc7["has_data"] or pc30["has_data"])
-    pm_prev, _pm_last = get_metric_latest_pair(db, site.id, "pagespeed_mobile_score")
-    pd_prev, _pd_last = get_metric_latest_pair(db, site.id, "pagespeed_desktop_score")
+    pm_prev, _pm_last, pm_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_mobile_score")
+    pd_prev, _pd_last, pd_prev_date = get_metric_day_over_day_score(db, site.id, "pagespeed_desktop_score")
     pagespeed_mobile_change = (
         _ga4_period_pct_change(float(mobile_pagespeed_score), float(pm_prev))
         if mobile_pagespeed_score is not None and pm_prev is not None
@@ -3597,10 +3823,21 @@ def _build_dashboard_card(
         if desktop_pagespeed_score is not None and pd_prev is not None
         else None
     )
+    pagespeed_mobile_prev_score = round(pm_prev) if pm_prev is not None else None
+    pagespeed_desktop_prev_score = round(pd_prev) if pd_prev is not None else None
+    pagespeed_mobile_prev_date = pm_prev_date.strftime("%d.%m.%Y") if pm_prev_date is not None else None
+    pagespeed_desktop_prev_date = pd_prev_date.strftime("%d.%m.%Y") if pd_prev_date is not None else None
+    latest_ga4_floats = {k: float(v.value) for k, v in latest.items()}
+    ga4_conn = get_ga4_connection_status(db, site.id)
+    ga4_layout = _dashboard_ga4_layout(db, site, platform_norm, latest_ga4_floats, ga4_conn)
     return {
         "id": site.id,
         "display_name": site.display_name,
         "domain": site.domain,
+        "dashboard_platform": platform_norm,
+        "dashboard_platform_label": _dashboard_platform_label(platform_norm),
+        "sc_platform_note": sc_platform_note,
+        "pagespeed_primary": pagespeed_primary,
         "pagespeed_score": round(pagespeed_score),
         "pagespeed_color": _score_color(pagespeed_score),
         "pagespeed_mobile_score": round(mobile_pagespeed_score) if mobile_pagespeed_score is not None else None,
@@ -3615,6 +3852,12 @@ def _build_dashboard_card(
         else "text-slate-400 dark:text-slate-500",
         "pagespeed_mobile_change": pagespeed_mobile_change,
         "pagespeed_desktop_change": pagespeed_desktop_change,
+        "pagespeed_mobile_prev_score": pagespeed_mobile_prev_score,
+        "pagespeed_desktop_prev_score": pagespeed_desktop_prev_score,
+        "pagespeed_mobile_prev_date": pagespeed_mobile_prev_date,
+        "pagespeed_desktop_prev_date": pagespeed_desktop_prev_date,
+        "ga4_connected": bool(ga4_conn.get("connected")),
+        "ga4_layout": ga4_layout,
         "crawler_ok": crawler_ok,
         "crawler_label": crawler_label,
         "crawler_detail": crawler_detail,
@@ -3623,7 +3866,7 @@ def _build_dashboard_card(
         "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
         "alert_count": len(recent_site_alerts),
         "recent_alerts": recent_site_alerts[:3],
-        "top_queries": search_console_report.get("top_queries") or [],
+        "top_queries": device_top_queries,
         "search_console": {
             "clicks": float(search_console_summary.get("clicks", 0.0)),
             "clicks_label": _format_compact_number(search_console_summary.get("clicks", 0.0)),
@@ -4268,10 +4511,13 @@ def dashboard(request: Request):
         # Batched queries: N+1 yerine ~5 toplam sorgu
         slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts)
         period = _resolve_period(request.query_params.get("period"))[0]
+        dashboard_platform = _normalize_dashboard_platform(request.query_params.get("platform"))
         payload = {
             "site_name": "SEO Agent Dashboard",
             "sites": get_sidebar_sites(),
             "period": period,
+            "dashboard_platform": dashboard_platform,
+            "dashboard_platform_label": _dashboard_platform_label(dashboard_platform),
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
             "critical_alerts": recent_alerts[:6],
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
@@ -4290,7 +4536,8 @@ def dashboard_card_lazy(request: Request, site_id: int):
             return HTMLResponse("", status_code=404)
         # Sadece bu site için alert'leri çek (site_id_filter), tüm tabloyu tarama
         recent_alerts = get_recent_alerts(db, limit=30, include_external=False, site_id_filter=site.id)
-        card = _build_dashboard_card(db, site, recent_alerts_cache=recent_alerts)
+        dash_pf = request.query_params.get("platform")
+        card = _build_dashboard_card(db, site, recent_alerts_cache=recent_alerts, dashboard_platform=dash_pf)
     period = _resolve_period(request.query_params.get("period"))[0]
     return templates.TemplateResponse(
         request,
@@ -4353,7 +4600,8 @@ def dashboard_measure_site(request: Request, site_id: int):
                 return HTMLResponse("Site bulunamadı.", status_code=404)
             flash_message = f"Ölçüm tamamlanamadı. Mevcut kayıtlı veri gösteriliyor. Detay: {exc}"
 
-        card = _build_dashboard_card(db, site, flash_message=flash_message)
+        dash_pf = request.query_params.get("platform")
+        card = _build_dashboard_card(db, site, flash_message=flash_message, dashboard_platform=dash_pf)
     return templates.TemplateResponse(
         request,
         "partials/dashboard_site_card.html",

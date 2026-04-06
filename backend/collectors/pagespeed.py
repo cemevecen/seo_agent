@@ -8,7 +8,7 @@ import re
 import socket
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -18,7 +18,13 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models import PageSpeedAuditSnapshot, Site
 from backend.services.alert_engine import emit_custom_alert, evaluate_site_alerts
-from backend.services.metric_store import get_latest_metrics, save_metrics
+from backend.services.metric_store import (
+    dedupe_pagespeed_performance_scores_for_local_calendar_day,
+    get_latest_metrics,
+    prune_pagespeed_performance_scores_older_than_local_date,
+    save_metrics,
+)
+from backend.services.timezone_utils import to_local_datetime
 from backend.services.quota_guard import consume_api_quota
 from backend.services.warehouse import (
     finish_collector_run,
@@ -1301,6 +1307,14 @@ def collect_pagespeed_metrics(
 
     if metrics:
         save_metrics(db, site.id, metrics, collected_at)
+        loc = to_local_datetime(collected_at)
+        if loc:
+            today_local = loc.date()
+            yesterday_local = today_local - timedelta(days=1)
+            dedupe_pagespeed_performance_scores_for_local_calendar_day(db, site.id, today_local)
+            dedupe_pagespeed_performance_scores_for_local_calendar_day(db, site.id, yesterday_local)
+            prune_pagespeed_performance_scores_older_than_local_date(db, site.id, yesterday_local)
+            db.commit()
         evaluate_site_alerts(db, site)
 
     return {

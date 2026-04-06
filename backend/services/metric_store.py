@@ -1,11 +1,17 @@
 """Metric kayıtlarını tutarlı biçimde yazmak ve okumak için yardımcı fonksiyonlar."""
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from backend.models import Metric
+from backend.services.timezone_utils import to_local_datetime, utc_naive_bounds_for_local_calendar_day
+
+# Yalnızca ana performans skorları — trend + depo budaması bu türlerle sınırlı.
+PAGESPEED_PERFORMANCE_SCORE_TYPES: frozenset[str] = frozenset(
+    {"pagespeed_mobile_score", "pagespeed_desktop_score"}
+)
 
 
 def save_metric(db: Session, site_id: int, metric_type: str, value: float, collected_at: datetime | None = None) -> Metric:
@@ -122,3 +128,90 @@ def get_metric_latest_pair(db: Session, site_id: int, metric_type: str) -> tuple
         return None, newest
     older = float(rows[1].value)
     return older, newest
+
+
+def get_metric_day_over_day_score(
+    db: Session, site_id: int, metric_type: str
+) -> tuple[float | None, float | None, date | None]:
+    """Son kaydın yerel takvim gününden bir önceki günün (o gün içindeki en geç) skoru.
+
+    Dönüş: (dün_skoru, son_skor, dün_tarihi). Dün kaydı yoksa (None, son_skor, None).
+    """
+    latest = (
+        db.query(Metric)
+        .filter(Metric.site_id == site_id, Metric.metric_type == metric_type)
+        .order_by(Metric.collected_at.desc(), Metric.id.desc())
+        .first()
+    )
+    if latest is None:
+        return None, None, None
+    newest = float(latest.value)
+    loc = to_local_datetime(latest.collected_at)
+    if loc is None:
+        return None, newest, None
+    prev_calendar = loc.date() - timedelta(days=1)
+    start_utc, end_utc = utc_naive_bounds_for_local_calendar_day(prev_calendar)
+    prev_row = (
+        db.query(Metric)
+        .filter(
+            Metric.site_id == site_id,
+            Metric.metric_type == metric_type,
+            Metric.collected_at >= start_utc,
+            Metric.collected_at < end_utc,
+        )
+        .order_by(Metric.collected_at.desc(), Metric.id.desc())
+        .first()
+    )
+    if prev_row is None:
+        return None, newest, None
+    return float(prev_row.value), newest, prev_calendar
+
+
+def dedupe_pagespeed_performance_scores_for_local_calendar_day(
+    db: Session, site_id: int, local_day: date
+) -> int:
+    """Aynı yerel gün içindeki yinelenen PageSpeed performans skoru satırlarını siler; en geç kayıt kalır."""
+    start_utc, end_utc = utc_naive_bounds_for_local_calendar_day(local_day)
+    removed = 0
+    for mt in PAGESPEED_PERFORMANCE_SCORE_TYPES:
+        rows = (
+            db.query(Metric)
+            .filter(
+                Metric.site_id == site_id,
+                Metric.metric_type == mt,
+                Metric.collected_at >= start_utc,
+                Metric.collected_at < end_utc,
+            )
+            .order_by(Metric.collected_at.desc(), Metric.id.desc())
+            .all()
+        )
+        for row in rows[1:]:
+            db.delete(row)
+            removed += 1
+    return removed
+
+
+def prune_pagespeed_performance_scores_older_than_local_date(
+    db: Session, site_id: int, keep_from_local_date: date
+) -> int:
+    """Yerel tarihi ``keep_from_local_date`` öncesindeki performans skorlarını siler (dün+bugün için ``keep_from_local_date = bugün - 1``).
+
+    Böylece karşılaştırma için en fazla iki yerel gün tutulur; daha eski skor tekrarları temizlenir.
+    """
+    removed = 0
+    rows = (
+        db.query(Metric)
+        .filter(
+            Metric.site_id == site_id,
+            Metric.metric_type.in_(PAGESPEED_PERFORMANCE_SCORE_TYPES),
+        )
+        .all()
+    )
+    for row in rows:
+        loc = to_local_datetime(row.collected_at)
+        if loc is None:
+            continue
+        if loc.date() < keep_from_local_date:
+            db.delete(row)
+            removed += 1
+    return removed

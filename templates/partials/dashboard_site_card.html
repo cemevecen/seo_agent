@@ -9,6 +9,24 @@
   {% endif %}
 {% endmacro %}
 
+{% macro ga4_dashboard_cell(block) %}
+  <div class="flex min-h-[7.5rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 sm:min-h-[8rem] sm:px-4">
+    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ block.label }}</p>
+    {% if block.missing_property %}
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Property tanımlı değil</p>
+    {% elif block.has_data %}
+      {% if block.sessions_change is not none %}
+        {{ delta_pct_block(block.sessions_change, "dash-fl-pct-hero mt-1 text-sm font-bold tabular-nums") }}
+      {% endif %}
+      <p class="mt-1 text-lg font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ block.sessions_display }}</p>
+      <p class="dash-fl-cap text-slate-500 dark:text-slate-400">oturum</p>
+      <p class="mt-2 text-[11px] text-slate-600 dark:text-slate-300">Organik pay: <span class="font-semibold tabular-nums">{{ block.organic_display }}</span></p>
+    {% else %}
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Bu profil için veri yok</p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
 <div id="dashboard-card-{{ card.id }}" class="flex flex-col overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700">
 
   {# Progress panel #}
@@ -41,17 +59,26 @@
         type="button"
         data-dashboard-measure-button
         data-dashboard-card-id="{{ card.id }}"
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-900 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-900 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
         hx-post="/dashboard/cards/{{ card.id }}/measure?period={{ period }}"
         hx-target="#dashboard-card-{{ card.id }}"
         hx-swap="outerHTML"
         hx-disabled-elt="this"
-      >Ölç</button>
+        aria-label="Veriyi yenile"
+        title="Veriyi yenile"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
       <a href="/search-console"
          class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-900 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white">SC</a>
       <a href="/data-explorer/{{ card.domain }}"
          class="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-sky-600 dark:hover:bg-sky-500"
-         hx-get="/data-explorer/{{ card.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">PageSpeed</a>
+         hx-get="/data-explorer/{{ card.domain }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">PS</a>
+      <a href="/ga4"
+         class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-900 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+         hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">GA4</a>
     </div>
   </div>
 
@@ -174,7 +201,13 @@
           {% else %}
             <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
           {% endif %}
-          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">{{ card.pagespeed_status.mobile.label }}</p>
+          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.mobile.updated_at }}</p>
+          {% if card.pagespeed_mobile_prev_score is not none and card.pagespeed_mobile_prev_date %}
+            <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+              Kayıtlı dün ({{ card.pagespeed_mobile_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_mobile_prev_score }}</span>
+              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_mobile_score }}</span>
+            </p>
+          {% endif %}
         </div>
         <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
           <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desktop</p>
@@ -184,10 +217,40 @@
           {% else %}
             <p class="dash-fl-fallback-big mt-2 font-bold tabular-nums tracking-tight {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>
           {% endif %}
-          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">{{ card.pagespeed_status.desktop.label }}</p>
+          <p class="dash-fl-cap mt-2 text-slate-500 dark:text-slate-400">Son ölçüm: {{ card.pagespeed_status.desktop.updated_at }}</p>
+          {% if card.pagespeed_desktop_prev_score is not none and card.pagespeed_desktop_prev_date %}
+            <p class="dash-fl-cap mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+              Kayıtlı dün ({{ card.pagespeed_desktop_prev_date }}): <span class="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ card.pagespeed_desktop_prev_score }}</span>
+              → bugün: <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ card.pagespeed_desktop_score }}</span>
+            </p>
+          {% endif %}
         </div>
       </div>
     </div>
+
+    {# GA4 — 2×2: doviz.com sol Web+Mobil web, sağ Android+iOS; diğer siteler sol seçilen + sağ eş profil #}
+    {% set _gl = card.ga4_layout %}
+    {% if card.ga4_connected and (_gl.col_left or _gl.col_right) %}
+    <div class="space-y-2">
+      <div class="dash-compare-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500 ring-2 ring-teal-200/70 dark:ring-teal-900/40" aria-hidden="true"></span>
+        <p class="dash-compare-text font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">GA4 özeti</p>
+        <span class="dash-fl-cap font-normal normal-case tracking-normal text-slate-400">(1 günlük · WoW)</span>
+      </div>
+      <div class="grid min-w-0 grid-cols-1 gap-3 {% if _gl.col_right|length %}sm:grid-cols-2{% endif %}">
+        <div class="flex min-w-0 flex-col gap-3">
+          {% for block in _gl.col_left %}
+            {{ ga4_dashboard_cell(block) }}
+          {% endfor %}
+        </div>
+        <div class="flex min-w-0 flex-col gap-3">
+          {% for block in _gl.col_right %}
+            {{ ga4_dashboard_cell(block) }}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   {# Search Console özet + uyarılar #}
