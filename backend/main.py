@@ -3899,6 +3899,8 @@ def _build_dashboard_card(
     ga4_layout = _dashboard_ga4_layout(
         db, site, platform_norm, latest_ga4_floats, ga4_conn, period_days=period_days
     )
+    spotlight_queries_all = _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=20)
+    spotlight_split = (len(spotlight_queries_all) + 1) // 2
     return {
         "id": site.id,
         "display_name": site.display_name,
@@ -3938,7 +3940,9 @@ def _build_dashboard_card(
         "alert_count": len(recent_site_alerts),
         "recent_alerts": recent_site_alerts[:3],
         "top_queries": device_top_queries,
-        "spotlight_queries": _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=10),
+        "spotlight_queries": spotlight_queries_all,
+        "spotlight_queries_left": spotlight_queries_all[:spotlight_split],
+        "spotlight_queries_right": spotlight_queries_all[spotlight_split:],
         "search_console": {
             "clicks": float(search_console_summary.get("clicks", 0.0)),
             "clicks_label": _format_compact_number(search_console_summary.get("clicks", 0.0)),

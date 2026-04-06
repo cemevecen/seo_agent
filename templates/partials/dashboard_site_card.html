@@ -27,6 +27,21 @@
   </div>
 {% endmacro %}
 
+{% macro dashboard_spotlight_list(queries) %}
+  <div class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+    {% for sq in queries %}
+      <div class="flex min-w-0 flex-col gap-0.5 rounded-xl border px-3 py-2 text-xs {% if sq.tone == 'emerald' %}border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20{% else %}border-rose-200/80 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
+        <span class="font-medium text-slate-800 dark:text-slate-100">'{{ sq.query }}'</span>
+        <span class="tabular-nums text-slate-600 dark:text-slate-400">{{ sq.subtitle }}</span>
+      </div>
+    {% else %}
+      <div class="flex min-h-[6rem] flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-4 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400">
+        Bu sütunda sorgu yok veya veri bekleniyor.
+      </div>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
 {# Dashboard dönüm linkleri: platform + tam sayfa — GA4/PageSpeed dahil tüm kutular yenilenir #}
 {% set card_dash_pf = ('&platform=' ~ card.dashboard_platform) if card.dashboard_platform and card.dashboard_platform != 'web' else '' %}
 
@@ -90,6 +105,7 @@
   {% endif %}
 
   {% set pc = card.search_console.period_compare %}
+  {% set _sq_badge = card.search_console.period_compare[sc_segment].compare_badge if card.search_console.has_compare_data else 'SC' %}
   {# Özet metrikler — 480px+: switch ile 1g / 7g / 30g karşılaştırma #}
   <div data-dashboard-sc-compare-root class="border-b border-slate-100 dark:border-slate-800">
   <div class="space-y-5 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:bg-slate-950/30">
@@ -331,6 +347,11 @@
           <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/45 dark:text-amber-200">Kayıt bekleniyor</span>
         {% endif %}
       </div>
+
+      <div class="mt-4 flex min-h-[9rem] flex-1 flex-col border-t border-slate-100 pt-3 dark:border-slate-800">
+        <p class="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Öne çıkan sorgular <span class="font-normal normal-case text-slate-500 dark:text-slate-500">· {{ _sq_badge }}</span></p>
+        {{ dashboard_spotlight_list(card.spotlight_queries_left | default([])) }}
+      </div>
     </div>
 
     <div class="flex h-full min-h-[14rem] min-w-0 flex-col px-4 py-4 sm:px-5 sm:py-5">
@@ -359,19 +380,8 @@
       </div>
 
       <div class="mt-4 flex min-h-[9rem] flex-1 flex-col border-t border-slate-100 pt-3 dark:border-slate-800">
-        <p class="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Öne çıkan sorgular <span class="font-normal normal-case text-slate-500 dark:text-slate-500">· {{ card.search_console.period_compare[sc_segment].compare_badge if card.search_console.has_compare_data else 'SC' }}</span></p>
-        <div class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
-          {% for sq in card.spotlight_queries | default([]) %}
-            <div class="flex min-w-0 flex-col gap-0.5 rounded-xl border px-3 py-2 text-xs {% if sq.tone == 'emerald' %}border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20{% else %}border-rose-200/80 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
-              <span class="font-medium text-slate-800 dark:text-slate-100">'{{ sq.query }}'</span>
-              <span class="tabular-nums text-slate-600 dark:text-slate-400">{{ sq.subtitle }}</span>
-            </div>
-          {% else %}
-            <div class="flex min-h-[6rem] flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-4 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400">
-              Seçilen dönem için sorgu kırılımı henüz yok veya veri bekleniyor.
-            </div>
-          {% endfor %}
-        </div>
+        <p class="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Öne çıkan sorgular <span class="font-normal normal-case text-slate-500 dark:text-slate-500">· {{ _sq_badge }}</span></p>
+        {{ dashboard_spotlight_list(card.spotlight_queries_right | default([])) }}
       </div>
     </div>
   </div>
