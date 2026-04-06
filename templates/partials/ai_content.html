@@ -8,21 +8,6 @@
   data-groq-available="{{ 1 if llm_groq else 0 }}"
   data-gemini-available="{{ 1 if llm_gemini else 0 }}"
 >
-  <style>
-    .ai-brief-layout-stack .ai-brief-pillar-grid {
-      grid-template-columns: 1fr !important;
-    }
-    .ai-brief-pillar-grid {
-      display: grid;
-      gap: 0.75rem;
-    }
-    @media (min-width: 768px) {
-      .ai-brief-layout-split .ai-brief-pillar-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-  </style>
-
   {# ── Progress bar ── #}
   <div id="ai-brief-progress" class="mb-4 hidden" aria-live="polite">
     <div class="mb-2 flex items-center justify-between gap-2">
@@ -31,17 +16,12 @@
     </div>
     <div
       class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow="0"
+      role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
       id="ai-brief-progress-track"
     >
-      <div
-        id="ai-brief-progress-fill"
+      <div id="ai-brief-progress-fill"
         class="h-2.5 rounded-full bg-sky-600 transition-[width] duration-300 ease-out dark:bg-sky-400"
-        style="width: 0%"
-      ></div>
+        style="width: 0%"></div>
     </div>
   </div>
 
@@ -49,47 +29,25 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h3 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Günlük AI strateji özeti</h3>
     <div class="flex flex-wrap items-center gap-2">
-      {# Layout toggle #}
-      <div
-        class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold dark:border-slate-600 dark:bg-slate-800"
-        role="group"
-        aria-label="Özet yerleşimi"
-      >
-        <button
-          type="button"
-          class="ai-brief-layout-btn rounded-md px-2.5 py-1 text-slate-500 transition hover:bg-white dark:text-slate-400 dark:hover:bg-slate-700"
-          data-ai-brief-layout="stack"
-        >Tek sütun</button>
-        <button
-          type="button"
-          class="ai-brief-layout-btn rounded-md px-2.5 py-1 text-slate-500 transition hover:bg-white dark:text-slate-400 dark:hover:bg-slate-700"
-          data-ai-brief-layout="split"
-        >İki sütun</button>
-      </div>
-
       {# LLM provider + generate #}
       <form id="ai-brief-generate-form" class="flex shrink-0 items-center gap-2" action="/ai/generate" method="post">
         <input type="hidden" name="llm_provider" id="ai-brief-llm-value" value="{{ llm_default }}" />
         <div
           class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold dark:border-slate-600 dark:bg-slate-800"
-          role="group"
-          aria-label="LLM sağlayıcı"
+          role="group" aria-label="LLM sağlayıcı"
         >
-          <button
-            type="button"
+          <button type="button"
             class="ai-brief-llm-btn rounded-md px-2.5 py-1 text-slate-500 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-700"
             data-ai-brief-llm="groq"
             {% if not llm_groq %}disabled aria-disabled="true"{% endif %}
           >Groq</button>
-          <button
-            type="button"
+          <button type="button"
             class="ai-brief-llm-btn rounded-md px-2.5 py-1 text-slate-500 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-700"
             data-ai-brief-llm="gemini"
             {% if not llm_gemini %}disabled aria-disabled="true"{% endif %}
           >Gemini</button>
         </div>
-        <button
-          type="submit"
+        <button type="submit"
           class="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
           {% if not llm_groq and not llm_gemini %}disabled{% endif %}
         >Analiz et</button>
@@ -97,80 +55,50 @@
     </div>
   </div>
 
-  <script type="application/json" id="ai-brief-charts-json">{{ (ai_brief_charts or {}) | tojson }}</script>
-
   {% if not ai_brief %}
     <div class="rounded-xl border border-dashed border-slate-300 bg-white/80 p-10 text-center dark:border-slate-600 dark:bg-slate-800/60">
       <p class="text-sm font-medium text-slate-700 dark:text-slate-200">Henüz kayıtlı özet yok.</p>
       <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Groq veya Gemini seçip <span class="font-semibold text-sky-600 dark:text-sky-400">Analiz et</span> ile oluşturabilirsiniz.</p>
     </div>
   {% else %}
-    <div id="ai-brief-layout-root" class="ai-brief-layout-split space-y-6">
+    <div id="ai-brief-layout-root" class="space-y-5">
 
-      {% macro pillar_block(title_key, raw, chart_mode) -%}
+      {% macro pillar_block(title_key, icon, raw) -%}
         {% set p = raw|ai_brief_sites %}
-        <section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
-          <div class="border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/60">
+        <section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div class="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/60">
+            <span class="text-base">{{ icon }}</span>
             <h4 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">{{ title_key }}</h4>
           </div>
 
           {% if p.mode == 'sites' and p['items'] %}
-            <div class="ai-brief-pillar-grid p-4">
+            <div class="divide-y divide-slate-100 dark:divide-slate-800">
               {% for it in p['items'] %}
-                <div class="flex flex-col rounded-xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-4 dark:border-slate-700/60 dark:from-slate-800 dark:to-slate-850" data-ai-brief-site="{{ it.domain|e }}">
-                  {# Site header #}
-                  <div class="mb-3 flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <h5 class="truncate text-sm font-bold text-slate-900 dark:text-white">{{ it.baslik|e }}</h5>
-                      <p class="mt-0.5 truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">{{ it.domain|e }}</p>
-                    </div>
-                    <span class="mt-0.5 shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">{{ title_key }}</span>
+                <div class="px-5 py-4" data-ai-brief-site="{{ it.domain|e }}">
+                  <div class="mb-2 flex items-baseline gap-2">
+                    <h5 class="text-sm font-bold text-slate-900 dark:text-white">{{ it.baslik|e }}</h5>
+                    <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ it.domain|e }}</span>
                   </div>
-
-                  {# Charts #}
-                  {% if chart_mode == 'ga4_stack' %}
-                    <div class="mb-3 grid gap-2 sm:grid-cols-2">
-                      <div class="h-36 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="pagespeed"></div>
-                      <div class="h-36 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="sc_clicks"></div>
-                      <div class="h-36 rounded-lg border border-slate-100 bg-white sm:col-span-2 dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="sc_device"></div>
-                      <div class="h-36 rounded-lg border border-slate-100 bg-white sm:col-span-2 dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="ga4_sessions"></div>
-                    </div>
-                  {% elif chart_mode == 'pagespeed' %}
-                    <div class="mb-3">
-                      <div class="h-40 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="pagespeed"></div>
-                    </div>
-                  {% elif chart_mode == 'search_console' %}
-                    <div class="mb-3 grid gap-2 sm:grid-cols-2">
-                      <div class="h-40 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="sc_clicks"></div>
-                      <div class="h-40 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="sc_device"></div>
-                    </div>
-                  {% elif chart_mode == 'alerts' %}
-                    <div class="mb-3">
-                      <div class="h-40 rounded-lg border border-slate-100 bg-white dark:border-slate-700/40 dark:bg-slate-900/80" data-ai-brief-plot data-domain="{{ it.domain|e }}" data-plot="alerts_bar"></div>
-                    </div>
-                  {% endif %}
-
-                  {# AI text #}
-                  <div class="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">{{ it.metin|e }}</div>
+                  <div class="whitespace-pre-wrap text-[13px] leading-[1.7] text-slate-700 dark:text-slate-300">{{ it.metin|e }}</div>
                 </div>
               {% endfor %}
             </div>
           {% elif p.mode == 'legacy' and p.text %}
-            <div class="p-5">
-              <div class="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">{{ p.text|e }}</div>
+            <div class="px-5 py-4">
+              <div class="whitespace-pre-wrap text-[13px] leading-[1.7] text-slate-700 dark:text-slate-300">{{ p.text|e }}</div>
             </div>
           {% else %}
-            <div class="p-5">
+            <div class="px-5 py-4">
               <p class="text-sm text-slate-500 dark:text-slate-400">Bu bölümde içerik yok.</p>
             </div>
           {% endif %}
         </section>
       {%- endmacro %}
 
-      {{ pillar_block("GA4", ai_brief.ga4_text, "ga4_stack") }}
-      {{ pillar_block("PageSpeed", ai_brief.pagespeed_text, "pagespeed") }}
-      {{ pillar_block("Search Console", ai_brief.search_console_text, "search_console") }}
-      {{ pillar_block("Uyarılar ve öncelik", ai_brief.alerts_text, "alerts") }}
+      {{ pillar_block("GA4 Analizi", "📊", ai_brief.ga4_text) }}
+      {{ pillar_block("PageSpeed", "⚡", ai_brief.pagespeed_text) }}
+      {{ pillar_block("Search Console", "🔍", ai_brief.search_console_text) }}
+      {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text) }}
     </div>
   {% endif %}
 </div>

@@ -6096,7 +6096,6 @@ def ai_daily_brief_page(request: Request):
             "site_name": "AI",
             "sites": get_sidebar_sites(),
             "ai_brief": brief,
-            "ai_brief_charts": _build_ai_brief_charts_map(db, brief),
             "ai_brief_llm": _ai_brief_llm_availability(),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
@@ -6129,7 +6128,6 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("groq")):
                 "site_name": "AI",
                 "sites": get_sidebar_sites(),
                 "ai_brief": brief,
-                "ai_brief_charts": _build_ai_brief_charts_map(db, brief),
                 "ai_brief_llm": _ai_brief_llm_availability(),
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
