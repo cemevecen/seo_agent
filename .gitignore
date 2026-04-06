@@ -21,3 +21,6 @@ secrets/
 # Runtime / server logs
 server.log
 *.log
+
+# Yerelde üretilen GSC screenshot'ları (hesap içeriği içerebilir)
+static/gsc/*.png

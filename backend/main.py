@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
@@ -98,11 +98,17 @@ from backend.services.warehouse import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
+GSC_SCREENSHOT_DIR = STATIC_DIR / "gsc"
 LOGGER = logging.getLogger(__name__)
 DAILY_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
 EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 180
+
+#
+# Not: GSC CWV ekran görüntüsü otomasyonu (Playwright) kaldırıldı.
+# Sistem yalnızca manuel upload ile statik görsel gösterir.
+#
 
 # Create Jinja2Templates with cache disabled for Python 3.14 compatibility
 from jinja2 import Environment, FileSystemLoader
@@ -1039,6 +1045,45 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         provider="search_console",
         cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
     )
+    # GSC CWV screenshot'ları (yerel script üretir): static/gsc/<domain>-cwv-*.png
+    import re as _re
+    from urllib.parse import quote as _quote
+
+    raw_domain = str(site.domain or "").strip()
+    domain_for_property = _re.sub(r"^https?://", "", raw_domain, flags=_re.I).strip().strip("/")
+    domain_slug = _re.sub(r"^https?://", "", raw_domain.strip().lower())
+    domain_slug = domain_slug.strip("/").replace("/", "-")
+    domain_slug = _re.sub(r"[^a-z0-9._-]+", "-", domain_slug)
+    domain_slug = _re.sub(r"-{2,}", "-", domain_slug).strip("-") or "site"
+
+    mobile_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-mobile.png"
+    desktop_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-desktop.png"
+    full_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-full.png"
+    extra_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-extra.png"
+
+    resource_id = f"sc-domain:{domain_for_property}" if domain_for_property else ""
+    resource_param = _quote(resource_id, safe="") if resource_id else ""
+    def _static_url_if_exists(path: Path) -> str:
+        if not path.exists():
+            return ""
+        try:
+            v = int(path.stat().st_mtime)
+        except OSError:
+            v = int(time.time())
+        return f"/static/gsc/{path.name}?v={v}"
+
+    gsc_cwv = {
+        "resource_url": (
+            f"https://search.google.com/search-console/core-web-vitals?resource_id={resource_param}&hl=en"
+            if resource_param
+            else ""
+        ),
+        "mobile_url": _static_url_if_exists(mobile_path),
+        "desktop_url": _static_url_if_exists(desktop_path),
+        "full_url": _static_url_if_exists(full_path),
+        "extra_url": _static_url_if_exists(extra_path),
+    }
+
     return {
         "id": site.id,
         "domain": site.domain,
@@ -1052,7 +1097,17 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         "cooldown_active": cooldown_active,
         "manual_mode_label": f"{schedule_label} otomatik + manuel",
         "report": _search_console_report_payload(db, site_id=site.id),
+        "gsc_cwv": gsc_cwv,
     }
+
+
+def _gsc_domain_slug(domain: str) -> str:
+    d = str(domain or "").strip().lower()
+    d = re.sub(r"^https?://", "", d, flags=re.I).strip()
+    d = d.strip("/").replace("/", "-")
+    d = re.sub(r"[^a-z0-9._-]+", "-", d)
+    d = re.sub(r"-{2,}", "-", d).strip("-")
+    return d or "site"
 
 
 def _search_console_sites_payload(db) -> list[dict]:
@@ -5828,6 +5883,78 @@ def search_console_single_site_card(request: Request, site_id: int):
             "site_count": site_count,
         },
     )
+
+
+@app.get("/search-console/health")
+def search_console_health():
+    # UI yanlışlıkla /search-console/health çağırırsa, /health ile uyumlu cevap ver.
+    return {"status": "ok"}
+
+
+@app.post("/search-console/cwv-screenshot/upload/{site_id}", response_class=HTMLResponse)
+async def search_console_upload_cwv_screenshot(
+    request: Request,
+    site_id: int,
+    variant: str = "full",
+    file: UploadFile = File(...),
+):
+    """Manuel CWV screenshot yükleme (local)."""
+    variant = str(variant or "full").strip().lower()
+    if variant not in {"full", "mobile", "desktop", "extra"}:
+        return HTMLResponse("Geçersiz variant.", status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        domain_slug = _gsc_domain_slug(site.domain)
+
+    name = (file.filename or "").lower()
+    if not (name.endswith(".png") or name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".webp")):
+        return HTMLResponse("Sadece png/jpg/webp kabul edilir.", status_code=400)
+
+    content = await file.read()
+    if not content:
+        return HTMLResponse("Boş dosya.", status_code=400)
+    if len(content) > 10 * 1024 * 1024:
+        return HTMLResponse("Dosya çok büyük (max 10MB).", status_code=413)
+
+    # PNG/JPG magic check (basit)
+    if not (
+        content.startswith(b"\x89PNG\r\n\x1a\n")
+        or content.startswith(b"\xff\xd8\xff")
+        or content.startswith(b"RIFF")  # webp container
+    ):
+        return HTMLResponse("Dosya tipi doğrulanamadı.", status_code=400)
+
+    GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
+    out_path.write_bytes(content)
+
+    return search_console_single_site_card(request, site_id)
+
+
+@app.post("/search-console/cwv-screenshot/delete/{site_id}", response_class=HTMLResponse)
+def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant: str = "full"):
+    """Manuel yüklenen CWV screenshot dosyasını diskten siler (local)."""
+    variant = str(variant or "full").strip().lower()
+    if variant not in {"full", "mobile", "desktop", "extra"}:
+        return HTMLResponse("Geçersiz variant.", status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        domain_slug = _gsc_domain_slug(site.domain)
+
+    path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError as exc:
+        return HTMLResponse(f"Silinemedi: {exc}", status_code=500)
+
+    return search_console_single_site_card(request, site_id)
 
 
 @app.post("/search-console/refresh-all")
