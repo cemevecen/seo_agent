@@ -226,15 +226,7 @@ text-slate-500 dark:text-slate-400
         class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
         data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
       >
-        PSI + CrUX + URL Inspection Yenile
-      </button>
-      <button
-        type="button"
-        id="refresh-site-audit"
-        class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
-        data-refresh-url="/api/site/{{ domain }}/site-audit/refresh"
-      >
-        Sitemap SEO Audit Yenile
+        PSI + CrUX Yenile
       </button>
     </div>
   </div>
@@ -244,7 +236,7 @@ text-slate-500 dark:text-slate-400
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80 dark:text-sky-300/90">Yaklaşık İlerleme</p>
         <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
-        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">PageSpeed Insights, CrUX History ve URL Inspection verileri dış kaynaklardan yeniden alınacak.</p>
+        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">PageSpeed Insights ve CrUX History verileri dış kaynaklardan yeniden alınacak.</p>
       </div>
       <p id="data-explorer-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
     </div>
@@ -443,232 +435,6 @@ text-slate-500 dark:text-slate-400
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Sitemap SEO Audit</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">URL Bazlı Meta Kapsamı ve Kalite Skoru</h4>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Varsayılan akış robots’tan gerçek sitemap adreslerini bulur, recursive sitemap çözümü yapar, `lastmod` varsa son 90 günü filtreler ve `quick indexed` modunda muhtemel indexlenmiş URL’leri tarar.</p>
-      </div>
-      {% if site_audit and site_audit.summary %}
-      {% set audit_summary = site_audit.summary %}
-      {% set audit_dist = audit_summary.score_distribution or {} %}
-      {% set audit_total = audit_summary.audited_url_count or 0 %}
-      <span class="rounded-full border px-3 py-1 text-xs font-semibold {% if (audit_dist.poor or 0) > 0 %}border-rose-200 bg-rose-50 text-rose-700{% elif (audit_dist.needs_improvement or 0) > 0 %}border-amber-200 bg-amber-50 text-amber-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-700{% endif %}">
-        {% if audit_total == 0 and (audit_summary.candidate_url_count or 0) == 0 %}Aday URL bulunamadı{% elif (audit_dist.poor or 0) > 0 %}Mudahale gerekli{% elif (audit_dist.needs_improvement or 0) > 0 %}İyileştirme var{% else %}Sağlıklı{% endif %}
-      </span>
-      {% else %}
-      <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">Henüz audit çalıştırılmadı</span>
-      {% endif %}
-    </div>
-
-    {% if site_audit and site_audit.summary %}
-    {% set audit_summary = site_audit.summary %}
-    {% set audit_dist = audit_summary.score_distribution or {} %}
-    {% set audit_total = audit_summary.audited_url_count or 0 %}
-    {% set audit_failed_sitemaps = audit_summary.failed_sitemaps or [] %}
-    {% set audit_robots_sitemaps = audit_summary.robots_sitemaps or [] %}
-    {% if audit_total == 0 and (audit_summary.candidate_url_count or 0) == 0 %}
-    <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50/80 p-5 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/25 dark:text-amber-100">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">Audit çalıştı ama sitemap'ten aday URL bulunamadı.</p>
-          <p class="mt-2 text-sm text-amber-800 dark:text-amber-200">Robots sitemap başarısız olabilir ya da fallback sitemap adresleri 404 / 5xx dönüyor olabilir. Bu yüzden URL havuzu oluşmadı ve audit satırı yazılamadı.</p>
-        </div>
-        <span class="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-600/60 dark:bg-amber-950/60 dark:text-amber-100">0 aday URL</span>
-      </div>
-      <div class="mt-4 grid gap-3 md:grid-cols-2">
-        <div class="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-700/40 dark:bg-slate-950/45">
-          <p class="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Robots'tan Bulunan Sitemap</p>
-          {% if audit_robots_sitemaps %}
-          {% for item in audit_robots_sitemaps[:3] %}
-          <p class="mt-2 break-all text-sm text-amber-900 dark:text-amber-100">{{ item }}</p>
-          {% endfor %}
-          {% else %}
-          <p class="mt-2 text-sm text-amber-800 dark:text-amber-200">Robots.txt içinde sitemap adresi bulunamadı.</p>
-          {% endif %}
-        </div>
-        <div class="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-700/40 dark:bg-slate-950/45">
-          <p class="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Discovery Sonucu</p>
-          <p class="mt-2 text-sm text-amber-900 dark:text-amber-100">Başarılı sitemap: {{ (audit_summary.fetched_sitemaps or [])|length }}</p>
-          <p class="mt-1 text-sm text-amber-900 dark:text-amber-100">Başarısız sitemap: {{ audit_failed_sitemaps|length }}</p>
-          {% if audit_failed_sitemaps %}
-          <p class="mt-2 break-all text-xs text-amber-800 dark:text-amber-200">{{ audit_failed_sitemaps[0] }}</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    {% endif %}
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {{ metric_tile("Mode", audit_summary.index_mode or "quick", "Varsayılan indexed modu", "Quick mod ücretsiz ve kota dostudur; exact mod URL Inspection kullanır ve kota tüketir.") }}
-      {{ metric_tile("Pencere", (audit_summary.recent_days or 90) ~ " gün", "Sitemap lastmod filtresi", "Lastmod değeri olan URL'lerde yalnızca bu pencere içinde kalanlar aday listeye alınır.") }}
-      {{ metric_tile("Sitemap", (audit_summary.fetched_sitemaps|length), "Başarıyla okunan sitemap", "Robots.txt ve common pattern denemeleri sonucunda gerçekten parse edilebilen sitemap dosya sayısıdır.") }}
-      {{ metric_tile("Eski Elendi", audit_summary.filtered_old_count or 0, "90 günden eski URL", "Lastmod tarihi pencere dışında kaldığı için aday listeden çıkarılan URL sayısıdır.") }}
-    </div>
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {{ metric_tile("Taranan URL", audit_total, "Sitemap içinden işlenen URL", "Site audit sırasında gerçekten çekilip değerlendirilen URL toplamıdır.") }}
-      {{ metric_tile("Aday URL", audit_summary.candidate_url_count or 0, "Filtre sonrası sitemap adayı", "Sitemap discovery sonucunda son pencereye uygun bulunan ve audit öncesi aday havuzuna giren URL sayısıdır.") }}
-      {{ metric_tile("İyi", audit_dist.good or 0, "Tüm kritik sinyaller yerinde", "Title, description, H1 ve indexlenebilirlik sağlıklı; ikincil sinyaller de büyük ölçüde tamamdır.") }}
-      {{ metric_tile("İyileştir", audit_dist.needs_improvement or 0, "Eksik ama kritik olmayan sinyal", "Genellikle canonical, schema, og veya uzunluk kontrollerinde eksik kalan URL grubudur.") }}
-      {{ metric_tile("Ağırlıklı URL", audit_summary.search_console_weighted_urls or 0, "Search Console'da görülen URL", "Son 90 günlük Search Console page verisinde click/impression alan URL sayısıdır; ağırlıklandırma için kullanılır.") }}
-    </div>
-
-    {% set good_width = ((audit_dist.good or 0) * 100 / audit_total) if audit_total else 0 %}
-    {% set improve_width = ((audit_dist.needs_improvement or 0) * 100 / audit_total) if audit_total else 0 %}
-    {% set poor_width = ((audit_dist.poor or 0) * 100 / audit_total) if audit_total else 0 %}
-    <div class="mt-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Skor Dağılımı</p>
-          <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Good / Improve / Poor oranı sitemap SEO audit sonucundan üretilir.</p>
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400">Son snapshot: {{ site_audit.collected_at or site_audit.requested_at or "N/A" }}</p>
-      </div>
-      <div class="mt-4 h-4 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-        <div class="flex h-full w-full">
-          <div class="h-full bg-emerald-500" style="width: {{ good_width }}%"></div>
-          <div class="h-full bg-amber-500" style="width: {{ improve_width }}%"></div>
-          <div class="h-full bg-rose-500" style="width: {{ poor_width }}%"></div>
-        </div>
-      </div>
-      <div class="mt-3 grid gap-3 md:grid-cols-3">
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">İyi: {{ audit_dist.good or 0 }} URL · %{{ good_width|round(1, 'common') }}</div>
-        <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">İyileştirme: {{ audit_dist.needs_improvement or 0 }} URL · %{{ improve_width|round(1, 'common') }}</div>
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">Zayıf: {{ audit_dist.poor or 0 }} URL · %{{ poor_width|round(1, 'common') }}</div>
-      </div>
-    </div>
-
-    <div class="mt-5 grid gap-4 xl:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Discovery Özeti</p>
-        <p class="mt-3 text-sm text-slate-700 dark:text-slate-200">Robots sitemap: {{ (audit_summary.robots_sitemaps or [])|length }} adet</p>
-        <p class="mt-2 text-sm text-slate-700 dark:text-slate-200">Başarısız sitemap: {{ (audit_summary.failed_sitemaps or [])|length }} adet</p>
-        <p class="mt-2 text-sm text-slate-700 dark:text-slate-200">Exact inspection: {{ audit_summary.exact_inspection_count or 0 }} URL{% if audit_summary.exact_inspection_skipped %} · {{ audit_summary.exact_inspection_skipped }} URL kota koruması nedeniyle atlandı{% endif %}</p>
-        {% if audit_summary.robots_sitemaps %}
-        <div class="mt-3 space-y-1">
-          {% for item in audit_summary.robots_sitemaps[:6] %}
-          <p class="break-all text-xs text-slate-600 dark:text-slate-300">{{ item }}</p>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Ağırlıklı URL Örnekleri</p>
-        {% if audit_summary.top_weighted_examples %}
-        <div class="mt-3 space-y-2">
-          {% for item in audit_summary.top_weighted_examples[:8] %}
-          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
-            <p class="break-all text-sm font-semibold text-slate-900 dark:text-slate-100">{{ item.url }}</p>
-            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Clicks {{ item.search_clicks|round(1, 'common') }} · Impr {{ item.search_impressions|round(1, 'common') }} · CTR %{{ (item.search_ctr * 100)|round(2, 'common') }}</p>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="mt-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-3 text-sm text-slate-500 dark:text-slate-400">Bu site için Search Console page ağırlık verisi bulunamadı.</div>
-        {% endif %}
-      </div>
-    </div>
-
-    {% set check_labels = {
-      'title': 'Title var',
-      'title_length_ok': 'Title uzunluğu',
-      'desc': 'Description var',
-      'desc_length_ok': 'Description uzunluğu',
-      'h1': 'H1 var',
-      'single_h1': 'Tek H1',
-      'canonical': 'Canonical var',
-      'canonical_matches_final': 'Canonical final URL ile uyumlu',
-      'schema': 'Schema var',
-      'indexable': 'Indexlenebilir',
-      'og_title': 'OG title var',
-      'og_description': 'OG description var'
-    } %}
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {% for key, label in check_labels.items() %}
-      {% set row = (audit_summary.check_summary or {}).get(key) or {} %}
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
-        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ label }}</p>
-        <p class="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">%{{ row.share or 0 }}</p>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ row.ok or 0 }} başarılı · {{ row.fail or 0 }} eksik</p>
-      </div>
-      {% endfor %}
-    </div>
-
-    <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-      <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 dark:bg-slate-800/60 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th class="px-4 py-3">URL</th>
-            <th class="px-4 py-3">Skor</th>
-            <th class="px-4 py-3">Ağırlık</th>
-            <th class="px-4 py-3">Lastmod</th>
-            <th class="px-4 py-3">Title</th>
-            <th class="px-4 py-3">Desc</th>
-            <th class="px-4 py-3">H1</th>
-            <th class="px-4 py-3">Canonical</th>
-            <th class="px-4 py-3">Schema</th>
-            <th class="px-4 py-3">Index</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-          {% for row in site_audit.rows[:120] %}
-          <tr class="bg-white dark:bg-slate-900">
-            <td class="px-4 py-3 align-top">
-              <p class="break-all font-semibold text-slate-900 dark:text-slate-100">{{ row.url }}</p>
-              {% if row.final_url and row.final_url != row.url %}
-              <p class="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">Final: {{ row.final_url }}</p>
-              {% endif %}
-              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Status: {{ row.status_code }} · Issue: {{ row.issue_count }}</p>
-            </td>
-            <td class="px-4 py-3 align-top">
-              <span class="rounded-full px-2.5 py-1 text-xs font-semibold {% if row.seo_score == 'good' %}bg-emerald-100 text-emerald-700{% elif row.seo_score == 'needs_improvement' %}bg-amber-100 text-amber-700{% else %}bg-rose-100 text-rose-700{% endif %}">
-                {{ row.seo_score }}
-              </span>
-              <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{{ row.indexed_via }}</p>
-            </td>
-            <td class="px-4 py-3 align-top text-xs">
-              <p class="text-slate-900 dark:text-slate-100">C {{ row.search_clicks|round(1, 'common') }}</p>
-              <p class="mt-1 text-slate-500 dark:text-slate-400">I {{ row.search_impressions|round(1, 'common') }}</p>
-            </td>
-            <td class="px-4 py-3 align-top text-xs text-slate-600 dark:text-slate-300">
-              {{ row.sitemap_lastmod or "-" }}
-            </td>
-            <td class="px-4 py-3 align-top text-xs">
-              <span class="{% if row.has_title %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'true' if row.has_title else 'false' }}</span>
-              <span class="text-slate-500">({{ row.title_length }})</span>
-            </td>
-            <td class="px-4 py-3 align-top text-xs">
-              <span class="{% if row.has_meta_description %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'true' if row.has_meta_description else 'false' }}</span>
-              <span class="text-slate-500">({{ row.meta_description_length }})</span>
-            </td>
-            <td class="px-4 py-3 align-top text-xs">
-              <span class="{% if row.has_h1 %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'true' if row.has_h1 else 'false' }}</span>
-              <span class="text-slate-500">({{ row.h1_count }})</span>
-            </td>
-            <td class="px-4 py-3 align-top text-xs">
-              <span class="{% if row.has_canonical %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'true' if row.has_canonical else 'false' }}</span>
-              <span class="text-slate-500">{{ 'match' if row.canonical_matches_final else 'mismatch' }}</span>
-            </td>
-            <td class="px-4 py-3 align-top text-xs {% if row.has_schema %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'true' if row.has_schema else 'false' }}</td>
-            <td class="px-4 py-3 align-top text-xs {% if not row.is_noindex and row.status_code == 200 %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'indexable' if not row.is_noindex and row.status_code == 200 else 'noindex/problem' }}</td>
-          </tr>
-          {% else %}
-          <tr class="bg-white dark:bg-slate-900">
-            <td colspan="10" class="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
-              Audit çalıştı ancak sitemap discovery aday URL üretemediği için URL bazlı satır oluşmadı.
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
-      Henüz sitemap SEO audit kaydı yok.
-    </div>
-    {% endif %}
-  </section>
-
-  <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div class="flex items-center justify-between gap-3">
-      <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Collector Günlüğü</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Son Warehouse Çalışmaları</h4>
       </div>
@@ -708,60 +474,16 @@ text-slate-500 dark:text-slate-400
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">URL Inspection</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Index / Canonical / Crawl Durumu</h4>
-      </div>
-      <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ url_inspection_status.badge_class }}">{{ url_inspection_status.label }}</span>
-    </div>
-
-    {% if url_inspection and url_inspection.summary %}
-    {% set inspect = url_inspection.summary %}
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {{ metric_tile("Karar", inspect.verdict or "N/A", "Google index karari", "Google’ın URL için genel verdict sonucu. Bu satır URL’nin genel sağlık özetini verir.") }}
-      {{ metric_tile("Kapsam", inspect.coverage_state or "N/A", "Kapsam durumu", "Sayfanın indeks kapsamında olup olmadığını ve varsa kapsam sorununu gösterir.") }}
-      {{ metric_tile("Dizine Ekleme", inspect.indexing_state or "N/A", "Dizine ekleme durumu", "Google’ın sayfayı indeksleyip indekslemediğini veya neden beklediğini açıklar.") }}
-      {{ metric_tile("Getirme", inspect.page_fetch_state or "N/A", "Sayfa getirme durumu", "Googlebot sayfayı son denemede başarıyla çekebildi mi sorusunun kısa cevabıdır.") }}
-    </div>
-    <div class="mt-5 grid gap-4 xl:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Canonical</p>
-        <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Google’ın seçtiği canonical ile sayfanın ilan ettiği canonical burada yan yana görünür; ayrışma varsa canonical stratejisini gözden geçirmek gerekir.</p>
-        <p class="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Google Canonical</p>
-        <p class="mt-1 break-all text-sm text-slate-700 dark:text-slate-200">{{ inspect.google_canonical or "N/A" }}</p>
-        <p class="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Kullanıcı Canonical</p>
-        <p class="mt-1 break-all text-sm text-slate-700 dark:text-slate-200">{{ inspect.user_canonical or "N/A" }}</p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Tarama & Robots</p>
-        <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Tarama erişimi, robots durumu ve son inspection sırasında tespit edilen ek kullanılabilirlik sinyallerini gösterir.</p>
-        <p class="mt-3 text-sm"><span class="font-semibold text-slate-900 dark:text-slate-100">Robots:</span> <span class="text-slate-700 dark:text-slate-200">{{ inspect.robots_txt_state or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900 dark:text-slate-100">Son tarama:</span> <span class="text-slate-700 dark:text-slate-200">{{ inspect.last_crawl_time or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900 dark:text-slate-100">Zengin sonuçlar:</span> <span class="text-slate-700 dark:text-slate-200">{{ inspect.rich_results_verdict or "N/A" }}</span></p>
-        <p class="mt-2 text-sm"><span class="font-semibold text-slate-900 dark:text-slate-100">Mobil kullanılabilirlik:</span> <span class="text-slate-700 dark:text-slate-200">{{ inspect.mobile_usability_verdict or "N/A" }}</span></p>
-      </div>
-    </div>
-    {% else %}
-    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
-      Henüz URL Inspection kaydı yok.
-    </div>
-    {% endif %}
-  </section>
-
-  <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div class="flex items-center justify-between gap-3">
-      <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Warehouse Özeti</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Kayıt Sayaçları</h4>
       </div>
     </div>
-    <div class="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.") }}
       {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.") }}
       {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.") }}
       {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.") }}
       {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.") }}
-      {{ metric_tile("İnceleme", warehouse_summary.url_inspection_snapshots, "URL Inspection kayıt sayısı", "Google URL Inspection cevabının saklanan toplam kayıt sayısıdır.") }}
-      {{ metric_tile("URL Audit", warehouse_summary.url_audit_records, "Sitemap SEO audit satırları", "Her URL için saklanan meta ve indexlenebilirlik audit kayıtlarının toplamıdır.") }}
     </div>
   </section>
 
@@ -1053,7 +775,6 @@ text-slate-500 dark:text-slate-400
     }
 
     const refreshButton = document.getElementById('refresh-data-explorer');
-    const auditRefreshButton = document.getElementById('refresh-site-audit');
     if (refreshButton && !refreshButton.dataset.bound) {
       refreshButton.dataset.bound = '1';
       const progressPanel = document.getElementById('data-explorer-progress-panel');
@@ -1062,11 +783,10 @@ text-slate-500 dark:text-slate-400
       const progressPercent = document.getElementById('data-explorer-progress-percent');
       const progressBar = document.getElementById('data-explorer-progress-bar');
       const progressSteps = [
-        { percent: 16, title: 'PageSpeed Insights çağrısı yapılıyor', detail: 'Lighthouse PSI lab ölçümleri ve audit bölümleri güncelleniyor.' },
-        { percent: 40, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
-        { percent: 64, title: 'URL Inspection sorgulanıyor', detail: 'Google URL Inspection sonucu güncel durum için yeniden isteniyor.' },
-        { percent: 82, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
-        { percent: 93, title: 'Sayfa yenileniyor', detail: 'Yeni PSI, CrUX ve Inspection panelleri gösterilmek üzere hazırlanıyor.' },
+        { percent: 22, title: 'PageSpeed Insights çağrısı yapılıyor', detail: 'Lighthouse PSI lab ölçümleri ve audit bölümleri güncelleniyor.' },
+        { percent: 55, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
+        { percent: 78, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
+        { percent: 92, title: 'Sayfa yenileniyor', detail: 'Yeni PSI ve CrUX panelleri gösterilmek üzere hazırlanıyor.' },
       ];
       let progressTimer = null;
       let progressTailTimer = null;
@@ -1119,7 +839,7 @@ text-slate-500 dark:text-slate-400
         renderProgress({
           percent: 7,
           title: 'Data Explorer yenilemesi başlatıldı',
-          detail: 'Bu buton PSI, CrUX History ve URL Inspection için gerçek refresh çağırır.',
+          detail: 'PSI ve CrUX History için yenileme isteği gönderiliyor.',
         });
         let stepIndex = 0;
         progressTimer = window.setInterval(function () {
@@ -1159,7 +879,7 @@ text-slate-500 dark:text-slate-400
           renderProgress({
             percent: 100,
             title: 'Data Explorer güncellendi',
-            detail: 'Yeni PSI, CrUX ve URL Inspection verileri yükleniyor.',
+            detail: 'Yeni PSI ve CrUX verileri yükleniyor.',
           });
           setTimeout(function () {
             window.location.reload();
@@ -1200,36 +920,10 @@ text-slate-500 dark:text-slate-400
           renderProgress({
             percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
             title: 'Data Explorer yenilenemedi',
-            detail: 'PSI, CrUX veya URL Inspection akışı tamamlanamadı. Backend loglarını kontrol et.',
+            detail: 'PSI veya CrUX akışı tamamlanamadı. Backend loglarını kontrol et.',
           });
           refreshButton.textContent = 'Yenileme başarısız';
           setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
-        }
-      });
-    }
-
-    if (auditRefreshButton && !auditRefreshButton.dataset.bound) {
-      auditRefreshButton.dataset.bound = '1';
-      auditRefreshButton.addEventListener('click', async function () {
-        const url = auditRefreshButton.dataset.refreshUrl;
-        const original = auditRefreshButton.textContent;
-        auditRefreshButton.disabled = true;
-        auditRefreshButton.textContent = 'Audit çalışıyor...';
-        try {
-          const response = await fetch(url, { method: 'POST' });
-          if (!response.ok) {
-            throw new Error('site audit failed');
-          }
-          auditRefreshButton.textContent = 'Audit tamamlandı';
-          window.setTimeout(function () {
-            window.location.reload();
-          }, 250);
-        } catch (error) {
-          auditRefreshButton.textContent = 'Audit başarısız';
-          window.setTimeout(function () {
-            auditRefreshButton.textContent = original;
-            auditRefreshButton.disabled = false;
-          }, 1500);
         }
       });
     }

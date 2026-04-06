@@ -42,7 +42,6 @@ from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
-from backend.collectors.site_audit import collect_site_audit
 from backend.collectors.pagespeed import (
     STRATEGY_METRIC_MAP,
     collect_pagespeed_metrics,
@@ -90,8 +89,6 @@ from backend.services.warehouse import (
     get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
     get_latest_search_console_rows_batch,
-    get_latest_url_audit_snapshot,
-    get_latest_url_inspection_snapshot,
     get_site_warehouse_summary,
 )
 
@@ -3243,16 +3240,6 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
-        site_audit = get_latest_url_audit_snapshot(db, site_id=site.id)
-        inspection = get_latest_url_inspection_snapshot(db, site_id=site.id)
-        if inspection and inspection.get("summary"):
-            inspection_summary = dict(inspection.get("summary") or {})
-            inspection_summary["last_crawl_time"] = format_datetime_like(
-                inspection_summary.get("last_crawl_time"),
-                fallback="N/A",
-            )
-            inspection = {**inspection, "summary": inspection_summary}
-
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
             "CrUX güncel kaydı ve history serisi mevcut",
@@ -3265,13 +3252,6 @@ def _data_explorer_context(domain: str) -> dict:
             "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
         )
-        inspection_state = _data_state_badge(
-            "live" if inspection else "failed",
-            "URL Inspection kaydı mevcut",
-            "Son başarılı URL Inspection kaydı gösteriliyor",
-            "URL Inspection verisi henüz yok",
-        )
-
         mobile_cwv  = _build_crux_cwv_chart(mobile_crux.get("payload") or {})  if mobile_crux  else None
         desktop_cwv = _build_crux_cwv_chart(desktop_crux.get("payload") or {}) if desktop_crux else None
 
@@ -3289,11 +3269,8 @@ def _data_explorer_context(domain: str) -> dict:
             "cwv_desktop": desktop_cwv,
             "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
             "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
-            "site_audit": site_audit,
-            "url_inspection": inspection,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
-            "url_inspection_status": inspection_state,
         }
 
 
@@ -4753,7 +4730,6 @@ def api_refresh_data_explorer(request: Request, domain: str):
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
-        search_console_connected = _is_search_console_connected(db, site.id)
         results = _refresh_site_detail_measurements(
             db,
             site,
@@ -4766,58 +4742,18 @@ def api_refresh_data_explorer(request: Request, domain: str):
             results["crux_history"] = collect_crux_history(db, site)
         except Exception as exc:  # noqa: BLE001
             results["crux_history"] = {"state": "failed", "error": str(exc)}
-        if search_console_connected:
-            try:
-                results["url_inspection"] = collect_url_inspection(db, site)
-            except Exception as exc:  # noqa: BLE001
-                results["url_inspection"] = {"state": "failed", "error": str(exc)}
-        else:
-            results["url_inspection"] = {
-                "state": "skipped",
-                "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
-            }
         db.commit()
         notify_result_map(
             trigger_source="manual",
             site=site,
             results=results,
-            action_label="Data Explorer manuel refresh (PSI + CrUX + URL Inspection)",
+            action_label="Data Explorer manuel refresh (PSI + CrUX)",
         )
         return JSONResponse(
             {
                 "site": site.domain,
                 "refreshed": True,
                 "results": results,
-                "warehouse": get_site_warehouse_summary(db, site_id=site.id),
-            }
-        )
-
-
-@app.post("/api/site/{domain}/site-audit/refresh")
-def api_refresh_site_audit(
-    request: Request,
-    domain: str,
-    recent_days: int | None = None,
-    index_mode: str | None = None,
-):
-    with SessionLocal() as db:
-        site = db.query(Site).filter(Site.domain == domain).first()
-        if site is None:
-            return JSONResponse({"error": "Site not found"}, status_code=404)
-
-        result = collect_site_audit(
-            db,
-            site,
-            sitemap_url_limit=settings.site_audit_sitemap_url_limit,
-            request_timeout_seconds=settings.site_audit_request_timeout_seconds,
-            recent_days=recent_days or settings.site_audit_recent_days,
-            index_mode=index_mode or settings.site_audit_index_mode_default,
-        )
-        return JSONResponse(
-            {
-                "site": site.domain,
-                "refreshed": True,
-                "result": result.get("summary") or {},
                 "warehouse": get_site_warehouse_summary(db, site_id=site.id),
             }
         )
