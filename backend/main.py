@@ -4619,7 +4619,10 @@ def dashboard(request: Request):
             "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6, recent_alerts=recent_alerts),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
         }
-    return templates.TemplateResponse(request, "dashboard.html", context={"request": request, **payload})
+        ctx = {"request": request, **payload}
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "partials/dashboard_content.html", context=ctx)
+    return templates.TemplateResponse(request, "dashboard.html", context=ctx)
 
 
 @app.get("/dashboard/cards/{site_id}", response_class=HTMLResponse)
