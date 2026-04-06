@@ -3901,6 +3901,10 @@ def _build_dashboard_card(
     )
     spotlight_queries_all = _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=20)
     spotlight_split = (len(spotlight_queries_all) + 1) // 2
+    _spotlight_q_norm = {str(sq.get("query") or "").strip().lower() for sq in spotlight_queries_all if str(sq.get("query") or "").strip()}
+    sinema_spotlight_left, sinema_spotlight_right = _dashboard_sinema_spotlight_split(
+        device_top_queries, _spotlight_q_norm
+    )
     return {
         "id": site.id,
         "display_name": site.display_name,
@@ -3943,6 +3947,8 @@ def _build_dashboard_card(
         "spotlight_queries": spotlight_queries_all,
         "spotlight_queries_left": spotlight_queries_all[:spotlight_split],
         "spotlight_queries_right": spotlight_queries_all[spotlight_split:],
+        "sinema_spotlight_left": sinema_spotlight_left,
+        "sinema_spotlight_right": sinema_spotlight_right,
         "search_console": {
             "clicks": float(search_console_summary.get("clicks", 0.0)),
             "clicks_label": _format_compact_number(search_console_summary.get("clicks", 0.0)),
@@ -4191,6 +4197,65 @@ def _build_dashboard_top_drops(
     return candidates[:limit]
 
 
+_DASHBOARD_CINEMA_QUERY_MARKERS = (
+    "sinema",
+    "sinemalar",
+    "film",
+    "filmler",
+    "vizyon",
+    "vizyondaki",
+    "izle",
+    "seans",
+    "gösterim",
+    "gosterim",
+    "fragman",
+)
+
+
+def _dashboard_spotlight_row_from_sc_query(row: dict) -> dict:
+    """Tek SC top_query satırını dashboard spotlight kartına çevirir."""
+    q = str(row.get("query") or "").strip()
+    cc = float(row.get("clicks_current") or 0.0)
+    cp = float(row.get("clicks_previous") or 0.0)
+    diff = float(row.get("clicks_diff") or 0.0)
+    return {
+        "query": q,
+        "subtitle": f"{_format_compact_number(cp)} → {_format_compact_number(cc)} tıklama",
+        "diff": diff,
+        "tone": "emerald" if diff >= 0 else "rose",
+    }
+
+
+def _dashboard_query_matches_cinema_theme(query: str) -> bool:
+    q = (query or "").lower()
+    return any(m in q for m in _DASHBOARD_CINEMA_QUERY_MARKERS)
+
+
+def _dashboard_sinema_spotlight_split(
+    top_queries: list[dict] | None,
+    exclude_queries_normalized: set[str],
+) -> tuple[list[dict], list[dict]]:
+    """En çok tıklanan sinema temalı sorgulardan 4 kart: 2 sol, 2 sağ; genel öne çıkanla çakışmaz."""
+    rows = list(top_queries or [])
+    ranked = sorted(rows, key=lambda r: float(r.get("clicks_current") or 0.0), reverse=True)
+    picked: list[dict] = []
+    seen: set[str] = set()
+    for row in ranked:
+        q = str(row.get("query") or "").strip()
+        if not q:
+            continue
+        n = q.lower()
+        if n in exclude_queries_normalized or n in seen:
+            continue
+        if not _dashboard_query_matches_cinema_theme(q):
+            continue
+        picked.append(_dashboard_spotlight_row_from_sc_query(row))
+        seen.add(n)
+        if len(picked) >= 4:
+            break
+    return picked[:2], picked[2:4]
+
+
 def _dashboard_spotlight_queries(
     top_queries: list[dict] | None,
     recent_alert_slice: list[dict],
@@ -4206,18 +4271,6 @@ def _dashboard_spotlight_queries(
     }
     ranked = sorted(rows, key=lambda r: float(r.get("clicks_current") or 0.0), reverse=True)
 
-    def pack(row: dict) -> dict:
-        q = str(row.get("query") or "").strip()
-        cc = float(row.get("clicks_current") or 0.0)
-        cp = float(row.get("clicks_previous") or 0.0)
-        diff = float(row.get("clicks_diff") or 0.0)
-        return {
-            "query": q,
-            "subtitle": f"{_format_compact_number(cp)} → {_format_compact_number(cc)} tıklama",
-            "diff": diff,
-            "tone": "emerald" if diff >= 0 else "rose",
-        }
-
     out: list[dict] = []
     seen: set[str] = set()
 
@@ -4227,7 +4280,7 @@ def _dashboard_spotlight_queries(
             return
         if skip_alerts and q.lower() in alert_q:
             return
-        out.append(pack(row))
+        out.append(_dashboard_spotlight_row_from_sc_query(row))
         seen.add(q.lower())
 
     for row in ranked:
