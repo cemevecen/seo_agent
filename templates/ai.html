@@ -51,10 +51,10 @@
       } else if (s === "groq" && av.groq) {
         applyAiBriefLlm("groq");
       } else {
-        applyAiBriefLlm(av.groq ? "groq" : "gemini");
+        applyAiBriefLlm(av.gemini ? "gemini" : "groq");
       }
     } catch (e) {
-      applyAiBriefLlm(av.groq ? "groq" : "gemini");
+      applyAiBriefLlm(av.gemini ? "gemini" : "groq");
     }
   }
 

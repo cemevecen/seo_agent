@@ -1,7 +1,7 @@
 {% set _llm = ai_brief_llm if ai_brief_llm is defined and ai_brief_llm else {} %}
 {% set llm_groq = _llm.get('groq', false) if _llm else false %}
 {% set llm_gemini = _llm.get('gemini', false) if _llm else false %}
-{% set llm_default = 'groq' if llm_groq else ('gemini' if llm_gemini else 'groq') %}
+{% set llm_default = 'gemini' if llm_gemini else ('groq' if llm_groq else 'gemini') %}
 <div
   id="ai-brief-view"
   class="mx-auto max-w-6xl space-y-6"

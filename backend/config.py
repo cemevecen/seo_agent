@@ -111,8 +111,9 @@ class Settings(BaseSettings):
     ai_daily_brief_timezone: str = "Europe/Istanbul"
     # Kalite / maliyet dengesi: Flash ailesi, JSON çıktı ile uyumlu (gerekirse .env ile değiştirin).
     ai_daily_brief_gemini_model: str = "gemini-2.5-flash"
-    # auto: önce Groq anahtarı varsa Groq, yoksa Gemini; kota dostu sıra.
-    ai_daily_brief_provider: str = "auto"
+    # gemini: zamanlanmış günlük özet önce Gemini (ücretsiz katman); failover açıksa hata/kota/bütçede Groq.
+    # auto: her iki anahtar varsa önce Gemini, yoksa yalnızca mevcut olan.
+    ai_daily_brief_provider: str = "gemini"
     # Groq üretim modeli: GPT-OSS 120B — özet kalitesi güçlü; Groq fiyat tablosuna göre .env fiyatlarını güncelleyin.
     ai_daily_brief_groq_model: str = "openai/gpt-oss-120b"
     # 429 / kota / erişim hatasında diğer anahtar varsa otomatik Groq ↔ Gemini geçişi (tek üretim turu içinde).

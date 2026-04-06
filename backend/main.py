@@ -6182,13 +6182,13 @@ def ai_daily_brief_page(request: Request):
 
 
 @app.post("/ai/generate")
-def ai_daily_brief_generate(request: Request, llm_provider: str = Form("groq")):
+def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
     """Operasyon: aynı gün özeti yeniden üretilir ve operasyon alıcılarına e-posta gider (Groq veya Gemini; yalnızca bu akış LLM kullanır)."""
 
     from backend.services.ai_daily_brief import get_latest_brief_for_ui, run_ai_daily_brief_job
 
-    raw = (llm_provider or "groq").strip().lower()
-    pov = raw if raw in ("groq", "gemini") else "groq"
+    raw = (llm_provider or "gemini").strip().lower()
+    pov = raw if raw in ("groq", "gemini") else "gemini"
     avail = _ai_brief_llm_availability()
     if not avail.get(pov):
         msg = (

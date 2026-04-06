@@ -101,10 +101,10 @@ def _resolve_brief_llm() -> tuple[str, str] | None:
         return ("gemini", gm) if gem_k else None
     if pref == "groq":
         return ("groq", gq) if groq_k else None
-    if groq_k:
-        return "groq", gq
     if gem_k:
         return "gemini", gm
+    if groq_k:
+        return "groq", gq
     return None
 
 
@@ -148,10 +148,11 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
         elif pref == "gemini":
             order_slug = ["gemini"] + (["groq"] if failover else [])
         else:
+            # auto: ücretsiz Gemini öncelikli; olmazsa veya failover ile Groq.
             if failover:
-                order_slug = ["groq", "gemini"]
+                order_slug = ["gemini", "groq"]
             else:
-                order_slug = ["groq"] if groq_k else ["gemini"]
+                order_slug = ["gemini"] if gem_k else ["groq"]
 
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
