@@ -4186,6 +4186,40 @@ def _build_dashboard_top_drops(
     return candidates[:limit]
 
 
+def _build_dashboard_critical_panel(
+    site_cards: list[dict],
+    recent_alerts: list[dict],
+    *,
+    limit: int = 6,
+) -> list[dict]:
+    """Önce bakılması gerekenler: `recent_alerts` içinden seçilir; sıra seçilen döneme göre SC kayıp
+    etkisiyle güçlendirilir (Hızlı kayıp ile aynı slim/top_queries penceresi).
+
+    Böylece dönem filtresi değişince sol panel de sağdaki gibi güncellenir; eşleşme yoksa
+    yine zaman sırasına yakın davranır.
+    """
+    if not recent_alerts:
+        return []
+    drops = _build_dashboard_top_drops(site_cards, limit=80, recent_alerts=recent_alerts)
+    impact_by_key: dict[tuple[str, str], float] = {}
+    for d in drops:
+        dom = (d.get("domain") or "").lower()
+        q = (str(d.get("query") or "")).strip().lower()
+        if not q:
+            continue
+        imp = float(d.get("impact") or 0.0)
+        impact_by_key[(dom, q)] = max(impact_by_key.get((dom, q), 0.0), imp)
+
+    def sort_key(a: dict) -> tuple[float, str]:
+        dom = (a.get("domain") or "").lower()
+        dq = (a.get("display_query") or "").strip().lower()
+        bonus = float(impact_by_key.get((dom, dq), 0.0)) if dq else 0.0
+        return bonus, a.get("triggered_at_iso") or ""
+
+    ranked = sorted(recent_alerts, key=lambda a: sort_key(a), reverse=True)
+    return ranked[:limit]
+
+
 def _build_dashboard_opportunities(
     site_cards: list[dict],
     *,
@@ -4592,7 +4626,7 @@ def dashboard(request: Request):
             "dashboard_platform": dashboard_platform,
             "dashboard_platform_label": _dashboard_platform_label(dashboard_platform),
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
-            "critical_alerts": recent_alerts[:6],
+            "critical_alerts": _build_dashboard_critical_panel(slim_cards, recent_alerts, limit=6),
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
             "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6, recent_alerts=recent_alerts),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
