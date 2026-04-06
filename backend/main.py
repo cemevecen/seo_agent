@@ -3457,12 +3457,24 @@ def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
     ic = float(c.get("impressions") or 0.0)
     ip = float(p.get("impressions") or 0.0)
     has = bool(cc or cp or tc or tp or npc or npp or ic or ip)
+    clicks_cur = _format_compact_number(cc) if cc else "—"
+    clicks_prev = _format_compact_number(cp) if cp else "—"
+    ctr_cur = f"{_format_max_two_decimals(tc)}%" if tc else "—"
+    ctr_prev = f"{_format_max_two_decimals(tp)}%" if tp else "—"
+    pos_cur = _format_max_two_decimals(npc) if npc else "—"
+    pos_prev = _format_max_two_decimals(npp) if npp else "—"
     return {
-        "clicks_label": _format_compact_number(cc) if cc else "—",
+        "clicks_label": clicks_cur,
+        "clicks_prev_label": clicks_prev,
+        "clicks_compare_line": f"{clicks_prev} → {clicks_cur}",
         "clicks_change": _ga4_period_pct_change(cc, cp),
-        "ctr_label": f"{_format_max_two_decimals(tc)}%" if tc else "—",
+        "ctr_label": ctr_cur,
+        "ctr_prev_label": ctr_prev,
+        "ctr_compare_line": f"{ctr_prev} → {ctr_cur}",
         "ctr_change": _ga4_period_pct_change(tc, tp),
-        "position_label": _format_max_two_decimals(npc) if npc else "—",
+        "position_label": pos_cur,
+        "position_prev_label": pos_prev,
+        "position_compare_line": f"{pos_prev} → {pos_cur}",
         "position_change": _ga4_period_pct_change(npp, npc),
         "has_data": has,
     }

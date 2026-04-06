@@ -207,34 +207,43 @@
         <span class="w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
       </div>
       <div class="grid grid-cols-3 gap-2 sm:gap-3">
-        <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
+        <div class="flex min-h-[5.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5.75rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Clicks</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.clicks_label }}</p>
+              <div data-sc-period-content="{{ pid }}" class="mt-1.5 {% if pid != '1' %}hidden{% endif %}">
+                <p class="text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ p.clicks_label }}</p>
+                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.clicks_compare_line }}</p>
+              </div>
             {% endfor %}
           {% else %}
             <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.clicks_label }}</p>
           {% endif %}
         </div>
-        <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
+        <div class="flex min-h-[5.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5.75rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">CTR</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.ctr_label }}</p>
+              <div data-sc-period-content="{{ pid }}" class="mt-1.5 {% if pid != '1' %}hidden{% endif %}">
+                <p class="text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ p.ctr_label }}</p>
+                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.ctr_compare_line }}</p>
+              </div>
             {% endfor %}
           {% else %}
             <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.ctr_label }}</p>
           {% endif %}
         </div>
-        <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
+        <div class="flex min-h-[5.25rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5.75rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Pos.</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
-              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.position_label }}</p>
+              <div data-sc-period-content="{{ pid }}" class="mt-1.5 {% if pid != '1' %}hidden{% endif %}">
+                <p class="text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ p.position_label }}</p>
+                <p class="compare-line mt-0.5 text-[9px] font-medium tabular-nums leading-snug text-slate-500 dark:text-slate-400 sm:text-[10px]" title="Önceki dönem → güncel">{{ p.position_compare_line }}</p>
+              </div>
             {% endfor %}
           {% else %}
             <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.position_label }}</p>
