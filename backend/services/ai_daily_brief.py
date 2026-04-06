@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import re
 import threading
-from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from html import escape
 from zoneinfo import ZoneInfo
@@ -394,112 +392,6 @@ def gather_ai_brief_context(db: Session) -> dict:
             }
             for a in recent_alerts[:30]
         ],
-    }
-
-
-def collect_ordered_domains_for_charts(db: Session, brief: AiDailyBriefReport | None) -> list[str]:
-    """Özet veya canlı site sırası (grafikler için)."""
-    if brief:
-        parsed = parse_stored_brief_section_for_ui(brief.ga4_text)
-        if parsed["mode"] == "sites" and parsed["items"]:
-            return [str(x.get("domain") or "").strip().lower() for x in parsed["items"] if x.get("domain")]
-    from backend.main import _preferred_site_order_key
-
-    sites = (
-        db.query(Site)
-        .filter(Site.is_active.is_(True))
-        .order_by(Site.created_at.desc())
-        .all()
-    )
-    sites = [s for s in sites if s.id not in _external_site_ids(db)]
-    sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-    return [s.domain.lower() for s in sites]
-
-
-def _chart_finite(x: object | None) -> float | None:
-    try:
-        v = float(x)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(v):
-        return None
-    return float(v)
-
-
-def build_ai_brief_charts_payload(db: Session, site: Site) -> dict:
-    """Plotly.newPlot için ham seriler (sayfa yükünde güncel metrik)."""
-    from backend.main import _summarize_search_console_rows
-
-    latest_list = get_latest_metrics(db, site.id)
-    latest_floats = {}
-    for m in latest_list:
-        fv = _chart_finite(m.value)
-        if fv is not None:
-            latest_floats[m.metric_type] = fv
-    mob = latest_floats.get("pagespeed_mobile_score")
-    desk = latest_floats.get("pagespeed_desktop_score")
-    hist = get_metric_history(db, site.id, days=40)
-    mob_hist = hist.get("pagespeed_mobile_score") or []
-    desk_hist = hist.get("pagespeed_desktop_score") or []
-    mob_trend = [p for p in _series_tail(mob_hist, max_points=14) if _chart_finite(p.get("deger")) is not None]
-    desk_trend = [p for p in _series_tail(desk_hist, max_points=14) if _chart_finite(p.get("deger")) is not None]
-    sc_batch = get_latest_search_console_rows_batch(
-        db, site_id=site.id, scopes=["current_day", "current_7d", "current_30d"]
-    )
-    s1 = _summarize_search_console_rows(sc_batch.get("current_day") or [])
-    s7 = _summarize_search_console_rows(sc_batch.get("current_7d") or [])
-    s30 = _summarize_search_console_rows(sc_batch.get("current_30d") or [])
-    rows7 = sc_batch.get("current_7d") or []
-    dev: dict[str, float] = defaultdict(float)
-    for r in rows7:
-        dev[str(r.get("device") or "—")] += float(r.get("clicks") or 0)
-    g7 = _chart_finite(latest_floats.get("ga4_web_sessions_last7d_total"))
-    g30 = _chart_finite(latest_floats.get("ga4_web_sessions_last30d_total"))
-    g1 = _chart_finite(latest_floats.get("ga4_web_sessions_last1d_total"))
-    ga4_labels: list[str] = []
-    ga4_vals: list[float] = []
-    if g1 is not None:
-        ga4_labels.append("1g")
-        ga4_vals.append(g1)
-    if g7 is not None:
-        ga4_labels.append("7g")
-        ga4_vals.append(g7)
-    if g30 is not None:
-        ga4_labels.append("30g")
-        ga4_vals.append(g30)
-    site_alerts = get_recent_alerts(db, limit=200, include_external=False, site_id_filter=site.id)
-    ac = Counter(str(a.get("alert_type") or "diger") for a in site_alerts)
-    alert_labels = list(ac.keys())[:12]
-    alert_vals = [float(ac[k]) for k in alert_labels]
-    return {
-        "domain": site.domain,
-        "pagespeed_bar": {
-            "labels": ["Mobil", "Masaüstü"],
-            "values": [mob if mob is not None else None, desk if desk is not None else None],
-        },
-        "pagespeed_trends": {"mobil": mob_trend, "masaustu": desk_trend},
-        "sc_clicks_bar": {
-            "labels": ["1 gün", "7 gün", "30 gün"],
-            "values": [
-                float(_chart_finite(s1.get("clicks")) or 0.0),
-                float(_chart_finite(s7.get("clicks")) or 0.0),
-                float(_chart_finite(s30.get("clicks")) or 0.0),
-            ],
-        },
-        "sc_impressions_bar": {
-            "labels": ["1 gün", "7 gün", "30 gün"],
-            "values": [
-                float(_chart_finite(s1.get("impressions")) or 0.0),
-                float(_chart_finite(s7.get("impressions")) or 0.0),
-                float(_chart_finite(s30.get("impressions")) or 0.0),
-            ],
-        },
-        "sc_device_pie": {
-            "labels": list(dev.keys()),
-            "values": [float(v) for v in dev.values()],
-        },
-        "ga4_sessions_bar": {"labels": ga4_labels, "values": ga4_vals} if ga4_vals else None,
-        "alerts_by_type_bar": {"labels": alert_labels, "values": alert_vals} if alert_labels else None,
     }
 
 

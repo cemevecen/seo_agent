@@ -6158,35 +6158,6 @@ def ga4_page(request: Request):
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
 
 
-def _build_ai_brief_charts_ordered(db, brief) -> list[dict]:
-    """AI özeti sayfası: site sırasına göre grafik yükü (Plotly)."""
-    from sqlalchemy import func as sqlfunc
-
-    from backend.services.ai_daily_brief import build_ai_brief_charts_payload, collect_ordered_domains_for_charts
-
-    ext = _external_site_ids(db)
-    rows: list[dict] = []
-    for dom_l in collect_ordered_domains_for_charts(db, brief):
-        site_row = (
-            db.query(Site)
-            .filter(sqlfunc.lower(Site.domain) == dom_l.lower())
-            .first()
-        )
-        if site_row is None:
-            site_row = db.query(Site).filter(Site.domain == dom_l).first()
-        if site_row is None or site_row.id in ext:
-            continue
-        spec = build_ai_brief_charts_payload(db, site_row)
-        rows.append(
-            {
-                "domain": site_row.domain,
-                "baslik": site_row.display_name,
-                "spec": spec,
-            }
-        )
-    return rows
-
-
 def _ai_brief_llm_availability() -> dict[str, bool]:
     return {
         "groq": bool((settings.groq_api_key or "").strip()),
@@ -6205,7 +6176,6 @@ def ai_daily_brief_page(request: Request):
             "sites": get_sidebar_sites(),
             "ai_brief": brief,
             "ai_brief_llm": _ai_brief_llm_availability(),
-            "ai_brief_charts": _build_ai_brief_charts_ordered(db, brief),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -6238,7 +6208,6 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("groq")):
                 "sites": get_sidebar_sites(),
                 "ai_brief": brief,
                 "ai_brief_llm": _ai_brief_llm_availability(),
-                "ai_brief_charts": _build_ai_brief_charts_ordered(db, brief),
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
     return RedirectResponse(url="/ai", status_code=303)
