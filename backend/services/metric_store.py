@@ -104,3 +104,21 @@ def get_metric_history(db: Session, site_id: int, days: int | None = None) -> di
             }
         )
     return dict(grouped)
+
+
+def get_metric_latest_pair(db: Session, site_id: int, metric_type: str) -> tuple[float | None, float | None]:
+    """Aynı metrik için (bir önceki ölçüm, son ölçüm). Yalnızca bir kayıt varsa (None, son)."""
+    rows = (
+        db.query(Metric)
+        .filter(Metric.site_id == site_id, Metric.metric_type == metric_type)
+        .order_by(Metric.collected_at.desc(), Metric.id.desc())
+        .limit(2)
+        .all()
+    )
+    if not rows:
+        return None, None
+    newest = float(rows[0].value)
+    if len(rows) < 2:
+        return None, newest
+    older = float(rows[1].value)
+    return older, newest

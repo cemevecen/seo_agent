@@ -60,7 +60,7 @@ from backend.models import (
 )
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
-from backend.services.metric_store import get_latest_metrics, get_metric_history
+from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_latest_pair
 from backend.services.quota_guard import get_quota_status
 from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
@@ -3585,6 +3585,18 @@ def _build_dashboard_card(
         },
     }
     has_compare_data = bool(pc1["has_data"] or pc7["has_data"] or pc30["has_data"])
+    pm_prev, _pm_last = get_metric_latest_pair(db, site.id, "pagespeed_mobile_score")
+    pd_prev, _pd_last = get_metric_latest_pair(db, site.id, "pagespeed_desktop_score")
+    pagespeed_mobile_change = (
+        _ga4_period_pct_change(float(mobile_pagespeed_score), float(pm_prev))
+        if mobile_pagespeed_score is not None and pm_prev is not None
+        else None
+    )
+    pagespeed_desktop_change = (
+        _ga4_period_pct_change(float(desktop_pagespeed_score), float(pd_prev))
+        if desktop_pagespeed_score is not None and pd_prev is not None
+        else None
+    )
     return {
         "id": site.id,
         "display_name": site.display_name,
@@ -3601,6 +3613,8 @@ def _build_dashboard_card(
         "pagespeed_desktop_color": _score_color(desktop_pagespeed_score)
         if desktop_pagespeed_score is not None
         else "text-slate-400 dark:text-slate-500",
+        "pagespeed_mobile_change": pagespeed_mobile_change,
+        "pagespeed_desktop_change": pagespeed_desktop_change,
         "crawler_ok": crawler_ok,
         "crawler_label": crawler_label,
         "crawler_detail": crawler_detail,
