@@ -388,15 +388,26 @@ text-slate-500 dark:text-slate-400
         {% if report.sections %}
         <div class="mt-5 space-y-4">
           {% for category in report.sections %}
-          <details class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-            <summary class="cursor-pointer list-none">
+          <details class="group rounded-2xl border border-slate-200 bg-white p-4 open:border-sky-300 open:shadow-[0_0_0_3px_rgba(14,165,233,0.12)] dark:border-slate-700 dark:bg-slate-900 dark:open:border-sky-600/80 dark:open:shadow-[0_0_0_3px_rgba(56,189,248,0.12)]">
+            <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
               <div class="flex items-center justify-between gap-3">
-                <div>
+                <div class="min-w-0">
                   <p class="font-semibold text-slate-900 dark:text-slate-100">{{ category.label }}</p>
                   <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ category.items_count }} madde</p>
                 </div>
-                <span class="text-slate-400">Aç / Kapat</span>
+                <span
+                  class="inline-flex shrink-0 items-center gap-2 rounded-full border-2 border-slate-300 bg-gradient-to-b from-white to-slate-100 py-1 pl-3 pr-1 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-md ring-1 ring-slate-200/90 dark:border-slate-500 dark:from-slate-700 dark:to-slate-800 dark:text-slate-100 dark:ring-slate-600/80 dark:shadow-black/30"
+                  aria-hidden="true"
+                >
+                  <span class="hidden sm:inline">Detay</span>
+                  <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow-inner dark:bg-sky-600 dark:shadow-sky-900/40">
+                    <svg class="h-5 w-5 transition-transform duration-200 ease-out group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </span>
               </div>
+              <span class="sr-only">Bu bölümü aç veya kapat</span>
             </summary>
             <div class="mt-4 space-y-4">
               {% for section in category.sections %}
