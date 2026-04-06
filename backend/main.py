@@ -21,10 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import BackgroundTasks, FastAPI, Request, UploadFile, File
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
+from fastapi.responses import PlainTextResponse
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -279,6 +280,15 @@ jinja_env.filters["ga4_iso_ddmmyy"] = _filter_ga4_iso_ddmmyy
 jinja_env.filters["ga4_iso_ddmmyyyy"] = _filter_ga4_iso_ddmmyyyy
 jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
+
+
+def _ai_brief_sites_filter(value: str | None) -> dict:
+    from backend.services.ai_daily_brief import parse_stored_brief_section_for_ui
+
+    return parse_stored_brief_section_for_ui(value)
+
+
+jinja_env.filters["ai_brief_sites"] = _ai_brief_sites_filter
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
@@ -1792,6 +1802,15 @@ def _run_scheduled_refresh_monitor_job() -> None:
         LOGGER.warning("Scheduled refresh monitor sent operations email: %s", subject)
 
 
+def _run_ai_daily_brief_scheduled() -> None:
+    try:
+        from backend.services.ai_daily_brief import run_ai_daily_brief_job
+
+        run_ai_daily_brief_job()
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Scheduled AI daily brief job failed.")
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -1859,6 +1878,27 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                 timezone=timezone,
             ),
             id="daily-ga4-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.ai_daily_brief_enabled:
+        try:
+            ai_tz = ZoneInfo(settings.ai_daily_brief_timezone)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Invalid ai_daily_brief_timezone %s: %s", settings.ai_daily_brief_timezone, exc)
+            ai_tz = ZoneInfo("Europe/Istanbul")
+        scheduler.add_job(
+            _run_ai_daily_brief_scheduled,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.ai_daily_brief_hour))),
+                minute=max(0, min(59, int(settings.ai_daily_brief_minute))),
+                timezone=ai_tz,
+            ),
+            id="daily-ai-brief",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -6017,6 +6057,83 @@ def ga4_page(request: Request):
         "sites": get_sidebar_sites(),
     }
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
+
+
+def _build_ai_brief_charts_map(db, brief) -> dict[str, dict]:
+    from sqlalchemy import func as sqlfunc
+
+    from backend.services.ai_daily_brief import build_ai_brief_charts_payload, collect_ordered_domains_for_charts
+
+    ext = _external_site_ids(db)
+    chart_map: dict[str, dict] = {}
+    for dom_l in collect_ordered_domains_for_charts(db, brief):
+        site_row = (
+            db.query(Site)
+            .filter(sqlfunc.lower(Site.domain) == dom_l.lower())
+            .first()
+        )
+        if site_row is None:
+            site_row = db.query(Site).filter(Site.domain == dom_l).first()
+        if site_row is not None and site_row.id not in ext:
+            chart_map[site_row.domain] = build_ai_brief_charts_payload(db, site_row)
+    return chart_map
+
+
+def _ai_brief_llm_availability() -> dict[str, bool]:
+    return {
+        "groq": bool((settings.groq_api_key or "").strip()),
+        "gemini": bool((settings.gemini_api_key or "").strip()),
+    }
+
+
+@app.get("/ai")
+def ai_daily_brief_page(request: Request):
+    from backend.services.ai_daily_brief import get_latest_brief_for_ui
+
+    with SessionLocal() as db:
+        brief = get_latest_brief_for_ui(db)
+        payload = {
+            "site_name": "AI",
+            "sites": get_sidebar_sites(),
+            "ai_brief": brief,
+            "ai_brief_charts": _build_ai_brief_charts_map(db, brief),
+            "ai_brief_llm": _ai_brief_llm_availability(),
+        }
+    template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
+    return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
+
+
+@app.post("/ai/generate")
+def ai_daily_brief_generate(request: Request, llm_provider: str = Form("groq")):
+    """Operasyon: aynı gün özeti yeniden üretilir ve operasyon alıcılarına e-posta gider (Groq veya Gemini; yalnızca bu akış LLM kullanır)."""
+
+    from backend.services.ai_daily_brief import get_latest_brief_for_ui, run_ai_daily_brief_job
+
+    raw = (llm_provider or "groq").strip().lower()
+    pov = raw if raw in ("groq", "gemini") else "groq"
+    avail = _ai_brief_llm_availability()
+    if not avail.get(pov):
+        msg = (
+            "Groq API anahtarı yapılandırılmadı."
+            if pov == "groq"
+            else "Gemini API anahtarı yapılandırılmadı."
+        )
+        return PlainTextResponse(msg, status_code=400)
+
+    run_ai_daily_brief_job(force=True, provider_override=pov)
+    if request.headers.get("HX-Request") == "true":
+        with SessionLocal() as db:
+            brief = get_latest_brief_for_ui(db)
+            ctx = {
+                "request": request,
+                "site_name": "AI",
+                "sites": get_sidebar_sites(),
+                "ai_brief": brief,
+                "ai_brief_charts": _build_ai_brief_charts_map(db, brief),
+                "ai_brief_llm": _ai_brief_llm_availability(),
+            }
+        return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
+    return RedirectResponse(url="/ai", status_code=303)
 
 
 @app.get("/ga4/site-list")

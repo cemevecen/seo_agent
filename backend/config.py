@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     database_url: str
     secret_key: str
     smtp_password: str
-    gemini_api_key: str
+    # İsteğe bağlı: yalnızca günlük AI özetinde (Gemini sağlayıcı seçilirse) kullanılır — uygulama başı zorunlu değil.
+    gemini_api_key: str = ""
+    # İsteğe bağlı: günlük AI özetinde Groq sağlayıcı seçilirse kullanılır. Başka modüller bu anahtarı kullanmaz.
+    groq_api_key: str = ""
     encryption_key: str
 
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
@@ -101,6 +104,20 @@ class Settings(BaseSettings):
     ga4_scheduled_refresh_minute: int = 30
     ga4_scheduled_refresh_site_spacing_seconds: int = 15
 
+    # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar) — Türkiye saati
+    ai_daily_brief_enabled: bool = True
+    ai_daily_brief_hour: int = 6
+    ai_daily_brief_minute: int = 15
+    ai_daily_brief_timezone: str = "Europe/Istanbul"
+    ai_daily_brief_gemini_model: str = "gemini-2.0-flash"
+    # auto: önce Groq anahtarı varsa Groq, yoksa Gemini; kota dostu sıra.
+    ai_daily_brief_provider: str = "auto"
+    ai_daily_brief_groq_model: str = "llama-3.3-70b-versatile"
+    # true: üretim + Türkçe tek istekte (günde en fazla yarı yarıya daha az LLM çağrısı).
+    ai_daily_brief_single_llm_call: bool = True
+    # Takvim tutamağı: Europe/Istanbul günü başına toplam LLM HTTP çağrısı üst sınırı (tek-istek modunda 1 üretim ≈ 1 çağrı).
+    ai_daily_brief_max_llm_calls_per_calendar_day: int = 4
+
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"
     live_refresh_timeout: int = 8
@@ -122,7 +139,6 @@ class Settings(BaseSettings):
             "DATABASE_URL": self.database_url,
             "SECRET_KEY": self.secret_key,
             "SMTP_PASSWORD": self.smtp_password,
-            "GEMINI_API_KEY": self.gemini_api_key,
             "ENCRYPTION_KEY": self.encryption_key,
         }
         missing = [key for key, value in required_fields.items() if not value or not value.strip()]

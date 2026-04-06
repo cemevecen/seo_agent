@@ -415,3 +415,21 @@ class NotificationDeliveryLog(Base):
     subject: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     recipient: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class AiDailyBriefReport(Base):
+    """Günlük AI strateji özeti (sabah job); arayüz ve e-posta kaynağı."""
+
+    __tablename__ = "ai_daily_brief_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brief_date: Mapped[str] = mapped_column(String(10), nullable=False, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    ga4_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    pagespeed_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    search_console_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    alerts_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    turkish_qc_ok: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    qc_detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    model_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")

@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/ai_content.html" %}
+<script>
+(function () {
+  function readAiBriefChartsFromDom() {
+    var el = document.getElementById("ai-brief-charts-json");
+    if (!el) {
+      return {};
+    }
+    try {
+      return JSON.parse(el.textContent || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function resolveChartPayload(map, domain) {
+    if (!map || !domain) {
+      return null;
+    }
+    var d = String(domain).toLowerCase();
+    var keys = Object.keys(map);
+    for (var i = 0; i < keys.length; i++) {
+      if (String(keys[i]).toLowerCase() === d) {
+        return map[keys[i]];
+      }
+    }
+    return null;
+  }
+
+  function plotlyBaseLayout(title) {
+    var dark = document.documentElement.classList.contains("dark");
+    return {
+      title: { text: title, font: { size: 11, color: dark ? "#cbd5e1" : "#475569" } },
+      margin: { l: 36, r: 12, t: 32, b: 36 },
+      paper_bgcolor: "transparent",
+      plot_bgcolor: "transparent",
+      font: { color: dark ? "#e2e8f0" : "#1e293b", size: 10 },
+      showlegend: false,
+      xaxis: { tickangle: -25, automargin: true },
+      yaxis: { automargin: true },
+    };
+  }
+
+  function renderAiBriefCharts(map) {
+    if (typeof Plotly === "undefined") {
+      return;
+    }
+    var root = document.getElementById("ai-brief-view");
+    if (!root) {
+      return;
+    }
+    root.querySelectorAll("[data-ai-brief-plot]").forEach(function (el) {
+      try {
+        Plotly.purge(el);
+      } catch (e) {}
+      el.innerHTML = "";
+    });
+    var barColor = document.documentElement.classList.contains("dark") ? "#38bdf8" : "#0284c7";
+    var pieColors = ["#0ea5e9", "#6366f1", "#22c55e", "#f59e0b", "#94a3b8"];
+
+    root.querySelectorAll("[data-ai-brief-plot]").forEach(function (el) {
+      var domain = el.getAttribute("data-domain") || "";
+      var kind = el.getAttribute("data-plot") || "";
+      var payload = resolveChartPayload(map, domain);
+      if (!payload) {
+        return;
+      }
+      var traces = [];
+      var layout = plotlyBaseLayout("");
+      if (kind === "pagespeed") {
+        var pb = payload.pagespeed_bar || {};
+        var labels = pb.labels || [];
+        var vals = (pb.values || []).map(function (v) {
+          return v == null ? null : Number(v);
+        });
+        if (vals.every(function (v) {
+          return v == null || isNaN(v);
+        })) {
+          return;
+        }
+        traces = [
+          {
+            type: "bar",
+            x: labels,
+            y: vals,
+            marker: { color: barColor },
+            text: vals.map(function (v) {
+              return v == null ? "" : String(Math.round(v));
+            }),
+            textposition: "outside",
+          },
+        ];
+        layout.title.text = "PageSpeed skoru";
+      } else if (kind === "sc_clicks") {
+        var sb = payload.sc_clicks_bar || {};
+        traces = [
+          {
+            type: "bar",
+            x: sb.labels || [],
+            y: (sb.values || []).map(Number),
+            marker: { color: "#6366f1" },
+          },
+        ];
+        layout.title.text = "SC tıklama (1 / 7 / 30 gün)";
+      } else if (kind === "sc_device") {
+        var pie = payload.sc_device_pie || {};
+        var pl = pie.labels || [];
+        var pv = pie.values || [];
+        if (!pl.length || pv.every(function (x) {
+          return !Number(x);
+        })) {
+          return;
+        }
+        traces = [
+          {
+            type: "pie",
+            labels: pl,
+            values: pv.map(Number),
+            hole: 0.35,
+            marker: { colors: pieColors },
+            textinfo: "percent+label",
+            textposition: "auto",
+          },
+        ];
+        layout.title.text = "SC cihaz (7g tıklama payı)";
+        layout.showlegend = true;
+        layout.legend = { orientation: "h", font: { size: 9 } };
+      } else if (kind === "ga4_sessions") {
+        var gb = payload.ga4_sessions_bar;
+        if (!gb || !(gb.values || []).length) {
+          return;
+        }
+        traces = [
+          {
+            type: "bar",
+            x: gb.labels || [],
+            y: gb.values.map(Number),
+            marker: { color: "#22c55e" },
+          },
+        ];
+        layout.title.text = "GA4 web oturumları (1/7/30g)";
+      } else if (kind === "alerts_bar") {
+        var ab = payload.alerts_by_type_bar;
+        if (!ab || !(ab.labels || []).length) {
+          return;
+        }
+        traces = [
+          {
+            type: "bar",
+            x: ab.labels || [],
+            y: (ab.values || []).map(Number),
+            marker: { color: "#f97316" },
+          },
+        ];
+        layout.title.text = "Uyarı tipleri (son kayıtlar)";
+        layout.xaxis.tickangle = -35;
+      }
+      if (!traces.length) {
+        return;
+      }
+      Plotly.newPlot(el, traces, layout, { displayModeBar: false, responsive: true });
+    });
+  }
+
+  function applyAiBriefLayout(mode) {
+    var shell = document.getElementById("ai-brief-layout-root");
+    if (!shell) {
+      return;
+    }
+    var m = mode === "stack" ? "stack" : "split";
+    shell.classList.remove("ai-brief-layout-split", "ai-brief-layout-stack");
+    shell.classList.add(m === "split" ? "ai-brief-layout-split" : "ai-brief-layout-stack");
+    try {
+      localStorage.setItem("seo-ai-brief-layout", m);
+    } catch (e) {}
+    document.querySelectorAll(".ai-brief-layout-btn").forEach(function (b) {
+      var on = b.getAttribute("data-ai-brief-layout") === m;
+      b.classList.toggle("bg-slate-900", on);
+      b.classList.toggle("text-white", on);
+      b.classList.toggle("dark:bg-sky-600", on);
+      b.classList.toggle("shadow-sm", on);
+    });
+  }
+
+  function aiBriefLlmAvailability() {
+    var root = document.getElementById("ai-brief-view");
+    if (!root) {
+      return { groq: false, gemini: false };
+    }
+    return {
+      groq: root.getAttribute("data-groq-available") === "1",
+      gemini: root.getAttribute("data-gemini-available") === "1",
+    };
+  }
+
+  function applyAiBriefLlm(which) {
+    var root = document.getElementById("ai-brief-view");
+    var hid = document.getElementById("ai-brief-llm-value");
+    if (!root || !hid) {
+      return;
+    }
+    var av = aiBriefLlmAvailability();
+    var w = which === "gemini" ? "gemini" : "groq";
+    if (w === "groq" && !av.groq) {
+      w = av.gemini ? "gemini" : "groq";
+    }
+    if (w === "gemini" && !av.gemini) {
+      w = av.groq ? "groq" : "gemini";
+    }
+    hid.value = w;
+    try {
+      localStorage.setItem("seo-ai-llm-provider", w);
+    } catch (e) {}
+    root.querySelectorAll(".ai-brief-llm-btn").forEach(function (b) {
+      var on = b.getAttribute("data-ai-brief-llm") === w;
+      b.classList.toggle("bg-slate-900", on);
+      b.classList.toggle("text-white", on);
+      b.classList.toggle("dark:bg-sky-600", on);
+      b.classList.toggle("shadow-sm", on);
+    });
+  }
+
+  function bootAiBriefPage() {
+    renderAiBriefCharts(readAiBriefChartsFromDom());
+    var saved = "split";
+    try {
+      saved = localStorage.getItem("seo-ai-brief-layout") || "split";
+    } catch (e) {}
+    applyAiBriefLayout(saved);
+
+    var av = aiBriefLlmAvailability();
+    try {
+      var s = localStorage.getItem("seo-ai-llm-provider");
+      if (s === "gemini" && av.gemini) {
+        applyAiBriefLlm("gemini");
+      } else if (s === "groq" && av.groq) {
+        applyAiBriefLlm("groq");
+      } else {
+        applyAiBriefLlm(av.groq ? "groq" : "gemini");
+      }
+    } catch (e2) {
+      applyAiBriefLlm(av.groq ? "groq" : "gemini");
+    }
+  }
+
+  window.bootAiBriefPage = bootAiBriefPage;
+
+  if (!window.__seoAiBriefLayoutClickBound) {
+    window.__seoAiBriefLayoutClickBound = true;
+    document.body.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-ai-brief-layout]");
+      if (!btn || !document.getElementById("ai-brief-view")) {
+        return;
+      }
+      ev.preventDefault();
+      applyAiBriefLayout(btn.getAttribute("data-ai-brief-layout"));
+    });
+  }
+
+  if (!window.__seoAiBriefLlmClickBound) {
+    window.__seoAiBriefLlmClickBound = true;
+    document.body.addEventListener("click", function (ev) {
+      var lbtn = ev.target.closest("[data-ai-brief-llm]");
+      if (!lbtn || !document.getElementById("ai-brief-view") || lbtn.disabled) {
+        return;
+      }
+      ev.preventDefault();
+      applyAiBriefLlm(lbtn.getAttribute("data-ai-brief-llm"));
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootAiBriefPage);
+  } else {
+    bootAiBriefPage();
+  }
+
+  if (!window.__seoAiBriefSubmitBound) {
+    window.__seoAiBriefSubmitBound = true;
+    document.body.addEventListener("submit", function (ev) {
+      var form = ev.target;
+      if (!form || form.id !== "ai-brief-generate-form") {
+        return;
+      }
+      ev.preventDefault();
+      if (form.getAttribute("data-ai-brief-busy") === "1") {
+        return;
+      }
+
+      var view = document.getElementById("ai-brief-view");
+      var wrap = document.getElementById("ai-brief-progress");
+      var fill = document.getElementById("ai-brief-progress-fill");
+      var pctEl = document.getElementById("ai-brief-progress-pct");
+      var track = document.getElementById("ai-brief-progress-track");
+      var btn = form.querySelector("button[type='submit']");
+
+      form.setAttribute("data-ai-brief-busy", "1");
+      if (btn) {
+        btn.disabled = true;
+      }
+      if (wrap) {
+        wrap.classList.remove("hidden");
+      }
+      if (fill) {
+        fill.style.width = "0%";
+      }
+      if (pctEl) {
+        pctEl.textContent = "0%";
+      }
+      if (track) {
+        track.setAttribute("aria-valuenow", "0");
+      }
+
+      var start = Date.now();
+      var tick = window.setInterval(function () {
+        var elapsed = (Date.now() - start) / 1000;
+        var asymptotic = 92 * (1 - Math.exp(-elapsed / 28));
+        var p = Math.max(0, Math.min(100, Math.round(asymptotic)));
+        if (fill) {
+          fill.style.width = p + "%";
+        }
+        if (pctEl) {
+          pctEl.textContent = p + "%";
+        }
+        if (track) {
+          track.setAttribute("aria-valuenow", String(p));
+        }
+      }, 200);
+
+      var url = form.getAttribute("action") || "/ai/generate";
+      var fd = new FormData(form);
+      fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+        headers: {
+          "HX-Request": "true",
+          Accept: "text/html",
+        },
+      })
+        .then(function (res) {
+          return res.text().then(function (html) {
+            return { ok: res.ok, html: html };
+          });
+        })
+        .then(function (result) {
+          window.clearInterval(tick);
+          if (!result.ok) {
+            if (wrap) {
+              wrap.classList.add("hidden");
+            }
+            if (fill) {
+              fill.style.width = "0%";
+            }
+            if (pctEl) {
+              pctEl.textContent = "0%";
+            }
+            if (track) {
+              track.setAttribute("aria-valuenow", "0");
+            }
+            if (btn) {
+              btn.disabled = false;
+            }
+            form.removeAttribute("data-ai-brief-busy");
+            window.alert((result.html || "").trim() || "İstek başarısız oldu.");
+            return;
+          }
+          if (fill) {
+            fill.style.width = "100%";
+          }
+          if (pctEl) {
+            pctEl.textContent = "100%";
+          }
+          if (track) {
+            track.setAttribute("aria-valuenow", "100");
+          }
+          if (view && result.html) {
+            var tpl = document.createElement("template");
+            tpl.innerHTML = result.html.trim();
+            var incoming = tpl.content.querySelector("#ai-brief-view");
+            if (incoming && view.parentNode) {
+              window.setTimeout(function () {
+                view.parentNode.replaceChild(incoming, view);
+                window.bootAiBriefPage();
+              }, 180);
+              return;
+            }
+          }
+          window.location.assign("/ai");
+        })
+        .catch(function () {
+          window.clearInterval(tick);
+          if (wrap) {
+            wrap.classList.add("hidden");
+          }
+          if (btn) {
+            btn.disabled = false;
+          }
+          form.removeAttribute("data-ai-brief-busy");
+        });
+    });
+  }
+})();
+</script>
+{% endblock %}
