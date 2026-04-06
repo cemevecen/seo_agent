@@ -187,28 +187,28 @@ text-slate-500 dark:text-slate-400
 {% set badge_class = 'bg-sky-100 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-900/45' %}
 {% set problem_tr_class = 'text-sky-700 dark:text-sky-400' %}
 {% endif %}
-<div class="rounded-2xl border p-4 {{ shell_class }}">
-  <div class="flex items-start justify-between gap-3">
-    <div>
-      <p class="font-semibold text-slate-900 dark:text-slate-100">{{ (item.title_en or item.title)|e }}</p>
+<div class="rounded-xl border p-2.5 sm:p-3 {{ shell_class }}">
+  <div class="flex items-start justify-between gap-2">
+    <div class="min-w-0">
+      <p class="text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200 sm:text-[0.8125rem]">{{ (item.title_en or item.title)|e }}</p>
       {% if item.title_tr %}
-      <p class="mt-1 text-sm font-medium {{ title_class }}">{{ item.title_tr|e }}</p>
+      <p class="mt-1 text-[11px] font-medium leading-snug sm:text-xs {{ title_class }}">{{ item.title_tr|e }}</p>
       {% endif %}
     </div>
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center gap-1.5">
       {% if item.state_label_tr %}
-      <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold {{ badge_class }}">{{ item.state_label_tr|e }}</span>
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-[11px] {{ badge_class }}">{{ item.state_label_tr|e }}</span>
       {% endif %}
       {% if item.display_value %}
-      <span class="rounded-full bg-white/90 dark:bg-slate-800/90 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700">{{ item.display_value|e }}</span>
+      <span class="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200/90 dark:bg-slate-800/90 dark:text-slate-200 dark:ring-slate-600 sm:px-2.5 sm:text-xs">{{ item.display_value|e }}</span>
       {% endif %}
     </div>
   </div>
   {% if item.problem_en or item.problem %}
-  <p class="mt-3 text-sm text-slate-700 dark:text-slate-200">{{ (item.problem_en or item.problem)|e }}</p>
+  <p class="mt-2 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 sm:text-xs">{{ (item.problem_en or item.problem)|e }}</p>
   {% endif %}
   {% if item.problem_tr %}
-  <p class="mt-2 text-sm font-medium {{ problem_tr_class }}">{{ item.problem_tr|e }}</p>
+  <p class="mt-1.5 text-[11px] font-medium leading-relaxed sm:text-xs {{ problem_tr_class }}">{{ item.problem_tr|e }}</p>
   {% endif %}
 </div>
 {% endmacro %}
@@ -386,22 +386,22 @@ text-slate-500 dark:text-slate-400
         </div>
 
         {% if report.sections %}
-        <div class="mt-5 space-y-4">
+        <div class="mt-3.5 space-y-2.5">
           {% for category in report.sections %}
-          <details class="group rounded-2xl border border-slate-200 bg-white p-4 open:border-sky-300 open:shadow-[0_0_0_3px_rgba(14,165,233,0.12)] dark:border-slate-700 dark:bg-slate-900 dark:open:border-sky-600/80 dark:open:shadow-[0_0_0_3px_rgba(56,189,248,0.12)]">
+          <details class="group rounded-xl border border-sky-100/90 bg-white/95 p-2.5 shadow-sm open:border-sky-300/90 open:shadow-[0_0_0_2px_rgba(14,165,233,0.14)] dark:border-slate-700 dark:bg-slate-900/90 dark:open:border-sky-500/50 dark:open:shadow-[0_0_0_2px_rgba(56,189,248,0.14)]">
             <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-              <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="font-semibold text-slate-900 dark:text-slate-100">{{ category.label }}</p>
-                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ category.items_count }} madde</p>
+              <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0 pr-1">
+                  <p class="text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200 sm:text-[0.8125rem]">{{ category.label }}</p>
+                  <p class="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400 sm:text-xs">{{ category.items_count }} madde</p>
                 </div>
                 <span
-                  class="inline-flex shrink-0 items-center gap-2 rounded-full border-2 border-slate-300 bg-gradient-to-b from-white to-slate-100 py-1 pl-3 pr-1 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-md ring-1 ring-slate-200/90 dark:border-slate-500 dark:from-slate-700 dark:to-slate-800 dark:text-slate-100 dark:ring-slate-600/80 dark:shadow-black/30"
+                  class="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-200/90 bg-gradient-to-b from-sky-50/90 to-white py-0.5 pl-2 pr-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800 shadow-sm ring-1 ring-sky-100/80 dark:border-sky-700/50 dark:from-slate-800 dark:to-slate-800/90 dark:text-sky-200 dark:ring-sky-900/30"
                   aria-hidden="true"
                 >
                   <span class="hidden sm:inline">Detay</span>
-                  <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow-inner dark:bg-sky-600 dark:shadow-sky-900/40">
-                    <svg class="h-5 w-5 transition-transform duration-200 ease-out group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                  <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-600 text-white shadow-sm ring-1 ring-sky-500/40 dark:bg-sky-500 dark:ring-sky-400/30">
+                    <svg class="h-3.5 w-3.5 transition-transform duration-200 ease-out group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </span>
@@ -409,20 +409,20 @@ text-slate-500 dark:text-slate-400
               </div>
               <span class="sr-only">Bu bölümü aç veya kapat</span>
             </summary>
-            <div class="mt-4 space-y-4">
+            <div class="mt-2.5 space-y-2.5">
               {% for section in category.sections %}
-              <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
-                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ section.title_en|e }}</p>
+              <div class="rounded-xl border border-slate-200/90 bg-slate-50/90 p-2.5 dark:border-slate-600/80 dark:bg-slate-800/40">
+                <p class="text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200 sm:text-sm">{{ section.title_en|e }}</p>
                 {% if section.title_tr %}
-                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ section.title_tr|e }}</p>
+                <p class="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300 sm:text-xs">{{ section.title_tr|e }}</p>
                 {% endif %}
                 {% if section.description_en %}
-                <p class="mt-2 text-sm text-slate-700 dark:text-slate-200">{{ section.description_en|e }}</p>
+                <p class="mt-1.5 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 sm:text-xs">{{ section.description_en|e }}</p>
                 {% endif %}
                 {% if section.description_tr %}
-                <p class="mt-1 text-sm text-slate-700 dark:text-slate-200">{{ section.description_tr|e }}</p>
+                <p class="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 sm:text-xs">{{ section.description_tr|e }}</p>
                 {% endif %}
-                <div class="mt-4 space-y-3">
+                <div class="mt-2.5 space-y-2">
                   {% for item in section['items'] %}
                   {{ pagespeed_audit_item(item) }}
                   {% endfor %}
