@@ -16,7 +16,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -973,8 +973,40 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
         d = by_day[dk]
         models_list = sorted(d["models"].values(), key=lambda x: (-x["count"], x["model"]))
         days_out.append({"day_key": dk, "total": d["total"], "models": models_list})
+
+    manual_case = case((AiBriefRunLog.source == "manual", 1), else_=0)
+    model_totals_rows = (
+        db.query(
+            AiBriefRunLog.model_name,
+            func.count(AiBriefRunLog.id).label("cnt"),
+            func.sum(manual_case).label("manual_n"),
+        )
+        .group_by(AiBriefRunLog.model_name)
+        .all()
+    )
+    models_all_time: list[dict[str, Any]] = []
+    for mn_row, cnt, manual_n in model_totals_rows:
+        mn = (mn_row or "").strip() or "—"
+        c = int(cnt or 0)
+        m = int(manual_n or 0)
+        s = max(0, c - m)
+        models_all_time.append({"model": mn, "count": c, "scheduled": s, "manual": m})
+    models_all_time.sort(key=lambda x: (-x["count"], x["model"]))
+
+    spent_try = 0.0
+    budget_try = float(getattr(settings, "llm_spend_budget_try", 0.0) or 0.0)
+    try:
+        from backend.services.llm_spend import current_month_spent_try
+
+        spent_try = float(current_month_spent_try(db))
+    except Exception:  # noqa: BLE001
+        pass
+
     return {
         "total_all": total_all,
         "days": days_out,
         "window_days": int(window_days),
+        "models_all_time": models_all_time,
+        "llm_spent_try_approx_month": round(spent_try, 4),
+        "llm_budget_try": budget_try,
     }

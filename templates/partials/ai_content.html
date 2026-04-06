@@ -109,10 +109,39 @@
       <h3 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Analiz geçmişi</h3>
       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Toplam <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ st.total_all }}</span> kayıtlı çalıştırma.
-        Aşağıda son <span class="tabular-nums">{{ st.window_days }}</span> gün (İstanbul tarihi); satır başına o günkü toplam adet ve kullanılan modeller.
+        Aşağıda model bazında tüm zamanlar özeti, ardından son <span class="tabular-nums">{{ st.window_days }}</span> günlük kırılım (İstanbul tarihi).
       </p>
     </div>
     <div class="px-5 py-4">
+      {% if st.models_all_time %}
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Model — toplam kullanım</p>
+        <ul class="mb-6 space-y-1.5 text-[13px] text-slate-800 dark:text-slate-100">
+          {% for m in st.models_all_time %}
+            <li class="flex flex-wrap items-baseline gap-x-2 border-b border-slate-50 pb-1.5 last:border-b-0 dark:border-slate-800/80">
+              <span class="min-w-0 flex-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">{{ m.model|e }}</span>
+              <span class="shrink-0 tabular-nums font-semibold text-slate-900 dark:text-white">{{ m.count }} analiz</span>
+              <span class="w-full text-[11px] text-slate-500 dark:text-slate-400">
+                zamanlı {{ m.scheduled }} · manuel {{ m.manual }}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="mb-6 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2.5 text-[11px] leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+        <p class="font-semibold text-amber-900 dark:text-amber-200">Tahmini iç kullanım (para değil, fatura değil)</p>
+        <p class="mt-1 text-amber-900/90 dark:text-amber-100/90">
+          Bu ay (İstanbul) uygulamanın token birim fiyatlarıyla hesapladığı yaklaşık tutar:
+          <span class="font-mono font-semibold tabular-nums">{{ st.llm_spent_try_approx_month | round(4) }}</span> TRY
+          {% if st.llm_budget_try and st.llm_budget_try > 0 %}
+            — tavan <span class="font-mono tabular-nums">{{ st.llm_budget_try | round(2) }}</span> TRY (aşılırsa yeni çağrılar önceden engellenir).
+          {% else %}
+            — <span class="italic">LLM_SPEND_BUDGET_TRY=0</span> ise yalnızca günlük çağrı kotası uygulanır.
+          {% endif %}
+          Gerçek Google veya Groq faturanız bu sayı olmayabilir; ücretsiz katmandaysanız çoğu zaman fatura da oluşmaz.
+        </p>
+      </div>
+
       {% if st.days %}
         <ul class="space-y-4 text-[13px] leading-snug text-slate-800 dark:text-slate-100">
           {% for d in st.days %}
