@@ -484,6 +484,14 @@ def _preferred_site_order_key(domain: str | None, display_name: str | None = Non
     )
 
 
+def _dashboard_spotlight_card_limit(domain: str | None) -> int:
+    """Öne çıkan sorgu kartı sayısı: döviz daha kompakt; sinemalar vb. tam liste."""
+    d = str(domain or "").strip().lower()
+    if d in ("doviz.com", "www.doviz.com"):
+        return 20
+    return 24
+
+
 def get_sidebar_sites() -> list[dict]:
     # Sidebar için aktif siteler veritabanından okunur.
     with SessionLocal() as db:
@@ -3899,7 +3907,9 @@ def _build_dashboard_card(
     ga4_layout = _dashboard_ga4_layout(
         db, site, platform_norm, latest_ga4_floats, ga4_conn, period_days=period_days
     )
-    spotlight_queries_all = _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=24)
+    spotlight_queries_all = _dashboard_spotlight_queries(
+        device_top_queries, recent_site_alerts[:3], limit=_dashboard_spotlight_card_limit(site.domain)
+    )
     spotlight_split = (len(spotlight_queries_all) + 1) // 2
     return {
         "id": site.id,
