@@ -3899,7 +3899,7 @@ def _build_dashboard_card(
     ga4_layout = _dashboard_ga4_layout(
         db, site, platform_norm, latest_ga4_floats, ga4_conn, period_days=period_days
     )
-    spotlight_queries_all = _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=20)
+    spotlight_queries_all = _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=24)
     spotlight_split = (len(spotlight_queries_all) + 1) // 2
     return {
         "id": site.id,
