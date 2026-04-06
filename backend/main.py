@@ -1846,10 +1846,10 @@ def _metric_map(site_id: int) -> dict[str, object]:
 def _score_color(score: float) -> str:
     # PageSpeed skorunu renk sınıfına çevirir.
     if score >= 90:
-        return "text-emerald-600"
+        return "text-emerald-600 dark:text-emerald-400"
     if score >= 50:
-        return "text-amber-500"
-    return "text-rose-600"
+        return "text-amber-500 dark:text-amber-400"
+    return "text-rose-600 dark:text-rose-400"
 
 
 def _metric_value(latest: dict[str, object], metric_type: str, default: float = 0.0) -> float:
@@ -3539,10 +3539,14 @@ def _build_dashboard_card(
         "pagespeed_color": _score_color(pagespeed_score),
         "pagespeed_mobile_score": round(mobile_pagespeed_score) if mobile_pagespeed_score is not None else None,
         "pagespeed_mobile_label": str(round(mobile_pagespeed_score)) if mobile_pagespeed_score is not None else "Veri yok",
-        "pagespeed_mobile_color": _score_color(mobile_pagespeed_score) if mobile_pagespeed_score is not None else "text-slate-400",
+        "pagespeed_mobile_color": _score_color(mobile_pagespeed_score)
+        if mobile_pagespeed_score is not None
+        else "text-slate-400 dark:text-slate-500",
         "pagespeed_desktop_score": round(desktop_pagespeed_score) if desktop_pagespeed_score is not None else None,
         "pagespeed_desktop_label": str(round(desktop_pagespeed_score)) if desktop_pagespeed_score is not None else "Veri yok",
-        "pagespeed_desktop_color": _score_color(desktop_pagespeed_score) if desktop_pagespeed_score is not None else "text-slate-400",
+        "pagespeed_desktop_color": _score_color(desktop_pagespeed_score)
+        if desktop_pagespeed_score is not None
+        else "text-slate-400 dark:text-slate-500",
         "crawler_ok": crawler_ok,
         "crawler_label": crawler_label,
         "crawler_detail": crawler_detail,
