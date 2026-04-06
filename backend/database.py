@@ -139,4 +139,35 @@ def ensure_indexes() -> None:
                 )
             except Exception:  # noqa: BLE001
                 pass
+        # ai_brief_run_logs: çalıştırma başına tahmini TRY (create_all eski DB'ye sütun eklemez)
+        _txt = __import__("sqlalchemy").text
+        try:
+            if _IS_SQLITE:
+                rc = conn.execute(_txt("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ai_brief_run_logs'"))
+                if rc.fetchone():
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt("PRAGMA table_info(ai_brief_run_logs)")).fetchall()
+                    }
+                    if "approx_try" not in cols:
+                        conn.execute(
+                            _txt(
+                                "ALTER TABLE ai_brief_run_logs ADD COLUMN approx_try FLOAT NOT NULL DEFAULT 0"
+                            )
+                        )
+            else:
+                conn.execute(
+                    _txt(
+                        "ALTER TABLE ai_brief_run_logs ADD COLUMN IF NOT EXISTS approx_try DOUBLE PRECISION NOT NULL DEFAULT 0"
+                    )
+                )
+        except Exception:  # noqa: BLE001
+            try:
+                conn.execute(
+                    _txt(
+                        "ALTER TABLE ai_brief_run_logs ADD COLUMN approx_try DOUBLE PRECISION NOT NULL DEFAULT 0"
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
         conn.commit()

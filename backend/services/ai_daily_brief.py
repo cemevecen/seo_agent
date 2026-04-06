@@ -468,26 +468,30 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
     raise last_err if last_err else RuntimeError("Groq çağrısı başarısız")
 
 
-def _llm_json(prompt: str, *, provider: str, model_name: str) -> dict:
+def _llm_json(prompt: str, *, provider: str, model_name: str) -> tuple[dict, float]:
+    """LLM yanıtı ve bu çağrı için tahmini TRY (record_llm_call_try ile aynı mantık)."""
     if provider == "groq":
         data, (pt, ct) = _groq_chat_json(prompt, model=model_name)
     elif provider == "gemini":
         data, (pt, ct) = _gemini_json(prompt, model_name=model_name)
     else:
         raise ValueError(f"Bilinmeyen LLM sağlayıcı: {provider}")
+    delta_try = 0.0
     if pt or ct:
         try:
             from backend.services.llm_spend import record_llm_call_try
 
-            record_llm_call_try(
-                provider=provider,
-                model=model_name,
-                prompt_tokens=pt,
-                completion_tokens=ct,
+            delta_try = float(
+                record_llm_call_try(
+                    provider=provider,
+                    model=model_name,
+                    prompt_tokens=pt,
+                    completion_tokens=ct,
+                )
             )
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("LLM harcama kaydı yazılamadı: %s", exc)
-    return data
+    return data, delta_try
 
 
 def _site_order_from_context(context: dict) -> list[tuple[str, str]]:
@@ -568,7 +572,9 @@ def parse_stored_brief_section_for_ui(text: str | None) -> dict:
     return {"mode": "legacy", "items": [], "text": t}
 
 
-def generate_brief_sections(context: dict, *, provider: str, model_name: str) -> dict[str, str]:
+def generate_brief_sections(
+    context: dict, *, provider: str, model_name: str
+) -> tuple[dict[str, str], float]:
     ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
     prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın. Aşağıdaki JSON verisi gerçek izleme özetidir.
 
@@ -596,13 +602,13 @@ Kurallar:
 - Her dizi, girdideki sitelerle aynı projeleri içersin (sıra aynı olsun).
 - ASCII kısaltmaları koru (GA4, CTR, URL).
 """
-    data = _llm_json(prompt, provider=provider, model_name=model_name)
-    return _finalize_brief_payload(data, context)
+    data, delta_try = _llm_json(prompt, provider=provider, model_name=model_name)
+    return _finalize_brief_payload(data, context), delta_try
 
 
 def generate_brief_single_pass(
     context: dict, *, provider: str, model_name: str
-) -> tuple[dict[str, str], bool, str]:
+) -> tuple[dict[str, str], bool, str, float]:
     """Tek LLM çağrısı: dört bölüm (proje bazlı) + Türkçe öz değerlendirme (tamam)."""
     ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
     prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın. Aşağıdaki JSON verisi gerçek izleme özetidir.
@@ -624,15 +630,15 @@ Kurallar:
 - Uydurma veri yok; eksikte "veri setinde görünmüyor" de.
 - ASCII kısaltmaları koru (GA4, CTR, URL).
 """
-    data = _llm_json(prompt, provider=provider, model_name=model_name)
+    data, delta_try = _llm_json(prompt, provider=provider, model_name=model_name)
     ok = bool(data.get("tamam", True))
     detail = "single_pass_self_qc_ok" if ok else "single_pass_self_qc_flagged"
-    return _finalize_brief_payload(data, context), ok, detail
+    return _finalize_brief_payload(data, context), ok, detail, delta_try
 
 
 def verify_turkish_batch(
     sections: dict[str, str], *, provider: str, model_name: str, context: dict
-) -> tuple[dict[str, str], bool, str]:
+) -> tuple[dict[str, str], bool, str, float]:
     """İkinci geçiş: proje bloklarında yalnızca metin alanlarını Türkçe açısından düzelt."""
     structured: dict[str, object] = {}
     for k in _BRIEF_SECTION_KEYS:
@@ -657,17 +663,17 @@ GİRDİ:
 {payload}
 """
     try:
-        data = _llm_json(prompt, provider=provider, model_name=model_name)
+        data, delta_try = _llm_json(prompt, provider=provider, model_name=model_name)
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("AI Turkish QC JSON parse failed: %s", exc)
-        return sections, False, str(exc)
+        return sections, False, str(exc), 0.0
     ok = bool(data.get("tamam", True))
     out = _finalize_brief_payload(data, context)
     for k in _BRIEF_SECTION_KEYS:
         if not (data.get(k)) and sections.get(k):
             out[k] = sections[k]
     detail = "model_qc_ok" if ok else "model_qc_flagged"
-    return out, ok, detail
+    return out, ok, detail, delta_try
 
 
 def _paragraphs_to_html(text: str, *, color: str = "#1e293b") -> str:
@@ -817,6 +823,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         final: dict[str, str] | None = None
         qc_ok = False
         qc_detail = ""
+        run_try_delta = 0.0
 
         for provider, model_name in try_chain:
             marginal_one = estimate_single_attempt_upper_bound_try(
@@ -836,14 +843,17 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                 break
             try:
                 if single:
-                    final, qc_ok, qc_detail = generate_brief_single_pass(
+                    final, qc_ok, qc_detail, run_try_delta = generate_brief_single_pass(
                         context, provider=provider, model_name=model_name
                     )
                 else:
-                    draft = generate_brief_sections(context, provider=provider, model_name=model_name)
-                    final, qc_ok, qc_detail = verify_turkish_batch(
+                    draft, d_try = generate_brief_sections(
+                        context, provider=provider, model_name=model_name
+                    )
+                    final, qc_ok, qc_detail, qc_try = verify_turkish_batch(
                         draft, provider=provider, model_name=model_name, context=context
                     )
+                    run_try_delta = float(d_try) + float(qc_try)
             except Exception as exc:  # noqa: BLE001
                 LOGGER.warning(
                     "AI özet üretimi %s (%s) ile başarısız: %s",
@@ -884,6 +894,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                     model_name=label_stored[:80],
                     source="manual" if force else "scheduled",
                     brief_date=brief_date,
+                    approx_try=float(run_try_delta),
                 )
             )
             db.commit()
@@ -955,15 +966,18 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
     by_day: dict[str, dict[str, Any]] = {}
     for log in logs:
         dk = log.day_key
+        row_try = float(getattr(log, "approx_try", 0) or 0)
         if dk not in by_day:
-            by_day[dk] = {"day_key": dk, "total": 0, "models": {}}
+            by_day[dk] = {"day_key": dk, "total": 0, "models": {}, "try_sum": 0.0}
         b = by_day[dk]
         b["total"] += 1
+        b["try_sum"] = float(b.get("try_sum", 0.0)) + row_try
         mn = (log.model_name or "").strip() or "—"
         if mn not in b["models"]:
-            b["models"][mn] = {"model": mn, "count": 0, "scheduled": 0, "manual": 0}
+            b["models"][mn] = {"model": mn, "count": 0, "scheduled": 0, "manual": 0, "approx_try": 0.0}
         e = b["models"][mn]
         e["count"] += 1
+        e["approx_try"] = float(e.get("approx_try", 0.0)) + row_try
         if (log.source or "").strip().lower() == "manual":
             e["manual"] += 1
         else:
@@ -972,7 +986,14 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
     for dk in sorted(by_day.keys(), reverse=True):
         d = by_day[dk]
         models_list = sorted(d["models"].values(), key=lambda x: (-x["count"], x["model"]))
-        days_out.append({"day_key": dk, "total": d["total"], "models": models_list})
+        days_out.append(
+            {
+                "day_key": dk,
+                "total": d["total"],
+                "try_sum": round(float(d.get("try_sum", 0.0)), 4),
+                "models": models_list,
+            }
+        )
 
     manual_case = case((AiBriefRunLog.source == "manual", 1), else_=0)
     model_totals_rows = (
@@ -980,17 +1001,27 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
             AiBriefRunLog.model_name,
             func.count(AiBriefRunLog.id).label("cnt"),
             func.sum(manual_case).label("manual_n"),
+            func.coalesce(func.sum(AiBriefRunLog.approx_try), 0.0).label("try_sum"),
         )
         .group_by(AiBriefRunLog.model_name)
         .all()
     )
     models_all_time: list[dict[str, Any]] = []
-    for mn_row, cnt, manual_n in model_totals_rows:
+    for mn_row, cnt, manual_n, try_sum in model_totals_rows:
         mn = (mn_row or "").strip() or "—"
         c = int(cnt or 0)
         m = int(manual_n or 0)
         s = max(0, c - m)
-        models_all_time.append({"model": mn, "count": c, "scheduled": s, "manual": m})
+        ts = float(try_sum or 0)
+        models_all_time.append(
+            {
+                "model": mn,
+                "count": c,
+                "scheduled": s,
+                "manual": m,
+                "approx_try": round(ts, 4),
+            }
+        )
     models_all_time.sort(key=lambda x: (-x["count"], x["model"]))
 
     spent_try = 0.0
