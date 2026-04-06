@@ -3938,6 +3938,7 @@ def _build_dashboard_card(
         "alert_count": len(recent_site_alerts),
         "recent_alerts": recent_site_alerts[:3],
         "top_queries": device_top_queries,
+        "spotlight_queries": _dashboard_spotlight_queries(device_top_queries, recent_site_alerts[:3], limit=10),
         "search_console": {
             "clicks": float(search_console_summary.get("clicks", 0.0)),
             "clicks_label": _format_compact_number(search_console_summary.get("clicks", 0.0)),
@@ -4184,6 +4185,57 @@ def _build_dashboard_top_drops(
 
     candidates.sort(key=lambda item: item.get("impact", 0.0), reverse=True)
     return candidates[:limit]
+
+
+def _dashboard_spotlight_queries(
+    top_queries: list[dict] | None,
+    recent_alert_slice: list[dict],
+    *,
+    limit: int = 10,
+) -> list[dict]:
+    """Site kartı sağ sütununu dolduran SC sorgu satırları; uyarılardaki sorguları önce çıkarır."""
+    rows = list(top_queries or [])
+    alert_q = {
+        (a.get("display_query") or "").strip().lower()
+        for a in recent_alert_slice
+        if (a.get("display_query") or "").strip()
+    }
+    ranked = sorted(rows, key=lambda r: float(r.get("clicks_current") or 0.0), reverse=True)
+
+    def pack(row: dict) -> dict:
+        q = str(row.get("query") or "").strip()
+        cc = float(row.get("clicks_current") or 0.0)
+        cp = float(row.get("clicks_previous") or 0.0)
+        diff = float(row.get("clicks_diff") or 0.0)
+        return {
+            "query": q,
+            "subtitle": f"{_format_compact_number(cp)} → {_format_compact_number(cc)} tıklama",
+            "diff": diff,
+            "tone": "emerald" if diff >= 0 else "rose",
+        }
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def push(row: dict, *, skip_alerts: bool) -> None:
+        q = str(row.get("query") or "").strip()
+        if not q or q.lower() in seen:
+            return
+        if skip_alerts and q.lower() in alert_q:
+            return
+        out.append(pack(row))
+        seen.add(q.lower())
+
+    for row in ranked:
+        if len(out) >= limit:
+            break
+        push(row, skip_alerts=True)
+    if len(out) < limit:
+        for row in ranked:
+            if len(out) >= limit:
+                break
+            push(row, skip_alerts=False)
+    return out
 
 
 def _build_dashboard_critical_panel(

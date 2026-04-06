@@ -261,9 +261,9 @@
     {% endif %}
   </div>
 
-  {# Search Console özet + uyarılar #}
-  <div class="grid grid-cols-1 lg:grid-cols-2">
-    <div class="dash-compare-row space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
+  {# Search Console özet + uyarılar — lg: eşit yükseklik; sağda dönem sorguları boşluğu doldurur #}
+  <div class="grid grid-cols-1 items-stretch gap-0 lg:grid-cols-2">
+    <div class="dash-compare-row flex h-full min-h-0 flex-col space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-h-[2.75rem] min-w-0">
           <p class="dash-fl-cap font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
@@ -333,14 +333,14 @@
       </div>
     </div>
 
-    <div class="space-y-3 px-4 py-4 sm:px-5 sm:py-5">
-      <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex h-full min-h-[14rem] min-w-0 flex-col px-4 py-4 sm:px-5 sm:py-5">
+      <div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Son uyarılar</p>
         <a href="/alerts"
            class="text-[10px] font-semibold text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">{{ card.alert_count }} uyarı →</a>
       </div>
-      <div class="space-y-2">
+      <div class="mt-2 shrink-0 space-y-2">
         {% for alert in card.recent_alerts %}
           <a
             href="/alerts?selected_alert={{ alert.id }}"
@@ -356,6 +356,22 @@
         {% else %}
           <p class="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/50 px-3 py-3 text-center text-xs text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">Aktif uyarı yok</p>
         {% endfor %}
+      </div>
+
+      <div class="mt-4 flex min-h-[9rem] flex-1 flex-col border-t border-slate-100 pt-3 dark:border-slate-800">
+        <p class="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Öne çıkan sorgular <span class="font-normal normal-case text-slate-500 dark:text-slate-500">· {{ card.search_console.period_compare[sc_segment].compare_badge if card.search_console.has_compare_data else 'SC' }}</span></p>
+        <div class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+          {% for sq in card.spotlight_queries | default([]) %}
+            <div class="flex min-w-0 flex-col gap-0.5 rounded-xl border px-3 py-2 text-xs {% if sq.tone == 'emerald' %}border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20{% else %}border-rose-200/80 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
+              <span class="font-medium text-slate-800 dark:text-slate-100">'{{ sq.query }}'</span>
+              <span class="tabular-nums text-slate-600 dark:text-slate-400">{{ sq.subtitle }}</span>
+            </div>
+          {% else %}
+            <div class="flex min-h-[6rem] flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-4 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400">
+              Seçilen dönem için sorgu kırılımı henüz yok veya veri bekleniyor.
+            </div>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
