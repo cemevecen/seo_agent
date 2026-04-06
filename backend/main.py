@@ -4696,7 +4696,7 @@ def dashboard(request: Request):
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
             "critical_alerts": _build_dashboard_critical_panel(slim_cards, recent_alerts, limit=6),
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
-            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=6, recent_alerts=recent_alerts),
+            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=7, recent_alerts=recent_alerts),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
         }
         ctx = {"request": request, **payload}
