@@ -447,6 +447,8 @@ class AiBriefRunLog(Base):
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="scheduled")
     brief_date: Mapped[str] = mapped_column(String(10), nullable=False, default="")
     approx_try: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    llm_calls: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    run_detail: Mapped[str] = mapped_column(String(255), nullable=False, default="")
 
 
 class LlmSpendMonth(Base):

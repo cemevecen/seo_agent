@@ -36,6 +36,56 @@ _BRIEF_SECTION_KEYS = ("ga4", "pagespeed", "search_console", "alerts")
 
 _BRIEF_RUN_LOGS_SEED_LOCK = threading.Lock()
 
+
+def _istanbul_month_day_range_iso() -> tuple[str, str]:
+    """İstanbul takvim ayının ilk ve son günü (YYYY-MM-DD, ikisi de dahil)."""
+    tz = ZoneInfo(settings.ai_daily_brief_timezone or "Europe/Istanbul")
+    today = datetime.now(tz).date()
+    first = today.replace(day=1)
+    if today.month == 12:
+        nxt = datetime(today.year + 1, 1, 1, tzinfo=tz).date()
+    else:
+        nxt = datetime(today.year, today.month + 1, 1, tzinfo=tz).date()
+    last = nxt - timedelta(days=1)
+    return first.isoformat(), last.isoformat()
+
+
+def _format_brief_run_detail(
+    *,
+    force: bool,
+    provider_override: str | None,
+    try_chain: list[tuple[str, str]],
+    attempt_index: int,
+    label_stored: str,
+    planned_calls: int,
+) -> str:
+    """Analiz geçmişi satırı için kısa, tek satırlık açıklama."""
+    bits: list[str] = []
+    if force:
+        req = (provider_override or "").strip().lower()
+        if req in ("groq", "gemini"):
+            bits.append(f'Manuel "Analiz et" · seçilen {req}')
+        else:
+            bits.append('Manuel "Analiz et" · yapılandırma sırası')
+    else:
+        bits.append("Otomatik (zamanlanmış görev)")
+    if 0 <= attempt_index < len(try_chain) and attempt_index > 0:
+        skipped = try_chain[:attempt_index]
+        sk_lbl = ", ".join(f"{p}:{m}" for p, m in skipped)[:120]
+        bits.append(f"Yedek sağlayıcı ({sk_lbl})")
+    bits.append(f"{planned_calls} LLM isteği")
+    bits.append(f"Son {label_stored}")
+    return " · ".join(bits)[:255]
+
+
+def _log_row_created_at_istanbul_str(created_at: datetime) -> str:
+    tz = ZoneInfo(settings.ai_daily_brief_timezone or "Europe/Istanbul")
+    dt = created_at
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+
+
 # LLM: tarama dostu iskelet + stratejik yorum; uygulama profillerinde SEO-organik saçmalığı yasak
 _BRIEF_DATA_FIRST_RULES_TR = """
 ÜSLUP (ZORUNLU — tüm "metin" alanları):
@@ -824,8 +874,9 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         qc_ok = False
         qc_detail = ""
         run_try_delta = 0.0
+        attempt_index = -1
 
-        for provider, model_name in try_chain:
+        for idx, (provider, model_name) in enumerate(try_chain):
             marginal_one = estimate_single_attempt_upper_bound_try(
                 provider=provider,
                 context=context,
@@ -866,6 +917,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                 continue
 
             label_stored = f"{provider}:{model_name}"[:80]
+            attempt_index = idx
             LOGGER.info("AI günlük özet üretildi: sağlayıcı=%s model=%s", provider, model_name)
             break
 
@@ -885,22 +937,32 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         row.turkish_qc_ok = qc_ok
         row.qc_detail = qc_detail[:2000]
         row.model_name = label_stored
+        run_detail_note = _format_brief_run_detail(
+            force=force,
+            provider_override=provider_override,
+            try_chain=try_chain,
+            attempt_index=attempt_index,
+            label_stored=label_stored,
+            planned_calls=planned_calls,
+        )
         db.add(row)
-        db.commit()
-        try:
-            db.add(
-                AiBriefRunLog(
-                    day_key=brief_date,
-                    model_name=label_stored[:80],
-                    source="manual" if force else "scheduled",
-                    brief_date=brief_date,
-                    approx_try=float(run_try_delta),
-                )
+        db.add(
+            AiBriefRunLog(
+                day_key=brief_date,
+                model_name=label_stored[:80],
+                source="manual" if force else "scheduled",
+                brief_date=brief_date,
+                approx_try=float(run_try_delta),
+                llm_calls=int(planned_calls),
+                run_detail=run_detail_note[:255],
             )
+        )
+        try:
             db.commit()
         except Exception as exc:  # noqa: BLE001
-            LOGGER.warning("ai_brief_run_logs kaydı yazılamadı: %s", exc)
+            LOGGER.exception("AI özet + analiz geçmişi birlikte kaydedilemedi: %s", exc)
             db.rollback()
+            return
         recipients = operations_recipients()
         subject = f"SEO Agent · AI günlük özet · {brief_date}"
         html = build_brief_email_html(brief_date, final, qc_ok=qc_ok, qc_detail=qc_detail)
@@ -942,6 +1004,9 @@ def _seed_brief_run_logs_from_reports_if_empty(db: Session) -> None:
                     model_name=mn,
                     source="scheduled",
                     brief_date=r.brief_date,
+                    approx_try=0.0,
+                    llm_calls=1,
+                    run_detail="Eski özet içe aktarma (tutar/istek bilgisi yok)",
                 )
             )
         try:
@@ -1033,6 +1098,58 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
     except Exception:  # noqa: BLE001
         pass
 
+    m0, m1 = _istanbul_month_day_range_iso()
+    month_logs_try = float(
+        db.query(func.coalesce(func.sum(AiBriefRunLog.approx_try), 0.0))
+        .filter(AiBriefRunLog.day_key >= m0, AiBriefRunLog.day_key <= m1)
+        .scalar()
+        or 0.0
+    )
+    month_llm_http = int(
+        db.query(func.coalesce(func.sum(AiBriefRunLog.llm_calls), 0))
+        .filter(AiBriefRunLog.day_key >= m0, AiBriefRunLog.day_key <= m1)
+        .scalar()
+        or 0
+    )
+    reconcile_diff = round(float(spent_try) - month_logs_try, 4)
+    reconcile_balanced = abs(reconcile_diff) <= 0.03
+    if reconcile_balanced:
+        reconcile_note = (
+            f"Bu ay ({m0[:7]}) analiz log satırlarının tahmini TRY toplamı "
+            f"{round(month_logs_try, 2)} ile uygulama harcama kaydı {round(spent_try, 2)} uyumludur "
+            f"(yaklaşık; küçük yuvarlama farkı olabilir)."
+        )
+    else:
+        reconcile_note = (
+            f"Bu ay ({m0[:7]}): harcama kaydı ≈{round(spent_try, 2)} TRY, "
+            f"log satırları toplamı ≈{round(month_logs_try, 2)} TRY (fark {reconcile_diff:+.2f}). "
+            "Eski içe aktarma, sütun öncesi kayıtlar veya bu sürümden önceki çalıştırmalar fark yaratabilir; "
+            "bundan sonra her başarılı üretim tek satır + tutar ile yazılır."
+        )
+
+    raw_runs = (
+        db.query(AiBriefRunLog)
+        .filter(AiBriefRunLog.day_key >= cutoff)
+        .order_by(AiBriefRunLog.id.desc())
+        .limit(400)
+        .all()
+    )
+    runs_ledger: list[dict[str, Any]] = []
+    for r in raw_runs:
+        runs_ledger.append(
+            {
+                "id": r.id,
+                "when_tr": _log_row_created_at_istanbul_str(r.created_at),
+                "day_key": r.day_key,
+                "source": r.source,
+                "source_label": "Analiz et" if (r.source or "").strip().lower() == "manual" else "Otomatik",
+                "model": (r.model_name or "")[:80],
+                "approx_try": round(float(getattr(r, "approx_try", 0) or 0), 4),
+                "llm_calls": int(getattr(r, "llm_calls", 1) or 1),
+                "run_detail": (getattr(r, "run_detail", None) or "")[:255],
+            }
+        )
+
     return {
         "total_all": total_all,
         "days": days_out,
@@ -1040,4 +1157,11 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
         "models_all_time": models_all_time,
         "llm_spent_try_approx_month": round(spent_try, 4),
         "llm_budget_try": budget_try,
+        "month_key": m0[:7],
+        "month_logs_try_sum": round(month_logs_try, 4),
+        "month_llm_http_sum": month_llm_http,
+        "reconcile_diff_try": reconcile_diff,
+        "reconcile_balanced": reconcile_balanced,
+        "reconcile_note": reconcile_note,
+        "runs_ledger": runs_ledger,
     }
