@@ -64,11 +64,12 @@
   <div data-dashboard-sc-compare-root class="border-b border-slate-100 dark:border-slate-800">
   <div class="space-y-5 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:bg-slate-950/30">
     {% if card.search_console.has_compare_data %}
-      <div class="dash-compare-row flex w-full min-w-0 flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div class="min-w-0 flex-1">
+      <div class="dash-compare-row flex w-full min-w-0 flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        {# Sabit min-yükseklik: 1g / 7g / 30g metin uzunluğu değişince şerit ve sayfa zıplamasın #}
+        <div class="min-h-[5rem] min-w-0 flex-1 sm:min-h-[4rem] md:min-h-[3.5rem] lg:min-h-[3.1rem]">
           {% for pid in ['1', '7', '30'] %}
             {% set p = pc[pid] %}
-            <div data-sc-period-content="{{ pid }}" class="dash-compare-text flex flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != '1' %}hidden{% endif %}">
+            <div data-sc-period-content="{{ pid }}" class="dash-compare-text flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != '1' %}hidden{% endif %}">
               <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
               <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
               <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
@@ -193,7 +194,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-2">
     <div class="dash-compare-row space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div class="min-w-0">
+        <div class="min-h-[2.75rem] min-w-0">
           <p class="dash-fl-cap font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
