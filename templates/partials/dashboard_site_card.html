@@ -45,7 +45,7 @@
 {# Dashboard dönüm linkleri: platform + tam sayfa — GA4/PageSpeed dahil tüm kutular yenilenir #}
 {% set card_dash_pf = ('&platform=' ~ card.dashboard_platform) if card.dashboard_platform and card.dashboard_platform != 'web' else '' %}
 
-<div id="dashboard-card-{{ card.id }}" class="flex flex-col overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700">
+<div id="dashboard-card-{{ card.id }}" class="flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 sm:rounded-3xl dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700">
 
   {# Progress panel #}
   <div
@@ -110,7 +110,7 @@
   <div data-dashboard-sc-compare-root class="border-b border-slate-100 dark:border-slate-800">
   <div class="space-y-5 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:bg-slate-950/30">
     {% if card.search_console.has_compare_data %}
-      <div class="dash-compare-row flex w-full min-w-0 flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div class="dash-compare-row flex w-full min-w-0 flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-2.5 py-2.5 leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-3">
         {# Sabit min-yükseklik: 1g / 7g / 30g metin uzunluğu değişince şerit ve sayfa zıplamasın #}
         <div class="min-h-[5rem] min-w-0 flex-1 sm:min-h-[4rem] md:min-h-[3.5rem] lg:min-h-[3.1rem]">
           {% for pid in ['1', '7', '30'] %}
@@ -127,7 +127,7 @@
         <nav
           role="group"
           aria-label="Karşılaştırma dönemi (dashboard)"
-          class="inline-flex shrink-0 rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/90"
+          class="-mx-0.5 inline-flex max-w-full shrink-0 snap-x snap-mandatory overflow-x-auto rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/90 sm:mx-0"
         >
           {% for label, nav_period in [('1g', 'daily'), ('7g', 'weekly'), ('30g', 'monthly')] %}
             <a
@@ -138,7 +138,7 @@
               hx-push-url="true"
               data-sc-period-nav="{{ nav_period }}"
               {% if period == nav_period %}aria-current="page"{% endif %}
-              class="sc-period-seg dash-fl-seg inline-flex items-center justify-center rounded-md px-2 py-1 font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 sm:px-2.5 sm:py-1 {% if period == nav_period %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
+              class="sc-period-seg dash-fl-seg inline-flex shrink-0 snap-start items-center justify-center whitespace-nowrap rounded-md px-2 py-1 font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 sm:px-2.5 sm:py-1 {% if period == nav_period %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
             >{{ label }}</a>
           {% endfor %}
         </nav>
@@ -214,7 +214,7 @@
       <div class="dash-compare-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500 ring-2 ring-violet-200/70 dark:ring-violet-900/40" aria-hidden="true"></span>
         <p class="dash-compare-text font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">PageSpeed skorları</p>
-        <span class="dash-fl-cap font-normal normal-case tracking-normal text-slate-400">({{ card.pagespeed_compare_blurb }})</span>
+        <span class="dash-fl-cap min-w-0 break-words font-normal normal-case tracking-normal text-slate-400">({{ card.pagespeed_compare_blurb }})</span>
       </div>
       <div class="grid min-w-0 max-w-xl grid-cols-2 gap-3 sm:max-w-none">
         <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3 sm:py-4 md:px-4 md:py-5">
@@ -277,9 +277,9 @@
     {% endif %}
   </div>
 
-  {# Search Console özet + uyarılar — lg: eşit yükseklik; sağda dönem sorguları boşluğu doldurur #}
-  <div class="grid grid-cols-1 items-stretch gap-0 lg:grid-cols-2">
-    <div class="dash-compare-row flex h-full min-h-0 flex-col space-y-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-100 lg:dark:border-slate-700">
+  {# Search Console özet + uyarılar — md+: iki sütun; dar ekranda tek sütun #}
+  <div class="grid grid-cols-1 items-stretch gap-0 md:grid-cols-2">
+    <div class="dash-compare-row flex h-full min-h-0 flex-col space-y-3 border-b border-slate-100 px-3 py-4 sm:px-5 sm:py-5 dark:border-slate-800 md:border-b-0 md:border-r md:border-slate-100 md:dark:border-slate-700">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-h-[2.75rem] min-w-0">
           <p class="dash-fl-cap font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
@@ -294,8 +294,8 @@
         </div>
         <span class="w-fit shrink-0 rounded-full border px-2.5 py-1 font-semibold dash-fl-cap {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
       </div>
-      <div class="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
-        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+      <div class="grid min-w-0 grid-cols-3 gap-1.5 sm:gap-3">
+        <div class="dash-metric-cell flex min-h-[5.25rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
           <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Clicks</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
@@ -310,7 +310,7 @@
             <p class="dash-fl-val-foot mt-1.5 font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ card.search_console.clicks_label }}</p>
           {% endif %}
         </div>
-        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+        <div class="dash-metric-cell flex min-h-[5.25rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
           <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">CTR</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
@@ -325,7 +325,7 @@
             <p class="dash-fl-val-foot mt-1.5 font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ card.search_console.ctr_label }}</p>
           {% endif %}
         </div>
-        <div class="dash-metric-cell flex min-h-[5.5rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1.5 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
+        <div class="dash-metric-cell flex min-h-[5.25rem] min-w-0 flex-col justify-center rounded-xl bg-slate-50 px-1 py-2 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[6rem] sm:px-2 sm:py-2.5">
           <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Pos.</p>
           {% if card.search_console.has_compare_data %}
             {% for pid in ['1', '7', '30'] %}
@@ -354,7 +354,7 @@
       </div>
     </div>
 
-    <div class="flex h-full min-h-[14rem] min-w-0 flex-col px-4 py-4 sm:px-5 sm:py-5">
+    <div class="flex h-full min-h-[14rem] min-w-0 flex-col px-3 py-4 sm:px-5 sm:py-5">
       <div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Son uyarılar</p>
         <a href="/alerts"

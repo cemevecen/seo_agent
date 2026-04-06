@@ -1,8 +1,8 @@
-<div class="space-y-8">
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-6 sm:space-y-8">
   <span id="dash-ctx" class="hidden" data-sc-segment="{{ sc_segment }}" aria-hidden="true"></span>
-  <div class="flex flex-col gap-4 rounded-[2rem] bg-white dark:bg-slate-900 px-6 py-7 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 lg:flex-row lg:items-end lg:justify-between">
-    <div class="max-w-3xl space-y-3">
-      <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">GÜNÜN ÖZETİ</h3>
+  <div class="flex w-full min-w-0 flex-col gap-4 rounded-2xl bg-white px-4 py-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-[2rem] sm:px-6 sm:py-7 lg:flex-row lg:items-end lg:justify-between">
+    <div class="min-w-0 max-w-3xl space-y-3">
+      <h3 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">GÜNÜN ÖZETİ</h3>
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
         <nav class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Dashboard tarih filtresi">
@@ -28,16 +28,16 @@
         </nav>
       </div>
     </div>
-    <div class="flex flex-wrap gap-3">
+    <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
       <a
         href="/search-console"
-        class="rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-slate-900 hover:text-slate-900 dark:text-slate-100"
+        class="inline-flex min-h-[2.75rem] w-full items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 sm:w-auto dark:border-slate-600 dark:text-slate-200 dark:hover:border-slate-400"
       >
         Search Console
       </a>
       <a
         href="/alerts"
-        class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+        class="inline-flex min-h-[2.75rem] w-full items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
         hx-get="/alerts"
         hx-target="#content"
         hx-swap="innerHTML"
@@ -48,30 +48,30 @@
     </div>
   </div>
 
-  <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-    <section class="rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-      <div class="flex items-center justify-between gap-4 mb-3">
-        <h4 class="text-base font-semibold text-slate-900 dark:text-slate-100">Önce bakılması gerekenler</h4>
-        <a href="/alerts" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 transition"
+  <div class="grid grid-cols-1 gap-5 min-[900px]:grid-cols-2 min-[900px]:gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+    <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <h4 class="min-w-0 text-base font-semibold text-slate-900 dark:text-slate-100">Önce bakılması gerekenler</h4>
+        <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
       </div>
       <div class="space-y-1.5">
         {% for alert in critical_alerts %}
           <a
             href="/alerts?selected_alert={{ alert.id }}"
-            class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in alert.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in alert.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
+            class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80 {% if 'sinemalar' in alert.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in alert.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
             hx-get="/alerts?selected_alert={{ alert.id }}"
             hx-target="#content"
             hx-swap="innerHTML"
             hx-push-url="true"
           >
-            <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+            <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               {% if alert.display_query %}
-                <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">'{{ alert.display_query }}'</span>
+                <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">'{{ alert.display_query }}'</span>
               {% endif %}
-              <span class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-500 dark:text-slate-400{% endif %} shrink-0">{{ alert.display_metric }}</span>
+              <span class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-500 dark:text-slate-400{% endif %} shrink-0 break-words">{{ alert.display_metric }}</span>
             </div>
-            <span class="shrink-0 text-[11px] text-slate-400">{{ alert.triggered_at }}</span>
+            <span class="shrink-0 text-[11px] text-slate-400 sm:text-right">{{ alert.triggered_at }}</span>
           </a>
         {% else %}
           <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -81,26 +81,26 @@
       </div>
     </section>
 
-    <section class="rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-      <div class="flex items-center justify-between gap-4 mb-3">
-        <h4 class="text-base font-semibold text-slate-900 dark:text-slate-100">Hızlı kayıp alanları</h4>
-        <a href="/alerts" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition"
+    <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <h4 class="min-w-0 text-base font-semibold text-slate-900 dark:text-slate-100">Hızlı kayıp alanları</h4>
+        <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
       </div>
       <div class="space-y-1.5">
         {% for item in top_drop_items %}
           {% set _href = "/alerts?selected_alert=" ~ item.alert_id if item.alert_id else "/alerts" %}
           <a href="{{ _href }}"
-             class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
+             class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
              hx-get="{{ _href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
-            <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
-              <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ item.query }}</span>
-              <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.metric }}</span>
+            <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">{{ item.query }}</span>
+              <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0 break-words">{{ item.metric }}</span>
               {% if item.secondary %}
-                <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0">{{ item.secondary }}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">{{ item.secondary }}</span>
               {% endif %}
             </div>
-            <span class="shrink-0 text-xs font-medium rounded-full border px-2 py-0.5 {{ item.classes.badge }}">{{ item.reason }}</span>
+            <span class="w-fit shrink-0 self-start text-xs font-medium rounded-full border px-2 py-0.5 sm:self-center {{ item.classes.badge }}">{{ item.reason }}</span>
           </a>
         {% else %}
           <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -111,10 +111,10 @@
     </section>
   </div>
 
-  <section class="rounded-[2rem] bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div>
-      <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Site Skor Kartları</p>
-      <h4 class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">Site bazlı özet görünüm</h4>
+  <section class="min-w-0 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-[2rem] sm:p-6 dark:bg-slate-900 dark:ring-slate-700">
+    <div class="min-w-0">
+      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 sm:text-sm dark:text-slate-400">Site Skor Kartları</p>
+      <h4 class="mt-2 text-xl font-semibold text-slate-900 [word-break:break-word] sm:text-2xl dark:text-slate-100">Site bazlı özet görünüm</h4>
     </div>
     {% if lazy_site_ids %}
     <div id="dash-cards-progress" class="mt-4" data-site-count="{{ lazy_site_ids|length }}">
@@ -129,7 +129,7 @@
       </div>
     </div>
     {% endif %}
-    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:mt-5 sm:gap-5 md:grid-cols-2">
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
           id="dashboard-card-{{ site_id }}"
@@ -160,7 +160,7 @@
               <div class="h-24 rounded-2xl bg-slate-200/80 dark:bg-slate-800/80"></div>
             </div>
           </div>
-          <div class="grid grid-cols-1 lg:grid-cols-2">
+          <div class="grid grid-cols-1 md:grid-cols-2">
             <div class="space-y-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 lg:border-b-0 lg:border-r">
               <div class="h-4 w-28 rounded bg-slate-100 dark:bg-slate-800/70"></div>
               <div class="grid grid-cols-3 gap-2">
@@ -177,53 +177,52 @@
           </div>
         </div>
       {% else %}
-        <div class="rounded-[1.5rem] border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-10 text-center text-slate-500 dark:text-slate-400 xl:col-span-2">
+        <div class="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 sm:p-10 md:col-span-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">
           Henüz görüntülenecek site bulunmuyor.
         </div>
       {% endfor %}
     </div>
   </section>
 
-  <section class="rounded-[2rem] bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div class="flex items-center justify-between gap-4 mb-4">
-      <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Fırsat Alanları</p>
-        <h4 class="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">İyileştirme için hızlı adaylar</h4>
+  <section class="min-w-0 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-[2rem] sm:p-6 dark:bg-slate-900 dark:ring-slate-700">
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div class="min-w-0">
+        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 sm:text-sm dark:text-slate-400">Fırsat Alanları</p>
+        <h4 class="mt-1 text-lg font-semibold text-slate-900 [word-break:break-word] sm:text-xl dark:text-slate-100">İyileştirme için hızlı adaylar</h4>
       </div>
-      <a href="/alerts" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition"
+      <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
          hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
     </div>
-    <div class="grid gap-2 xl:grid-cols-2">
+    <div class="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
       {% for item in opportunity_items %}
         {% set _href = "/alerts?selected_alert=" ~ item.alert_id if item.alert_id else "/alerts" %}
         <a href="{{ _href }}"
-           class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
+           class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
            hx-get="{{ _href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
-          <div class="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
-            <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">'{{ item.query }}'</span>
-            <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0">{{ item.detail }}</span>
+          <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+            <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">'{{ item.query }}'</span>
+            <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0 break-words">{{ item.detail }}</span>
             {% if item.action %}
-              <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0">{{ item.action }}</span>
+              <span class="text-xs text-slate-500 dark:text-slate-400">{{ item.action }}</span>
             {% endif %}
           </div>
-          <span class="shrink-0 text-[11px] font-medium rounded-full border px-2 py-0.5 {{ item.classes.badge }}">{{ item.title }}</span>
+          <span class="w-fit shrink-0 self-start text-[11px] font-medium rounded-full border px-2 py-0.5 sm:self-center {{ item.classes.badge }}">{{ item.title }}</span>
         </a>
       {% else %}
-        <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400 xl:col-span-2">
+        <div class="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 md:col-span-2 dark:border-slate-600 dark:text-slate-400">
           Şu an öne çıkan fırsat alanı görünmüyor.
         </div>
       {% endfor %}
     </div>
   </section>
 
-  <div class="flex flex-wrap items-center gap-x-6 gap-y-2 px-2">
+  <div class="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-5 sm:gap-y-2 md:gap-x-6">
     {% for item in overview_items %}
-      <div class="flex items-center gap-2">
+      <div class="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
         <span class="text-[10px] uppercase tracking-wide text-slate-400">{{ item.eyebrow }}</span>
         <span class="text-xs font-bold text-slate-700 dark:text-slate-200">{{ item.value }}</span>
-        <span class="text-[10px] text-slate-400">{{ item.note }}</span>
+        <span class="text-[10px] text-slate-400 [overflow-wrap:anywhere]">{{ item.note }}</span>
       </div>
-      {% if not loop.last %}<span class="text-slate-200 text-xs">·</span>{% endif %}
     {% endfor %}
   </div>
 </div>
