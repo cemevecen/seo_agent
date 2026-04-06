@@ -1,0 +1,11 @@
+---
+description: İş bitince onay sormadan git commit (ve uygunsa push)
+alwaysApply: true
+---
+
+# Git — otomatik commit
+
+- İstenen değişiklikler **tamamlandığında** ve depoda **anlamlı, commit edilmemiş** değişiklik varsa, kullanıcıya **sormadan** `git add` + `git commit` yap.
+- Mesajlar kısa ve açıklayıcı olsun (tercihen conventional: `feat:`, `fix:`, `chore:`).
+- **Asla** `.env`, anahtarlar veya `.gitignore` ile hariç tutulan gizli dosyaları commit etme; yanlışlıkla stage edildiyse geri al.
+- Dal `main` ve uzak `origin` ayarlıysa, commit sonrası çakışma riski düşükse **`git pull --rebase origin main` ardından `git push origin main`** ile senkronu da kullanıcıya sormadan tamamla; rebase/push hatasında durumu özetle ve çözüm öner (force push yok).
