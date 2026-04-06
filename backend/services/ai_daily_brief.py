@@ -86,6 +86,18 @@ def _log_row_created_at_istanbul_str(created_at: datetime) -> str:
     return dt.astimezone(tz).strftime("%Y-%m-%d %H:%M")
 
 
+def get_last_ai_brief_run_label_tr(db: Session) -> str | None:
+    """Arayüz: son başarılı üretimin zamanı (İstanbul, gg/aa/yy SS:DD)."""
+    row = db.query(AiBriefRunLog).order_by(AiBriefRunLog.id.desc()).first()
+    if row is None:
+        return None
+    tz = ZoneInfo(settings.ai_daily_brief_timezone or "Europe/Istanbul")
+    dt = row.created_at
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(tz).strftime("%d/%m/%y %H:%M")
+
+
 # LLM: tarama dostu iskelet + stratejik yorum; uygulama profillerinde SEO-organik saçmalığı yasak
 _BRIEF_DATA_FIRST_RULES_TR = """
 ÜSLUP (ZORUNLU — tüm "metin" alanları):

@@ -33,12 +33,26 @@
     try {
       localStorage.setItem("seo-ai-llm-provider", w);
     } catch (e) {}
+    var segOn = [
+      "bg-white",
+      "text-sky-800",
+      "shadow-sm",
+      "ring-1",
+      "ring-slate-200/90",
+      "dark:bg-sky-500",
+      "dark:text-white",
+      "dark:shadow-[0_2px_14px_-2px_rgba(56,189,248,0.5)]",
+      "dark:ring-sky-300/40",
+    ];
+    var segOff = ["text-slate-500", "dark:text-slate-400"];
     root.querySelectorAll(".ai-brief-llm-btn").forEach(function (b) {
       var on = b.getAttribute("data-ai-brief-llm") === w;
-      b.classList.toggle("bg-slate-900", on);
-      b.classList.toggle("text-white", on);
-      b.classList.toggle("dark:bg-sky-600", on);
-      b.classList.toggle("shadow-sm", on);
+      segOn.forEach(function (c) {
+        b.classList.toggle(c, on);
+      });
+      segOff.forEach(function (c) {
+        b.classList.toggle(c, !on);
+      });
     });
   }
 
@@ -177,19 +191,9 @@
           if (track) {
             track.setAttribute("aria-valuenow", "100");
           }
-          if (view && result.html) {
-            var tpl = document.createElement("template");
-            tpl.innerHTML = result.html.trim();
-            var incoming = tpl.content.querySelector("#ai-brief-view");
-            if (incoming && view.parentNode) {
-              window.setTimeout(function () {
-                view.parentNode.replaceChild(incoming, view);
-                window.bootAiBriefPage();
-              }, 180);
-              return;
-            }
-          }
-          window.location.assign("/ai");
+          window.setTimeout(function () {
+            window.location.reload();
+          }, 280);
         })
         .catch(function () {
           window.clearInterval(tick);

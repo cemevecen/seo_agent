@@ -6167,7 +6167,11 @@ def _ai_brief_llm_availability() -> dict[str, bool]:
 
 @app.get("/ai")
 def ai_daily_brief_page(request: Request):
-    from backend.services.ai_daily_brief import get_ai_brief_run_stats, get_latest_brief_for_ui
+    from backend.services.ai_daily_brief import (
+        get_ai_brief_run_stats,
+        get_last_ai_brief_run_label_tr,
+        get_latest_brief_for_ui,
+    )
 
     with SessionLocal() as db:
         brief = get_latest_brief_for_ui(db)
@@ -6177,6 +6181,7 @@ def ai_daily_brief_page(request: Request):
             "ai_brief": brief,
             "ai_brief_llm": _ai_brief_llm_availability(),
             "ai_brief_run_stats": get_ai_brief_run_stats(db),
+            "ai_brief_last_run_at": get_last_ai_brief_run_label_tr(db),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -6186,7 +6191,12 @@ def ai_daily_brief_page(request: Request):
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
     """Operasyon: aynı gün özeti yeniden üretilir ve operasyon alıcılarına e-posta gider (Groq veya Gemini; yalnızca bu akış LLM kullanır)."""
 
-    from backend.services.ai_daily_brief import get_ai_brief_run_stats, get_latest_brief_for_ui, run_ai_daily_brief_job
+    from backend.services.ai_daily_brief import (
+        get_ai_brief_run_stats,
+        get_last_ai_brief_run_label_tr,
+        get_latest_brief_for_ui,
+        run_ai_daily_brief_job,
+    )
 
     raw = (llm_provider or "gemini").strip().lower()
     pov = raw if raw in ("groq", "gemini") else "gemini"
@@ -6210,6 +6220,7 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
                 "ai_brief": brief,
                 "ai_brief_llm": _ai_brief_llm_availability(),
                 "ai_brief_run_stats": get_ai_brief_run_stats(db),
+                "ai_brief_last_run_at": get_last_ai_brief_run_label_tr(db),
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
     return RedirectResponse(url="/ai", status_code=303)
