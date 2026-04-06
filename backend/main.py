@@ -6072,10 +6072,15 @@ def _run_db_retention_cleanup() -> dict:
         # ── keep_days tabloları: belirli gün sayısından eski satırlar ──
         keep_days_tables = [
             # (Model, time_column, days, label)
-            (CollectorRun, CollectorRun.requested_at, 30, "collector_runs"),
-            (AlertLog, AlertLog.triggered_at, 60, "alert_logs"),
-            (Metric, Metric.collected_at, 90, "metrics"),
-            (NotificationDeliveryLog, NotificationDeliveryLog.sent_at, 30, "notification_delivery_logs"),
+            (CollectorRun, CollectorRun.requested_at, settings.db_retention_collector_run_days, "collector_runs"),
+            (AlertLog, AlertLog.triggered_at, settings.db_retention_alert_log_days, "alert_logs"),
+            (Metric, Metric.collected_at, settings.db_retention_metric_days, "metrics"),
+            (
+                NotificationDeliveryLog,
+                NotificationDeliveryLog.sent_at,
+                settings.db_retention_notification_delivery_days,
+                "notification_delivery_logs",
+            ),
         ]
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:
@@ -6167,6 +6172,13 @@ def admin_db_size():
         # Toplam DB boyutu
         row = conn.execute(text("SELECT pg_database_size(current_database())")).fetchone()
         result["total_mb"] = round(row[0] / 1024 / 1024, 2) if row else 0
+
+        # WAL dizini (pg_wal dolunca recovery yazamaz; volume artır veya retention kısalt)
+        try:
+            wal_row = conn.execute(text("SELECT COALESCE(SUM(size), 0) FROM pg_ls_waldir()")).fetchone()
+            result["wal_size_mb"] = round((wal_row[0] or 0) / 1024 / 1024, 2) if wal_row else 0
+        except Exception:
+            result["wal_size_mb"] = None
 
         # Tablo bazlı boyut
         tables = conn.execute(text(

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -105,6 +105,12 @@ class Settings(BaseSettings):
     live_refresh_method: str = "GET"
     live_refresh_timeout: int = 8
     live_refresh_urls: str = ""
+
+    # Zaman serisi temizliği (gecelik job). Railway disk sıkışırsa süreleri kısaltın — volume GB yalnızca Railway panelinden artırılır.
+    db_retention_collector_run_days: int = Field(default=30, ge=1, le=3650)
+    db_retention_alert_log_days: int = Field(default=60, ge=1, le=3650)
+    db_retention_metric_days: int = Field(default=90, ge=1, le=3650)
+    db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False)
 

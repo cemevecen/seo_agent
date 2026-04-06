@@ -1,6 +1,9 @@
 [build]
 builder = "nixpacks"
 
+# PostgreSQL volume boyutu (GB) yalnızca Railway arayüzünden ayarlanır:
+# Project → Postgres servisi → Settings → Volume. Bu dosyada disk kotası tanımlanamaz.
+
 [deploy]
 startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"
 restartPolicyType = "on_failure"

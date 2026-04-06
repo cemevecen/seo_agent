@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import BASE_DIR, settings
 from backend.models import SiteCredential
 from backend.services.crypto import decrypt_text, encrypt_text
 
@@ -30,6 +30,8 @@ def _load_service_account_payload() -> dict | None:
 
     if raw_file:
         path = Path(raw_file).expanduser()
+        if not path.is_absolute():
+            path = (BASE_DIR / path).resolve()
         if path.exists():
             try:
                 text = path.read_text(encoding="utf-8")
@@ -46,6 +48,37 @@ def _load_service_account_payload() -> dict | None:
 
 def ga4_is_configured() -> bool:
     return _load_service_account_payload() is not None
+
+
+def ga4_service_account_diagnostic() -> str:
+    """Service account neden yüklenemedi — sunucunun çözdüğü yol ve .env önceliği için ipucu."""
+    raw_json = (settings.ga4_service_account_json or "").strip()
+    raw_file = (settings.ga4_service_account_file or "").strip()
+    if raw_json:
+        try:
+            json.loads(raw_json)
+            return ""
+        except json.JSONDecodeError:
+            raw_file = raw_json
+    if not raw_file:
+        return (
+            ".env içinde GA4_SERVICE_ACCOUNT_FILE boş görünüyor veya süreç başlarken okunmadı. "
+            "Değişiklikten sonra uvicorn’u tamamen durdurup yeniden başlatın. "
+            "Terminalde `export GA4_SERVICE_ACCOUNT_FILE=...` boşsa kaldırın (ortam değişkeni .env’i ezer)."
+        )
+    path = Path(raw_file).expanduser()
+    if not path.is_absolute():
+        path = (BASE_DIR / path).resolve()
+    if not path.exists():
+        return f"Dosya yok: {path}"
+    try:
+        text = path.read_text(encoding="utf-8")
+        json.loads(text)
+        return ""
+    except json.JSONDecodeError:
+        return f"JSON geçersiz: {path}"
+    except OSError as exc:
+        return f"Okunamadı: {path} ({exc})"
 
 
 def get_ga4_credentials_record(db: Session, site_id: int) -> SiteCredential | None:
@@ -114,6 +147,7 @@ def get_ga4_connection_status(db: Session, site_id: int) -> dict[str, str | bool
             "method": "service_account",
             "label": "Service account dosyası yok/okunamadı",
             "properties": properties,
+            "diagnostic": ga4_service_account_diagnostic(),
         }
     return {"connected": True, "method": "service_account", "label": "GA4 bağlı", "properties": properties}
 

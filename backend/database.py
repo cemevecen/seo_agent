@@ -1,14 +1,33 @@
 """SQLAlchemy veritabanı bağlantısı ve ortak Base tanımı."""
 
+from pathlib import Path
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from backend.config import settings
+from backend.config import BASE_DIR, settings
 
-_IS_SQLITE = settings.database_url.startswith("sqlite")
+
+def _normalize_sqlite_url(url: str) -> str:
+    """Göreli sqlite:///... yollarını proje köküne (seo-agent/) göre mutlak adrese çevirir."""
+    prefix = "sqlite:///"
+    if not url.startswith(prefix):
+        return url
+    if url.startswith("sqlite:////"):
+        return url
+    rest = url[len(prefix) :]
+    if not rest or rest.startswith(":memory:"):
+        return url
+    path = Path(rest)
+    if path.is_absolute():
+        return url
+    abs_path = (BASE_DIR / rest).resolve()
+    return f"sqlite:///{abs_path.as_posix()}"
+
 
 # Railway ve bazı platformlar postgresql:// verir; psycopg3 için +psycopg gerekiyor
-_db_url = settings.database_url
+_db_url = _normalize_sqlite_url(settings.database_url)
+_IS_SQLITE = _db_url.startswith("sqlite")
 if _db_url.startswith("postgresql://"):
     _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
