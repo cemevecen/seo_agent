@@ -64,9 +64,9 @@ def _format_brief_run_detail(
     if force:
         req = (provider_override or "").strip().lower()
         if req in ("groq", "gemini"):
-            bits.append(f'Manuel "Analiz et" · seçilen {req}')
+            bits.append(f'Manuel "Analiz yap" · seçilen {req}')
         else:
-            bits.append('Manuel "Analiz et" · yapılandırma sırası')
+            bits.append('Manuel "Analiz yap" · yapılandırma sırası')
     else:
         bits.append("Otomatik (zamanlanmış görev)")
     if 0 <= attempt_index < len(try_chain) and attempt_index > 0:
@@ -1154,7 +1154,7 @@ def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, 
                 "when_tr": _log_row_created_at_istanbul_str(r.created_at),
                 "day_key": r.day_key,
                 "source": r.source,
-                "source_label": "Analiz et" if (r.source or "").strip().lower() == "manual" else "Otomatik",
+                "source_label": "Analiz yap" if (r.source or "").strip().lower() == "manual" else "Otomatik",
                 "model": (r.model_name or "")[:80],
                 "approx_try": round(float(getattr(r, "approx_try", 0) or 0), 4),
                 "llm_calls": int(getattr(r, "llm_calls", 1) or 1),
