@@ -326,6 +326,27 @@ def _resolve_period(raw_period: str | None) -> tuple[str, int]:
     return period, PERIOD_DAYS_MAP[period]
 
 
+def _dashboard_sc_scopes_for_url_period(period: str) -> tuple[str, str]:
+    """Dashboard `period` (daily|weekly|monthly) → Search Console snapshot scope çifti."""
+    if period == "daily":
+        return "current_day", "previous_week_same_weekday"
+    if period == "weekly":
+        return "current_7d", "previous_7d"
+    return "current_30d", "previous_30d"
+
+
+def _dashboard_period_to_sc_segment(period: str) -> str:
+    return {"daily": "1", "weekly": "7", "monthly": "30"}.get(period, "30")
+
+
+def _dashboard_ga4_period_caption(period: str) -> str:
+    if period == "daily":
+        return "1 günlük · haftanın aynı günü"
+    if period == "weekly":
+        return "7 günlük · önceki dönem"
+    return "30 günlük · önceki dönem"
+
+
 def _format_trend_label(timestamp: str, period: str) -> str:
     if period == "daily":
         return timestamp[11:16]
@@ -2702,6 +2723,7 @@ def _build_dashboard_slim_cards_batch(
     sites: list,
     *,
     recent_alerts_cache: list[dict],
+    period: str = "monthly",
 ) -> list[dict]:
     """Tüm siteler için slim cards — ~5 toplam sorgu (N+1 yerine).
 
@@ -2723,12 +2745,13 @@ def _build_dashboard_slim_cards_batch(
     # --- 1. Batch: latest metrics (1 subquery) ---
     all_latest: dict[int, dict] = get_latest_metrics_batch(db, site_ids)
 
-    # --- 2. Batch: SC rows — 2 scope × all sites (2 queries) ---
+    # --- 2. Batch: SC rows — seçilen döneme göre 2 scope × tüm siteler ---
     # current_28d sadece has_rows kontrolü için lazım → metrics'ten türetilir (SC sorgusu yok)
+    cur_scope, prev_scope = _dashboard_sc_scopes_for_url_period(period)
     sc_batch = get_latest_sc_rows_multi_site(
         db,
         site_ids=site_ids,
-        scopes=["current_7d", "previous_7d"],
+        scopes=list(dict.fromkeys([cur_scope, prev_scope])),
     )
 
     # --- 3. Batch: SC connection status (1 query) ---
@@ -2741,8 +2764,8 @@ def _build_dashboard_slim_cards_batch(
     for site in sites:
         latest = all_latest.get(site.id, {})
         site_sc = sc_batch.get(site.id, {})
-        current_rows_7 = site_sc.get("current_7d", [])
-        previous_rows_7 = site_sc.get("previous_7d", [])
+        current_rows_sc = site_sc.get(cur_scope, [])
+        previous_rows_sc = site_sc.get(prev_scope, [])
         has_rows_28d = latest.get("search_console_clicks_28d") is not None
         connection = sc_connections.get(
             site.id, {"connected": False, "method": "none", "label": "Bağlantı yok"}
@@ -2762,7 +2785,7 @@ def _build_dashboard_slim_cards_batch(
         )
         search_console_status = _search_console_status_from_cache(latest, connection, has_rows_28d)
         site_alerts = [a for a in recent_alerts_cache if a.get("domain") == site.domain]
-        top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
+        top_queries = _build_search_console_top_queries(current_rows_sc, previous_rows_sc, limit=50)
 
         cards.append(
             {
@@ -3557,8 +3580,13 @@ def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
 def _dashboard_period_pack_for_device(
     search_console_report: dict,
     device_key: str,
+    *,
+    active_summary_key: str = "30",
 ) -> tuple[dict, bool, dict, list]:
-    """Seçilen cihaza göre 1g/7g/30g blokları, alt özet, top_queries."""
+    """Seçilen cihaza göre 1g/7g/30g blokları, alt özet, top_queries.
+
+    active_summary_key: dashboard URL `period` ile hizalı '1' | '7' | '30' (footer + top sorgular).
+    """
     periods = search_console_report.get("periods") or {}
 
     def _vw(pk: str) -> dict:
@@ -3608,11 +3636,18 @@ def _dashboard_period_pack_for_device(
         },
     }
     has_compare_data = bool(pc1["has_data"] or pc7["has_data"] or pc30["has_data"])
-    top_queries = v7.get("top_queries") if isinstance(v7.get("top_queries"), list) else []
+    _ak = active_summary_key if active_summary_key in {"1", "7", "30"} else "30"
+    v_active = v1 if _ak == "1" else (v30 if _ak == "30" else v7)
+    top_queries = v_active.get("top_queries") if isinstance(v_active.get("top_queries"), list) else []
     if not top_queries:
         top_queries = list(search_console_report.get("top_queries") or [])
 
-    footer_summary = s7c if s7c else (search_console_report.get("summary_current") or {})
+    if _ak == "1":
+        footer_summary = s1c if s1c else (search_console_report.get("summary_current_1d") or {})
+    elif _ak == "30":
+        footer_summary = s30c if s30c else (search_console_report.get("summary_current_30d") or {})
+    else:
+        footer_summary = s7c if s7c else (search_console_report.get("summary_current") or {})
     return period_compare, has_compare_data, footer_summary, top_queries
 
 
@@ -3640,6 +3675,7 @@ def _dashboard_ga4_compact_block(
     profile: str,
     latest_metrics: dict[str, float],
     properties: dict,
+    period_days: int = 30,
 ) -> dict | None:
     prop_id = str(properties.get(profile, "") or "").strip()
     if not prop_id:
@@ -3648,7 +3684,7 @@ def _dashboard_ga4_compact_block(
         db,
         site_id=site_id,
         profile=profile,
-        period_days=1,
+        period_days=int(period_days),
         latest=latest_metrics,
         prop_id=prop_id,
     )
@@ -3670,10 +3706,16 @@ def _dashboard_ga4_layout_cell(
     profile: str,
     latest_metrics: dict[str, float],
     properties: dict,
+    period_days: int = 30,
 ) -> dict:
     """Tek GA4 hücresi; property yoksa yine de etiketli placeholder döner (2x2 kutu boş kalmaz)."""
     b = _dashboard_ga4_compact_block(
-        db, site_id=site_id, profile=profile, latest_metrics=latest_metrics, properties=properties
+        db,
+        site_id=site_id,
+        profile=profile,
+        latest_metrics=latest_metrics,
+        properties=properties,
+        period_days=period_days,
     )
     if b:
         return b
@@ -3694,30 +3736,41 @@ def _dashboard_ga4_layout(
     platform_norm: str,
     latest_metrics: dict[str, float],
     ga4_status: dict,
+    *,
+    period_days: int = 30,
 ) -> dict:
     """GA4 kart yerleşimi: doviz.com → 2x2 (sol web+mweb, sağ android+ios); diğer siteler → sol seçilen profil, sağ eş profil."""
     if not ga4_status.get("connected"):
         return {"mode": "none", "col_left": [], "col_right": []}
     props = ga4_status.get("properties") or {}
     domain_l = (site.domain or "").strip().lower()
+    pd = int(period_days) if int(period_days) > 0 else 30
 
     if domain_l == "doviz.com":
         return {
             "mode": "quad",
             "col_left": [
-                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="web", latest_metrics=latest_metrics, properties=props),
-                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="mweb", latest_metrics=latest_metrics, properties=props),
+                _dashboard_ga4_layout_cell(
+                    db, site_id=site.id, profile="web", latest_metrics=latest_metrics, properties=props, period_days=pd
+                ),
+                _dashboard_ga4_layout_cell(
+                    db, site_id=site.id, profile="mweb", latest_metrics=latest_metrics, properties=props, period_days=pd
+                ),
             ],
             "col_right": [
-                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="android", latest_metrics=latest_metrics, properties=props),
-                _dashboard_ga4_layout_cell(db, site_id=site.id, profile="ios", latest_metrics=latest_metrics, properties=props),
+                _dashboard_ga4_layout_cell(
+                    db, site_id=site.id, profile="android", latest_metrics=latest_metrics, properties=props, period_days=pd
+                ),
+                _dashboard_ga4_layout_cell(
+                    db, site_id=site.id, profile="ios", latest_metrics=latest_metrics, properties=props, period_days=pd
+                ),
             ],
         }
 
     primary = _dashboard_ga4_profile_key(platform_norm)
     col_left = [
         _dashboard_ga4_layout_cell(
-            db, site_id=site.id, profile=primary, latest_metrics=latest_metrics, properties=props
+            db, site_id=site.id, profile=primary, latest_metrics=latest_metrics, properties=props, period_days=pd
         )
     ]
     col_right: list[dict] = []
@@ -3725,7 +3778,7 @@ def _dashboard_ga4_layout(
     if counterpart:
         col_right.append(
             _dashboard_ga4_layout_cell(
-                db, site_id=site.id, profile=counterpart, latest_metrics=latest_metrics, properties=props
+                db, site_id=site.id, profile=counterpart, latest_metrics=latest_metrics, properties=props, period_days=pd
             )
         )
     return {"mode": "pair", "col_left": col_left, "col_right": col_right}
@@ -3737,7 +3790,10 @@ def _build_dashboard_card(
     flash_message: str | None = None,
     recent_alerts_cache: list[dict] | None = None,
     dashboard_platform: str | None = None,
+    dashboard_period: str | None = None,
 ) -> dict:
+    dash_period, period_days = _resolve_period(dashboard_period)
+    sc_segment = _dashboard_period_to_sc_segment(dash_period)
     platform_norm = _normalize_dashboard_platform(dashboard_platform)
     device_key, sc_platform_note = _dashboard_sc_device_from_platform(platform_norm)
     pagespeed_primary = _dashboard_pagespeed_primary(platform_norm)
@@ -3805,6 +3861,7 @@ def _build_dashboard_card(
     period_compare, has_compare_data, footer_summary, device_top_queries = _dashboard_period_pack_for_device(
         search_console_report,
         device_key,
+        active_summary_key=sc_segment,
     )
     pc1 = period_compare["1"]
     search_console_summary = footer_summary
@@ -3829,13 +3886,16 @@ def _build_dashboard_card(
     pagespeed_desktop_prev_date = pd_prev_date.strftime("%d.%m.%Y") if pd_prev_date is not None else None
     latest_ga4_floats = {k: float(v.value) for k, v in latest.items()}
     ga4_conn = get_ga4_connection_status(db, site.id)
-    ga4_layout = _dashboard_ga4_layout(db, site, platform_norm, latest_ga4_floats, ga4_conn)
+    ga4_layout = _dashboard_ga4_layout(
+        db, site, platform_norm, latest_ga4_floats, ga4_conn, period_days=period_days
+    )
     return {
         "id": site.id,
         "display_name": site.display_name,
         "domain": site.domain,
         "dashboard_platform": platform_norm,
         "dashboard_platform_label": _dashboard_platform_label(platform_norm),
+        "ga4_period_caption": _dashboard_ga4_period_caption(dash_period),
         "sc_platform_note": sc_platform_note,
         "pagespeed_primary": pagespeed_primary,
         "pagespeed_score": round(pagespeed_score),
@@ -4508,14 +4568,16 @@ def dashboard(request: Request):
         external_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        # Batched queries: N+1 yerine ~5 toplam sorgu
-        slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts)
-        period = _resolve_period(request.query_params.get("period"))[0]
+        period, _period_days = _resolve_period(request.query_params.get("period"))
+        # Batched queries: N+1 yerine ~5 toplam sorgu (SC scope'ları seçilen döneme göre)
+        slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts, period=period)
         dashboard_platform = _normalize_dashboard_platform(request.query_params.get("platform"))
+        sc_segment = _dashboard_period_to_sc_segment(period)
         payload = {
             "site_name": "SEO Agent Dashboard",
             "sites": get_sidebar_sites(),
             "period": period,
+            "sc_segment": sc_segment,
             "dashboard_platform": dashboard_platform,
             "dashboard_platform_label": _dashboard_platform_label(dashboard_platform),
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
@@ -4537,12 +4599,15 @@ def dashboard_card_lazy(request: Request, site_id: int):
         # Sadece bu site için alert'leri çek (site_id_filter), tüm tabloyu tarama
         recent_alerts = get_recent_alerts(db, limit=30, include_external=False, site_id_filter=site.id)
         dash_pf = request.query_params.get("platform")
-        card = _build_dashboard_card(db, site, recent_alerts_cache=recent_alerts, dashboard_platform=dash_pf)
-    period = _resolve_period(request.query_params.get("period"))[0]
+        period, _pd = _resolve_period(request.query_params.get("period"))
+        card = _build_dashboard_card(
+            db, site, recent_alerts_cache=recent_alerts, dashboard_platform=dash_pf, dashboard_period=period
+        )
+        sc_segment = _dashboard_period_to_sc_segment(period)
     return templates.TemplateResponse(
         request,
         "partials/dashboard_site_card.html",
-        context={"request": request, "card": card, "period": period},
+        context={"request": request, "card": card, "period": period, "sc_segment": sc_segment},
     )
 
 
@@ -4601,11 +4666,14 @@ def dashboard_measure_site(request: Request, site_id: int):
             flash_message = f"Ölçüm tamamlanamadı. Mevcut kayıtlı veri gösteriliyor. Detay: {exc}"
 
         dash_pf = request.query_params.get("platform")
-        card = _build_dashboard_card(db, site, flash_message=flash_message, dashboard_platform=dash_pf)
+        card = _build_dashboard_card(
+            db, site, flash_message=flash_message, dashboard_platform=dash_pf, dashboard_period=period
+        )
+        sc_segment = _dashboard_period_to_sc_segment(period)
     return templates.TemplateResponse(
         request,
         "partials/dashboard_site_card.html",
-        context={"request": request, "card": card, "period": period},
+        context={"request": request, "card": card, "period": period, "sc_segment": sc_segment},
     )
 
 

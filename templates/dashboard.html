@@ -3,8 +3,20 @@
 {% block content %}
 <div class="space-y-8">
   <div class="flex flex-col gap-4 rounded-[2rem] bg-white dark:bg-slate-900 px-6 py-7 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 lg:flex-row lg:items-end lg:justify-between">
-    <div class="max-w-3xl">
+    <div class="max-w-3xl space-y-3">
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">GÜNÜN ÖZETİ</h3>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
+        <nav class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Dashboard tarih filtresi">
+          {% set _pf = ('&platform=' ~ dashboard_platform) if dashboard_platform and dashboard_platform != 'web' else '' %}
+          <a href="/?period=daily{{ _pf }}"
+             class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'daily' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Günlük</a>
+          <a href="/?period=weekly{{ _pf }}"
+             class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'weekly' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Haftalık</a>
+          <a href="/?period=monthly{{ _pf }}"
+             class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'monthly' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Aylık</a>
+        </nav>
+      </div>
     </div>
     <div class="flex flex-wrap gap-3">
       <a
@@ -111,7 +123,7 @@
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
           id="dashboard-card-{{ site_id }}"
-          hx-get="/dashboard/cards/{{ site_id }}?period={{ period }}"
+          hx-get="/dashboard/cards/{{ site_id }}?period={{ period }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
           hx-trigger="load"
           hx-swap="outerHTML"
           class="overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 animate-pulse dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700"
@@ -479,7 +491,9 @@
     });
   })();
 
-  /* Search Console 1g / 7g / 30g segmented control — tüm kartlar aynı seçim (localStorage) */
+  window.__DASH_SC_SEGMENT = '{{ sc_segment }}';
+
+  /* Search Console 1g / 7g / 30g segmented control — sayfa `?period=` ile başlar; tıklanınca localStorage */
   (function () {
     var STORAGE_KEY = 'dashboard-sc-compare-period';
     function readStored() {
@@ -489,7 +503,7 @@
           return v;
         }
       } catch (e) { /* ignore */ }
-      return '1';
+      return window.__DASH_SC_SEGMENT || '30';
     }
     function writeStored(v) {
       try {
@@ -528,7 +542,10 @@
       if (!root) {
         return;
       }
-      var period = readStored();
+      var period = window.__DASH_SC_SEGMENT || readStored();
+      if (period !== '1' && period !== '7' && period !== '30') {
+        period = '30';
+      }
       applyPeriodToRoot(root, period);
       root.querySelectorAll('[data-sc-period-btn]').forEach(function (btn) {
         if (btn.dataset.scPeriodWired === '1') {

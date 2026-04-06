@@ -1,0 +1,12 @@
+---
+description: After substantive edits, commit locally and push to GitHub without waiting for user approval.
+alwaysApply: true
+---
+
+# Git: commit ve push
+
+Bu repoda kod veya şablon değişikliği yaptıktan sonra, kullanıcı ayrıca söylemese bile:
+
+1. Anlamlı bir İngilizce veya Türkçe commit mesajı ile `git add` + `git commit` yap.
+2. `git push` ile `origin` üzerindeki varsayılan branch’e (genelde `main`) gönder.
+3. Onay veya “commit at” komutu beklemeden bunu otomatik uygula; sadece push gerçekten mümkün değilse (auth, ağ) kullanıcıyı bilgilendir.
