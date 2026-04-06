@@ -1013,6 +1013,12 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     sw_prev = sw_day.get("previous_week_same_weekday_summary") if isinstance(sw_day.get("previous_week_same_weekday_summary"), dict) else {}
     summary_1d_cur = _summarize_search_console_rows(current_rows_1) if current_rows_1 else sw_cur
     summary_1d_prev = _summarize_search_console_rows(previous_rows_wow) if previous_rows_wow else sw_prev
+    summary_current_30d = summary_payload.get("current_30d_summary") or _summarize_search_console_rows(
+        current_rows_30
+    )
+    summary_previous_30d = summary_payload.get("previous_30d_summary") or _summarize_search_console_rows(
+        previous_rows_30
+    )
 
     return {
         "has_data": bool(current_rows_7 or previous_rows_7 or top_queries),
@@ -1025,8 +1031,14 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         "periods": periods,
         "summary_current_1d": summary_1d_cur,
         "summary_previous_1d": summary_1d_prev,
+        "summary_current_30d": summary_current_30d,
+        "summary_previous_30d": summary_previous_30d,
         "range_current_1d": _format_sc_tr_date(ref_d_global) or "",
         "range_previous_1d": _format_sc_tr_date(prev_wow_d_global) or "",
+        "range_current_7d": _format_sc_tr_date_range(*range_7_last),
+        "range_previous_7d": _format_sc_tr_date_range(*range_7_prev),
+        "range_current_30d": _format_sc_tr_date_range(*range_30_last),
+        "range_previous_30d": _format_sc_tr_date_range(*range_30_prev),
     }
 
 
@@ -3432,6 +3444,30 @@ def _dashboard_cards_with_db(db, *, recent_alerts_cache: list[dict] | None = Non
     return cards
 
 
+def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
+    """Search Console kartı için tek dönem (1g/7g/30g) etiket ve % değişimleri."""
+    c = cur if isinstance(cur, dict) else {}
+    p = prev if isinstance(prev, dict) else {}
+    cc = float(c.get("clicks") or 0.0)
+    cp = float(p.get("clicks") or 0.0)
+    tc = float(c.get("ctr") or 0.0)
+    tp = float(p.get("ctr") or 0.0)
+    npc = float(c.get("position") or 0.0)
+    npp = float(p.get("position") or 0.0)
+    ic = float(c.get("impressions") or 0.0)
+    ip = float(p.get("impressions") or 0.0)
+    has = bool(cc or cp or tc or tp or npc or npp or ic or ip)
+    return {
+        "clicks_label": _format_compact_number(cc) if cc else "—",
+        "clicks_change": _ga4_period_pct_change(cc, cp),
+        "ctr_label": f"{_format_max_two_decimals(tc)}%" if tc else "—",
+        "ctr_change": _ga4_period_pct_change(tc, tp),
+        "position_label": _format_max_two_decimals(npc) if npc else "—",
+        "position_change": _ga4_period_pct_change(npp, npc),
+        "has_data": has,
+    }
+
+
 def _build_dashboard_card(
     db,
     site: Site,
@@ -3500,14 +3536,43 @@ def _build_dashboard_card(
     desktop_pagespeed_score = float(desktop_pagespeed_metric.value) if desktop_pagespeed_metric is not None else None
     sc_1d_cur = search_console_report.get("summary_current_1d") or {}
     sc_1d_prev = search_console_report.get("summary_previous_1d") or {}
-    sc_1d_clicks_cur = float(sc_1d_cur.get("clicks") or 0.0)
-    sc_1d_clicks_prev = float(sc_1d_prev.get("clicks") or 0.0)
-    sc_1d_ctr_cur = float(sc_1d_cur.get("ctr") or 0.0)
-    sc_1d_ctr_prev = float(sc_1d_prev.get("ctr") or 0.0)
-    sc_1d_pos_cur = float(sc_1d_cur.get("position") or 0.0)
-    sc_1d_pos_prev = float(sc_1d_prev.get("position") or 0.0)
-    sc_1d_imp_cur = float(sc_1d_cur.get("impressions") or 0.0)
-    sc_1d_imp_prev = float(sc_1d_prev.get("impressions") or 0.0)
+    sc_7d_cur = search_console_report.get("summary_current") or {}
+    sc_7d_prev = search_console_report.get("summary_previous") or {}
+    sc_30d_cur = search_console_report.get("summary_current_30d") or {}
+    sc_30d_prev = search_console_report.get("summary_previous_30d") or {}
+    pc1 = _dashboard_sc_period_metrics(sc_1d_cur, sc_1d_prev)
+    pc7 = _dashboard_sc_period_metrics(sc_7d_cur, sc_7d_prev)
+    pc30 = _dashboard_sc_period_metrics(sc_30d_cur, sc_30d_prev)
+    period_compare = {
+        "1": {
+            **pc1,
+            "range_cur": search_console_report.get("range_current_1d", ""),
+            "range_prev": search_console_report.get("range_previous_1d", ""),
+            "compare_badge": "1g",
+            "delta_caption": "dün",
+            "position_subcaption": "dün · ort. sıra",
+            "footer_hint": "Son tam gün",
+        },
+        "7": {
+            **pc7,
+            "range_cur": search_console_report.get("range_current_7d", ""),
+            "range_prev": search_console_report.get("range_previous_7d", ""),
+            "compare_badge": "7g",
+            "delta_caption": "son 7 gün",
+            "position_subcaption": "ort. sıra · son 7 gün",
+            "footer_hint": "7 günlük özet",
+        },
+        "30": {
+            **pc30,
+            "range_cur": search_console_report.get("range_current_30d", ""),
+            "range_prev": search_console_report.get("range_previous_30d", ""),
+            "compare_badge": "30g",
+            "delta_caption": "son 30 gün",
+            "position_subcaption": "ort. sıra · son 30 gün",
+            "footer_hint": "30 günlük özet",
+        },
+    }
+    has_compare_data = bool(pc1["has_data"] or pc7["has_data"] or pc30["has_data"])
     return {
         "id": site.id,
         "display_name": site.display_name,
@@ -3541,25 +3606,22 @@ def _build_dashboard_card(
             "position": float(search_console_summary.get("position", 0.0)),
             "position_label": _format_max_two_decimals(search_console_summary.get("position", 0.0)),
             "status": search_console_status,
+            "has_rows": bool(search_console_status.get("has_rows")),
             "last_run_status": str(search_console_run.status or "").upper() if search_console_run and search_console_run.status else "NEVER",
             "last_run_at": _format_optional_datetime(search_console_run.requested_at if search_console_run else None),
             "last_run_dt": search_console_run.requested_at if search_console_run else None,
-            # 1g karşılaştırma verileri
-            "clicks_1d_label": _format_compact_number(sc_1d_clicks_cur) if sc_1d_clicks_cur else "—",
-            "clicks_1d_change": _ga4_period_pct_change(sc_1d_clicks_cur, sc_1d_clicks_prev),
-            "clicks_1d_has_data": bool(sc_1d_clicks_cur or sc_1d_clicks_prev),
-            "ctr_1d_label": f"{_format_max_two_decimals(sc_1d_ctr_cur)}%" if sc_1d_ctr_cur else "—",
-            "ctr_1d_change": _ga4_period_pct_change(sc_1d_ctr_cur, sc_1d_ctr_prev),
-            "ctr_1d_has_data": bool(sc_1d_ctr_cur or sc_1d_ctr_prev),
-            "position_1d_label": _format_max_two_decimals(sc_1d_pos_cur) if sc_1d_pos_cur else "—",
-            "position_1d_change": _ga4_period_pct_change(sc_1d_pos_prev, sc_1d_pos_cur),  # reversed: lower pos = better
-            "position_1d_has_data": bool(sc_1d_pos_cur or sc_1d_pos_prev),
-            "impressions_1d_label": _format_compact_number(sc_1d_imp_cur) if sc_1d_imp_cur else "—",
-            "impressions_1d_change": _ga4_period_pct_change(sc_1d_imp_cur, sc_1d_imp_prev),
-            "impressions_1d_has_data": bool(sc_1d_imp_cur or sc_1d_imp_prev),
-            "range_1d": search_console_report.get("range_current_1d", ""),
-            "range_1d_prev": search_console_report.get("range_previous_1d", ""),
-            "has_1d_data": bool(sc_1d_clicks_cur or sc_1d_ctr_cur or sc_1d_pos_cur),
+            "period_compare": period_compare,
+            "has_compare_data": has_compare_data,
+            # Geriye dönük (şablon dışı tüketim)
+            "clicks_1d_label": pc1["clicks_label"],
+            "clicks_1d_change": pc1["clicks_change"],
+            "ctr_1d_label": pc1["ctr_label"],
+            "ctr_1d_change": pc1["ctr_change"],
+            "position_1d_label": pc1["position_label"],
+            "position_1d_change": pc1["position_change"],
+            "range_1d": period_compare["1"]["range_cur"],
+            "range_1d_prev": period_compare["1"]["range_prev"],
+            "has_1d_data": bool(pc1["has_data"]),
         },
         "pagespeed_status": {
             "mobile_updated_at": mobile_status["updated_at"],

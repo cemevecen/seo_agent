@@ -478,5 +478,82 @@
       }
     });
   })();
+
+  /* Search Console 1g / 7g / 30g segmented control — tüm kartlar aynı seçim (localStorage) */
+  (function () {
+    var STORAGE_KEY = 'dashboard-sc-compare-period';
+    function readStored() {
+      try {
+        var v = localStorage.getItem(STORAGE_KEY);
+        if (v === '1' || v === '7' || v === '30') {
+          return v;
+        }
+      } catch (e) { /* ignore */ }
+      return '1';
+    }
+    function writeStored(v) {
+      try {
+        localStorage.setItem(STORAGE_KEY, v);
+      } catch (e) { /* ignore */ }
+    }
+    function applyPeriodToRoot(root, period) {
+      if (!root) {
+        return;
+      }
+      root.querySelectorAll('[data-sc-period-content]').forEach(function (el) {
+        var p = el.getAttribute('data-sc-period-content');
+        el.classList.toggle('hidden', p !== period);
+      });
+      root.querySelectorAll('[data-sc-period-btn]').forEach(function (btn) {
+        var on = btn.getAttribute('data-sc-period-btn') === period;
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.classList.toggle('bg-white', on);
+        btn.classList.toggle('text-sky-700', on);
+        btn.classList.toggle('shadow-sm', on);
+        btn.classList.toggle('dark:bg-slate-700', on);
+        btn.classList.toggle('dark:text-sky-300', on);
+        btn.classList.toggle('text-slate-500', !on);
+        btn.classList.toggle('hover:text-slate-800', !on);
+        btn.classList.toggle('dark:text-slate-400', !on);
+        btn.classList.toggle('dark:hover:text-slate-200', !on);
+      });
+    }
+    function applyPeriodGlobal(period) {
+      document.querySelectorAll('[data-dashboard-sc-compare-root]').forEach(function (root) {
+        applyPeriodToRoot(root, period);
+      });
+    }
+    function wireCard(el) {
+      var root = el.querySelector('[data-dashboard-sc-compare-root]');
+      if (!root) {
+        return;
+      }
+      var period = readStored();
+      applyPeriodToRoot(root, period);
+      root.querySelectorAll('[data-sc-period-btn]').forEach(function (btn) {
+        if (btn.dataset.scPeriodWired === '1') {
+          return;
+        }
+        btn.dataset.scPeriodWired = '1';
+        btn.addEventListener('click', function () {
+          var p = btn.getAttribute('data-sc-period-btn');
+          if (!p) {
+            return;
+          }
+          writeStored(p);
+          applyPeriodGlobal(p);
+        });
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[id^="dashboard-card-"]').forEach(wireCard);
+    });
+    document.body.addEventListener('htmx:afterSwap', function (event) {
+      var target = event.target;
+      if (target && target.id && target.id.indexOf('dashboard-card-') === 0) {
+        wireCard(target);
+      }
+    });
+  })();
 </script>
 {% endblock %}

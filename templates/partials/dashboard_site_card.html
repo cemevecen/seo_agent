@@ -48,15 +48,38 @@
     <div class="mx-4 mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-200 sm:mx-5">{{ card.flash_message }}</div>
   {% endif %}
 
-  {# Özet metrikler — bölümler ayrı; veri aynı #}
-  <div class="space-y-5 border-b border-slate-100 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:border-slate-800 dark:bg-slate-950/30">
-    {% if card.search_console.has_1d_data %}
-      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 text-[11px] leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-        <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">1g karşılaştırma</span>
-        <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
-        <span class="font-semibold text-slate-800 dark:text-slate-100">{{ card.search_console.range_1d or "Dün" }}</span>
-        <span class="text-slate-400">vs</span>
-        <span class="text-slate-500 dark:text-slate-400">{{ card.search_console.range_1d_prev or "Geçen haftanın aynı günü" }}</span>
+  {% set pc = card.search_console.period_compare %}
+  {# Özet metrikler — 480px+: switch ile 1g / 7g / 30g karşılaştırma #}
+  <div data-dashboard-sc-compare-root class="border-b border-slate-100 dark:border-slate-800">
+  <div class="space-y-5 bg-slate-50/50 px-4 py-4 sm:px-5 sm:py-5 dark:bg-slate-950/30">
+    {% if card.search_console.has_compare_data %}
+      <div class="flex flex-col gap-2.5 rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 text-[11px] leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div class="min-w-0 flex-1">
+          {% for pid in ['1', '7', '30'] %}
+            {% set p = pc[pid] %}
+            <div data-sc-period-content="{{ pid }}" class="flex flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != '1' %}hidden{% endif %}">
+              <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
+              <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
+              <span class="text-slate-400">vs</span>
+              <span class="text-slate-500 dark:text-slate-400">{{ p.range_prev or "—" }}</span>
+            </div>
+          {% endfor %}
+        </div>
+        <div
+          role="group"
+          aria-label="Karşılaştırma dönemi"
+          class="inline-flex shrink-0 rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/90"
+        >
+          {% for label, pid in [('1g', '1'), ('7g', '7'), ('30g', '30')] %}
+            <button
+              type="button"
+              data-sc-period-btn="{{ pid }}"
+              aria-pressed="{% if pid == '1' %}true{% else %}false{% endif %}"
+              class="sc-period-seg rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900 {% if pid == '1' %}bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}"
+            >{{ label }}</button>
+          {% endfor %}
+        </div>
       </div>
     {% endif %}
 
@@ -71,17 +94,22 @@
         {# Clicks #}
         <div class="flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[8.75rem] sm:px-4 sm:py-5">
           <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Clicks</p>
-          {% if card.search_console.has_1d_data %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.clicks_1d_label }}</p>
-            {% set ch = card.search_console.clicks_1d_change %}
-            {% if ch > 0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
-            {% elif ch < -0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
-            {% else %}
-              <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
-            {% endif %}
-            <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">dün</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
+                <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ p.clicks_label }}</p>
+                {% set ch = p.clicks_change %}
+                {% if ch > 0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
+                {% elif ch < -0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+                {% else %}
+                  <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
+                {% endif %}
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
+              </div>
+            {% endfor %}
           {% else %}
             <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.clicks_label }}</p>
             <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">7g toplam</p>
@@ -91,17 +119,22 @@
         {# CTR #}
         <div class="flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[8.75rem] sm:px-4 sm:py-5">
           <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">CTR</p>
-          {% if card.search_console.has_1d_data %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.ctr_1d_label }}</p>
-            {% set ch = card.search_console.ctr_1d_change %}
-            {% if ch > 0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
-            {% elif ch < -0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
-            {% else %}
-              <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
-            {% endif %}
-            <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">dün</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
+                <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ p.ctr_label }}</p>
+                {% set ch = p.ctr_change %}
+                {% if ch > 0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
+                {% elif ch < -0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+                {% else %}
+                  <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
+                {% endif %}
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.delta_caption }}</p>
+              </div>
+            {% endfor %}
           {% else %}
             <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.ctr_label }}</p>
             <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">ort. oran</p>
@@ -111,17 +144,22 @@
         {# Position #}
         <div class="col-span-2 flex min-h-[7.5rem] flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-4 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:col-span-1 sm:min-h-[8.75rem] sm:px-4 sm:py-5">
           <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[11px]">Position</p>
-          {% if card.search_console.has_1d_data %}
-            <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.position_1d_label }}</p>
-            {% set ch = card.search_console.position_1d_change %}
-            {% if ch > 0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
-            {% elif ch < -0.5 %}
-              <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
-            {% else %}
-              <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
-            {% endif %}
-            <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">dün · ort. sıra</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <div data-sc-period-content="{{ pid }}" class="{% if pid != '1' %}hidden{% endif %} flex min-h-0 flex-col">
+                <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ p.position_label }}</p>
+                {% set ch = p.position_change %}
+                {% if ch > 0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs">↑ {{ "%.1f"|format(ch) }}%</p>
+                {% elif ch < -0.5 %}
+                  <p class="mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 sm:text-xs">↓ {{ "%.1f"|format(ch|abs) }}%</p>
+                {% else %}
+                  <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 sm:text-xs">—</p>
+                {% endif %}
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{{ p.position_subcaption }}</p>
+              </div>
+            {% endfor %}
           {% else %}
             <p class="mt-2 text-[clamp(1.35rem,4.5vw+0.4rem,2.35rem)] font-bold tabular-nums leading-none tracking-tight text-slate-900 dark:text-slate-50 sm:mt-2.5 sm:text-3xl lg:text-4xl">{{ card.search_console.position_label }}</p>
             <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">ort. sıra</p>
@@ -157,22 +195,50 @@
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Search Console</p>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">7 günlük özet</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <p data-sc-period-content="{{ pid }}" class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 {% if pid != '1' %}hidden{% endif %}">{{ p.footer_hint }}</p>
+            {% endfor %}
+          {% else %}
+            <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">7 günlük özet</p>
+          {% endif %}
         </div>
         <span class="w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold {{ card.search_console.status.badge_class }}">{{ card.search_console.status.label }}</span>
       </div>
       <div class="grid grid-cols-3 gap-2 sm:gap-3">
         <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Clicks</p>
-          <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.clicks_label }}</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.clicks_label }}</p>
+            {% endfor %}
+          {% else %}
+            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.clicks_label }}</p>
+          {% endif %}
         </div>
         <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">CTR</p>
-          <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.ctr_label }}</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.ctr_label }}</p>
+            {% endfor %}
+          {% else %}
+            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.ctr_label }}</p>
+          {% endif %}
         </div>
         <div class="flex min-h-[4.5rem] flex-col justify-center rounded-xl bg-slate-50 px-2 py-2.5 text-center ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-600 sm:min-h-[5rem] sm:px-2.5 sm:py-3">
           <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-[10px]">Pos.</p>
-          <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.position_label }}</p>
+          {% if card.search_console.has_compare_data %}
+            {% for pid in ['1', '7', '30'] %}
+              {% set p = pc[pid] %}
+              <p data-sc-period-content="{{ pid }}" class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg {% if pid != '1' %}hidden{% endif %}">{{ p.position_label }}</p>
+            {% endfor %}
+          {% else %}
+            <p class="mt-1.5 text-sm font-bold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base lg:text-lg">{{ card.search_console.position_label }}</p>
+          {% endif %}
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -208,5 +274,6 @@
         {% endfor %}
       </div>
     </div>
+  </div>
   </div>
 </div>
