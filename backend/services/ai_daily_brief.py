@@ -12,14 +12,16 @@ import re
 import threading
 from datetime import datetime, timedelta
 from html import escape
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import SessionLocal
-from backend.models import AiDailyBriefReport, ExternalSite, Site
+from backend.models import AiBriefRunLog, AiDailyBriefReport, ExternalSite, Site
 from backend.services.alert_engine import get_recent_alerts
 from backend.services.email_templates import render_email_shell, section
 from backend.services.ga4_auth import get_ga4_connection_status
@@ -31,6 +33,8 @@ from backend.services.warehouse import get_latest_search_console_rows_batch
 LOGGER = logging.getLogger(__name__)
 
 _BRIEF_SECTION_KEYS = ("ga4", "pagespeed", "search_console", "alerts")
+
+_BRIEF_RUN_LOGS_SEED_LOCK = threading.Lock()
 
 # LLM: tarama dostu iskelet + stratejik yorum; uygulama profillerinde SEO-organik saçmalığı yasak
 _BRIEF_DATA_FIRST_RULES_TR = """
@@ -852,7 +856,6 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                 continue
 
             label_stored = f"{provider}:{model_name}"[:80]
-            chosen_provider = provider
             LOGGER.info("AI günlük özet üretildi: sağlayıcı=%s model=%s", provider, model_name)
             break
 
@@ -874,6 +877,19 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         row.model_name = label_stored
         db.add(row)
         db.commit()
+        try:
+            db.add(
+                AiBriefRunLog(
+                    day_key=brief_date,
+                    model_name=label_stored[:80],
+                    source="manual" if force else "scheduled",
+                    brief_date=brief_date,
+                )
+            )
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("ai_brief_run_logs kaydı yazılamadı: %s", exc)
+            db.rollback()
         recipients = operations_recipients()
         subject = f"SEO Agent · AI günlük özet · {brief_date}"
         html = build_brief_email_html(brief_date, final, qc_ok=qc_ok, qc_detail=qc_detail)
@@ -889,3 +905,76 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
 
 def get_latest_brief_for_ui(db: Session) -> AiDailyBriefReport | None:
     return db.query(AiDailyBriefReport).order_by(AiDailyBriefReport.brief_date.desc()).first()
+
+
+def _seed_brief_run_logs_from_reports_if_empty(db: Session) -> None:
+    """Log tablosu boşsa geçmiş ai_daily_brief_reports satırlarından tek seferlik içe aktarır."""
+    n = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
+    if n > 0:
+        return
+    with _BRIEF_RUN_LOGS_SEED_LOCK:
+        n2 = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
+        if n2 > 0:
+            return
+        reps = (
+            db.query(AiDailyBriefReport)
+            .filter(func.length(AiDailyBriefReport.ga4_text) > 50)
+            .order_by(AiDailyBriefReport.brief_date.asc())
+            .all()
+        )
+        for r in reps:
+            mn = (r.model_name or "").strip()[:80] or "kayıtta yok"
+            db.add(
+                AiBriefRunLog(
+                    created_at=r.created_at,
+                    day_key=r.brief_date,
+                    model_name=mn,
+                    source="scheduled",
+                    brief_date=r.brief_date,
+                )
+            )
+        try:
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("ai_brief_run_logs tohumlaması başarısız: %s", exc)
+
+
+def get_ai_brief_run_stats(db: Session, *, window_days: int = 120) -> dict[str, Any]:
+    """AI sayfası: toplam çalıştırma ve İstanbul gününe göre model kırılımı."""
+    _seed_brief_run_logs_from_reports_if_empty(db)
+    total_all = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
+    tz = ZoneInfo(settings.ai_daily_brief_timezone or "Europe/Istanbul")
+    cutoff = (datetime.now(tz).date() - timedelta(days=max(7, int(window_days)))).isoformat()
+    logs = (
+        db.query(AiBriefRunLog)
+        .filter(AiBriefRunLog.day_key >= cutoff)
+        .order_by(AiBriefRunLog.day_key.desc(), AiBriefRunLog.id.desc())
+        .all()
+    )
+    by_day: dict[str, dict[str, Any]] = {}
+    for log in logs:
+        dk = log.day_key
+        if dk not in by_day:
+            by_day[dk] = {"day_key": dk, "total": 0, "models": {}}
+        b = by_day[dk]
+        b["total"] += 1
+        mn = (log.model_name or "").strip() or "—"
+        if mn not in b["models"]:
+            b["models"][mn] = {"model": mn, "count": 0, "scheduled": 0, "manual": 0}
+        e = b["models"][mn]
+        e["count"] += 1
+        if (log.source or "").strip().lower() == "manual":
+            e["manual"] += 1
+        else:
+            e["scheduled"] += 1
+    days_out: list[dict[str, Any]] = []
+    for dk in sorted(by_day.keys(), reverse=True):
+        d = by_day[dk]
+        models_list = sorted(d["models"].values(), key=lambda x: (-x["count"], x["model"]))
+        days_out.append({"day_key": dk, "total": d["total"], "models": models_list})
+    return {
+        "total_all": total_all,
+        "days": days_out,
+        "window_days": int(window_days),
+    }

@@ -435,6 +435,19 @@ class AiDailyBriefReport(Base):
     model_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
 
 
+class AiBriefRunLog(Base):
+    """Her başarılı AI özet üretiminde bir satır (gün ve model kırılımı için)."""
+
+    __tablename__ = "ai_brief_run_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    day_key: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    model_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="scheduled")
+    brief_date: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+
+
 class LlmSpendMonth(Base):
     """Aylık tahmini LLM harcaması (TRY); token fiyatları .env ile kalibre edilir."""
 

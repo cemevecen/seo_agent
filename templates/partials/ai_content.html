@@ -101,4 +101,54 @@
       {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text) }}
     </div>
   {% endif %}
+
+  {% set st = ai_brief_run_stats if ai_brief_run_stats is defined else none %}
+  {% if st %}
+  <section class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Analiz geçmişi">
+    <div class="border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/60">
+      <h3 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Analiz geçmişi</h3>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Toplam <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ st.total_all }}</span> kayıtlı çalıştırma.
+        Aşağıda son <span class="tabular-nums">{{ st.window_days }}</span> gün (İstanbul tarihi); satır başına o günkü toplam adet ve kullanılan modeller.
+      </p>
+    </div>
+    <div class="px-5 py-4">
+      {% if st.days %}
+        <ul class="space-y-4 text-[13px] leading-snug text-slate-800 dark:text-slate-100">
+          {% for d in st.days %}
+            <li class="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0 dark:border-slate-800">
+              <p class="font-semibold text-slate-900 dark:text-white">
+                <span class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ d.day_key|e }}</span>
+                <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+                <span class="tabular-nums">{{ d.total }}</span> çalıştırma
+              </p>
+              <ul class="mt-2 space-y-1.5 pl-3 text-slate-600 dark:text-slate-300">
+                {% for m in d.models %}
+                  <li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span class="min-w-0 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">{{ m.model|e }}</span>
+                    <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
+                      ×{{ m.count }}
+                      {% if m.scheduled or m.manual %}
+                        <span class="text-slate-400 dark:text-slate-500">
+                          ({% if m.scheduled %}zamanlı {{ m.scheduled }}{% endif %}
+                          {% if m.scheduled and m.manual %} · {% endif %}
+                          {% if m.manual %}manuel {{ m.manual }}{% endif %})
+                        </span>
+                      {% endif %}
+                    </span>
+                  </li>
+                {% endfor %}
+              </ul>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-500 dark:text-slate-400">Bu pencerede henüz kayıt yok.</p>
+      {% endif %}
+      <p class="mt-4 border-t border-slate-100 pt-3 text-[11px] text-slate-400 dark:text-slate-500 dark:border-slate-800">
+        Eski kayıtlar ilk açılışta mevcut günlük özetlerden bir kez içe aktarılmış olabilir (model bilgisi yoksa &quot;kayıtta yok&quot; görünür). Bundan sonra her başarılı analiz ayrıca loglanır; aynı gün birden fazla &quot;Analiz et&quot; ayrı sayılır.
+      </p>
+    </div>
+  </section>
+  {% endif %}
 </div>
