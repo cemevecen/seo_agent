@@ -102,80 +102,129 @@
     </div>
   {% endif %}
 
+  {% macro ai_hist_model_title(raw) -%}
+    {%- set s = (raw|string)|trim -%}
+    {%- if s in ('—', 'kayıtta yok', '') -%}
+      {{- 'Model bilinmiyor' if s in ('—', '') else 'Eski kayıt (model adı yok)' -}}
+    {%- elif ':' in s -%}
+      {%- set pair = s.split(':', 1) -%}
+      {%- set prov = (pair[0]|lower)|trim -%}
+      {%- set mid = pair[1]|trim -%}
+      {%- if prov == 'gemini' -%}
+        {{- 'Google Gemini' -}}
+      {%- elif prov == 'groq' -%}
+        {{- 'Groq' -}}
+      {%- else -%}
+        {{- prov|upper -}}
+      {%- endif -%}
+      {%- if mid -%}
+        {{- ' — ' ~ mid -}}
+      {%- endif -%}
+    {%- else -%}
+      {{- s -}}
+    {%- endif -%}
+  {%- endmacro %}
+
   {% set st = ai_brief_run_stats if ai_brief_run_stats is defined else none %}
   {% if st %}
   <section class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Analiz geçmişi">
     <div class="border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/60">
-      <h3 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Analiz geçmişi</h3>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Toplam <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ st.total_all }}</span> kayıtlı çalıştırma.
-        Aşağıda model bazında tüm zamanlar özeti, ardından son <span class="tabular-nums">{{ st.window_days }}</span> günlük kırılım (İstanbul tarihi).
+      <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Analiz geçmişi</h3>
+      <p class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+        Her satır, özetin başarıyla üretildiği bir çalıştırmayı gösterir. Tarihler İstanbul saatine göredir.
       </p>
+      <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{{ st.total_all }}</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">toplam analiz (tüm zamanlar)</p>
     </div>
-    <div class="px-5 py-4">
+    <div class="space-y-6 px-5 py-4">
       {% if st.models_all_time %}
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Model — toplam kullanım</p>
-        <ul class="mb-6 space-y-1.5 text-[13px] text-slate-800 dark:text-slate-100">
-          {% for m in st.models_all_time %}
-            <li class="flex flex-wrap items-baseline gap-x-2 border-b border-slate-50 pb-1.5 last:border-b-0 dark:border-slate-800/80">
-              <span class="min-w-0 flex-1 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">{{ m.model|e }}</span>
-              <span class="shrink-0 tabular-nums font-semibold text-slate-900 dark:text-white">{{ m.count }} analiz</span>
-              <span class="w-full text-[11px] text-slate-500 dark:text-slate-400">
-                zamanlı {{ m.scheduled }} · manuel {{ m.manual }}
-              </span>
-            </li>
-          {% endfor %}
-        </ul>
+        <div>
+          <h4 class="mb-3 text-xs font-semibold text-slate-800 dark:text-slate-200">Hangi yapay zeka kaç kez kullanıldı?</h4>
+          <ul class="divide-y divide-slate-100 dark:divide-slate-800" role="list">
+            {% for m in st.models_all_time %}
+              <li class="flex flex-col gap-1 py-3 first:pt-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-slate-900 dark:text-white">{{ ai_hist_model_title(m.model) }}</p>
+                  {% set _raw = m.model %}
+                  {% if _raw and _raw|string|trim not in ('—', 'kayıtta yok') and ':' in (_raw|string) %}
+                    <span class="mt-0.5 block font-mono text-[10px] leading-tight text-slate-400 dark:text-slate-500">{{ _raw|e }}</span>
+                  {% endif %}
+                  <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                    Otomatik (her gün planlanan): <span class="tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ m.scheduled }}</span>
+                    · Elle düğmesi (&quot;Analiz et&quot;): <span class="tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ m.manual }}</span>
+                  </p>
+                </div>
+                <div class="shrink-0 text-left sm:text-right">
+                  <p class="text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ m.count }}</p>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">kez</p>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
       {% endif %}
 
-      <div class="mb-6 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2.5 text-[11px] leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-        <p class="font-semibold text-amber-900 dark:text-amber-200">Tahmini iç kullanım (para değil, fatura değil)</p>
-        <p class="mt-1 text-amber-900/90 dark:text-amber-100/90">
-          Bu ay (İstanbul) uygulamanın token birim fiyatlarıyla hesapladığı yaklaşık tutar:
-          <span class="font-mono font-semibold tabular-nums">{{ st.llm_spent_try_approx_month | round(4) }}</span> TRY
-          {% if st.llm_budget_try and st.llm_budget_try > 0 %}
-            — tavan <span class="font-mono tabular-nums">{{ st.llm_budget_try | round(2) }}</span> TRY (aşılırsa yeni çağrılar önceden engellenir).
-          {% else %}
-            — <span class="italic">LLM_SPEND_BUDGET_TRY=0</span> ise yalnızca günlük çağrı kotası uygulanır.
-          {% endif %}
-          Gerçek Google veya Groq faturanız bu sayı olmayabilir; ücretsiz katmandaysanız çoğu zaman fatura da oluşmaz.
+      <div class="rounded-xl border border-amber-200/90 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-50">
+        <h4 class="font-semibold text-amber-900 dark:text-amber-200">Maliyet (sadece kabaca tahmin)</h4>
+        <p class="mt-2 text-amber-950/95 dark:text-amber-100/95">
+          Bu kutu gerçek fatura göstermez; uygulama token kullanımını sizin ayarladığınız birim fiyatlarla TRY’ye çevirir. Ücretsiz planda çoğu zaman yine de ek ücret çıkmaz.
         </p>
+        <dl class="mt-3 grid gap-2 sm:grid-cols-2">
+          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-slate-900/40">
+            <dt class="text-[11px] text-amber-800/90 dark:text-amber-200/80">Bu ay tahmini (TRY)</dt>
+            <dd class="text-base font-semibold tabular-nums text-amber-950 dark:text-amber-100">{{ st.llm_spent_try_approx_month | round(2) }}</dd>
+          </div>
+          {% if st.llm_budget_try and st.llm_budget_try > 0 %}
+          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-slate-900/40">
+            <dt class="text-[11px] text-amber-800/90 dark:text-amber-200/80">Ay içi üst limit (TRY)</dt>
+            <dd class="text-base font-semibold tabular-nums text-amber-950 dark:text-amber-100">{{ st.llm_budget_try | round(2) }}</dd>
+          </div>
+          {% endif %}
+        </dl>
+        {% if st.llm_budget_try and st.llm_budget_try > 0 %}
+          <p class="mt-2 text-[11px] text-amber-900/85 dark:text-amber-200/80">
+            Limit dolarsa sistem, tahmine göre yeni analizi başlatmadan önce durdurmaya çalışır.
+          </p>
+        {% else %}
+          <p class="mt-2 text-[11px] text-amber-900/85 dark:text-amber-200/80">
+            Aylık TRY limiti kapalı; sadece günde izin verilen en fazla API çağrısı sınırı geçerlidir.
+          </p>
+        {% endif %}
       </div>
 
       {% if st.days %}
-        <ul class="space-y-4 text-[13px] leading-snug text-slate-800 dark:text-slate-100">
-          {% for d in st.days %}
-            <li class="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0 dark:border-slate-800">
-              <p class="font-semibold text-slate-900 dark:text-white">
-                <span class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ d.day_key|e }}</span>
-                <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
-                <span class="tabular-nums">{{ d.total }}</span> çalıştırma
-              </p>
-              <ul class="mt-2 space-y-1.5 pl-3 text-slate-600 dark:text-slate-300">
-                {% for m in d.models %}
-                  <li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span class="min-w-0 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">{{ m.model|e }}</span>
-                    <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
-                      ×{{ m.count }}
-                      {% if m.scheduled or m.manual %}
-                        <span class="text-slate-400 dark:text-slate-500">
-                          ({% if m.scheduled %}zamanlı {{ m.scheduled }}{% endif %}
-                          {% if m.scheduled and m.manual %} · {% endif %}
-                          {% if m.manual %}manuel {{ m.manual }}{% endif %})
-                        </span>
-                      {% endif %}
-                    </span>
-                  </li>
-                {% endfor %}
-              </ul>
-            </li>
-          {% endfor %}
-        </ul>
+        <div>
+          <h4 class="mb-3 text-xs font-semibold text-slate-800 dark:text-slate-200">Gün gün (son {{ st.window_days }} gün)</h4>
+          <ul class="space-y-3" role="list">
+            {% for d in st.days %}
+              <li class="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40">
+                <p class="text-sm font-medium text-slate-900 dark:text-white">
+                  <time class="font-mono text-xs text-slate-600 dark:text-slate-400">{{ d.day_key|e }}</time>
+                  <span class="ml-2 text-slate-500 dark:text-slate-400">·</span>
+                  <span class="ml-2 tabular-nums">{{ d.total }}</span> analiz
+                </p>
+                <ul class="mt-2 space-y-1.5 border-t border-slate-200/80 pt-2 dark:border-slate-700/80">
+                  {% for m in d.models %}
+                    <li class="text-[12px] text-slate-700 dark:text-slate-300">
+                      <span class="font-medium text-slate-800 dark:text-slate-200">{{ ai_hist_model_title(m.model) }}</span>
+                      <span class="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                        <span class="tabular-nums">{{ m.count }}</span> kez
+                        · otomatik <span class="tabular-nums">{{ m.scheduled }}</span>
+                        · el ile <span class="tabular-nums">{{ m.manual }}</span>
+                      </span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
       {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">Bu pencerede henüz kayıt yok.</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Son {{ st.window_days }} günde listelenecek gün yok.</p>
       {% endif %}
-      <p class="mt-4 border-t border-slate-100 pt-3 text-[11px] text-slate-400 dark:text-slate-500 dark:border-slate-800">
-        Eski kayıtlar ilk açılışta mevcut günlük özetlerden bir kez içe aktarılmış olabilir (model bilgisi yoksa &quot;kayıtta yok&quot; görünür). Bundan sonra her başarılı analiz ayrıca loglanır; aynı gün birden fazla &quot;Analiz et&quot; ayrı sayılır.
+
+      <p class="border-t border-slate-100 pt-3 text-[11px] leading-snug text-slate-400 dark:border-slate-800 dark:text-slate-500">
+        Eski özetler bazen tek sefer içe aktarılır. Bundan sonra her başarılı üretim ayrı kayıt olur; aynı gün birden fazla &quot;Analiz et&quot; ayrı sayılır.
       </p>
     </div>
   </section>
