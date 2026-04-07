@@ -188,14 +188,25 @@ function renderComparisonData(alertId, comparisonType) {
 
   var comparison = cached.comparison || {};
   var typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
-  var toneMap = {
-    blue: 'bg-sky-50 dark:bg-slate-900/60 border-sky-100 dark:border-slate-600 text-slate-900 dark:text-slate-100',
-    slate: 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100',
-    red: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/50 text-rose-700 dark:text-rose-300',
-    green: 'bg-emerald-50 dark:bg-emerald-950/35 border-emerald-100 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-300',
-  };
+  var isDark = document.documentElement.classList.contains('dark');
+  var wrapperStyle = isDark
+    ? 'background:rgba(15,23,42,0.72);border-color:rgba(71,85,105,0.75);'
+    : 'background:rgba(240,249,255,0.72);border-color:rgba(186,230,253,0.95);';
+  var toneStyleMap = isDark
+    ? {
+        blue: 'background:rgba(15,23,42,0.82);border-color:rgba(71,85,105,0.72);color:rgb(226,232,240);',
+        slate: 'background:rgba(15,23,42,0.64);border-color:rgba(51,65,85,0.7);color:rgb(226,232,240);',
+        red: 'background:rgba(76,5,25,0.42);border-color:rgba(136,19,55,0.65);color:rgb(253,164,175);',
+        green: 'background:rgba(2,44,34,0.42);border-color:rgba(6,95,70,0.62);color:rgb(110,231,183);',
+      }
+    : {
+        blue: 'background:rgb(240,249,255);border-color:rgb(224,242,254);color:rgb(15,23,42);',
+        slate: 'background:rgb(248,250,252);border-color:rgb(241,245,249);color:rgb(15,23,42);',
+        red: 'background:rgb(255,241,242);border-color:rgb(255,228,230);color:rgb(190,24,93);',
+        green: 'background:rgb(236,253,245);border-color:rgb(209,250,229);color:rgb(4,120,87);',
+      };
 
-  var html = '<div class="rounded-2xl border border-sky-100 dark:border-slate-600 bg-sky-50/70 dark:bg-slate-900/70 p-4 sm:p-5">';
+  var html = '<div class="rounded-2xl border p-4 sm:p-5" style="' + wrapperStyle + '">';
   html += '<p class="text-xs font-semibold tracking-[0.16em] text-slate-500 dark:text-slate-400 uppercase mb-3">' + typeLabel + '</p>';
 
   if (comparison.message) {
@@ -203,13 +214,13 @@ function renderComparisonData(alertId, comparisonType) {
   }
 
   if (Array.isArray(comparison.cards) && comparison.cards.length > 0) {
-    html += '<div class="grid gap-3 md:grid-cols-3">';
+    html += '<div class="grid grid-cols-3 gap-2">';
     comparison.cards.forEach(function (c) {
-      var tc = toneMap[c.tone] || toneMap.slate;
-      html += '<div class="rounded-2xl border p-4 ' + tc + '">';
-      html += '<p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">' + (c.label || '') + '</p>';
-      html += '<p class="mt-2 text-2xl font-bold leading-none">' + (c.value || 'N/A') + '</p>';
-      if (c.detail) html += '<p class="mt-2 text-sm leading-5 text-slate-600 dark:text-slate-300">' + c.detail + '</p>';
+      var toneStyle = toneStyleMap[c.tone] || toneStyleMap.slate;
+      html += '<div class="rounded-xl border px-3 py-2" style="' + toneStyle + '">';
+      html += '<p class="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">' + (c.label || '') + '</p>';
+      html += '<p class="mt-1 text-lg font-bold leading-none">' + (c.value || 'N/A') + '</p>';
+      if (c.detail) html += '<p class="mt-1 text-[11px] leading-4 opacity-85">' + c.detail + '</p>';
       html += '</div>';
     });
     html += '</div>';

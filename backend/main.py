@@ -1470,7 +1470,7 @@ def _is_sqlite_lock_error(exc: Exception) -> bool:
 def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -> None:
     for attempt in range(1, attempts + 1):
         try:
-            db.commit()
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             return
         except PendingRollbackError as exc:
             db.rollback()
@@ -1482,6 +1482,12 @@ def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -
             if not _is_sqlite_lock_error(exc) or attempt >= attempts:
                 raise
             time.sleep(base_wait * attempt)
+
+
+def _friendly_measure_error_message(exc: Exception) -> str:
+    if _is_sqlite_lock_error(exc):
+        return "Ölçüm şu anda tamamlanamadı (veritabanı meşgul). Mevcut kayıtlı veri gösteriliyor; lütfen birkaç saniye sonra tekrar deneyin."
+    return "Ölçüm şu anda tamamlanamadı. Mevcut kayıtlı veri gösteriliyor; lütfen tekrar deneyin."
 
 
 def _set_external_onboarding_job(job_id: str, **updates) -> None:
@@ -4923,7 +4929,7 @@ def dashboard_measure_site(request: Request, site_id: int):
             site = db.query(Site).filter(Site.id == site_id).first()
             if site is None:
                 return HTMLResponse("Site bulunamadı.", status_code=404)
-            flash_message = f"Ölçüm tamamlanamadı. Mevcut kayıtlı veri gösteriliyor. Detay: {exc}"
+            flash_message = _friendly_measure_error_message(exc)
 
         dash_pf = request.query_params.get("platform")
         card = _build_dashboard_card(

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError, PendingRollbackError
 
 from backend.config import settings
 from backend.models import ApiUsage, Site
@@ -15,6 +17,10 @@ from backend.services.alert_engine import emit_custom_alert
 # SQLite: api_usages satirlari ayni anda iki is parcacigindan yazilirsa "database is locked" olur.
 # Kota kontrolunu ve (gerekirse) commit'i tekillestirir.
 _API_USAGE_LOCK = threading.Lock()
+
+
+def _is_sqlite_lock_error(exc: Exception) -> bool:
+    return "database is locked" in str(exc).lower()
 
 
 @dataclass(frozen=True)
@@ -80,7 +86,14 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
         return QuotaDecision(allowed=True, reason="quota guard disabled")
 
     with _API_USAGE_LOCK:
-        return _consume_api_quota_impl(db, site, provider, units)
+        for attempt in range(1, 5):
+            try:
+                return _consume_api_quota_impl(db, site, provider, units)
+            except (OperationalError, PendingRollbackError) as exc:
+                db.rollback()
+                if not _is_sqlite_lock_error(exc) or attempt >= 4:
+                    raise
+                time.sleep(0.08 * attempt)
 
 
 def _consume_api_quota_impl(db: Session, site: Site, provider: str, units: int) -> QuotaDecision:
