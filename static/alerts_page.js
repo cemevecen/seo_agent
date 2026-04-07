@@ -264,24 +264,35 @@ function bindRefreshButton() {
     var timer = setInterval(tick, 1200);
 
     try {
-      var resp = await fetch('/api/alerts/refresh', { method: 'POST' });
+      var resp = await fetch('/alerts/refresh', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
       clearInterval(timer);
       if (resp.ok) {
         if (percentEl) percentEl.textContent = '100%';
         if (barEl) barEl.style.width = '100%';
         if (titleEl) titleEl.textContent = 'Tamamlandı';
-        var html = await resp.text();
-        var container = document.getElementById('alerts-container');
-        if (container && html.trim()) {
-          // HTMX ile değil, doğrudan inner container'ı güncelle
-          var tmpDiv = document.createElement('div');
-          tmpDiv.innerHTML = html;
-          var newContainer = tmpDiv.querySelector('#alerts-container');
-          if (newContainer) container.innerHTML = newContainer.innerHTML;
+        // JSON dönen refresh endpointi sonrası güncel partial'ı yeniden al.
+        var partialResp = await fetch('/alerts', {
+          headers: { 'HX-Request': 'true', Accept: 'text/html' },
+        });
+        if (partialResp.ok) {
+          var html = await partialResp.text();
+          var viewRoot = document.getElementById('alerts-view');
+          if (viewRoot && html.trim()) {
+            var tmpDiv = document.createElement('div');
+            tmpDiv.innerHTML = html;
+            var newView = tmpDiv.querySelector('#alerts-view');
+            if (newView && viewRoot.parentNode) {
+              viewRoot.parentNode.replaceChild(newView, viewRoot);
+            }
+          }
         }
         applyAlertsFilters();
       } else {
         if (titleEl) titleEl.textContent = 'Hata oluştu';
+        if (detailEl) detailEl.textContent = 'Yenileme isteği başarısız oldu. Lütfen tekrar deneyin.';
       }
     } catch (err) {
       clearInterval(timer);

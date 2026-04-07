@@ -32,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, PendingRollbackError
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -1472,6 +1472,11 @@ def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -
         try:
             db.commit()
             return
+        except PendingRollbackError as exc:
+            db.rollback()
+            if not _is_sqlite_lock_error(exc) or attempt >= attempts:
+                raise
+            time.sleep(base_wait * attempt)
         except OperationalError as exc:
             db.rollback()
             if not _is_sqlite_lock_error(exc) or attempt >= attempts:
@@ -5156,7 +5161,13 @@ def public_sites_refresh_site(request: Request, site_id: int):
             return HTMLResponse("Site external profilinde değil.", status_code=404)
 
         results = _refresh_public_site_measurements(db, site, force=True)
-        db.commit()
+        try:
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+        except OperationalError as exc:
+            db.rollback()
+            if _is_sqlite_lock_error(exc):
+                return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
+            raise
         notify_result_map(
             trigger_source="manual",
             site=site,
@@ -5193,7 +5204,19 @@ def public_sites_refresh_all(request: Request):
         )
         for index, site in enumerate(sites):
             results = _refresh_public_site_measurements(db, site, force=True)
-            db.commit()
+            try:
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            except OperationalError as exc:
+                db.rollback()
+                if _is_sqlite_lock_error(exc):
+                    notify_result_map(
+                        trigger_source="manual",
+                        site=site,
+                        results={"crawler": {"state": "failed", "error": "database is locked"}},
+                        action_label="Public crawl tum siteler yenile",
+                    )
+                    continue
+                raise
             notify_result_map(
                 trigger_source="manual",
                 site=site,
@@ -5401,7 +5424,13 @@ def api_refresh_data_explorer(request: Request, domain: str):
             results["crux_history"] = collect_crux_history(db, site)
         except Exception as exc:  # noqa: BLE001
             results["crux_history"] = {"state": "failed", "error": str(exc)}
-        db.commit()
+        try:
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+        except OperationalError as exc:
+            db.rollback()
+            if _is_sqlite_lock_error(exc):
+                return JSONResponse({"error": "Veritabanı meşgul, lütfen tekrar deneyin."}, status_code=503)
+            raise
         notify_result_map(
             trigger_source="manual",
             site=site,
@@ -5448,7 +5477,13 @@ def api_refresh_site_metrics(request: Request, domain: str):
                 "state": "skipped",
                 "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
             }
-        db.commit()
+        try:
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+        except OperationalError as exc:
+            db.rollback()
+            if _is_sqlite_lock_error(exc):
+                return JSONResponse({"error": "Veritabanı meşgul, lütfen tekrar deneyin."}, status_code=503)
+            raise
         notify_result_map(
             trigger_source="manual",
             site=site,
@@ -5505,7 +5540,7 @@ def alerts_refresh(request: Request):
                         send_notifications=False,
                     )
                 }
-                db.commit()
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
                 alert_batch.append((site, results["search_console"]))
                 summaries.append({"site": site.domain, "results": results})
             except Exception as exc:  # noqa: BLE001
@@ -6254,7 +6289,7 @@ def ga4_refresh_site(request: Request, site_id: int):
         try:
             collect_ga4_channel_sessions(db, site, days=30)
             collect_ga4_channel_sessions(db, site, days=7)
-            db.commit()
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             bucket = ga4_digest_bucket_for_domain(site.domain)
             if bucket:
                 send_ga4_weekly_digest_emails(
@@ -6309,7 +6344,7 @@ def ga4_refresh_all(request: Request):
             try:
                 collect_ga4_channel_sessions(db, site, days=30)
                 collect_ga4_channel_sessions(db, site, days=7)
-                db.commit()
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
                 any_ga4_ok = True
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
@@ -6645,7 +6680,7 @@ def search_console_refresh_all(request: Request):
                     include_search_console=True,
                     force=True,
                 )
-                db.commit()
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
                 if isinstance(results.get("search_console"), dict):
                     sc_batch.append((site, results["search_console"]))
             except Exception as exc:  # noqa: BLE001
@@ -6694,7 +6729,13 @@ def search_console_manual_refresh(request: Request, site_id: int):
             include_search_console=True,
             force=True,
         )
-        db.commit()
+        try:
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+        except OperationalError as exc:
+            db.rollback()
+            if _is_sqlite_lock_error(exc):
+                return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
+            raise
         notify_result_map(
             trigger_source="manual",
             site=site,
