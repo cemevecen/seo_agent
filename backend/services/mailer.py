@@ -18,6 +18,8 @@ def _smtp_configured() -> bool:
 
 def is_mail_configured() -> bool:
     # Varsayilan alicilar ile SMTP alanlari hazir degilse mail gönderimi sessizce pas geçilir.
+    if not settings.outbound_email_enabled:
+        return False
     default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
     return _smtp_configured() and bool(default_recipient_list)
 
@@ -27,6 +29,9 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     SMTP ile HTML e-posta gönderir.
     Geçici hatalarda (4xx) yeniden deneme mekanizması içerir.
     """
+    if not settings.outbound_email_enabled:
+        logging.debug("outbound_email_enabled=false; e-posta gönderilmedi: %s", subject[:80])
+        return False
     recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
     if not _smtp_configured() or not recipient_list:
         if not _smtp_configured():

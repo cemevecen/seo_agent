@@ -94,9 +94,11 @@ class Settings(BaseSettings):
     scheduled_refresh_monitor_enabled: bool = True
     scheduled_refresh_monitor_interval_minutes: int = 15
     scheduled_refresh_monitor_grace_minutes: int = 45
-    # Tetik/operasyon mailleri (manual refresh, zamanında güncellenmedi vb.)
-    # Local ortamda False, prod'a taşıyınca True yap
-    operations_trigger_email_enabled: bool = True
+    # Tüm uygulama e-postaları: SEO Alert, operasyon özeti, günlük AI özet, GA4 özeti.
+    # False iken SMTP gönderilmez (iş mantığı ve loglar çalışmaya devam eder).
+    outbound_email_enabled: bool = False
+    # Tetik/operasyon özet mailleri (PageSpeed/CrUX günlük vb.); outbound açıkken anlam taşır.
+    operations_trigger_email_enabled: bool = False
 
     # GA4 günlük toplama (Ankara saati; Search Console 04:00, tam yenileme 05:00 ile sıralı)
     ga4_scheduled_refresh_enabled: bool = True
