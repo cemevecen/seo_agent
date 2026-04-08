@@ -495,6 +495,7 @@ def _fetch_android_category_rank(
     *,
     country: str = "tr",
     lang: str = "tr",
+    category_id: str | None = None,
 ) -> dict[str, Any] | None:
     if not package:
         return None
@@ -514,7 +515,7 @@ def _fetch_android_category_rank(
     if m_cat:
         category_name = m_cat.group(1).strip()
 
-    # Play detay sayfasında chart metni her zaman bulunmadığı için best-effort parse uygulanır.
+    # 1) Play detay sayfası içindeki olası rank metni (best-effort)
     patterns = [
         r"#\s*([0-9]{1,4})\s*(?:in|içinde)?\s*(Finance|Finans|Business|İş)",
         r"Top charts[^#]{0,120}#\s*([0-9]{1,4})",
@@ -527,6 +528,49 @@ def _fetch_android_category_rank(
             if m.lastindex and m.lastindex >= 2 and m.group(2):
                 category_name = category_name or m.group(2)
             return {"rank": rank, "total": None, "chart": "details_page", "category_name": category_name}
+
+    # 2) Fallback: kategori chart endpoint + sayfalı link tarama (ilk bulunan sayısal değer alınır)
+    cat = (category_id or category_name or "").strip().upper()
+    if cat:
+        endpoints = [
+            f"https://play.google.com/store/apps/top/category/{cat}",
+            f"https://play.google.com/store/apps/category/{cat}",
+        ]
+        starts = (0, 50, 100, 150)
+        headers2 = {"User-Agent": headers["User-Agent"], "Accept-Language": f"{lang}-{country},tr;q=0.9,en;q=0.8"}
+        with httpx.Client(timeout=12.0, follow_redirects=True, headers=headers2) as client:
+            for base_url in endpoints:
+                total_seen = 0
+                for st in starts:
+                    try:
+                        r2 = client.get(base_url, params={"hl": lang, "gl": country, "start": st, "num": 50, "pli": 1})
+                        if r2.status_code == 429:
+                            break
+                        r2.raise_for_status()
+                        links = re.findall(r"/store/apps/details\?id=([A-Za-z0-9._]+)", r2.text)
+                        ordered: list[str] = []
+                        seen: set[str] = set()
+                        for x in links:
+                            if x in seen:
+                                continue
+                            seen.add(x)
+                            ordered.append(x)
+                        if not ordered:
+                            continue
+                        if package in ordered:
+                            local_idx = ordered.index(package) + 1
+                            rank = total_seen + local_idx
+                            return {
+                                "rank": rank,
+                                "total": total_seen + len(ordered),
+                                "chart": "category_chart_paged",
+                                "category_name": category_name or cat,
+                            }
+                        total_seen += len(ordered)
+                        # Kademeli tarama için kısa bekleme (429 riskini azaltır)
+                        time.sleep(0.15)
+                    except Exception:
+                        continue
 
     return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
 
@@ -812,7 +856,12 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
     )
     if i_rank:
         i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
-    a_rank = _fetch_android_category_rank(spec["android_package"], country="tr", lang="tr")
+    a_rank = _fetch_android_category_rank(
+        spec["android_package"],
+        country="tr",
+        lang="tr",
+        category_id=str(meta.get("genreId") or "") or None,
+    )
     if a_rank:
         meta = {**(meta or {}), **{"category_rank": a_rank}}
 
