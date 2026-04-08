@@ -219,13 +219,23 @@ def _category_rank_summary(period_days: int) -> dict[str, Any]:
     for pid in APP_PRODUCTS.keys():
         p = build_intel_payload(pid, period_days, force_refresh=False)
         w = p.get("active_window") or {}
+        android = w.get("android") or {}
         ios = w.get("ios") or {}
+        ar = (android.get("store_category_rank") or {}) if isinstance(android.get("store_category_rank"), dict) else {}
         rank = (ios.get("store_category_rank") or {}) if isinstance(ios.get("store_category_rank"), dict) else {}
         out[pid] = {
-            "category": ios.get("store_category_name"),
-            "rank": rank.get("rank"),
-            "total": rank.get("total"),
-            "chart": rank.get("chart"),
+            "android": {
+                "category": android.get("store_category_name"),
+                "rank": ar.get("rank"),
+                "total": ar.get("total"),
+                "chart": ar.get("chart"),
+            },
+            "ios": {
+                "category": ios.get("store_category_name"),
+                "rank": rank.get("rank"),
+                "total": rank.get("total"),
+                "chart": rank.get("chart"),
+            },
         }
     return out
 

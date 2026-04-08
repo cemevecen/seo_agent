@@ -723,9 +723,19 @@
     if (rsEl) {
       var d = rs.doviz_finans_rank || {};
       var s = rs.sinemalar_kategori_rank || {};
+      var da = d.android || {};
+      var di = d.ios || {};
+      var sa = s.android || {};
+      var si = s.ios || {};
+      function fmtRank(r) {
+        if (!r) return "—";
+        if (r.rank != null && r.total != null) return "#" + r.rank + "/" + r.total;
+        if (r.rank != null) return "#" + r.rank;
+        return "—";
+      }
       rsEl.innerHTML =
-        "Doviz (Finans) sira: <span class=\"font-semibold\">" + esc(d.rank || "—") + "/" + esc(d.total || "—") + "</span>" +
-        " · Sinemalar (" + esc(s.category || "Kategori") + ") sira: <span class=\"font-semibold\">" + esc(s.rank || "—") + "/" + esc(s.total || "—") + "</span>";
+        "Doviz · Android: <span class=\"font-semibold\">" + esc(fmtRank(da)) + "</span> · iOS: <span class=\"font-semibold\">" + esc(fmtRank(di)) + "</span>" +
+        " · Sinemalar · Android: <span class=\"font-semibold\">" + esc(fmtRank(sa)) + "</span> · iOS: <span class=\"font-semibold\">" + esc(fmtRank(si)) + "</span>";
     }
 
     var kw = (((payload.keyword_intelligence || {}).top_keywords) || []).slice(0, 8);
@@ -908,10 +918,18 @@
         "Mağaza: " +
         (am.store_score != null ? Number(am.store_score).toFixed(2) : "—") +
         (am.store_ratings != null ? " · " + (formatFullCount(am.store_ratings) || am.store_ratings) + " değerlendirme" : "");
+      var arank = am.store_category_rank || {};
+      var aRankText = "";
+      if (arank && arank.rank != null) {
+        aRankText = "Kategori sırası: #" + arank.rank + (am.store_category_name ? " (" + am.store_category_name + ")" : "");
+      } else if (am.store_category_name) {
+        aRankText = "Kategori: " + am.store_category_name + " · Sıra: —";
+      }
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
         reviewCount: am.review_count_period || 0,
         fetchedText: "Son çekim: " + formatFetchedAt(p.display_fetched_at || p.fetched_at),
+        rankText: aRankText,
       });
     }
     var imeta = document.getElementById("app-intel-ios-meta");

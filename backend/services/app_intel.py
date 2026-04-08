@@ -373,6 +373,47 @@ def _fetch_ios_category_rank(
     return None
 
 
+def _fetch_android_category_rank(
+    package: str,
+    *,
+    country: str = "tr",
+    lang: str = "tr",
+) -> dict[str, Any] | None:
+    if not package:
+        return None
+    url = "https://play.google.com/store/apps/details"
+    params = {"id": package, "hl": lang, "gl": country}
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"}
+    try:
+        with httpx.Client(timeout=12.0, follow_redirects=True, headers=headers) as client:
+            r = client.get(url, params=params)
+            r.raise_for_status()
+        html = r.text
+    except Exception:
+        return None
+
+    category_name = None
+    m_cat = re.search(r'"applicationCategory":"([^"]+)"', html)
+    if m_cat:
+        category_name = m_cat.group(1).strip()
+
+    # Play detay sayfasında chart metni her zaman bulunmadığı için best-effort parse uygulanır.
+    patterns = [
+        r"#\s*([0-9]{1,4})\s*(?:in|içinde)?\s*(Finance|Finans|Business|İş)",
+        r"Top charts[^#]{0,120}#\s*([0-9]{1,4})",
+        r"ranking[^#]{0,120}#\s*([0-9]{1,4})",
+    ]
+    for pat in patterns:
+        m = re.search(pat, html, flags=re.IGNORECASE)
+        if m:
+            rank = int(m.group(1))
+            if m.lastindex and m.lastindex >= 2 and m.group(2):
+                category_name = category_name or m.group(2)
+            return {"rank": rank, "total": None, "chart": "details_page", "category_name": category_name}
+
+    return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
+
+
 def _fetch_google_bundle(
     package: str, max_reviews: int = GOOGLE_PLAY_MAX_REVIEWS,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], str | None]:
@@ -654,6 +695,9 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
     )
     if i_rank:
         i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
+    a_rank = _fetch_android_category_rank(spec["android_package"], country="tr", lang="tr")
+    if a_rank:
+        meta = {**(meta or {}), **{"category_rank": a_rank}}
 
     payload = {
         "product_id": product_id,
@@ -670,6 +714,8 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
                 "histogram": _android_histogram_overall(meta),
                 "reviews": meta.get("reviews"),
                 "icon": meta.get("icon"),
+                "genre": meta.get("genre"),
+                "category_rank": meta.get("category_rank"),
             },
             "reviews": g_rows,
             "error": g_err,
@@ -742,6 +788,9 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "star_distribution_overall": raw["android"]["meta"].get("histogram"),
                 "store_score": raw["android"]["meta"].get("score"),
                 "store_ratings": raw["android"]["meta"].get("ratings"),
+                "store_category_rank": raw["android"]["meta"].get("category_rank"),
+                "store_category_name": raw["android"]["meta"].get("genre")
+                or ((raw["android"]["meta"].get("category_rank") or {}).get("category_name")),
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
                 "category_reviews": _category_review_map(fa),
