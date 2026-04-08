@@ -6281,7 +6281,7 @@ def app_intel_page(request: Request):
 
 
 @app.get("/api/app/intel")
-def api_app_intel(product: str = "doviz", period: int = 7):
+def api_app_intel(product: str = "doviz", period: int = 30):
     from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, intel_json_safe
 
     pid = (product or "doviz").strip().lower()
@@ -6290,9 +6290,9 @@ def api_app_intel(product: str = "doviz", period: int = 7):
     try:
         p = int(period)
     except (TypeError, ValueError):
-        p = 7
+        p = 30
     if p not in (7, 30, 180, 365):
-        p = 7
+        p = 30
     payload = build_intel_payload(pid, p)
     return JSONResponse(intel_json_safe(payload))
 
