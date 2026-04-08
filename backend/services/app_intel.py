@@ -1,4 +1,4 @@
-"""Mobil mağaza (Google Play + App Store web) yorum analitiği — 1/7/30 gün pencereleri."""
+"""Mobil mağaza (Google Play + App Store web) yorum analitiği."""
 
 from __future__ import annotations
 
@@ -135,6 +135,9 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
         snap["score"] = float(m_badge.group(1))
         snap["score_formatted"] = m_badge.group(2)
         snap["ratings_caption"] = m_badge.group(3)
+    m_icon = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', html)
+    if m_icon:
+        snap["icon"] = m_icon.group(1)
     return reviews_out, snap
 
 
@@ -405,6 +408,7 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
                 "ratings": meta.get("ratings"),
                 "histogram": _android_histogram_overall(meta),
                 "reviews": meta.get("reviews"),
+                "icon": meta.get("icon"),
             },
             "reviews": g_rows,
             "error": g_err,
@@ -430,7 +434,8 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
 
 
 def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
-    if period_days not in (1, 7, 30):
+    valid_periods = (1, 7, 30, 180, 365)
+    if period_days not in valid_periods:
         period_days = 7
     raw = get_raw_product_data(product_id)
     if raw.get("error"):
@@ -440,6 +445,7 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
         "product_id": product_id,
         "label": raw["label"],
         "product_key": product_id,
+        "app_icon": raw["android"]["meta"].get("icon") or (raw["ios"]["meta"] or {}).get("icon"),
         "urls": raw["urls"],
         "fetched_at": raw["fetched_at"],
         "errors": {"android": raw["android"].get("error"), "ios": raw["ios"].get("error")},
@@ -452,7 +458,7 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
         "windows": {},
     }
 
-    for p in (1, 7, 30):
+    for p in valid_periods:
         fa, fa_anchor, fa_note = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
         fi, fi_anchor, fi_note = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
         intel["windows"][str(p)] = {
