@@ -6381,6 +6381,24 @@ def app_intel_manual_refresh():
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+@app.get("/api/app/aso")
+def api_app_aso(product: str = "doviz", period: int = 30):
+    from backend.services.aso_intel import aso_json_safe, build_aso_payload
+    from backend.services.app_intel import APP_PRODUCTS
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 30
+    if p not in (0, 7, 30, 90, 180, 365, 730):
+        p = 30
+    payload = build_aso_payload(pid, p)
+    return JSONResponse(aso_json_safe(payload))
+
+
 @app.get("/ga4/site-list")
 def ga4_site_list(request: Request):
     with SessionLocal() as db:

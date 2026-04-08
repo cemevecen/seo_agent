@@ -26,3 +26,4 @@ server.log
 # Yerelde üretilen GSC screenshot'ları (hesap içeriği içerebilir)
 static/gsc/*.png
 backend/services/app_intel_last_refresh.json
+backend/services/aso_rank_history.json

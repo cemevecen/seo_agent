@@ -185,6 +185,54 @@
       </div>
     </section>
   </div>
+
+  <section class="mt-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="ASO Intelligence">
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">ASO Intelligence</h2>
+      <span id="app-aso-generated-at" class="text-xs text-slate-500 dark:text-slate-300">—</span>
+    </div>
+    <div id="app-aso-alerts" class="mb-3"></div>
+    <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Keyword Intelligence</p>
+        <div id="app-aso-keywords" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Metadata Optimizer</p>
+        <div id="app-aso-metadata" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Localization ASO</p>
+        <div id="app-aso-localization" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+    </div>
+    <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Keyword Rank Tracking</p>
+        <div id="app-aso-ranks" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Conversion Funnel</p>
+        <div id="app-aso-funnel" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Competitor Benchmark</p>
+        <div id="app-aso-competitors" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Release Impact</p>
+        <div id="app-aso-release" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Review-to-ASO Loop</p>
+        <div id="app-aso-loop" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Creative Test Backlog</p>
+        <div id="app-aso-creative" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -213,12 +261,19 @@
     product: "doviz",
     period: 30,
     lastPayload: null,
+    lastAsoPayload: null,
     loadingStartedAt: 0,
     progressTimer: null,
     progressValue: 0,
     requestSeq: 0,
     latestPage: { play: 1, ios: 1 },
   };
+
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
+      return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;";
+    });
+  }
 
   function queryParams() {
     var q = {};
@@ -664,6 +719,103 @@
     });
   }
 
+  function renderAso(payload) {
+    var ids = [
+      "app-aso-keywords",
+      "app-aso-metadata",
+      "app-aso-localization",
+      "app-aso-ranks",
+      "app-aso-funnel",
+      "app-aso-competitors",
+      "app-aso-release",
+      "app-aso-loop",
+      "app-aso-creative",
+      "app-aso-alerts",
+    ];
+    if (!payload) {
+      ids.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
+      });
+      return;
+    }
+    var ga = document.getElementById("app-aso-generated-at");
+    if (ga) ga.textContent = "Güncellendi: " + formatShortDate(payload.generated_at);
+
+    var kw = (((payload.keyword_intelligence || {}).top_keywords) || []).slice(0, 8);
+    var kwEl = document.getElementById("app-aso-keywords");
+    if (kwEl) kwEl.innerHTML = kw.map(function (k) {
+      return '<div class="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2 py-1 dark:border-slate-600 dark:bg-slate-900/60"><span class="font-medium">' +
+        esc(k.keyword) + '</span><span class="text-xs text-slate-500 dark:text-slate-300">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
+    }).join("");
+
+    var m = payload.metadata_optimizer || {};
+    var mdEl = document.getElementById("app-aso-metadata");
+    if (mdEl) mdEl.innerHTML =
+      '<div><span class="font-semibold">Title:</span> ' + esc(m.title_idea || "—") + "</div>" +
+      '<div><span class="font-semibold">Subtitle:</span> ' + esc(m.subtitle_idea || "—") + "</div>" +
+      '<div><span class="font-semibold">Short:</span> ' + esc(m.short_description_idea || "—") + "</div>";
+
+    var l = payload.localization_aso || {};
+    var mix = l.language_mix || {};
+    var locEl = document.getElementById("app-aso-localization");
+    if (locEl) locEl.innerHTML =
+      "<div>TR: %" + esc(mix.tr_pct || 0) + " · EN: %" + esc(mix.en_pct || 0) + " · Other: %" + esc(mix.other_pct || 0) + "</div>" +
+      "<div>Önerilen locale: " + esc((l.suggested_locales || []).join(", ") || "—") + "</div>" +
+      "<div>" + esc(l.notes || "") + "</div>";
+
+    var ranks = payload.keyword_rank_tracking || [];
+    var rEl = document.getElementById("app-aso-ranks");
+    if (rEl) rEl.innerHTML = ranks.slice(0, 8).map(function (r) {
+      var d = r.delta7 == null ? "—" : (r.delta7 > 0 ? "+" + r.delta7 : String(r.delta7));
+      return "<div>" + esc(r.keyword) + ': <span class="font-semibold">#' + esc(r.current_rank) + "</span> <span class=\"text-xs text-slate-500 dark:text-slate-300\">(7g " + esc(d) + ")</span></div>";
+    }).join("");
+
+    var f = payload.conversion_funnel || {};
+    var fEl = document.getElementById("app-aso-funnel");
+    if (fEl) fEl.innerHTML =
+      "<div>Impression: <span class=\"font-semibold\">" + esc(f.impressions || 0) + "</span></div>" +
+      "<div>Listing view: <span class=\"font-semibold\">" + esc(f.listing_views || 0) + "</span></div>" +
+      "<div>Install: <span class=\"font-semibold\">" + esc(f.installs || 0) + "</span></div>" +
+      "<div>Rating: <span class=\"font-semibold\">" + esc(f.ratings || 0) + "</span></div>";
+
+    var cEl = document.getElementById("app-aso-competitors");
+    var c = payload.competitor_benchmark || [];
+    if (cEl) cEl.innerHTML = c.length ? c.map(function (x) {
+      return "<div>" + esc(x.label) + " · skor " + esc(x.store_score_mix) + " · dönem yorum " + esc(x.review_count_period) + "</div>";
+    }).join("") : '<div class="text-xs text-slate-500 dark:text-slate-300">Rakip verisi yok.</div>';
+
+    var rel = payload.release_impact || {};
+    var reEl = document.getElementById("app-aso-release");
+    if (reEl) reEl.innerHTML =
+      "<div>Son 30 gün ort.: <span class=\"font-semibold\">" + esc(rel.recent30_avg == null ? "—" : rel.recent30_avg) + "</span></div>" +
+      "<div>Önceki 30 gün: <span class=\"font-semibold\">" + esc(rel.prev30_avg == null ? "—" : rel.prev30_avg) + "</span></div>" +
+      "<div>Delta: <span class=\"font-semibold\">" + esc(rel.delta == null ? "—" : rel.delta) + "</span></div>";
+
+    var loop = payload.review_to_aso_loop || {};
+    var loopEl = document.getElementById("app-aso-loop");
+    if (loopEl) loopEl.innerHTML =
+      "<div><span class=\"font-semibold\">Pozitif:</span> " + esc((loop.top_positive_themes || []).slice(0, 6).join(", ") || "—") + "</div>" +
+      "<div><span class=\"font-semibold\">Negatif:</span> " + esc((loop.top_negative_themes || []).slice(0, 6).join(", ") || "—") + "</div>" +
+      "<div><span class=\"font-semibold\">İstek kategorileri:</span> " + esc((loop.feature_request_categories || []).join(", ") || "—") + "</div>";
+
+    var cr = payload.creative_test_backlog || [];
+    var crEl = document.getElementById("app-aso-creative");
+    if (crEl) crEl.innerHTML = cr.map(function (x) {
+      return '<div class="rounded-md border border-slate-200 bg-white px-2 py-1 dark:border-slate-600 dark:bg-slate-900/60"><div class="font-semibold">' +
+        esc(x.priority || "Orta") + " · " + esc(x.hypothesis || "—") + "</div><div class=\"text-xs text-slate-500 dark:text-slate-300\">" + esc(x.why || "") + "</div></div>";
+    }).join("");
+
+    var aEl = document.getElementById("app-aso-alerts");
+    var alerts = payload.alerts || [];
+    if (aEl) aEl.innerHTML = alerts.map(function (a) {
+      var cls = a.level === "high"
+        ? "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-700 dark:bg-rose-950/45 dark:text-rose-100"
+        : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-100";
+      return '<div class="rounded-lg border px-3 py-2 text-sm ' + cls + '"><span class="font-semibold">' + esc(a.title || "") + ":</span> " + esc(a.detail || "") + "</div>";
+    }).join("");
+  }
+
   function redrawAll() {
     var p = state.lastPayload;
     if (!p || !p.active_window) return;
@@ -851,6 +1003,7 @@
     renderSat(document.getElementById("app-intel-ios-sat"), im.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-ios-latest"), im.latest_reviews || [], "ios");
     setHeroIcon(p.app_icon, (p.label || "?").trim().charAt(0));
+    renderAso(state.lastAsoPayload);
 
     setTimeout(function () {
       [
@@ -968,10 +1121,22 @@
       "app-intel-ios-cat-drilldown",
       "app-intel-play-star-drilldown",
       "app-intel-ios-star-drilldown",
+      "app-aso-keywords",
+      "app-aso-metadata",
+      "app-aso-localization",
+      "app-aso-ranks",
+      "app-aso-funnel",
+      "app-aso-competitors",
+      "app-aso-release",
+      "app-aso-loop",
+      "app-aso-creative",
+      "app-aso-alerts",
     ].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.innerHTML = "";
     });
+    var ga = document.getElementById("app-aso-generated-at");
+    if (ga) ga.textContent = "—";
   }
 
   function loadIntel(opts) {
@@ -992,6 +1157,7 @@
     }
     renderSkeletonState();
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
+    var asoUrl = "/api/app/aso?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
     var to = window.setTimeout(function () {
       ac.abort();
@@ -1020,9 +1186,24 @@
           errEl.textContent = eParts.join(" · ");
           errEl.classList.remove("hidden");
         }
-        return finishProgress().then(function () {
-          redrawAll();
-        });
+        return fetch(asoUrl, { signal: ac.signal })
+          .then(function (r2) {
+            return r2.json().then(function (j2) {
+              return { ok: r2.ok, j: j2 };
+            });
+          })
+          .then(function (asoRes) {
+            if (reqSeq !== state.requestSeq) return;
+            state.lastAsoPayload = asoRes && asoRes.ok ? asoRes.j : null;
+          })
+          .catch(function () {
+            state.lastAsoPayload = null;
+          })
+          .then(function () {
+            return finishProgress().then(function () {
+              redrawAll();
+            });
+          });
       })
       .then(function () {
         if (reqSeq !== state.requestSeq) return;
