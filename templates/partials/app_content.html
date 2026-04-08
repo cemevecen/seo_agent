@@ -16,6 +16,15 @@
     .dark #app-intel-hero[data-app-active="sinemalar"] {
       background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), transparent 50%);
     }
+    .app-intel-metric-card-title {
+      min-height: 20px;
+    }
+    .app-intel-metric-area-stars {
+      min-height: 220px;
+    }
+    .app-intel-metric-area-cats {
+      min-height: 260px;
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-5">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -78,15 +87,15 @@
       <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
-          <div id="app-chart-play-stars" class="h-[220px] w-full min-h-[180px]"></div>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
         </div>
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-play-cats" class="h-[260px] w-full min-h-[220px]"></div>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
         </div>
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
           <div id="app-intel-play-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
         </div>
       </div>
@@ -104,15 +113,15 @@
       <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
-          <div id="app-chart-ios-stars" class="h-[220px] w-full min-h-[180px]"></div>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
         </div>
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-ios-cats" class="h-[260px] w-full min-h-[220px]"></div>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
         </div>
         <div>
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <p class="app-intel-metric-card-title mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
           <div id="app-intel-ios-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
         </div>
       </div>
@@ -346,7 +355,7 @@
     if (!el || !s) return;
     function box(title, n, pct, cls) {
       return (
-        '<div class="rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 dark:border-slate-600 dark:bg-slate-800/80 ' +
+        '<div class="min-h-[96px] rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 dark:border-slate-600 dark:bg-slate-800/80 ' +
         cls +
         '">' +
         '<div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' +
