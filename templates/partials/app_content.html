@@ -383,7 +383,7 @@
     var list = Array.isArray(rows) ? rows : [];
     if (!list.length) {
       el.innerHTML =
-        '<div class="text-xs text-slate-600 dark:text-slate-300">"' +
+        '<div class="rounded-md border border-slate-200 bg-white/80 px-2 py-1.5 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">"' +
         title +
         '" kategorisinde yorum bulunamadı.</div>';
       return;
@@ -402,20 +402,20 @@
           return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;";
         });
         return (
-          '<article class="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-600 dark:bg-slate-900/60">' +
-          '<div class="mb-1 flex items-center justify-between text-[11px]"><span class="font-semibold text-slate-700 dark:text-slate-200">' +
+          '<article class="rounded-md border border-slate-300/80 bg-slate-100 px-2 py-1.5 dark:border-slate-500/70 dark:bg-slate-800/85">' +
+          '<div class="mb-1 flex items-center justify-between text-[11px]"><span class="font-semibold text-slate-900 dark:text-slate-100">' +
           (r.score || 0) +
-          '★</span><span class="text-slate-500 dark:text-slate-400">' +
+          '★</span><span class="text-slate-600 dark:text-slate-300">' +
           d +
           "</span></div>" +
-          '<p class="text-xs leading-relaxed text-slate-700 dark:text-slate-200">' +
+          '<p class="text-xs leading-relaxed text-slate-800 dark:text-slate-100">' +
           (txt || "—") +
           "</p></article>"
         );
       })
       .join("");
     el.innerHTML =
-      '<div class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">' +
+      '<div class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">' +
       title +
       " yorumları</div>" +
       '<div class="max-h-56 space-y-2 overflow-y-auto pr-1">' +
