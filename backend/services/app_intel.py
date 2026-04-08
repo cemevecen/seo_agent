@@ -157,6 +157,18 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
         snap["score"] = float(m_badge.group(1))
         snap["score_formatted"] = m_badge.group(2)
         snap["ratings_caption"] = m_badge.group(3)
+    for pat in (
+        r'"ratingCount"\s*:\s*([0-9]+)',
+        r'"userRatingCount"\s*:\s*([0-9]+)',
+        r'"ratingCountList"\s*:\s*\{"[0-9]+"\s*:\s*([0-9]+)',
+    ):
+        m_cnt = re.search(pat, html)
+        if m_cnt:
+            try:
+                snap["ratings_count"] = int(m_cnt.group(1))
+                break
+            except Exception:
+                pass
     m_icon = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', html)
     if m_icon:
         snap["icon"] = m_icon.group(1)
@@ -231,6 +243,42 @@ def _fetch_ios_reviews_multistore(
 
     err: str | None = None if merged else last_err
     return merged, snap, err, storefronts_ok, n_sf
+
+
+def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
+    """iTunes lookup API'den tam rating count gibi alanları al."""
+    url = "https://itunes.apple.com/lookup"
+    try:
+        with httpx.Client(timeout=12.0, follow_redirects=True) as client:
+            r = client.get(url, params={"id": app_id, "country": "tr"})
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:  # noqa: BLE001
+        logger.debug("iTunes lookup alınamadı (%s): %s", app_id, e)
+        return {}
+
+    try:
+        first = ((data or {}).get("results") or [])[0] or {}
+    except Exception:
+        return {}
+    out: dict[str, Any] = {}
+    cnt = first.get("userRatingCount")
+    if cnt is None:
+        cnt = first.get("userRatingCountForCurrentVersion")
+    if cnt is not None:
+        try:
+            out["ratings_count"] = int(cnt)
+        except Exception:
+            pass
+    score = first.get("averageUserRating")
+    if score is None:
+        score = first.get("averageUserRatingForCurrentVersion")
+    if score is not None:
+        try:
+            out["score"] = float(score)
+        except Exception:
+            pass
+    return out
 
 
 def _fetch_google_bundle(
@@ -436,6 +484,9 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
     i_rows, i_snap, i_err, i_sf_ok, i_sf_n = _fetch_ios_reviews_multistore(
         spec["ios_app_id"], spec["ios_slug"],
     )
+    i_lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
+    if i_lookup:
+        i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
 
     payload = {
         "product_id": product_id,
@@ -519,6 +570,7 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
                 "rating_series": _daily_rating_series(fi, p, fi_anchor),
                 "star_distribution_period": _histogram_counts(fi),
                 "store_score": (raw["ios"]["meta"] or {}).get("score"),
+                "store_ratings_count": (raw["ios"]["meta"] or {}).get("ratings_count"),
                 "store_ratings_caption": (raw["ios"]["meta"] or {}).get("ratings_caption"),
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),

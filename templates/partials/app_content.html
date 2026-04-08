@@ -542,12 +542,28 @@
 
     var am = w.android || {};
     var im = w.ios || {};
+    function formatFullCount(value) {
+      var n = Number(value);
+      if (!isFinite(n)) return null;
+      try {
+        return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(Math.round(n));
+      } catch (e) {
+        return String(Math.round(n));
+      }
+    }
     function normalizeIosRatingsCaption(caption) {
       if (!caption) return null;
       var txt = String(caption).trim();
-      var m = txt.match(/([0-9]+(?:[.,][0-9]+)?\s*[KMBkmb]?)/);
-      var n = m ? m[1].replace(",", ".") : txt;
-      return n + " değerlendirme";
+      var m = txt.match(/([0-9]+(?:[.,][0-9]+)?)(?:\s*([kKmMbB]))?/);
+      if (!m) return null;
+      var base = Number(String(m[1]).replace(",", "."));
+      if (!isFinite(base)) return null;
+      var unit = (m[2] || "").toLowerCase();
+      if (unit === "k") base *= 1000;
+      if (unit === "m") base *= 1000000;
+      if (unit === "b") base *= 1000000000;
+      var full = formatFullCount(base);
+      return full ? full + " değerlendirme" : null;
     }
     function formatFetchedAt(iso) {
       if (!iso) return "—";
@@ -599,7 +615,7 @@
       var storeLine =
         "Mağaza: " +
         (am.store_score != null ? Number(am.store_score).toFixed(2) : "—") +
-        (am.store_ratings != null ? " · " + am.store_ratings + " değerlendirme" : "");
+        (am.store_ratings != null ? " · " + (formatFullCount(am.store_ratings) || am.store_ratings) + " değerlendirme" : "");
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
         reviewCount: am.review_count_period || 0,
@@ -608,7 +624,10 @@
     }
     var imeta = document.getElementById("app-intel-ios-meta");
     if (imeta) {
-      var iosRatingsLabel = normalizeIosRatingsCaption(im.store_ratings_caption) || "— değerlendirme";
+      var iosRatingsLabel =
+        (im.store_ratings_count != null ? (formatFullCount(im.store_ratings_count) + " değerlendirme") : null) ||
+        normalizeIosRatingsCaption(im.store_ratings_caption) ||
+        "— değerlendirme";
       var iosStoreLine =
         "Mağaza: " +
         (im.store_score != null ? Number(im.store_score).toFixed(2) : "—") +
