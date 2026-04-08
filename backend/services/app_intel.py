@@ -511,6 +511,27 @@ def _category_review_map(rows: list[dict[str, Any]], *, per_category_limit: int 
     return out
 
 
+def _star_review_map(rows: list[dict[str, Any]], *, per_star_limit: int = 60) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {str(i): [] for i in range(1, 6)}
+    ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
+    for r in ordered:
+        s = int(r.get("score") or 0)
+        if s < 1 or s > 5:
+            continue
+        key = str(s)
+        bucket = out[key]
+        if len(bucket) >= per_star_limit:
+            continue
+        bucket.append(
+            {
+                "at": r["at"],
+                "score": s,
+                "text": _normalize_review_text(r.get("text") or ""),
+            }
+        )
+    return out
+
+
 def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
     ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
     seen_text: set[str] = set()
@@ -668,6 +689,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
                 "category_reviews": _category_review_map(fa),
+                "star_reviews": _star_review_map(fa),
                 "latest_reviews": _latest_reviews(raw["android"]["reviews"], 100),
             },
             "ios": {
@@ -681,6 +703,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
                 "category_reviews": _category_review_map(fi),
+                "star_reviews": _star_review_map(fi),
                 "note_tr": raw["ios"].get("note_tr"),
                 "latest_reviews": _latest_reviews(raw["ios"]["reviews"], 100),
             },

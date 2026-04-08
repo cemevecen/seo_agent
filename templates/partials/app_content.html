@@ -133,6 +133,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
           <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
+          <div id="app-intel-play-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
@@ -165,6 +166,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
+          <div id="app-intel-ios-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
@@ -331,7 +333,7 @@
       : { grid: "#e2e8f0", tick: "#64748b", legend: "#475569", muted: "#64748b", paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)" };
   }
 
-  function plotStars(el, dist) {
+  function plotStars(el, dist, starReviews, drilldownEl) {
     if (!window.Plotly || !el) return;
     if (el.querySelector(".app-intel-skeleton")) {
       el.innerHTML = "";
@@ -376,16 +378,31 @@
       },
       { displayModeBar: false, responsive: true }
     );
+    if (drilldownEl) {
+      drilldownEl.innerHTML = "Bir yıldız sütununa tıklayarak yorumları görüntüleyin.";
+    }
+    if (typeof el.on === "function") {
+      el.on("plotly_click", function (ev) {
+        try {
+          var label = ev && ev.points && ev.points[0] ? String(ev.points[0].x || "") : "";
+          var star = label.replace("★", "").replace("*", "").trim();
+          if (!star || !drilldownEl) return;
+          var rows = (starReviews && starReviews[star]) ? starReviews[star] : [];
+          renderCategoryDrilldown(drilldownEl, star + "★", rows, "puanında");
+        } catch (e) {}
+      });
+    }
   }
 
-  function renderCategoryDrilldown(el, title, rows) {
+  function renderCategoryDrilldown(el, title, rows, scopeText) {
     if (!el) return;
     var list = Array.isArray(rows) ? rows : [];
+    var scope = scopeText || "kategorisinde";
     if (!list.length) {
       el.innerHTML =
         '<div class="rounded-md border border-slate-200 bg-white/80 px-2 py-1.5 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">"' +
         title +
-        '" kategorisinde yorum bulunamadı.</div>';
+        '" ' + scope + ' yorum bulunamadı.</div>';
       return;
     }
     var html = list
@@ -486,7 +503,7 @@
           var cat = (categories || []).find(function (c) { return c.label === label; });
           var cid = cat ? String(cat.id || "") : "";
           var rows = (categoryReviews && cid) ? (categoryReviews[cid] || []) : [];
-          renderCategoryDrilldown(drilldownEl, label, rows);
+          renderCategoryDrilldown(drilldownEl, label, rows, "kategorisinde");
         } catch (e) {}
       });
     }
@@ -804,7 +821,12 @@
       }
     }
 
-    plotStars(document.getElementById("app-chart-play-stars"), am.star_distribution_period);
+    plotStars(
+      document.getElementById("app-chart-play-stars"),
+      am.star_distribution_period,
+      am.star_reviews || {},
+      document.getElementById("app-intel-play-star-drilldown")
+    );
     plotCats(
       document.getElementById("app-chart-play-cats"),
       am.categories,
@@ -814,7 +836,12 @@
     renderSat(document.getElementById("app-intel-play-sat"), am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
-    plotStars(document.getElementById("app-chart-ios-stars"), im.star_distribution_period);
+    plotStars(
+      document.getElementById("app-chart-ios-stars"),
+      im.star_distribution_period,
+      im.star_reviews || {},
+      document.getElementById("app-intel-ios-star-drilldown")
+    );
     plotCats(
       document.getElementById("app-chart-ios-cats"),
       im.categories,
@@ -934,7 +961,14 @@
       if (!el) return;
       el.innerHTML = skeletonBlock(96);
     });
-    ["app-intel-play-latest-pagination", "app-intel-ios-latest-pagination", "app-intel-play-cat-drilldown", "app-intel-ios-cat-drilldown"].forEach(function (id) {
+    [
+      "app-intel-play-latest-pagination",
+      "app-intel-ios-latest-pagination",
+      "app-intel-play-cat-drilldown",
+      "app-intel-ios-cat-drilldown",
+      "app-intel-play-star-drilldown",
+      "app-intel-ios-star-drilldown",
+    ].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.innerHTML = "";
     });
