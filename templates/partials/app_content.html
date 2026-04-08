@@ -743,6 +743,17 @@
     }, 120);
   }
 
+  function formatShortDate(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    } catch (e) {
+      return "—";
+    }
+  }
+
   function setProgressVisible(on) {
     var wrap = document.getElementById("app-intel-progress-wrap");
     if (!wrap) return;
@@ -864,24 +875,7 @@
         window.clearTimeout(to);
         state.lastPayload = x.j;
         if (status) {
-          var sc = x.j.scrape;
-          var scrapePart = "";
-          if (sc) {
-            scrapePart =
-              " · Örnek yorum: Play " +
-              (sc.android_review_samples != null ? sc.android_review_samples : "—") +
-              ", App Store " +
-              (sc.ios_review_samples != null ? sc.ios_review_samples : "—");
-            if (sc.ios_storefronts_ok != null && sc.ios_storefronts_total != null) {
-              scrapePart += " (" + sc.ios_storefronts_ok + "/" + sc.ios_storefronts_total + " vitrin)";
-            }
-          }
-          status.textContent =
-            "Son çekim: " +
-            (x.j.fetched_at || "—") +
-            " · " +
-            (x.j.label || state.product) +
-            scrapePart;
+          status.textContent = "Son çekim: " + formatShortDate(x.j.fetched_at);
         }
         var eParts = [];
         if (x.j.errors && x.j.errors.android) eParts.push("Play: " + x.j.errors.android);
