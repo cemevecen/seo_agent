@@ -1927,8 +1927,9 @@ def _run_app_intel_digest_job(*, trigger_source: str, action_label: str) -> None
         LOGGER.info("App Intel digest is already running; skipping duplicate trigger (%s).", trigger_source)
         return
     try:
-        from backend.services.app_intel import APP_PRODUCTS, build_intel_payload
+        from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, invalidate_raw_cache
 
+        invalidate_raw_cache()
         summary: dict[str, object] = {
             "urun_sayisi": len(APP_PRODUCTS),
             "period_days": 30,
@@ -1938,7 +1939,7 @@ def _run_app_intel_digest_job(*, trigger_source: str, action_label: str) -> None
         for pid, spec in APP_PRODUCTS.items():
             label = str(spec.get("label") or pid)
             try:
-                payload = build_intel_payload(pid, 30)
+                payload = build_intel_payload(pid, 30, force_refresh=True)
                 aw = payload.get("active_window") if isinstance(payload, dict) else {}
                 android = aw.get("android") if isinstance(aw, dict) else {}
                 ios = aw.get("ios") if isinstance(aw, dict) else {}

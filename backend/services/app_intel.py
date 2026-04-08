@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 _CACHE_LOCK = threading.Lock()
 _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL_SEC = 0
+# Normal API isteklerinde mağaza kaynaklarını tekrar tekrar çağırmamak için uzun TTL.
+# Zorunlu güncelleme sadece manuel tetikleme ve zamanlanmış job'da force_refresh ile yapılır.
+_CACHE_TTL_SEC = 26 * 60 * 60
 
 # Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
 GOOGLE_PLAY_MAX_REVIEWS = 1_200
@@ -496,7 +498,15 @@ def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
     return {str(i + 1): int(h[i]) for i in range(5)}
 
 
-def get_raw_product_data(product_id: str) -> dict[str, Any]:
+def invalidate_raw_cache(product_id: str | None = None) -> None:
+    with _CACHE_LOCK:
+        if product_id:
+            _RAW_CACHE.pop(product_id, None)
+        else:
+            _RAW_CACHE.clear()
+
+
+def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
     if product_id not in APP_PRODUCTS:
         return {"error": "unknown_product"}
     spec = APP_PRODUCTS[product_id]
@@ -504,7 +514,7 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
     cache_key = product_id
     with _CACHE_LOCK:
         hit = _RAW_CACHE.get(cache_key)
-        if hit and now - hit[0] < _CACHE_TTL_SEC:
+        if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
             return hit[1]
 
     meta, g_rows, g_err = _fetch_google_bundle(spec["android_package"])
@@ -549,11 +559,11 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
     return payload
 
 
-def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
+def build_intel_payload(product_id: str, period_days: int, *, force_refresh: bool = False) -> dict[str, Any]:
     valid_periods = (0, 7, 30, 90, 180, 365, 730)
     if period_days not in valid_periods:
         period_days = 7
-    raw = get_raw_product_data(product_id)
+    raw = get_raw_product_data(product_id, force_refresh=force_refresh)
     if raw.get("error"):
         return raw
 
