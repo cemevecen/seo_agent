@@ -457,30 +457,30 @@
           if (s <= 1) {
             return {
               badge: "text-red-700 dark:text-red-300",
-              card: "ring-1 ring-red-300/70 dark:ring-red-700/70",
+              card: "ring-[0.5px] ring-red-300/55 dark:ring-red-700/55",
             };
           }
           if (s <= 2) {
             return {
               badge: "text-orange-700 dark:text-orange-300",
-              card: "ring-1 ring-orange-300/70 dark:ring-orange-700/70",
+              card: "ring-[0.5px] ring-orange-300/55 dark:ring-orange-700/55",
             };
           }
           if (s <= 3) {
             return {
               badge: "text-amber-700 dark:text-amber-300",
-              card: "ring-1 ring-amber-300/70 dark:ring-amber-700/70",
+              card: "ring-[0.5px] ring-amber-300/55 dark:ring-amber-700/55",
             };
           }
           if (s <= 4) {
             return {
               badge: "text-lime-700 dark:text-lime-300",
-              card: "ring-1 ring-lime-300/70 dark:ring-lime-700/70",
+              card: "ring-[0.5px] ring-lime-300/55 dark:ring-lime-700/55",
             };
           }
           return {
             badge: "text-emerald-700 dark:text-emerald-300",
-            card: "ring-1 ring-emerald-300/70 dark:ring-emerald-700/70",
+            card: "ring-[0.5px] ring-emerald-300/55 dark:ring-emerald-700/55",
           };
         }
         var tone = scoreTone(score);
@@ -496,7 +496,7 @@
         });
         if (!txt) txt = "—";
         return (
-          '<article class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-500 dark:bg-slate-900 ' + tone.card + '">' +
+          '<article class="rounded-lg border border-slate-300/70 bg-slate-50 px-3 py-2 dark:border-slate-600/70 dark:bg-slate-900 ' + tone.card + '">' +
           '<div class="mb-1 flex items-center justify-between gap-2 text-[12px]">' +
           '<span class="inline-flex items-center font-semibold text-base ' + tone.badge + '">' + (r.score || 0) + "★</span>" +
           '<span class="text-slate-500 dark:text-slate-300">' + d + "</span>" +
