@@ -1,0 +1,674 @@
+<div id="app-intel-root" class="mx-auto w-full max-w-[1600px] space-y-5">
+  {# JSON'u data-* içinde |e ile vermek bazı tarayıcılarda parse hatasına yol açabiliyor #}
+  <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
+  <style>
+    #app-intel-hero[data-app-active="doviz"] {
+      border-color: rgba(16, 185, 129, 0.55);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), transparent 55%);
+    }
+    #app-intel-hero[data-app-active="sinemalar"] {
+      border-color: rgba(139, 92, 246, 0.55);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), transparent 55%);
+    }
+    .dark #app-intel-hero[data-app-active="doviz"] {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), transparent 50%);
+    }
+    .dark #app-intel-hero[data-app-active="sinemalar"] {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), transparent 50%);
+    }
+  </style>
+  <div class="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div class="min-w-0 space-y-2">
+        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Mobil uygulama mağaza analitiği</h1>
+        <p class="text-sm text-slate-600 dark:text-slate-400">
+          Google Play ve App Store yorumlarından türetilen metrikler. <strong class="font-semibold text-slate-800 dark:text-slate-200">Puan eğrisi</strong>, seçilen gün aralığında yayınlanan yorumların günlük ortalama yıldızını gösterir (mağaza genel ortalamasının tarihçesi değil). İki sütun <strong class="font-semibold text-slate-800 dark:text-slate-200">seçili uygulama</strong> içindir.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Uygulama</span>
+        <nav id="app-intel-product-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Uygulama seçimi"></nav>
+      </div>
+    </div>
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
+      <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Gün aralığı">
+        <button type="button" data-app-period="1" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1 gün</button>
+        <button type="button" data-app-period="7" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7 gün</button>
+        <button type="button" data-app-period="30" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30 gün</button>
+      </nav>
+    </div>
+    <p id="app-intel-status" class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+      Mağaza yorumları çekiliyor (bu işlem birkaç dakika sürebilir)…
+    </p>
+    <p id="app-intel-error" class="mt-2 hidden text-sm font-medium text-red-600 dark:text-red-400"></p>
+  </div>
+
+  <div
+    id="app-intel-hero"
+    class="hidden rounded-2xl border-2 border-transparent px-4 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-5"
+    data-app-active=""
+  >
+    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-3">
+        <span
+          id="app-intel-hero-badge"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm"
+          aria-hidden="true"
+        >·</span>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Seçili uygulama</p>
+          <p id="app-intel-hero-label" class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">—</p>
+          <p id="app-intel-hero-sub" class="text-sm text-slate-600 dark:text-slate-400">Google Play ve App Store</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-intel-panels" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+    <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="Google Play">
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="app-intel-head-play" class="text-base font-bold text-slate-900 dark:text-slate-100">Google Play</h2>
+          <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">Mağaza sayfası</a>
+        </div>
+        <div id="app-intel-android-meta" class="text-right text-xs text-slate-600 dark:text-slate-400"></div>
+      </div>
+      <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
+      <div class="space-y-4">
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük yorum ortalaması</p>
+          <div id="app-chart-play-line" class="h-[240px] w-full min-h-[200px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <div id="app-chart-play-stars" class="h-[220px] w-full min-h-[180px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-play-cats" class="h-[260px] w-full min-h-[220px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <div id="app-intel-play-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="App Store">
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="app-intel-head-ios" class="text-base font-bold text-slate-900 dark:text-slate-100">App Store</h2>
+          <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">Mağaza sayfası</a>
+        </div>
+        <div id="app-intel-ios-meta" class="text-right text-xs text-slate-600 dark:text-slate-400"></div>
+      </div>
+      <p id="app-intel-ios-note" class="mb-3 hidden rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800"></p>
+      <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
+      <div class="space-y-4">
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük yorum ortalaması</p>
+          <div id="app-chart-ios-line" class="h-[240px] w-full min-h-[200px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <div id="app-chart-ios-stars" class="h-[220px] w-full min-h-[180px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-ios-cats" class="h-[260px] w-full min-h-[220px]"></div>
+        </div>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <div id="app-intel-ios-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById("app-intel-root");
+  if (!root) return;
+  if (root.getAttribute("data-app-intel-bound") === "1") {
+    return;
+  }
+  root.setAttribute("data-app-intel-bound", "1");
+
+  var products = [];
+  try {
+    var jn = document.getElementById("app-intel-products-json");
+    if (jn && jn.textContent) {
+      products = JSON.parse(jn.textContent.trim());
+    }
+  } catch (e) {
+    products = [];
+  }
+  if (!Array.isArray(products)) {
+    products = [];
+  }
+
+  var state = {
+    product: "doviz",
+    period: 7,
+    lastPayload: null,
+  };
+
+  function queryParams() {
+    var q = {};
+    try {
+      var s = window.location.search || "";
+      if (s.charAt(0) === "?") s = s.slice(1);
+      s.split("&").forEach(function (part) {
+        var i = part.indexOf("=");
+        if (i < 0) return;
+        q[decodeURIComponent(part.slice(0, i))] = decodeURIComponent(part.slice(i + 1));
+      });
+    } catch (e) {}
+    return q;
+  }
+
+  var qp = queryParams();
+  if (qp.product && /^[a-z0-9_-]+$/i.test(qp.product)) {
+    state.product = qp.product.toLowerCase();
+  }
+  var pp = parseInt(qp.period, 10);
+  if (pp === 1 || pp === 7 || pp === 30) {
+    state.period = pp;
+  }
+  var productIds = products.map(function (p) {
+    return p.id;
+  });
+  if (productIds.length && productIds.indexOf(state.product) < 0) {
+    state.product = productIds[0];
+  }
+
+  function periodClass(on) {
+    return on
+      ? "bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600"
+      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
+  }
+
+  function productTabClass(productId, on) {
+    var base = "rounded-lg px-3 py-1.5 text-xs font-semibold transition ";
+    if (!on) {
+      return base + "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
+    }
+    if (productId === "doviz") {
+      return (
+        base +
+        "bg-emerald-50 text-emerald-900 shadow-sm ring-2 ring-emerald-500 dark:bg-emerald-950/55 dark:text-emerald-100 dark:ring-emerald-400"
+      );
+    }
+    if (productId === "sinemalar") {
+      return (
+        base +
+        "bg-violet-50 text-violet-900 shadow-sm ring-2 ring-violet-500 dark:bg-violet-950/50 dark:text-violet-100 dark:ring-violet-400"
+      );
+    }
+    return base + periodClass(true);
+  }
+
+  function renderProductNav() {
+    var nav = document.getElementById("app-intel-product-nav");
+    if (!nav) return;
+    nav.innerHTML = "";
+    if (!products.length) {
+      nav.innerHTML =
+        '<span class="rounded-lg px-2 py-1 text-xs text-amber-700 dark:text-amber-300">Ürün listesi alınamadı; sayfayı yenileyin.</span>';
+      return;
+    }
+    products.forEach(function (p) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("data-app-product", p.id);
+      b.className = productTabClass(p.id, p.id === state.product);
+      b.textContent = p.label;
+      b.addEventListener("click", function () {
+        state.product = p.id;
+        refreshProductStyles();
+        applyHeroShellFromState();
+        loadIntel();
+      });
+      nav.appendChild(b);
+    });
+    refreshProductStyles();
+  }
+
+  function refreshProductStyles() {
+    var nav = document.getElementById("app-intel-product-nav");
+    if (!nav) return;
+    nav.querySelectorAll("[data-app-product]").forEach(function (b) {
+      var pid = b.getAttribute("data-app-product");
+      var on = pid === state.product;
+      b.className = productTabClass(pid, on);
+    });
+  }
+
+  function renderPeriodNav() {
+    document.querySelectorAll(".app-intel-period-btn").forEach(function (b) {
+      var v = parseInt(b.getAttribute("data-app-period"), 10);
+      var on = v === state.period;
+      b.className = "app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
+      if (!b.dataset.bound) {
+        b.dataset.bound = "1";
+        b.addEventListener("click", function () {
+          state.period = v;
+          renderPeriodNav();
+          loadIntel();
+        });
+      }
+    });
+  }
+
+  function theme() {
+    return window.seoPlotlyTheme
+      ? window.seoPlotlyTheme()
+      : { grid: "#e2e8f0", tick: "#64748b", legend: "#475569", muted: "#64748b", paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)" };
+  }
+
+  function plotLine(el, series, label) {
+    if (!window.Plotly || !el) return;
+    var th = theme();
+    var x = (series || []).map(function (s) {
+      return s.day;
+    });
+    var y = (series || []).map(function (s) {
+      return s.avg_rating;
+    });
+    var custom = (series || []).map(function (s) {
+      return s.review_count || 0;
+    });
+    var hasAny = y.some(function (v) {
+      return v != null;
+    });
+    if (!hasAny) {
+      Plotly.purge(el);
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">' +
+        "Bu aralıkta günlük ortalama hesaplanamadı (yorum yok)." +
+        "</p>";
+      return;
+    }
+    Plotly.newPlot(
+      el,
+      [
+        {
+          x: x,
+          y: y,
+          customdata: custom,
+          type: "scatter",
+          mode: "lines+markers",
+          connectgaps: false,
+          name: label || "Ort.",
+          line: { color: "#0ea5e9", width: 2.5 },
+          marker: { size: 7, color: "#0284c7" },
+          hovertemplate: "%{x}<br>Ortalama: %{y:.2f}<br>Yorum: %{customdata}<extra></extra>",
+        },
+      ],
+      {
+        autosize: true,
+        height: 240,
+        margin: { l: 44, r: 16, t: 8, b: 48 },
+        paper_bgcolor: th.paper,
+        plot_bgcolor: th.plot,
+        showlegend: false,
+        xaxis: {
+          type: "date",
+          showgrid: false,
+          tickfont: { size: 10, color: th.tick },
+          tickangle: -30,
+        },
+        yaxis: {
+          title: { text: "Yıldız", font: { size: 11, color: th.tick } },
+          range: [0.5, 5.5],
+          dtick: 1,
+          tickfont: { color: th.tick },
+          showgrid: true,
+          gridcolor: th.grid,
+          zeroline: false,
+        },
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  }
+
+  function plotStars(el, dist) {
+    if (!window.Plotly || !el) return;
+    var th = theme();
+    var labels = ["1★", "2★", "3★", "4★", "5★"];
+    var ys = [1, 2, 3, 4, 5].map(function (k) {
+      return dist ? dist[String(k)] || 0 : 0;
+    });
+    var sum = ys.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    if (!sum) {
+      Plotly.purge(el);
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Dönemde yorum yok.</p>';
+      return;
+    }
+    Plotly.newPlot(
+      el,
+      [
+        {
+          x: labels,
+          y: ys,
+          type: "bar",
+          marker: { color: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"] },
+        },
+      ],
+      {
+        autosize: true,
+        height: 220,
+        margin: { l: 44, r: 12, t: 8, b: 40 },
+        paper_bgcolor: th.paper,
+        plot_bgcolor: th.plot,
+        xaxis: { tickfont: { color: th.tick } },
+        yaxis: { title: { text: "Adet", font: { size: 11, color: th.tick } }, tickfont: { color: th.tick }, gridcolor: th.grid },
+        showlegend: false,
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  }
+
+  function plotCats(el, categories) {
+    if (!window.Plotly || !el) return;
+    var th = theme();
+    var rows = (categories || []).slice(0, 12);
+    if (!rows.length) {
+      Plotly.purge(el);
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Kategori yok.</p>';
+      return;
+    }
+    var y = rows.map(function (r) {
+      return r.label;
+    });
+    var x = rows.map(function (r) {
+      return r.count;
+    });
+    Plotly.newPlot(
+      el,
+      [
+        {
+          type: "bar",
+          orientation: "h",
+          x: x,
+          y: y,
+          marker: { color: "#6366f1" },
+        },
+      ],
+      {
+        autosize: true,
+        height: 260,
+        margin: { l: 120, r: 16, t: 8, b: 32 },
+        paper_bgcolor: th.paper,
+        plot_bgcolor: th.plot,
+        xaxis: { title: { text: "Yorum", font: { size: 11, color: th.tick } }, tickfont: { color: th.tick }, gridcolor: th.grid },
+        yaxis: { tickfont: { size: 10, color: th.tick }, automargin: true },
+        showlegend: false,
+      },
+      { displayModeBar: false, responsive: true }
+    );
+  }
+
+  function renderSat(el, s) {
+    if (!el || !s) return;
+    function box(title, n, pct, cls) {
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 dark:border-slate-600 dark:bg-slate-800/80 ' +
+        cls +
+        '">' +
+        '<div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' +
+        title +
+        "</div>" +
+        '<div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">' +
+        n +
+        "</div>" +
+        '<div class="text-xs text-slate-600 dark:text-slate-400">' +
+        pct +
+        "%</div></div>"
+      );
+    }
+    el.innerHTML =
+      box("Memnun (4–5★)", s.memnun, s.memnun_oran, "ring-1 ring-emerald-200/80 dark:ring-emerald-800/60") +
+      box("Nötr (3★)", s.notr, s.notr_oran, "") +
+      box("Memnun değil (1–2★)", s.memnun_degil, s.memnun_degil_oran, "ring-1 ring-rose-200/80 dark:ring-rose-800/60");
+  }
+
+  function redrawAll() {
+    var p = state.lastPayload;
+    if (!p || !p.active_window) return;
+    var w = p.active_window;
+
+    document.getElementById("app-intel-link-android").href = p.urls.android || "#";
+    document.getElementById("app-intel-link-ios").href = p.urls.ios || "#";
+
+    var pk = p.product_key || p.product_id || state.product;
+    var hero = document.getElementById("app-intel-hero");
+    if (hero) {
+      hero.classList.remove("hidden");
+      hero.setAttribute("data-app-active", pk || "");
+      var hl = document.getElementById("app-intel-hero-label");
+      if (hl) hl.textContent = p.label || "—";
+      var bd = document.getElementById("app-intel-hero-badge");
+      if (bd) {
+        var initial = (p.label || "?").trim().charAt(0);
+        bd.textContent = initial;
+        bd.className =
+          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm " +
+          (pk === "doviz" ? "bg-emerald-600" : pk === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
+      }
+    }
+    var hp = document.getElementById("app-intel-head-play");
+    if (hp) hp.textContent = (p.label || "") + " — Google Play";
+    var hi = document.getElementById("app-intel-head-ios");
+    if (hi) hi.textContent = (p.label || "") + " — App Store";
+
+    var am = w.android || {};
+    var im = w.ios || {};
+    var ameta = document.getElementById("app-intel-android-meta");
+    if (ameta) {
+      var h = am.star_distribution_overall;
+      var histTxt = "";
+      if (h && typeof h === "object") {
+        histTxt = " (tüm zaman: 1★ " + h["1"] + " … 5★ " + h["5"] + ")";
+      }
+      ameta.innerHTML =
+        "Mağaza: <strong>" +
+        (am.store_score != null ? Number(am.store_score).toFixed(2) : "—") +
+        "</strong>" +
+        (am.store_ratings != null ? " · " + am.store_ratings + " değerlendirme" : "") +
+        "<br/>Dönem yorumu: " +
+        (am.review_count_period || 0) +
+        histTxt;
+    }
+    var imeta = document.getElementById("app-intel-ios-meta");
+    if (imeta) {
+      imeta.innerHTML =
+        "Mağaza: <strong>" +
+        (im.store_score != null ? Number(im.store_score).toFixed(2) : "—") +
+        "</strong>" +
+        (im.store_ratings_caption ? " · " + im.store_ratings_caption : "") +
+        "<br/>Dönem yorumu: " +
+        (im.review_count_period || 0);
+    }
+    var ion = document.getElementById("app-intel-ios-note");
+    if (ion) {
+      if (im.note_tr) {
+        ion.textContent = im.note_tr;
+        ion.classList.remove("hidden");
+      } else {
+        ion.classList.add("hidden");
+      }
+    }
+    var apn = document.getElementById("app-intel-android-period-note");
+    if (apn) {
+      if (am.period_note_tr) {
+        apn.textContent = am.period_note_tr;
+        apn.classList.remove("hidden");
+      } else {
+        apn.classList.add("hidden");
+      }
+    }
+    var ipn = document.getElementById("app-intel-ios-period-note");
+    if (ipn) {
+      if (im.period_note_tr) {
+        ipn.textContent = im.period_note_tr;
+        ipn.classList.remove("hidden");
+      } else {
+        ipn.classList.add("hidden");
+      }
+    }
+
+    plotLine(document.getElementById("app-chart-play-line"), am.rating_series || [], "Play");
+    plotStars(document.getElementById("app-chart-play-stars"), am.star_distribution_period);
+    plotCats(document.getElementById("app-chart-play-cats"), am.categories);
+    renderSat(document.getElementById("app-intel-play-sat"), am.satisfaction);
+
+    plotLine(document.getElementById("app-chart-ios-line"), im.rating_series || [], "App Store");
+    plotStars(document.getElementById("app-chart-ios-stars"), im.star_distribution_period);
+    plotCats(document.getElementById("app-chart-ios-cats"), im.categories);
+    renderSat(document.getElementById("app-intel-ios-sat"), im.satisfaction);
+
+    setTimeout(function () {
+      [
+        "app-chart-play-line",
+        "app-chart-play-stars",
+        "app-chart-play-cats",
+        "app-chart-ios-line",
+        "app-chart-ios-stars",
+        "app-chart-ios-cats",
+      ].forEach(function (id) {
+        var node = document.getElementById(id);
+        if (node && window.Plotly) Plotly.Plots.resize(node);
+      });
+    }, 120);
+  }
+
+  function loadIntel() {
+    var status = document.getElementById("app-intel-status");
+    var errEl = document.getElementById("app-intel-error");
+    if (errEl) {
+      errEl.classList.add("hidden");
+      errEl.textContent = "";
+    }
+    if (status) {
+      status.textContent =
+        "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
+    }
+    var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
+    var ac = new AbortController();
+    var to = window.setTimeout(function () {
+      ac.abort();
+    }, 240000);
+    fetch(url, { signal: ac.signal })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (x) {
+        if (!x.ok) {
+          window.clearTimeout(to);
+          throw new Error(x.j && x.j.error ? x.j.error : "İstek başarısız");
+        }
+        window.clearTimeout(to);
+        state.lastPayload = x.j;
+        if (status) {
+          var sc = x.j.scrape;
+          var scrapePart = "";
+          if (sc) {
+            scrapePart =
+              " · Örnek yorum: Play " +
+              (sc.android_review_samples != null ? sc.android_review_samples : "—") +
+              ", App Store " +
+              (sc.ios_review_samples != null ? sc.ios_review_samples : "—");
+            if (sc.ios_storefronts_ok != null && sc.ios_storefronts_total != null) {
+              scrapePart += " (" + sc.ios_storefronts_ok + "/" + sc.ios_storefronts_total + " vitrin)";
+            }
+          }
+          status.textContent =
+            "Son çekim: " +
+            (x.j.fetched_at || "—") +
+            " · " +
+            (x.j.label || state.product) +
+            scrapePart;
+        }
+        var eParts = [];
+        if (x.j.errors && x.j.errors.android) eParts.push("Play: " + x.j.errors.android);
+        if (x.j.errors && x.j.errors.ios) eParts.push("App Store: " + x.j.errors.ios);
+        if (eParts.length && errEl) {
+          errEl.textContent = eParts.join(" · ");
+          errEl.classList.remove("hidden");
+        }
+        redrawAll();
+        try {
+          var u = new URL(window.location.href);
+          u.searchParams.set("product", state.product);
+          u.searchParams.set("period", String(state.period));
+          history.replaceState({}, "", u.pathname + u.search + u.hash);
+        } catch (e2) {}
+      })
+      .catch(function (e) {
+        window.clearTimeout(to);
+        if (status) status.textContent = "";
+        if (errEl) {
+          var msg = e && e.message ? e.message : "Yükleme hatası";
+          if (e && e.name === "AbortError") {
+            msg =
+              "İstek zaman aşımına uğradı (4 dk). Sunucu hâlâ veri topluyor olabilir; bir süre sonra sayfayı yenileyin.";
+          }
+          errEl.textContent = msg;
+          errEl.classList.remove("hidden");
+        }
+      });
+  }
+
+  function applyHeroShellFromState() {
+    var hero = document.getElementById("app-intel-hero");
+    if (!hero) return;
+    var def =
+      products.filter(function (p) {
+        return p.id === state.product;
+      })[0] || products[0];
+    if (!def) {
+      return;
+    }
+    hero.classList.remove("hidden");
+    hero.setAttribute("data-app-active", def.id);
+    var hl = document.getElementById("app-intel-hero-label");
+    if (hl) hl.textContent = def.label;
+    var bd = document.getElementById("app-intel-hero-badge");
+    if (bd) {
+      bd.textContent = (def.label || "?").trim().charAt(0);
+      bd.className =
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm " +
+        (def.id === "doviz" ? "bg-emerald-600" : def.id === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
+    }
+    var hp = document.getElementById("app-intel-head-play");
+    if (hp) hp.textContent = def.label + " — Google Play";
+    var hi = document.getElementById("app-intel-head-ios");
+    if (hi) hi.textContent = def.label + " — App Store";
+  }
+
+  renderProductNav();
+  renderPeriodNav();
+  applyHeroShellFromState();
+  document.addEventListener("seo-theme-change", function () {
+    redrawAll();
+  });
+
+  function boot() {
+    if (!window.Plotly) {
+      setTimeout(boot, 120);
+      return;
+    }
+    loadIntel();
+  }
+  boot();
+})();
+</script>

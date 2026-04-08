@@ -21,6 +21,7 @@ var _compCache = {};
 function applyAlertsFilters() {
   var container = document.getElementById('alerts-container');
   var filterSelect = document.getElementById('site-filter');
+  var view = document.getElementById('alerts-view');
   if (!container) return;
 
   var selectedDomain = filterSelect ? filterSelect.value : '';
@@ -28,7 +29,46 @@ function applyAlertsFilters() {
   cutoff.setDate(cutoff.getDate() - _alertPeriod);
 
   var cards = container.querySelectorAll('.alert-card');
+  var categoryCounts = {};
   var visible = 0;
+
+  // Önce tip filtresi hariç say: içi boş chipler gizlensin.
+  cards.forEach(function (card) {
+    var domain = card.getAttribute('data-domain') || '';
+    var category = (card.getAttribute('data-alert-category') || 'other').trim();
+    var isExternal = card.getAttribute('data-is-external') === 'true';
+    var triggeredRaw = card.getAttribute('data-triggered-at') || '';
+    var triggeredAt = triggeredRaw ? new Date(triggeredRaw) : null;
+    var periodOk = !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
+
+    var domainOk;
+    if (selectedDomain === '__external__') {
+      domainOk = isExternal;
+    } else if (!selectedDomain) {
+      domainOk = !isExternal;
+    } else {
+      domainOk = domain === selectedDomain;
+    }
+    if (domainOk && periodOk) {
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    }
+  });
+
+  if (view) {
+    view.querySelectorAll('.alert-type-tab').forEach(function (btn) {
+      var filter = btn.getAttribute('data-alert-filter') || 'all';
+      if (filter === 'all') {
+        btn.style.display = '';
+        return;
+      }
+      btn.style.display = categoryCounts[filter] ? '' : 'none';
+    });
+  }
+  // Aktif tip artık boşsa Tümü'ne dön.
+  if (_alertType !== 'all' && !categoryCounts[_alertType]) {
+    _alertType = 'all';
+    setActiveTypeTab('all');
+  }
 
   cards.forEach(function (card) {
     var domain = card.getAttribute('data-domain') || '';

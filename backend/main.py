@@ -6267,6 +6267,36 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     return RedirectResponse(url="/ai", status_code=303)
 
 
+@app.get("/app")
+def app_intel_page(request: Request):
+    from backend.services.app_intel import list_products
+
+    payload = {
+        "site_name": "App",
+        "sites": get_sidebar_sites(),
+        "app_products": list_products(),
+    }
+    template_name = "partials/app_content.html" if request.headers.get("HX-Request") == "true" else "app.html"
+    return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
+
+
+@app.get("/api/app/intel")
+def api_app_intel(product: str = "doviz", period: int = 7):
+    from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, intel_json_safe
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 7
+    if p not in (1, 7, 30):
+        p = 7
+    payload = build_intel_payload(pid, p)
+    return JSONResponse(intel_json_safe(payload))
+
+
 @app.get("/ga4/site-list")
 def ga4_site_list(request: Request):
     with SessionLocal() as db:
