@@ -688,7 +688,7 @@
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
         reviewCount: am.review_count_period || 0,
-        fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
+        fetchedText: "Son çekim: " + formatFetchedAt(p.display_fetched_at || p.fetched_at),
       });
     }
     var imeta = document.getElementById("app-intel-ios-meta");
@@ -704,7 +704,7 @@
       imeta.innerHTML = renderMetaBox({
         store: iosStoreLine,
         reviewCount: im.review_count_period || 0,
-        fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
+        fetchedText: "Son çekim: " + formatFetchedAt(p.display_fetched_at || p.fetched_at),
       });
     }
     var ion = document.getElementById("app-intel-ios-note");
@@ -893,7 +893,7 @@
         window.clearTimeout(to);
         state.lastPayload = x.j;
         if (status) {
-          status.textContent = "Son çekim: " + formatShortDate(x.j.fetched_at);
+          status.textContent = "Son çekim: " + formatShortDate(x.j.display_fetched_at || x.j.fetched_at);
         }
         var eParts = [];
         if (x.j.errors && x.j.errors.android) eParts.push("Play: " + x.j.errors.android);

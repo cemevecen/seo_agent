@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import threading
@@ -10,6 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,6 +23,8 @@ _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 # Normal API isteklerinde mağaza kaynaklarını tekrar tekrar çağırmamak için uzun TTL.
 # Zorunlu güncelleme sadece manuel tetikleme ve zamanlanmış job'da force_refresh ile yapılır.
 _CACHE_TTL_SEC = 26 * 60 * 60
+_FORCED_REFRESH_META_FILE = Path(__file__).resolve().parent / "app_intel_last_refresh.json"
+_FORCED_REFRESH_AT: dict[str, str] = {}
 
 # Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
 GOOGLE_PLAY_MAX_REVIEWS = 1_200
@@ -100,6 +104,34 @@ _REVIEW_CATEGORIES: list[tuple[str, str, tuple[str, ...]]] = [
 ]
 
 _UTC = timezone.utc
+
+
+def _load_forced_refresh_meta() -> None:
+    global _FORCED_REFRESH_AT
+    try:
+        if not _FORCED_REFRESH_META_FILE.exists():
+            _FORCED_REFRESH_AT = {}
+            return
+        data = json.loads(_FORCED_REFRESH_META_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            _FORCED_REFRESH_AT = {str(k): str(v) for k, v in data.items() if v}
+        else:
+            _FORCED_REFRESH_AT = {}
+    except Exception:
+        _FORCED_REFRESH_AT = {}
+
+
+def _save_forced_refresh_meta() -> None:
+    try:
+        _FORCED_REFRESH_META_FILE.write_text(
+            json.dumps(_FORCED_REFRESH_AT, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        logger.debug("App intel forced refresh metadata kaydedilemedi.")
+
+
+_load_forced_refresh_meta()
 
 
 def list_products() -> list[dict[str, str]]:
@@ -506,6 +538,11 @@ def invalidate_raw_cache(product_id: str | None = None) -> None:
             _RAW_CACHE.clear()
 
 
+def get_last_forced_refresh_at(product_id: str) -> str | None:
+    v = _FORCED_REFRESH_AT.get(product_id)
+    return str(v) if v else None
+
+
 def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
     if product_id not in APP_PRODUCTS:
         return {"error": "unknown_product"}
@@ -554,6 +591,10 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         },
     }
 
+    if force_refresh:
+        _FORCED_REFRESH_AT[product_id] = payload["fetched_at"]
+        _save_forced_refresh_meta()
+
     with _CACHE_LOCK:
         _RAW_CACHE[cache_key] = (now, payload)
     return payload
@@ -574,6 +615,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         "app_icon": raw["android"]["meta"].get("icon") or (raw["ios"]["meta"] or {}).get("icon"),
         "urls": raw["urls"],
         "fetched_at": raw["fetched_at"],
+        "display_fetched_at": get_last_forced_refresh_at(product_id) or raw["fetched_at"],
         "errors": {"android": raw["android"].get("error"), "ios": raw["ios"].get("error")},
         "scrape": {
             "android_review_samples": len(raw["android"]["reviews"]),
