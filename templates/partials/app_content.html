@@ -137,6 +137,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
           <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
+          <div id="app-intel-play-cat-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir kategori barına tıklayarak yorumları görüntüleyin.</div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
@@ -168,6 +169,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
           <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
+          <div id="app-intel-ios-cat-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir kategori barına tıklayarak yorumları görüntüleyin.</div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
@@ -376,7 +378,52 @@
     );
   }
 
-  function plotCats(el, categories) {
+  function renderCategoryDrilldown(el, title, rows) {
+    if (!el) return;
+    var list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
+      el.innerHTML =
+        '<div class="text-xs text-slate-600 dark:text-slate-300">"' +
+        title +
+        '" kategorisinde yorum bulunamadı.</div>';
+      return;
+    }
+    var html = list
+      .slice(0, 20)
+      .map(function (r) {
+        var d = "—";
+        try {
+          var dt = new Date(r.at);
+          if (!isNaN(dt.getTime())) {
+            d = dt.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          }
+        } catch (e) {}
+        var txt = String(r.text || "").replace(/[<>&]/g, function (c) {
+          return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;";
+        });
+        return (
+          '<article class="rounded-md border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-600 dark:bg-slate-900/60">' +
+          '<div class="mb-1 flex items-center justify-between text-[11px]"><span class="font-semibold text-slate-700 dark:text-slate-200">' +
+          (r.score || 0) +
+          '★</span><span class="text-slate-500 dark:text-slate-400">' +
+          d +
+          "</span></div>" +
+          '<p class="text-xs leading-relaxed text-slate-700 dark:text-slate-200">' +
+          (txt || "—") +
+          "</p></article>"
+        );
+      })
+      .join("");
+    el.innerHTML =
+      '<div class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">' +
+      title +
+      " yorumları</div>" +
+      '<div class="max-h-56 space-y-2 overflow-y-auto pr-1">' +
+      html +
+      "</div>";
+  }
+
+  function plotCats(el, categories, categoryReviews, drilldownEl) {
     if (!window.Plotly || !el) return;
     if (el.querySelector(".app-intel-skeleton")) {
       el.innerHTML = "";
@@ -428,6 +475,21 @@
       },
       { displayModeBar: false, responsive: true }
     );
+    if (drilldownEl) {
+      drilldownEl.innerHTML = "Bir kategori barına tıklayarak yorumları görüntüleyin.";
+    }
+    if (typeof el.on === "function") {
+      el.on("plotly_click", function (ev) {
+        try {
+          var label = ev && ev.points && ev.points[0] ? String(ev.points[0].y || "") : "";
+          if (!label || !drilldownEl) return;
+          var cat = (categories || []).find(function (c) { return c.label === label; });
+          var cid = cat ? String(cat.id || "") : "";
+          var rows = (categoryReviews && cid) ? (categoryReviews[cid] || []) : [];
+          renderCategoryDrilldown(drilldownEl, label, rows);
+        } catch (e) {}
+      });
+    }
   }
 
   function renderSat(el, s) {
@@ -743,12 +805,22 @@
     }
 
     plotStars(document.getElementById("app-chart-play-stars"), am.star_distribution_period);
-    plotCats(document.getElementById("app-chart-play-cats"), am.categories);
+    plotCats(
+      document.getElementById("app-chart-play-cats"),
+      am.categories,
+      am.category_reviews || {},
+      document.getElementById("app-intel-play-cat-drilldown")
+    );
     renderSat(document.getElementById("app-intel-play-sat"), am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
     plotStars(document.getElementById("app-chart-ios-stars"), im.star_distribution_period);
-    plotCats(document.getElementById("app-chart-ios-cats"), im.categories);
+    plotCats(
+      document.getElementById("app-chart-ios-cats"),
+      im.categories,
+      im.category_reviews || {},
+      document.getElementById("app-intel-ios-cat-drilldown")
+    );
     renderSat(document.getElementById("app-intel-ios-sat"), im.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-ios-latest"), im.latest_reviews || [], "ios");
     setHeroIcon(p.app_icon, (p.label || "?").trim().charAt(0));
@@ -862,7 +934,7 @@
       if (!el) return;
       el.innerHTML = skeletonBlock(96);
     });
-    ["app-intel-play-latest-pagination", "app-intel-ios-latest-pagination"].forEach(function (id) {
+    ["app-intel-play-latest-pagination", "app-intel-ios-latest-pagination", "app-intel-play-cat-drilldown", "app-intel-ios-cat-drilldown"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.innerHTML = "";
     });

@@ -493,6 +493,24 @@ def _category_counts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{"id": k, "label": labels.get(k, k), "count": v} for k, v in cc.most_common()]
 
 
+def _category_review_map(rows: list[dict[str, Any]], *, per_category_limit: int = 40) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {}
+    ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
+    for r in ordered:
+        cid = _categorize(r.get("text") or "")
+        bucket = out.setdefault(cid, [])
+        if len(bucket) >= per_category_limit:
+            continue
+        bucket.append(
+            {
+                "at": r["at"],
+                "score": int(r.get("score") or 0),
+                "text": _normalize_review_text(r.get("text") or ""),
+            }
+        )
+    return out
+
+
 def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
     ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
     seen_text: set[str] = set()
@@ -649,6 +667,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_ratings": raw["android"]["meta"].get("ratings"),
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
+                "category_reviews": _category_review_map(fa),
                 "latest_reviews": _latest_reviews(raw["android"]["reviews"], 100),
             },
             "ios": {
@@ -661,6 +680,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_ratings_caption": (raw["ios"]["meta"] or {}).get("ratings_caption"),
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
+                "category_reviews": _category_review_map(fi),
                 "note_tr": raw["ios"].get("note_tr"),
                 "latest_reviews": _latest_reviews(raw["ios"]["reviews"], 100),
             },
