@@ -532,7 +532,7 @@ def _star_review_map(rows: list[dict[str, Any]], *, per_star_limit: int = 60) ->
     return out
 
 
-def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
+def _dedupe_reviews(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
     seen_text: set[str] = set()
     seen_fallback: set[str] = set()
@@ -545,7 +545,6 @@ def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[s
                 continue
             seen_text.add(canonical)
         else:
-            # Metin yoksa tarih+puan üzerinden düş.
             fb = f'{r["at"].isoformat()}\0{int(r.get("score") or 0)}'
             if fb in seen_fallback:
                 continue
@@ -557,9 +556,11 @@ def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[s
                 "text": txt,
             }
         )
-        if len(out) >= limit:
-            break
     return out
+
+
+def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
+    return _dedupe_reviews(rows)[:limit]
 
 
 def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
@@ -676,6 +677,8 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         else:
             fa, fa_anchor, fa_note = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
             fi, fi_anchor, fi_note = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
+        fa = _dedupe_reviews(fa)
+        fi = _dedupe_reviews(fi)
         intel["windows"][str(p)] = {
             "period_days": p,
             "android": {
