@@ -592,12 +592,22 @@ def _fetch_android_category_rank(
                                 "total": total_seen + len(ordered),
                                 "chart": "category_chart_paged",
                                 "category_name": category_name or cat,
+                                "estimated": False,
                             }
                         total_seen += len(ordered)
                         # Kademeli tarama için kısa bekleme (429 riskini azaltır)
                         time.sleep(0.15)
                     except Exception:
                         continue
+                if total_seen > 0:
+                    # Taradığımız aralıkta bulunamadıysa alt sınır döndür (store kaynaklı band bilgisi)
+                    return {
+                        "rank": total_seen + 1,
+                        "total": total_seen,
+                        "chart": "category_chart_paged",
+                        "category_name": category_name or cat,
+                        "estimated": True,
+                    }
 
     return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
 

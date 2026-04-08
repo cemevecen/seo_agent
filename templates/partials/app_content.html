@@ -952,7 +952,11 @@
       var arank = am.store_category_rank || {};
       var aRankText = "";
       if (arank && arank.rank != null) {
-        aRankText = "Kategori sırası: #" + arank.rank + (am.store_category_name ? " (" + am.store_category_name + ")" : "");
+        aRankText =
+          "Kategori sırası: " +
+          (arank.estimated ? "≥ #" : "#") +
+          arank.rank +
+          (am.store_category_name ? " (" + am.store_category_name + ")" : "");
       } else if (am.store_category_name) {
         aRankText = "Kategori: " + am.store_category_name + " · Sıra: —";
       }
