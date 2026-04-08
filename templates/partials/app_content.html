@@ -87,6 +87,10 @@
       Mağaza yorumları çekiliyor (bu işlem birkaç dakika sürebilir)…
     </p>
     <div id="app-intel-progress-wrap" class="mt-2 hidden">
+      <div class="mb-1 flex items-center justify-between">
+        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">İlerleme</span>
+        <span id="app-intel-progress-label" class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">0%</span>
+      </div>
       <div class="h-2 w-full overflow-hidden rounded-full border border-slate-300/80 bg-slate-200/90 dark:border-slate-600 dark:bg-slate-800">
         <div id="app-intel-progress-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 transition-[width] duration-200 ease-linear dark:from-sky-400 dark:via-cyan-300 dark:to-blue-400"></div>
       </div>
@@ -779,9 +783,11 @@
 
   function setProgress(v) {
     var bar = document.getElementById("app-intel-progress-bar");
+    var label = document.getElementById("app-intel-progress-label");
     if (!bar) return;
     var clamped = Math.max(0, Math.min(100, v));
     bar.style.width = clamped + "%";
+    if (label) label.textContent = Math.round(clamped) + "%";
   }
 
   function startProgress() {
@@ -858,7 +864,8 @@
     });
   }
 
-  function loadIntel() {
+  function loadIntel(opts) {
+    var keepProgress = !!(opts && opts.keepProgress);
     var reqSeq = ++state.requestSeq;
     var status = document.getElementById("app-intel-status");
     var errEl = document.getElementById("app-intel-error");
@@ -870,7 +877,9 @@
       status.textContent =
         "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
     }
-    startProgress();
+    if (!keepProgress) {
+      startProgress();
+    }
     renderSkeletonState();
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
@@ -950,6 +959,7 @@
         errEl.textContent = "";
       }
       if (status) status.textContent = "Manuel App mağaza yenilemesi çalışıyor, özet mail hazırlanıyor...";
+      startProgress();
       fetch("/app/intel/refresh", { method: "POST" })
         .then(function (r) {
           return r.json().then(function (j) {
@@ -961,9 +971,10 @@
             throw new Error((x.j && (x.j.error || x.j.message)) || "Manuel tetikleme başarısız");
           }
           if (status) status.textContent = x.j.message || "Manuel yenileme tamamlandı.";
-          loadIntel();
+          loadIntel({ keepProgress: true });
         })
         .catch(function (e) {
+          finishProgress();
           if (errEl) {
             var rawMsg = e && e.message ? String(e.message) : "";
             errEl.textContent =
