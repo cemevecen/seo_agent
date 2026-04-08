@@ -283,7 +283,10 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
     """iTunes lookup API'den çoklu ülke toplanmış all-time rating count al."""
     url = "https://itunes.apple.com/lookup"
 
-    def one(country: str) -> tuple[int, float | None]:
+    primary_genre_id: int | None = None
+    primary_genre_name: str | None = None
+
+    def one(country: str) -> tuple[int, float | None, int | None, str | None]:
         try:
             with httpx.Client(timeout=10.0, follow_redirects=True) as client:
                 r = client.get(url, params={"id": app_id, "country": country})
@@ -291,7 +294,7 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
                 data = r.json()
             first = ((data or {}).get("results") or [])[0] or {}
         except Exception:
-            return 0, None
+            return 0, None, None, None
         cnt_raw = first.get("userRatingCount")
         if cnt_raw is None:
             cnt_raw = first.get("userRatingCountForCurrentVersion")
@@ -306,25 +309,68 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
             score = float(score_raw) if score_raw is not None else None
         except Exception:
             score = None
-        return cnt, score
+        gid = first.get("primaryGenreId")
+        gname = first.get("primaryGenreName")
+        try:
+            gid_i = int(gid) if gid is not None else None
+        except Exception:
+            gid_i = None
+        return cnt, score, gid_i, (str(gname).strip() if gname else None)
 
     total_count = 0
     weighted_sum = 0.0
     with ThreadPoolExecutor(max_workers=min(12, len(_IOS_STOREFRONTS))) as pool:
         futs = [pool.submit(one, c) for c in _IOS_STOREFRONTS]
         for fut in futs:
-            cnt, score = fut.result()
+            cnt, score, gid_i, gname = fut.result()
             if cnt > 0:
                 total_count += cnt
                 if score is not None:
                     weighted_sum += cnt * score
+            if primary_genre_id is None and gid_i is not None:
+                primary_genre_id = gid_i
+            if primary_genre_name is None and gname:
+                primary_genre_name = gname
 
     out: dict[str, Any] = {}
     if total_count > 0:
         out["ratings_count"] = total_count
         if weighted_sum > 0:
             out["score"] = round(weighted_sum / total_count, 5)
+    if primary_genre_id is not None:
+        out["primary_genre_id"] = primary_genre_id
+    if primary_genre_name:
+        out["primary_genre_name"] = primary_genre_name
     return out
+
+
+def _fetch_ios_category_rank(
+    app_id: str,
+    *,
+    country: str = "tr",
+    genre_id: int | None = None,
+) -> dict[str, Any] | None:
+    if not app_id or not genre_id:
+        return None
+    chart_types = ("topfreeapplications", "topgrossingapplications", "toppaidapplications")
+    with httpx.Client(timeout=12.0, follow_redirects=True) as client:
+        for chart in chart_types:
+            try:
+                url = f"https://itunes.apple.com/{country}/rss/{chart}/genre={int(genre_id)}/limit=200/json"
+                r = client.get(url)
+                r.raise_for_status()
+                feed = (r.json() or {}).get("feed") or {}
+                entries = feed.get("entry") or []
+                total = len(entries)
+                for idx, e in enumerate(entries, start=1):
+                    eid = str((((e.get("id") or {}).get("attributes") or {}).get("im:id") or "")).strip()
+                    if eid == str(app_id):
+                        return {"rank": idx, "total": total, "chart": chart}
+                if total:
+                    return {"rank": None, "total": total, "chart": chart}
+            except Exception:
+                continue
+    return None
 
 
 def _fetch_google_bundle(
@@ -601,6 +647,13 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
     i_lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
+    i_rank = _fetch_ios_category_rank(
+        spec["ios_app_id"],
+        country="tr",
+        genre_id=(i_snap or {}).get("primary_genre_id"),
+    )
+    if i_rank:
+        i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
 
     payload = {
         "product_id": product_id,
@@ -703,6 +756,8 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_score": (raw["ios"]["meta"] or {}).get("score"),
                 "store_ratings_count": (raw["ios"]["meta"] or {}).get("ratings_count"),
                 "store_ratings_caption": (raw["ios"]["meta"] or {}).get("ratings_caption"),
+                "store_category_rank": (raw["ios"]["meta"] or {}).get("category_rank"),
+                "store_category_name": (raw["ios"]["meta"] or {}).get("primary_genre_name"),
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
                 "category_reviews": _category_review_map(fi),

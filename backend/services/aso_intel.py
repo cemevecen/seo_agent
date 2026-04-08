@@ -26,7 +26,6 @@ _STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "very", "you", "your",
     "app", "uygulama", "oldu", "olan", "olarak", "kadar", "gün", "sonra", "önce",
 }
-_APP_CATEGORY_HINT = {"doviz": "Finans", "sinemalar": "Eglence"}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -216,34 +215,17 @@ def _mix_score(android_score: Any, ios_score: Any) -> float:
 
 
 def _category_rank_summary(period_days: int) -> dict[str, Any]:
-    rows = []
+    out: dict[str, Any] = {}
     for pid in APP_PRODUCTS.keys():
         p = build_intel_payload(pid, period_days, force_refresh=False)
         w = p.get("active_window") or {}
-        a = w.get("android") or {}
-        i = w.get("ios") or {}
-        rows.append(
-            {
-                "product_id": pid,
-                "category": _APP_CATEGORY_HINT.get(pid, "Genel"),
-                "mix_score": _mix_score(a.get("store_score"), i.get("store_score")),
-            }
-        )
-    by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        by_cat[r["category"]].append(r)
-    for cat, rs in by_cat.items():
-        rs.sort(key=lambda x: x["mix_score"], reverse=True)
-        for idx, item in enumerate(rs, start=1):
-            item["rank"] = idx
-            item["total"] = len(rs)
-    out = {}
-    for r in rows:
-        out[r["product_id"]] = {
-            "category": r["category"],
-            "rank": int(r.get("rank") or 1),
-            "total": int(r.get("total") or 1),
-            "mix_score": r["mix_score"],
+        ios = w.get("ios") or {}
+        rank = (ios.get("store_category_rank") or {}) if isinstance(ios.get("store_category_rank"), dict) else {}
+        out[pid] = {
+            "category": ios.get("store_category_name"),
+            "rank": rank.get("rank"),
+            "total": rank.get("total"),
+            "chart": rank.get("chart"),
         }
     return out
 
