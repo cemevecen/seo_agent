@@ -435,6 +435,38 @@
     }
     var html = list
       .map(function (r) {
+        var score = Number(r.score || 0);
+        function scoreTone(s) {
+          if (s <= 1) {
+            return {
+              badge: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-800",
+              card: "ring-1 ring-rose-300/70 dark:ring-rose-800/70",
+            };
+          }
+          if (s <= 2) {
+            return {
+              badge: "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/45 dark:text-red-200 dark:border-red-800",
+              card: "ring-1 ring-red-200/70 dark:ring-red-900/60",
+            };
+          }
+          if (s <= 3) {
+            return {
+              badge: "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/45 dark:text-amber-200 dark:border-amber-800",
+              card: "ring-1 ring-amber-200/70 dark:ring-amber-900/60",
+            };
+          }
+          if (s <= 4) {
+            return {
+              badge: "bg-yellow-50 text-yellow-900 border-yellow-300 dark:bg-yellow-950/45 dark:text-yellow-200 dark:border-yellow-800",
+              card: "ring-1 ring-yellow-200/70 dark:ring-yellow-900/60",
+            };
+          }
+          return {
+            badge: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/45 dark:text-emerald-200 dark:border-emerald-800",
+            card: "ring-1 ring-emerald-200/70 dark:ring-emerald-900/60",
+          };
+        }
+        var tone = scoreTone(score);
         var d = "—";
         try {
           var dt = new Date(r.at);
@@ -447,9 +479,9 @@
         });
         if (!txt) txt = "—";
         return (
-          '<article class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80">' +
+          '<article class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80 ' + tone.card + '">' +
           '<div class="mb-1 flex items-center justify-between gap-2 text-[11px]">' +
-          '<span class="font-semibold text-slate-700 dark:text-slate-200">' + (r.score || 0) + "★</span>" +
+          '<span class="inline-flex items-center rounded-md border px-1.5 py-0.5 font-semibold ' + tone.badge + '">' + (r.score || 0) + "★</span>" +
           '<span class="text-slate-500 dark:text-slate-400">' + d + "</span>" +
           "</div>" +
           '<p class="line-clamp-3 text-xs leading-relaxed text-slate-700 dark:text-slate-200">' + txt + "</p>" +
