@@ -460,9 +460,14 @@ def _category_counts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
-    ordered = sorted(rows, key=lambda r: r["at"], reverse=True)[:limit]
+    ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
+    seen: set[str] = set()
     out: list[dict[str, Any]] = []
     for r in ordered:
+        dedupe_key = f'{r["at"].isoformat()}\0{int(r.get("score") or 0)}\0{_normalize_review_text(r.get("text") or "")}'
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
         txt = _normalize_review_text(r.get("text") or "")
         out.append(
             {
@@ -471,6 +476,8 @@ def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[s
                 "text": txt,
             }
         )
+        if len(out) >= limit:
+            break
     return out
 
 
