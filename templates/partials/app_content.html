@@ -439,31 +439,36 @@
         function scoreTone(s) {
           if (s <= 1) {
             return {
-              badge: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-800",
-              card: "ring-1 ring-rose-300/70 dark:ring-rose-800/70",
+              badge:
+                "bg-red-100 text-red-900 border-red-400 dark:bg-red-900 dark:text-red-100 dark:border-red-500",
+              card: "ring-1 ring-red-300/70 dark:ring-red-700/70",
             };
           }
           if (s <= 2) {
             return {
-              badge: "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/45 dark:text-red-200 dark:border-red-800",
-              card: "ring-1 ring-red-200/70 dark:ring-red-900/60",
+              badge:
+                "bg-orange-100 text-orange-900 border-orange-400 dark:bg-orange-900 dark:text-orange-100 dark:border-orange-500",
+              card: "ring-1 ring-orange-300/70 dark:ring-orange-700/70",
             };
           }
           if (s <= 3) {
             return {
-              badge: "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/45 dark:text-amber-200 dark:border-amber-800",
-              card: "ring-1 ring-amber-200/70 dark:ring-amber-900/60",
+              badge:
+                "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-800 dark:text-amber-100 dark:border-amber-500",
+              card: "ring-1 ring-amber-300/70 dark:ring-amber-700/70",
             };
           }
           if (s <= 4) {
             return {
-              badge: "bg-yellow-50 text-yellow-900 border-yellow-300 dark:bg-yellow-950/45 dark:text-yellow-200 dark:border-yellow-800",
-              card: "ring-1 ring-yellow-200/70 dark:ring-yellow-900/60",
+              badge:
+                "bg-lime-100 text-lime-900 border-lime-400 dark:bg-lime-800 dark:text-lime-100 dark:border-lime-500",
+              card: "ring-1 ring-lime-300/70 dark:ring-lime-700/70",
             };
           }
           return {
-            badge: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/45 dark:text-emerald-200 dark:border-emerald-800",
-            card: "ring-1 ring-emerald-200/70 dark:ring-emerald-900/60",
+            badge:
+              "bg-emerald-100 text-emerald-900 border-emerald-500 dark:bg-emerald-800 dark:text-emerald-100 dark:border-emerald-400",
+            card: "ring-1 ring-emerald-300/70 dark:ring-emerald-700/70",
           };
         }
         var tone = scoreTone(score);
