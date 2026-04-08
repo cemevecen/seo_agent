@@ -969,14 +969,35 @@
       var reviewCount = opts.reviewCount || 0;
       var fetchedText = opts.fetchedText || "Son çekim: —";
       var rankText = opts.rankText || "";
+      var storeLabel = store;
+      var storeValue = "";
+      var iStore = store.indexOf(":");
+      if (iStore >= 0) {
+        storeLabel = store.slice(0, iStore + 1);
+        storeValue = store.slice(iStore + 1).trim();
+      }
+      var rankLabel = "Kategori sırası";
+      var rankValue = rankText || "—";
+      var iRank = rankText.indexOf(":");
+      if (iRank >= 0) {
+        rankLabel = rankText.slice(0, iRank);
+        rankValue = rankText.slice(iRank + 1).trim();
+      }
+      var fetchLabel = "Son çekim";
+      var fetchValue = fetchedText;
+      var iFetch = fetchedText.indexOf(":");
+      if (iFetch >= 0) {
+        fetchLabel = fetchedText.slice(0, iFetch);
+        fetchValue = fetchedText.slice(iFetch + 1).trim();
+      }
       return (
-        '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-3 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
-        '<div class="text-sm uppercase tracking-wider text-slate-600 dark:text-slate-300">Mağaza özeti</div>' +
-        '<div class="mt-1 text-[23px] leading-tight font-extrabold text-slate-900 dark:text-slate-50">' + store + "</div>" +
-        (rankText ? '<div class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">' + rankText + "</div>" : "") +
-        '<div class="mt-2 border-t border-slate-300/80 pt-1 text-base font-semibold text-slate-800 dark:border-slate-600 dark:text-slate-100">Dönem yorumu: ' + reviewCount + "</div>" +
-        '<div class="mt-2 flex flex-wrap items-center gap-1.5">' +
-        '<span class="rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-slate-900 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-slate-100">' + fetchedText + "</span>" +
+        '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
+        '<div class="mb-1 text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">Mağaza özeti</div>' +
+        '<div class="grid grid-cols-2 gap-1.5 xl:grid-cols-4">' +
+        '<div class="rounded-lg border border-slate-300 bg-white/80 px-2 py-1 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + storeLabel + '</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (storeValue || "—") + "</div></div>" +
+        '<div class="rounded-lg border border-slate-300 bg-white/80 px-2 py-1 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + rankLabel + '</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (rankValue || "—") + "</div></div>" +
+        '<div class="rounded-lg border border-slate-300 bg-white/80 px-2 py-1 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Dönem yorumu</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + reviewCount + "</div></div>" +
+        '<div class="rounded-lg border border-emerald-300 bg-emerald-50/80 px-2 py-1 dark:border-emerald-700 dark:bg-emerald-950/50"><div class="text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-300">' + fetchLabel + '</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (fetchValue || "—") + "</div></div>" +
         "</div>" +
         "</div>"
       );
