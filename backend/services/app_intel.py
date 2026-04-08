@@ -104,6 +104,28 @@ def list_products() -> list[dict[str, str]]:
     return [{"id": k, "label": v["label"]} for k, v in APP_PRODUCTS.items()]
 
 
+def _normalize_review_text(text: str) -> str:
+    src = (text or "").strip()
+    if not src:
+        return ""
+    markers = ("Ã", "Ä", "Å", "â", "Ð", "Þ", "�")
+
+    def score(s: str) -> tuple[int, int]:
+        bad = sum(s.count(m) for m in markers)
+        return bad, len(s)
+
+    candidates = [src]
+    for enc in ("latin1", "cp1252"):
+        try:
+            repaired = src.encode(enc).decode("utf-8")
+            candidates.append(repaired)
+        except Exception:
+            continue
+
+    best = min(candidates, key=score)
+    return " ".join(best.split())
+
+
 def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """App Store 'see-all=reviews' HTML içinden yorum + mağaza rozet özeti."""
     reviews_out: list[dict[str, Any]] = []
@@ -124,7 +146,7 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
                 dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
         except ValueError:
             continue
-        reviews_out.append({"at": dt, "score": int(r_s), "text": body})
+        reviews_out.append({"at": dt, "score": int(r_s), "text": _normalize_review_text(body)})
 
     snap: dict[str, Any] = {}
     m_badge = re.search(
@@ -257,7 +279,13 @@ def _fetch_google_bundle(
             dt = at if at.tzinfo else at.replace(tzinfo=_UTC)
         else:
             continue
-        norm.append({"at": dt, "score": int(rv.get("score") or 0), "text": (rv.get("content") or "")})
+        norm.append(
+            {
+                "at": dt,
+                "score": int(rv.get("score") or 0),
+                "text": _normalize_review_text(rv.get("content") or ""),
+            }
+        )
 
     return meta, norm, err
 
@@ -375,7 +403,7 @@ def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[s
     ordered = sorted(rows, key=lambda r: r["at"], reverse=True)[:limit]
     out: list[dict[str, Any]] = []
     for r in ordered:
-        txt = (r.get("text") or "").strip()
+        txt = _normalize_review_text(r.get("text") or "")
         out.append(
             {
                 "at": r["at"],
