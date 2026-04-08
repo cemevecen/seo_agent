@@ -6382,7 +6382,14 @@ def app_intel_manual_refresh():
 
 
 @app.get("/api/app/aso")
-def api_app_aso(product: str = "doviz", period: int = 30):
+def api_app_aso(
+    product: str = "doviz",
+    period: int = 30,
+    compare_product: str | None = None,
+    compare_label: str | None = None,
+    compare_android_package: str | None = None,
+    compare_ios_app_id: str | None = None,
+):
     from backend.services.aso_intel import aso_json_safe, build_aso_payload
     from backend.services.app_intel import APP_PRODUCTS
 
@@ -6395,7 +6402,14 @@ def api_app_aso(product: str = "doviz", period: int = 30):
         p = 30
     if p not in (0, 7, 30, 90, 180, 365, 730):
         p = 30
-    payload = build_aso_payload(pid, p)
+    payload = build_aso_payload(
+        pid,
+        p,
+        compare_product=compare_product,
+        compare_label=compare_label,
+        compare_android_package=compare_android_package,
+        compare_ios_app_id=compare_ios_app_id,
+    )
     return JSONResponse(aso_json_safe(payload))
 
 

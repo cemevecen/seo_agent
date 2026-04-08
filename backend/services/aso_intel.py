@@ -9,7 +9,13 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, get_raw_product_data
+from backend.services.app_intel import (
+    APP_PRODUCTS,
+    _fetch_google_bundle,
+    _fetch_ios_lookup_meta,
+    build_intel_payload,
+    get_raw_product_data,
+)
 
 _UTC = timezone.utc
 _RANK_HISTORY_FILE = Path(__file__).resolve().parent / "aso_rank_history.json"
@@ -20,6 +26,7 @@ _STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "very", "you", "your",
     "app", "uygulama", "oldu", "olan", "olarak", "kadar", "gün", "sonra", "önce",
 }
+_APP_CATEGORY_HINT = {"doviz": "Finans", "sinemalar": "Eglence"}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -196,7 +203,105 @@ def _update_rank_history(product_id: str, keyword_rows: list[dict[str, Any]]) ->
     return result
 
 
-def build_aso_payload(product_id: str, period_days: int, *, force_refresh: bool = False) -> dict[str, Any]:
+def _mix_score(android_score: Any, ios_score: Any) -> float:
+    try:
+        a = float(android_score or 0)
+    except Exception:
+        a = 0.0
+    try:
+        i = float(ios_score or 0)
+    except Exception:
+        i = 0.0
+    return round((a * 0.5) + (i * 0.5), 2)
+
+
+def _category_rank_summary(period_days: int) -> dict[str, Any]:
+    rows = []
+    for pid in APP_PRODUCTS.keys():
+        p = build_intel_payload(pid, period_days, force_refresh=False)
+        w = p.get("active_window") or {}
+        a = w.get("android") or {}
+        i = w.get("ios") or {}
+        rows.append(
+            {
+                "product_id": pid,
+                "category": _APP_CATEGORY_HINT.get(pid, "Genel"),
+                "mix_score": _mix_score(a.get("store_score"), i.get("store_score")),
+            }
+        )
+    by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        by_cat[r["category"]].append(r)
+    for cat, rs in by_cat.items():
+        rs.sort(key=lambda x: x["mix_score"], reverse=True)
+        for idx, item in enumerate(rs, start=1):
+            item["rank"] = idx
+            item["total"] = len(rs)
+    out = {}
+    for r in rows:
+        out[r["product_id"]] = {
+            "category": r["category"],
+            "rank": int(r.get("rank") or 1),
+            "total": int(r.get("total") or 1),
+            "mix_score": r["mix_score"],
+        }
+    return out
+
+
+def _compare_entry(
+    base_product_id: str,
+    period_days: int,
+    compare_product: str | None,
+    compare_label: str | None,
+    compare_android_package: str | None,
+    compare_ios_app_id: str | None,
+) -> dict[str, Any] | None:
+    cp = (compare_product or "").strip().lower()
+    if cp and cp in APP_PRODUCTS and cp != base_product_id:
+        p = build_intel_payload(cp, period_days, force_refresh=False)
+        w = p.get("active_window") or {}
+        a = w.get("android") or {}
+        i = w.get("ios") or {}
+        return {
+            "product_id": cp,
+            "label": APP_PRODUCTS[cp].get("label"),
+            "store_score_mix": _mix_score(a.get("store_score"), i.get("store_score")),
+            "review_count_period": int(a.get("review_count_period") or 0) + int(i.get("review_count_period") or 0),
+            "satisfaction_mix": round(
+                (float((a.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5)
+                + (float((i.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5),
+                1,
+            ),
+            "source": "tracked_product",
+        }
+    pkg = (compare_android_package or "").strip()
+    ios_id = (compare_ios_app_id or "").strip()
+    if not pkg and not ios_id:
+        return None
+    g_meta, _rows, _err = (_fetch_google_bundle(pkg, max_reviews=200) if pkg else ({}, [], None))
+    i_meta = _fetch_ios_lookup_meta(ios_id) if ios_id else {}
+    return {
+        "product_id": "custom",
+        "label": (compare_label or "").strip() or "Karsilastirma uygulamasi",
+        "store_score_mix": _mix_score(g_meta.get("score"), i_meta.get("score")),
+        "review_count_period": 0,
+        "satisfaction_mix": None,
+        "source": "custom",
+        "android_package": pkg or None,
+        "ios_app_id": ios_id or None,
+    }
+
+
+def build_aso_payload(
+    product_id: str,
+    period_days: int,
+    *,
+    force_refresh: bool = False,
+    compare_product: str | None = None,
+    compare_label: str | None = None,
+    compare_android_package: str | None = None,
+    compare_ios_app_id: str | None = None,
+) -> dict[str, Any]:
     if product_id not in APP_PRODUCTS:
         return {"error": "unknown_product"}
     base = build_intel_payload(product_id, period_days, force_refresh=force_refresh)
@@ -219,36 +324,19 @@ def build_aso_payload(product_id: str, period_days: int, *, force_refresh: bool 
     title_kw = ", ".join(top_kw[:2]) if top_kw else "canlı kur"
     subtitle_kw = ", ".join(top_kw[2:5]) if len(top_kw) >= 3 else ", ".join(top_kw[:3])
 
-    competitors = []
-    for cid, spec in APP_PRODUCTS.items():
-        if cid == product_id:
-            continue
-        cp = build_intel_payload(cid, period_days, force_refresh=False)
-        cw = cp.get("active_window") or {}
-        ca = cw.get("android") or {}
-        ci = cw.get("ios") or {}
-        competitors.append(
-            {
-                "product_id": cid,
-                "label": spec.get("label"),
-                "store_score_mix": round(
-                    (
-                        float(ca.get("store_score") or 0) * 0.5
-                        + float(ci.get("store_score") or 0) * 0.5
-                    ),
-                    2,
-                ),
-                "review_count_period": int(ca.get("review_count_period") or 0) + int(ci.get("review_count_period") or 0),
-                "satisfaction_mix": round(
-                    (
-                        float((ca.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5
-                        + float((ci.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5
-                    ),
-                    1,
-                ),
-            }
-        )
-    competitors.sort(key=lambda x: (x["store_score_mix"], x["review_count_period"]), reverse=True)
+    selected_comp = _compare_entry(
+        product_id,
+        period_days,
+        compare_product,
+        compare_label,
+        compare_android_package,
+        compare_ios_app_id,
+    )
+    if selected_comp is None:
+        fallback = next((k for k in APP_PRODUCTS.keys() if k != product_id), None)
+        selected_comp = _compare_entry(product_id, period_days, fallback, None, None, None)
+    competitors = [selected_comp] if selected_comp else []
+    rank_summary = _category_rank_summary(period_days)
 
     review_count_period = int(android.get("review_count_period") or 0) + int(ios.get("review_count_period") or 0)
     ratings_total = int(android.get("store_ratings") or 0) + int(ios.get("store_ratings_count") or 0)
@@ -290,6 +378,10 @@ def build_aso_payload(product_id: str, period_days: int, *, force_refresh: bool 
         "label": base.get("label"),
         "period_days": period_days,
         "generated_at": datetime.now(tz=_UTC).isoformat(),
+        "top_rank_summary": {
+            "doviz_finans_rank": rank_summary.get("doviz"),
+            "sinemalar_kategori_rank": rank_summary.get("sinemalar"),
+        },
         "keyword_intelligence": {
             "top_keywords": keywords[:15],
             "new_candidates": [k["keyword"] for k in keywords if k["intent"] == "fırsat"][:12],
