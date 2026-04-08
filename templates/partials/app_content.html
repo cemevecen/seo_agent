@@ -573,17 +573,13 @@
     function renderMetaBox(opts) {
       var store = opts.store || "Mağaza: —";
       var reviewCount = opts.reviewCount || 0;
-      var allTimeText = opts.allTimeText || "Tüm zaman: —";
-      var sampleText = opts.sampleText || "Örnek yorum: —";
       var fetchedText = opts.fetchedText || "Son çekim: —";
       return (
         '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-3 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
         '<div class="text-sm uppercase tracking-wider text-slate-600 dark:text-slate-300">Mağaza özeti</div>' +
         '<div class="mt-1 text-[23px] leading-tight font-extrabold text-slate-900 dark:text-slate-50">' + store + "</div>" +
         '<div class="mt-2 border-t border-slate-300/80 pt-1 text-base font-semibold text-slate-800 dark:border-slate-600 dark:text-slate-100">Dönem yorumu: ' + reviewCount + "</div>" +
-        '<div class="text-sm font-medium text-slate-700 dark:text-slate-300">' + allTimeText + "</div>" +
         '<div class="mt-2 flex flex-wrap items-center gap-1.5">' +
-        '<span class="rounded-md border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-900 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-200">' + sampleText + "</span>" +
         '<span class="rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">' + fetchedText + "</span>" +
         "</div>" +
         "</div>"
@@ -605,11 +601,6 @@
     }
     var ameta = document.getElementById("app-intel-android-meta");
     if (ameta) {
-      var h = am.star_distribution_overall;
-      var histTxt = "";
-      if (h && typeof h === "object") {
-        histTxt = "Tüm zaman: 1★ " + h["1"] + " … 5★ " + h["5"];
-      }
       var storeLine =
         "Mağaza: " +
         (am.store_score != null ? Number(am.store_score).toFixed(2) : "—") +
@@ -617,8 +608,6 @@
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
         reviewCount: am.review_count_period || 0,
-        allTimeText: histTxt || "Tüm zaman: —",
-        sampleText: "Örnek yorum: " + ((p.scrape && p.scrape.android_review_samples) || 0),
         fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
       });
     }
@@ -629,15 +618,9 @@
         "Mağaza: " +
         (im.store_score != null ? Number(im.store_score).toFixed(2) : "—") +
         " · " + iosRatingsLabel;
-      var iosSample = ((p.scrape && p.scrape.ios_review_samples) || 0) + "";
-      if (p.scrape && p.scrape.ios_storefronts_ok != null && p.scrape.ios_storefronts_total != null) {
-        iosSample += " (" + p.scrape.ios_storefronts_ok + "/" + p.scrape.ios_storefronts_total + " vitrin)";
-      }
       imeta.innerHTML = renderMetaBox({
         store: iosStoreLine,
         reviewCount: im.review_count_period || 0,
-        allTimeText: "Tüm zaman: —",
-        sampleText: "Örnek yorum: " + iosSample,
         fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
       });
     }
