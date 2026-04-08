@@ -2,20 +2,6 @@
   {# JSON'u data-* içinde |e ile vermek bazı tarayıcılarda parse hatasına yol açabiliyor #}
   <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
   <style>
-    #app-intel-hero[data-app-active="doviz"] {
-      border-color: rgba(16, 185, 129, 0.55);
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), transparent 55%);
-    }
-    #app-intel-hero[data-app-active="sinemalar"] {
-      border-color: rgba(139, 92, 246, 0.55);
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), transparent 55%);
-    }
-    .dark #app-intel-hero[data-app-active="doviz"] {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), transparent 50%);
-    }
-    .dark #app-intel-hero[data-app-active="sinemalar"] {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), transparent 50%);
-    }
     .app-intel-metric-card-title {
       min-height: 20px;
     }
@@ -61,6 +47,23 @@
       <div class="flex flex-col items-start gap-2 lg:items-end">
         <div class="flex flex-wrap items-center gap-2">
           <nav id="app-intel-product-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Uygulama seçimi"></nav>
+          <div
+            id="app-intel-hero"
+            class="rounded-xl border border-slate-300/80 bg-slate-50 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-800/80"
+            data-app-active=""
+          >
+            <div class="flex items-center gap-2">
+              <span
+                id="app-intel-hero-badge"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm"
+                aria-hidden="true"
+              >·</span>
+              <div class="leading-tight">
+                <p id="app-intel-hero-label" class="text-sm font-bold text-slate-900 dark:text-slate-100">—</p>
+                <p id="app-intel-hero-sub" class="text-[11px] text-slate-500 dark:text-slate-300">Google Play ve App Store</p>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
@@ -96,27 +99,6 @@
       </div>
     </div>
     <p id="app-intel-error" class="mt-2 hidden text-sm font-medium text-red-600 dark:text-red-400"></p>
-  </div>
-
-  <div
-    id="app-intel-hero"
-    class="hidden rounded-2xl border-2 border-transparent px-4 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-5"
-    data-app-active=""
-  >
-    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex items-center gap-3">
-        <span
-          id="app-intel-hero-badge"
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm"
-          aria-hidden="true"
-        >·</span>
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Seçili uygulama</p>
-          <p id="app-intel-hero-label" class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">—</p>
-          <p id="app-intel-hero-sub" class="text-sm text-slate-600 dark:text-slate-400">Google Play ve App Store</p>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div id="app-intel-panels" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -839,7 +821,7 @@
         var initial = (p.label || "?").trim().charAt(0);
         bd.textContent = initial;
         bd.className =
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm " +
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
           (pk === "doviz" ? "bg-emerald-600" : pk === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
       }
     }
@@ -909,12 +891,12 @@
       if (!bd) return;
       var safeFallback = fallback || "?";
       if (iconUrl) {
-        bd.innerHTML = '<img src="' + iconUrl + '" alt="Uygulama logosu" class="h-11 w-11 rounded-2xl object-cover" loading="lazy" />';
-        bd.className = "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 shadow-sm dark:bg-slate-800";
+        bd.innerHTML = '<img src="' + iconUrl + '" alt="Uygulama logosu" class="h-8 w-8 rounded-lg object-cover" loading="lazy" />';
+        bd.className = "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 shadow-sm dark:bg-slate-700";
       } else {
         bd.textContent = safeFallback;
         bd.className =
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm " +
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
           (pk === "doviz" ? "bg-emerald-600" : pk === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
       }
     }
@@ -1097,7 +1079,7 @@
     var hs = document.getElementById("app-intel-hero-sub");
     if (hs) hs.innerHTML = '<span class="app-intel-skeleton inline-block h-4 w-36 align-middle"></span>';
     var hb = document.getElementById("app-intel-hero-badge");
-    if (hb) hb.innerHTML = '<span class="app-intel-skeleton inline-block h-11 w-11 rounded-2xl"></span>';
+    if (hb) hb.innerHTML = '<span class="app-intel-skeleton inline-block h-8 w-8 rounded-lg"></span>';
 
     var am = document.getElementById("app-intel-android-meta");
     if (am) am.innerHTML = skeletonBlock(108);
@@ -1303,7 +1285,7 @@
     if (bd) {
       bd.textContent = (def.label || "?").trim().charAt(0);
       bd.className =
-        "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm " +
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
         (def.id === "doviz" ? "bg-emerald-600" : def.id === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
     }
     var hp = document.getElementById("app-intel-head-play");
