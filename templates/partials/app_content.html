@@ -25,6 +25,33 @@
     .app-intel-metric-area-cats {
       min-height: 260px;
     }
+    .app-intel-skeleton {
+      position: relative;
+      overflow: hidden;
+      border-radius: 0.75rem;
+      background: rgba(148, 163, 184, 0.16);
+    }
+    .dark .app-intel-skeleton {
+      background: rgba(71, 85, 105, 0.4);
+    }
+    .app-intel-skeleton::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -120%;
+      height: 100%;
+      width: 120%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+      animation: appIntelShimmer 1.25s infinite;
+    }
+    .dark .app-intel-skeleton::after {
+      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.2), transparent);
+    }
+    @keyframes appIntelShimmer {
+      100% {
+        left: 120%;
+      }
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-5">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -51,6 +78,11 @@
     <p id="app-intel-status" class="mt-3 text-xs text-slate-500 dark:text-slate-400">
       Mağaza yorumları çekiliyor (bu işlem birkaç dakika sürebilir)…
     </p>
+    <div id="app-intel-progress-wrap" class="mt-2 hidden">
+      <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+        <div id="app-intel-progress-bar" class="h-full w-0 rounded-full bg-sky-500 transition-[width] duration-200 ease-linear dark:bg-sky-400"></div>
+      </div>
+    </div>
     <p id="app-intel-error" class="mt-2 hidden text-sm font-medium text-red-600 dark:text-red-400"></p>
   </div>
 
@@ -155,6 +187,9 @@
     product: "doviz",
     period: 7,
     lastPayload: null,
+    loadingStartedAt: 0,
+    progressTimer: null,
+    progressValue: 0,
   };
 
   function queryParams() {
@@ -509,6 +544,89 @@
     }, 120);
   }
 
+  function setProgressVisible(on) {
+    var wrap = document.getElementById("app-intel-progress-wrap");
+    if (!wrap) return;
+    wrap.classList.toggle("hidden", !on);
+  }
+
+  function setProgress(v) {
+    var bar = document.getElementById("app-intel-progress-bar");
+    if (!bar) return;
+    var clamped = Math.max(0, Math.min(100, v));
+    bar.style.width = clamped + "%";
+  }
+
+  function startProgress() {
+    state.loadingStartedAt = Date.now();
+    state.progressValue = 8;
+    setProgressVisible(true);
+    setProgress(state.progressValue);
+    if (state.progressTimer) {
+      clearInterval(state.progressTimer);
+      state.progressTimer = null;
+    }
+    state.progressTimer = setInterval(function () {
+      if (state.progressValue >= 92) return;
+      state.progressValue += state.progressValue < 70 ? 4 : 1.5;
+      setProgress(state.progressValue);
+    }, 120);
+  }
+
+  function finishProgress() {
+    return new Promise(function (resolve) {
+      var minMs = 1400;
+      var elapsed = Date.now() - (state.loadingStartedAt || Date.now());
+      var wait = Math.max(0, minMs - elapsed);
+      window.setTimeout(function () {
+        if (state.progressTimer) {
+          clearInterval(state.progressTimer);
+          state.progressTimer = null;
+        }
+        setProgress(100);
+        window.setTimeout(function () {
+          setProgressVisible(false);
+          setProgress(0);
+          resolve();
+        }, 220);
+      }, wait);
+    });
+  }
+
+  function skeletonBlock(h) {
+    return '<div class="app-intel-skeleton w-full" style="height:' + h + 'px"></div>';
+  }
+
+  function renderSkeletonState() {
+    var hero = document.getElementById("app-intel-hero");
+    if (hero) {
+      hero.classList.remove("hidden");
+    }
+    var hl = document.getElementById("app-intel-hero-label");
+    if (hl) hl.innerHTML = '<span class="app-intel-skeleton inline-block h-8 w-40 align-middle"></span>';
+    var hs = document.getElementById("app-intel-hero-sub");
+    if (hs) hs.innerHTML = '<span class="app-intel-skeleton inline-block h-4 w-36 align-middle"></span>';
+    var hb = document.getElementById("app-intel-hero-badge");
+    if (hb) hb.innerHTML = '<span class="app-intel-skeleton inline-block h-11 w-11 rounded-2xl"></span>';
+
+    var am = document.getElementById("app-intel-android-meta");
+    if (am) am.innerHTML = skeletonBlock(108);
+    var im = document.getElementById("app-intel-ios-meta");
+    if (im) im.innerHTML = skeletonBlock(108);
+
+    ["app-chart-play-stars", "app-chart-play-cats", "app-chart-ios-stars", "app-chart-ios-cats"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var h = id.indexOf("cats") >= 0 ? 260 : 220;
+      el.innerHTML = skeletonBlock(h);
+    });
+    ["app-intel-play-sat", "app-intel-ios-sat"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = skeletonBlock(96);
+    });
+  }
+
   function loadIntel() {
     var status = document.getElementById("app-intel-status");
     var errEl = document.getElementById("app-intel-error");
@@ -520,6 +638,8 @@
       status.textContent =
         "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
     }
+    startProgress();
+    renderSkeletonState();
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
     var to = window.setTimeout(function () {
@@ -565,7 +685,11 @@
           errEl.textContent = eParts.join(" · ");
           errEl.classList.remove("hidden");
         }
-        redrawAll();
+        return finishProgress().then(function () {
+          redrawAll();
+        });
+      })
+      .then(function () {
         try {
           var u = new URL(window.location.href);
           u.searchParams.set("product", state.product);
@@ -575,6 +699,7 @@
       })
       .catch(function (e) {
         window.clearTimeout(to);
+        finishProgress();
         if (status) status.textContent = "";
         if (errEl) {
           var msg = e && e.message ? e.message : "Yükleme hatası";
