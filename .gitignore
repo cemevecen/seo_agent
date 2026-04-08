@@ -27,3 +27,4 @@ server.log
 static/gsc/*.png
 backend/services/app_intel_last_refresh.json
 backend/services/aso_rank_history.json
+backend/services/app_intel_rank_history.json

@@ -118,6 +118,10 @@
           <div id="app-intel-play-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
         </div>
         <div>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
+          <div id="app-chart-play-rank" class="h-[210px] w-full min-h-[180px]"></div>
+        </div>
+        <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
           <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
           <div id="app-intel-play-cat-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir kategori barına tıklayarak yorumları görüntüleyin.</div>
@@ -149,6 +153,10 @@
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-ios-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
+        </div>
+        <div>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
+          <div id="app-chart-ios-rank" class="h-[210px] w-full min-h-[180px]"></div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
@@ -428,6 +436,67 @@
         } catch (e) {}
       });
     }
+  }
+
+  function plotRankTrend(el, rows, label) {
+    if (!window.Plotly || !el) return;
+    if (el.querySelector(".app-intel-skeleton")) {
+      el.innerHTML = "";
+    }
+    var th = theme();
+    var list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
+      Plotly.purge(el);
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Sıra geçmişi henüz oluşmadı.</p>';
+      return;
+    }
+    var x = list.map(function (r) {
+      try {
+        var d = new Date(r.at);
+        return isNaN(d.getTime()) ? String(r.at || "") : d.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      } catch (e) {
+        return String(r.at || "");
+      }
+    });
+    var y = list.map(function (r) {
+      var n = Number(r.rank);
+      return isFinite(n) ? n : null;
+    });
+    if (!y.some(function (v) { return v != null; })) {
+      Plotly.purge(el);
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Sıralama değeri bulunamadı.</p>';
+      return;
+    }
+    Plotly.newPlot(
+      el,
+      [
+        {
+          x: x,
+          y: y,
+          mode: "lines+markers",
+          line: { color: "#22c55e", width: 2 },
+          marker: { size: 6, color: "#16a34a" },
+          name: label || "Sıra",
+          hovertemplate: "%{x}<br>Sıra: #%{y}<extra></extra>",
+        },
+      ],
+      {
+        autosize: true,
+        height: 210,
+        margin: { l: 52, r: 16, t: 14, b: 42 },
+        paper_bgcolor: th.paper,
+        plot_bgcolor: th.plot,
+        xaxis: { tickfont: { size: 10, color: th.tick }, automargin: true },
+        yaxis: {
+          title: { text: "Sıra", font: { size: 11, color: th.tick } },
+          tickfont: { size: 11, color: th.tick },
+          gridcolor: th.grid,
+          autorange: "reversed",
+        },
+        showlegend: false,
+      },
+      { displayModeBar: false, responsive: true }
+    );
   }
 
   function renderCategoryDrilldown(el, title, rows, scopeText) {
@@ -990,6 +1059,11 @@
       am.star_reviews || {},
       document.getElementById("app-intel-play-star-drilldown")
     );
+    plotRankTrend(
+      document.getElementById("app-chart-play-rank"),
+      am.store_rank_history_7d || am.store_rank_changes_50 || [],
+      "Android sıra"
+    );
     plotCats(
       document.getElementById("app-chart-play-cats"),
       am.categories,
@@ -1005,6 +1079,11 @@
       im.star_reviews || {},
       document.getElementById("app-intel-ios-star-drilldown")
     );
+    plotRankTrend(
+      document.getElementById("app-chart-ios-rank"),
+      im.store_rank_history_7d || im.store_rank_changes_50 || [],
+      "iOS sıra"
+    );
     plotCats(
       document.getElementById("app-chart-ios-cats"),
       im.categories,
@@ -1019,8 +1098,10 @@
     setTimeout(function () {
       [
         "app-chart-play-stars",
+        "app-chart-play-rank",
         "app-chart-play-cats",
         "app-chart-ios-stars",
+        "app-chart-ios-rank",
         "app-chart-ios-cats",
       ].forEach(function (id) {
         var node = document.getElementById(id);
@@ -1114,10 +1195,10 @@
     var im = document.getElementById("app-intel-ios-meta");
     if (im) im.innerHTML = skeletonBlock(108);
 
-    ["app-chart-play-stars", "app-chart-play-cats", "app-chart-ios-stars", "app-chart-ios-cats"].forEach(function (id) {
+    ["app-chart-play-stars", "app-chart-play-rank", "app-chart-play-cats", "app-chart-ios-stars", "app-chart-ios-rank", "app-chart-ios-cats"].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
-      var h = id.indexOf("cats") >= 0 ? 260 : 220;
+      var h = id.indexOf("cats") >= 0 ? 260 : (id.indexOf("rank") >= 0 ? 210 : 220);
       el.innerHTML = skeletonBlock(h);
     });
     ["app-intel-play-sat", "app-intel-ios-sat", "app-intel-play-latest", "app-intel-ios-latest"].forEach(function (id) {

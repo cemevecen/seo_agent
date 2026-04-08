@@ -24,7 +24,9 @@ _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 # Zorunlu güncelleme sadece manuel tetikleme ve zamanlanmış job'da force_refresh ile yapılır.
 _CACHE_TTL_SEC = 26 * 60 * 60
 _FORCED_REFRESH_META_FILE = Path(__file__).resolve().parent / "app_intel_last_refresh.json"
+_RANK_HISTORY_FILE = Path(__file__).resolve().parent / "app_intel_rank_history.json"
 _FORCED_REFRESH_AT: dict[str, str] = {}
+_RANK_HISTORY: dict[str, Any] = {}
 
 # Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
 GOOGLE_PLAY_MAX_REVIEWS = 1_200
@@ -131,7 +133,122 @@ def _save_forced_refresh_meta() -> None:
         logger.debug("App intel forced refresh metadata kaydedilemedi.")
 
 
+def _load_rank_history() -> None:
+    global _RANK_HISTORY
+    try:
+        if _RANK_HISTORY_FILE.exists():
+            _RANK_HISTORY = json.loads(_RANK_HISTORY_FILE.read_text(encoding="utf-8"))
+        else:
+            _RANK_HISTORY = {}
+    except Exception:
+        _RANK_HISTORY = {}
+
+
+def _save_rank_history() -> None:
+    try:
+        _RANK_HISTORY_FILE.write_text(
+            json.dumps(_RANK_HISTORY, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        logger.debug("App intel rank history kaydedilemedi.")
+
+
+def _append_rank_snapshot(
+    product_id: str,
+    platform: str,
+    rank_info: dict[str, Any] | None,
+    *,
+    at_iso: str,
+) -> None:
+    if platform not in ("android", "ios"):
+        return
+    if not rank_info:
+        return
+    rank_val = rank_info.get("rank")
+    if rank_val is None:
+        return
+    try:
+        rank_int = int(rank_val)
+    except Exception:
+        return
+    rec = {
+        "at": at_iso,
+        "rank": rank_int,
+        "total": rank_info.get("total"),
+        "category": rank_info.get("category_name"),
+        "chart": rank_info.get("chart"),
+    }
+    prod = _RANK_HISTORY.setdefault(product_id, {})
+    arr = prod.setdefault(platform, [])
+    last = arr[-1] if arr else None
+    should_push = False
+    if not last:
+        should_push = True
+    else:
+        if int(last.get("rank") or -1) != rank_int:
+            should_push = True
+        elif str(last.get("category") or "") != str(rec.get("category") or ""):
+            should_push = True
+        elif str(last.get("at") or "")[:10] != at_iso[:10]:
+            should_push = True
+    if should_push:
+        arr.append(rec)
+        if len(arr) > 1200:
+            del arr[:-1200]
+
+
+def _rank_history_series(product_id: str, platform: str, *, days: int = 7) -> list[dict[str, Any]]:
+    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    if not arr:
+        return []
+    start = datetime.now(tz=_UTC) - timedelta(days=days)
+    out: list[dict[str, Any]] = []
+    for x in arr:
+        at_s = str(x.get("at") or "")
+        try:
+            dt = datetime.fromisoformat(at_s.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if dt < start:
+            continue
+        out.append(
+            {
+                "at": at_s,
+                "rank": x.get("rank"),
+                "total": x.get("total"),
+                "category": x.get("category"),
+            }
+        )
+    return out[-200:]
+
+
+def _rank_history_changes(product_id: str, platform: str, *, limit: int = 50) -> list[dict[str, Any]]:
+    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    if not arr:
+        return []
+    out: list[dict[str, Any]] = []
+    prev_rank: int | None = None
+    for x in arr:
+        try:
+            cur = int(x.get("rank"))
+        except Exception:
+            continue
+        if prev_rank is None or cur != prev_rank:
+            out.append(
+                {
+                    "at": x.get("at"),
+                    "rank": cur,
+                    "total": x.get("total"),
+                    "category": x.get("category"),
+                }
+            )
+        prev_rank = cur
+    return out[-limit:]
+
+
 _load_forced_refresh_meta()
+_load_rank_history()
 
 
 def list_products() -> list[dict[str, str]]:
@@ -729,6 +846,25 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             "note_tr": None,
         },
     }
+    _append_rank_snapshot(
+        product_id,
+        "android",
+        {
+            **(((payload.get("android", {}).get("meta") or {}).get("category_rank") or {})),
+            "category_name": (payload.get("android", {}).get("meta") or {}).get("genre"),
+        },
+        at_iso=payload["fetched_at"],
+    )
+    _append_rank_snapshot(
+        product_id,
+        "ios",
+        {
+            **(((payload.get("ios", {}).get("meta") or {}).get("category_rank") or {})),
+            "category_name": (payload.get("ios", {}).get("meta") or {}).get("primary_genre_name"),
+        },
+        at_iso=payload["fetched_at"],
+    )
+    _save_rank_history()
 
     if force_refresh:
         _FORCED_REFRESH_AT[product_id] = payload["fetched_at"]
@@ -791,6 +927,8 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_category_rank": raw["android"]["meta"].get("category_rank"),
                 "store_category_name": raw["android"]["meta"].get("genre")
                 or ((raw["android"]["meta"].get("category_rank") or {}).get("category_name")),
+                "store_rank_history_7d": _rank_history_series(product_id, "android", days=7),
+                "store_rank_changes_50": _rank_history_changes(product_id, "android", limit=50),
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
                 "category_reviews": _category_review_map(fa),
@@ -807,6 +945,8 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_ratings_caption": (raw["ios"]["meta"] or {}).get("ratings_caption"),
                 "store_category_rank": (raw["ios"]["meta"] or {}).get("category_rank"),
                 "store_category_name": (raw["ios"]["meta"] or {}).get("primary_genre_name"),
+                "store_rank_history_7d": _rank_history_series(product_id, "ios", days=7),
+                "store_rank_changes_50": _rank_history_changes(product_id, "ios", limit=50),
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
                 "category_reviews": _category_review_map(fi),
