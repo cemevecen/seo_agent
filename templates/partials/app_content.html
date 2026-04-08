@@ -1022,7 +1022,7 @@
     );
     plotRankTrend(
       document.getElementById("app-chart-play-rank"),
-      am.store_rank_history_7d || am.store_rank_changes_50 || [],
+      am.store_rank_daily_30d || am.store_rank_changes_50 || am.store_rank_history_7d || [],
       "Android sıra"
     );
     plotCats(
@@ -1042,7 +1042,7 @@
     );
     plotRankTrend(
       document.getElementById("app-chart-ios-rank"),
-      im.store_rank_history_7d || im.store_rank_changes_50 || [],
+      im.store_rank_daily_30d || im.store_rank_changes_50 || im.store_rank_history_7d || [],
       "iOS sıra"
     );
     plotCats(

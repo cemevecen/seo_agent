@@ -247,6 +247,33 @@ def _rank_history_changes(product_id: str, platform: str, *, limit: int = 50) ->
     return out[-limit:]
 
 
+def _rank_history_daily(product_id: str, platform: str, *, days: int = 30) -> list[dict[str, Any]]:
+    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    if not arr:
+        return []
+    start_d = (datetime.now(tz=_UTC) - timedelta(days=days - 1)).date()
+    by_day: dict[str, dict[str, Any]] = {}
+    for x in arr:
+        at_s = str(x.get("at") or "")
+        try:
+            dt = datetime.fromisoformat(at_s.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if dt.date() < start_d:
+            continue
+        day_key = dt.date().isoformat()
+        prev = by_day.get(day_key)
+        if prev is None or str(prev.get("at") or "") < at_s:
+            by_day[day_key] = {
+                "at": at_s,
+                "rank": x.get("rank"),
+                "total": x.get("total"),
+                "category": x.get("category"),
+            }
+    out = [by_day[k] for k in sorted(by_day.keys())]
+    return out[-days:]
+
+
 _load_forced_refresh_meta()
 _load_rank_history()
 
@@ -977,6 +1004,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_category_name": raw["android"]["meta"].get("genre")
                 or ((raw["android"]["meta"].get("category_rank") or {}).get("category_name")),
                 "store_rank_history_7d": _rank_history_series(product_id, "android", days=7),
+                "store_rank_daily_30d": _rank_history_daily(product_id, "android", days=30),
                 "store_rank_changes_50": _rank_history_changes(product_id, "android", limit=50),
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
@@ -995,6 +1023,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_category_rank": (raw["ios"]["meta"] or {}).get("category_rank"),
                 "store_category_name": (raw["ios"]["meta"] or {}).get("primary_genre_name"),
                 "store_rank_history_7d": _rank_history_series(product_id, "ios", days=7),
+                "store_rank_daily_30d": _rank_history_daily(product_id, "ios", days=30),
                 "store_rank_changes_50": _rank_history_changes(product_id, "ios", limit=50),
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
