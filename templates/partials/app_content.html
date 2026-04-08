@@ -838,10 +838,13 @@
         finishProgress();
         if (status) status.textContent = "";
         if (errEl) {
-          var msg = e && e.message ? e.message : "Yükleme hatası";
+          var rawMsg = e && e.message ? String(e.message) : "";
+          var msg = "Veri alınırken bağlantı sorunu oluştu. Lütfen tekrar deneyin.";
           if (e && e.name === "AbortError") {
             msg =
               "İstek zaman aşımına uğradı (4 dk). Sunucu hâlâ veri topluyor olabilir; bir süre sonra sayfayı yenileyin.";
+          } else if (rawMsg.toLowerCase().indexOf("networkerror") >= 0) {
+            msg = "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin.";
           }
           errEl.textContent = msg;
           errEl.classList.remove("hidden");
@@ -880,7 +883,11 @@
         })
         .catch(function (e) {
           if (errEl) {
-            errEl.textContent = (e && e.message) || "Manuel tetikleme hatası";
+            var rawMsg = e && e.message ? String(e.message) : "";
+            errEl.textContent =
+              rawMsg.toLowerCase().indexOf("networkerror") >= 0
+                ? "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin."
+                : "Manuel tetikleme sırasında bir sorun oluştu. Lütfen tekrar deneyin.";
             errEl.classList.remove("hidden");
           }
         })
