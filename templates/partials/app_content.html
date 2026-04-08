@@ -432,6 +432,8 @@
       hero.setAttribute("data-app-active", pk || "");
       var hl = document.getElementById("app-intel-hero-label");
       if (hl) hl.textContent = p.label || "—";
+      var hs = document.getElementById("app-intel-hero-sub");
+      if (hs) hs.textContent = "Google Play ve App Store";
       var bd = document.getElementById("app-intel-hero-badge");
       if (bd) {
         var initial = (p.label || "?").trim().charAt(0);

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _CACHE_LOCK = threading.Lock()
 _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL_SEC = 90 * 60
+_CACHE_TTL_SEC = 0
 
 # Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
 GOOGLE_PLAY_MAX_REVIEWS = 1_200
