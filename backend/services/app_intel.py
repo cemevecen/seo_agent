@@ -461,14 +461,22 @@ def _category_counts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
     ordered = sorted(rows, key=lambda r: r["at"], reverse=True)
-    seen: set[str] = set()
+    seen_text: set[str] = set()
+    seen_fallback: set[str] = set()
     out: list[dict[str, Any]] = []
     for r in ordered:
-        dedupe_key = f'{r["at"].isoformat()}\0{int(r.get("score") or 0)}\0{_normalize_review_text(r.get("text") or "")}'
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
         txt = _normalize_review_text(r.get("text") or "")
+        canonical = re.sub(r"\s+", " ", txt).strip().lower()
+        if canonical:
+            if canonical in seen_text:
+                continue
+            seen_text.add(canonical)
+        else:
+            # Metin yoksa tarih+puan üzerinden düş.
+            fb = f'{r["at"].isoformat()}\0{int(r.get("score") or 0)}'
+            if fb in seen_fallback:
+                continue
+            seen_fallback.add(fb)
         out.append(
             {
                 "at": r["at"],
