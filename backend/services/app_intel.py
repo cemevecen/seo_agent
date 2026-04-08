@@ -21,7 +21,7 @@ _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 90 * 60
 
 # Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
-GOOGLE_PLAY_MAX_REVIEWS = 5_000
+GOOGLE_PLAY_MAX_REVIEWS = 1_200
 
 # App Store web: tek vitrin ~50 yorum; birçok ülke vitrini birleştirerek geçmiş artar.
 _IOS_STOREFRONTS: tuple[str, ...] = (
