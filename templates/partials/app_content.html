@@ -432,18 +432,22 @@
 
   function renderSat(el, s) {
     if (!el || !s) return;
+    function n(v) {
+      var x = Number(v);
+      return isFinite(x) ? x : 0;
+    }
     function box(title, n, pct, cls) {
       return (
         '<div class="min-h-[96px] rounded-xl border px-2 py-3 ' +
         cls +
         '">' +
-        '<div class="text-[11px] font-semibold uppercase tracking-wide">' +
+        '<div class="text-[11px] font-semibold uppercase tracking-wide text-current/90">' +
         title +
         "</div>" +
-        '<div class="mt-1 text-xl font-bold">' +
+        '<div class="mt-1 text-xl font-bold text-current">' +
         n +
         "</div>" +
-        '<div class="text-sm">' +
+        '<div class="text-sm text-current/90">' +
         pct +
         "%</div></div>"
       );
@@ -451,20 +455,20 @@
     el.innerHTML =
       box(
         "Memnun (4–5★)",
-        s.memnun,
-        s.memnun_oran,
+        n(s.memnun),
+        n(s.memnun_oran),
         "border-emerald-300 bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300/70 dark:border-emerald-700 dark:bg-emerald-900/55 dark:text-emerald-100 dark:ring-emerald-800/60"
       ) +
       box(
         "Nötr (3★)",
-        s.notr,
-        s.notr_oran,
-        "border-slate-300 bg-slate-100 text-slate-900 ring-1 ring-slate-300/70 dark:border-slate-600 dark:bg-slate-700/70 dark:text-slate-100 dark:ring-slate-600/60"
+        n(s.notr),
+        n(s.notr_oran),
+        "border-slate-400 bg-slate-200 text-slate-900 ring-1 ring-slate-400/70 dark:border-slate-500 dark:bg-slate-600 dark:text-slate-50 dark:ring-slate-500/70"
       ) +
       box(
         "Memnun değil (1–2★)",
-        s.memnun_degil,
-        s.memnun_degil_oran,
+        n(s.memnun_degil),
+        n(s.memnun_degil_oran),
         "border-rose-300 bg-rose-100 text-rose-900 ring-1 ring-rose-300/70 dark:border-rose-700 dark:bg-rose-900/55 dark:text-rose-100 dark:ring-rose-800/60"
       );
   }
