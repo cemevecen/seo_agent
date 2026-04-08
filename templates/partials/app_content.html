@@ -567,14 +567,14 @@
       var sampleText = opts.sampleText || "Örnek yorum: —";
       var fetchedText = opts.fetchedText || "Son çekim: —";
       return (
-        '<div class="min-h-[132px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left ring-1 ring-slate-200 dark:border-slate-600 dark:bg-slate-800/80 dark:ring-slate-600">' +
-        '<div class="text-sm uppercase tracking-wide text-slate-500 dark:text-slate-400">Mağaza özeti</div>' +
-        '<div class="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">' + store + "</div>" +
-        '<div class="mt-1 text-base font-semibold text-slate-700 dark:text-slate-200">Dönem yorumu: ' + reviewCount + "</div>" +
-        '<div class="text-sm text-slate-600 dark:text-slate-400">' + allTimeText + "</div>" +
+        '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-3 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
+        '<div class="text-sm uppercase tracking-wider text-slate-600 dark:text-slate-300">Mağaza özeti</div>' +
+        '<div class="mt-1 text-[23px] leading-tight font-extrabold text-slate-900 dark:text-slate-50">' + store + "</div>" +
+        '<div class="mt-2 border-t border-slate-300/80 pt-1 text-base font-semibold text-slate-800 dark:border-slate-600 dark:text-slate-100">Dönem yorumu: ' + reviewCount + "</div>" +
+        '<div class="text-sm font-medium text-slate-700 dark:text-slate-300">' + allTimeText + "</div>" +
         '<div class="mt-2 flex flex-wrap items-center gap-1.5">' +
-        '<span class="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">' + sampleText + "</span>" +
-        '<span class="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">' + fetchedText + "</span>" +
+        '<span class="rounded-md border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-900 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-200">' + sampleText + "</span>" +
+        '<span class="rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">' + fetchedText + "</span>" +
         "</div>" +
         "</div>"
       );
