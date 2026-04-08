@@ -371,6 +371,21 @@ def _category_counts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{"id": k, "label": labels.get(k, k), "count": v} for k, v in cc.most_common()]
 
 
+def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
+    ordered = sorted(rows, key=lambda r: r["at"], reverse=True)[:limit]
+    out: list[dict[str, Any]] = []
+    for r in ordered:
+        txt = (r.get("text") or "").strip()
+        out.append(
+            {
+                "at": r["at"],
+                "score": int(r.get("score") or 0),
+                "text": txt,
+            }
+        )
+    return out
+
+
 def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
     h = meta.get("histogram")
     if not h or len(h) != 5:
@@ -468,6 +483,7 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
                 "store_ratings": raw["android"]["meta"].get("ratings"),
                 "satisfaction": _satisfaction_split(fa),
                 "categories": _category_counts(fa),
+                "latest_reviews": _latest_reviews(raw["android"]["reviews"], 100),
             },
             "ios": {
                 "review_count_period": len(fi),
@@ -479,6 +495,7 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
                 "satisfaction": _satisfaction_split(fi),
                 "categories": _category_counts(fi),
                 "note_tr": raw["ios"].get("note_tr"),
+                "latest_reviews": _latest_reviews(raw["ios"]["reviews"], 100),
             },
         }
 
