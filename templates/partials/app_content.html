@@ -352,6 +352,10 @@
         {
           x: labels,
           y: ys,
+          text: ys.map(function (v) { return String(v); }),
+          textposition: "outside",
+          textfont: { size: 12, color: th.tick },
+          cliponaxis: false,
           type: "bar",
           marker: { color: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"] },
         },
@@ -359,7 +363,7 @@
       {
         autosize: true,
         height: 220,
-        margin: { l: 44, r: 12, t: 8, b: 40 },
+        margin: { l: 44, r: 12, t: 24, b: 40 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         xaxis: { tickfont: { color: th.tick } },
