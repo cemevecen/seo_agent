@@ -745,7 +745,7 @@
     var kw = (((payload.keyword_intelligence || {}).top_keywords) || []).slice(0, 8);
     var kwEl = document.getElementById("app-aso-keywords");
     if (kwEl) kwEl.innerHTML = kw.map(function (k) {
-      return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-700/70 dark:text-slate-100"><span class="font-medium">' +
+      return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium">' +
         esc(k.keyword) + '</span><span class="text-xs text-slate-600 dark:text-slate-200">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
     }).join("");
 
@@ -802,7 +802,7 @@
     var cr = payload.creative_test_backlog || [];
     var crEl = document.getElementById("app-aso-creative");
     if (crEl) crEl.innerHTML = cr.map(function (x) {
-      return '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-700/70 dark:text-slate-100"><div class="font-semibold">' +
+      return '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><div class="font-semibold">' +
         esc(x.priority || "Orta") + " · " + esc(x.hypothesis || "—") + "</div><div class=\"text-xs text-slate-600 dark:text-slate-200\">" + esc(x.why || "") + "</div></div>";
     }).join("");
 
@@ -810,8 +810,8 @@
     var alerts = payload.alerts || [];
     if (aEl) aEl.innerHTML = alerts.map(function (a) {
       var cls = a.level === "high"
-        ? "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-700 dark:bg-rose-950/45 dark:text-rose-100"
-        : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-100";
+        ? "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-700 dark:bg-rose-900 dark:text-rose-100"
+        : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-100";
       return '<div class="rounded-lg border px-3 py-2 text-sm ' + cls + '"><span class="font-semibold">' + esc(a.title || "") + ":</span> " + esc(a.detail || "") + "</div>";
     }).join("");
   }
