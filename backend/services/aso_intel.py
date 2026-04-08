@@ -203,15 +203,22 @@ def _update_rank_history(product_id: str, keyword_rows: list[dict[str, Any]]) ->
 
 
 def _mix_score(android_score: Any, ios_score: Any) -> float:
+    vals: list[float] = []
     try:
-        a = float(android_score or 0)
+        a = float(android_score) if android_score is not None else None
     except Exception:
-        a = 0.0
+        a = None
     try:
-        i = float(ios_score or 0)
+        i = float(ios_score) if ios_score is not None else None
     except Exception:
-        i = 0.0
-    return round((a * 0.5) + (i * 0.5), 2)
+        i = None
+    if a is not None and a > 0:
+        vals.append(a)
+    if i is not None and i > 0:
+        vals.append(i)
+    if not vals:
+        return 0.0
+    return round(sum(vals) / len(vals), 2)
 
 
 def _category_rank_summary(period_days: int) -> dict[str, Any]:
@@ -270,6 +277,46 @@ def _compare_entry(
     ios_id = (compare_ios_app_id or "").strip()
     if not pkg and not ios_id:
         return None
+
+    # Custom giriş aslında takipli bir ürüne denk geliyorsa tracked akışını kullan.
+    for tp, spec in APP_PRODUCTS.items():
+        if tp == base_product_id:
+            continue
+        if pkg and pkg == str(spec.get("android_package") or "").strip():
+            p = build_intel_payload(tp, period_days, force_refresh=False)
+            w = p.get("active_window") or {}
+            a = w.get("android") or {}
+            i = w.get("ios") or {}
+            return {
+                "product_id": tp,
+                "label": (compare_label or "").strip() or spec.get("label"),
+                "store_score_mix": _mix_score(a.get("store_score"), i.get("store_score")),
+                "review_count_period": int(a.get("review_count_period") or 0) + int(i.get("review_count_period") or 0),
+                "satisfaction_mix": round(
+                    (float((a.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5)
+                    + (float((i.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5),
+                    1,
+                ),
+                "source": "tracked_product",
+            }
+        if ios_id and ios_id == str(spec.get("ios_app_id") or "").strip():
+            p = build_intel_payload(tp, period_days, force_refresh=False)
+            w = p.get("active_window") or {}
+            a = w.get("android") or {}
+            i = w.get("ios") or {}
+            return {
+                "product_id": tp,
+                "label": (compare_label or "").strip() or spec.get("label"),
+                "store_score_mix": _mix_score(a.get("store_score"), i.get("store_score")),
+                "review_count_period": int(a.get("review_count_period") or 0) + int(i.get("review_count_period") or 0),
+                "satisfaction_mix": round(
+                    (float((a.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5)
+                    + (float((i.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5),
+                    1,
+                ),
+                "source": "tracked_product",
+            }
+
     g_meta, _rows, _err = (_fetch_google_bundle(pkg, max_reviews=200) if pkg else ({}, [], None))
     i_meta = _fetch_ios_lookup_meta(ios_id) if ios_id else {}
     return {
