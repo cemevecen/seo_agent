@@ -115,7 +115,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
           <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
-          <div id="app-intel-play-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
+          <div id="app-intel-play-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
@@ -152,7 +152,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
-          <div id="app-intel-ios-star-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir yıldız sütununa tıklayarak yorumları görüntüleyin.</div>
+          <div id="app-intel-ios-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
@@ -407,7 +407,8 @@
       { displayModeBar: false, responsive: true }
     );
     if (drilldownEl) {
-      drilldownEl.innerHTML = "Bir yıldız sütununa tıklayarak yorumları görüntüleyin.";
+      drilldownEl.innerHTML = "";
+      drilldownEl.classList.add("hidden");
     }
     if (typeof el.on === "function") {
       el.on("plotly_click", function (ev) {
@@ -485,6 +486,7 @@
 
   function renderCategoryDrilldown(el, title, rows, scopeText) {
     if (!el) return;
+    el.classList.remove("hidden");
     var list = Array.isArray(rows) ? rows : [];
     var scope = scopeText || "kategorisinde";
     if (!list.length) {
