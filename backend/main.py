@@ -6364,7 +6364,7 @@ def api_app_intel(product: str = "doviz", period: int = 30):
         p = int(period)
     except (TypeError, ValueError):
         p = 30
-    if p not in (7, 30, 180, 365):
+    if p not in (7, 30, 90, 180, 365):
         p = 30
     payload = build_intel_payload(pid, p)
     return JSONResponse(intel_json_safe(payload))

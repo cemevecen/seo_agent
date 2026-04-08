@@ -523,7 +523,7 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
 
 
 def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
-    valid_periods = (7, 30, 180, 365)
+    valid_periods = (7, 30, 90, 180, 365)
     if period_days not in valid_periods:
         period_days = 7
     raw = get_raw_product_data(product_id)

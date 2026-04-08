@@ -58,7 +58,7 @@
       <div class="min-w-0 space-y-2">
         <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Mobil uygulama mağaza analitiği</h1>
         <p class="text-sm text-slate-600 dark:text-slate-400">
-          Google Play ve App Store yorumlarından türetilen metrikler. Dönem seçimi ile 7 gün, 30 gün, <strong class="font-semibold text-slate-800 dark:text-slate-200">son 6 ay</strong> ve <strong class="font-semibold text-slate-800 dark:text-slate-200">son 1 yıl</strong> görünümü alabilirsiniz.
+          Google Play ve App Store yorumlarından türetilen metrikler. Dönem seçimi ile 7 gün, 30 gün, <strong class="font-semibold text-slate-800 dark:text-slate-200">3 ay</strong>, <strong class="font-semibold text-slate-800 dark:text-slate-200">son 6 ay</strong> ve <strong class="font-semibold text-slate-800 dark:text-slate-200">son 1 yıl</strong> görünümü alabilirsiniz.
         </p>
       </div>
       <div class="flex flex-col items-start gap-3 lg:items-end">
@@ -71,6 +71,7 @@
           <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Gün aralığı">
             <button type="button" data-app-period="7" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7 gün</button>
             <button type="button" data-app-period="30" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30 gün</button>
+            <button type="button" data-app-period="90" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">3 ay</button>
             <button type="button" data-app-period="180" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">6 ay</button>
             <button type="button" data-app-period="365" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1 yıl</button>
           </nav>
@@ -232,7 +233,7 @@
     state.product = qp.product.toLowerCase();
   }
   var pp = parseInt(qp.period, 10);
-  if (pp === 7 || pp === 30 || pp === 180 || pp === 365) {
+  if (pp === 7 || pp === 30 || pp === 90 || pp === 180 || pp === 365) {
     state.period = pp;
   }
   var productIds = products.map(function (p) {
