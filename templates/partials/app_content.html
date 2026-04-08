@@ -1297,24 +1297,26 @@
           errEl.textContent = eParts.join(" · ");
           errEl.classList.remove("hidden");
         }
-        return fetch(asoUrl, { signal: ac.signal })
-          .then(function (r2) {
-            return r2.json().then(function (j2) {
-              return { ok: r2.ok, j: j2 };
+        return finishProgress().then(function () {
+          redrawAll();
+          // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
+          return fetch(asoUrl)
+            .then(function (r2) {
+              return r2.json().then(function (j2) {
+                return { ok: r2.ok, j: j2 };
+              });
+            })
+            .then(function (asoRes) {
+              if (reqSeq !== state.requestSeq) return;
+              state.lastAsoPayload = asoRes && asoRes.ok ? asoRes.j : null;
+              renderAso(state.lastAsoPayload);
+            })
+            .catch(function () {
+              if (reqSeq !== state.requestSeq) return;
+              state.lastAsoPayload = null;
+              renderAso(null);
             });
-          })
-          .then(function (asoRes) {
-            if (reqSeq !== state.requestSeq) return;
-            state.lastAsoPayload = asoRes && asoRes.ok ? asoRes.j : null;
-          })
-          .catch(function () {
-            state.lastAsoPayload = null;
-          })
-          .then(function () {
-            return finishProgress().then(function () {
-              redrawAll();
-            });
-          });
+        });
       })
       .then(function () {
         if (reqSeq !== state.requestSeq) return;
