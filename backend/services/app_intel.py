@@ -565,6 +565,7 @@ def _fetch_android_category_rank(
         ]
         starts = (0, 50, 100, 150)
         headers2 = {"User-Agent": headers["User-Agent"], "Accept-Language": f"{lang}-{country},tr;q=0.9,en;q=0.8"}
+        best_lower_bound: dict[str, Any] | None = None
         with httpx.Client(timeout=12.0, follow_redirects=True, headers=headers2) as client:
             for base_url in endpoints:
                 total_seen = 0
@@ -600,14 +601,18 @@ def _fetch_android_category_rank(
                     except Exception:
                         continue
                 if total_seen > 0:
-                    # Taradığımız aralıkta bulunamadıysa alt sınır döndür (store kaynaklı band bilgisi)
-                    return {
+                    # Taradığımız endpointte bulunamadıysa alt sınırı not al (store kaynaklı band bilgisi).
+                    candidate = {
                         "rank": total_seen + 1,
                         "total": total_seen,
                         "chart": "category_chart_paged",
                         "category_name": category_name or cat,
                         "estimated": True,
                     }
+                    if best_lower_bound is None or int(candidate["rank"]) < int(best_lower_bound["rank"]):
+                        best_lower_bound = candidate
+        if best_lower_bound:
+            return best_lower_bound
 
     return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
 
