@@ -246,38 +246,50 @@ def _fetch_ios_reviews_multistore(
 
 
 def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
-    """iTunes lookup API'den tam rating count gibi alanları al."""
+    """iTunes lookup API'den çoklu ülke toplanmış all-time rating count al."""
     url = "https://itunes.apple.com/lookup"
-    try:
-        with httpx.Client(timeout=12.0, follow_redirects=True) as client:
-            r = client.get(url, params={"id": app_id, "country": "tr"})
-            r.raise_for_status()
-            data = r.json()
-    except Exception as e:  # noqa: BLE001
-        logger.debug("iTunes lookup alınamadı (%s): %s", app_id, e)
-        return {}
 
-    try:
-        first = ((data or {}).get("results") or [])[0] or {}
-    except Exception:
-        return {}
+    def one(country: str) -> tuple[int, float | None]:
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(url, params={"id": app_id, "country": country})
+                r.raise_for_status()
+                data = r.json()
+            first = ((data or {}).get("results") or [])[0] or {}
+        except Exception:
+            return 0, None
+        cnt_raw = first.get("userRatingCount")
+        if cnt_raw is None:
+            cnt_raw = first.get("userRatingCountForCurrentVersion")
+        score_raw = first.get("averageUserRating")
+        if score_raw is None:
+            score_raw = first.get("averageUserRatingForCurrentVersion")
+        try:
+            cnt = int(cnt_raw or 0)
+        except Exception:
+            cnt = 0
+        try:
+            score = float(score_raw) if score_raw is not None else None
+        except Exception:
+            score = None
+        return cnt, score
+
+    total_count = 0
+    weighted_sum = 0.0
+    with ThreadPoolExecutor(max_workers=min(12, len(_IOS_STOREFRONTS))) as pool:
+        futs = [pool.submit(one, c) for c in _IOS_STOREFRONTS]
+        for fut in futs:
+            cnt, score = fut.result()
+            if cnt > 0:
+                total_count += cnt
+                if score is not None:
+                    weighted_sum += cnt * score
+
     out: dict[str, Any] = {}
-    cnt = first.get("userRatingCount")
-    if cnt is None:
-        cnt = first.get("userRatingCountForCurrentVersion")
-    if cnt is not None:
-        try:
-            out["ratings_count"] = int(cnt)
-        except Exception:
-            pass
-    score = first.get("averageUserRating")
-    if score is None:
-        score = first.get("averageUserRatingForCurrentVersion")
-    if score is not None:
-        try:
-            out["score"] = float(score)
-        except Exception:
-            pass
+    if total_count > 0:
+        out["ratings_count"] = total_count
+        if weighted_sum > 0:
+            out["score"] = round(weighted_sum / total_count, 5)
     return out
 
 
@@ -523,7 +535,7 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
 
 
 def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
-    valid_periods = (7, 30, 90, 180, 365)
+    valid_periods = (0, 7, 30, 90, 180, 365)
     if period_days not in valid_periods:
         period_days = 7
     raw = get_raw_product_data(product_id)
@@ -548,8 +560,16 @@ def build_intel_payload(product_id: str, period_days: int) -> dict[str, Any]:
     }
 
     for p in valid_periods:
-        fa, fa_anchor, fa_note = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
-        fi, fi_anchor, fi_note = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
+        if p == 0:
+            fa = list(raw["android"]["reviews"])
+            fi = list(raw["ios"]["reviews"])
+            fa_anchor = None
+            fi_anchor = None
+            fa_note = "Tüm zaman görünümünde detaylar çekilen örnek yorum havuzundan hesaplanır."
+            fi_note = "Tüm zaman görünümünde detaylar çekilen örnek yorum havuzundan hesaplanır."
+        else:
+            fa, fa_anchor, fa_note = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
+            fi, fi_anchor, fi_note = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
         intel["windows"][str(p)] = {
             "period_days": p,
             "android": {
