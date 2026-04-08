@@ -198,6 +198,14 @@
       </div>
       <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
         <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Competitor Benchmark</p>
+        <div class="mb-1 grid grid-cols-1 gap-1">
+          <input id="app-aso-comp-label" type="text" placeholder="Uygulama adı (ops.)" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
+          <input id="app-aso-comp-android" type="text" placeholder="Android package (ops.)" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
+          <div class="flex items-center gap-1">
+            <input id="app-aso-comp-ios" type="text" placeholder="iOS app id (ops.)" class="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
+            <button id="app-aso-comp-run" type="button" class="rounded-md border border-sky-400 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Kıyasla</button>
+          </div>
+        </div>
         <div id="app-aso-competitors" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
       </div>
       <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
@@ -240,6 +248,9 @@
     progressValue: 0,
     requestSeq: 0,
     latestPage: { play: 1, ios: 1 },
+    compLabel: "",
+    compAndroid: "",
+    compIos: "",
   };
 
   function esc(v) {
@@ -796,10 +807,16 @@
 
     var kw = (((payload.keyword_intelligence || {}).top_keywords) || []).slice(0, 8);
     var kwEl = document.getElementById("app-aso-keywords");
-    if (kwEl) kwEl.innerHTML = kw.map(function (k) {
-      return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium">' +
-        esc(k.keyword) + '</span><span class="text-xs text-slate-600 dark:text-slate-200">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
-    }).join("");
+    if (kwEl) {
+      var lead = kw[0];
+      var leadText = lead
+        ? '<div class="rounded-md border border-emerald-300/70 bg-emerald-50/70 px-2 py-1 text-[11px] text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">Öne çıkan tema: <span class="font-semibold">' + esc(lead.keyword) + '</span> (' + esc(lead.avg_score) + '★, ' + esc(lead.mentions) + ' yorum)</div>'
+        : "";
+      kwEl.innerHTML = leadText + kw.map(function (k) {
+        return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium">' +
+          esc(k.keyword) + '</span><span class="text-xs text-slate-600 dark:text-slate-200">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
+      }).join("");
+    }
 
     var l = payload.localization_aso || {};
     var mix = l.language_mix || {};
@@ -807,28 +824,41 @@
     if (locEl) locEl.innerHTML =
       "<div>TR: %" + esc(mix.tr_pct || 0) + " · EN: %" + esc(mix.en_pct || 0) + " · Other: %" + esc(mix.other_pct || 0) + "</div>" +
       "<div>Önerilen locale: " + esc((l.suggested_locales || []).join(", ") || "—") + "</div>" +
-      "<div>" + esc(l.notes || "") + "</div>";
+      "<div class=\"text-xs text-slate-500 dark:text-slate-300\">" + esc(l.notes || "") + "</div>";
 
     var f = payload.conversion_funnel || {};
     var fEl = document.getElementById("app-aso-funnel");
-    if (fEl) fEl.innerHTML =
+    if (fEl) {
+      var conv = (Number(f.listing_views || 0) > 0)
+        ? Math.round((Number(f.installs || 0) / Number(f.listing_views || 1)) * 1000) / 10
+        : null;
+      fEl.innerHTML =
       "<div>Impression: <span class=\"font-semibold\">" + esc(f.impressions || 0) + "</span></div>" +
       "<div>Listing view: <span class=\"font-semibold\">" + esc(f.listing_views || 0) + "</span></div>" +
       "<div>Install: <span class=\"font-semibold\">" + esc(f.installs || 0) + "</span></div>" +
-      "<div>Rating: <span class=\"font-semibold\">" + esc(f.ratings || 0) + "</span></div>";
+      "<div>Rating: <span class=\"font-semibold\">" + esc(f.ratings || 0) + "</span></div>" +
+      "<div class=\"text-xs text-slate-500 dark:text-slate-300\">Tahmini listing→install dönüşümü: <span class=\"font-semibold\">" + esc(conv == null ? "—" : conv + "%") + "</span></div>";
+    }
 
     var cEl = document.getElementById("app-aso-competitors");
     var c = payload.competitor_benchmark || [];
     if (cEl) cEl.innerHTML = c.length ? c.map(function (x) {
-      return "<div>" + esc(x.label) + " · skor " + esc(x.store_score_mix) + " · dönem yorum " + esc(x.review_count_period) + "</div>";
+      return "<div>" +
+        "<div class=\"font-semibold\">" + esc(x.label) + "</div>" +
+        "<div class=\"text-xs text-slate-500 dark:text-slate-300\">Skor: " + esc(x.store_score_mix) + " · Dönem yorum: " + esc(x.review_count_period || "—") + (x.satisfaction_mix != null ? " · Memnuniyet: %" + esc(x.satisfaction_mix) : "") + "</div>" +
+      "</div>";
     }).join("") : '<div class="text-xs text-slate-500 dark:text-slate-300">Rakip verisi yok.</div>';
 
     var rel = payload.release_impact || {};
     var reEl = document.getElementById("app-aso-release");
-    if (reEl) reEl.innerHTML =
+    if (reEl) {
+      var delta = rel.delta == null ? null : Number(rel.delta);
+      var tone = delta == null ? "text-slate-500 dark:text-slate-300" : (delta < 0 ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300");
+      reEl.innerHTML =
       "<div>Son 30 gün ort.: <span class=\"font-semibold\">" + esc(rel.recent30_avg == null ? "—" : rel.recent30_avg) + "</span></div>" +
       "<div>Önceki 30 gün: <span class=\"font-semibold\">" + esc(rel.prev30_avg == null ? "—" : rel.prev30_avg) + "</span></div>" +
-      "<div>Delta: <span class=\"font-semibold\">" + esc(rel.delta == null ? "—" : rel.delta) + "</span></div>";
+      "<div>Delta: <span class=\"font-semibold " + tone + "\">" + esc(rel.delta == null ? "—" : rel.delta) + "</span></div>";
+    }
 
     var aEl = document.getElementById("app-aso-alerts");
     var alerts = payload.alerts || [];
@@ -838,6 +868,28 @@
         : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-100";
       return '<div class="rounded-lg border px-3 py-2 text-sm ' + cls + '"><span class="font-semibold">' + esc(a.title || "") + ":</span> " + esc(a.detail || "") + "</div>";
     }).join("");
+  }
+
+  function bindAsoCompetitorControls() {
+    var btn = document.getElementById("app-aso-comp-run");
+    var label = document.getElementById("app-aso-comp-label");
+    var android = document.getElementById("app-aso-comp-android");
+    var ios = document.getElementById("app-aso-comp-ios");
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    function run() {
+      state.compLabel = (label && label.value ? label.value.trim() : "");
+      state.compAndroid = (android && android.value ? android.value.trim() : "");
+      state.compIos = (ios && ios.value ? ios.value.trim() : "");
+      loadIntel();
+    }
+    btn.addEventListener("click", run);
+    [label, android, ios].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") run();
+      });
+    });
   }
 
   function redrawAll() {
@@ -1214,6 +1266,9 @@
     renderSkeletonState();
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var asoUrl = "/api/app/aso?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
+    if (state.compLabel) asoUrl += "&compare_label=" + encodeURIComponent(state.compLabel);
+    if (state.compAndroid) asoUrl += "&compare_android_package=" + encodeURIComponent(state.compAndroid);
+    if (state.compIos) asoUrl += "&compare_ios_app_id=" + encodeURIComponent(state.compIos);
     var ac = new AbortController();
     var to = window.setTimeout(function () {
       ac.abort();
@@ -1368,6 +1423,7 @@
   renderProductNav();
   renderPeriodNav();
   applyHeroShellFromState();
+  bindAsoCompetitorControls();
   bindManualRefreshButton();
   document.addEventListener("seo-theme-change", function () {
     redrawAll();
