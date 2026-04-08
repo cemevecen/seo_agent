@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     ga4_scheduled_refresh_minute: int = 30
     ga4_scheduled_refresh_site_spacing_seconds: int = 15
 
+    # App Store + Google Play analitik günlük özet (TSİ)
+    app_intel_scheduled_refresh_enabled: bool = True
+    app_intel_scheduled_refresh_hour: int = 7
+    app_intel_scheduled_refresh_minute: int = 0
+
     # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar) — Türkiye saati
     ai_daily_brief_enabled: bool = True
     ai_daily_brief_hour: int = 6

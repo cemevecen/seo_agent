@@ -99,6 +99,7 @@ STATIC_DIR = BASE_DIR / "static"
 GSC_SCREENSHOT_DIR = STATIC_DIR / "gsc"
 LOGGER = logging.getLogger(__name__)
 DAILY_REFRESH_LOCK = threading.Lock()
+APP_INTEL_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
 EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 180
@@ -1921,6 +1922,62 @@ def _run_ai_daily_brief_scheduled() -> None:
         LOGGER.exception("Scheduled AI daily brief job failed.")
 
 
+def _run_app_intel_digest_job(*, trigger_source: str, action_label: str) -> None:
+    if not APP_INTEL_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("App Intel digest is already running; skipping duplicate trigger (%s).", trigger_source)
+        return
+    try:
+        from backend.services.app_intel import APP_PRODUCTS, build_intel_payload
+
+        summary: dict[str, object] = {
+            "urun_sayisi": len(APP_PRODUCTS),
+            "period_days": 30,
+        }
+        errors: list[str] = []
+        ok_count = 0
+        for pid, spec in APP_PRODUCTS.items():
+            label = str(spec.get("label") or pid)
+            try:
+                payload = build_intel_payload(pid, 30)
+                aw = payload.get("active_window") if isinstance(payload, dict) else {}
+                android = aw.get("android") if isinstance(aw, dict) else {}
+                ios = aw.get("ios") if isinstance(aw, dict) else {}
+                per_errors = payload.get("errors") if isinstance(payload, dict) else {}
+                a_err = (per_errors or {}).get("android")
+                i_err = (per_errors or {}).get("ios")
+                if a_err or i_err:
+                    errors.append(f"{label}: Play={a_err or '-'} | App Store={i_err or '-'}")
+                summary[f"{pid}_play_donem_yorumu"] = int((android or {}).get("review_count_period") or 0)
+                summary[f"{pid}_ios_donem_yorumu"] = int((ios or {}).get("review_count_period") or 0)
+                ok_count += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{label}: {exc}")
+                LOGGER.exception("App Intel digest failed for %s", pid)
+
+        summary["basarili_urun"] = ok_count
+        summary["hatali_urun"] = len(errors)
+        state = "warning" if errors else "success"
+        result: dict[str, object] = {"state": state, "summary": summary}
+        if errors:
+            result["errors"] = " | ".join(errors)
+
+        send_consolidated_system_email(
+            system_key="app_intel",
+            trigger_source=trigger_source,
+            action_label=action_label,
+            items=[(None, result)],
+        )
+    finally:
+        APP_INTEL_REFRESH_LOCK.release()
+
+
+def _run_app_intel_scheduled() -> None:
+    try:
+        _run_app_intel_digest_job(trigger_source="system", action_label="Günlük App mağaza özeti")
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Scheduled App Intel digest job failed.")
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -1988,6 +2045,22 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                 timezone=timezone,
             ),
             id="daily-ga4-refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.app_intel_scheduled_refresh_enabled:
+        scheduler.add_job(
+            _run_app_intel_scheduled,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.app_intel_scheduled_refresh_hour))),
+                minute=max(0, min(59, int(settings.app_intel_scheduled_refresh_minute))),
+                timezone=timezone,
+            ),
+            id="daily-app-intel-digest",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -6295,6 +6368,16 @@ def api_app_intel(product: str = "doviz", period: int = 30):
         p = 30
     payload = build_intel_payload(pid, p)
     return JSONResponse(intel_json_safe(payload))
+
+
+@app.post("/app/intel/refresh")
+def app_intel_manual_refresh():
+    try:
+        _run_app_intel_digest_job(trigger_source="manual", action_label="Manuel App mağaza yenilemesi")
+        return JSONResponse({"ok": True, "message": "Manuel yenileme tamamlandı; özet mail gönderildi."})
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Manual app intel refresh failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.get("/ga4/site-list")

@@ -74,6 +74,13 @@
         <button type="button" data-app-period="180" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">6 ay</button>
         <button type="button" data-app-period="365" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1 yıl</button>
       </nav>
+      <button
+        id="app-intel-manual-refresh-btn"
+        type="button"
+        class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+      >
+        Manuel tetikle
+      </button>
     </div>
     <p id="app-intel-status" class="mt-3 text-xs text-slate-500 dark:text-slate-400">
       Mağaza yorumları çekiliyor (bu işlem birkaç dakika sürebilir)…
@@ -849,6 +856,48 @@
       });
   }
 
+  function bindManualRefreshButton() {
+    var btn = document.getElementById("app-intel-manual-refresh-btn");
+    var status = document.getElementById("app-intel-status");
+    var errEl = document.getElementById("app-intel-error");
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      var old = btn.textContent;
+      btn.textContent = "Tetikleniyor...";
+      if (errEl) {
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+      }
+      if (status) status.textContent = "Manuel App mağaza yenilemesi çalışıyor, özet mail hazırlanıyor...";
+      fetch("/app/intel/refresh", { method: "POST" })
+        .then(function (r) {
+          return r.json().then(function (j) {
+            return { ok: r.ok, j: j };
+          });
+        })
+        .then(function (x) {
+          if (!x.ok || !x.j || !x.j.ok) {
+            throw new Error((x.j && (x.j.error || x.j.message)) || "Manuel tetikleme başarısız");
+          }
+          if (status) status.textContent = x.j.message || "Manuel yenileme tamamlandı.";
+          loadIntel();
+        })
+        .catch(function (e) {
+          if (errEl) {
+            errEl.textContent = (e && e.message) || "Manuel tetikleme hatası";
+            errEl.classList.remove("hidden");
+          }
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = old;
+        });
+    });
+  }
+
   function applyHeroShellFromState() {
     var hero = document.getElementById("app-intel-hero");
     if (!hero) return;
@@ -879,6 +928,7 @@
   renderProductNav();
   renderPeriodNav();
   applyHeroShellFromState();
+  bindManualRefreshButton();
   document.addEventListener("seo-theme-change", function () {
     redrawAll();
   });

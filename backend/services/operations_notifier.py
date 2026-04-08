@@ -54,6 +54,7 @@ SYSTEM_LABELS = {
     "ga4": "GA4",
     "crux_history": "CrUX History",
     "url_inspection": "URL Inspection",
+    "app_intel": "App Mağaza Analitiği",
 }
 
 TRIGGER_SOURCE_LABELS = {
