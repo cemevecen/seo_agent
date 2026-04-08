@@ -419,12 +419,7 @@ def get_raw_product_data(product_id: str) -> dict[str, Any]:
             "error": i_err,
             "storefronts_ok": i_sf_ok,
             "storefronts_total": i_sf_n,
-            "note_tr": (
-                "App Store verileri vitrin web sayfalarındaki örnek yorumlardan üretilir (çoklu ülke birleştirmesi). "
-                "Tam geçmiş için App Store Connect API önerilir."
-                if i_rows
-                else None
-            ),
+            "note_tr": None,
         },
     }
 
