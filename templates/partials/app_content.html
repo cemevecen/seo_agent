@@ -487,9 +487,9 @@
       }
     }
     var hp = document.getElementById("app-intel-head-play");
-    if (hp) hp.textContent = (p.label || "") + " — Google Play";
+    if (hp) hp.textContent = "Google Play";
     var hi = document.getElementById("app-intel-head-ios");
-    if (hi) hi.textContent = (p.label || "") + " — App Store";
+    if (hi) hi.textContent = "App Store";
 
     var am = w.android || {};
     var im = w.ios || {};
@@ -834,9 +834,9 @@
         (def.id === "doviz" ? "bg-emerald-600" : def.id === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
     }
     var hp = document.getElementById("app-intel-head-play");
-    if (hp) hp.textContent = def.label + " — Google Play";
+    if (hp) hp.textContent = "Google Play";
     var hi = document.getElementById("app-intel-head-ios");
-    if (hi) hi.textContent = def.label + " — App Store";
+    if (hi) hi.textContent = "App Store";
   }
 
   renderProductNav();
