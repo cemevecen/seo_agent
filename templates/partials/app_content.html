@@ -124,7 +124,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
           <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
-          <div id="app-intel-play-cat-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir kategori barına tıklayarak yorumları görüntüleyin.</div>
+          <div id="app-intel-play-cat-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
@@ -161,7 +161,7 @@
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
           <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
-          <div id="app-intel-ios-cat-drilldown" class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Bir kategori barına tıklayarak yorumları görüntüleyin.</div>
+          <div id="app-intel-ios-cat-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
@@ -584,7 +584,8 @@
       { displayModeBar: false, responsive: true }
     );
     if (drilldownEl) {
-      drilldownEl.innerHTML = "Bir kategori barına tıklayarak yorumları görüntüleyin.";
+      drilldownEl.innerHTML = "";
+      drilldownEl.classList.add("hidden");
     }
     if (typeof el.on === "function") {
       el.on("plotly_click", function (ev) {
