@@ -455,13 +455,38 @@
       var n = m ? m[1].replace(",", ".") : txt;
       return n + " değerlendirme";
     }
-    function renderMetaBox(store, reviewCount, overallTail) {
+    function formatFetchedAt(iso) {
+      if (!iso) return "—";
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return String(iso);
+        return d.toLocaleString("tr-TR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (e) {
+        return String(iso);
+      }
+    }
+    function renderMetaBox(opts) {
+      var store = opts.store || "Mağaza: —";
+      var reviewCount = opts.reviewCount || 0;
+      var allTimeText = opts.allTimeText || "Tüm zaman: —";
+      var sampleText = opts.sampleText || "Örnek yorum: —";
+      var fetchedText = opts.fetchedText || "Son çekim: —";
       return (
-        '<div class="min-h-[108px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left ring-1 ring-slate-200 dark:border-slate-600 dark:bg-slate-800/80 dark:ring-slate-600">' +
+        '<div class="min-h-[132px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left ring-1 ring-slate-200 dark:border-slate-600 dark:bg-slate-800/80 dark:ring-slate-600">' +
         '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Mağaza özeti</div>' +
         '<div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">' + store + "</div>" +
         '<div class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">Dönem yorumu: ' + reviewCount + "</div>" +
-        '<div class="text-xs text-slate-600 dark:text-slate-400">' + (overallTail || "Tüm zaman: —") + "</div>" +
+        '<div class="text-xs text-slate-600 dark:text-slate-400">' + allTimeText + "</div>" +
+        '<div class="mt-2 flex flex-wrap items-center gap-1.5">' +
+        '<span class="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">' + sampleText + "</span>" +
+        '<span class="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">' + fetchedText + "</span>" +
+        "</div>" +
         "</div>"
       );
     }
@@ -490,7 +515,13 @@
         "Mağaza: " +
         (am.store_score != null ? Number(am.store_score).toFixed(2) : "—") +
         (am.store_ratings != null ? " · " + am.store_ratings + " değerlendirme" : "");
-      ameta.innerHTML = renderMetaBox(storeLine, am.review_count_period || 0, histTxt);
+      ameta.innerHTML = renderMetaBox({
+        store: storeLine,
+        reviewCount: am.review_count_period || 0,
+        allTimeText: histTxt || "Tüm zaman: —",
+        sampleText: "Örnek yorum: " + ((p.scrape && p.scrape.android_review_samples) || 0),
+        fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
+      });
     }
     var imeta = document.getElementById("app-intel-ios-meta");
     if (imeta) {
@@ -499,7 +530,17 @@
         "Mağaza: " +
         (im.store_score != null ? Number(im.store_score).toFixed(2) : "—") +
         " · " + iosRatingsLabel;
-      imeta.innerHTML = renderMetaBox(iosStoreLine, im.review_count_period || 0, "Tüm zaman: —");
+      var iosSample = ((p.scrape && p.scrape.ios_review_samples) || 0) + "";
+      if (p.scrape && p.scrape.ios_storefronts_ok != null && p.scrape.ios_storefronts_total != null) {
+        iosSample += " (" + p.scrape.ios_storefronts_ok + "/" + p.scrape.ios_storefronts_total + " vitrin)";
+      }
+      imeta.innerHTML = renderMetaBox({
+        store: iosStoreLine,
+        reviewCount: im.review_count_period || 0,
+        allTimeText: "Tüm zaman: —",
+        sampleText: "Örnek yorum: " + iosSample,
+        fetchedText: "Son çekim: " + formatFetchedAt(p.fetched_at),
+      });
     }
     var ion = document.getElementById("app-intel-ios-note");
     if (ion) {
