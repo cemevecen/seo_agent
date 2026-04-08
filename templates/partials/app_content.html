@@ -71,6 +71,7 @@
             <button type="button" data-app-period="90" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">3a</button>
             <button type="button" data-app-period="180" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">6a</button>
             <button type="button" data-app-period="365" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1y</button>
+            <button type="button" data-app-period="730" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">2y</button>
             <button type="button" data-app-period="0" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">tümü</button>
           </nav>
           <button
@@ -231,7 +232,7 @@
     state.product = qp.product.toLowerCase();
   }
   var pp = parseInt(qp.period, 10);
-  if (pp === 0 || pp === 7 || pp === 30 || pp === 90 || pp === 180 || pp === 365) {
+  if (pp === 0 || pp === 7 || pp === 30 || pp === 90 || pp === 180 || pp === 365 || pp === 730) {
     state.period = pp;
   }
   var productIds = products.map(function (p) {
