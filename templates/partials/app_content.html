@@ -190,6 +190,7 @@
     loadingStartedAt: 0,
     progressTimer: null,
     progressValue: 0,
+    requestSeq: 0,
   };
 
   function queryParams() {
@@ -307,6 +308,9 @@
 
   function plotStars(el, dist) {
     if (!window.Plotly || !el) return;
+    if (el.querySelector(".app-intel-skeleton")) {
+      el.innerHTML = "";
+    }
     var th = theme();
     var labels = ["1★", "2★", "3★", "4★", "5★"];
     var ys = [1, 2, 3, 4, 5].map(function (k) {
@@ -347,6 +351,9 @@
 
   function plotCats(el, categories) {
     if (!window.Plotly || !el) return;
+    if (el.querySelector(".app-intel-skeleton")) {
+      el.innerHTML = "";
+    }
     var th = theme();
     var rows = (categories || []).slice(0, 12);
     if (!rows.length) {
@@ -628,6 +635,7 @@
   }
 
   function loadIntel() {
+    var reqSeq = ++state.requestSeq;
     var status = document.getElementById("app-intel-status");
     var errEl = document.getElementById("app-intel-error");
     if (errEl) {
@@ -652,6 +660,7 @@
         });
       })
       .then(function (x) {
+        if (reqSeq !== state.requestSeq) return Promise.resolve();
         if (!x.ok) {
           window.clearTimeout(to);
           throw new Error(x.j && x.j.error ? x.j.error : "İstek başarısız");
@@ -690,6 +699,7 @@
         });
       })
       .then(function () {
+        if (reqSeq !== state.requestSeq) return;
         try {
           var u = new URL(window.location.href);
           u.searchParams.set("product", state.product);
@@ -698,6 +708,7 @@
         } catch (e2) {}
       })
       .catch(function (e) {
+        if (reqSeq !== state.requestSeq) return;
         window.clearTimeout(to);
         finishProgress();
         if (status) status.textContent = "";
