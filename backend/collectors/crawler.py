@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -11,6 +12,8 @@ from urllib.parse import urljoin, urlparse, urlunparse
 import requests
 
 from sqlalchemy.orm import Session
+
+LOGGER = logging.getLogger(__name__)
 
 from backend.config import settings
 from backend.models import Site
@@ -127,7 +130,8 @@ def _probe_internal_link(url: str, *, timeout_seconds: int | None = None) -> dic
             final_status = int(response.status_code or 0)
         finally:
             response.close()
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        LOGGER.debug("Link probe başarısız (%s): %s", url, exc)
         history = []
         final_url = _normalized_http_url(url)
         final_status = 0

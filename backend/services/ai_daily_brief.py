@@ -473,9 +473,13 @@ def _parse_json_object(raw: str) -> dict:
         raise
 
 
+_GEMINI_MAX_PROMPT_CHARS = 300_000  # Gemini Flash 1M token limiti var ama HTTP body sınırı ~1MB
+
+
 def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]]:
     import google.generativeai as genai
 
+    prompt = _truncate_prompt(prompt, _GEMINI_MAX_PROMPT_CHARS)
     genai.configure(api_key=(settings.gemini_api_key or "").strip())
     model = genai.GenerativeModel(
         model_name,
@@ -495,7 +499,19 @@ def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]
     return _parse_json_object(resp.text or ""), (pt, ct)
 
 
+_GROQ_MAX_PROMPT_CHARS = 300_000   # ~75K token; Groq HTTP body ~800KB sınırı için güvenli marj
+_GROQ_FALLBACK_PROMPT_CHARS = 180_000  # 413 alınırsa bu boyuta kırp ve tekrar dene
+
+
+def _truncate_prompt(prompt: str, max_chars: int) -> str:
+    if len(prompt) <= max_chars:
+        return prompt
+    LOGGER.warning("Prompt %d karakter; %d'e kırpılıyor.", len(prompt), max_chars)
+    return prompt[:max_chars]
+
+
 def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
+    prompt = _truncate_prompt(prompt, _GROQ_MAX_PROMPT_CHARS)
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {(settings.groq_api_key or '').strip()}",
@@ -513,6 +529,11 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
                 body["response_format"] = {"type": "json_object"}
             try:
                 r = client.post(url, headers=headers, json=body)
+                if r.status_code == 413:
+                    # Payload hâlâ büyük: fallback boyutuna kırp, tekrar dene
+                    LOGGER.warning("Groq 413 aldı; prompt %d'e kırpılıyor.", _GROQ_FALLBACK_PROMPT_CHARS)
+                    body["messages"][0]["content"] = _truncate_prompt(prompt, _GROQ_FALLBACK_PROMPT_CHARS)
+                    r = client.post(url, headers=headers, json=body)
                 r.raise_for_status()
                 data = r.json()
                 usage = data.get("usage") or {}
@@ -524,7 +545,10 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
                         ct = max(0, tt - pt)
                 content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
                 return _parse_json_object(content), (pt, ct)
-            except Exception as exc:  # noqa: BLE001
+            except httpx.HTTPStatusError as exc:
+                last_err = exc
+                continue
+            except (httpx.TimeoutException, httpx.NetworkError, json.JSONDecodeError) as exc:
                 last_err = exc
                 continue
     raise last_err if last_err else RuntimeError("Groq çağrısı başarısız")

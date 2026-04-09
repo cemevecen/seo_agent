@@ -1,11 +1,14 @@
 """SQLAlchemy veritabanı bağlantısı ve ortak Base tanımı."""
 
+import logging
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.config import BASE_DIR, settings
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _normalize_sqlite_url(url: str) -> str:
@@ -51,6 +54,8 @@ if _IS_SQLITE:
         cursor.execute("PRAGMA temp_store=2")
         # Performans: 256 MB memory-mapped I/O
         cursor.execute("PRAGMA mmap_size=268435456")
+        # WAL dosyasının 49MB'a şişmesini önle: 1000 page (~4MB) sonra otomatik checkpoint
+        cursor.execute("PRAGMA wal_autocheckpoint=1000")
         cursor.close()
 
 
@@ -101,14 +106,15 @@ def ensure_indexes() -> None:
         for ddl in index_ddl:
             try:
                 conn.execute(__import__("sqlalchemy").text(ddl))
-            except Exception:  # noqa: BLE001
-                pass  # Index zaten varsa ya da uyumsuz DB ise sessizce geç
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("Index oluşturma atlandı (%s): %s", ddl.split("ON")[0].strip(), exc)
         try:
             existing_cols = {
                 row[1]
                 for row in conn.execute(__import__("sqlalchemy").text("PRAGMA table_info(url_audit_records)")).fetchall()
             }
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("url_audit_records sütun listesi alınamadı: %s", exc)
             existing_cols = set()
 
         column_ddl = {
@@ -139,8 +145,8 @@ def ensure_indexes() -> None:
                         f"ALTER TABLE url_audit_records ADD COLUMN {column_name} {ddl}"
                     )
                 )
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("ALTER TABLE url_audit_records ADD COLUMN %s atlandı: %s", column_name, exc)
         # ai_brief_run_logs: eski kurulumlara eksik sütunlar (create_all mevcut tabloları genişletmez)
         _txt = __import__("sqlalchemy").text
 
@@ -167,8 +173,8 @@ def ensure_indexes() -> None:
                         )
                     except Exception:  # noqa: BLE001
                         conn.execute(_txt(f"ALTER TABLE ai_brief_run_logs ADD COLUMN {name} {pg_ddl}"))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("ai_brief_run_logs ADD COLUMN IF NOT EXISTS atlandı: %s", exc)
 
         _ensure_ai_brief_run_col("approx_try", "FLOAT NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0")
         _ensure_ai_brief_run_col("llm_calls", "INTEGER NOT NULL DEFAULT 1", "INTEGER NOT NULL DEFAULT 1")

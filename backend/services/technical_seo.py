@@ -10,7 +10,7 @@ def check_robots_txt(domain: str) -> Dict:
     """robots.txt varlığını, yapısını ve crawl efficiency'sini analiz et."""
     try:
         url = f"https://{domain}/robots.txt"
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=10)
         
         if resp.status_code == 200:
             content = resp.text
@@ -141,7 +141,7 @@ def check_sitemap_xml(domain: str) -> Dict:
     """sitemap.xml varlığını, boyutunu ve indexable URL sayısını kontrol et."""
     try:
         url = f"https://{domain}/sitemap.xml"
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=10)
         
         if resp.status_code == 200:
             content = resp.text

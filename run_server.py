@@ -3,6 +3,7 @@
 
 Örnekler:
   python run_server.py
+  python run_server.py --reload
   python run_server.py -p 8013 --isolate
 
 --isolate: Bu porta özel sqlite (backend/seo_agent_<port>.db), OAuth callback ve live refresh URL'lerini ayarlar.
@@ -35,9 +36,9 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--no-reload",
+        "--reload",
         action="store_true",
-        help="Kod izleme kapalı (nohup/LaunchAgent ile uzun süreli çalıştırma için; varsayılan geliştirici modunda reload açık)",
+        help="Geliştirme: dosya değişince sunucuyu yeniden başlat (watchfiles CPU kullanır). Varsayılan: kapalı.",
     )
     return parser.parse_args()
 
@@ -66,5 +67,5 @@ if __name__ == "__main__":
         "backend.main:app",
         host="127.0.0.1",
         port=args.port,
-        reload=not args.no_reload,
+        reload=args.reload,
     )

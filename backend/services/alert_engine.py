@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import traceback
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from html import escape
@@ -10,6 +10,8 @@ import re
 import time
 
 from sqlalchemy.exc import OperationalError
+
+LOGGER = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from backend.models import Alert, AlertLog, Metric, Site
@@ -245,7 +247,8 @@ def _is_sqlite_locked_error(exc: Exception) -> bool:
     return "database is locked" in str(exc).lower()
 
 
-def _commit_with_retry(db: Session, *, retries: int = 4, base_delay: float = 0.15) -> None:
+def _commit_with_retry(db: Session, *, retries: int = 5, base_delay: float = 0.15) -> None:
+    """SQLite database locked hatası için exponential backoff ile retry."""
     last_exc: OperationalError | None = None
     for attempt in range(retries):
         try:
@@ -258,7 +261,9 @@ def _commit_with_retry(db: Session, *, retries: int = 4, base_delay: float = 0.1
             last_exc = exc
             if attempt == retries - 1:
                 break
-            time.sleep(base_delay * (attempt + 1))
+            delay = base_delay * (2 ** attempt)  # 0.15, 0.30, 0.60, 1.20, ...
+            LOGGER.debug("SQLite locked, retry %d/%d, %.2fs bekleniyor.", attempt + 1, retries, delay)
+            time.sleep(delay)
     if last_exc is not None:
         raise last_exc
 
@@ -365,9 +370,8 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
             "all_queries": query_metrics,
             "dropped_queries": dropped_queries[:10],
         }
-    except Exception as e:
-        print(f"Error getting top 50 keywords: {e}")
-        traceback.print_exc()
+    except Exception:
+        LOGGER.exception("Top 50 keyword değişim hesaplaması başarısız.")
         return {"top_50": [], "all_queries": [], "dropped_queries": []}
 
 
@@ -602,10 +606,9 @@ def evaluate_site_alerts(db: Session, site: Site, *, send_notifications: bool = 
                         )
                         db.add(log)
                         created_logs.append(log)
-            except Exception as e:
-                # Search Console data not available, fallback to default message
-                print(f"⚠️  get_top_queries failed for {site.domain}: {e}")
-                traceback.print_exc()
+            except Exception:
+                # Search Console data mevcut değil, fallback mesajı kullan
+                LOGGER.exception("get_top_queries başarısız: site=%s", site.domain)
                 message = _build_message(site, alert, metric, rule)
                 if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
                     log = AlertLog(
@@ -698,7 +701,7 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
         except OperationalError as exc:
             db.rollback()
             # Mail gonderimi tamamlandi; lock nedeniyle sent_mail yazilamazsa ana akisi bozma.
-            print(f"Warning: could not mark alert mails as sent due to DB lock: {exc}")
+            LOGGER.warning("Alert mail sent_mail güncellenemedi (DB lock): %s", exc)
 
 
 def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: str) -> str:
@@ -939,7 +942,7 @@ def emit_custom_alert(
             db.refresh(log)
         except OperationalError as exc:
             db.rollback()
-            print(f"Warning: could not mark quota alert mail as sent due to DB lock: {exc}")
+            LOGGER.warning("Kota alert mail sent_mail güncellenemedi (DB lock): %s", exc)
     return log
 
 

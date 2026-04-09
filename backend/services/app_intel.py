@@ -425,12 +425,12 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
         snap["score"] = float(m_badge.group(1))
         snap["score_formatted"] = m_badge.group(2)
         snap["ratings_caption"] = m_badge.group(3)
-    for pat in (
+    # Total ratings count from dedicated count fields
+    for cnt_pat in (
         r'"ratingCount"\s*:\s*([0-9]+)',
         r'"userRatingCount"\s*:\s*([0-9]+)',
-        r'"ratingCountList"\s*:\s*\{"[0-9]+"\s*:\s*([0-9]+)',
     ):
-        m_cnt = re.search(pat, html)
+        m_cnt = re.search(cnt_pat, html)
         if m_cnt:
             try:
                 snap["ratings_count"] = int(m_cnt.group(1))
@@ -441,6 +441,59 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
     if m_icon:
         snap["icon"] = m_icon.group(1)
     return reviews_out, snap
+
+
+def _fetch_ios_main_page_histogram(app_id: str, ios_slug: str) -> dict[str, int] | None:
+    """Tüm App Store vitrinlerinden gerçek mağaza yıldız dağılımını toplayarak döner.
+
+    App Store HTML'sinde `ratingCounts` alanı 5 elemanlı liste olarak gelir:
+    [5★ sayısı, 4★, 3★, 2★, 1★]  (büyükten küçüğe sıralı)
+
+    Her vitrin kendi bölgesindeki kullanıcıların puanlarını içerir;
+    tüm vitrinler toplanarak global gerçek dağılım elde edilir.
+    """
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"}
+    _pat = re.compile(
+        r'"ratingCounts"\s*:\s*\[\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*\]'
+    )
+
+    def _one_loc(loc: str) -> dict[str, int] | None:
+        url = f"https://apps.apple.com/{loc}/app/{ios_slug}/id{app_id}"
+        try:
+            with httpx.Client(timeout=16.0, follow_redirects=True, headers=headers) as client:
+                r = client.get(url)
+                r.raise_for_status()
+            m = _pat.search(r.text)
+            if not m:
+                return None
+            counts = [int(m.group(i)) for i in range(1, 6)]
+            if sum(counts) == 0:
+                return None
+            return {"5": counts[0], "4": counts[1], "3": counts[2], "2": counts[3], "1": counts[4]}
+        except Exception as exc:
+            logger.debug("iOS histogram vitrin hatası (%s, %s): %s", app_id, loc, exc)
+            return None
+
+    global_map: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+    hits = 0
+    # Tüm vitrinleri paralel çek (rate limit için max 8 eş zamanlı)
+    with ThreadPoolExecutor(max_workers=min(8, len(_IOS_STOREFRONTS))) as pool:
+        futures = {pool.submit(_one_loc, loc): loc for loc in _IOS_STOREFRONTS}
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result:
+                for k in ("1", "2", "3", "4", "5"):
+                    global_map[k] += result[k]
+                hits += 1
+
+    total = sum(global_map.values())
+    if total == 0:
+        return None
+    logger.info(
+        "iOS global histogram (%s): 5★=%d 4★=%d 3★=%d 2★=%d 1★=%d toplam=%d (%d vitrin)",
+        app_id, global_map["5"], global_map["4"], global_map["3"], global_map["2"], global_map["1"], total, hits,
+    )
+    return global_map
 
 
 def _ios_review_key(at: datetime, text: str, score: int) -> str:
@@ -474,7 +527,8 @@ def _fetch_ios_reviews_multistore(
     storefronts_ok = 0
     last_err: str | None = None
     n_sf = len(_IOS_STOREFRONTS)
-    max_workers = min(12, n_sf)
+    # Apple rate limit'i aşmamak için eşzamanlı istek sayısı sınırlı tutulur.
+    max_workers = min(4, n_sf)
     by_loc: dict[str, tuple[list[dict[str, Any]], dict[str, Any], bool, str | None]] = {}
 
     try:
@@ -992,6 +1046,50 @@ def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
     return {str(i + 1): int(h[i]) for i in range(5)}
 
 
+def _fetch_android_global_histogram(package: str) -> dict[str, int] | None:
+    """Birden fazla ülke Play Store'undan Android yıldız dağılımını toplayarak global histogramı döner.
+
+    google-play-scraper'ın `app()` çağrısı ülke bazlı veri döndürür;
+    tüm vitrinler toplandığında App Store hesabıyla tutarlı global rakamlar elde edilir.
+    histogram listesi [1★, 2★, 3★, 4★, 5★] sırasındadır (küçükten büyüğe).
+    """
+    try:
+        from google_play_scraper import app as gp_app
+    except ImportError:
+        return None
+
+    def _one(country: str) -> dict[str, int] | None:
+        try:
+            m = gp_app(package, lang="en", country=country)
+            h = m.get("histogram")
+            if not h or len(h) != 5 or sum(h) == 0:
+                return None
+            return {"1": int(h[0]), "2": int(h[1]), "3": int(h[2]), "4": int(h[3]), "5": int(h[4])}
+        except Exception as exc:
+            logger.debug("Android global histogram ülke hatası (%s, %s): %s", package, country, exc)
+            return None
+
+    global_map: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+    hits = 0
+    with ThreadPoolExecutor(max_workers=min(8, len(_IOS_STOREFRONTS))) as pool:
+        futures = {pool.submit(_one, loc): loc for loc in _IOS_STOREFRONTS}
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result:
+                for k in ("1", "2", "3", "4", "5"):
+                    global_map[k] += result[k]
+                hits += 1
+
+    total = sum(global_map.values())
+    if total == 0:
+        return None
+    logger.info(
+        "Android global histogram (%s): 5★=%d 4★=%d 3★=%d 2★=%d 1★=%d toplam=%d (%d ülke)",
+        package, global_map["5"], global_map["4"], global_map["3"], global_map["2"], global_map["1"], total, hits,
+    )
+    return global_map
+
+
 def invalidate_raw_cache(product_id: str | None = None) -> None:
     with _CACHE_LOCK:
         if product_id:
@@ -1032,15 +1130,22 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             return hit[1]
 
     # Ağ çağrılarını paralelleştir: soğuk açılış TTFB'sini düşür.
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
         f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
         f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
+        f_ios_histogram = pool.submit(_fetch_ios_main_page_histogram, spec["ios_app_id"], spec["ios_slug"])
+        f_android_histogram = pool.submit(_fetch_android_global_histogram, spec["android_package"])
         meta, g_rows, g_err = f_play.result()
         i_rows, i_snap, i_err, i_sf_ok, i_sf_n = f_ios_reviews.result()
         i_lookup = f_ios_lookup.result()
+        i_histogram = f_ios_histogram.result()
+        a_histogram = f_android_histogram.result()
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
+    # Gerçek mağaza yıldız dağılımını öncelikli kullan (ana sayfadan çekilen)
+    if i_histogram:
+        i_snap = {**(i_snap or {}), "star_histogram": i_histogram}
     i_rank = _fetch_ios_category_rank(
         spec["ios_app_id"],
         country="tr",
@@ -1069,7 +1174,8 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             "meta": {
                 "score": meta.get("score"),
                 "ratings": meta.get("ratings"),
-                "histogram": _android_histogram_overall(meta),
+                # histogram: global toplam tercih edilir; yoksa TR vitrin verisi kullanılır
+                "histogram": a_histogram or _android_histogram_overall(meta),
                 "reviews": meta.get("reviews"),
                 "icon": meta.get("icon"),
                 "genre": meta.get("genre"),
@@ -1184,6 +1290,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "period_note_tr": fi_note,
                 "rating_series": _daily_rating_series(fi, p, fi_anchor),
                 "star_distribution_period": _histogram_counts(fi),
+                "star_distribution_overall": (raw["ios"]["meta"] or {}).get("star_histogram"),
                 "store_score": (raw["ios"]["meta"] or {}).get("score"),
                 "store_ratings_count": (raw["ios"]["meta"] or {}).get("ratings_count"),
                 "store_ratings_caption": (raw["ios"]["meta"] or {}).get("ratings_caption"),

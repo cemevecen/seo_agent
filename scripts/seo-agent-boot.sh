@@ -26,7 +26,7 @@ start_native() {
     exit 1
   fi
   log "Yerel uvicorn başlatılıyor (127.0.0.1:8012)…"
-  exec "$ROOT/.venv/bin/python" -m uvicorn backend.main:app --host 127.0.0.1 --port 8012
+  exec "$ROOT/.venv/bin/python" -m uvicorn backend.main:app --host 127.0.0.1 --port 8012 --loop asyncio
 }
 
 # Açıkça yerel mod (Docker yüklü olsa bile)

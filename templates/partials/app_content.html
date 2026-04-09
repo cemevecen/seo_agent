@@ -113,7 +113,7 @@
       <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <p id="app-intel-play-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
           <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-play-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
@@ -150,7 +150,7 @@
       <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı (dönem)</p>
+          <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-ios-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
@@ -197,6 +197,7 @@
             <button id="app-aso-comp-run" type="button" class="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 whitespace-nowrap dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Kıyasla</button>
           </div>
         </div>
+        <div id="app-aso-comp-history" class="mt-1 min-w-0"></div>
       </div>
       <div id="app-aso-competitors" class="min-w-0 space-y-1 text-sm text-slate-700 xl:col-span-9 dark:text-slate-100"></div>
     </div>
@@ -267,6 +268,8 @@
     releasePanelProduct: null,
   };
   var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
+  var COMP_BENCHMARK_HISTORY_KEY = "seo_agent_comp_benchmark_history_v1";
+  var COMP_BENCHMARK_HISTORY_MAX = 20;
 
   function esc(v) {
     return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
@@ -341,6 +344,59 @@
     } catch (e) {
       return false;
     }
+  }
+
+  function loadBenchmarkHistory() {
+    var raw = safeStorageGet(COMP_BENCHMARK_HISTORY_KEY);
+    if (!raw) return [];
+    try { return JSON.parse(raw) || []; } catch (e) { return []; }
+  }
+
+  function saveBenchmarkHistory(label, android, ios) {
+    var key = (android || "") + "|" + (ios || "");
+    var hist = loadBenchmarkHistory().filter(function (h) {
+      return ((h.android || "") + "|" + (h.ios || "")) !== key;
+    });
+    hist.unshift({ label: label || "", android: android || "", ios: ios || "", saved_at: new Date().toISOString() });
+    if (hist.length > COMP_BENCHMARK_HISTORY_MAX) hist = hist.slice(0, COMP_BENCHMARK_HISTORY_MAX);
+    safeStorageSet(COMP_BENCHMARK_HISTORY_KEY, JSON.stringify(hist));
+  }
+
+  function renderBenchmarkHistory() {
+    var el = document.getElementById("app-aso-comp-history");
+    if (!el) return;
+    var hist = loadBenchmarkHistory();
+    if (!hist.length) { el.innerHTML = ""; return; }
+    var html = '<p class="mb-1 text-[10px] text-slate-400 dark:text-slate-500">Geçmiş kıyaslamalar</p><div class="flex flex-wrap gap-1">';
+    hist.forEach(function (h, i) {
+      var parts = [];
+      if (h.android) parts.push("▶ " + h.android);
+      if (h.ios) parts.push("◆ " + h.ios);
+      var display = h.label || parts.join("  ");
+      if (!display) display = "Kıyaslama " + (i + 1);
+      var tip = [];
+      if (h.label) tip.push("İsim: " + h.label);
+      if (h.android) tip.push("Android: " + h.android);
+      if (h.ios) tip.push("iOS: " + h.ios);
+      html += '<button class="app-aso-hist-chip max-w-[260px] truncate rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-left text-[10px] text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-sky-500 dark:hover:bg-sky-900/30 dark:hover:text-sky-300" data-idx="' + i + '" title="' + esc(tip.join("\n")) + '">' + esc(display) + '</button>';
+    });
+    html += "</div>";
+    el.innerHTML = html;
+    el.querySelectorAll(".app-aso-hist-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var idx = parseInt(chip.getAttribute("data-idx"), 10);
+        var h = hist[idx];
+        if (!h) return;
+        var labelEl = document.getElementById("app-aso-comp-label");
+        var androidEl = document.getElementById("app-aso-comp-android");
+        var iosEl = document.getElementById("app-aso-comp-ios");
+        if (labelEl) labelEl.value = h.label || "";
+        if (androidEl) androidEl.value = h.android || "";
+        if (iosEl) iosEl.value = h.ios || "";
+        var section = document.querySelector("[aria-label='Competitor Benchmark']");
+        if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   }
 
   function parseCsvCount(v) {
@@ -1329,6 +1385,7 @@
     if (label && !label.value) label.value = state.compLabel || "";
     if (android && !android.value) android.value = state.compAndroid || "";
     if (ios && !ios.value) ios.value = state.compIos || "";
+    renderBenchmarkHistory();
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = "1";
     if (clearBtn) {
@@ -1427,6 +1484,8 @@
       var hasAny = !!(state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios);
       if (hasAny) {
         saveCompetitorBenchmarkState();
+        saveBenchmarkHistory(state.compLabel, state.compAndroid, state.compIos);
+        renderBenchmarkHistory();
         renderCompetitorBenchmarkPanel();
       } else {
         var msgs = [];
@@ -1633,9 +1692,17 @@
       }
     }
 
+    // Mağaza geneli gerçek histogram her zaman öncelikli; dönem örneği yalnızca fallback.
+    var playStarDist = am.star_distribution_overall || am.star_distribution_period;
+    var playStarTitle = document.getElementById("app-intel-play-stars-title");
+    if (playStarTitle) {
+      playStarTitle.textContent = am.star_distribution_overall
+        ? "Yıldız dağılımı (mağaza geneli)"
+        : "Yıldız dağılımı (dönem)";
+    }
     plotStars(
       document.getElementById("app-chart-play-stars"),
-      am.star_distribution_period,
+      playStarDist,
       am.star_reviews || {},
       document.getElementById("app-intel-play-star-drilldown")
     );
@@ -1660,9 +1727,17 @@
     renderSat(document.getElementById("app-intel-play-sat"), am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
+    // Mağaza geneli gerçek histogram her zaman öncelikli; dönem örneği yalnızca fallback.
+    var iosStarDist = im.star_distribution_overall || im.star_distribution_period;
+    var iosStarTitle = document.getElementById("app-intel-ios-stars-title");
+    if (iosStarTitle) {
+      iosStarTitle.textContent = im.star_distribution_overall
+        ? "Yıldız dağılımı (mağaza geneli)"
+        : "Yıldız dağılımı (dönem)";
+    }
     plotStars(
       document.getElementById("app-chart-ios-stars"),
-      im.star_distribution_period,
+      iosStarDist,
       im.star_reviews || {},
       document.getElementById("app-intel-ios-star-drilldown")
     );

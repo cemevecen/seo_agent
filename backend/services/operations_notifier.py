@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import date, timedelta
 from html import escape
@@ -21,7 +22,8 @@ from backend.services.timezone_utils import (
     now_local,
 )
 
-DEFAULT_OPERATIONS_RECIPIENT = "cemevecen@nokta.com"
+# Ortam değişkeninden oku; ayarlarda tanımlıysa onu kullan, yoksa env'e bak.
+DEFAULT_OPERATIONS_RECIPIENT: str = os.getenv("OPERATIONS_EMAIL", "cemevecen@nokta.com")
 
 SUMMARY_LABELS = {
     "search_console_clicks_28d": "Search Console tıklama 28G",

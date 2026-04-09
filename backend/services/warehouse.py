@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
+
+LOGGER = logging.getLogger(__name__)
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -453,7 +456,8 @@ def get_latest_ga4_report_snapshot(
         return None
     try:
         payload = json.loads(row.payload_json or "{}")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        LOGGER.warning("GA4 snapshot (id=%s) payload_json ayrıştırılamadı: %s", row.id, exc)
         payload = {}
     return {
         "profile": row.profile,
@@ -562,7 +566,8 @@ def get_latest_url_audit_snapshot(db: Session, *, site_id: int, row_limit: int =
     )
     try:
         summary = json.loads(latest_run.summary_json or "{}")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        LOGGER.warning("CollectorRun (id=%s) summary_json ayrıştırılamadı: %s", latest_run.id, exc)
         summary = {}
 
     order = {"poor": 0, "needs_improvement": 1, "good": 2}
