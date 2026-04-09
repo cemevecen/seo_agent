@@ -259,10 +259,11 @@
     compAndroid: "",
     compIos: "",
     compBenchmarkPayload: null,
-    compBenchmarkPayloadByStore: { android: null, ios: null, mixed: null },
+    compBenchmarkPayloadByStore: { android: null, ios: null },
+    compBenchmarkLastErrors: { android: null, ios: null },
     releasePanelProduct: null,
   };
-  var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v2";
+  var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
 
   function esc(v) {
     return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
@@ -309,8 +310,10 @@
       label: state.compLabel || "",
       android: state.compAndroid || "",
       ios: state.compIos || "",
-      payload: state.compBenchmarkPayload || null,
-      by_store: state.compBenchmarkPayloadByStore || { android: null, ios: null, mixed: null },
+      by_store: {
+        android: state.compBenchmarkPayloadByStore.android || null,
+        ios: state.compBenchmarkPayloadByStore.ios || null,
+      },
     };
     safeStorageSet(COMP_BENCHMARK_STORAGE_KEY, JSON.stringify(snap));
   }
@@ -320,15 +323,16 @@
     if (!raw) return false;
     try {
       var snap = JSON.parse(raw);
-      if (!snap || !snap.payload) return false;
+      if (!snap) return false;
+      var byStore = snap.by_store || {};
+      var hasAny = !!(byStore.android || byStore.ios);
+      if (!hasAny) return false;
       state.compLabel = String(snap.label || "");
       state.compAndroid = String(snap.android || "");
       state.compIos = String(snap.ios || "");
-      state.compBenchmarkPayload = snap.payload || null;
-      state.compBenchmarkPayloadByStore = snap.by_store || {
-        android: (snap.payload || null),
-        ios: null,
-        mixed: null,
+      state.compBenchmarkPayloadByStore = {
+        android: byStore.android || null,
+        ios: byStore.ios || null,
       };
       return true;
     } catch (e) {
@@ -359,8 +363,8 @@
     var by = state.compBenchmarkPayloadByStore || {};
     var play = by.android;
     var ios = by.ios;
-    var mixed = by.mixed;
-    if (!play && !ios && !mixed && !state.compBenchmarkPayload) {
+    var errs = state.compBenchmarkLastErrors || {};
+    if (!play && !ios) {
       resetCompetitorBenchmarkPanel(false);
       return;
     }
@@ -368,23 +372,23 @@
       '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">' +
       '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Play kıyaslama</p><div id="app-aso-competitors-play"></div></div>' +
       '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">App Store kıyaslama</p><div id="app-aso-competitors-ios"></div></div>' +
-      "</div>" +
-      (mixed
-        ? '<div class="mt-3 rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Karma (Play + App Store) kıyaslama</p><div id="app-aso-competitors-mixed"></div></div>'
-        : "");
+      "</div>";
     var playEl = document.getElementById("app-aso-competitors-play");
     var iosEl = document.getElementById("app-aso-competitors-ios");
     if (play) {
       renderCompetitorBenchmarkPair(play, playEl);
     } else if (playEl) {
-      playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
+      playEl.innerHTML = errs.android
+        ? '<div class="text-xs text-rose-600 dark:text-rose-300">Play kıyaslaması başarısız: ' + esc(errs.android) + '</div>'
+        : '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
     }
     if (ios) {
       renderCompetitorBenchmarkPair(ios, iosEl);
     } else if (iosEl) {
-      iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
+      iosEl.innerHTML = errs.ios
+        ? '<div class="text-xs text-rose-600 dark:text-rose-300">App Store kıyaslaması başarısız: ' + esc(errs.ios) + '</div>'
+        : '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
     }
-    if (mixed) renderCompetitorBenchmarkPair(mixed, document.getElementById("app-aso-competitors-mixed"));
   }
 
   function formatShortDate(iso) {
@@ -1303,15 +1307,15 @@
     if (ios && !ios.value) ios.value = state.compIos || "";
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = "1";
-    async function fetchBenchmark(labelsVal, androidVal, iosVal, timeoutMs) {
+    async function fetchBenchmark(androidVal, iosVal, timeoutMs) {
       var qs = new URLSearchParams({
         period: String(state.period || 30),
         android_packages: androidVal || "",
         ios_app_ids: iosVal || "",
-        labels: labelsVal || "",
+        labels: "",
       });
       var ac = new AbortController();
-      var to = window.setTimeout(function () { ac.abort(); }, Number(timeoutMs || 45000));
+      var to = window.setTimeout(function () { ac.abort(); }, Number(timeoutMs || 50000));
       try {
         var r = await fetch("/api/app/aso/benchmark?" + qs.toString(), {
           headers: { Accept: "application/json" },
@@ -1332,7 +1336,7 @@
         return {
           ok: false,
           error: (e && e.name === "AbortError")
-            ? "Karşılaştırma zaman aşımı (45 sn). Girdi sayısını azaltın veya tekrar deneyin."
+            ? "Zaman aşımı. Girdi sayısını azaltın veya tekrar deneyin."
             : "İstek başarısız. Tekrar deneyin.",
         };
       }
@@ -1346,50 +1350,49 @@
       cEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Karşılaştırma yükleniyor…</div>';
       var aN = parseCsvCount(state.compAndroid);
       var iN = parseCsvCount(state.compIos);
-      var bothStores = aN >= 2 && iN >= 2;
-      var errors = [];
-      if (bothStores) {
-        // Tek worker senaryosunda ikinci çağrının kuyrukta timeout olmaması için sıralı çalıştır.
-        // Store'lar ayrıyken ortak label satırı karışıklık yaratmasın (örn. iOS id'lerinin Play'de görünmesi).
-        var resAndroid = await fetchBenchmark("", state.compAndroid, "", 45000);
-        if (resAndroid.ok) {
-          state.compBenchmarkPayloadByStore.android = resAndroid.data;
-          state.compBenchmarkPayload = resAndroid.data;
-        } else {
-          errors.push("Play: " + resAndroid.error);
-        }
-        var resIos = await fetchBenchmark("", "", state.compIos, 65000);
-        if (!resIos.ok) {
-          // iOS tarafı geç yanıt verebildiği için bir kez daha dene.
-          resIos = await fetchBenchmark("", "", state.compIos, 85000);
-        }
-        if (resIos.ok) {
-          state.compBenchmarkPayloadByStore.ios = resIos.data;
-          state.compBenchmarkPayload = resIos.data;
-        } else {
-          errors.push("App Store: " + resIos.error);
-        }
-      } else {
-        var single = await fetchBenchmark(state.compLabel, state.compAndroid, state.compIos, 45000);
-        if (single.ok) {
-          state.compBenchmarkPayload = single.data;
-          var storeKey = detectBenchmarkStoreKey(state.compAndroid, state.compIos);
-          state.compBenchmarkPayloadByStore[storeKey] = single.data;
-        } else {
-          errors.push(single.error);
-        }
-      }
-      if (!errors.length) {
-        saveCompetitorBenchmarkState();
-        renderCompetitorBenchmarkPanel();
+      if (aN < 2 && iN < 2) {
+        cEl.innerHTML =
+          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">Eksik bilgi: En az 2 uygulama girin. Play veya iOS satırında 2-4 değer olmalı (virgülle).</p>' +
+          competitorBenchmarkIdleHtml();
         return;
       }
-      if (state.compBenchmarkPayload || state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios || state.compBenchmarkPayloadByStore.mixed) {
+      // Sıfırla sadece bu çalıştırmada girilen store(lar)'ın hatalarını.
+      var storeErrors = { android: null, ios: null };
+      // Play — sadece android girildiyse veya her iki store birlikte girilmişse çalıştır.
+      if (aN >= 2) {
+        var resA = await fetchBenchmark(state.compAndroid, "", 50000);
+        if (resA.ok) {
+          state.compBenchmarkPayloadByStore.android = resA.data;
+        } else {
+          storeErrors.android = resA.error;
+        }
+      }
+      // App Store — sadece ios girildiyse veya her iki store birlikte girilmişse çalıştır.
+      if (iN >= 2) {
+        var resI = await fetchBenchmark("", state.compIos, 65000);
+        if (!resI.ok) {
+          // iOS çağrısı ilk seferde başarısız olursa bir kez daha dene.
+          resI = await fetchBenchmark("", state.compIos, 75000);
+        }
+        if (resI.ok) {
+          state.compBenchmarkPayloadByStore.ios = resI.data;
+        } else {
+          storeErrors.ios = resI.error;
+        }
+      }
+      // Hataları state'e yaz (render fonksiyonu okur).
+      state.compBenchmarkLastErrors = storeErrors;
+      var hasAny = !!(state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios);
+      if (hasAny) {
+        saveCompetitorBenchmarkState();
         renderCompetitorBenchmarkPanel();
-        cEl.insertAdjacentHTML("afterbegin", '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">' + esc(errors.join(" · ")) + "</p>");
       } else {
+        // Her iki store da başarısız
+        var msgs = [];
+        if (storeErrors.android) msgs.push("Play: " + storeErrors.android);
+        if (storeErrors.ios) msgs.push("App Store: " + storeErrors.ios);
         cEl.innerHTML =
-          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">' + esc(errors.join(" · ")) + "</p>" +
+          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">' + esc(msgs.join(" · ")) + "</p>" +
           competitorBenchmarkIdleHtml();
       }
     }
