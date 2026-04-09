@@ -378,16 +378,24 @@
     if (play) {
       renderCompetitorBenchmarkPair(play, playEl);
     } else if (playEl) {
-      playEl.innerHTML = errs.android
-        ? '<div class="text-xs text-rose-600 dark:text-rose-300">Play kıyaslaması başarısız: ' + esc(errs.android) + '</div>'
-        : '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
+      if (errs.android) {
+        playEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">Play kıyaslaması başarısız: ' + esc(errs.android) + '</div>';
+      } else if (state.compAndroid && parseCsvCount(state.compAndroid) >= 2) {
+        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Play kıyaslaması için Kıyasla\'ya basın.</div>';
+      } else {
+        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
+      }
     }
     if (ios) {
       renderCompetitorBenchmarkPair(ios, iosEl);
     } else if (iosEl) {
-      iosEl.innerHTML = errs.ios
-        ? '<div class="text-xs text-rose-600 dark:text-rose-300">App Store kıyaslaması başarısız: ' + esc(errs.ios) + '</div>'
-        : '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
+      if (errs.ios) {
+        iosEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">App Store kıyaslaması başarısız: ' + esc(errs.ios) + '</div>';
+      } else if (state.compIos && parseCsvCount(state.compIos) >= 2) {
+        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">iOS kıyaslaması için Kıyasla\'ya basın.</div>';
+      } else {
+        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
+      }
     }
   }
 
@@ -1356,9 +1364,8 @@
           competitorBenchmarkIdleHtml();
         return;
       }
-      // Sıfırla sadece bu çalıştırmada girilen store(lar)'ın hatalarını.
       var storeErrors = { android: null, ios: null };
-      // Play — sadece android girildiyse veya her iki store birlikte girilmişse çalıştır.
+      // ── Play ──────────────────────────────────────────────────────────────
       if (aN >= 2) {
         var resA = await fetchBenchmark(state.compAndroid, "", 50000);
         if (resA.ok) {
@@ -1367,11 +1374,20 @@
           storeErrors.android = resA.error;
         }
       }
-      // App Store — sadece ios girildiyse veya her iki store birlikte girilmişse çalıştır.
+      // ── iOS: hem fetchi başlatmadan önce ara render yap ───────────────────
+      // Kullanıcı Play kolonunu hemen görsün; iOS kolonu "getiriliyor" desin.
       if (iN >= 2) {
+        var hasPartial = !!(state.compBenchmarkPayloadByStore.android || storeErrors.android);
+        if (hasPartial) {
+          state.compBenchmarkLastErrors = storeErrors;
+          renderCompetitorBenchmarkPanel();
+          var iosSlot = document.getElementById("app-aso-competitors-ios");
+          if (iosSlot) {
+            iosSlot.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">App Store kıyaslaması getiriliyor…</div>';
+          }
+        }
         var resI = await fetchBenchmark("", state.compIos, 65000);
         if (!resI.ok) {
-          // iOS çağrısı ilk seferde başarısız olursa bir kez daha dene.
           resI = await fetchBenchmark("", state.compIos, 75000);
         }
         if (resI.ok) {
@@ -1380,14 +1396,13 @@
           storeErrors.ios = resI.error;
         }
       }
-      // Hataları state'e yaz (render fonksiyonu okur).
+      // ── Final render ──────────────────────────────────────────────────────
       state.compBenchmarkLastErrors = storeErrors;
       var hasAny = !!(state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios);
       if (hasAny) {
         saveCompetitorBenchmarkState();
         renderCompetitorBenchmarkPanel();
       } else {
-        // Her iki store da başarısız
         var msgs = [];
         if (storeErrors.android) msgs.push("Play: " + storeErrors.android);
         if (storeErrors.ios) msgs.push("App Store: " + storeErrors.ios);
