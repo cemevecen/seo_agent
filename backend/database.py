@@ -94,6 +94,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_collector_runs_site_prov_strat ON collector_runs(site_id, provider, strategy, requested_at)",
         # url audits: latest snapshot ve skor kırılımları
         "CREATE INDEX IF NOT EXISTS ix_url_audit_site_run_score ON url_audit_records(site_id, collector_run_id, seo_score)",
+        # app rank snapshots: ürün+platform trend sorguları
+        "CREATE INDEX IF NOT EXISTS ix_app_rank_prod_platform_collected ON app_store_rank_snapshots(product_id, platform, collected_at)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:

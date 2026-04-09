@@ -128,6 +128,21 @@ class Metric(Base):
     site: Mapped["Site"] = relationship("Site", back_populates="metrics")
 
 
+class AppStoreRankSnapshot(Base):
+    """App Intel kategori sıra trendi için mağaza anlık kayıtları."""
+
+    __tablename__ = "app_store_rank_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    platform: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # android | ios
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    category_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    chart: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class PageSpeedAuditSnapshot(Base):
     """PageSpeed/Lighthouse audit detaylarını strategy bazında saklar."""
 

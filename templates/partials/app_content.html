@@ -131,7 +131,7 @@
           <div id="app-intel-play-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
           <div id="app-intel-play-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
         </div>
-        <div>
+        <div id="app-intel-play-rank-wrap" class="hidden">
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
           <div id="app-chart-play-rank" class="h-[210px] w-full min-h-[180px]"></div>
         </div>
@@ -168,13 +168,36 @@
           <div id="app-intel-ios-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
           <div id="app-intel-ios-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
         </div>
-        <div>
+        <div id="app-intel-ios-rank-wrap" class="hidden">
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
           <div id="app-chart-ios-rank" class="h-[210px] w-full min-h-[180px]"></div>
         </div>
       </div>
     </section>
   </div>
+
+  <section class="app-comp-benchmark-section mt-5 w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="Competitor Benchmark">
+    <div class="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <h2 class="text-sm font-bold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-base">Competitor Benchmark</h2>
+      <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">İki uygulamayı A/B olarak kıyaslayın; sonuçlar tam genişlikte gösterilir.</p>
+    </div>
+    <div class="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-12 xl:items-start xl:gap-4">
+      <div class="min-w-0 space-y-2 xl:col-span-3 xl:self-start">
+        <div class="flex flex-col gap-1.5 xl:flex-col">
+          <label class="sr-only" for="app-aso-comp-label">İsim (isteğe bağlı)</label>
+          <input id="app-aso-comp-label" type="text" placeholder="İsim (ops.): örn. DövizApp, RakipApp" title="İki uygulama için kısa etiket; sadece görünür isim, virgülle ayırın." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
+          <label class="sr-only" for="app-aso-comp-android">Play paket</label>
+          <input id="app-aso-comp-android" type="text" placeholder="com.ilk, com.ikinci" title="Google Play package id — iki uygulama için virgülle (veya bu satırı boş bırakıp yalnız iOS id girin)." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
+          <div class="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center xl:max-w-[280px]">
+            <label class="sr-only" for="app-aso-comp-ios">App Store id</label>
+            <input id="app-aso-comp-ios" type="text" placeholder="465599322, 1500198745" title="App Store uygulama id’si (rakam veya App Store linkindeki id123… biçimi) — virgülle iki id veya bu satırı boş bırakıp yalnız Android paket girin." class="min-w-0 w-full flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" autocomplete="off" />
+            <button id="app-aso-comp-run" type="button" class="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 whitespace-nowrap dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Kıyasla</button>
+          </div>
+        </div>
+      </div>
+      <div id="app-aso-competitors" class="min-w-0 space-y-1 text-sm text-slate-700 xl:col-span-9 dark:text-slate-100"></div>
+    </div>
+  </section>
 
   <section class="mt-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="ASO Intelligence">
     <div class="mb-3 flex items-center justify-between gap-2">
@@ -183,30 +206,14 @@
     </div>
     <div id="app-aso-rank-summary" class="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200">Sira bilgileri yukleniyor…</div>
     <div id="app-aso-alerts" class="mb-3"></div>
-    <div class="grid grid-cols-1 gap-2 xl:grid-cols-5">
+    <div class="grid grid-cols-1 gap-2 xl:grid-cols-4">
       <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
         <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Keyword Intelligence</p>
         <div id="app-aso-keywords" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
       </div>
       <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
-        <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Localization ASO</p>
-        <div id="app-aso-localization" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
-      </div>
-      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
         <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Conversion Funnel</p>
         <div id="app-aso-funnel" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
-      </div>
-      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
-        <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Competitor Benchmark</p>
-        <div class="mb-1 grid grid-cols-1 gap-1">
-          <input id="app-aso-comp-label" type="text" placeholder="Uygulama adları (a,b) ops." class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
-          <input id="app-aso-comp-android" type="text" placeholder="Android package (a,b)" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
-          <div class="flex items-center gap-1">
-            <input id="app-aso-comp-ios" type="text" placeholder="iOS app id (a,b)" class="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" />
-            <button id="app-aso-comp-run" type="button" class="rounded-md border border-sky-400 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Kıyasla</button>
-          </div>
-        </div>
-        <div id="app-aso-competitors" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
       </div>
       <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
         <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Release Impact</p>
@@ -251,11 +258,263 @@
     compLabel: "",
     compAndroid: "",
     compIos: "",
+    compBenchmarkPayload: null,
+    compBenchmarkPayloadByStore: { android: null, ios: null, mixed: null },
+    releasePanelProduct: null,
   };
+  var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v2";
 
   function esc(v) {
     return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
       return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;";
+    });
+  }
+
+  function fmtNum(v, maxFrac) {
+    var n = Number(v);
+    if (!isFinite(n)) return "—";
+    try {
+      return new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: maxFrac == null ? 2 : maxFrac,
+      }).format(n);
+    } catch (e) {
+      return String(n);
+    }
+  }
+
+  function fmtPct(v, maxFrac) {
+    var n = Number(v);
+    if (!isFinite(n)) return "—";
+    return fmtNum(n, maxFrac == null ? 2 : maxFrac) + "%";
+  }
+
+  function safeStorageGet(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function safeStorageSet(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (e) {}
+  }
+
+  function saveCompetitorBenchmarkState() {
+    var snap = {
+      saved_at: new Date().toISOString(),
+      label: state.compLabel || "",
+      android: state.compAndroid || "",
+      ios: state.compIos || "",
+      payload: state.compBenchmarkPayload || null,
+      by_store: state.compBenchmarkPayloadByStore || { android: null, ios: null, mixed: null },
+    };
+    safeStorageSet(COMP_BENCHMARK_STORAGE_KEY, JSON.stringify(snap));
+  }
+
+  function restoreCompetitorBenchmarkState() {
+    var raw = safeStorageGet(COMP_BENCHMARK_STORAGE_KEY);
+    if (!raw) return false;
+    try {
+      var snap = JSON.parse(raw);
+      if (!snap || !snap.payload) return false;
+      state.compLabel = String(snap.label || "");
+      state.compAndroid = String(snap.android || "");
+      state.compIos = String(snap.ios || "");
+      state.compBenchmarkPayload = snap.payload || null;
+      state.compBenchmarkPayloadByStore = snap.by_store || {
+        android: (snap.payload || null),
+        ios: null,
+        mixed: null,
+      };
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function parseCsvCount(v) {
+    return String(v || "")
+      .split(",")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean).length;
+  }
+
+  function detectBenchmarkStoreKey(androidInput, iosInput) {
+    var aN = parseCsvCount(androidInput);
+    var iN = parseCsvCount(iosInput);
+    if (aN >= 2 && iN < 2) return "android";
+    if (iN >= 2 && aN < 2) return "ios";
+    return "mixed";
+  }
+
+  function renderCompetitorBenchmarkPanel() {
+    var cEl = document.getElementById("app-aso-competitors");
+    if (!cEl) return;
+    var by = state.compBenchmarkPayloadByStore || {};
+    var play = by.android;
+    var ios = by.ios;
+    var mixed = by.mixed;
+    if (!play && !ios && !mixed && !state.compBenchmarkPayload) {
+      resetCompetitorBenchmarkPanel(false);
+      return;
+    }
+    cEl.innerHTML =
+      '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">' +
+      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Play kıyaslama</p><div id="app-aso-competitors-play"></div></div>' +
+      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">App Store kıyaslama</p><div id="app-aso-competitors-ios"></div></div>' +
+      "</div>" +
+      (mixed
+        ? '<div class="mt-3 rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Karma (Play + App Store) kıyaslama</p><div id="app-aso-competitors-mixed"></div></div>'
+        : "");
+    var playEl = document.getElementById("app-aso-competitors-play");
+    var iosEl = document.getElementById("app-aso-competitors-ios");
+    if (play) {
+      renderCompetitorBenchmarkPair(play, playEl);
+    } else if (playEl) {
+      playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
+    }
+    if (ios) {
+      renderCompetitorBenchmarkPair(ios, iosEl);
+    } else if (iosEl) {
+      iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
+    }
+    if (mixed) renderCompetitorBenchmarkPair(mixed, document.getElementById("app-aso-competitors-mixed"));
+  }
+
+  function formatShortDate(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      var datePart = d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+      var timePart = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+      return datePart + " " + timePart;
+    } catch (e) {
+      return "—";
+    }
+  }
+
+  function renderReleaseImpact(rel) {
+    var reEl = document.getElementById("app-aso-release");
+    if (!reEl) return;
+    var by = rel && rel.by_product;
+    if (!by || typeof by !== "object") {
+      reEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Release verisi yok.</div>';
+      return;
+    }
+    var ids = products
+      .map(function (p) {
+        return p.id;
+      })
+      .filter(function (id) {
+        return Object.prototype.hasOwnProperty.call(by, id);
+      });
+    if (!ids.length) {
+      ids = Object.keys(by);
+    }
+    if (!state.releasePanelProduct || ids.indexOf(state.releasePanelProduct) < 0) {
+      state.releasePanelProduct = (rel && rel.active_product_id) || state.product;
+    }
+    if (ids.indexOf(state.releasePanelProduct) < 0) {
+      state.releasePanelProduct = ids[0];
+    }
+    var activeId = state.releasePanelProduct;
+    var tabs = ids
+      .map(function (pid) {
+        var slice = by[pid] || {};
+        var on = pid === activeId;
+        var cls =
+          "rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 transition " +
+          (on
+            ? "bg-sky-50 text-sky-900 ring-sky-400 dark:bg-sky-950/50 dark:text-sky-100 dark:ring-sky-600"
+            : "bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600");
+        return '<button type="button" data-rel-tab="' + esc(pid) + '" class="' + cls + '">' + esc(slice.label || pid) + "</button>";
+      })
+      .join("");
+
+    function impactBlock(title, p) {
+      p = p || {};
+      var delta = p.delta == null ? null : Number(p.delta);
+      var tone =
+        delta == null ? "text-slate-500 dark:text-slate-300" : delta < 0 ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300";
+      var mode = String(p.mode || "");
+      var isReleaseMode = mode === "release_compare" || mode === "release_window_compare";
+      var curRel = p.recent_release || {};
+      var prevRel = p.prev_release || {};
+      var firstLineLabel = isReleaseMode ? "Son release ort." : "Son 30 gün ort.";
+      var secondLineLabel = isReleaseMode ? "Önceki release" : "Önceki 30 gün";
+      var releaseMeta = isReleaseMode
+        ? (
+            '<div class="mt-1.5 border-t border-slate-200/80 pt-1.5 text-[10px] text-slate-500 dark:border-slate-600 dark:text-slate-300">' +
+            '<div>Son: <span class="font-semibold">' + esc(curRel.version ? "v" + curRel.version : "—") + '</span> · ' +
+            '<span class="font-medium">' + esc(curRel.live_days == null ? "—" : curRel.live_days + " gün") + "</span></div>" +
+            '<div>Önceki: <span class="font-semibold">' + esc(prevRel.version ? "v" + prevRel.version : (mode === "release_window_compare" ? "önceki sürüm" : "—")) + '</span> · ' +
+            '<span class="font-medium">' + esc(prevRel.live_days == null ? "—" : prevRel.live_days + " gün") + "</span></div>" +
+            "</div>"
+          )
+        : "";
+      return (
+        '<div class="min-w-0 rounded-lg border border-slate-200 bg-white/80 px-2 py-2 dark:border-slate-600 dark:bg-slate-800/60">' +
+        '<p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' +
+        esc(title) +
+        "</p>" +
+        '<div class="space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
+        "<div>" + esc(firstLineLabel) + ": <span class=\"font-semibold\">" +
+        esc(p.recent30_avg == null ? "—" : p.recent30_avg) +
+        "</span></div>" +
+        "<div>" + esc(secondLineLabel) + ": <span class=\"font-semibold\">" +
+        esc(p.prev30_avg == null ? "—" : p.prev30_avg) +
+        "</span></div>" +
+        "<div>Delta: <span class=\"font-semibold " +
+        tone +
+        "\">" +
+        esc(p.delta == null ? "—" : p.delta) +
+        "</span></div>" +
+        releaseMeta +
+        "</div></div>"
+      );
+    }
+
+    var slice = by[activeId] || {};
+    var pl = slice.platforms || {};
+    var store = slice.store || {};
+    var sa = store.android || {};
+    var si = store.ios || {};
+    var av = sa.version ? "v" + esc(sa.version) : "—";
+    var iv = si.version ? "v" + esc(si.version) : "—";
+
+    reEl.innerHTML =
+      '<div class="mb-2 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Ürün seçimi">' +
+      tabs +
+      "</div>" +
+      '<div class="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">' +
+      impactBlock("Play", pl.android) +
+      impactBlock("App Store", pl.ios) +
+      "</div>" +
+      '<div class="mt-3 space-y-1 border-t border-slate-200 pt-2 text-[11px] text-slate-600 dark:border-slate-600 dark:text-slate-300">' +
+      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">Play mağaza</span> · Sürüm " +
+      av +
+      " · Son güncelleme: <span class=\"font-medium\">" +
+      formatShortDate(sa.last_updated_at) +
+      "</span></div>" +
+      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">App Store</span> · Sürüm " +
+      iv +
+      " · Son sürüm yayını: <span class=\"font-medium\">" +
+      formatShortDate(si.current_version_release_date) +
+      "</span></div>" +
+      "</div>";
+
+    reEl.querySelectorAll("[data-rel-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.releasePanelProduct = btn.getAttribute("data-rel-tab");
+        renderReleaseImpact(rel);
+      });
     });
   }
 
@@ -331,6 +590,7 @@
       b.textContent = p.label;
       b.addEventListener("click", function () {
         state.product = p.id;
+        state.releasePanelProduct = null;
         refreshProductStyles();
         applyHeroShellFromState();
         loadIntel();
@@ -767,12 +1027,34 @@
     });
   }
 
+  function competitorBenchmarkIdleHtml() {
+    return (
+      '<div class="rounded-md border border-slate-200/90 bg-slate-50/70 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-900/45">' +
+      '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kullanım</p>' +
+      '<ul class="mt-1 list-inside list-disc space-y-0.5 text-[10px] leading-snug text-slate-600 dark:text-slate-300">' +
+      "<li><strong>2-4 uygulama</strong> kıyaslanır. Sonuç kartları girdiye göre dinamik çoğalır.</li>" +
+      "<li><strong>Yalnız Android:</strong> Play paket satırına 2-4 değer girin (<span class=\"font-mono text-[9px]\">com.a,com.b,com.c</span>).</li>" +
+      "<li><strong>Yalnız iOS:</strong> id satırına 2-4 sayı girin (<span class=\"font-mono text-[9px]\">465...,150...,123...</span>).</li>" +
+      "<li><strong>Her iki mağaza:</strong> sıra eşleşir (1. paket + 1. id = App 1, 2. paket + 2. id = App 2 ...).</li>" +
+      "<li>İsim satırı isteğe bağlıdır; sadece kartlardaki başlıkta kullanılır.</li>" +
+      "</ul></div>"
+    );
+  }
+
+  function resetCompetitorBenchmarkPanel(loading) {
+    var cEl = document.getElementById("app-aso-competitors");
+    if (!cEl) return;
+    if (loading) {
+      cEl.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
+      return;
+    }
+    cEl.innerHTML = competitorBenchmarkIdleHtml();
+  }
+
   function renderAso(payload) {
     var ids = [
       "app-aso-keywords",
-      "app-aso-localization",
       "app-aso-funnel",
-      "app-aso-competitors",
       "app-aso-release",
       "app-aso-alerts",
     ];
@@ -781,6 +1063,7 @@
         var el = document.getElementById(id);
         if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
       });
+      resetCompetitorBenchmarkPanel(true);
       return;
     }
     var ga = document.getElementById("app-aso-generated-at");
@@ -818,40 +1101,45 @@
       }).join("");
     }
 
-    var l = payload.localization_aso || {};
-    var mix = l.language_mix || {};
-    var locEl = document.getElementById("app-aso-localization");
-    if (locEl) locEl.innerHTML =
-      "<div>TR: %" + esc(mix.tr_pct || 0) + " · EN: %" + esc(mix.en_pct || 0) + " · Other: %" + esc(mix.other_pct || 0) + "</div>" +
-      "<div>Önerilen locale: " + esc((l.suggested_locales || []).join(", ") || "—") + "</div>" +
-      "<div class=\"text-xs text-slate-500 dark:text-slate-300\">" + esc(l.notes || "") + "</div>";
-
     var f = payload.conversion_funnel || {};
     var fEl = document.getElementById("app-aso-funnel");
     if (fEl) {
-      var conv = (Number(f.listing_views || 0) > 0)
-        ? Math.round((Number(f.installs || 0) / Number(f.listing_views || 1)) * 1000) / 10
-        : null;
+      var k = f.kpis || {};
+      var s = f.store_signals || {};
+      var sa = s.android || {};
+      var si = s.ios || {};
       fEl.innerHTML =
-      "<div>Impression: <span class=\"font-semibold\">" + esc(f.impressions || 0) + "</span></div>" +
-      "<div>Listing view: <span class=\"font-semibold\">" + esc(f.listing_views || 0) + "</span></div>" +
-      "<div>Install: <span class=\"font-semibold\">" + esc(f.installs || 0) + "</span></div>" +
-      "<div>Rating: <span class=\"font-semibold\">" + esc(f.ratings || 0) + "</span></div>" +
-      "<div class=\"text-xs text-slate-500 dark:text-slate-300\">Tahmini listing→install dönüşümü: <span class=\"font-semibold\">" + esc(conv == null ? "—" : conv + "%") + "</span></div>";
+        '<div class="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">' +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Gerçek mağaza verisi</div>' +
+        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Toplam değerlendirme: <span class="font-semibold">' + esc(fmtNum(f.ratings_total || 0, 0)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Dönem yorum: <span class="font-semibold">' + esc(fmtNum(f.reviews_period || 0, 0)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Yorum/Değerlendirme: <span class="font-semibold">' + esc(fmtPct(k.reviews_to_ratings_pct, 2)) + '</span></div>' +
+        "</div>" +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem yoğunluğu</div>' +
+        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Dönem (gün): <span class="font-semibold">' + esc(fmtNum(s.period_days || 0, 0)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Günlük yorum: <span class="font-semibold">' + esc(fmtNum(k.reviews_daily, 2)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor (mix): <span class="font-semibold">' + esc(fmtNum(s.rating_mix_score, 2)) + '</span></div>' +
+        "</div>" +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Play</div>' +
+        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(sa.ratings, 0)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor: <span class="font-semibold">' + esc(fmtNum(sa.score, 2)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Pay: <span class="font-semibold">' + esc(fmtPct(k.android_ratings_share_pct, 2)) + '</span></div>' +
+        "</div>" +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">App Store</div>' +
+        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(si.ratings, 0)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor: <span class="font-semibold">' + esc(fmtNum(si.score, 2)) + '</span></div>' +
+        '<div class="text-xs text-slate-700 dark:text-slate-200">Pay: <span class="font-semibold">' + esc(fmtPct(k.ios_ratings_share_pct, 2)) + '</span></div>' +
+        "</div>" +
+        "</div>";
     }
 
-    renderCompetitorBenchmark(payload && payload.competitor_benchmark ? { list: payload.competitor_benchmark } : null);
+    renderCompetitorBenchmarkPanel();
 
-    var rel = payload.release_impact || {};
-    var reEl = document.getElementById("app-aso-release");
-    if (reEl) {
-      var delta = rel.delta == null ? null : Number(rel.delta);
-      var tone = delta == null ? "text-slate-500 dark:text-slate-300" : (delta < 0 ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300");
-      reEl.innerHTML =
-      "<div>Son 30 gün ort.: <span class=\"font-semibold\">" + esc(rel.recent30_avg == null ? "—" : rel.recent30_avg) + "</span></div>" +
-      "<div>Önceki 30 gün: <span class=\"font-semibold\">" + esc(rel.prev30_avg == null ? "—" : rel.prev30_avg) + "</span></div>" +
-      "<div>Delta: <span class=\"font-semibold " + tone + "\">" + esc(rel.delta == null ? "—" : rel.delta) + "</span></div>";
-    }
+    renderReleaseImpact(payload.release_impact || {});
 
     var aEl = document.getElementById("app-aso-alerts");
     var alerts = payload.alerts || [];
@@ -863,39 +1151,146 @@
     }).join("");
   }
 
-  function renderCompetitorBenchmark(payload) {
-    var cEl = document.getElementById("app-aso-competitors");
+  function renderCompetitorBenchmarkPair(payload, mountEl) {
+    var cEl = mountEl || document.getElementById("app-aso-competitors");
     if (!cEl) return;
     if (!payload) {
-      cEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Rakip verisi yok.</div>';
+      resetCompetitorBenchmarkPanel(false);
       return;
     }
-    if (Array.isArray(payload.list)) {
-      cEl.innerHTML = payload.list.length ? payload.list.map(function (x) {
-        return "<div>" +
-          "<div class=\"font-semibold\">" + esc(x.label) + "</div>" +
-          "<div class=\"text-xs text-slate-500 dark:text-slate-300\">Skor: " + esc(x.store_score_mix) + " · Dönem yorum: " + esc(x.review_count_period || "—") + (x.satisfaction_mix != null ? " · Memnuniyet: %" + esc(x.satisfaction_mix) : "") + "</div>" +
-        "</div>";
-      }).join("") : '<div class="text-xs text-slate-500 dark:text-slate-300">Rakip verisi yok.</div>';
+    var entries = Array.isArray(payload.entries)
+      ? payload.entries
+      : ((payload.left && payload.right) ? [payload.left, payload.right] : []);
+    var isPairMode = entries.length === 2;
+    if (entries.length < 2) {
+      resetCompetitorBenchmarkPanel(false);
       return;
     }
-    var left = payload.left || {};
-    var right = payload.right || {};
     var cmp = payload.comparison || {};
     function row(entry) {
-      return "<div class=\"rounded-md border border-slate-300/80 bg-slate-100/80 p-2 dark:border-slate-600 dark:bg-slate-800/70\">" +
-        "<div class=\"font-semibold text-slate-900 dark:text-slate-100\">" + esc(entry.label || "—") + "</div>" +
-        "<div class=\"text-xs text-slate-600 dark:text-slate-300\">Skor: <span class=\"font-semibold\">" + esc(entry.store_score_mix == null ? "—" : entry.store_score_mix) + "</span></div>" +
-        "<div class=\"text-xs text-slate-600 dark:text-slate-300\">Toplam değerlendirme: <span class=\"font-semibold\">" + esc(entry.ratings_total == null ? "—" : entry.ratings_total) + "</span></div>" +
-        "<div class=\"text-xs text-slate-600 dark:text-slate-300\">Dönem yorum: <span class=\"font-semibold\">" + esc(entry.review_count_period == null ? "—" : entry.review_count_period) + "</span></div>" +
-        "<div class=\"text-xs text-slate-600 dark:text-slate-300\">Memnuniyet: <span class=\"font-semibold\">" + esc(entry.satisfaction_mix == null ? "—" : "%" + entry.satisfaction_mix) + "</span></div>" +
-      "</div>";
+      var basis =
+        entry.score_basis === "play"
+          ? "Play"
+          : entry.score_basis === "app_store"
+            ? "App Store"
+            : entry.score_basis === "ortalama"
+              ? "Play+App Store ort."
+              : "";
+      var basisLine = basis
+        ? '<div class="text-[9px] text-slate-500 dark:text-slate-400">' + esc(basis) + "</div>"
+        : "";
+      var iu = entry.icon_url && String(entry.icon_url).trim();
+      var ar = Number(entry.android_ratings || 0);
+      var ir = Number(entry.ios_ratings || 0);
+      var playRatingsText = (entry.android_score == null && ar <= 0) ? "—" : fmtNum(ar, 0);
+      var iosRatingsText = (entry.ios_score == null && ir <= 0) ? "—" : fmtNum(ir, 0);
+      var iconBlock = iu
+        ? '<img src="' + esc(iu) + '" alt="" width="48" height="48" loading="lazy" decoding="async" referrerpolicy="no-referrer" class="h-12 w-12 shrink-0 rounded-2xl bg-white object-cover shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-600" />'
+        : '<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-200/90 text-[11px] font-medium text-slate-500 ring-1 ring-slate-300/60 dark:bg-slate-700/80 dark:text-slate-400 dark:ring-slate-600" aria-hidden="true">?</div>';
+      var periodVal = entry.review_count_period;
+      var satVal = entry.satisfaction_mix;
+      var noteLine = entry.note === "paket_bulunamadi"
+        ? '<div class="mt-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Paket/ID mağazada bulunamadı.</div>'
+        : "";
+      return "<div class=\"min-w-0 break-words rounded-md border border-slate-300/80 bg-slate-100/80 p-3 dark:border-slate-600 dark:bg-slate-800/70\">" +
+        "<div class=\"flex gap-3\">" +
+        iconBlock +
+        "<div class=\"min-w-0 flex-1\">" +
+        "<div class=\"text-sm font-semibold leading-snug text-slate-900 sm:text-base dark:text-slate-100\">" + esc(entry.label || "—") + "</div>" +
+        basisLine +
+        "<div class=\"mt-1.5 space-y-0.5 text-xs text-slate-600 sm:text-[13px] dark:text-slate-300\">" +
+        "<div>Skor: <span class=\"font-semibold\">" + esc(entry.store_score_mix == null ? "—" : entry.store_score_mix) + "</span></div>" +
+        "<div>Toplam değerlendirme: <span class=\"font-semibold\">" + esc(entry.ratings_total == null ? "—" : entry.ratings_total) + "</span></div>" +
+        "<div>Play değerlendirme: <span class=\"font-semibold\">" + esc(playRatingsText) + "</span></div>" +
+        "<div>App Store değerlendirme: <span class=\"font-semibold\">" + esc(iosRatingsText) + "</span></div>" +
+        "<div>Dönem yorum: <span class=\"font-semibold\">" + esc(periodVal == null ? "—" : periodVal) + "</span></div>" +
+        "<div>Memnuniyet: <span class=\"font-semibold\">" + esc(satVal == null ? "—" : "%" + satVal) + "</span></div>" +
+        "</div>" + noteLine + "</div></div></div>";
     }
     var scoreDelta = Number(cmp.delta_score || 0);
     var scoreTone = scoreDelta > 0 ? "text-emerald-700 dark:text-emerald-300" : (scoreDelta < 0 ? "text-rose-700 dark:text-rose-300" : "text-slate-600 dark:text-slate-300");
+    var cols = entries.length >= 4 ? "xl:grid-cols-4" : (entries.length === 3 ? "lg:grid-cols-3" : "md:grid-cols-2");
+    var cards = entries.map(function (e) { return row(e); }).join("");
+    var leaderLine = cmp.leader_label
+      ? '<div class="mt-2 text-[11px] text-slate-600 dark:text-slate-300">Lider: <span class="font-semibold">' + esc(cmp.leader_label) + "</span> · Skor: <span class=\"font-semibold\">" + esc(cmp.leader_score) + "</span></div>"
+      : "";
+    var sortedRows = entries.slice().sort(function (a, b) {
+      return Number(b.store_score_mix || 0) - Number(a.store_score_mix || 0);
+    });
+    var isMultiMode = entries.length > 2;
+    var leaderRatings = Number(cmp.leader_ratings_total || 0);
+    var tableRows = sortedRows.map(function (e, idx) {
+      var ds = e.delta_from_leader_score;
+      var dsNum = Number(ds || 0);
+      var dsTone = ds == null ? "" : (dsNum < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300");
+      var dsText = ds == null ? "—" : (dsNum > 0 ? "+" : "") + ds;
+      var dr = e.delta_from_leader_ratings;
+      var drNum = Number(dr || 0);
+      var drText = dr == null ? "—" : (drNum > 0 ? "+" : "") + dr;
+      var pr = e.review_count_period;
+      var sm = e.satisfaction_mix;
+      var ar = Number(e.android_ratings || 0);
+      var ir = Number(e.ios_ratings || 0);
+      var rt = Number(e.ratings_total || 0);
+      var arText = (e.android_score == null && ar <= 0) ? "—" : fmtNum(ar, 0);
+      var irText = (e.ios_score == null && ir <= 0) ? "—" : fmtNum(ir, 0);
+      var shareVsLeader = leaderRatings > 0 && isFinite(rt) ? (rt / leaderRatings) * 100 : null;
+      var playShare = (ar + ir) > 0 ? (ar / (ar + ir)) * 100 : null;
+      var ldi = null;
+      if (isFinite(dsNum) && isFinite(rt) && leaderRatings > 0) {
+        var ratingsGapPct = Math.max(0, (leaderRatings - rt) / leaderRatings) * 100;
+        ldi = Math.abs(dsNum) * 70 + ratingsGapPct * 0.3;
+      }
+      return (
+        "<tr class=\"border-b border-slate-200/80 last:border-b-0 dark:border-slate-700/70\">" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(idx + 1) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs font-semibold text-slate-900 dark:text-slate-100\">" + esc(e.label || "—") + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(e.store_score_mix == null ? "—" : e.store_score_mix) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(e.ratings_total == null ? "—" : e.ratings_total) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(arText) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(irText) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(pr == null ? "—" : pr) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(sm == null ? "—" : "%" + sm) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs font-semibold " + dsTone + "\">" + esc(dsText) + "</td>" +
+        "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(drText) + "</td>" +
+        (isMultiMode ? "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(shareVsLeader == null ? "—" : fmtPct(shareVsLeader, 2)) + "</td>" : "") +
+        (isMultiMode ? "<td class=\"px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200\">" + esc(playShare == null ? "—" : fmtPct(playShare, 2)) + "</td>" : "") +
+        (isMultiMode ? "<td class=\"px-2 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200\">" + esc(ldi == null ? "—" : fmtNum(ldi, 2)) + "</td>" : "") +
+        "</tr>"
+      );
+    }).join("");
+    var tableHtml =
+      '<div class="mt-3 overflow-x-auto rounded-md border border-slate-300/80 bg-slate-50/70 dark:border-slate-600 dark:bg-slate-900/40">' +
+      '<table class="min-w-[980px] w-full border-collapse">' +
+      "<thead>" +
+      '<tr class="border-b border-slate-300/80 bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/90">' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">#</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Uygulama</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Skor</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Değerlendirme</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play değerlendirme</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">App Store değerlendirme</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Dönem yorum</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Memnuniyet</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lider skor farkı</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lider değerlendirme farkı</th>' +
+      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lidere değerlendirme oranı</th>' : "") +
+      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play payı</th>' : "") +
+      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Liderlik indeksi</th>' : "") +
+      "</tr>" +
+      "</thead>" +
+      "<tbody>" + tableRows + "</tbody>" +
+      "</table></div>";
     cEl.innerHTML =
-      '<div class="grid gap-2 md:grid-cols-2">' + row(left) + row(right) + "</div>" +
-      '<div class="mt-2 text-xs text-slate-600 dark:text-slate-300">Skor farkı: <span class="font-semibold ' + scoreTone + '">' + esc((cmp.delta_score == null ? "—" : (scoreDelta > 0 ? "+" : "") + cmp.delta_score)) + "</span> · Değerlendirme farkı: <span class=\"font-semibold\">" + esc(cmp.delta_ratings_total == null ? "—" : cmp.delta_ratings_total) + "</span></div>";
+      '<p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 sm:text-[11px]">Karşılaştırma sonucu</p>' +
+      '<div class="grid grid-cols-1 gap-3 md:gap-4 ' + cols + '">' + cards + "</div>" +
+      leaderLine +
+      tableHtml +
+      '<div class="mt-3 flex flex-col gap-1 text-xs text-slate-600 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 dark:text-slate-300">' +
+      "<span>Skor farkı: <span class=\"font-semibold " + scoreTone + "\">" + esc((cmp.delta_score == null ? "—" : (scoreDelta > 0 ? "+" : "") + cmp.delta_score)) + "</span></span>" +
+      "<span class=\"hidden sm:inline\" aria-hidden=\"true\">·</span>" +
+      "<span>Değerlendirme farkı: <span class=\"font-semibold\">" + esc(cmp.delta_ratings_total == null ? "—" : cmp.delta_ratings_total) + "</span></span>" +
+      "</div>";
   }
 
   function bindAsoCompetitorControls() {
@@ -903,8 +1298,45 @@
     var label = document.getElementById("app-aso-comp-label");
     var android = document.getElementById("app-aso-comp-android");
     var ios = document.getElementById("app-aso-comp-ios");
+    if (label && !label.value) label.value = state.compLabel || "";
+    if (android && !android.value) android.value = state.compAndroid || "";
+    if (ios && !ios.value) ios.value = state.compIos || "";
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = "1";
+    async function fetchBenchmark(labelsVal, androidVal, iosVal, timeoutMs) {
+      var qs = new URLSearchParams({
+        period: String(state.period || 30),
+        android_packages: androidVal || "",
+        ios_app_ids: iosVal || "",
+        labels: labelsVal || "",
+      });
+      var ac = new AbortController();
+      var to = window.setTimeout(function () { ac.abort(); }, Number(timeoutMs || 45000));
+      try {
+        var r = await fetch("/api/app/aso/benchmark?" + qs.toString(), {
+          headers: { Accept: "application/json" },
+          signal: ac.signal,
+        });
+        window.clearTimeout(to);
+        var data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          var msg =
+            data && data.error === "pair_required"
+              ? "Eksik bilgi: En az 2 uygulama girin. Play veya iOS satırında 2-4 değer olmalı (virgülle)."
+              : "Karşılaştırma alınamadı. Bağlantıyı veya girdi formatını kontrol edin.";
+          return { ok: false, error: msg };
+        }
+        return { ok: true, data: data };
+      } catch (e) {
+        window.clearTimeout(to);
+        return {
+          ok: false,
+          error: (e && e.name === "AbortError")
+            ? "Karşılaştırma zaman aşımı (45 sn). Girdi sayısını azaltın veya tekrar deneyin."
+            : "İstek başarısız. Tekrar deneyin.",
+        };
+      }
+    }
     async function run() {
       state.compLabel = (label && label.value ? label.value.trim() : "");
       state.compAndroid = (android && android.value ? android.value.trim() : "");
@@ -912,19 +1344,53 @@
       var cEl = document.getElementById("app-aso-competitors");
       if (!cEl) return;
       cEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Karşılaştırma yükleniyor…</div>';
-      var qs = new URLSearchParams({
-        period: String(state.period || 30),
-        android_packages: state.compAndroid || "",
-        ios_app_ids: state.compIos || "",
-        labels: state.compLabel || "",
-      });
-      try {
-        var r = await fetch("/api/app/aso/benchmark?" + qs.toString(), { headers: { Accept: "application/json" } });
-        if (!r.ok) throw new Error("benchmark_http");
-        var data = await r.json();
-        renderCompetitorBenchmark(data);
-      } catch (e) {
-        cEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">Karşılaştırma alınamadı. Android veya iOS alanına iki uygulama bilgisi girin (a,b).</div>';
+      var aN = parseCsvCount(state.compAndroid);
+      var iN = parseCsvCount(state.compIos);
+      var bothStores = aN >= 2 && iN >= 2;
+      var errors = [];
+      if (bothStores) {
+        // Tek worker senaryosunda ikinci çağrının kuyrukta timeout olmaması için sıralı çalıştır.
+        // Store'lar ayrıyken ortak label satırı karışıklık yaratmasın (örn. iOS id'lerinin Play'de görünmesi).
+        var resAndroid = await fetchBenchmark("", state.compAndroid, "", 45000);
+        if (resAndroid.ok) {
+          state.compBenchmarkPayloadByStore.android = resAndroid.data;
+          state.compBenchmarkPayload = resAndroid.data;
+        } else {
+          errors.push("Play: " + resAndroid.error);
+        }
+        var resIos = await fetchBenchmark("", "", state.compIos, 65000);
+        if (!resIos.ok) {
+          // iOS tarafı geç yanıt verebildiği için bir kez daha dene.
+          resIos = await fetchBenchmark("", "", state.compIos, 85000);
+        }
+        if (resIos.ok) {
+          state.compBenchmarkPayloadByStore.ios = resIos.data;
+          state.compBenchmarkPayload = resIos.data;
+        } else {
+          errors.push("App Store: " + resIos.error);
+        }
+      } else {
+        var single = await fetchBenchmark(state.compLabel, state.compAndroid, state.compIos, 45000);
+        if (single.ok) {
+          state.compBenchmarkPayload = single.data;
+          var storeKey = detectBenchmarkStoreKey(state.compAndroid, state.compIos);
+          state.compBenchmarkPayloadByStore[storeKey] = single.data;
+        } else {
+          errors.push(single.error);
+        }
+      }
+      if (!errors.length) {
+        saveCompetitorBenchmarkState();
+        renderCompetitorBenchmarkPanel();
+        return;
+      }
+      if (state.compBenchmarkPayload || state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios || state.compBenchmarkPayloadByStore.mixed) {
+        renderCompetitorBenchmarkPanel();
+        cEl.insertAdjacentHTML("afterbegin", '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">' + esc(errors.join(" · ")) + "</p>");
+      } else {
+        cEl.innerHTML =
+          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">' + esc(errors.join(" · ")) + "</p>" +
+          competitorBenchmarkIdleHtml();
       }
     }
     btn.addEventListener("click", run);
@@ -1063,10 +1529,9 @@
         aRankText =
           "Kategori sırası: " +
           (arank.estimated ? "≥ #" : "#") +
-          arank.rank +
-          (am.store_category_name ? " (" + am.store_category_name + ")" : "");
-      } else if (am.store_category_name) {
-        aRankText = "Kategori: " + am.store_category_name + " · Sıra: —";
+          arank.rank;
+      } else {
+        aRankText = "Kategori sırası: —";
       }
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
@@ -1085,7 +1550,7 @@
       var rank = im.store_category_rank || {};
       var rankText = "";
       if (rank && rank.rank != null) {
-        rankText = "Kategori sırası: #" + rank.rank + (im.store_category_name ? " (" + im.store_category_name + ")" : "");
+        rankText = "Kategori sırası: #" + rank.rank;
       } else if (rank && rank.total) {
         rankText = "Kategori sırası: Top " + rank.total + " içinde görünmüyor";
       }
@@ -1130,11 +1595,18 @@
       am.star_reviews || {},
       document.getElementById("app-intel-play-star-drilldown")
     );
-    plotRankTrend(
-      document.getElementById("app-chart-play-rank"),
-      am.store_rank_daily_30d || am.store_rank_changes_50 || am.store_rank_history_7d || [],
-      "Android sıra"
-    );
+    var playRankRows = am.store_rank_daily_30d || am.store_rank_changes_50 || am.store_rank_history_7d || [];
+    var playRankWrap = document.getElementById("app-intel-play-rank-wrap");
+    if (playRankWrap) {
+      playRankWrap.classList.toggle("hidden", (playRankRows || []).length < 5);
+    }
+    if ((playRankRows || []).length >= 5) {
+      plotRankTrend(
+        document.getElementById("app-chart-play-rank"),
+        playRankRows,
+        "Android sıra"
+      );
+    }
     plotCats(
       document.getElementById("app-chart-play-cats"),
       am.categories,
@@ -1150,11 +1622,18 @@
       im.star_reviews || {},
       document.getElementById("app-intel-ios-star-drilldown")
     );
-    plotRankTrend(
-      document.getElementById("app-chart-ios-rank"),
-      im.store_rank_daily_30d || im.store_rank_changes_50 || im.store_rank_history_7d || [],
-      "iOS sıra"
-    );
+    var iosRankRows = im.store_rank_daily_30d || im.store_rank_changes_50 || im.store_rank_history_7d || [];
+    var iosRankWrap = document.getElementById("app-intel-ios-rank-wrap");
+    if (iosRankWrap) {
+      iosRankWrap.classList.toggle("hidden", (iosRankRows || []).length < 5);
+    }
+    if ((iosRankRows || []).length >= 5) {
+      plotRankTrend(
+        document.getElementById("app-chart-ios-rank"),
+        iosRankRows,
+        "iOS sıra"
+      );
+    }
     plotCats(
       document.getElementById("app-chart-ios-cats"),
       im.categories,
@@ -1179,19 +1658,6 @@
         if (node && window.Plotly) Plotly.Plots.resize(node);
       });
     }, 120);
-  }
-
-  function formatShortDate(iso) {
-    if (!iso) return "—";
-    try {
-      var d = new Date(iso);
-      if (isNaN(d.getTime())) return "—";
-      var datePart = d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-      var timePart = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-      return datePart + " " + timePart;
-    } catch (e) {
-      return "—";
-    }
   }
 
   function setProgressVisible(on) {
@@ -1285,7 +1751,6 @@
       "app-intel-play-star-drilldown",
       "app-intel-ios-star-drilldown",
       "app-aso-keywords",
-      "app-aso-localization",
       "app-aso-funnel",
       "app-aso-competitors",
       "app-aso-release",
@@ -1475,6 +1940,7 @@
   renderProductNav();
   renderPeriodNav();
   applyHeroShellFromState();
+  restoreCompetitorBenchmarkState();
   bindAsoCompetitorControls();
   bindManualRefreshButton();
   document.addEventListener("seo-theme-change", function () {
@@ -1482,11 +1948,21 @@
   });
 
   function boot() {
-    if (!window.Plotly) {
-      setTimeout(boot, 120);
-      return;
-    }
+    // Veri çekimini Plotly script'ine bağımlı başlatma: ilk açılışta TTFB'yi düşür.
     loadIntel();
+    if (window.Plotly) return;
+    var guard = 0;
+    var iv = setInterval(function () {
+      guard += 1;
+      if (window.Plotly) {
+        clearInterval(iv);
+        redrawAll();
+        return;
+      }
+      if (guard >= 200) {
+        clearInterval(iv);
+      }
+    }, 120);
   }
   boot();
 })();

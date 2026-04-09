@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from backend.database import SessionLocal
+from backend.models import AppStoreRankSnapshot
 from backend.services.timezone_utils import (
     inclusive_local_period_start_utc,
     report_calendar_today,
@@ -114,6 +116,25 @@ _REVIEW_CATEGORIES: list[tuple[str, str, tuple[str, ...]]] = [
 _UTC = timezone.utc
 
 
+def _play_updated_iso(value: Any) -> str | None:
+    """google-play-scraper `updated` alanını JSON için ISO UTC string yap."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=_UTC)
+        return dt.astimezone(_UTC).isoformat()
+    if isinstance(value, (int, float)):
+        try:
+            ts = float(value)
+            if ts > 1e12:
+                ts /= 1000.0
+            return datetime.fromtimestamp(ts, tz=_UTC).isoformat()
+        except Exception:
+            return None
+    s = str(value).strip()
+    return s if s else None
+
+
 def _load_forced_refresh_meta() -> None:
     global _FORCED_REFRESH_AT
     try:
@@ -140,24 +161,55 @@ def _save_forced_refresh_meta() -> None:
 
 
 def _load_rank_history() -> None:
+    # Backward-compat: legacy dosya geçmişi artık kullanılmıyor (DB kullanılıyor).
     global _RANK_HISTORY
-    try:
-        if _RANK_HISTORY_FILE.exists():
-            _RANK_HISTORY = json.loads(_RANK_HISTORY_FILE.read_text(encoding="utf-8"))
-        else:
-            _RANK_HISTORY = {}
-    except Exception:
-        _RANK_HISTORY = {}
+    _RANK_HISTORY = {}
 
 
 def _save_rank_history() -> None:
+    # Backward-compat no-op: yeni geçmiş yazımı veritabanına yapılıyor.
+    return
+
+
+def _parse_utc_iso(at_iso: str) -> datetime:
     try:
-        _RANK_HISTORY_FILE.write_text(
-            json.dumps(_RANK_HISTORY, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        dt = datetime.fromisoformat(str(at_iso or "").replace("Z", "+00:00"))
     except Exception:
-        logger.debug("App intel rank history kaydedilemedi.")
+        dt = datetime.now(tz=_UTC)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_UTC)
+    return dt.astimezone(_UTC)
+
+
+def _rank_row_to_dict(row: AppStoreRankSnapshot) -> dict[str, Any]:
+    dt = row.collected_at
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_UTC)
+    return {
+        "at": dt.astimezone(_UTC).isoformat(),
+        "rank": int(row.rank),
+        "total": row.total,
+        "category": row.category_name,
+        "chart": row.chart,
+    }
+
+
+def _load_rank_rows(product_id: str, platform: str) -> list[dict[str, Any]]:
+    try:
+        with SessionLocal() as db:
+            rows = (
+                db.query(AppStoreRankSnapshot)
+                .filter(
+                    AppStoreRankSnapshot.product_id == product_id,
+                    AppStoreRankSnapshot.platform == platform,
+                )
+                .order_by(AppStoreRankSnapshot.collected_at.asc(), AppStoreRankSnapshot.id.asc())
+                .all()
+            )
+        return [_rank_row_to_dict(r) for r in rows]
+    except Exception as e:
+        logger.debug("Rank history DB okunamadi (%s/%s): %s", product_id, platform, e)
+        return (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
 
 
 def _append_rank_snapshot(
@@ -185,8 +237,7 @@ def _append_rank_snapshot(
         "category": rank_info.get("category_name"),
         "chart": rank_info.get("chart"),
     }
-    prod = _RANK_HISTORY.setdefault(product_id, {})
-    arr = prod.setdefault(platform, [])
+    arr = _load_rank_rows(product_id, platform)
     last = arr[-1] if arr else None
     should_push = False
     if not last:
@@ -198,10 +249,24 @@ def _append_rank_snapshot(
             should_push = True
         elif str(last.get("at") or "")[:10] != at_iso[:10]:
             should_push = True
-    if should_push:
-        arr.append(rec)
-        if len(arr) > 1200:
-            del arr[:-1200]
+    if not should_push:
+        return
+    try:
+        with SessionLocal() as db:
+            db.add(
+                AppStoreRankSnapshot(
+                    product_id=product_id,
+                    platform=platform,
+                    rank=rank_int,
+                    total=int(rec.get("total")) if rec.get("total") is not None else None,
+                    category_name=(str(rec.get("category") or "").strip() or None),
+                    chart=(str(rec.get("chart") or "").strip() or None),
+                    collected_at=_parse_utc_iso(at_iso).replace(tzinfo=None),
+                )
+            )
+            db.commit()
+    except Exception as e:
+        logger.debug("Rank snapshot DB kaydedilemedi (%s/%s): %s", product_id, platform, e)
 
 
 def _at_report_tz_date(at: datetime) -> date:
@@ -210,7 +275,7 @@ def _at_report_tz_date(at: datetime) -> date:
 
 
 def _rank_history_series(product_id: str, platform: str, *, days: int = 7) -> list[dict[str, Any]]:
-    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    arr = _load_rank_rows(product_id, platform)
     if not arr:
         return []
     start = inclusive_local_period_start_utc(n_calendar_days=days)
@@ -239,7 +304,7 @@ def _rank_history_series(product_id: str, platform: str, *, days: int = 7) -> li
 
 
 def _rank_history_changes(product_id: str, platform: str, *, limit: int = 50) -> list[dict[str, Any]]:
-    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    arr = _load_rank_rows(product_id, platform)
     if not arr:
         return []
     out: list[dict[str, Any]] = []
@@ -263,7 +328,7 @@ def _rank_history_changes(product_id: str, platform: str, *, limit: int = 50) ->
 
 
 def _rank_history_daily(product_id: str, platform: str, *, days: int = 30) -> list[dict[str, Any]]:
-    arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
+    arr = _load_rank_rows(product_id, platform)
     if not arr:
         return []
     start_d = report_calendar_today() - timedelta(days=days - 1)
@@ -339,7 +404,17 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
                 dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
         except ValueError:
             continue
-        reviews_out.append({"at": dt, "score": int(r_s), "text": _normalize_review_text(body)})
+        # App Store review JSON parçalarında sürüm sinyali geçebiliyor (userReviewVersion / softwareVersion).
+        snippet_start = max(0, m.start() - 400)
+        snippet_end = min(len(html), m.end() + 400)
+        snippet = html[snippet_start:snippet_end]
+        ver: str | None = None
+        mv = re.search(r'"(?:userReviewVersion|softwareVersion|reviewVersion)"\s*:\s*"([^"]+)"', snippet)
+        if mv:
+            cand = str(mv.group(1)).strip()
+            if cand:
+                ver = cand
+        reviews_out.append({"at": dt, "score": int(r_s), "text": _normalize_review_text(body), "version": ver})
 
     snap: dict[str, Any] = {}
     m_badge = re.search(
@@ -438,14 +513,36 @@ def _fetch_ios_reviews_multistore(
     return merged, snap, err, storefronts_ok, n_sf
 
 
+def normalize_ios_app_id(raw: str | None) -> str:
+    """App Store uygulama id'si: URL/kullanıcı girişi 'id465599322', 'ID 465 ...' → '465599322'.
+
+    iTunes lookup `id=` parametresi yalnızca rakam kabul eder; önek verilirse sonuç 0 gelir.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    s = re.sub(r"^id\s*", "", s, flags=re.IGNORECASE).strip()
+    s = re.sub(r"\s+", "", s)
+    if re.fullmatch(r"\d+", s):
+        return s
+    m = re.search(r"\d{6,}", s)
+    return m.group(0) if m else ""
+
+
 def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
     """iTunes lookup API'den çoklu ülke toplanmış all-time rating count al."""
+    app_id = normalize_ios_app_id(app_id)
+    if not app_id:
+        return {}
     url = "https://itunes.apple.com/lookup"
 
     primary_genre_id: int | None = None
     primary_genre_name: str | None = None
+    icon_candidate: str | None = None
+    version_candidate: str | None = None
+    cvrd_candidate: str | None = None
 
-    def one(country: str) -> tuple[int, float | None, int | None, str | None]:
+    def one(country: str) -> tuple[int, float | None, int | None, str | None, str | None, str | None, str | None]:
         try:
             with httpx.Client(timeout=10.0, follow_redirects=True) as client:
                 r = client.get(url, params={"id": app_id, "country": country})
@@ -453,7 +550,7 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
                 data = r.json()
             first = ((data or {}).get("results") or [])[0] or {}
         except Exception:
-            return 0, None, None, None
+            return 0, None, None, None, None, None, None
         cnt_raw = first.get("userRatingCount")
         if cnt_raw is None:
             cnt_raw = first.get("userRatingCountForCurrentVersion")
@@ -474,14 +571,18 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
             gid_i = int(gid) if gid is not None else None
         except Exception:
             gid_i = None
-        return cnt, score, gid_i, (str(gname).strip() if gname else None)
+        art = first.get("artworkUrl512") or first.get("artworkUrl100") or first.get("artworkUrl60")
+        art_s = str(art).strip() if art else None
+        ver_s = str(first.get("version")).strip() if first.get("version") else None
+        cvrd_s = str(first.get("currentVersionReleaseDate")).strip() if first.get("currentVersionReleaseDate") else None
+        return cnt, score, gid_i, (str(gname).strip() if gname else None), art_s, ver_s, cvrd_s
 
     total_count = 0
     weighted_sum = 0.0
     with ThreadPoolExecutor(max_workers=min(12, len(_IOS_STOREFRONTS))) as pool:
         futs = [pool.submit(one, c) for c in _IOS_STOREFRONTS]
         for fut in futs:
-            cnt, score, gid_i, gname = fut.result()
+            cnt, score, gid_i, gname, art_s, ver_s, cvrd_s = fut.result()
             if cnt > 0:
                 total_count += cnt
                 if score is not None:
@@ -490,6 +591,12 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
                 primary_genre_id = gid_i
             if primary_genre_name is None and gname:
                 primary_genre_name = gname
+            if icon_candidate is None and art_s:
+                icon_candidate = art_s
+            if version_candidate is None and ver_s:
+                version_candidate = ver_s
+            if cvrd_candidate is None and cvrd_s:
+                cvrd_candidate = cvrd_s
 
     out: dict[str, Any] = {}
     if total_count > 0:
@@ -500,6 +607,12 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
         out["primary_genre_id"] = primary_genre_id
     if primary_genre_name:
         out["primary_genre_name"] = primary_genre_name
+    if icon_candidate:
+        out["icon"] = icon_candidate
+    if version_candidate:
+        out["version"] = version_candidate
+    if cvrd_candidate:
+        out["currentVersionReleaseDate"] = cvrd_candidate
     return out
 
 
@@ -683,6 +796,7 @@ def _fetch_google_bundle(
                 "at": dt,
                 "score": int(rv.get("score") or 0),
                 "text": _normalize_review_text(rv.get("content") or ""),
+                "version": (str(rv.get("reviewCreatedVersion") or "").strip() or None),
             }
         )
 
@@ -886,6 +1000,21 @@ def invalidate_raw_cache(product_id: str | None = None) -> None:
             _RAW_CACHE.clear()
 
 
+def get_cached_raw_product_data(product_id: str) -> dict[str, Any] | None:
+    """Ağ çağrısı yapmadan yalnızca sıcak cache'deki raw payload'ı döndür."""
+    if product_id not in APP_PRODUCTS:
+        return None
+    now = time.time()
+    with _CACHE_LOCK:
+        hit = _RAW_CACHE.get(product_id)
+        if not hit:
+            return None
+        ts, payload = hit
+        if now - ts >= _CACHE_TTL_SEC:
+            return None
+        return payload
+
+
 def get_last_forced_refresh_at(product_id: str) -> str | None:
     v = _FORCED_REFRESH_AT.get(product_id)
     return str(v) if v else None
@@ -902,11 +1031,14 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
             return hit[1]
 
-    meta, g_rows, g_err = _fetch_google_bundle(spec["android_package"])
-    i_rows, i_snap, i_err, i_sf_ok, i_sf_n = _fetch_ios_reviews_multistore(
-        spec["ios_app_id"], spec["ios_slug"],
-    )
-    i_lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
+    # Ağ çağrılarını paralelleştir: soğuk açılış TTFB'sini düşür.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
+        f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
+        f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
+        meta, g_rows, g_err = f_play.result()
+        i_rows, i_snap, i_err, i_sf_ok, i_sf_n = f_ios_reviews.result()
+        i_lookup = f_ios_lookup.result()
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
     i_rank = _fetch_ios_category_rank(
@@ -942,6 +1074,8 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
                 "icon": meta.get("icon"),
                 "genre": meta.get("genre"),
                 "category_rank": meta.get("category_rank"),
+                "play_version": meta.get("version"),
+                "play_last_updated_at": _play_updated_iso(meta.get("updated")),
             },
             "reviews": g_rows,
             "error": g_err,
