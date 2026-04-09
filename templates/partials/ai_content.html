@@ -246,7 +246,19 @@
       box-shadow: none;
       filter: grayscale(0.15);
     }
+    #ai-brief-view .ai-brief-action-card {
+      border-radius: 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(248, 250, 252, 0.85);
+      padding: 0.85rem 1rem;
+    }
+    html.dark #ai-brief-view .ai-brief-action-card {
+      border-color: rgba(51, 65, 85, 0.65);
+      background: rgba(15, 23, 42, 0.55);
+    }
   </style>
+
+  <div class="ai-brief-action-card space-y-3">
   {% if ai_brief_last_run_at is defined and ai_brief_last_run_at %}
   <p class="mb-0 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
     Son analiz: {{ ai_brief_last_run_at|e }}
@@ -311,7 +323,9 @@
       </form>
     </div>
   </div>
+  </div>{# /.ai-brief-action-card: son çalışma + ilerleme + başlık + LLM araç çubuğu #}
 
+  <div class="space-y-4">
   {% if not ai_brief %}
     <div class="rounded-xl border border-dashed border-slate-300 bg-white/80 p-6 text-center dark:border-slate-600 dark:bg-slate-800/60 sm:p-8">
       <p class="text-sm font-medium text-slate-700 dark:text-slate-200">Henüz kayıtlı özet yok.</p>
@@ -530,4 +544,5 @@
     </div>
   </section>
   {% endif %}
+  </div>{# /.space-y-4: özet sütunları + analiz geçmişi #}
 </div>

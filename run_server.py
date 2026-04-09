@@ -34,6 +34,11 @@ def _parse_args() -> argparse.Namespace:
             "GOOGLE_OAUTH_REDIRECT_URI + LIVE_REFRESH_URLS (ortam değişkeni olarak set edilir, .env'i ezer)"
         ),
     )
+    parser.add_argument(
+        "--no-reload",
+        action="store_true",
+        help="Kod izleme kapalı (nohup/LaunchAgent ile uzun süreli çalıştırma için; varsayılan geliştirici modunda reload açık)",
+    )
     return parser.parse_args()
 
 
@@ -57,4 +62,9 @@ if __name__ == "__main__":
 
     import uvicorn
 
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=args.port, reload=True)
+    uvicorn.run(
+        "backend.main:app",
+        host="127.0.0.1",
+        port=args.port,
+        reload=not args.no_reload,
+    )

@@ -1,6 +1,6 @@
 {% if sites %}
   <div class="-mx-1 min-w-0 max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/30 [scrollbar-width:thin] dark:border-slate-700 dark:bg-slate-950/20 sm:mx-0">
-    <table class="w-full min-w-[920px] text-left text-xs sm:min-w-[1000px] sm:text-sm">
+    <table class="w-full min-w-[880px] text-left text-xs sm:min-w-[1100px] sm:text-sm">
       <thead class="sticky top-0 z-[1] bg-slate-50 text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
         <tr>
           <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">ID</th>
@@ -9,7 +9,7 @@
           <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Profil</th>
           <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Durum</th>
           <th class="min-w-[12rem] px-2 py-2 font-medium sm:px-3">Search Console</th>
-          <th class="min-w-[16rem] px-2 py-2 font-medium sm:min-w-[18rem] sm:px-3">GA4</th>
+          <th class="min-w-[18rem] px-2 py-2 font-medium sm:min-w-[22rem] lg:min-w-[26rem] sm:px-3">GA4</th>
           <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">İşlem</th>
         </tr>
       </thead>
@@ -74,7 +74,7 @@
                   {% endfor %}
                 </div>
                 <form
-                  class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+                  class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
                   hx-post="/api/sites/{{ site.id }}/ga4"
                   hx-swap="none"
                   hx-on::after-request="handleGa4Save(event, {{ site.id }})"
@@ -107,7 +107,7 @@
                     placeholder="ios property id"
                     class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
                   />
-                  <div class="col-span-1 flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-4">
+                  <div class="col-span-1 flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-4">
                   <button
                     type="submit"
                     class="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"

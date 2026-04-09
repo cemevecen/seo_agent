@@ -660,6 +660,8 @@ text-slate-500 dark:text-slate-400
         'xaxis.tickfont.color': th.tick,
         'yaxis.showgrid': false,
         'yaxis.tickfont.color': th.tick,
+        'yaxis2.showgrid': false,
+        'yaxis2.tickfont.color': th.tick,
         'legend.font.color': th.legend,
       };
     }
@@ -687,6 +689,14 @@ text-slate-500 dark:text-slate-400
         resizeCruxCharts();
         return;
       }
+      /** CrUX chart: LCP/FCP/TTFB/INP are ms; CLS is unitless (~0–1). Same Y scale squashes CLS/INP and confuses autoscale — use a secondary axis for CLS. */
+      const METRIC_ORDER = [
+        'largest_contentful_paint',
+        'interaction_to_next_paint',
+        'cumulative_layout_shift',
+        'first_contentful_paint',
+        'experimental_time_to_first_byte',
+      ];
       const raw = JSON.parse(element.dataset.series || '{}');
       function metricColor(label) {
         const normalized = String(label || '').toUpperCase();
@@ -697,37 +707,119 @@ text-slate-500 dark:text-slate-400
         if (normalized === 'LCP') return '#8b5cf6';
         return '#475569';
       }
-      const traces = Object.keys(raw).map(function (key) {
+      function sanitizePoints(chart) {
+        const xs = chart.x || [];
+        const ys = chart.y || [];
+        const ox = [];
+        const oy = [];
+        const n = Math.min(xs.length, ys.length);
+        for (let i = 0; i < n; i++) {
+          const xv = xs[i];
+          if (xv === null || xv === undefined || xv === '') {
+            continue;
+          }
+          const yv = ys[i];
+          const num = Number(yv);
+          if (!Number.isFinite(num)) {
+            continue;
+          }
+          ox.push(xv);
+          oy.push(num);
+        }
+        return { x: ox, y: oy };
+      }
+      /** Zaman ekseninde çizgi sırası = kronoloji (CrUX API sırası genelde doğru; yine de güvence). */
+      function sortPointsByDate(pts) {
+        if (!pts.x.length) {
+          return pts;
+        }
+        const pairs = pts.x.map(function (x, i) {
+          return { x: x, y: pts.y[i], t: Date.parse(x) };
+        });
+        const anyBad = pairs.some(function (p) {
+          return Number.isNaN(p.t);
+        });
+        if (anyBad) {
+          return pts;
+        }
+        pairs.sort(function (a, b) {
+          return a.t - b.t;
+        });
+        return {
+          x: pairs.map(function (p) {
+            return p.x;
+          }),
+          y: pairs.map(function (p) {
+            return p.y;
+          }),
+        };
+      }
+      const traces = [];
+      METRIC_ORDER.forEach(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(raw, key)) {
+          return;
+        }
         const metric = raw[key] || {};
         const chart = metric.chart || { x: [], y: [] };
-        const traceColor = metricColor(metric.label || key.toUpperCase());
-        return {
-          x: chart.x,
-          y: chart.y,
+        const pts = sortPointsByDate(sanitizePoints(chart));
+        if (!pts.x.length) {
+          return;
+        }
+        const traceColor = metricColor(metric.label || key);
+        const isCls = key === 'cumulative_layout_shift';
+        traces.push({
+          x: pts.x,
+          y: pts.y,
           type: 'scatter',
           mode: 'lines+markers',
-          name: metric.label || key.toUpperCase(),
-          line: { color: traceColor, width: 3 },
-          marker: { color: traceColor, size: 7 },
-        };
-      }).filter(function (trace) { return trace.x && trace.x.length; });
+          name: metric.label || key,
+          line: { color: traceColor, width: isCls ? 2.5 : 3 },
+          marker: { color: traceColor, size: isCls ? 6 : 7 },
+          connectgaps: false,
+          yaxis: isCls ? 'y2' : 'y',
+        });
+      });
       if (!traces.length) {
         element.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">Grafik için yeterli CrUX history verisi yok.</div>';
         return;
       }
+      const hasCls = traces.some(function (t) { return t.yaxis === 'y2'; });
       const th = window.seoPlotlyTheme
         ? window.seoPlotlyTheme()
         : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
-      Plotly.newPlot(element, traces, {
+      const layout = {
         autosize: true,
-        margin: { t: 10, r: 20, b: 50, l: 50 },
+        margin: { t: 10, r: hasCls ? 52 : 24, b: 50, l: 52 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         font: { color: th.tick },
-        xaxis: { automargin: true, showgrid: false, tickfont: { color: th.tick } },
-        yaxis: { automargin: true, showgrid: false, tickfont: { color: th.tick } },
+        xaxis: {
+          type: 'date',
+          automargin: true,
+          showgrid: false,
+          tickfont: { color: th.tick },
+        },
+        yaxis: {
+          automargin: true,
+          showgrid: false,
+          tickfont: { color: th.tick },
+          title: { text: 'ms (LCP · FCP · TTFB · INP)', font: { size: 11, color: th.tick } },
+          rangemode: 'tozero',
+        },
         legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11, color: th.legend } },
-      }, { displayModeBar: false, responsive: true }).then(function () {
+      };
+      if (hasCls) {
+        layout.yaxis2 = {
+          automargin: true,
+          showgrid: false,
+          tickfont: { color: th.tick },
+          title: { text: 'CLS', font: { size: 11, color: th.tick } },
+          overlaying: 'y',
+          side: 'right',
+          rangemode: 'tozero',
+        };
+      }
+      Plotly.newPlot(element, traces, layout, { displayModeBar: false, responsive: true }).then(function () {
         element.dataset.chartReady = '1';
         resizeCruxCharts();
         window.setTimeout(resizeCruxCharts, 150);

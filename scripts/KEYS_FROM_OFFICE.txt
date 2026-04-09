@@ -1,0 +1,4 @@
+GA4 service account JSON dosyasını ofisteki bilgisayardan kopyalayıın:
+  <proje>/keys/ga4-service-account.json  (veya .env içindeki GA4_SERVICE_ACCOUNT_FILE yolu)
+
+Bu dosya repoya eklenmez (.gitignore).
