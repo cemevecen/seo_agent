@@ -179,7 +179,10 @@
   <section class="app-comp-benchmark-section mt-5 w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="Competitor Benchmark">
     <div class="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
       <h2 class="text-sm font-bold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-base">Competitor Benchmark</h2>
-      <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">İki uygulamayı A/B olarak kıyaslayın; sonuçlar tam genişlikte gösterilir.</p>
+      <div class="flex items-center gap-2">
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">İki uygulamayı A/B olarak kıyaslayın; sonuçlar tam genişlikte gösterilir.</p>
+        <button id="app-aso-comp-clear" type="button" class="hidden shrink-0 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-300">Sonuçları temizle</button>
+      </div>
     </div>
     <div class="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-12 xl:items-start xl:gap-4">
       <div class="min-w-0 space-y-2 xl:col-span-3 xl:self-start">
@@ -397,6 +400,7 @@
         iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
       }
     }
+    updateClearBtnVisibility();
   }
 
   function formatShortDate(iso) {
@@ -1305,8 +1309,20 @@
       "</div>";
   }
 
+  function updateClearBtnVisibility() {
+    var clearBtn = document.getElementById("app-aso-comp-clear");
+    if (!clearBtn) return;
+    var hasResults = !!(state.compBenchmarkPayloadByStore.android || state.compBenchmarkPayloadByStore.ios);
+    if (hasResults) {
+      clearBtn.classList.remove("hidden");
+    } else {
+      clearBtn.classList.add("hidden");
+    }
+  }
+
   function bindAsoCompetitorControls() {
     var btn = document.getElementById("app-aso-comp-run");
+    var clearBtn = document.getElementById("app-aso-comp-clear");
     var label = document.getElementById("app-aso-comp-label");
     var android = document.getElementById("app-aso-comp-android");
     var ios = document.getElementById("app-aso-comp-ios");
@@ -1315,6 +1331,16 @@
     if (ios && !ios.value) ios.value = state.compIos || "";
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = "1";
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        state.compBenchmarkPayloadByStore = { android: null, ios: null };
+        state.compBenchmarkPayload = null;
+        state.compBenchmarkLastErrors = { android: null, ios: null };
+        safeStorageSet(COMP_BENCHMARK_STORAGE_KEY, "");
+        updateClearBtnVisibility();
+        resetCompetitorBenchmarkPanel(false);
+      });
+    }
     async function fetchBenchmark(androidVal, iosVal, timeoutMs) {
       var qs = new URLSearchParams({
         period: String(state.period || 30),
@@ -1959,6 +1985,7 @@
   renderPeriodNav();
   applyHeroShellFromState();
   restoreCompetitorBenchmarkState();
+  updateClearBtnVisibility();
   bindAsoCompetitorControls();
   bindManualRefreshButton();
   document.addEventListener("seo-theme-change", function () {
