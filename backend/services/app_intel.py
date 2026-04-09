@@ -676,26 +676,51 @@ def _fetch_ios_category_rank(
     country: str = "tr",
     genre_id: int | None = None,
 ) -> dict[str, Any] | None:
-    if not app_id or not genre_id:
+    """Apple RSS chart feed'inden kesin sıra numarasını bul.
+
+    Strateji:
+    1. Genre filtreli chart'larda ara (kategori sırası).
+    2. Bulunamazsa genre filtresi olmadan genel chart'larda ara (genel sıra).
+    Her chart type'ı bağımsız dene; ilk kesin buluşu döndür.
+    """
+    if not app_id:
         return None
     chart_types = ("topfreeapplications", "topgrossingapplications", "toppaidapplications")
-    with httpx.Client(timeout=12.0, follow_redirects=True) as client:
-        for chart in chart_types:
-            try:
-                url = f"https://itunes.apple.com/{country}/rss/{chart}/genre={int(genre_id)}/limit=200/json"
+
+    def _search_rss(chart: str, genre: int | None) -> tuple[int | None, int]:
+        try:
+            if genre:
+                url = f"https://itunes.apple.com/{country}/rss/{chart}/genre={genre}/limit=200/json"
+            else:
+                url = f"https://itunes.apple.com/{country}/rss/{chart}/limit=200/json"
+            with httpx.Client(timeout=14.0, follow_redirects=True) as client:
                 r = client.get(url)
                 r.raise_for_status()
-                feed = (r.json() or {}).get("feed") or {}
-                entries = feed.get("entry") or []
-                total = len(entries)
-                for idx, e in enumerate(entries, start=1):
-                    eid = str((((e.get("id") or {}).get("attributes") or {}).get("im:id") or "")).strip()
-                    if eid == str(app_id):
-                        return {"rank": idx, "total": total, "chart": chart}
-                if total:
-                    return {"rank": None, "total": total, "chart": chart}
-            except Exception:
-                continue
+            entries = ((r.json() or {}).get("feed") or {}).get("entry") or []
+            for idx, e in enumerate(entries, start=1):
+                eid = str((((e.get("id") or {}).get("attributes") or {}).get("im:id") or "")).strip()
+                if eid == str(app_id):
+                    return idx, len(entries)
+            return None, len(entries)
+        except Exception:
+            return None, 0
+
+    # 1) Kategori chart'ları (genre filtreli)
+    if genre_id:
+        for chart in chart_types:
+            rank, total = _search_rss(chart, genre_id)
+            if rank is not None:
+                logger.info("iOS kategori sırası (%s, %s, genre=%s): #%d/%d", app_id, chart, genre_id, rank, total)
+                return {"rank": rank, "total": total, "chart": chart, "scope": "category"}
+
+    # 2) Genel chart'lar (tüm kategoriler — genre filtresi yok)
+    for chart in chart_types:
+        rank, total = _search_rss(chart, None)
+        if rank is not None:
+            logger.info("iOS genel sıra (%s, %s): #%d/%d", app_id, chart, rank, total)
+            return {"rank": rank, "total": total, "chart": chart, "scope": "overall"}
+
+    logger.debug("iOS sıra bulunamadı (%s, genre=%s)", app_id, genre_id)
     return None
 
 
