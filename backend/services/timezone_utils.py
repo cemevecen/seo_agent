@@ -15,6 +15,41 @@ def app_timezone() -> ZoneInfo:
         return ZoneInfo("Europe/Istanbul")
 
 
+def report_calendar_tz() -> ZoneInfo:
+    """GA4/GSC ve dönem filtreleri için takvim günü (varsayılan TSİ)."""
+    raw = getattr(settings, "report_calendar_timezone", None)
+    if raw and str(raw).strip():
+        try:
+            return ZoneInfo(str(raw).strip())
+        except Exception:
+            pass
+    return app_timezone()
+
+
+def report_calendar_today() -> date:
+    return datetime.now(report_calendar_tz()).date()
+
+
+def report_calendar_yesterday() -> date:
+    return report_calendar_today() - timedelta(days=1)
+
+
+def local_calendar_start_utc(d: date) -> datetime:
+    """Verilen yerel takvim gününün 00:00 anı (UTC aware)."""
+    tz = report_calendar_tz()
+    utc = ZoneInfo("UTC")
+    return datetime.combine(d, time.min, tzinfo=tz).astimezone(utc)
+
+
+def inclusive_local_period_start_utc(n_calendar_days: int) -> datetime | None:
+    """Bugün (yerel) dahil `n_calendar_days` günlük pencerenin ilk anı (UTC). n<=0 ise None."""
+    if n_calendar_days <= 0:
+        return None
+    today = report_calendar_today()
+    oldest = today - timedelta(days=n_calendar_days - 1)
+    return local_calendar_start_utc(oldest)
+
+
 def now_local() -> datetime:
     return datetime.now(app_timezone())
 

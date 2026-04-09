@@ -21,6 +21,7 @@ from backend.config import settings
 from backend.models import Site
 from backend.services.metric_store import save_metrics
 from backend.services.search_console_auth import get_search_console_credentials_record
+from backend.services.timezone_utils import report_calendar_yesterday
 from backend.services.warehouse import finish_collector_run, save_url_audit_records, start_collector_run
 
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
@@ -283,7 +284,7 @@ def _fetch_search_console_page_weights(db: Session, site: Site, *, recent_days: 
         latest_supported_end_date = _resolve_latest_available_day(
             service,
             targets,
-            fallback_end_date=date.today() - timedelta(days=1),
+            fallback_end_date=report_calendar_yesterday(),
         )
         start_date = latest_supported_end_date - timedelta(days=max(1, int(recent_days)) - 1)
         page_size = min(max(250, limit), settings.search_console_row_batch_size)

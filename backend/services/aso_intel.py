@@ -16,6 +16,7 @@ from backend.services.app_intel import (
     build_intel_payload,
     get_raw_product_data,
 )
+from backend.services.timezone_utils import inclusive_local_period_start_utc, report_calendar_today
 
 _UTC = timezone.utc
 _RANK_HISTORY_FILE = Path(__file__).resolve().parent / "aso_rank_history.json"
@@ -56,8 +57,18 @@ def _dedupe_reviews(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _period_filter(rows: list[dict[str, Any]], days: int) -> list[dict[str, Any]]:
     if days <= 0:
         return list(rows)
-    start = datetime.now(tz=_UTC) - timedelta(days=days)
-    return [r for r in rows if isinstance(r.get("at"), datetime) and r["at"] >= start]
+    start = inclusive_local_period_start_utc(n_calendar_days=days)
+    if start is None:
+        return list(rows)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        at = r.get("at")
+        if not isinstance(at, datetime):
+            continue
+        dt = at if at.tzinfo else at.replace(tzinfo=_UTC)
+        if dt >= start:
+            out.append(r)
+    return out
 
 
 def _score_bucket(score: int) -> str:
@@ -125,13 +136,25 @@ def _release_impact(rows: list[dict[str, Any]]) -> dict[str, Any]:
     for k in sorted(by_month.keys())[-6:]:
         vals = by_month[k]
         monthly.append({"month": k, "avg_score": round(sum(vals) / len(vals), 2), "count": len(vals)})
-    now = datetime.now(tz=_UTC)
-    recent = [int(r.get("score") or 0) for r in rows if isinstance(r.get("at"), datetime) and r["at"] >= now - timedelta(days=30)]
-    prev = [
-        int(r.get("score") or 0)
-        for r in rows
-        if isinstance(r.get("at"), datetime) and now - timedelta(days=60) <= r["at"] < now - timedelta(days=30)
-    ]
+    cur_start = inclusive_local_period_start_utc(n_calendar_days=30)
+    prev_start = inclusive_local_period_start_utc(n_calendar_days=60)
+    prev_end_exclusive = inclusive_local_period_start_utc(n_calendar_days=30)
+    recent: list[int] = []
+    prev: list[int] = []
+    for r in rows:
+        at = r.get("at")
+        if not isinstance(at, datetime):
+            continue
+        dt = at if at.tzinfo else at.replace(tzinfo=_UTC)
+        s = int(r.get("score") or 0)
+        if cur_start and dt >= cur_start:
+            recent.append(s)
+        elif (
+            prev_start
+            and prev_end_exclusive
+            and prev_start <= dt < prev_end_exclusive
+        ):
+            prev.append(s)
     recent_avg = round(sum(recent) / len(recent), 2) if recent else None
     prev_avg = round(sum(prev) / len(prev), 2) if prev else None
     delta = round((recent_avg or 0) - (prev_avg or 0), 2) if recent_avg is not None and prev_avg is not None else None
@@ -170,7 +193,7 @@ def _save_rank_history(data: dict[str, Any]) -> None:
 
 
 def _update_rank_history(product_id: str, keyword_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    today = datetime.now(tz=_UTC).date().isoformat()
+    today = report_calendar_today().isoformat()
     rank_rows = []
     for i, kw in enumerate(keyword_rows[:15], start=1):
         rank = max(1, int(round(80 - min(60, kw["mentions"] * 2.3) - (kw["avg_score"] - 3.0) * 8)))
@@ -329,6 +352,106 @@ def _compare_entry(
         "android_package": pkg or None,
         "ios_app_id": ios_id or None,
     }
+
+
+def _parse_pair(value: str | None) -> list[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return []
+    parts = [x.strip() for x in re.split(r"[,\n;|]+", raw) if x.strip()]
+    out: list[str] = []
+    for p in parts:
+        if p not in out:
+            out.append(p)
+    return out[:2]
+
+
+def _entry_from_ids(
+    period_days: int,
+    *,
+    android_pkg: str | None,
+    ios_id: str | None,
+    label: str | None = None,
+) -> dict[str, Any]:
+    pkg = (android_pkg or "").strip()
+    iid = (ios_id or "").strip()
+    # tracked app eşleşmesi varsa zengin metrik kullan
+    for pid, spec in APP_PRODUCTS.items():
+        if (pkg and pkg == str(spec.get("android_package") or "").strip()) or (iid and iid == str(spec.get("ios_app_id") or "").strip()):
+            p = build_intel_payload(pid, period_days, force_refresh=False)
+            w = p.get("active_window") or {}
+            a = w.get("android") or {}
+            i = w.get("ios") or {}
+            return {
+                "product_id": pid,
+                "label": (label or "").strip() or spec.get("label") or pid,
+                "source": "tracked_product",
+                "android_package": spec.get("android_package"),
+                "ios_app_id": spec.get("ios_app_id"),
+                "store_score_mix": _mix_score(a.get("store_score"), i.get("store_score")),
+                "android_score": a.get("store_score"),
+                "ios_score": i.get("store_score"),
+                "ratings_total": int(a.get("store_ratings") or 0) + int(i.get("store_ratings_count") or 0),
+                "review_count_period": int(a.get("review_count_period") or 0) + int(i.get("review_count_period") or 0),
+                "satisfaction_mix": round(
+                    (float((a.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5)
+                    + (float((i.get("satisfaction") or {}).get("memnun_oran") or 0) * 0.5),
+                    1,
+                ),
+            }
+    # custom fetch
+    g_meta, _, _ = (_fetch_google_bundle(pkg, max_reviews=200) if pkg else ({}, [], None))
+    i_meta = _fetch_ios_lookup_meta(iid) if iid else {}
+    ratings_total = int(g_meta.get("ratings") or 0) + int(i_meta.get("ratings_count") or 0)
+    return {
+        "product_id": "custom",
+        "label": (label or "").strip() or (pkg or iid or "Özel uygulama"),
+        "source": "custom",
+        "android_package": pkg or None,
+        "ios_app_id": iid or None,
+        "store_score_mix": _mix_score(g_meta.get("score"), i_meta.get("score")),
+        "android_score": g_meta.get("score"),
+        "ios_score": i_meta.get("score"),
+        "ratings_total": ratings_total,
+        "review_count_period": None,
+        "satisfaction_mix": None,
+    }
+
+
+def build_competitor_pair_payload(
+    *,
+    period_days: int,
+    android_packages: str | None,
+    ios_app_ids: str | None,
+    labels: str | None = None,
+) -> dict[str, Any]:
+    a_pkg = _parse_pair(android_packages)
+    a_ios = _parse_pair(ios_app_ids)
+    a_lbl = _parse_pair(labels)
+    pkg1 = a_pkg[0] if len(a_pkg) > 0 else None
+    pkg2 = a_pkg[1] if len(a_pkg) > 1 else None
+    ios1 = a_ios[0] if len(a_ios) > 0 else None
+    ios2 = a_ios[1] if len(a_ios) > 1 else None
+    lbl1 = a_lbl[0] if len(a_lbl) > 0 else None
+    lbl2 = a_lbl[1] if len(a_lbl) > 1 else None
+
+    if not (pkg1 or ios1) or not (pkg2 or ios2):
+        return {"error": "pair_required"}
+
+    left = _entry_from_ids(period_days, android_pkg=pkg1, ios_id=ios1, label=lbl1)
+    right = _entry_from_ids(period_days, android_pkg=pkg2, ios_id=ios2, label=lbl2)
+    delta_score = round(float(left.get("store_score_mix") or 0) - float(right.get("store_score_mix") or 0), 2)
+    delta_ratings = int(left.get("ratings_total") or 0) - int(right.get("ratings_total") or 0)
+    out = {
+        "period_days": period_days,
+        "left": left,
+        "right": right,
+        "comparison": {
+            "delta_score": delta_score,
+            "delta_ratings_total": delta_ratings,
+        },
+    }
+    return out
 
 
 def build_aso_payload(

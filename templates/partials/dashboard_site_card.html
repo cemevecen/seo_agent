@@ -115,12 +115,20 @@
         <div class="min-h-[5rem] min-w-0 flex-1 sm:min-h-[4rem] md:min-h-[3.5rem] lg:min-h-[3.1rem]">
           {% for pid in ['1', '7', '30'] %}
             {% set p = pc[pid] %}
-            <div data-sc-period-content="{{ pid }}" class="dash-compare-text flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 {% if pid != sc_segment %}hidden{% endif %}">
-              <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
-              <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
-              <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
-              <span class="text-slate-400">vs</span>
-              <span class="text-slate-500 dark:text-slate-400">{{ p.range_prev or "—" }}</span>
+            <div data-sc-period-content="{{ pid }}" class="dash-compare-text w-full space-y-1.5 {% if pid != sc_segment %}hidden{% endif %}">
+              <div class="flex w-full flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
+                <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
+                <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
+                <span class="text-slate-400">vs</span>
+                <span class="text-slate-500 dark:text-slate-400">{{ p.range_prev or "—" }}</span>
+              </div>
+              {% if pid == '1' %}
+                <p class="text-[11px] font-normal normal-case leading-snug text-slate-500 dark:text-slate-400">
+                  Sağdaki tarih Search Console’un raporladığı <span class="font-semibold text-slate-600 dark:text-slate-300">son tam gün</span>dir; Google tarafında veri çoğu zaman takvimden 2–3 gün geridedir (ör. bugün 9 ise 5–6 Nisan görmek olağandır).
+                  Soldaki tarih <span class="font-semibold text-slate-600 dark:text-slate-300">bir hafta önceki aynı gün</span> (haftalık kıyas) içindir; panelin “5’inde kalmış” olduğu anlamına gelmez.
+                </p>
+              {% endif %}
             </div>
           {% endfor %}
         </div>

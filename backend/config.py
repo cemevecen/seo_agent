@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
     ga4_service_account_json: str = ""
     ga4_service_account_file: str = ""
+    # GA4, Search Console, mağaza analitiği: rapor takvim günü (sunucu UTC olsa bile dün/son N gün TSİ).
+    report_calendar_timezone: str = "Europe/Istanbul"
     # GA4 landing sayfa filtresi: virgülle ayrılmış path alt dizeleri (haber vb. hariç)
     ga4_exclude_path_substrings: str = "/haber/,/news/,/gundem/"
 

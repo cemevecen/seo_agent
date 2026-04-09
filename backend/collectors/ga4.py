@@ -20,12 +20,12 @@ from google.analytics.data_v1beta.types import (
 from google.oauth2 import service_account
 from sqlalchemy.orm import Session
 
-from backend.config import settings
 from backend.locale.tr import weekday_tr
 from backend.models import Site
 from backend.services.ga4_auth import GA4_SCOPES, get_ga4_credentials_record, load_ga4_properties, load_ga4_service_account_info
 from backend.services.ga4_page_urls import ga4_canonical_page_url
 from backend.services.metric_store import save_metrics
+from backend.services.timezone_utils import report_calendar_yesterday
 from backend.services.warehouse import finish_collector_run, save_ga4_report_snapshot, start_collector_run
 
 LOGGER = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def _client() -> BetaAnalyticsDataClient:
 def _calendar_windows(days: int) -> tuple[tuple[str, str], tuple[str, str]]:
     """İki N günlük pencere: (son N gün), (onun hemen önceki N günü)."""
     n = int(days) if int(days) > 0 else 30
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = report_calendar_yesterday()
     last_end = yesterday
     last_start = yesterday - timedelta(days=n - 1)
     prev_end = last_start - timedelta(days=1)
@@ -76,7 +76,7 @@ def _calendar_windows(days: int) -> tuple[tuple[str, str], tuple[str, str]]:
 
 def _same_weekday_day_windows() -> tuple[tuple[str, str], tuple[str, str]]:
     """Son tam gün (dün) vs 7 gün önceki aynı takvim günü — same_weekday KPI / 1g kart ile uyumlu."""
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = report_calendar_yesterday()
     last_start = yesterday.isoformat()
     last_end = yesterday.isoformat()
     wow_prev = yesterday - timedelta(days=7)
@@ -89,6 +89,8 @@ def _same_weekday_day_windows() -> tuple[tuple[str, str], tuple[str, str]]:
 
 
 def _exclude_path_substrings() -> list[str]:
+    from backend.config import settings
+
     raw = (getattr(settings, "ga4_exclude_path_substrings", None) or "").strip()
     if not raw:
         return ["/haber/", "/news/", "/gundem/"]
@@ -682,7 +684,7 @@ def fetch_ga4_top_landing_audit(
     """
     safe_days = max(1, int(days))
     safe_limit = max(5, min(int(limit or 500), 500))
-    end = date.today() - timedelta(days=1)
+    end = report_calendar_yesterday()
     start = end - timedelta(days=safe_days - 1)
     client = _client()
     filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None

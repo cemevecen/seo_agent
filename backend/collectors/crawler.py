@@ -177,9 +177,10 @@ def _fetch_top_search_console_pages(db: Session, site: Site, *, limit: int) -> l
         return []
 
     try:
-        from datetime import date, timedelta
+        from datetime import timedelta
 
         from backend.collectors.search_console import _resolve_latest_available_day, _resolve_search_console_targets
+        from backend.services.timezone_utils import report_calendar_yesterday
     except Exception:  # noqa: BLE001
         return []
 
@@ -191,7 +192,7 @@ def _fetch_top_search_console_pages(db: Session, site: Site, *, limit: int) -> l
         latest_supported_end_date = _resolve_latest_available_day(
             service,
             targets,
-            fallback_end_date=date.today() - timedelta(days=1),
+            fallback_end_date=report_calendar_yesterday(),
         )
         start_date = latest_supported_end_date - timedelta(days=27)
         aggregated: dict[str, float] = {}

@@ -17,6 +17,7 @@ from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
 from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
+from backend.services.timezone_utils import report_calendar_yesterday
 from backend.services.warehouse import (
     finish_collector_run,
     get_latest_search_console_rows,
@@ -864,7 +865,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         latest_supported_end_date = _resolve_latest_available_day(
             service,
             targets,
-            fallback_end_date=date.today() - timedelta(days=1),
+            fallback_end_date=report_calendar_yesterday(),
         )
         end_date = latest_supported_end_date
         # 28 günlük query özeti (mevcut metriklerle uyumlu)
@@ -989,7 +990,7 @@ def _load_search_console_alert_data(site: Site, credential: SiteCredential | Non
         latest_supported_end_date = _resolve_latest_available_day(
             service,
             targets,
-            fallback_end_date=date.today() - timedelta(days=1),
+            fallback_end_date=report_calendar_yesterday(),
         )
         end_date = latest_supported_end_date
         current_date = end_date
@@ -1121,7 +1122,7 @@ def fetch_search_console_query_comparison(
         latest_available_day = _resolve_latest_available_day(
             service,
             targets,
-            fallback_end_date=date.today() - timedelta(days=1),
+            fallback_end_date=report_calendar_yesterday(),
         )
 
         if comparison_type == "weekly":

@@ -10,11 +10,17 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from backend.services.timezone_utils import (
+    inclusive_local_period_start_utc,
+    report_calendar_today,
+    report_calendar_tz,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -198,11 +204,18 @@ def _append_rank_snapshot(
             del arr[:-1200]
 
 
+def _at_report_tz_date(at: datetime) -> date:
+    dt = at if at.tzinfo else at.replace(tzinfo=_UTC)
+    return dt.astimezone(report_calendar_tz()).date()
+
+
 def _rank_history_series(product_id: str, platform: str, *, days: int = 7) -> list[dict[str, Any]]:
     arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
     if not arr:
         return []
-    start = datetime.now(tz=_UTC) - timedelta(days=days)
+    start = inclusive_local_period_start_utc(n_calendar_days=days)
+    if start is None:
+        return []
     out: list[dict[str, Any]] = []
     for x in arr:
         at_s = str(x.get("at") or "")
@@ -210,6 +223,8 @@ def _rank_history_series(product_id: str, platform: str, *, days: int = 7) -> li
             dt = datetime.fromisoformat(at_s.replace("Z", "+00:00"))
         except Exception:
             continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_UTC)
         if dt < start:
             continue
         out.append(
@@ -251,7 +266,7 @@ def _rank_history_daily(product_id: str, platform: str, *, days: int = 30) -> li
     arr = (((_RANK_HISTORY.get(product_id) or {}).get(platform)) or [])
     if not arr:
         return []
-    start_d = (datetime.now(tz=_UTC) - timedelta(days=days - 1)).date()
+    start_d = report_calendar_today() - timedelta(days=days - 1)
     by_day: dict[str, dict[str, Any]] = {}
     for x in arr:
         at_s = str(x.get("at") or "")
@@ -259,9 +274,9 @@ def _rank_history_daily(product_id: str, platform: str, *, days: int = 30) -> li
             dt = datetime.fromisoformat(at_s.replace("Z", "+00:00"))
         except Exception:
             continue
-        if dt.date() < start_d:
+        if _at_report_tz_date(dt) < start_d:
             continue
-        day_key = dt.date().isoformat()
+        day_key = _at_report_tz_date(dt).isoformat()
         prev = by_day.get(day_key)
         if prev is None or str(prev.get("at") or "") < at_s:
             by_day[day_key] = {
@@ -683,7 +698,10 @@ def _categorize(text: str) -> str:
 
 
 def _cutoff(days: int) -> datetime:
-    return datetime.now(tz=_UTC) - timedelta(days=days)
+    start = inclusive_local_period_start_utc(n_calendar_days=days)
+    if start is None:
+        return datetime.now(tz=_UTC)
+    return start
 
 
 def _filter_by_period(rows: list[dict[str, Any]], days: int) -> list[dict[str, Any]]:
@@ -704,8 +722,8 @@ def _filter_by_period_or_anchor(
     start = anchor - timedelta(days=days)
     anchored = [r for r in rows if r["at"] >= start]
     note = (
-        f"Bu aralıkta (bugünden geri {days} gün) örnek yorum yok; "
-        f"grafikler en güncel örnek tarihine göre ({anchor.astimezone(_UTC).date().isoformat()} UTC günü) kaydırıldı."
+        f"Bu aralıkta (TSİ takviminde son {days} gün) örnek yorum yok; "
+        f"grafikler en güncel örnek tarihine göre ({_at_report_tz_date(anchor).isoformat()} yerel gün) kaydırıldı."
     )
     return anchored, anchor, note
 
@@ -715,15 +733,15 @@ def _daily_rating_series(
     days: int,
     anchor_end: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """UTC takvim günü bazında, dönemdeki yorumların günlük ortalama yıldızı (mağaza genel ortalama geçmişi değil)."""
+    """Rapor takvimi (TSİ) günü bazında, dönemdeki yorumların günlük ortalama yıldızı (mağaza genel ortalama geçmişi değil)."""
     by_day: dict[str, list[int]] = {}
     if anchor_end is None:
-        end_d = datetime.now(tz=_UTC).date()
+        end_d = report_calendar_today()
     else:
-        end_d = anchor_end.astimezone(_UTC).date()
+        end_d = _at_report_tz_date(anchor_end)
     start_d = end_d - timedelta(days=days - 1)
     for r in rows:
-        d = r["at"].date()
+        d = _at_report_tz_date(r["at"])
         if d < start_d or d > end_d:
             continue
         k = d.isoformat()

@@ -6413,6 +6413,32 @@ def api_app_aso(
     return JSONResponse(aso_json_safe(payload))
 
 
+@app.get("/api/app/aso/benchmark")
+def api_app_aso_benchmark(
+    period: int = 30,
+    android_packages: str | None = None,
+    ios_app_ids: str | None = None,
+    labels: str | None = None,
+):
+    from backend.services.aso_intel import aso_json_safe, build_competitor_pair_payload
+
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 30
+    if p not in (0, 7, 30, 90, 180, 365, 730):
+        p = 30
+    payload = build_competitor_pair_payload(
+        period_days=p,
+        android_packages=android_packages,
+        ios_app_ids=ios_app_ids,
+        labels=labels,
+    )
+    if payload.get("error"):
+        return JSONResponse(payload, status_code=400)
+    return JSONResponse(aso_json_safe(payload))
+
+
 @app.get("/ga4/site-list")
 def ga4_site_list(request: Request):
     with SessionLocal() as db:
