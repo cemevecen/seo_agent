@@ -1678,19 +1678,19 @@
       var rankText = "";
       if (rank && rank.rank != null) {
         rankText = "Kategori sırası: #" + rank.rank;
-        // Birden fazla chart'ta bulunduysa hepsini göster
+        // Birden fazla chart'ta bulunduysa en iyi sıralamayı göster
         if (rank.all_charts) {
-          var parts = [];
+          var bestRank = rank.rank;
           var charts = rank.all_charts;
           for (var cKey in charts) {
             if (charts.hasOwnProperty(cKey)) {
               var c = charts[cKey];
-              parts.push((c.chart_label || cKey) + " #" + c.rank);
+              if (c.rank != null && c.rank < bestRank) {
+                bestRank = c.rank;
+              }
             }
           }
-          if (parts.length > 1) {
-            rankText = "Kategori sırası: " + parts.join(" · ");
-          }
+          rankText = "Kategori sırası: #" + bestRank;
         }
       } else {
         rankText = "Kategori sırası: —";
