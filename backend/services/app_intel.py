@@ -1071,48 +1071,6 @@ def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
     return {str(i + 1): int(h[i]) for i in range(5)}
 
 
-def _fetch_android_global_histogram(package: str) -> dict[str, int] | None:
-    """Birden fazla ülke Play Store'undan Android yıldız dağılımını toplayarak global histogramı döner.
-
-    google-play-scraper'ın `app()` çağrısı ülke bazlı veri döndürür;
-    tüm vitrinler toplandığında App Store hesabıyla tutarlı global rakamlar elde edilir.
-    histogram listesi [1★, 2★, 3★, 4★, 5★] sırasındadır (küçükten büyüğe).
-    """
-    try:
-        from google_play_scraper import app as gp_app
-    except ImportError:
-        return None
-
-    def _one(country: str) -> dict[str, int] | None:
-        try:
-            m = gp_app(package, lang="en", country=country)
-            h = m.get("histogram")
-            if not h or len(h) != 5 or sum(h) == 0:
-                return None
-            return {"1": int(h[0]), "2": int(h[1]), "3": int(h[2]), "4": int(h[3]), "5": int(h[4])}
-        except Exception as exc:
-            logger.debug("Android global histogram ülke hatası (%s, %s): %s", package, country, exc)
-            return None
-
-    global_map: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
-    hits = 0
-    with ThreadPoolExecutor(max_workers=min(8, len(_IOS_STOREFRONTS))) as pool:
-        futures = {pool.submit(_one, loc): loc for loc in _IOS_STOREFRONTS}
-        for fut in as_completed(futures):
-            result = fut.result()
-            if result:
-                for k in ("1", "2", "3", "4", "5"):
-                    global_map[k] += result[k]
-                hits += 1
-
-    total = sum(global_map.values())
-    if total == 0:
-        return None
-    logger.info(
-        "Android global histogram (%s): 5★=%d 4★=%d 3★=%d 2★=%d 1★=%d toplam=%d (%d ülke)",
-        package, global_map["5"], global_map["4"], global_map["3"], global_map["2"], global_map["1"], total, hits,
-    )
-    return global_map
 
 
 def invalidate_raw_cache(product_id: str | None = None) -> None:
@@ -1155,17 +1113,15 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             return hit[1]
 
     # Ağ çağrılarını paralelleştir: soğuk açılış TTFB'sini düşür.
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
         f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
         f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
         f_ios_histogram = pool.submit(_fetch_ios_main_page_histogram, spec["ios_app_id"], spec["ios_slug"])
-        f_android_histogram = pool.submit(_fetch_android_global_histogram, spec["android_package"])
         meta, g_rows, g_err = f_play.result()
         i_rows, i_snap, i_err, i_sf_ok, i_sf_n = f_ios_reviews.result()
         i_lookup = f_ios_lookup.result()
         i_histogram = f_ios_histogram.result()
-        a_histogram = f_android_histogram.result()
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
     # Gerçek mağaza yıldız dağılımını öncelikli kullan (ana sayfadan çekilen)
@@ -1199,8 +1155,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             "meta": {
                 "score": meta.get("score"),
                 "ratings": meta.get("ratings"),
-                # histogram: global toplam tercih edilir; yoksa TR vitrin verisi kullanılır
-                "histogram": a_histogram or _android_histogram_overall(meta),
+                "histogram": _android_histogram_overall(meta),
                 "reviews": meta.get("reviews"),
                 "icon": meta.get("icon"),
                 "genre": meta.get("genre"),
