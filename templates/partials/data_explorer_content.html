@@ -754,6 +754,16 @@ text-slate-500 dark:text-slate-400
           }),
         };
       }
+      // Tüm metriklerden ortak tarih setini oluştur (en uzun serinin tarihleri esas alınır).
+      // Eksik haftalar null y-değeriyle doldurulur; bu sayede Plotly boşlukları doğru
+      // şekilde atlar (connectgaps:false) veya interpolasyon yapar (connectgaps:true).
+      const allDatesSet = new Set();
+      METRIC_ORDER.forEach(function (key) {
+        const chart = (raw[key] || {}).chart || {};
+        (chart.x || []).forEach(function (d) { if (d) allDatesSet.add(d); });
+      });
+      const allDates = Array.from(allDatesSet).sort();
+
       const traces = [];
       METRIC_ORDER.forEach(function (key) {
         if (!Object.prototype.hasOwnProperty.call(raw, key)) {
@@ -765,16 +775,23 @@ text-slate-500 dark:text-slate-400
         if (!pts.x.length) {
           return;
         }
+        // Metrik verilerini ortak tarih eksenine hizala — eksik haftalar null.
+        const valByDate = {};
+        pts.x.forEach(function (d, i) { valByDate[d] = pts.y[i]; });
+        const alignedX = allDates;
+        const alignedY = allDates.map(function (d) {
+          return Object.prototype.hasOwnProperty.call(valByDate, d) ? valByDate[d] : null;
+        });
         const traceColor = metricColor(metric.label || key);
         const isCls = key === 'cumulative_layout_shift';
         traces.push({
-          x: pts.x,
-          y: pts.y,
+          x: alignedX,
+          y: alignedY,
           type: 'scatter',
           mode: 'lines+markers',
           name: metric.label || key,
-          line: { color: traceColor, width: isCls ? 2.5 : 3 },
-          marker: { color: traceColor, size: isCls ? 6 : 7 },
+          line: { color: traceColor, width: isCls ? 2 : 2.5 },
+          marker: { color: traceColor, size: isCls ? 5 : 6 },
           connectgaps: false,
           yaxis: isCls ? 'y2' : 'y',
         });
@@ -809,6 +826,11 @@ text-slate-500 dark:text-slate-400
         legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11, color: th.legend } },
       };
       if (hasCls) {
+        // CLS eksenini sabit 0–0.25 aralığında tut.
+        // Otomatik ölçek (0–0.01 gibi) küçük CLS değişimlerini "dev spike" gibi gösterir;
+        // sabit üst sınır (≥ Poor eşiği 0.25) eksenin tutarlı kalmasını sağlar.
+        const clsTrace = traces.find(function (t) { return t.yaxis === 'y2'; });
+        const clsMax = clsTrace ? Math.max(0.25, Math.max.apply(null, clsTrace.y) * 1.2) : 0.25;
         layout.yaxis2 = {
           automargin: true,
           showgrid: false,
@@ -816,7 +838,8 @@ text-slate-500 dark:text-slate-400
           title: { text: 'CLS', font: { size: 11, color: th.tick } },
           overlaying: 'y',
           side: 'right',
-          rangemode: 'tozero',
+          range: [0, clsMax],
+          tickformat: '.2f',
         };
       }
       Plotly.newPlot(element, traces, layout, { displayModeBar: false, responsive: true }).then(function () {
