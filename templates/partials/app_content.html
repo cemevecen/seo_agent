@@ -944,6 +944,24 @@
     }
   }
 
+  function satFromDist(dist) {
+    if (!dist) return null;
+    var memnun = (Number(dist["4"]) || 0) + (Number(dist["5"]) || 0);
+    var notr = Number(dist["3"]) || 0;
+    var memnun_degil = (Number(dist["1"]) || 0) + (Number(dist["2"]) || 0);
+    var total = memnun + notr + memnun_degil;
+    if (!total) return null;
+    function pct(v) { return Math.round((v / total) * 1000) / 10; }
+    return {
+      memnun: memnun,
+      notr: notr,
+      memnun_degil: memnun_degil,
+      memnun_oran: pct(memnun),
+      notr_oran: pct(notr),
+      memnun_degil_oran: pct(memnun_degil),
+    };
+  }
+
   function renderSat(el, s) {
     if (!el || !s) return;
     function n(v) {
@@ -1724,7 +1742,7 @@
       am.category_reviews || {},
       document.getElementById("app-intel-play-cat-drilldown")
     );
-    renderSat(document.getElementById("app-intel-play-sat"), am.satisfaction);
+    renderSat(document.getElementById("app-intel-play-sat"), satFromDist(am.star_distribution_overall) || am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
     // Mağaza geneli gerçek histogram her zaman öncelikli; dönem örneği yalnızca fallback.
@@ -1759,7 +1777,7 @@
       im.category_reviews || {},
       document.getElementById("app-intel-ios-cat-drilldown")
     );
-    renderSat(document.getElementById("app-intel-ios-sat"), im.satisfaction);
+    renderSat(document.getElementById("app-intel-ios-sat"), satFromDist(im.star_distribution_overall) || im.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-ios-latest"), im.latest_reviews || [], "ios");
     setHeroIcon(p.app_icon, (p.label || "?").trim().charAt(0));
     renderAso(state.lastAsoPayload);
