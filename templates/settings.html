@@ -12,6 +12,7 @@
       class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end lg:gap-x-4 lg:gap-y-3"
       hx-post="/api/sites"
       hx-swap="none"
+      hx-on::before-request="handleSiteCreateStart()"
       hx-on::after-request="handleSiteCreate(event)"
     >
       <div class="min-w-0 flex-1 lg:min-w-[14rem] lg:max-w-md">
@@ -148,17 +149,46 @@
     htmx.ajax('GET', '/settings/site-list', { target: '#site-list', swap: 'innerHTML' });
   }
 
+  function handleSiteCreateStart() {
+    var submitBtn = document.querySelector('#site-form button[type="submit"]');
+    var feedback = document.getElementById('site-form-feedback');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Kaydediliyor…';
+    }
+    if (feedback) {
+      feedback.textContent = '';
+      feedback.className = 'mt-3 text-sm text-slate-500 dark:text-slate-400';
+    }
+  }
+
   function handleSiteCreate(event) {
     const feedback = document.getElementById('site-form-feedback');
+    const submitBtn = document.querySelector('#site-form button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Siteyi Kaydet';
+    }
     if (event.detail.successful) {
       document.getElementById('site-form').reset();
-      feedback.textContent = 'Site başarıyla eklendi.';
+      feedback.textContent = 'Site başarıyla eklendi. Arka planda veri toplanıyor (PageSpeed, Crawler, CrUX).';
       feedback.className = 'mt-3 text-sm text-emerald-600';
       refreshSiteList();
       return;
     }
 
-    feedback.textContent = 'Site eklenemedi. Domain daha önce kayıtlı olabilir.';
+    // API'den gelen hata mesajını göster
+    var errorMsg = 'Site eklenemedi.';
+    try {
+      var xhr = event.detail.xhr;
+      if (xhr && xhr.responseText) {
+        var body = JSON.parse(xhr.responseText);
+        if (body.detail) {
+          errorMsg = body.detail;
+        }
+      }
+    } catch (_) {}
+    feedback.textContent = errorMsg;
     feedback.className = 'mt-3 text-sm text-rose-600';
   }
 

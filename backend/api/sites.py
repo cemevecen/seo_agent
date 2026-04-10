@@ -3,7 +3,9 @@
 from datetime import datetime
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -43,9 +45,35 @@ def list_sites(request: Request, db: Session = Depends(get_db)):
     return {"items": items}
 
 
+def _bootstrap_site_data(site_id: int) -> None:
+    """Arka planda PageSpeed, Crawler ve CrUX verilerini toplar."""
+    from backend.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None or not site.is_active:
+                return
+            try:
+                collect_pagespeed_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Bootstrap pagespeed failed for site %s: %s", site.domain, exc)
+            try:
+                collect_crawler_metrics(db, site)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Bootstrap crawler failed for site %s: %s", site.domain, exc)
+            try:
+                collect_crux_history(db, site)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Bootstrap crux_history failed for site %s: %s", site.domain, exc)
+            db.commit()
+    except Exception:  # noqa: BLE001
+        logging.exception("Bootstrap background task failed for site_id=%s", site_id)
+
+
 @router.post("/sites", status_code=status.HTTP_201_CREATED)
 @limiter.limit("60/minute")
-async def create_site(request: Request, db: Session = Depends(get_db)):
+async def create_site(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Hem JSON hem de form-data isteğini destekleyerek site kaydı oluşturur.
     content_type = (request.headers.get("content-type") or "").lower()
 
@@ -74,24 +102,14 @@ async def create_site(request: Request, db: Session = Depends(get_db)):
     db.add(site)
     db.commit()
     db.refresh(site)
+    from backend.main import invalidate_sidebar_cache
+    invalidate_sidebar_cache()
 
-    bootstrap: dict[str, object] = {}
+    # Bootstrap veri toplama işlemlerini arka plana al — response hemen döner
     if site.is_active:
-        try:
-            bootstrap["pagespeed"] = collect_pagespeed_metrics(db, site)
-        except Exception as exc:  # noqa: BLE001
-            bootstrap["pagespeed"] = {"state": "failed", "error": str(exc)}
-        try:
-            bootstrap["crawler"] = collect_crawler_metrics(db, site)
-        except Exception as exc:  # noqa: BLE001
-            bootstrap["crawler"] = {"state": "failed", "error": str(exc)}
-        try:
-            bootstrap["crux_history"] = collect_crux_history(db, site)
-        except Exception as exc:  # noqa: BLE001
-            bootstrap["crux_history"] = {"state": "failed", "error": str(exc)}
-        db.commit()
+        background_tasks.add_task(_bootstrap_site_data, site.id)
 
-    return {"item": _site_to_dict(site), "bootstrap": bootstrap}
+    return {"item": _site_to_dict(site), "bootstrap_status": "started" if site.is_active else "skipped"}
 
 
 @router.delete("/sites/{site_id}")
@@ -104,6 +122,8 @@ def delete_site(request: Request, site_id: int, db: Session = Depends(get_db)):
 
     db.delete(site)
     db.commit()
+    from backend.main import invalidate_sidebar_cache
+    invalidate_sidebar_cache()
 
     return {"ok": True, "deleted_id": site_id}
 

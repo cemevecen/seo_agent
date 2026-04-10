@@ -602,8 +602,15 @@ def _dashboard_spotlight_card_limit(domain: str | None) -> int:
     return 24
 
 
+_sidebar_cache: dict = {"data": None, "ts": 0.0}
+_SIDEBAR_CACHE_TTL = 30  # saniye
+
+
 def get_sidebar_sites() -> list[dict]:
-    # Sidebar için aktif siteler veritabanından okunur.
+    # Sidebar için aktif siteler veritabanından okunur (30sn TTL cache).
+    now = time.monotonic()
+    if _sidebar_cache["data"] is not None and (now - _sidebar_cache["ts"]) < _SIDEBAR_CACHE_TTL:
+        return _sidebar_cache["data"]
     with SessionLocal() as db:
         external_site_ids = {
             int(row.site_id)
@@ -630,7 +637,15 @@ def get_sidebar_sites() -> list[dict]:
                 }
             )
         rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
+        _sidebar_cache["data"] = rows
+        _sidebar_cache["ts"] = now
         return rows
+
+
+def invalidate_sidebar_cache():
+    """Site eklendiğinde/silindiğinde sidebar cache'ini geçersiz kıl."""
+    _sidebar_cache["data"] = None
+    _sidebar_cache["ts"] = 0.0
 
 
 def _external_site_ids(db) -> set[int]:
@@ -5070,10 +5085,20 @@ def data_explorer(request: Request, domain: str):
 @app.get("/public-sites")
 def public_sites_page(request: Request):
     with SessionLocal() as db:
+        ext_sites = (
+            db.query(Site)
+            .join(ExternalSite, ExternalSite.site_id == Site.id)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.desc())
+            .all()
+        )
+        ext_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in ext_sites]
         payload = {
             "site_name": "External",
             "sites": get_sidebar_sites(),
-            "public_sites": _public_sites_payload(db),
+            "lazy_mode": True,
+            "lazy_site_ids": lazy_site_ids,
         }
     template_name = "partials/public_sites_content.html" if request.headers.get("HX-Request") == "true" else "public_sites.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -5095,14 +5120,82 @@ def public_explorer(request: Request, domain: str):
 @app.get("/external/site-list")
 @app.get("/public-sites/site-list")
 def public_sites_list(request: Request):
+    """External site listesi: varsayılan lazy, refresh sonrası eager."""
+    mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     with SessionLocal() as db:
+        if mode == "eager":
+            return templates.TemplateResponse(
+                request,
+                "partials/public_site_cards.html",
+                context={"request": request, "lazy_mode": False, "public_sites": _public_sites_payload(db)},
+            )
+        ext_sites = (
+            db.query(Site)
+            .join(ExternalSite, ExternalSite.site_id == Site.id)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.desc())
+            .all()
+        )
+        ext_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in ext_sites]
+    return templates.TemplateResponse(
+        request,
+        "partials/public_site_cards.html",
+        context={"request": request, "lazy_mode": True, "lazy_site_ids": lazy_site_ids},
+    )
+
+
+@app.get("/external/site/{site_id}", response_class=HTMLResponse)
+def external_single_site_card(request: Request, site_id: int):
+    """HTMX lazy loading ile tek external site kartını tam veriyle render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        if not _is_external_site(db, site.id):
+            return HTMLResponse("", status_code=404)
+        try:
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            warehouse = get_site_warehouse_summary(db, site_id=site.id)
+            crawler_link_audit = _crawler_link_audit_with_metric_fallback(
+                _latest_crawler_link_audit_summary(db, site_id=site.id),
+                latest,
+            )
+            mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+            desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+            crawler_run = _latest_provider_run(db, site_id=site.id, provider="crawler", strategy="sitewide")
+            last_updated = max((metric.collected_at for metric in latest.values()), default=site.created_at)
+            site_data = {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
+                "pagespeed_mobile": round(_metric_value(latest, "pagespeed_mobile_score", 0.0)) if latest.get("pagespeed_mobile_score") else None,
+                "pagespeed_desktop": round(_metric_value(latest, "pagespeed_desktop_score", 0.0)) if latest.get("pagespeed_desktop_score") else None,
+                "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
+                "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
+                "crawler_audited_urls": crawler_link_audit.get("audited_urls", 0),
+                "crawler_status": str(crawler_run.status or "").lower() if crawler_run and crawler_run.status else "never",
+                "crux_ready": bool(mobile_crux or desktop_crux),
+                "warehouse": warehouse,
+                "alerts": get_site_alerts(db, site_id=site.id, limit=1000),
+            }
+        except Exception as exc:
+            logging.exception("external_single_site_card site_id=%s hata", site_id)
+            import html as _html
+            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
+            return HTMLResponse(
+                f'<article id="ext-card-{site_id}" class="rounded-[1.7rem] border border-red-300 dark:border-red-700 '
+                f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
+                f'<p class="font-semibold">External kart yüklenemedi</p>'
+                f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu.</p>'
+                f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></article>',
+                status_code=200,
+            )
         return templates.TemplateResponse(
             request,
-            "partials/public_site_cards.html",
-            context={
-                "request": request,
-                "public_sites": _public_sites_payload(db),
-            },
+            "partials/public_single_site_card.html",
+            context={"request": request, "site": site_data},
         )
 
 
@@ -5166,6 +5259,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
         try:
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             db.refresh(site)
+            invalidate_sidebar_cache()
         except OperationalError as exc:
             if _is_sqlite_lock_error(exc):
                 return JSONResponse(
@@ -5231,6 +5325,7 @@ def public_sites_delete_site(request: Request, site_id: int):
             db.delete(site)
             try:
                 db.commit()
+                invalidate_sidebar_cache()
             except OperationalError as exc:
                 db.rollback()
                 if _is_sqlite_lock_error(exc):
@@ -5245,6 +5340,7 @@ def public_sites_delete_site(request: Request, site_id: int):
                     "partials/public_site_cards.html",
                     context={
                         "request": request,
+                        "lazy_mode": False,
                         "public_sites": _public_sites_payload(db),
                     },
                 )
@@ -5297,6 +5393,7 @@ def public_sites_refresh_site(request: Request, site_id: int):
             "partials/public_site_cards.html",
             context={
                 "request": request,
+                "lazy_mode": False,
                 "public_sites": _public_sites_payload(db),
             },
         )
@@ -5348,6 +5445,7 @@ def public_sites_refresh_all(request: Request):
             "partials/public_site_cards.html",
             context={
                 "request": request,
+                "lazy_mode": False,
                 "public_sites": _public_sites_payload(db),
             },
         )
@@ -6484,11 +6582,79 @@ def api_app_aso_benchmark(
 
 @app.get("/ga4/site-list")
 def ga4_site_list(request: Request):
+    """GA4 site listesi: varsayılan lazy mode ile iskelet kartlar döner, her kart HTMX ile ayrı yüklenir."""
+    mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     with SessionLocal() as db:
+        if mode == "eager":
+            return templates.TemplateResponse(
+                request,
+                "partials/ga4_site_cards.html",
+                context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
+            )
+        external_site_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_site_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in sites]
+    return templates.TemplateResponse(
+        request,
+        "partials/ga4_site_cards.html",
+        context={"request": request, "lazy_mode": True, "lazy_site_ids": lazy_site_ids},
+    )
+
+
+@app.get("/ga4/site/{site_id}", response_class=HTMLResponse)
+def ga4_single_site_card(request: Request, site_id: int):
+    """HTMX lazy loading ile tek GA4 site kartını tam veriyle render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("", status_code=404)
+        try:
+            external_site_ids = _external_site_ids(db)
+            from sqlalchemy import func as sqlfunc
+            site_count = db.query(sqlfunc.count(Site.id)).filter(Site.id.notin_(external_site_ids)).scalar() or 1
+
+            latest = {m.metric_type: m.value for m in get_latest_metrics(db, site.id)}
+            ga4_status = get_ga4_connection_status(db, site.id)
+            profiles: dict[str, dict] = {}
+            for profile in ("web", "mweb", "android", "ios"):
+                prop_id = str((ga4_status.get("properties") or {}).get(profile, "") or "").strip()
+                if not prop_id:
+                    continue
+                profiles[profile] = {
+                    "property_id": prop_id,
+                    "periods": {
+                        "1": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=1, latest=latest, prop_id=prop_id),
+                        "7": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7, latest=latest, prop_id=prop_id),
+                        "30": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=30, latest=latest, prop_id=prop_id),
+                    },
+                }
+            site_data = {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "ga4": ga4_status,
+                "profiles": profiles,
+                "default_profile": next((k for k in ("web", "mweb", "android", "ios") if k in profiles), "web"),
+            }
+        except Exception as exc:
+            logging.exception("ga4_single_site_card site_id=%s hata", site_id)
+            import html as _html
+            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
+            return HTMLResponse(
+                f'<section id="ga4-card-{site_id}" class="rounded-3xl border border-red-300 dark:border-red-700 '
+                f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
+                f'<p class="font-semibold">GA4 kart yüklenemedi</p>'
+                f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu.</p>'
+                f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></section>',
+                status_code=200,
+            )
         return templates.TemplateResponse(
             request,
-            "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            "partials/ga4_single_site_card.html",
+            context={"request": request, "site": site_data, "site_count": site_count},
         )
 
 
@@ -6541,7 +6707,7 @@ def ga4_refresh_site(request: Request, site_id: int):
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
         )
 
 
@@ -6583,7 +6749,7 @@ def ga4_refresh_all(request: Request):
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
         )
 
 

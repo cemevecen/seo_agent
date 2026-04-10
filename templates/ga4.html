@@ -97,7 +97,7 @@
       aria-hidden="true"
     >
       <div class="flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
-        <span id="ga4-htmx-activity-label">Tablo ve grafik istekleri sürüyor</span>
+        <span id="ga4-htmx-activity-label">Kart ve tablo istekleri sürüyor</span>
         <span id="ga4-htmx-activity-count" class="font-semibold tabular-nums text-violet-800 dark:text-violet-300">0</span>
       </div>
       <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-slate-300/60 dark:ring-slate-600/80">
@@ -1226,6 +1226,13 @@
       ga4PageLoad.swapped();
       window.setTimeout(function () {
         initGa4Panels(swapTarget);
+      }, 50);
+    }
+    // Lazy loaded tek site kartları (outerHTML swap ile skeleton yerine geçer)
+    var swappedEl = event.target || swapTarget;
+    if (swappedEl && swappedEl.hasAttribute && swappedEl.hasAttribute('data-ga4-site-card')) {
+      window.setTimeout(function () {
+        initGa4Panels(swappedEl);
       }, 50);
     }
     // Pages / Session source tabloları HTMX ile yüklendi — sort butonlarını etkinleştir
