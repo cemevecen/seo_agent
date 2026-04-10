@@ -1979,6 +1979,24 @@ def _run_app_intel_scheduled() -> None:
         LOGGER.exception("Scheduled App Intel digest job failed.")
 
 
+_RANK_REFRESH_LOCK = threading.Lock()
+
+
+def _run_rank_refresh_job() -> None:
+    """Sadece kategori sırasını çekip kaydeder. 3 saatte bir çalışır."""
+    if not _RANK_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Rank refresh zaten çalışıyor, atlandı.")
+        return
+    try:
+        from backend.services.app_intel import refresh_category_ranks
+        results = refresh_category_ranks()
+        LOGGER.info("Periyodik rank refresh tamamlandı: %s", results)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Periyodik rank refresh başarısız.")
+    finally:
+        _RANK_REFRESH_LOCK.release()
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -2066,6 +2084,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             max_instances=1,
             coalesce=True,
             misfire_grace_time=3600,
+        )
+        job_count += 1
+
+        # Her 3 saatte bir sadece kategori sırasını güncelle
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            _run_rank_refresh_job,
+            trigger=IntervalTrigger(hours=3, timezone=timezone),
+            id="rank-refresh-3h",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1800,
         )
         job_count += 1
 
@@ -6378,6 +6409,18 @@ def app_intel_manual_refresh():
         return JSONResponse({"ok": True, "message": "Manuel yenileme tamamlandı; özet mail gönderildi."})
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Manual app intel refresh failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/app/intel/rank-refresh")
+def app_intel_rank_refresh():
+    """Sadece kategori sırasını günceller (hızlı, yorum verisi çekmez)."""
+    try:
+        from backend.services.app_intel import refresh_category_ranks
+        results = refresh_category_ranks()
+        return JSONResponse({"ok": True, "results": results})
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Manual rank refresh failed: %s", exc)
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 

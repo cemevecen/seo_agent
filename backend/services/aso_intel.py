@@ -487,11 +487,18 @@ def _mix_score(android_score: Any, ios_score: Any) -> float:
 
 def _safe_rank_fields(rank_obj: Any) -> dict[str, Any]:
     rank = rank_obj if isinstance(rank_obj, dict) else {}
-    return {
+    out: dict[str, Any] = {
         "rank": rank.get("rank"),
         "total": rank.get("total"),
         "chart": rank.get("chart"),
+        "chart_label": rank.get("chart_label"),
     }
+    if rank.get("all_charts"):
+        out["all_charts"] = {
+            k: {"rank": v.get("rank"), "total": v.get("total"), "chart_label": v.get("chart_label")}
+            for k, v in rank["all_charts"].items()
+        }
+    return out
 
 
 def _category_rank_summary(period_days: int, *, active_product_id: str, active_window: dict[str, Any]) -> dict[str, Any]:

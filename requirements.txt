@@ -19,3 +19,4 @@ google-auth>=2.47.0,<3.0.0
 google-auth-oauthlib==1.2.2
 google-analytics-data==0.18.19
 cryptography==45.0.5
+playwright==1.50.0

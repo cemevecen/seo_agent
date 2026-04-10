@@ -243,12 +243,29 @@ def _append_rank_snapshot(
     if not last:
         should_push = True
     else:
-        if int(last.get("rank") or -1) != rank_int:
+        last_rank = int(last.get("rank") or -1)
+        last_at = str(last.get("at") or "")
+        # Sıra değiştiyse her zaman kaydet
+        if last_rank != rank_int:
             should_push = True
+        # Kategori değiştiyse kaydet
         elif str(last.get("category") or "") != str(rec.get("category") or ""):
             should_push = True
-        elif str(last.get("at") or "")[:10] != at_iso[:10]:
-            should_push = True
+        else:
+            # Aynı sıra — son kayıttan en az 3 saat geçtiyse yeniden kaydet
+            try:
+                last_dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=_UTC)
+                now_dt = _parse_utc_iso(at_iso)
+                if now_dt.tzinfo is None:
+                    now_dt = now_dt.replace(tzinfo=_UTC)
+                if (now_dt - last_dt).total_seconds() >= 3 * 3600:
+                    should_push = True
+            except Exception:
+                # Tarih parse edilemezse gün bazında kontrol
+                if last_at[:10] != at_iso[:10]:
+                    should_push = True
     if not should_push:
         return
     try:
@@ -443,62 +460,167 @@ def _parse_ios_review_page(html: str) -> tuple[list[dict[str, Any]], dict[str, A
     return reviews_out, snap
 
 
-def _fetch_ios_main_page_histogram(app_id: str, ios_slug: str) -> dict[str, int] | None:
-    """Tüm App Store vitrinlerinden gerçek mağaza yıldız dağılımını toplayarak döner.
+def _fetch_ios_ssr_ratings(
+    app_id: str,
+    ios_slug: str,
+    *,
+    country: str = "tr",
+) -> dict[str, Any] | None:
+    """App Store uygulama sayfasının SSR JSON'undan ülkeye özgü puan ve dağılımı çeker.
 
-    App Store HTML'sinde `ratingCounts` alanı 5 elemanlı liste olarak gelir:
-    [5★ sayısı, 4★, 3★, 2★, 1★]  (büyükten küçüğe sıralı)
-
-    Her vitrin kendi bölgesindeki kullanıcıların puanlarını içerir;
-    tüm vitrinler toplanarak global gerçek dağılım elde edilir.
+    Sıralama için kullandığımız SSR scrape yöntemiyle aynı prensip:
+    HTML içindeki ``<script type="application/json">`` bloğunu parse eder.
+    Dönen yapı:
+      {
+        "score": 4.8,
+        "ratings_count": 1844,
+        "star_histogram": {"1": 31, "2": 10, "3": 46, "4": 137, "5": 1620},
+      }
+    Tüm değerler belirtilen ülkeye (country) özgüdür; global toplama yapılmaz.
     """
+    url = f"https://apps.apple.com/{country}/app/{ios_slug}/id{app_id}"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15"
+        )
+    }
+    try:
+        with httpx.Client(timeout=16.0, follow_redirects=True, headers=headers) as client:
+            r = client.get(url)
+            r.raise_for_status()
+        html = r.text
+    except Exception as exc:
+        logger.debug("iOS SSR ratings fetch hatası (%s, %s): %s", app_id, country, exc)
+        return None
+
+    # SSR JSON bloğunu parse et
+    m_json = re.search(
+        r'<script[^>]*type=["\']application/json["\'][^>]*>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    if not m_json:
+        logger.debug("iOS SSR ratings: JSON bloğu bulunamadı (%s)", app_id)
+        return _fetch_ios_main_page_histogram_single(app_id, ios_slug, country)
+
+    try:
+        page_data = json.loads(m_json.group(1))
+        ratings_item = (
+            page_data["data"][0]["data"]["shelfMapping"]["productRatings"]["items"][0]
+        )
+        score = float(ratings_item["ratingAverage"])
+        ratings_count = int(ratings_item["totalNumberOfRatings"])
+        counts_raw: list[int] = ratings_item["ratingCounts"]  # [5★, 4★, 3★, 2★, 1★]
+        if len(counts_raw) != 5 or sum(counts_raw) == 0:
+            raise ValueError("ratingCounts geçersiz")
+        star_histogram = {
+            "5": counts_raw[0],
+            "4": counts_raw[1],
+            "3": counts_raw[2],
+            "2": counts_raw[3],
+            "1": counts_raw[4],
+        }
+        logger.info(
+            "iOS SSR ratings (%s, %s): %.2f★ %d puan – 5★=%d 4★=%d 3★=%d 2★=%d 1★=%d",
+            app_id, country.upper(), score, ratings_count,
+            star_histogram["5"], star_histogram["4"], star_histogram["3"],
+            star_histogram["2"], star_histogram["1"],
+        )
+        return {"score": score, "ratings_count": ratings_count, "star_histogram": star_histogram}
+    except Exception as exc:
+        logger.debug("iOS SSR ratings JSON parse hatası (%s): %s", app_id, exc)
+        # Fallback: regex ile tek vitrin
+        return _fetch_ios_main_page_histogram_single(app_id, ios_slug, country)
+
+
+def _fetch_ios_main_page_histogram_single(
+    app_id: str,
+    ios_slug: str,
+    country: str = "tr",
+) -> dict[str, Any] | None:
+    """SSR JSON başarısız olursa regex fallback — sadece tek ülke."""
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"}
     _pat = re.compile(
         r'"ratingCounts"\s*:\s*\[\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*\]'
     )
-
-    def _one_loc(loc: str) -> dict[str, int] | None:
-        url = f"https://apps.apple.com/{loc}/app/{ios_slug}/id{app_id}"
-        try:
-            with httpx.Client(timeout=16.0, follow_redirects=True, headers=headers) as client:
-                r = client.get(url)
-                r.raise_for_status()
-            m = _pat.search(r.text)
-            if not m:
-                return None
-            counts = [int(m.group(i)) for i in range(1, 6)]
-            if sum(counts) == 0:
-                return None
-            return {"5": counts[0], "4": counts[1], "3": counts[2], "2": counts[3], "1": counts[4]}
-        except Exception as exc:
-            logger.debug("iOS histogram vitrin hatası (%s, %s): %s", app_id, loc, exc)
+    url = f"https://apps.apple.com/{country}/app/{ios_slug}/id{app_id}"
+    try:
+        with httpx.Client(timeout=16.0, follow_redirects=True, headers=headers) as client:
+            r = client.get(url)
+            r.raise_for_status()
+        m = _pat.search(r.text)
+        if not m:
             return None
-
-    global_map: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
-    hits = 0
-    # Tüm vitrinleri paralel çek (rate limit için max 8 eş zamanlı)
-    with ThreadPoolExecutor(max_workers=min(8, len(_IOS_STOREFRONTS))) as pool:
-        futures = {pool.submit(_one_loc, loc): loc for loc in _IOS_STOREFRONTS}
-        for fut in as_completed(futures):
-            result = fut.result()
-            if result:
-                for k in ("1", "2", "3", "4", "5"):
-                    global_map[k] += result[k]
-                hits += 1
-
-    total = sum(global_map.values())
-    if total == 0:
+        counts = [int(m.group(i)) for i in range(1, 6)]
+        total = sum(counts)
+        if total == 0:
+            return None
+        star_histogram = {"5": counts[0], "4": counts[1], "3": counts[2], "2": counts[3], "1": counts[4]}
+        logger.info("iOS regex histogram (%s, %s): toplam=%d", app_id, country, total)
+        return {"star_histogram": star_histogram}
+    except Exception as exc:
+        logger.debug("iOS regex histogram hatası (%s, %s): %s", app_id, country, exc)
         return None
-    logger.info(
-        "iOS global histogram (%s): 5★=%d 4★=%d 3★=%d 2★=%d 1★=%d toplam=%d (%d vitrin)",
-        app_id, global_map["5"], global_map["4"], global_map["3"], global_map["2"], global_map["1"], total, hits,
-    )
-    return global_map
+
+
+def _fetch_ios_main_page_histogram(app_id: str, ios_slug: str) -> dict[str, int] | None:
+    """Geriye dönük uyumluluk için bırakıldı. Artık `_fetch_ios_ssr_ratings` kullanılıyor."""
+    result = _fetch_ios_ssr_ratings(app_id, ios_slug, country="tr")
+    return result.get("star_histogram") if result else None
 
 
 def _ios_review_key(at: datetime, text: str, score: int) -> str:
     payload = f"{at.isoformat()}\0{text}\0{score}".encode("utf-8", errors="replace")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _fetch_ios_rss_reviews(
+    app_id: str,
+    *,
+    country: str = "tr",
+    max_pages: int = 5,
+) -> list[dict[str, Any]]:
+    """iTunes RSS feed'inden en son reviewları tarih sıralı çeker.
+
+    ``sortby=mostrecent`` ile sayfa sayfa giderek max_pages * 50 yorum döner.
+    Dönen her yorum: {"at": datetime, "score": int, "text": str}.
+    Zaman filtreli histogram hesaplamak için kullanılır.
+    """
+    headers = {"User-Agent": "iTunes/12.0 (Macintosh; OS X 10.15.7)"}
+    reviews: list[dict[str, Any]] = []
+
+    for page in range(1, max_pages + 1):
+        url = (
+            f"https://itunes.apple.com/rss/customerreviews"
+            f"/page={page}/id={app_id}/sortby=mostrecent/json"
+        )
+        try:
+            with httpx.Client(timeout=12.0, follow_redirects=True, headers=headers) as client:
+                r = client.get(url, params={"l": country, "cc": country})
+                r.raise_for_status()
+            entries = r.json().get("feed", {}).get("entry", [])
+        except Exception as exc:
+            logger.debug("iTunes RSS reviews hata (page=%d, %s): %s", page, app_id, exc)
+            break
+
+        if not entries:
+            break
+
+        for e in entries:
+            try:
+                score = int(e.get("im:rating", {}).get("label", 0) or 0)
+                if not (1 <= score <= 5):
+                    continue
+                date_str = (e.get("updated", {}).get("label") or "")[:10]
+                at = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=_UTC)
+                text = e.get("content", {}).get("label") or e.get("title", {}).get("label") or ""
+                reviews.append({"at": at, "score": score, "text": text.strip(), "source": "rss"})
+            except Exception:
+                continue
+
+    logger.info("iTunes RSS reviews (%s, %s): %d yorum çekildi", app_id, country.upper(), len(reviews))
+    return reviews
 
 
 def _fetch_ios_one_storefront(
@@ -670,55 +792,157 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
     return out
 
 
+_CHART_LABELS: dict[str, str] = {
+    "top-free": "Ücretsiz",
+    "top-paid": "Ücretli",
+    "top-grossing": "En Çok Kazanan",
+    # Legacy RSS chart names
+    "topfreeapplications": "Ücretsiz",
+    "topgrossingapplications": "En Çok Kazanan",
+    "toppaidapplications": "Ücretli",
+}
+
+_IOS_CHARTS_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+)
+
+
 def _fetch_ios_category_rank(
     app_id: str,
     *,
     country: str = "tr",
     genre_id: int | None = None,
 ) -> dict[str, Any] | None:
-    """Apple RSS chart feed'inden kesin sıra numarasını bul.
+    """App Store charts sayfasının SSR JSON'undan gerçek sıralamayı çek.
 
-    Strateji:
-    1. Genre filtreli chart'larda ara (kategori sırası).
-    2. Bulunamazsa genre filtresi olmadan genel chart'larda ara (genel sıra).
-    Her chart type'ı bağımsız dene; ilk kesin buluşu döndür.
+    Apple App Store charts sayfası (https://apps.apple.com/{country}/iphone/charts/{genre_id})
+    SSR HTML'inde iki veri kaynağı barındırır:
+      - shelves[].items  : sayfada ilk görünen (sparseLimit=25) uygulamalar
+      - nextPage.remainingContent : geri kalan uygulamalar (toplam limit=200)
+    İkisi birleşince tüm sıralama elde edilir; RSS'in 100 uygulama sınırı yoktur.
+
+    genre_id yoksa veya sayfadan sıra bulunamazsa RSS fallback çalışır.
     """
     if not app_id:
         return None
-    chart_types = ("topfreeapplications", "topgrossingapplications", "toppaidapplications")
+
+    app_id_str = str(app_id).strip()
+
+    # ------- 1) App Store charts sayfası scrape (birincil yöntem) -------
+    if genre_id:
+        try:
+            url = f"https://apps.apple.com/{country}/iphone/charts/{genre_id}"
+            with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                r = client.get(url, headers={"User-Agent": _IOS_CHARTS_UA})
+                r.raise_for_status()
+            html = r.text
+
+            # SSR JSON bloğunu bul
+            json_match = re.search(
+                r'<script[^>]*type="application/json"[^>]*>(.*?)</script>',
+                html, re.DOTALL
+            )
+            if json_match:
+                page_data = json.loads(json_match.group(1))
+                segments = (
+                    (page_data.get("data") or [{}])[0]
+                    .get("data", {})
+                    .get("segments", [])
+                )
+                all_charts: dict[str, dict[str, Any]] = {}
+
+                for segment in segments:
+                    chart_key = segment.get("chart", "")  # "top-free", "top-paid", ...
+                    # İlk görünen uygulamalar (shelves)
+                    shelf_items: list[str] = []
+                    for shelf in segment.get("shelves", []):
+                        for item in shelf.get("items", []):
+                            if isinstance(item, dict):
+                                shelf_items.append(str(item.get("id", "")))
+                    # Geri kalan uygulamalar
+                    remaining_items: list[str] = [
+                        str(item.get("id", ""))
+                        for item in segment.get("nextPage", {}).get("remainingContent", [])
+                        if isinstance(item, dict)
+                    ]
+                    all_app_ids = shelf_items + remaining_items
+
+                    if app_id_str in all_app_ids:
+                        rank = all_app_ids.index(app_id_str) + 1
+                        total = len(all_app_ids)
+                        all_charts[chart_key] = {
+                            "rank": rank,
+                            "total": total,
+                            "chart": chart_key,
+                            "chart_label": _CHART_LABELS.get(chart_key, chart_key),
+                            "scope": "category",
+                        }
+                        logger.info(
+                            "iOS charts scrape sırası (%s, %s, genre=%s): #%d/%d",
+                            app_id, chart_key, genre_id, rank, total,
+                        )
+
+                if all_charts:
+                    # Birincil: top-free; yoksa ilk bulunan
+                    primary_key = "top-free" if "top-free" in all_charts else next(iter(all_charts))
+                    primary = dict(all_charts[primary_key])
+                    if len(all_charts) > 1:
+                        primary["all_charts"] = all_charts
+                    return primary
+
+                logger.debug("iOS charts scrape: uygulama bulunamadı (%s, genre=%s)", app_id, genre_id)
+        except Exception as exc:
+            logger.warning("iOS charts scrape hatası (%s, genre=%s): %s", app_id, genre_id, exc)
+
+    # ------- 2) RSS fallback (top 100, genre filtreli) -------
+    rss_chart_types = ("topfreeapplications", "topgrossingapplications", "toppaidapplications")
 
     def _search_rss(chart: str, genre: int | None) -> tuple[int | None, int]:
         try:
             if genre:
-                url = f"https://itunes.apple.com/{country}/rss/{chart}/genre={genre}/limit=200/json"
+                rss_url = f"https://itunes.apple.com/{country}/rss/{chart}/genre={genre}/limit=200/json"
             else:
-                url = f"https://itunes.apple.com/{country}/rss/{chart}/limit=200/json"
+                rss_url = f"https://itunes.apple.com/{country}/rss/{chart}/limit=200/json"
             with httpx.Client(timeout=14.0, follow_redirects=True) as client:
-                r = client.get(url)
-                r.raise_for_status()
-            entries = ((r.json() or {}).get("feed") or {}).get("entry") or []
+                rss_r = client.get(rss_url)
+                rss_r.raise_for_status()
+            entries = ((rss_r.json() or {}).get("feed") or {}).get("entry") or []
             for idx, e in enumerate(entries, start=1):
                 eid = str((((e.get("id") or {}).get("attributes") or {}).get("im:id") or "")).strip()
-                if eid == str(app_id):
+                if eid == app_id_str:
                     return idx, len(entries)
             return None, len(entries)
         except Exception:
             return None, 0
 
-    # 1) Kategori chart'ları (genre filtreli)
+    rss_results: dict[str, dict[str, Any]] = {}
     if genre_id:
-        for chart in chart_types:
+        for chart in rss_chart_types:
             rank, total = _search_rss(chart, genre_id)
             if rank is not None:
-                logger.info("iOS kategori sırası (%s, %s, genre=%s): #%d/%d", app_id, chart, genre_id, rank, total)
-                return {"rank": rank, "total": total, "chart": chart, "scope": "category"}
+                logger.info("iOS RSS sırası (%s, %s, genre=%s): #%d/%d", app_id, chart, genre_id, rank, total)
+                rss_results[chart] = {
+                    "rank": rank, "total": total, "chart": chart,
+                    "chart_label": _CHART_LABELS.get(chart, chart), "scope": "category",
+                }
 
-    # 2) Genel chart'lar (tüm kategoriler — genre filtresi yok)
-    for chart in chart_types:
+    if rss_results:
+        primary_chart = "topfreeapplications" if "topfreeapplications" in rss_results else next(iter(rss_results))
+        primary = dict(rss_results[primary_chart])
+        if len(rss_results) > 1:
+            primary["all_charts"] = rss_results
+        return primary
+
+    # ------- 3) Genel RSS (genre filtresi yok) -------
+    for chart in rss_chart_types:
         rank, total = _search_rss(chart, None)
         if rank is not None:
-            logger.info("iOS genel sıra (%s, %s): #%d/%d", app_id, chart, rank, total)
-            return {"rank": rank, "total": total, "chart": chart, "scope": "overall"}
+            logger.info("iOS genel RSS sırası (%s, %s): #%d/%d", app_id, chart, rank, total)
+            return {
+                "rank": rank, "total": total, "chart": chart,
+                "chart_label": _CHART_LABELS.get(chart, chart), "scope": "overall",
+            }
 
     logger.debug("iOS sıra bulunamadı (%s, genre=%s)", app_id, genre_id)
     return None
@@ -731,8 +955,183 @@ def _fetch_android_category_rank(
     lang: str = "tr",
     category_id: str | None = None,
 ) -> dict[str, Any] | None:
+    """Play Store Finance kategorisindeki gerçek sıralamayı döner.
+
+    Önce batchexecute API yanıtını Playwright ile yakalar (en doğru).
+    Başarısız olursa statik HTTP fallback dener.
+    """
     if not package:
         return None
+
+    # ── 1) Playwright + batchexecute (birincil, en doğru) ────────────────────
+    result = _fetch_android_rank_playwright(package, country=country, lang=lang)
+    if result is not None:
+        return result
+
+    # ── 2) HTTP fallback: detay sayfasından metin tarama ─────────────────────
+    return _fetch_android_rank_http_fallback(package, country=country, lang=lang, category_id=category_id)
+
+
+def _extract_android_packages(text: str) -> list[str]:
+    """batchexecute yanıt metninden Android paket adlarını sıralı döner (tekrarsız)."""
+    # Format: [\"com.package.name\" veya ["com.package.name"
+    pkgs_raw = re.findall(r'\[\\"([a-zA-Z][a-zA-Z0-9._]{4,})\\"', text)
+    if not pkgs_raw:
+        pkgs_raw = re.findall(r'\["([a-zA-Z][a-zA-Z0-9._]{4,})"', text)
+    _pkg_re = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$')
+    seen: set[str] = set()
+    result: list[str] = []
+    for p in pkgs_raw:
+        if p not in seen and _pkg_re.match(p):
+            seen.add(p)
+            result.append(p)
+    return result
+
+
+def _fetch_android_rank_playwright(
+    package: str,
+    *,
+    country: str = "tr",
+    lang: str = "tr",
+) -> dict[str, Any] | None:
+    """Play Store top-free Finance chart'ını scroll ederek gerçek sıralamayı çeker.
+
+    Tam chart sayfasına gider, batchexecute yanıtlarını yakalar ve sayfayı aşağı
+    kaydırarak lazy-load ile ek sayfaları tetikler. ~200 uygulamayı tarayabilir.
+    """
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    except ImportError:
+        logger.debug("playwright kurulu değil; android rank fallback kullanılıyor")
+        return None
+
+    # Tam top-free chart sayfası (kategori landing değil, asıl liste sayfası)
+    chart_url = (
+        f"https://play.google.com/store/apps/category/FINANCE"
+        f"/collection/top_free?hl={lang}&gl={country}"
+    )
+
+    # Her batchexecute yanıtını sırayla sakla; scroll sonrası yenileri eklenir
+    captured_texts: list[str] = []
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                locale=f"{lang}-{country.upper()}",
+                user_agent=(
+                    "Mozilla/5.0 (Linux; Android 12; Pixel 6) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Mobile Safari/537.36"
+                ),
+            )
+            page = ctx.new_page()
+
+            def _on_response(response) -> None:  # noqa: ANN001
+                if "batchexecute" in response.url:
+                    try:
+                        captured_texts.append(response.text())
+                    except Exception:
+                        pass
+
+            page.on("response", _on_response)
+
+            try:
+                page.goto(chart_url, wait_until="domcontentloaded", timeout=35_000)
+                page.wait_for_timeout(4_000)
+            except PWTimeout:
+                pass
+
+            # Scroll ile lazy-load: her adımda ~50 uygulama daha yüklenebilir.
+            # 12 scroll × ~50 = ~600 uygulama üst sınırı (Finance'de genelde ~200)
+            seen_global: set[str] = set()
+            ordered_global: list[str] = []
+
+            for scroll_i in range(12):
+                # Mevcut yanıtları işle
+                for txt in captured_texts:
+                    for p in _extract_android_packages(txt):
+                        if p not in seen_global:
+                            seen_global.add(p)
+                            ordered_global.append(p)
+                captured_texts.clear()
+
+                logger.debug(
+                    "android rank scroll %d: %d paket tarandı",
+                    scroll_i,
+                    len(ordered_global),
+                )
+
+                # Hedef paket bulunduysa dur
+                if package in seen_global:
+                    break
+
+                # Yeterince tarandıysa dur (Finance listesi genellikle ~200)
+                if len(ordered_global) >= 250:
+                    break
+
+                # Sayfayı aşağı kaydır, yeni batchexecute tetikle
+                try:
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.wait_for_timeout(2_500)
+                except Exception:
+                    break
+
+            # Son kalan yanıtları işle
+            for txt in captured_texts:
+                for p in _extract_android_packages(txt):
+                    if p not in seen_global:
+                        seen_global.add(p)
+                        ordered_global.append(p)
+
+            browser.close()
+    except Exception as exc:
+        logger.warning("Playwright android rank hatası: %s", exc)
+        return None
+
+    if not ordered_global:
+        logger.debug("batchexecute yanıtından paket listesi çıkarılamadı")
+        return None
+
+    logger.info("batchexecute toplam: %d paket tarandı", len(ordered_global))
+
+    if package in ordered_global:
+        rank = ordered_global.index(package) + 1
+        logger.info("batchexecute: %s #%d sırada (Finance)", package, rank)
+        return {
+            "rank": rank,
+            "total": len(ordered_global),
+            "chart": "top_free",
+            "chart_label": "Ücretsiz",
+            "category_name": "Finance",
+            "estimated": False,
+        }
+
+    # Listede bulunamadı → alt sınır tahmini
+    logger.info(
+        "batchexecute: %s %d uygulama tarandı; listede bulunamadı (>%d tahmini)",
+        package,
+        len(ordered_global),
+        len(ordered_global),
+    )
+    return {
+        "rank": len(ordered_global) + 1,
+        "total": len(ordered_global),
+        "chart": "top_free",
+        "chart_label": "Ücretsiz",
+        "category_name": "Finance",
+        "estimated": True,
+    }
+
+
+def _fetch_android_rank_http_fallback(
+    package: str,
+    *,
+    country: str = "tr",
+    lang: str = "tr",
+    category_id: str | None = None,
+) -> dict[str, Any] | None:
+    """HTTP ile Play Store detay sayfası ve kategori chart tarama (fallback)."""
     url = "https://play.google.com/store/apps/details"
     params = {"id": package, "hl": lang, "gl": country}
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"}
@@ -749,7 +1148,6 @@ def _fetch_android_category_rank(
     if m_cat:
         category_name = m_cat.group(1).strip()
 
-    # 1) Play detay sayfası içindeki olası rank metni (best-effort)
     patterns = [
         r"#\s*([0-9]{1,4})\s*(?:in|içinde)?\s*(Finance|Finans|Business|İş)",
         r"Top charts[^#]{0,120}#\s*([0-9]{1,4})",
@@ -761,65 +1159,13 @@ def _fetch_android_category_rank(
             rank = int(m.group(1))
             if m.lastindex and m.lastindex >= 2 and m.group(2):
                 category_name = category_name or m.group(2)
-            return {"rank": rank, "total": None, "chart": "details_page", "category_name": category_name}
-
-    # 2) Fallback: kategori chart endpoint + sayfalı link tarama (ilk bulunan sayısal değer alınır)
-    cat = (category_id or category_name or "").strip().upper()
-    if cat:
-        endpoints = [
-            f"https://play.google.com/store/apps/top/category/{cat}",
-            f"https://play.google.com/store/apps/category/{cat}",
-        ]
-        starts = (0, 50, 100, 150)
-        headers2 = {"User-Agent": headers["User-Agent"], "Accept-Language": f"{lang}-{country},tr;q=0.9,en;q=0.8"}
-        best_lower_bound: dict[str, Any] | None = None
-        with httpx.Client(timeout=12.0, follow_redirects=True, headers=headers2) as client:
-            for base_url in endpoints:
-                total_seen = 0
-                for st in starts:
-                    try:
-                        r2 = client.get(base_url, params={"hl": lang, "gl": country, "start": st, "num": 50, "pli": 1})
-                        if r2.status_code == 429:
-                            break
-                        r2.raise_for_status()
-                        links = re.findall(r"/store/apps/details\?id=([A-Za-z0-9._]+)", r2.text)
-                        ordered: list[str] = []
-                        seen: set[str] = set()
-                        for x in links:
-                            if x in seen:
-                                continue
-                            seen.add(x)
-                            ordered.append(x)
-                        if not ordered:
-                            continue
-                        if package in ordered:
-                            local_idx = ordered.index(package) + 1
-                            rank = total_seen + local_idx
-                            return {
-                                "rank": rank,
-                                "total": total_seen + len(ordered),
-                                "chart": "category_chart_paged",
-                                "category_name": category_name or cat,
-                                "estimated": False,
-                            }
-                        total_seen += len(ordered)
-                        # Kademeli tarama için kısa bekleme (429 riskini azaltır)
-                        time.sleep(0.15)
-                    except Exception:
-                        continue
-                if total_seen > 0:
-                    # Taradığımız endpointte bulunamadıysa alt sınırı not al (store kaynaklı band bilgisi).
-                    candidate = {
-                        "rank": total_seen + 1,
-                        "total": total_seen,
-                        "chart": "category_chart_paged",
-                        "category_name": category_name or cat,
-                        "estimated": True,
-                    }
-                    if best_lower_bound is None or int(candidate["rank"]) < int(best_lower_bound["rank"]):
-                        best_lower_bound = candidate
-        if best_lower_bound:
-            return best_lower_bound
+            return {
+                "rank": rank,
+                "total": None,
+                "chart": "details_page",
+                "chart_label": "Ücretsiz",
+                "category_name": category_name,
+            }
 
     return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
 
@@ -1113,20 +1459,39 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             return hit[1]
 
     # Ağ çağrılarını paralelleştir: soğuk açılış TTFB'sini düşür.
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
         f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
         f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
-        f_ios_histogram = pool.submit(_fetch_ios_main_page_histogram, spec["ios_app_id"], spec["ios_slug"])
+        f_ios_ratings = pool.submit(
+            _fetch_ios_ssr_ratings, spec["ios_app_id"], spec["ios_slug"], country="tr"
+        )
+        # Zaman filtreli histogram için RSS'ten en son yorumlar (max 250 adet)
+        f_ios_rss = pool.submit(_fetch_ios_rss_reviews, spec["ios_app_id"], country="tr", max_pages=5)
         meta, g_rows, g_err = f_play.result()
         i_rows, i_snap, i_err, i_sf_ok, i_sf_n = f_ios_reviews.result()
         i_lookup = f_ios_lookup.result()
-        i_histogram = f_ios_histogram.result()
+        i_ssr_ratings = f_ios_ratings.result()  # {"score", "ratings_count", "star_histogram"}
+        i_rss_rows = f_ios_rss.result()  # en son TR yorumları, tarih sıralı
+
+    # RSS reviewlarını mevcut listeyie ekle (dedup: aynı tarih+puan+metin önlenir)
+    if i_rss_rows:
+        existing_keys = {_ios_review_key(rv["at"], rv["text"], rv["score"]) for rv in i_rows}
+        for rv in i_rss_rows:
+            k = _ios_review_key(rv["at"], rv["text"], rv["score"])
+            if k not in existing_keys:
+                existing_keys.add(k)
+                i_rows.append(rv)
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
-    # Gerçek mağaza yıldız dağılımını öncelikli kullan (ana sayfadan çekilen)
-    if i_histogram:
-        i_snap = {**(i_snap or {}), "star_histogram": i_histogram}
+    # SSR JSON ile çekilen ülkeye özgü gerçek dağılım — öncelikli kaynak
+    if i_ssr_ratings:
+        i_snap = {**(i_snap or {}), "star_histogram": i_ssr_ratings.get("star_histogram")}
+        # SSR'dan gelen score/count, iTunes lookup'tan gelmiyorsa kullan
+        if i_ssr_ratings.get("score") is not None and not (i_snap or {}).get("score"):
+            i_snap = {**(i_snap or {}), "score": i_ssr_ratings["score"]}
+        if i_ssr_ratings.get("ratings_count") is not None and not (i_snap or {}).get("ratings_count"):
+            i_snap = {**(i_snap or {}), "ratings_count": i_ssr_ratings["ratings_count"]}
     i_rank = _fetch_ios_category_rank(
         spec["ios_app_id"],
         country="tr",
@@ -1257,6 +1622,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_category_name": raw["android"]["meta"].get("genre")
                 or ((raw["android"]["meta"].get("category_rank") or {}).get("category_name")),
                 "store_rank_history_7d": _rank_history_series(product_id, "android", days=7),
+                "store_rank_history_30d": _rank_history_series(product_id, "android", days=30),
                 "store_rank_daily_30d": _rank_history_daily(product_id, "android", days=30),
                 "store_rank_changes_50": _rank_history_changes(product_id, "android", limit=50),
                 "satisfaction": _satisfaction_split(fa),
@@ -1277,6 +1643,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
                 "store_category_rank": (raw["ios"]["meta"] or {}).get("category_rank"),
                 "store_category_name": (raw["ios"]["meta"] or {}).get("primary_genre_name"),
                 "store_rank_history_7d": _rank_history_series(product_id, "ios", days=7),
+                "store_rank_history_30d": _rank_history_series(product_id, "ios", days=30),
                 "store_rank_daily_30d": _rank_history_daily(product_id, "ios", days=30),
                 "store_rank_changes_50": _rank_history_changes(product_id, "ios", limit=50),
                 "satisfaction": _satisfaction_split(fi),
@@ -1290,6 +1657,62 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
 
     intel["active_window"] = intel["windows"][str(period_days)]
     return intel
+
+
+def refresh_category_ranks() -> dict[str, Any]:
+    """Tüm ürünler için sadece kategori sırasını çekip DB'ye kaydeder.
+
+    Tam yorum yenileme yapmaz — sadece iOS ve Android chart sıralarını
+    günceller. 3 saatlik cron job tarafından çağrılır.
+    """
+    now_iso = datetime.now(tz=_UTC).isoformat()
+    results: dict[str, Any] = {}
+
+    for product_id, spec in APP_PRODUCTS.items():
+        try:
+            # iOS: genre_id'yi lookup'tan al (cache varsa oradan, yoksa API'den)
+            ios_genre_id: int | None = None
+            with _CACHE_LOCK:
+                for cache_val in _RAW_CACHE.values():
+                    if isinstance(cache_val, tuple) and len(cache_val) == 2:
+                        cached_payload = cache_val[1]
+                        if (cached_payload or {}).get("product_id") == product_id:
+                            ios_genre_id = (
+                                (cached_payload.get("ios") or {})
+                                .get("meta") or {}
+                            ).get("primary_genre_id")
+                            break
+
+            if ios_genre_id is None:
+                # Cache boşsa lookup'tan çek
+                lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
+                ios_genre_id = lookup.get("primary_genre_id")
+
+            i_rank = _fetch_ios_category_rank(
+                spec["ios_app_id"], country="tr", genre_id=ios_genre_id
+            )
+            if i_rank:
+                _append_rank_snapshot(
+                    product_id, "ios",
+                    {**i_rank, "category_name": i_rank.get("chart_label") or "Finans"},
+                    at_iso=now_iso,
+                )
+            results[product_id] = {"ios": i_rank}
+            logger.info("Rank refresh (%s) iOS: %s", product_id, i_rank)
+
+            # Android
+            a_rank = _fetch_android_category_rank(spec["android_package"], country="tr", lang="tr")
+            if a_rank:
+                _append_rank_snapshot(product_id, "android", a_rank, at_iso=now_iso)
+            results[product_id]["android"] = a_rank
+            logger.info("Rank refresh (%s) Android: %s", product_id, a_rank)
+
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Rank refresh hatası (%s): %s", product_id, exc)
+            results[product_id] = {"error": str(exc)}
+
+    _save_rank_history()
+    return results
 
 
 def intel_json_safe(obj: Any) -> Any:

@@ -116,6 +116,7 @@
           <p id="app-intel-play-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
           <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-play-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p id="app-intel-play-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
@@ -153,6 +154,7 @@
           <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-ios-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p id="app-intel-ios-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
           <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
@@ -1169,8 +1171,12 @@
       var si = s.ios || {};
       function fmtRank(r) {
         if (!r) return "—";
-        if (r.rank != null && r.total != null) return "#" + r.rank + "/" + r.total;
-        if (r.rank != null) return "#" + r.rank;
+        if (r.rank != null) {
+          var txt = "#" + r.rank;
+          if (r.total != null) txt += "/" + r.total;
+          if (r.chart_label) txt += " (" + r.chart_label + ")";
+          return txt;
+        }
         return "—";
       }
       rsEl.innerHTML =
@@ -1671,7 +1677,21 @@
       var rank = im.store_category_rank || {};
       var rankText = "";
       if (rank && rank.rank != null) {
-        rankText = "Kategori sırası: #" + rank.rank + (rank.scope === "overall" ? " (genel)" : "");
+        rankText = "Kategori sırası: #" + rank.rank;
+        // Birden fazla chart'ta bulunduysa hepsini göster
+        if (rank.all_charts) {
+          var parts = [];
+          var charts = rank.all_charts;
+          for (var cKey in charts) {
+            if (charts.hasOwnProperty(cKey)) {
+              var c = charts[cKey];
+              parts.push((c.chart_label || cKey) + " #" + c.rank);
+            }
+          }
+          if (parts.length > 1) {
+            rankText = "Kategori sırası: " + parts.join(" · ");
+          }
+        }
       } else {
         rankText = "Kategori sırası: —";
       }
@@ -1710,13 +1730,23 @@
       }
     }
 
-    // Mağaza geneli gerçek histogram her zaman öncelikli; dönem örneği yalnızca fallback.
-    var playStarDist = am.star_distribution_overall || am.star_distribution_period;
+    // Dönem seçiciye göre histogram kaynağı:
+    // • "tümü" (period=0) → mağaza geneli SSR verisi (tüm zaman)
+    // • Belirli dönem (7g/30g/…) → o döneme ait review tabanlı histogram
+    var _isAllTime = (state.period === 0 || state.period === "0");
+    var _playHasPeriod = !!(am.star_distribution_period && Object.values(am.star_distribution_period).some(function(v){return v>0;}));
+    var playStarDist = (_isAllTime || !_playHasPeriod)
+      ? (am.star_distribution_overall || am.star_distribution_period)
+      : am.star_distribution_period;
     var playStarTitle = document.getElementById("app-intel-play-stars-title");
     if (playStarTitle) {
-      playStarTitle.textContent = am.star_distribution_overall
-        ? "Yıldız dağılımı (mağaza geneli)"
-        : "Yıldız dağılımı (dönem)";
+      if (_isAllTime || !_playHasPeriod) {
+        playStarTitle.textContent = am.star_distribution_overall
+          ? "Yıldız dağılımı (mağaza geneli · tüm zaman)"
+          : "Yıldız dağılımı (dönem · yorumlardan)";
+      } else {
+        playStarTitle.textContent = "Yıldız dağılımı (son " + state.period + "g · yorumlardan)";
+      }
     }
     plotStars(
       document.getElementById("app-chart-play-stars"),
@@ -1724,12 +1754,22 @@
       am.star_reviews || {},
       document.getElementById("app-intel-play-star-drilldown")
     );
-    var playRankRows = am.store_rank_daily_30d || am.store_rank_changes_50 || am.store_rank_history_7d || [];
+    (function() {
+      var noteEl = document.getElementById("app-intel-play-star-source-note");
+      if (!noteEl) return;
+      var showNote = !_isAllTime && _playHasPeriod;
+      var total = showNote ? Object.values(am.star_distribution_period || {}).reduce(function(a,b){return a+b;},0) : 0;
+      noteEl.textContent = showNote
+        ? "* Yalnızca metin içeren yazılı yorumlardan hesaplanmıştır (" + total + " yorum). Metinsiz yıldız oyları bu dağılıma dahil değildir."
+        : "";
+      noteEl.classList.toggle("hidden", !showNote);
+    })();
+    var playRankRows = am.store_rank_history_30d || am.store_rank_daily_30d || am.store_rank_changes_50 || am.store_rank_history_7d || [];
     var playRankWrap = document.getElementById("app-intel-play-rank-wrap");
     if (playRankWrap) {
-      playRankWrap.classList.toggle("hidden", (playRankRows || []).length < 5);
+      playRankWrap.classList.toggle("hidden", (playRankRows || []).length < 2);
     }
-    if ((playRankRows || []).length >= 5) {
+    if ((playRankRows || []).length >= 2) {
       plotRankTrend(
         document.getElementById("app-chart-play-rank"),
         playRankRows,
@@ -1745,13 +1785,22 @@
     renderSat(document.getElementById("app-intel-play-sat"), satFromDist(am.star_distribution_overall) || am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
-    // Mağaza geneli gerçek histogram her zaman öncelikli; dönem örneği yalnızca fallback.
-    var iosStarDist = im.star_distribution_overall || im.star_distribution_period;
+    // Dönem seçiciye göre histogram kaynağı (iOS):
+    // • "tümü" (period=0) → App Store SSR scrape ile çekilen TR'ye özgü gerçek dağılım
+    // • Belirli dönem (7g/30g/…) → o döneme ait review tabanlı histogram
+    var _iosHasPeriod = !!(im.star_distribution_period && Object.values(im.star_distribution_period).some(function(v){return v>0;}));
+    var iosStarDist = (_isAllTime || !_iosHasPeriod)
+      ? (im.star_distribution_overall || im.star_distribution_period)
+      : im.star_distribution_period;
     var iosStarTitle = document.getElementById("app-intel-ios-stars-title");
     if (iosStarTitle) {
-      iosStarTitle.textContent = im.star_distribution_overall
-        ? "Yıldız dağılımı (mağaza geneli)"
-        : "Yıldız dağılımı (dönem)";
+      if (_isAllTime || !_iosHasPeriod) {
+        iosStarTitle.textContent = im.star_distribution_overall
+          ? "Yıldız dağılımı (App Store TR · tüm zaman)"
+          : "Yıldız dağılımı (dönem · yorumlardan)";
+      } else {
+        iosStarTitle.textContent = "Yıldız dağılımı (son " + state.period + "g · yorumlardan)";
+      }
     }
     plotStars(
       document.getElementById("app-chart-ios-stars"),
@@ -1759,12 +1808,23 @@
       im.star_reviews || {},
       document.getElementById("app-intel-ios-star-drilldown")
     );
-    var iosRankRows = im.store_rank_daily_30d || im.store_rank_changes_50 || im.store_rank_history_7d || [];
+    (function() {
+      var noteEl = document.getElementById("app-intel-ios-star-source-note");
+      if (!noteEl) return;
+      var showNote = !_isAllTime && _iosHasPeriod;
+      var total = showNote ? Object.values(im.star_distribution_period || {}).reduce(function(a,b){return a+b;},0) : 0;
+      noteEl.textContent = showNote
+        ? "* Yalnızca metin içeren yazılı yorumlardan hesaplanmıştır (" + total + " yorum). Metinsiz yıldız oyları bu dağılıma dahil değildir."
+        : "";
+      noteEl.classList.toggle("hidden", !showNote);
+    })();
+    // Tüm zaman bazlı noktaları (3 saatlik) öncelikli kullan, yoksa günlük özet
+    var iosRankRows = im.store_rank_history_30d || im.store_rank_daily_30d || im.store_rank_changes_50 || im.store_rank_history_7d || [];
     var iosRankWrap = document.getElementById("app-intel-ios-rank-wrap");
     if (iosRankWrap) {
-      iosRankWrap.classList.toggle("hidden", (iosRankRows || []).length < 5);
+      iosRankWrap.classList.toggle("hidden", (iosRankRows || []).length < 2);
     }
-    if ((iosRankRows || []).length >= 5) {
+    if ((iosRankRows || []).length >= 2) {
       plotRankTrend(
         document.getElementById("app-chart-ios-rank"),
         iosRankRows,
