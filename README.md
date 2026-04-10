@@ -164,6 +164,8 @@ source .venv/bin/activate
 python run_server.py
 ```
 
+Geliştirme sırasında otomatik yeniden yükleme için: `python run_server.py --reload` (watchfiles CPU kullanır; yavaşlık yaşıyorsan `--reload` kullanma).
+
 Varsayılan adres: `http://127.0.0.1:8012`
 
 ### Docker ile çalıştırma
