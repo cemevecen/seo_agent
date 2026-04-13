@@ -6980,6 +6980,100 @@ def search_console_health():
     return {"status": "ok"}
 
 
+_CWV_VARIANT_ORDER = ("full", "mobile", "desktop", "extra")
+
+
+def _validate_cwv_screenshot_bytes(content: bytes, filename: str) -> str | None:
+    """Geçerliyse None; aksi halde kullanıcıya gösterilecek kısa hata metni."""
+    name = (filename or "").lower()
+    if not (name.endswith(".png") or name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".webp")):
+        return "Sadece png/jpg/webp kabul edilir."
+    if not content:
+        return "Boş dosya."
+    if len(content) > 10 * 1024 * 1024:
+        return "Dosya çok büyük (max 10MB)."
+    if not (
+        content.startswith(b"\x89PNG\r\n\x1a\n")
+        or content.startswith(b"\xff\xd8\xff")
+        or content.startswith(b"RIFF")  # webp container
+    ):
+        return "Dosya tipi doğrulanamadı."
+    return None
+
+
+def _cwv_variant_from_filename(name: str) -> str | None:
+    n = (name or "").lower()
+    if "mobile" in n:
+        return "mobile"
+    if "desktop" in n:
+        return "desktop"
+    if "extra" in n:
+        return "extra"
+    if "full" in n:
+        return "full"
+    return None
+
+
+def _pair_cwv_uploads_to_variants(files: list[UploadFile]) -> list[tuple[str, UploadFile]]:
+    """Çoklu yüklemede dosyaları varyantlara eşle (dosya adı ipucu + sırayla boş slotlar)."""
+    if not files:
+        raise ValueError("Dosya seçilmedi.")
+    if len(files) > 4:
+        raise ValueError("En fazla 4 dosya yükleyebilirsin (mobile, desktop, full, extra).")
+    explicit: dict[str, UploadFile] = {}
+    implicit: list[UploadFile] = []
+    for f in files:
+        v = _cwv_variant_from_filename(f.filename or "")
+        if v:
+            if v in explicit:
+                raise ValueError(f"İki dosya aynı varyantı işaret ediyor: {v}. Dosya adlarını ayırın.")
+            explicit[v] = f
+        else:
+            implicit.append(f)
+    taken = set(explicit.keys())
+    for f in implicit:
+        placed = False
+        for slot in _CWV_VARIANT_ORDER:
+            if slot not in taken:
+                explicit[slot] = f
+                taken.add(slot)
+                placed = True
+                break
+        if not placed:
+            raise ValueError("Çok fazla isimsiz dosya; dosya adına mobile, desktop, full veya extra geçin.")
+    return [(v, explicit[v]) for v in _CWV_VARIANT_ORDER if v in explicit]
+
+
+@app.post("/search-console/cwv-screenshot/upload-batch/{site_id}", response_class=HTMLResponse)
+async def search_console_upload_cwv_screenshot_batch(
+    request: Request,
+    site_id: int,
+    files: list[UploadFile] = File(...),
+):
+    """Birden fazla CWV ekran görüntüsü (aynı istekte mobile/desktop/full/extra)."""
+    try:
+        pairs = _pair_cwv_uploads_to_variants(files)
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=400)
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        domain_slug = _gsc_domain_slug(site.domain)
+
+    GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    for variant, upload in pairs:
+        content = await upload.read()
+        err = _validate_cwv_screenshot_bytes(content, upload.filename or "")
+        if err:
+            return HTMLResponse(f"{upload.filename or 'dosya'}: {err}", status_code=400)
+        out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
+        out_path.write_bytes(content)
+
+    return search_console_single_site_card(request, site_id)
+
+
 @app.post("/search-console/cwv-screenshot/upload/{site_id}", response_class=HTMLResponse)
 async def search_console_upload_cwv_screenshot(
     request: Request,
@@ -6998,23 +7092,10 @@ async def search_console_upload_cwv_screenshot(
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
 
-    name = (file.filename or "").lower()
-    if not (name.endswith(".png") or name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".webp")):
-        return HTMLResponse("Sadece png/jpg/webp kabul edilir.", status_code=400)
-
     content = await file.read()
-    if not content:
-        return HTMLResponse("Boş dosya.", status_code=400)
-    if len(content) > 10 * 1024 * 1024:
-        return HTMLResponse("Dosya çok büyük (max 10MB).", status_code=413)
-
-    # PNG/JPG magic check (basit)
-    if not (
-        content.startswith(b"\x89PNG\r\n\x1a\n")
-        or content.startswith(b"\xff\xd8\xff")
-        or content.startswith(b"RIFF")  # webp container
-    ):
-        return HTMLResponse("Dosya tipi doğrulanamadı.", status_code=400)
+    err = _validate_cwv_screenshot_bytes(content, file.filename or "")
+    if err:
+        return HTMLResponse(err, status_code=400)
 
     GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"

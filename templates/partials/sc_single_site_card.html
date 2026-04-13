@@ -243,25 +243,30 @@
       </div>
     </div>
 
-    {# Tek yükleme: dosya seçince otomatik upload + mini progress bar #}
+    {# Çoklu yükleme: name=files; dosya adında mobile/desktop/full/extra ipucu, yoksa sırayla full→mobile→desktop→extra #}
     <form
       class="mt-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4"
       method="post"
       enctype="multipart/form-data"
-      hx-post="/search-console/cwv-screenshot/upload/{{ site.id }}?variant=full"
+      data-gsc-upload-form="1"
+      hx-post="/search-console/cwv-screenshot/upload-batch/{{ site.id }}"
       hx-encoding="multipart/form-data"
       hx-target="#sc-card-{{ site.id }}"
       hx-swap="outerHTML"
-      hx-trigger="change from:input[name=file]"
+      hx-trigger="change from:input[name=files]"
     >
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Manuel görsel yükle</p>
-          
+          <p class="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+            Birden fazla seç (en fazla 4). Dosya adında <span class="font-mono text-slate-600 dark:text-slate-300">mobile</span>,
+            <span class="font-mono">desktop</span>, <span class="font-mono">full</span> veya <span class="font-mono">extra</span> geçsin; ipucu yoksa sırayla full, mobil, masaüstü, extra slotlarına yazılır.
+          </p>
         </div>
         <input
-          name="file"
+          name="files"
           type="file"
+          multiple
           accept="image/png,image/jpeg,image/webp"
           class="w-full sm:w-auto text-xs"
           required
@@ -284,8 +289,15 @@
           var bar = root.querySelector('[data-gsc-upload-bar]');
           if (!wrap || !bar) return;
           var uploading = false;
+          function isGscUploadRequest(target) {
+            if (!target) return false;
+            var el = target.nodeType === 1 ? target : null;
+            if (!el || !el.closest) return false;
+            var form = el.closest('[data-gsc-upload-form]');
+            return !!(form && form.getAttribute('hx-post') && form.getAttribute('hx-post').indexOf('/search-console/cwv-screenshot/upload-batch/') === 0);
+          }
           root.addEventListener('htmx:beforeRequest', function (e) {
-            if (!e.target || e.target.getAttribute('hx-post') !== '/search-console/cwv-screenshot/upload/{{ site.id }}?variant=full') return;
+            if (!isGscUploadRequest(e.target)) return;
             uploading = true;
             wrap.classList.remove('hidden');
             bar.style.width = '2%';
@@ -298,7 +310,7 @@
             bar.style.width = pct + '%';
           });
           root.addEventListener('htmx:afterRequest', function (e) {
-            if (!e.target || e.target.getAttribute('hx-post') !== '/search-console/cwv-screenshot/upload/{{ site.id }}?variant=full') return;
+            if (!isGscUploadRequest(e.target)) return;
             uploading = false;
             bar.style.width = '100%';
             window.setTimeout(function () {
