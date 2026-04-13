@@ -754,15 +754,74 @@ text-slate-500 dark:text-slate-400
           }),
         };
       }
-      // Tüm metriklerden ortak tarih setini oluştur (en uzun serinin tarihleri esas alınır).
-      // Eksik haftalar null y-değeriyle doldurulur; bu sayede Plotly boşlukları doğru
-      // şekilde atlar (connectgaps:false) veya interpolasyon yapar (connectgaps:true).
+      /** yyyy-mm-dd anahtarı (CrUX tarihleri farklı biçimde gelirse eşleşsin). */
+      function normalizeDateKey(x) {
+        if (x === null || x === undefined || x === '') {
+          return '';
+        }
+        const s = String(x).trim();
+        if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) {
+          return s.slice(0, 10);
+        }
+        const t = Date.parse(s);
+        if (Number.isNaN(t)) {
+          return '';
+        }
+        const d = new Date(t);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+      }
+      function parseDateOnlyUTC(iso) {
+        const s = String(iso).slice(0, 10);
+        const parts = s.split('-');
+        if (parts.length !== 3) {
+          return NaN;
+        }
+        return Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+      function formatUTCDate(ts) {
+        const d = new Date(ts);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+      }
+      /** Sadece veri olan günler birleşince Şub→Nisan düz çizgi oluyordu; min–max arası haftalık eksen + null ile kır. */
+      function buildWeeklyDenseAxis(sortedIsoDates) {
+        if (!sortedIsoDates.length) {
+          return [];
+        }
+        const W = 7 * 86400000;
+        const tMin = parseDateOnlyUTC(sortedIsoDates[0]);
+        const tMax = parseDateOnlyUTC(sortedIsoDates[sortedIsoDates.length - 1]);
+        if (Number.isNaN(tMin) || Number.isNaN(tMax)) {
+          return sortedIsoDates;
+        }
+        const acc = new Set(sortedIsoDates);
+        for (let t = tMin; t <= tMax; t += W) {
+          acc.add(formatUTCDate(t));
+        }
+        return Array.from(acc).sort(function (a, b) {
+          return parseDateOnlyUTC(a) - parseDateOnlyUTC(b);
+        });
+      }
+      // Tüm metriklerden ortak tarih seti + haftalık ara günler (CrUX ~haftalık koleksiyon).
       const allDatesSet = new Set();
       METRIC_ORDER.forEach(function (key) {
         const chart = (raw[key] || {}).chart || {};
-        (chart.x || []).forEach(function (d) { if (d) allDatesSet.add(d); });
+        (chart.x || []).forEach(function (d) {
+          const k = normalizeDateKey(d);
+          if (k) {
+            allDatesSet.add(k);
+          }
+        });
       });
-      const allDates = Array.from(allDatesSet).sort();
+      const allDatesSparse = Array.from(allDatesSet).sort(function (a, b) {
+        return parseDateOnlyUTC(a) - parseDateOnlyUTC(b);
+      });
+      const allDates = buildWeeklyDenseAxis(allDatesSparse);
 
       const traces = [];
       METRIC_ORDER.forEach(function (key) {
@@ -775,9 +834,13 @@ text-slate-500 dark:text-slate-400
         if (!pts.x.length) {
           return;
         }
-        // Metrik verilerini ortak tarih eksenine hizala — eksik haftalar null.
         const valByDate = {};
-        pts.x.forEach(function (d, i) { valByDate[d] = pts.y[i]; });
+        pts.x.forEach(function (d, i) {
+          const k = normalizeDateKey(d);
+          if (k) {
+            valByDate[k] = pts.y[i];
+          }
+        });
         const alignedX = allDates;
         const alignedY = allDates.map(function (d) {
           return Object.prototype.hasOwnProperty.call(valByDate, d) ? valByDate[d] : null;
