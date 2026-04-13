@@ -7001,16 +7001,20 @@ def _validate_cwv_screenshot_bytes(content: bytes, filename: str) -> str | None:
     return None
 
 
+_CWV_FILENAME_HINTS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("mobile", re.compile(r"(?:^|[^a-z0-9])mobile(?:[^a-z0-9]|$)", re.I)),
+    ("desktop", re.compile(r"(?:^|[^a-z0-9])desktop(?:[^a-z0-9]|$)", re.I)),
+    ("extra", re.compile(r"(?:^|[^a-z0-9])extra(?:[^a-z0-9]|$)", re.I)),
+    ("full", re.compile(r"(?:^|[^a-z0-9])full(?:[^a-z0-9]|$)", re.I)),
+)
+
+
 def _cwv_variant_from_filename(name: str) -> str | None:
-    n = (name or "").lower()
-    if "mobile" in n:
-        return "mobile"
-    if "desktop" in n:
-        return "desktop"
-    if "extra" in n:
-        return "extra"
-    if "full" in n:
-        return "full"
+    """Dosya adından varyant tahmini (extranet → extra yanlış eşleşmesin diye kelime sınırı)."""
+    n = name or ""
+    for variant, rx in _CWV_FILENAME_HINTS:
+        if rx.search(n):
+            return variant
     return None
 
 

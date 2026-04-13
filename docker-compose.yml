@@ -44,6 +44,8 @@ services:
       - .env
     volumes:
       - ./keys:/app/keys:ro
+      # GSC CWV manuel screenshot'ları host diskinde kalır (konteyner/OS yeniden başlasa da)
+      - ./static/gsc:/app/static/gsc
     depends_on:
       postgres:
         condition: service_healthy
