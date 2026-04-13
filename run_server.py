@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -40,7 +41,32 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Geliştirme: dosya değişince sunucuyu yeniden başlat (watchfiles CPU kullanır). Varsayılan: kapalı.",
     )
+    parser.add_argument(
+        "--skip-port-check",
+        action="store_true",
+        help="Loopback port doluluk kontrolünü atla (özel durumlar; genelde gerekmez).",
+    )
     return parser.parse_args()
+
+
+def _loopback_port_in_use(port: int) -> bool:
+    """True if something already accepts TCP on this port on loopback (IPv4 and/or IPv6).
+
+    İki süreç (ör. Docker yayını + yerel uvicorn) aynı host portuna bind edince tarayıcı
+    yanlış olana düşebiliyor; GA4 gibi .env farkları görünür hale geliyor.
+    """
+    targets: list[tuple[str, int]] = [("127.0.0.1", socket.AF_INET)]
+    if getattr(socket, "has_ipv6", False):
+        targets.append(("::1", socket.AF_INET6))
+    for host, family in targets:
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.25)
+                if sock.connect_ex((host, port)) == 0:
+                    return True
+        except OSError:
+            continue
+    return False
 
 
 def _apply_isolate_env(port: int) -> None:
@@ -55,6 +81,24 @@ if __name__ == "__main__":
     args = _parse_args()
     if args.isolate:
         _apply_isolate_env(args.port)
+
+    if not args.skip_port_check and _loopback_port_in_use(args.port):
+        print(
+            f"Port {args.port} loopback üzerinde zaten kullanılıyor (çoğunlukla `docker compose` "
+            f"ile yayınlanan uygulama).\n"
+            f"Aynı anda `python run_server.py` çalıştırmak tarayıcıyı yanlış sürece yönlendirebilir "
+            f"(ör. GA4 service account uyarısı).\n\n"
+            f"Seçenekler:\n"
+            f"  • Yerel Python kullanacaksan: önce `docker compose stop app` (veya tüm stack: "
+            f"`docker compose down`).\n"
+            f"  • Docker kullanmaya devam edeceksen: bu komutu çalıştırma; tarayıcıdan "
+            f"http://127.0.0.1:{args.port} adresine git.\n"
+            f"  • İkisini birden istiyorsan: `python run_server.py -p 8013` (OAuth redirect URI’lerini "
+            f"o porta göre güncelle).\n"
+            f"  • Kontrolü atlamak (önerilmez): `--skip-port-check`\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     project_root = Path(__file__).parent
     sys.path.insert(0, str(project_root))
