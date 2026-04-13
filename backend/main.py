@@ -3447,7 +3447,9 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
     payload = (snapshot or {}).get("payload") or {}
     hist = payload.get("history") if isinstance(payload.get("history"), dict) else {}
     raw_record = hist.get("record")
-    if isinstance(raw_record, dict) and raw_record.get("metrics"):
+    if isinstance(raw_record, dict) and (
+        raw_record.get("collectionPeriods") or raw_record.get("metrics") is not None
+    ):
         from backend.collectors.crux_history import _extract_crux_points
 
         series = _extract_crux_points(raw_record) or series
@@ -3524,6 +3526,10 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
 
     for metric_key, info in _CWV_METRIC_INFO.items():
         mp = metrics_data.get(metric_key) or {}
+        if metric_key == "interaction_to_next_paint":
+            alt_mp = metrics_data.get("experimental_interaction_to_next_paint") or {}
+            if (not mp or len(mp.get("histogramTimeseries") or []) < 3) and isinstance(alt_mp, dict):
+                mp = alt_mp or mp
         hist = mp.get("histogramTimeseries") or []
         if len(hist) < 3:
             continue
@@ -5085,9 +5091,20 @@ def data_explorer(request: Request, domain: str):
     except ValueError:
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
+    de_headers = {"Cache-Control": "no-store, max-age=0"}
     if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "partials/data_explorer_content.html", context={"request": request, **payload})
-    return templates.TemplateResponse(request, "data_explorer.html", context={"request": request, **payload})
+        return templates.TemplateResponse(
+            request,
+            "partials/data_explorer_content.html",
+            context={"request": request, **payload},
+            headers=de_headers,
+        )
+    return templates.TemplateResponse(
+        request,
+        "data_explorer.html",
+        context={"request": request, **payload},
+        headers=de_headers,
+    )
 
 
 @app.get("/external")

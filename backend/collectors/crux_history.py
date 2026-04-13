@@ -146,6 +146,20 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
     series: dict[str, list[dict]] = {}
     for metric_key, short_label in METRIC_LABELS.items():
         metric_payload = metrics.get(metric_key) or {}
+        if metric_key == "interaction_to_next_paint":
+            alt = metrics.get("experimental_interaction_to_next_paint") or {}
+            pp = metric_payload.get("percentilesTimeseries") or {}
+            alt_pp = (alt.get("percentilesTimeseries") or {}) if isinstance(alt, dict) else {}
+            p75s_here = pp.get("p75s") or pp.get("p75") or []
+            p75s_alt = alt_pp.get("p75s") or alt_pp.get("p75") or []
+            if not isinstance(p75s_here, list):
+                p75s_here = []
+            if not isinstance(p75s_alt, list):
+                p75s_alt = []
+            if not p75s_here and isinstance(alt, dict) and p75s_alt:
+                metric_payload = alt
+            elif p75s_alt and len(p75s_alt) > len(p75s_here):
+                metric_payload = alt
         percentile_payload = metric_payload.get("percentilesTimeseries") or {}
         values = percentile_payload.get("p75s") or percentile_payload.get("p75") or []
         if not isinstance(values, list):
@@ -161,11 +175,13 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
 
         # CrUX bazı koleksiyon dönemleri için p75 döndürmez (örneklem yetersiz) → null.
         # Bu indeksleri atlamak tarih eksenini sıkıştırır (Şub→Nisan düz çizgi). Etiketi koru, value=None.
+        # p75s dizisi collectionPeriods'tan kısa olabiliyor; eksik indeks = null (API sözleşmesiyle uyumlu).
         points: list[dict] = []
-        for idx, raw_value in enumerate(values):
-            label = labels[idx] if idx < len(labels) else ""
+        for idx in range(len(labels)):
+            label = labels[idx]
             if not label:
                 continue
+            raw_value = values[idx] if idx < len(values) else None
             value = _safe_number(raw_value)
             points.append({"label": label, "value": value})
         latest_val = None
@@ -187,6 +203,11 @@ def _extract_crux_current(record: dict) -> dict[str, dict]:
     current: dict[str, dict] = {}
     for metric_key, short_label in METRIC_LABELS.items():
         metric_payload = metrics.get(metric_key) or {}
+        if metric_key == "interaction_to_next_paint":
+            alt = metrics.get("experimental_interaction_to_next_paint") or {}
+            p75_here = (metric_payload.get("percentiles") or {}).get("p75")
+            if p75_here is None and isinstance(alt, dict) and (alt.get("percentiles") or {}).get("p75") is not None:
+                metric_payload = alt
         percentiles = metric_payload.get("percentiles") or {}
         histogram = metric_payload.get("histogram") or []
         good_share = None

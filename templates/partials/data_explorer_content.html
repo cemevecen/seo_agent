@@ -921,6 +921,20 @@ text-slate-500 dark:text-slate-400
 
     renderCruxChart('crux-mobile-chart');
     renderCruxChart('crux-desktop-chart');
+    // bfcache (geri tuşu): Plotly bazen eski canvas’ta kalır; veriyi yeniden çiz.
+    window.addEventListener('pageshow', function (ev) {
+      if (!ev.persisted) {
+        return;
+      }
+      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+          delete el.dataset.chartReady;
+        }
+      });
+      renderCruxChart('crux-mobile-chart');
+      renderCruxChart('crux-desktop-chart');
+    });
     applyCruxGridLayout();
     applyPagespeedMetricGridLayout();
     applyResponsiveFits();
