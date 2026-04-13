@@ -9,6 +9,9 @@
 --isolate: Bu porta özel sqlite (backend/seo_agent_<port>.db), OAuth callback ve live refresh URL'lerini ayarlar.
 Google Cloud OAuth istemcisinde her port için redirect URI eklemen gerekir:
   http://127.0.0.1:<port>/api/search-console/oauth/callback
+
+8012 (veya seçilen port) loopback’te zaten dinleniyorsa (ör. docker compose) başlamaz;
+yanlış sürece düşmeyi önlemek için. Gerekirse: --skip-port-check
 """
 from __future__ import annotations
 
