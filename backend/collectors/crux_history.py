@@ -159,21 +159,24 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
                 density_value = _safe_number(densities[-1])
                 good_share = density_value * 100.0 if density_value is not None else None
 
+        # CrUX bazı koleksiyon dönemleri için p75 döndürmez (örneklem yetersiz) → null.
+        # Bu indeksleri atlamak tarih eksenini sıkıştırır (Şub→Nisan düz çizgi). Etiketi koru, value=None.
         points: list[dict] = []
         for idx, raw_value in enumerate(values):
-            value = _safe_number(raw_value)
-            if value is None:
+            label = labels[idx] if idx < len(labels) else ""
+            if not label:
                 continue
-            points.append(
-                {
-                    "label": labels[idx] if idx < len(labels) else str(idx + 1),
-                    "value": value,
-                }
-            )
+            value = _safe_number(raw_value)
+            points.append({"label": label, "value": value})
+        latest_val = None
+        for p in reversed(points):
+            if p.get("value") is not None:
+                latest_val = p["value"]
+                break
         series[metric_key] = {
             "label": short_label,
             "points": points,
-            "latest": points[-1]["value"] if points else None,
+            "latest": latest_val,
             "good_share": good_share,
         }
     return series

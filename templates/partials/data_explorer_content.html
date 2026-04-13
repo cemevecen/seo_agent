@@ -719,8 +719,15 @@ text-slate-500 dark:text-slate-400
             continue;
           }
           const yv = ys[i];
+          if (yv === null || yv === undefined || yv === '') {
+            ox.push(xv);
+            oy.push(null);
+            continue;
+          }
           const num = Number(yv);
           if (!Number.isFinite(num)) {
+            ox.push(xv);
+            oy.push(null);
             continue;
           }
           ox.push(xv);

@@ -3442,6 +3442,15 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
 def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict] | None = None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
+    # Eski snapshot'larda summary.series, null p75 haftalarını atlayarak üretilmiş olabilir.
+    # Ham API record'undan yeniden çıkarınca eksen düzelir (yeniden çekmeye gerek kalmayabilir).
+    payload = (snapshot or {}).get("payload") or {}
+    hist = payload.get("history") if isinstance(payload.get("history"), dict) else {}
+    raw_record = hist.get("record")
+    if isinstance(raw_record, dict) and raw_record.get("metrics"):
+        from backend.collectors.crux_history import _extract_crux_points
+
+        series = _extract_crux_points(raw_record) or series
     current = summary.get("current") or {}
     current_override = current_override or {}
     formatted: dict[str, dict] = {}
