@@ -253,8 +253,8 @@
           <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Manuel görsel yükle</p>
           <p class="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
             Aynı anda en fazla <strong>4</strong> dosya seç. Dosya adında <span class="font-mono text-slate-600 dark:text-slate-300">mobile</span>,
-            <span class="font-mono">desktop</span>, <span class="font-mono">full</span> veya <span class="font-mono">extra</span> geçsin; yoksa sırayla
-            <span class="font-mono">full</span> → <span class="font-mono">mobile</span> → <span class="font-mono">desktop</span> → <span class="font-mono">extra</span> slotlarına yazılır.
+            <span class="font-mono">desktop</span>, <span class="font-mono">full</span> veya <span class="font-mono">extra</span> geçsin; yoksa önce diskte boş olan slota
+            (<span class="font-mono">full</span> → <span class="font-mono">mobile</span> → …) yazılır — tek tek yüklemede ikinci dosya birincinin üzerine binmez.
             Görseller proje altında <span class="font-mono">static/gsc/</span> içinde saklanır (Docker’da volume ile kalıcı).
           </p>
           <p id="gsc-upload-err-{{ site.id }}" class="mt-2 hidden whitespace-pre-wrap break-words text-xs font-medium text-rose-600 dark:text-rose-400" role="alert"></p>

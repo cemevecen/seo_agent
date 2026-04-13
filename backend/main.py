@@ -7018,8 +7018,26 @@ def _cwv_variant_from_filename(name: str) -> str | None:
     return None
 
 
-def _pair_cwv_uploads_to_variants(files: list[UploadFile]) -> list[tuple[str, UploadFile]]:
-    """Çoklu yüklemede dosyaları varyantlara eşle (dosya adı ipucu + sırayla boş slotlar)."""
+def _occupied_cwv_slots(domain_slug: str) -> set[str]:
+    """Diskte zaten dolu olan varyantlar (aynı istekte üzerine yazılacak slotlar hariç tutulur)."""
+    occ: set[str] = set()
+    for v in _CWV_VARIANT_ORDER:
+        p = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{v}.png"
+        try:
+            if p.exists() and p.stat().st_size > 0:
+                occ.add(v)
+        except OSError:
+            continue
+    return occ
+
+
+def _pair_cwv_uploads_to_variants(files: list[UploadFile], domain_slug: str) -> list[tuple[str, UploadFile]]:
+    """Çoklu yüklemede dosyaları varyantlara eşle (dosya adı ipucu + diskte boş slota sırayla).
+
+    İsim ipucu yoksa: önce bu istekteki explicit slotlar, sonra diskte dolu olanlar \"dolu\"
+    sayılır; kalan ilk boş slot (full→mobile→desktop→extra) kullanılır. Tek tek yüklemede
+    ikinci dosya artık birincinin üzerine yazılmaz.
+    """
     if not files:
         raise ValueError("Dosya seçilmedi.")
     if len(files) > 4:
@@ -7034,7 +7052,7 @@ def _pair_cwv_uploads_to_variants(files: list[UploadFile]) -> list[tuple[str, Up
             explicit[v] = f
         else:
             implicit.append(f)
-    taken = set(explicit.keys())
+    taken: set[str] = set(explicit.keys()) | _occupied_cwv_slots(domain_slug)
     for f in implicit:
         placed = False
         for slot in _CWV_VARIANT_ORDER:
@@ -7044,7 +7062,9 @@ def _pair_cwv_uploads_to_variants(files: list[UploadFile]) -> list[tuple[str, Up
                 placed = True
                 break
         if not placed:
-            raise ValueError("Çok fazla isimsiz dosya; dosya adına mobile, desktop, full veya extra geçin.")
+            # Dört slot da dolu: tam sayfa görselini güncelle (tek “ana” slot)
+            explicit["full"] = f
+            taken.add("full")
     return [(v, explicit[v]) for v in _CWV_VARIANT_ORDER if v in explicit]
 
 
@@ -7055,16 +7075,16 @@ async def search_console_upload_cwv_screenshot_batch(
     files: list[UploadFile] = File(...),
 ):
     """Birden fazla CWV ekran görüntüsü (aynı istekte mobile/desktop/full/extra)."""
-    try:
-        pairs = _pair_cwv_uploads_to_variants(files)
-    except ValueError as exc:
-        return HTMLResponse(str(exc), status_code=400)
-
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
+
+    try:
+        pairs = _pair_cwv_uploads_to_variants(files, domain_slug)
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=400)
 
     GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     for variant, upload in pairs:
@@ -7095,6 +7115,17 @@ async def search_console_upload_cwv_screenshot(
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
+
+    hint = _cwv_variant_from_filename(file.filename or "")
+    if hint:
+        variant = hint
+    elif variant == "full":
+        # Eski davranış: hep full → ardışık tek dosyalar birbirini siliyordu; sıradaki boş slota yaz.
+        occupied = _occupied_cwv_slots(domain_slug)
+        for slot in _CWV_VARIANT_ORDER:
+            if slot not in occupied:
+                variant = slot
+                break
 
     content = await file.read()
     err = _validate_cwv_screenshot_bytes(content, file.filename or "")
