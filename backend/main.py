@@ -1486,7 +1486,7 @@ def _is_sqlite_lock_error(exc: Exception) -> bool:
 def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -> None:
     for attempt in range(1, attempts + 1):
         try:
-            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            db.commit()
             return
         except PendingRollbackError as exc:
             db.rollback()
