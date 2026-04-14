@@ -865,24 +865,30 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
             and len((existing.ga4_text or "").strip()) > 50
             and existing.email_sent_at is None
         ):
-            recap = {
-                "ga4": existing.ga4_text,
-                "pagespeed": existing.pagespeed_text,
-                "search_console": existing.search_console_text,
-                "alerts": existing.alerts_text,
-            }
-            recipients = operations_recipients()
-            subject = f"SEO Agent · AI günlük özet · {brief_date}"
-            html = build_brief_email_html(
-                brief_date,
-                recap,
-                qc_ok=bool(existing.turkish_qc_ok),
-                qc_detail=existing.qc_detail or "",
-            )
-            if send_email(subject, html, recipients=recipients):
-                existing.email_sent_at = datetime.utcnow()
-                db.add(existing)
-                db.commit()
+            if settings.ai_daily_brief_send_email:
+                recap = {
+                    "ga4": existing.ga4_text,
+                    "pagespeed": existing.pagespeed_text,
+                    "search_console": existing.search_console_text,
+                    "alerts": existing.alerts_text,
+                }
+                recipients = operations_recipients()
+                subject = f"SEO Agent · AI günlük özet · {brief_date}"
+                html = build_brief_email_html(
+                    brief_date,
+                    recap,
+                    qc_ok=bool(existing.turkish_qc_ok),
+                    qc_detail=existing.qc_detail or "",
+                )
+                if send_email(subject, html, recipients=recipients):
+                    existing.email_sent_at = datetime.utcnow()
+                    db.add(existing)
+                    db.commit()
+            else:
+                LOGGER.info(
+                    "AI brief for %s already stored; email sending disabled, skip resend.",
+                    brief_date,
+                )
             return
         try:
             context = gather_ai_brief_context(db)
@@ -999,17 +1005,20 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
             LOGGER.exception("AI özet + analiz geçmişi birlikte kaydedilemedi: %s", exc)
             db.rollback()
             return
-        recipients = operations_recipients()
-        subject = f"SEO Agent · AI günlük özet · {brief_date}"
-        html = build_brief_email_html(brief_date, final, qc_ok=qc_ok, qc_detail=qc_detail)
-        if send_email(subject, html, recipients=recipients):
-            row2 = db.query(AiDailyBriefReport).filter(AiDailyBriefReport.brief_date == brief_date).first()
-            if row2:
-                row2.email_sent_at = datetime.utcnow()
-                db.add(row2)
-                db.commit()
+        if settings.ai_daily_brief_send_email:
+            recipients = operations_recipients()
+            subject = f"SEO Agent · AI günlük özet · {brief_date}"
+            html = build_brief_email_html(brief_date, final, qc_ok=qc_ok, qc_detail=qc_detail)
+            if send_email(subject, html, recipients=recipients):
+                row2 = db.query(AiDailyBriefReport).filter(AiDailyBriefReport.brief_date == brief_date).first()
+                if row2:
+                    row2.email_sent_at = datetime.utcnow()
+                    db.add(row2)
+                    db.commit()
+            else:
+                LOGGER.warning("AI brief email not sent (SMTP or recipients).")
         else:
-            LOGGER.warning("AI brief email not sent (SMTP or recipients).")
+            LOGGER.info("AI brief stored for %s; email sending disabled (ai_daily_brief_send_email).", brief_date)
 
 
 def get_latest_brief_for_ui(db: Session) -> AiDailyBriefReport | None:

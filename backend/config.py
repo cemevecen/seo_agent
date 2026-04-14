@@ -113,8 +113,12 @@ class Settings(BaseSettings):
     app_intel_scheduled_refresh_hour: int = 7
     app_intel_scheduled_refresh_minute: int = 0
 
-    # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar) — Türkiye saati
+    # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar). Kapalıyken job çalışmaz (manuel dahil).
     ai_daily_brief_enabled: bool = True
+    # APScheduler ile sabit saatte otomatik üretim. Kapalıyken yalnızca manuel tetik (ör. /ai/generate).
+    ai_daily_brief_scheduler_enabled: bool = False
+    # Özet kaydedildikten sonra operasyon alıcılarına e-posta gönder.
+    ai_daily_brief_send_email: bool = False
     ai_daily_brief_hour: int = 6
     ai_daily_brief_minute: int = 15
     ai_daily_brief_timezone: str = "Europe/Istanbul"

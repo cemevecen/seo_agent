@@ -2115,7 +2115,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    if settings.ai_daily_brief_enabled:
+    if settings.ai_daily_brief_enabled and settings.ai_daily_brief_scheduler_enabled:
         try:
             ai_tz = ZoneInfo(settings.ai_daily_brief_timezone)
         except Exception as exc:  # noqa: BLE001
@@ -6459,7 +6459,7 @@ def ai_daily_brief_page(request: Request):
 
 @app.post("/ai/generate")
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
-    """Operasyon: aynı gün özeti yeniden üretilir ve operasyon alıcılarına e-posta gider (Groq veya Gemini; yalnızca bu akış LLM kullanır)."""
+    """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir."""
 
     from backend.services.ai_daily_brief import (
         get_ai_brief_run_stats,
