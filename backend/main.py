@@ -49,7 +49,12 @@ from backend.collectors.pagespeed import (
     fetch_live_lighthouse_category_scores,
     get_latest_pagespeed_audit_snapshot,
 )
-from backend.collectors.search_console import collect_search_console_alert_metrics, collect_search_console_metrics, get_top_queries
+from backend.collectors.search_console import (
+    _resolve_search_console_targets,
+    collect_search_console_alert_metrics,
+    collect_search_console_metrics,
+    get_top_queries,
+)
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, _IS_SQLITE, init_db
@@ -63,7 +68,18 @@ from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_day_over_day_score
 from backend.services.quota_guard import get_quota_status
-from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
+from backend.services.search_console_auth import (
+    SEARCH_CONSOLE_SCOPES,
+    build_oauth_flow,
+    decode_oauth_state,
+    delete_oauth_credentials,
+    encode_oauth_state,
+    get_search_console_connection_status,
+    get_search_console_credentials_record,
+    load_google_credentials,
+    oauth_is_configured,
+    save_oauth_credentials,
+)
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
@@ -883,6 +899,82 @@ def _build_search_console_top_queries(current_rows: list[dict], previous_rows: l
     return items
 
 
+def _build_search_console_top_entities(
+    current_rows: list[dict],
+    previous_rows: list[dict],
+    *,
+    label_key: str = "query",
+    limit: int = 50,
+) -> list[dict]:
+    current_map: dict[str, dict] = {}
+    previous_map: dict[str, dict] = {}
+    for row in current_rows:
+        key = str(row.get(label_key) or row.get("query") or "").strip()
+        if not key:
+            continue
+        bucket = current_map.setdefault(
+            key,
+            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+        )
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impressions
+        if impressions > 0:
+            bucket["position_weighted_sum"] += position * impressions
+            bucket["position_weight"] += impressions
+    for row in previous_rows:
+        key = str(row.get(label_key) or row.get("query") or "").strip()
+        if not key:
+            continue
+        bucket = previous_map.setdefault(
+            key,
+            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+        )
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impressions
+        if impressions > 0:
+            bucket["position_weighted_sum"] += position * impressions
+            bucket["position_weight"] += impressions
+
+    rows: list[dict] = []
+    for key in set(current_map.keys()) | set(previous_map.keys()):
+        current = current_map.get(key) or {}
+        previous = previous_map.get(key) or {}
+        current_clicks = float(current.get("clicks") or 0.0)
+        previous_clicks = float(previous.get("clicks") or 0.0)
+        current_impressions = float(current.get("impressions") or 0.0)
+        previous_impressions = float(previous.get("impressions") or 0.0)
+        current_weight = float(current.get("position_weight") or 0.0)
+        previous_weight = float(previous.get("position_weight") or 0.0)
+        current_position = (
+            float(current.get("position_weighted_sum") or 0.0) / current_weight if current_weight > 0 else 0.0
+        )
+        previous_position = (
+            float(previous.get("position_weighted_sum") or 0.0) / previous_weight if previous_weight > 0 else 0.0
+        )
+        rows.append(
+            {
+                "label": key,
+                "clicks_current": current_clicks,
+                "clicks_previous": previous_clicks,
+                "clicks_diff": current_clicks - previous_clicks,
+                "impressions_current": current_impressions,
+                "impressions_previous": previous_impressions,
+                "impressions_diff": current_impressions - previous_impressions,
+                "position_current": current_position,
+                "position_previous": previous_position,
+                "position_diff": current_position - previous_position,
+            }
+        )
+    rows.sort(key=lambda item: float(item.get("clicks_current") or 0.0), reverse=True)
+    return rows[:limit]
+
+
 def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
     if str(sanitized.get("mode") or "") == "last_28d":
@@ -977,7 +1069,26 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     _sc_batch = get_latest_search_console_rows_batch(
         db,
         site_id=site_id,
-        scopes=["current_7d", "previous_7d", "current_30d", "previous_30d", "current_day", "previous_week_same_weekday"],
+        scopes=[
+            "current_7d",
+            "previous_7d",
+            "current_30d",
+            "previous_30d",
+            "current_day",
+            "previous_week_same_weekday",
+            "current_1d_pages",
+            "previous_1d_pages",
+            "current_7d_pages",
+            "previous_7d_pages",
+            "current_30d_pages",
+            "previous_30d_pages",
+            "current_1d_countries",
+            "previous_1d_countries",
+            "current_7d_countries",
+            "previous_7d_countries",
+            "current_30d_countries",
+            "previous_30d_countries",
+        ],
     )
     current_rows_7 = _sc_batch.get("current_7d", [])
     previous_rows_7 = _sc_batch.get("previous_7d", [])
@@ -985,6 +1096,18 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     previous_rows_30 = _sc_batch.get("previous_30d", [])
     current_rows_1 = _sc_batch.get("current_day", [])
     previous_rows_wow = _sc_batch.get("previous_week_same_weekday", [])
+    current_pages_1 = _sc_batch.get("current_1d_pages", [])
+    previous_pages_1 = _sc_batch.get("previous_1d_pages", [])
+    current_pages_7 = _sc_batch.get("current_7d_pages", [])
+    previous_pages_7 = _sc_batch.get("previous_7d_pages", [])
+    current_pages_30 = _sc_batch.get("current_30d_pages", [])
+    previous_pages_30 = _sc_batch.get("previous_30d_pages", [])
+    current_countries_1 = _sc_batch.get("current_1d_countries", [])
+    previous_countries_1 = _sc_batch.get("previous_1d_countries", [])
+    current_countries_7 = _sc_batch.get("current_7d_countries", [])
+    previous_countries_7 = _sc_batch.get("previous_7d_countries", [])
+    current_countries_30 = _sc_batch.get("current_30d_countries", [])
+    previous_countries_30 = _sc_batch.get("previous_30d_countries", [])
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
@@ -1090,6 +1213,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = q_cur if fc else (sc or q_cur)
                 summary_previous = q_prev if fp else (sp or q_prev)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_1, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_1, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_1, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_1, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = (
                     _format_sc_tr_date(ref_d_global)
@@ -1105,6 +1232,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = current_7d_by_device.get(device_code) or _summarize_search_console_rows(fc)
                 summary_previous = previous_7d_by_device.get(device_code) or _summarize_search_console_rows(fp)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_7, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_7, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_7, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_7, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_7_last)
                 range_prev = _format_sc_tr_date_range(*range_7_prev)
@@ -1114,6 +1245,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = current_30d_by_device.get(device_code) or _summarize_search_console_rows(fc)
                 summary_previous = previous_30d_by_device.get(device_code) or _summarize_search_console_rows(fp)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_30, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_30, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_30, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_30, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
@@ -1134,6 +1269,12 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 "summary_previous": summary_previous,
                 "trend": chart_trend,
                 "top_queries": device_top,
+                "top_pages": _build_search_console_top_entities(
+                    pages_current, pages_previous, label_key="query", limit=50
+                ),
+                "top_countries": _build_search_console_top_entities(
+                    countries_current, countries_previous, label_key="query", limit=50
+                ),
                 "table_label_current": tbl_cur,
                 "table_label_previous": tbl_prev,
                 "range_last": range_last,
@@ -7582,6 +7723,248 @@ def admin_sc_scope_stats():
         })
     finally:
         db.close()
+
+
+def _build_sc_service_and_targets(db, site_id: int):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if site is None:
+        raise ValueError("Site bulunamadi.")
+
+    credential = get_search_console_credentials_record(db, site.id)
+    if credential is None:
+        raise ValueError("Search Console baglantisi yok.")
+
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError as exc:
+        raise RuntimeError("Google Search Console istemcisi yuklu degil.") from exc
+
+    credential_data = load_google_credentials(credential)
+    if credential.credential_type == "search_console_oauth":
+        credentials = credential_data
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(GoogleAuthRequest())
+    else:
+        credentials = service_account.Credentials.from_service_account_info(
+            credential_data,
+            scopes=SEARCH_CONSOLE_SCOPES,
+        )
+
+    service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+    targets = _resolve_search_console_targets(service, site)
+    return site, service, targets
+
+
+@app.get("/admin/sc/raw/sites/{site_id}")
+def admin_sc_raw_sites(site_id: int):
+    """Google Search Console sites.list ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        response = service.sites().list().execute()
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "resolved_targets": targets,
+                "raw": response,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/query/{site_id}")
+def admin_sc_raw_query(
+    site_id: int,
+    start_date: str,
+    end_date: str,
+    dimensions: str = "query,device",
+    row_limit: int = 250,
+    start_row: int = 0,
+    device: str = "",
+    search_type: str = "",
+):
+    """Google Search Console searchanalytics.query ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        dim_list = [d.strip() for d in dimensions.split(",") if d.strip()]
+        if not dim_list:
+            dim_list = ["query", "device"]
+        safe_row_limit = max(1, min(25000, int(row_limit)))
+        safe_start_row = max(0, int(start_row))
+        safe_device = str(device or "").strip().upper()
+
+        results: list[dict] = []
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            body: dict = {
+                "startDate": start_date,
+                "endDate": end_date,
+                "dimensions": dim_list,
+                "rowLimit": safe_row_limit,
+                "startRow": safe_start_row,
+            }
+            if search_type:
+                body["type"] = str(search_type)
+            if safe_device:
+                body["dimensionFilterGroups"] = [
+                    {
+                        "filters": [
+                            {
+                                "dimension": "device",
+                                "operator": "equals",
+                                "expression": safe_device,
+                            }
+                        ]
+                    }
+                ]
+            raw = (
+                service.searchanalytics()
+                .query(
+                    siteUrl=property_url,
+                    body=body,
+                )
+                .execute()
+            )
+            results.append(
+                {
+                    "target_device": target.get("device"),
+                    "property_url": property_url,
+                    "request_body": body,
+                    "raw": raw,
+                }
+            )
+
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "results": results,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/url-inspection/{site_id}")
+def admin_sc_raw_url_inspection(site_id: int, inspection_url: str = "", language_code: str = "tr-TR"):
+    """Google URL Inspection API ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        property_url = str((targets[0] or {}).get("property_url") or "")
+        normalized_inspection_url = inspection_url.strip() or (
+            site.domain if str(site.domain).startswith(("http://", "https://")) else f"https://{site.domain}"
+        )
+        raw = (
+            service.urlInspection()
+            .index()
+            .inspect(
+                body={
+                    "inspectionUrl": normalized_inspection_url,
+                    "siteUrl": property_url,
+                    "languageCode": language_code,
+                }
+            )
+            .execute()
+        )
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "property_url": property_url,
+                "inspection_url": normalized_inspection_url,
+                "raw": raw,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/catalog")
+def admin_sc_raw_catalog():
+    """SC'den sentetik olmayan yeni sekme/basliklar icin veri katalogu."""
+    return JSONResponse(
+        {
+            "searchanalytics": {
+                "metrics": ["clicks", "impressions", "ctr", "position"],
+                "dimensions": [
+                    "date",
+                    "query",
+                    "page",
+                    "country",
+                    "device",
+                    "searchAppearance",
+                    "type",
+                ],
+                "ready_tabs": [
+                    {
+                        "tab_key": "pages",
+                        "title": "Top Pages",
+                        "dimensions": ["page"],
+                        "description": "Landing URL bazinda tiklama/gosterim/CTR/pozisyon dagilimi.",
+                    },
+                    {
+                        "tab_key": "countries",
+                        "title": "Countries",
+                        "dimensions": ["country"],
+                        "description": "Ulke bazli performans (TR, DE, US vb.).",
+                    },
+                    {
+                        "tab_key": "devices",
+                        "title": "Devices",
+                        "dimensions": ["device"],
+                        "description": "Mobile/Desktop ayriminda gercek Search Console verisi.",
+                    },
+                    {
+                        "tab_key": "search_types",
+                        "title": "Search Type Split",
+                        "dimensions": ["type"],
+                        "description": "web/image/video/news kesitleri.",
+                    },
+                    {
+                        "tab_key": "page_query_matrix",
+                        "title": "Page x Query Matrix",
+                        "dimensions": ["page", "query"],
+                        "description": "Hangi query hangi landing page'e trafik tasiyor.",
+                    },
+                    {
+                        "tab_key": "appearance",
+                        "title": "Search Appearance",
+                        "dimensions": ["searchAppearance"],
+                        "description": "Rich result, AMP vb. gorunum tipleri etkisi.",
+                    },
+                ],
+            },
+            "url_inspection": {
+                "key_fields": [
+                    "coverageState",
+                    "indexingState",
+                    "pageFetchState",
+                    "robotsTxtState",
+                    "googleCanonical",
+                    "userCanonical",
+                    "lastCrawlTime",
+                    "mobileUsabilityResult.verdict",
+                    "richResultsResult.verdict",
+                ]
+            },
+            "notes": [
+                "Tum basliklar sentetik degil; Search Console API ham response alanlarina dayanir.",
+                "Yeni sekmeleri dogrudan /admin/sc/raw/query/{site_id} endpoint'i ile prototipleyebilirsin.",
+            ],
+        }
+    )
 
 
 @app.get("/health")

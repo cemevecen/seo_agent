@@ -970,6 +970,47 @@
     });
   }
 
+  function initSearchConsoleTableSwitch(root) {
+    (root || document).querySelectorAll('[data-sc-table-switch]').forEach(function (switcher) {
+      if (switcher.dataset.tableSwitchBound === '1') {
+        return;
+      }
+      switcher.dataset.tableSwitchBound = '1';
+      var host = switcher.closest('[data-device-panel]') || switcher.parentElement;
+      var buttons = switcher.querySelectorAll('[data-sc-table-toggle]');
+      var activate = function (key) {
+        buttons.forEach(function (button) {
+          var active = button.dataset.scTableToggle === key;
+          button.dataset.active = active ? 'true' : 'false';
+          button.classList.toggle('bg-slate-900', active);
+          button.classList.toggle('dark:bg-slate-600', active);
+          button.classList.toggle('text-white', active);
+          button.classList.toggle('text-slate-600', !active);
+          button.classList.toggle('dark:text-slate-300', !active);
+        });
+        if (!host) {
+          return;
+        }
+        host.querySelectorAll('[data-sc-table-panel]').forEach(function (panel) {
+          var isActive = panel.dataset.scTablePanel === key;
+          panel.classList.toggle('hidden', !isActive);
+        });
+      };
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activate(button.dataset.scTableToggle);
+        });
+      });
+      var initial =
+        Array.from(buttons).find(function (button) {
+          return button.dataset.active === 'true';
+        }) || buttons[0];
+      if (initial) {
+        activate(initial.dataset.scTableToggle);
+      }
+    });
+  }
+
   function initSearchConsoleExpandables(root) {
     (root || document).querySelectorAll('[data-search-console-expandable]').forEach(function (card) {
       if (card.dataset.expandReady === '1') {
@@ -1098,6 +1139,7 @@
     initSearchConsoleSplitView(root);
     initSearchConsolePeriodSwitch(root);
     initSearchConsoleDeviceSwitches(root);
+    initSearchConsoleTableSwitch(root);
     bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);
     initSearchConsoleTables(root);
