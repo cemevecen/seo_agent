@@ -620,18 +620,23 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 LOGGER.warning("GA4 sayfa (haber hariç) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 pages_rows = []
 
-            try:
-                pages_news_rows = _run_landing_pages_news_only(
-                    client,
-                    property_id,
-                    last_start=last_start,
-                    last_end=last_end,
-                    prev_start=prev_start,
-                    prev_end=prev_end,
-                )
-            except Exception as exc:  # noqa: BLE001
-                LOGGER.warning("GA4 sayfa (haber) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
-                pages_news_rows = []
+            # Haber listesi: yalnızca 30g snapshot'ta topla — 7g'de de aynı iki ağır raporu çalıştırmak
+            # refresh-all süresini ve Data API kotasını ikiye katlıyordu; Railway/proxy zaman aşımına yol açabiliyor.
+            # 7g Haberler sekmesi snapshot boşsa /ga4/pages?news=1 canlı çeker.
+            pages_news_rows: list[dict] = []
+            if int(safe_days) >= 28:
+                try:
+                    pages_news_rows = _run_landing_pages_news_only(
+                        client,
+                        property_id,
+                        last_start=last_start,
+                        last_end=last_end,
+                        prev_start=prev_start,
+                        prev_end=prev_end,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    LOGGER.warning("GA4 sayfa (haber) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                    pages_news_rows = []
 
             try:
                 sources_rows = _run_session_source_medium(
@@ -648,10 +653,15 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
 
             wow_ref = date.fromisoformat(last_end)
             wow_prev = wow_ref - timedelta(days=7)
-            wow_last_kpi = _run_kpi_for_single_range(client, property_id, start=last_end, end=last_end)
-            wow_prev_kpi = _run_kpi_for_single_range(
-                client, property_id, start=wow_prev.isoformat(), end=wow_prev.isoformat()
-            )
+            try:
+                wow_last_kpi = _run_kpi_for_single_range(client, property_id, start=last_end, end=last_end)
+                wow_prev_kpi = _run_kpi_for_single_range(
+                    client, property_id, start=wow_prev.isoformat(), end=wow_prev.isoformat()
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("GA4 same_weekday KPI başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                wow_last_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
+                wow_prev_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
 
             # UI kanal özeti: ham kanal adıyla last/prev eşleştirilir (DB metric anahtarı / JSON slug hatası yok).
             channel_summary_rows: list[dict] = []
