@@ -37,7 +37,13 @@ if _db_url.startswith("postgresql://"):
 engine = create_engine(
     _db_url,
     pool_pre_ping=True,
-    connect_args={"check_same_thread": False, "timeout": 30} if _IS_SQLITE else {},
+    # Railway gibi ortamlarda Postgres hazır olmadan container kalkabilir.
+    # connect_timeout olmazsa startup aşamasında uzun süre "asılı" kalabiliyor.
+    connect_args=(
+        {"check_same_thread": False, "timeout": 30}
+        if _IS_SQLITE
+        else {"connect_timeout": 10}  # psycopg / libpq (seconds)
+    ),
 )
 
 if _IS_SQLITE:
