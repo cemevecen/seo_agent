@@ -160,6 +160,9 @@ class Settings(BaseSettings):
     db_retention_alert_log_days: int = Field(default=60, ge=1, le=3650)
     db_retention_metric_days: int = Field(default=90, ge=1, le=3650)
     db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
+    # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı: Railway'de gereksiz I/O / kısa süreli yük;
+    # autovacuum çoğu kurulumda yeterlidir. Disk geri kazanımı için: true veya POST /admin/vacuum
+    db_retention_run_vacuum: bool = False
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 

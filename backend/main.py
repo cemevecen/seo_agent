@@ -7589,10 +7589,9 @@ def _run_db_retention_cleanup() -> dict:
                 db.rollback()
                 stats[table_label] = -1
 
-        # PostgreSQL'de disk alanını geri al
-        if not _IS_SQLITE:
+        # PostgreSQL: isteğe bağlı tam VACUUM ANALYZE (varsayılan kapalı — bkz. settings.db_retention_run_vacuum)
+        if not _IS_SQLITE and settings.db_retention_run_vacuum:
             try:
-                # VACUUM autocommit gerektirir, session dışında çalıştır
                 from backend.database import engine
                 with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
                     conn.execute(text("VACUUM ANALYZE"))
@@ -7600,6 +7599,8 @@ def _run_db_retention_cleanup() -> dict:
             except Exception:
                 logging.exception("VACUUM ANALYZE hatası")
                 stats["vacuum"] = -1
+        elif not _IS_SQLITE:
+            stats["vacuum"] = 0
 
     total_deleted = sum(v for v in stats.values() if v > 0)
     logging.info("DB retention cleanup tamamlandı — toplam %d satır silindi: %s", total_deleted, stats)
