@@ -18,9 +18,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Playwright Chromium tarayıcısını yükle (sistem bağımlılıkları zaten mevcut)
-RUN playwright install chromium
+RUN playwright install chromium \
+    && rm -rf /root/.cache/ms-playwright/chromium-*/chrome-linux/swiftshader \
+    && rm -rf /root/.cache/ms-playwright/chromium-*/chrome-linux/locales \
+    && find /root/.cache/ms-playwright -name "*.map" -delete
 
 COPY . .
+
+# Build sonrası geçici dosyaları temizle
+RUN rm -rf /tmp/* /var/tmp/* /var/cache/apt/*
 
 EXPOSE 8012
 
