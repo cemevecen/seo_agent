@@ -108,6 +108,23 @@ def _is_news_detail_path(path: str) -> bool:
     return bool(_NEWS_DETAIL_PATH_RE.search(path))
 
 
+def _path_contains_news_marker(path: str) -> bool:
+    """Yapılandırılmış haber path alt dizeleri (ga4_exclude_path_substrings ile uyumlu)."""
+    low = (path or "").lower().replace("\\", "/")
+    for sub in _exclude_path_substrings():
+        frag = (sub or "").strip().lower().replace("\\", "/")
+        if frag and frag in low:
+            return True
+    return False
+
+
+def _is_news_article_path(path: str) -> bool:
+    """Haber detayı (sayısal ID) veya haber bölümü path'i."""
+    if _is_news_detail_path(path):
+        return True
+    return _path_contains_news_marker(path)
+
+
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
     parts = _exclude_path_substrings()
     expressions: list[FilterExpression] = []
@@ -362,6 +379,66 @@ def _run_landing_pages_excl_news(
     return rows[:50]
 
 
+def _run_landing_pages_news_only(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    *,
+    last_start: str,
+    last_end: str,
+    prev_start: str,
+    prev_end: str,
+    limit: int = 250,
+    top_n: int = 30,
+) -> list[dict]:
+    """En çok oturum alan haber URL'leri (API'de tüm landing'ler, sonra haber filtresi)."""
+    lim = max(30, min(int(limit), 250))
+    n = max(1, min(int(top_n), 50))
+    last_map = _run_landing_host_path_sessions_single_range(
+        client,
+        property_id,
+        start=last_start,
+        end=last_end,
+        limit=lim,
+        dimension_filter=None,
+    )
+    prev_map = _run_landing_host_path_sessions_single_range(
+        client,
+        property_id,
+        start=prev_start,
+        end=prev_end,
+        limit=lim,
+        dimension_filter=None,
+    )
+    merged = _merge_period_maps(last_map, prev_map)
+    rows: list[dict] = []
+    for key, (last_v, prev_v) in merged.items():
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        if not _is_news_article_path(path):
+            continue
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
+        delta = last_v - prev_v
+        delta_pct = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if last_v > 0 else 0.0)
+        rows.append(
+            {
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
+                "last_total": last_v,
+                "prev_total": prev_v,
+                "delta": delta,
+                "delta_pct": delta_pct,
+            }
+        )
+    rows.sort(key=lambda item: item["last_total"], reverse=True)
+    return rows[:n]
+
+
 def _run_session_source_medium(
     client: BetaAnalyticsDataClient,
     property_id: str,
@@ -544,6 +621,19 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 pages_rows = []
 
             try:
+                pages_news_rows = _run_landing_pages_news_only(
+                    client,
+                    property_id,
+                    last_start=last_start,
+                    last_end=last_end,
+                    prev_start=prev_start,
+                    prev_end=prev_end,
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("GA4 sayfa (haber) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                pages_news_rows = []
+
+            try:
                 sources_rows = _run_session_source_medium(
                     client,
                     property_id,
@@ -592,6 +682,7 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 "summary": {"last": last_kpi, "prev": prev_kpi},
                 "daily_trend": daily_trend,
                 "pages_no_news": pages_rows,
+                "pages_news": pages_news_rows,
                 "sources": sources_rows,
                 "channel_summary_rows": channel_summary_rows,
                 "organic_share_pct": float(organic_share_pct),
@@ -639,9 +730,10 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 "wow_change_pct": wow_pct,
                 "kpi": {"last": last_kpi, "prev": prev_kpi},
                 "pages_no_news_count": len(pages_rows),
+                "pages_news_count": len(pages_news_rows),
                 "sources_count": len(sources_rows),
             }
-            total_rows += len(last_by_channel) + len(pages_rows) + len(sources_rows)
+            total_rows += len(last_by_channel) + len(pages_rows) + len(pages_news_rows) + len(sources_rows)
 
         save_metrics(db, site.id, metrics, collected_at=collected_at)
 
@@ -727,15 +819,23 @@ def fetch_ga4_landing_pages(
     days: int = 30,
     limit: int = 50,
     exclude_news: bool = True,
+    news_only: bool = False,
     same_weekday_day: bool = False,
 ) -> list[dict]:
     """Landing page kırılımı: son N gün vs önceki N gün sessions.
 
     same_weekday_day=True: 1g modu — son tam gün vs bir önceki haftanın aynı günü (7g snapshot listesiyle karıştırma).
+    news_only=True: en çok oturum alan haber URL'leri (üst sınır 30 satır).
     """
 
+    if news_only:
+        exclude_news = False
+
     safe_days = int(days) if int(days) > 0 else 30
-    safe_limit = max(5, min(int(limit or 50), 200))
+    if news_only:
+        safe_limit = max(30, min(int(limit or 250), 250))
+    else:
+        safe_limit = max(5, min(int(limit or 50), 200))
     if same_weekday_day:
         (last_start, last_end), (prev_start, prev_end) = _same_weekday_day_windows()
     else:
@@ -784,11 +884,14 @@ def fetch_ga4_landing_pages(
             }
         )
 
-    # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
-    if exclude_news:
+    if news_only:
+        rows = [r for r in rows if _is_news_article_path(r["page"])]
+    elif exclude_news:
+        # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
         rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
-    return rows
+    cap = 30 if news_only else 50
+    return rows[:cap]
 
 
 def fetch_ga4_session_source_medium(

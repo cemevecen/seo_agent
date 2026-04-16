@@ -12,8 +12,9 @@
   {% set prev_l_title = prev_l %}
 {% endif %}
 
+{% set _table_heading = table_heading | default('Pages (excl. news)') %}
 <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
-  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Pages (excl. news)</p>
+  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">{{ _table_heading }}</p>
   <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
     <table class="w-full min-w-0 table-fixed text-[10px] sm:text-xs" data-ga4-table>
       <colgroup>

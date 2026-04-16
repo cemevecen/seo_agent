@@ -367,10 +367,11 @@ def _is_news_detail_path(path: str) -> bool:
     return bool(_NEWS_DETAIL_PATH_RE.search(path))
 
 
-def enrich_ga4_page_rows(rows: list | None) -> list:
+def enrich_ga4_page_rows(rows: list | None, *, keep_news_articles: bool = False) -> list:
     """Snapshot satırlarında page_url eksikse page_host + page ile tamamla (/ga4 ve partial uyumu).
 
-    Haber detay sayfaları (son path segmenti sayısal ID olanlar) otomatik filtrelenir.
+    Varsayılan: haber detayları (son segment sayısal ID) listeden çıkarılır (haber hariç tablo).
+    keep_news_articles=True: haber satırları korunur (pages_news tablosu).
     """
     if not rows:
         return []
@@ -381,7 +382,7 @@ def enrich_ga4_page_rows(rows: list | None) -> list:
             continue
         pg = str(r.get("page") or "").strip()
         ph_check = str(r.get("page_host") or "").strip()
-        if _is_news_detail_path(pg):
+        if not keep_news_articles and _is_news_detail_path(pg):
             continue
         if _is_ga4_placeholder_path(pg) or _is_ga4_placeholder_host(ph_check):
             continue
