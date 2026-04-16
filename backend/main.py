@@ -6921,39 +6921,49 @@ def ga4_pages_partial(request: Request, site_id: int):
         if not property_id:
             return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
 
-        from backend.collectors.ga4 import fetch_ga4_landing_pages
-
         try:
-            snap_key = "pages_news" if news_only else "pages_no_news"
-            api_limit = 250 if news_only else 50
+            if news_only:
+                # Haberler: tek dönem toplam sessions (karşılaştırma yok, DB snapshot'a yazılmaz)
+                from backend.collectors.ga4 import fetch_ga4_news_landing_pages_total
+
+                rows = fetch_ga4_news_landing_pages_total(property_id=property_id, days=days, limit=30)
+                rows = _enrich_ga4_page_rows(rows, keep_news_articles=True)
+                return templates.TemplateResponse(
+                    request,
+                    "partials/ga4_news_pages_table.html",
+                    context={
+                        "request": request,
+                        "rows": rows,
+                        "days": days,
+                        "profile": profile,
+                        "property_id": property_id,
+                        "site_domain": site.domain,
+                    },
+                )
+
+            from backend.collectors.ga4 import fetch_ga4_landing_pages
+
+            api_limit = 50
             if days == 1:
-                # 1g: grafik 7g snapshot ile aynı kalır; landing listesi ayrı — dün vs geçen haftanın aynı günü (7g snapshot pages_no_news kullanılmaz)
+                # 1g: grafik 7g snapshot ile aynı kalır; landing listesi ayrı — dün vs geçen haftanın aynı günü
                 rows = fetch_ga4_landing_pages(
                     property_id=property_id,
                     days=1,
                     limit=api_limit,
-                    exclude_news=not news_only,
-                    news_only=news_only,
+                    exclude_news=True,
                     same_weekday_day=True,
                 )
             else:
                 snap = get_latest_ga4_report_snapshot(db, site_id=site.id, profile=profile, period_days=days)
-                snap_pages = ((snap or {}).get("payload") or {}).get(snap_key) or []
+                snap_pages = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
                 if snap_pages:
                     rows = snap_pages
                 else:
-                    rows = fetch_ga4_landing_pages(
-                        property_id=property_id,
-                        days=days,
-                        limit=api_limit,
-                        exclude_news=not news_only,
-                        news_only=news_only,
-                    )
-            rows = _enrich_ga4_page_rows(rows, keep_news_articles=news_only)
+                    rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=api_limit, exclude_news=True)
+            rows = _enrich_ga4_page_rows(rows, keep_news_articles=False)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
-        table_heading = "En çok oturum: haberler (30)" if news_only else "Pages (excl. news)"
         return templates.TemplateResponse(
             request,
             "partials/ga4_pages_table.html",
@@ -6964,7 +6974,7 @@ def ga4_pages_partial(request: Request, site_id: int):
                 "profile": profile,
                 "property_id": property_id,
                 "site_domain": site.domain,
-                "table_heading": table_heading,
+                "table_heading": "Pages (excl. news)",
             },
         )
 

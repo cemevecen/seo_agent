@@ -620,23 +620,7 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 LOGGER.warning("GA4 sayfa (haber hariç) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 pages_rows = []
 
-            # Haber listesi: yalnızca 30g snapshot'ta topla — 7g'de de aynı iki ağır raporu çalıştırmak
-            # refresh-all süresini ve Data API kotasını ikiye katlıyordu; Railway/proxy zaman aşımına yol açabiliyor.
-            # 7g Haberler sekmesi snapshot boşsa /ga4/pages?news=1 canlı çeker.
-            pages_news_rows: list[dict] = []
-            if int(safe_days) >= 28:
-                try:
-                    pages_news_rows = _run_landing_pages_news_only(
-                        client,
-                        property_id,
-                        last_start=last_start,
-                        last_end=last_end,
-                        prev_start=prev_start,
-                        prev_end=prev_end,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    LOGGER.warning("GA4 sayfa (haber) raporu başarısız (%s / %s): %s", site.domain, profile_key, exc)
-                    pages_news_rows = []
+            # Haberler sekmesi karşılaştırma/snapshot tutmaz; her zaman /ga4/pages?news=1 ile tek dönem canlı çeker.
 
             try:
                 sources_rows = _run_session_source_medium(
@@ -692,7 +676,6 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 "summary": {"last": last_kpi, "prev": prev_kpi},
                 "daily_trend": daily_trend,
                 "pages_no_news": pages_rows,
-                "pages_news": pages_news_rows,
                 "sources": sources_rows,
                 "channel_summary_rows": channel_summary_rows,
                 "organic_share_pct": float(organic_share_pct),
@@ -740,10 +723,9 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 "wow_change_pct": wow_pct,
                 "kpi": {"last": last_kpi, "prev": prev_kpi},
                 "pages_no_news_count": len(pages_rows),
-                "pages_news_count": len(pages_news_rows),
                 "sources_count": len(sources_rows),
             }
-            total_rows += len(last_by_channel) + len(pages_rows) + len(pages_news_rows) + len(sources_rows)
+            total_rows += len(last_by_channel) + len(pages_rows) + len(sources_rows)
 
         save_metrics(db, site.id, metrics, collected_at=collected_at)
 
@@ -902,6 +884,50 @@ def fetch_ga4_landing_pages(
     rows.sort(key=lambda item: item["last_total"], reverse=True)
     cap = 30 if news_only else 50
     return rows[:cap]
+
+
+def fetch_ga4_news_landing_pages_total(
+    *,
+    property_id: str,
+    days: int = 7,
+    limit: int = 30,
+) -> list[dict]:
+    """Tek dönem: en çok oturum alan haber landing sayfaları (karşılaştırma yok)."""
+    safe_days = int(days) if int(days) > 0 else 7
+    lim = max(30, min(int(limit or 30), 250))
+    (last_start, last_end), _ = _calendar_windows(safe_days)
+
+    client = _client()
+    last_map = _run_landing_host_path_sessions_single_range(
+        client,
+        property_id,
+        start=last_start,
+        end=last_end,
+        limit=lim,
+        dimension_filter=None,
+    )
+    rows: list[dict] = []
+    for key, sess in last_map.items():
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        if not _is_news_article_path(path):
+            continue
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
+        rows.append(
+            {
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
+                "sessions": float(sess or 0.0),
+            }
+        )
+    rows.sort(key=lambda item: float(item.get("sessions") or 0.0), reverse=True)
+    return rows[: max(1, min(int(limit or 30), 50))]
 
 
 def fetch_ga4_session_source_medium(
