@@ -18,9 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Playwright Chromium tarayıcısını yükle (sistem bağımlılıkları zaten mevcut)
-RUN playwright install chromium
+RUN playwright install chromium \
+    # Boyut optimizasyonu: source map dosyaları runtime için gerekli değil
+    && find /root/.cache/ms-playwright -name "*.map" -delete || true
 
 COPY . .
+
+# Build sonrası geçici dosyaları temizle (runtime'ı etkilemez)
+RUN rm -rf /tmp/* /var/tmp/* /var/cache/apt/* || true
 
 EXPOSE 8012
 
