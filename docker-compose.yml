@@ -34,8 +34,14 @@ services:
       timeout: 5s
       retries: 5
 
+  # Şablon/backend değişince tarayıcıda eski GA4 arayüzü kalıyorsa: imaj build zamanına kilitlidir.
+  # Host'ta git pull yetmez — yeniden build şart:  docker compose build app && docker compose up -d app
+  # Geliştirme: kaynak kodu canlı mount etmek istersen app altına şunu ekleyebilirsin:  - .:/app
   app:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
     container_name: seo_agent_app
     restart: unless-stopped
     ports:

@@ -7,6 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG GIT_COMMIT=
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev \
     # Chromium (Playwright) bağımlılıkları

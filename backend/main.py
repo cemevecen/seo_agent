@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -114,6 +115,40 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 GSC_SCREENSHOT_DIR = STATIC_DIR / "gsc"
 LOGGER = logging.getLogger(__name__)
+_APP_REVISION_CACHE: str | None = None
+
+
+def get_app_revision() -> str:
+    """Çalışan sürecin kod sürümü (Railway env, docker build, yerel git). Arayüz güncellenmiyorsa /health ile karşılaştır."""
+    global _APP_REVISION_CACHE
+    if _APP_REVISION_CACHE is not None:
+        return _APP_REVISION_CACHE
+    for env_key in ("RAILWAY_GIT_COMMIT_SHA", "RAILWAY_GIT_COMMIT", "GIT_COMMIT", "APP_GIT_REV"):
+        raw = (os.environ.get(env_key) or "").strip()
+        if raw:
+            _APP_REVISION_CACHE = raw if len(raw) <= 12 else raw[:12]
+            return _APP_REVISION_CACHE
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(BASE_DIR), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            check=False,
+        )
+        if proc.returncode == 0 and (proc.stdout or "").strip():
+            _APP_REVISION_CACHE = proc.stdout.strip()
+            return _APP_REVISION_CACHE
+    except Exception:
+        pass
+    _APP_REVISION_CACHE = "unknown"
+    return _APP_REVISION_CACHE
+
+
+def _is_docker_runtime() -> bool:
+    return Path("/.dockerenv").is_file()
+
+
 DAILY_REFRESH_LOCK = threading.Lock()
 APP_INTEL_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
@@ -8046,7 +8081,15 @@ def admin_sc_raw_catalog():
 @app.get("/health")
 def health_check():
     # Basit sağlık kontrol endpoint'i JSON döner.
-    return JSONResponse({"status": "ok", "host": settings.app_host})
+    # rev: Yerelde `git pull` sonrası UI değişmiyorsa çoğunlukla Docker imajı yeniden build edilmemiştir (bak: docker-compose.yml).
+    return JSONResponse(
+        {
+            "status": "ok",
+            "host": settings.app_host,
+            "rev": get_app_revision(),
+            "docker": _is_docker_runtime(),
+        }
+    )
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
