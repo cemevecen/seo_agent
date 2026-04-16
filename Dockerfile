@@ -24,4 +24,4 @@ COPY . .
 
 EXPOSE 8012
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8012"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"]
