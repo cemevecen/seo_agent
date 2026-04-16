@@ -24,4 +24,6 @@ COPY . .
 
 EXPOSE 8012
 
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"]
+# CMD satırı Railway start command'ının çalışması için devre dışı bırakıldı.
+# Railway start command: sh -c 'uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}'
+# CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"]
