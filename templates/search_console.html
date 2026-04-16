@@ -17,6 +17,16 @@
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] td:nth-child(n + 2) {
     width: 10.33%;
   }
+  /* Top pages: 4 sütun — GA4 pages ile aynı oranlar */
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table][data-sc-pages-table] th:first-child,
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table][data-sc-pages-table] td:first-child {
+    width: 44%;
+    max-width: none !important;
+  }
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table][data-sc-pages-table] th:nth-child(n + 2),
+  .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table][data-sc-pages-table] td:nth-child(n + 2) {
+    width: 18.67%;
+  }
   @keyframes sc-indeterminate {
     0% {
       transform: translateX(-100%);
