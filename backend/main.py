@@ -6330,13 +6330,9 @@ def _ga4_profile_payload_for_period(
             or 0.0
         )
 
-    # Kanal kırılımı toplamları (skaler prev/last ile tutarsızlık veya eksik metrik düzeltmesi)
+    # Sessions toplamı GA4 KPI'dan gelir; kanal kırılımı sadece breakdown görseli içindir.
     ch_last_sum = sum_channel_prefix(f"ga4_{profile}_sessions_last{pd}d_channel__")
     ch_prev_sum = sum_channel_prefix(f"ga4_{profile}_sessions_prev{pd}d_channel__")
-    if ch_last_sum > 0 and (last_total <= 0 or abs(last_total - ch_last_sum) > max(1.0, 0.05 * ch_last_sum)):
-        last_total = ch_last_sum
-    if ch_prev_sum > 0 and (prev_total <= 0 or abs(prev_total - ch_prev_sum) > max(1.0, 0.05 * ch_prev_sum)):
-        prev_total = ch_prev_sum
 
     # Snapshot'ta sessions=0 iken kanal/metriklerde trafik varsa özet KPI bloğu eski/hatalıdır; skaler metriklere güven.
     if snap and last_total > 0:

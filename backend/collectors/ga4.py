@@ -488,22 +488,6 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 last_by_channel[channel] = last_value
                 prev_by_channel[channel] = prev_value
 
-            last_total = sum(last_by_channel.values())
-            prev_total = sum(prev_by_channel.values())
-            wow_pct = ((last_total - prev_total) / prev_total * 100.0) if prev_total > 0 else 0.0
-
-            prefix = f"ga4_{profile_key}_sessions_"
-            metrics[f"{prefix}last{safe_days}d_total"] = float(last_total)
-            metrics[f"{prefix}prev{safe_days}d_total"] = float(prev_total)
-            ds = f"_{safe_days}d"
-            metrics[f"{prefix}wow_change_pct{ds}"] = float(wow_pct)
-            if safe_days == 30:
-                metrics[f"{prefix}wow_change_pct"] = float(wow_pct)
-            for channel, value in last_by_channel.items():
-                metrics[f"{prefix}last{safe_days}d_channel__{slugify(channel)}"] = float(value)
-            for channel, value in prev_by_channel.items():
-                metrics[f"{prefix}prev{safe_days}d_channel__{slugify(channel)}"] = float(value)
-
             try:
                 last_kpi, prev_kpi = _run_kpi_totals(
                     client,
@@ -518,9 +502,22 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 last_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
                 prev_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
 
-            # KPI raporu ile kanal toplamları tek kaynak olsun (snapshot/metrik tutarlılığı)
-            last_kpi["sessions"] = float(last_total)
-            prev_kpi["sessions"] = float(prev_total)
+            # Sessions tek kaynaktan gelsin: GA4 KPI toplamı (UI/GA4 Total satırıyla birebir).
+            last_total = float(last_kpi.get("sessions") or 0.0)
+            prev_total = float(prev_kpi.get("sessions") or 0.0)
+            wow_pct = ((last_total - prev_total) / prev_total * 100.0) if prev_total > 0 else 0.0
+
+            prefix = f"ga4_{profile_key}_sessions_"
+            metrics[f"{prefix}last{safe_days}d_total"] = float(last_total)
+            metrics[f"{prefix}prev{safe_days}d_total"] = float(prev_total)
+            ds = f"_{safe_days}d"
+            metrics[f"{prefix}wow_change_pct{ds}"] = float(wow_pct)
+            if safe_days == 30:
+                metrics[f"{prefix}wow_change_pct"] = float(wow_pct)
+            for channel, value in last_by_channel.items():
+                metrics[f"{prefix}last{safe_days}d_channel__{slugify(channel)}"] = float(value)
+            for channel, value in prev_by_channel.items():
+                metrics[f"{prefix}prev{safe_days}d_channel__{slugify(channel)}"] = float(value)
 
             try:
                 daily_trend = _run_daily_kpi_trend(
