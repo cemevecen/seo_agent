@@ -6927,6 +6927,15 @@ def ga4_pages_partial(request: Request, site_id: int):
                 # Mümkünse web + mweb birlikte çekilir; tabloda ayrı kolonlar gösterilir.
                 from backend.collectors.ga4 import fetch_ga4_news_landing_pages_total
 
+                def _news_merge_key(row: dict) -> str:
+                    # Aynı haber web/mweb'de farklı URL varyasyonlarıyla (örn: /amp) gelebilir.
+                    # Son numeric ID'ye göre birleştirince platform kırılımı tutarlı olur.
+                    raw = str(row.get("page") or row.get("page_url") or "").strip()
+                    m = re.search(r"/(\d+)(?:/amp)?(?:[/?#].*)?$", raw)
+                    if m:
+                        return f"id:{m.group(1)}"
+                    return f"url:{raw.lower()}"
+
                 profile_candidates: list[tuple[str, str]] = []
                 for pf in ("web", "mweb"):
                     prop = str(properties.get(pf) or "").strip()
@@ -6937,10 +6946,10 @@ def ga4_pages_partial(request: Request, site_id: int):
 
                 merged: dict[str, dict] = {}
                 for pf, prop in profile_candidates:
-                    raw_rows = fetch_ga4_news_landing_pages_total(property_id=prop, days=days, limit=120)
+                    raw_rows = fetch_ga4_news_landing_pages_total(property_id=prop, days=days, limit=250)
                     rows_pf = _enrich_ga4_page_rows(raw_rows, keep_news_articles=True)
                     for row in rows_pf:
-                        key = str(row.get("page_url") or row.get("page") or "").strip()
+                        key = _news_merge_key(row)
                         if not key:
                             continue
                         bucket = merged.setdefault(
@@ -6954,6 +6963,11 @@ def ga4_pages_partial(request: Request, site_id: int):
                                 "total_views": 0.0,
                             },
                         )
+                        # Görsel etiket olarak mümkünse /amp içermeyen satırı tercih et.
+                        if "/amp" in str(bucket.get("page") or "").lower() and "/amp" not in str(row.get("page") or "").lower():
+                            bucket["page"] = row.get("page", "")
+                            bucket["page_host"] = row.get("page_host", "")
+                            bucket["page_url"] = row.get("page_url", "")
                         v = float(row.get("views") or 0.0)
                         if pf == "mweb":
                             bucket["mweb_views"] += v
