@@ -89,6 +89,7 @@ from backend.services.ga4_digest_email import ga4_digest_bucket_for_domain, send
 from backend.services.ga4_page_urls import (
     enrich_ga4_page_rows as _enrich_ga4_page_rows,
     ga4_fallback_page_url as _ga4_fallback_page_url,
+    ga4_row_news_display_text as _ga4_row_news_display_text,
     ga4_row_page_href as _ga4_row_page_href,
     ga4_row_page_label as _ga4_row_page_label,
     ga4_site_host as _ga4_site_host,
@@ -332,6 +333,7 @@ jinja_env.filters["ga4_iso_ddmmyy"] = _filter_ga4_iso_ddmmyy
 jinja_env.filters["ga4_iso_ddmmyyyy"] = _filter_ga4_iso_ddmmyyyy
 jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
+jinja_env.filters["ga4_row_news_display_text"] = _ga4_row_news_display_text
 
 
 def _ai_brief_sites_filter(value: str | None) -> dict:

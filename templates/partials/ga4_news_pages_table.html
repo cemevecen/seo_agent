@@ -38,12 +38,13 @@
             <td class="sticky left-0 z-[1] min-w-0 bg-white px-1 py-1 text-left font-medium shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-1.5">
               {% set _pu = row | ga4_row_page_href(site_domain) %}
               {% set _pl = row | ga4_row_page_label(site_domain) %}
+              {% set _pd = row | ga4_row_news_display_text(site_domain) %}
               {% if _pu %}
-                <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" title="{{ _pl }}" class="block max-w-full text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200">
-                  <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left" dir="rtl"><bdi dir="ltr">{{ _pl }}</bdi></span>
+                <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" title="{{ _pu or _pl }}" class="block max-w-full text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200">
+                  <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left" dir="rtl"><bdi dir="ltr">{{ _pd }}</bdi></span>
                 </a>
               {% else %}
-                <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-slate-900 dark:text-slate-100" title="{{ _pl }}" dir="rtl"><bdi dir="ltr">{{ _pl }}</bdi></span>
+                <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-slate-900 dark:text-slate-100" title="{{ _pl }}" dir="rtl"><bdi dir="ltr">{{ _pd }}</bdi></span>
               {% endif %}
             </td>
             <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row['web_views'] | default(0) | tr_int }}</td>

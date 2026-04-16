@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 
 def _host_cmp_key(host: str) -> str:
@@ -413,3 +413,31 @@ def ga4_row_page_label(row: dict | None, site_domain: str | None) -> str:
     if path.startswith("/"):
         return f"{host}{path}"
     return f"{host}/{path}" if path else host
+
+
+def ga4_row_news_display_text(row: dict | None, site_domain: str | None) -> str:
+    """Haber tablosu: görünen metin yalnızca makale slug'ı (son sayısal ID segmentinden önceki parça)."""
+    if not row:
+        return ""
+    pg = str(row.get("page") or "").strip()
+    if not pg:
+        return ga4_row_page_label(row, site_domain)
+    if pg.startswith(("http://", "https://")):
+        path = urlparse(pg).path or ""
+    else:
+        path = pg.split("?", 1)[0].split("#", 1)[0]
+    parts = [p for p in path.split("/") if p]
+    if not parts:
+        return ga4_row_page_label(row, site_domain)
+    if parts[-1].lower() == "amp":
+        parts = parts[:-1]
+    if not parts:
+        return ga4_row_page_label(row, site_domain)
+    last = parts[-1]
+    if last.isdigit() and len(parts) >= 2:
+        slug = parts[-2]
+        if slug:
+            return slug
+    if not last.isdigit():
+        return last
+    return ga4_row_page_label(row, site_domain)
