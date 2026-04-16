@@ -1175,20 +1175,19 @@
 
   function initGa4SplitView(root) {
     (root || document).querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
-      if (grid.dataset.ga4SplitBound === '1') {
-        return;
-      }
-      grid.dataset.ga4SplitBound = '1';
-
-      var cards = grid.querySelectorAll('[data-ga4-site-card]');
-      if (cards.length < 2) {
-        return;
+      // Lazy kartlar HTMX ile sonradan geldiğinde, grid daha önce bound olduysa
+      // yeni eklenen split butonları event alamayabiliyor. applyFocus'u grid'e
+      // bağlayıp butonları idempotent şekilde tek tek bind edelim.
+      if (grid.dataset.ga4SplitBound !== '1') {
+        grid.dataset.ga4SplitBound = '1';
       }
 
-      function applyFocus(focusId) {
+      if (!grid.__ga4ApplyFocus) {
+        grid.__ga4ApplyFocus = function applyFocus(focusId) {
         var fid = focusId ? String(focusId) : '';
         grid.dataset.ga4Focus = fid;
         grid.classList.toggle('ga4-split--focused', Boolean(fid));
+        var cards = grid.querySelectorAll('[data-ga4-site-card]');
         cards.forEach(function (card) {
           var sid = String(card.getAttribute('data-site-id') || '');
           var expandBtn = card.querySelector('[data-ga4-focus-toggle]');
@@ -1226,9 +1225,16 @@
           fitGa4Text(grid);
           renderGa4TrendCharts(grid);
         }, 40);
+        };
       }
 
+      var applyFocus = grid.__ga4ApplyFocus;
+
       grid.querySelectorAll('[data-ga4-focus-toggle]').forEach(function (btn) {
+        if (btn.dataset.ga4SplitBtnBound === '1') {
+          return;
+        }
+        btn.dataset.ga4SplitBtnBound = '1';
         btn.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
@@ -1236,6 +1242,10 @@
         });
       });
       grid.querySelectorAll('[data-ga4-split-reset]').forEach(function (btn) {
+        if (btn.dataset.ga4SplitBtnBound === '1') {
+          return;
+        }
+        btn.dataset.ga4SplitBtnBound = '1';
         btn.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
