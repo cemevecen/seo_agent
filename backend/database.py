@@ -114,16 +114,24 @@ def ensure_indexes() -> None:
                 conn.execute(__import__("sqlalchemy").text(ddl))
             except Exception as exc:  # noqa: BLE001
                 LOGGER.debug("Index oluşturma atlandı (%s): %s", ddl.split("ON")[0].strip(), exc)
+        existing_cols: set[str] = set()
         try:
-            existing_cols = {
-                row[1]
-                for row in conn.execute(__import__("sqlalchemy").text("PRAGMA table_info(url_audit_records)")).fetchall()
-            }
+            if _IS_SQLITE:
+                existing_cols = {
+                    row[1]
+                    for row in conn.execute(
+                        __import__("sqlalchemy").text("PRAGMA table_info(url_audit_records)")
+                    ).fetchall()
+                }
+            else:
+                sa = __import__("sqlalchemy")
+                inspector = sa.inspect(conn)
+                existing_cols = {col["name"] for col in inspector.get_columns("url_audit_records")}
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("url_audit_records sütun listesi alınamadı: %s", exc)
             existing_cols = set()
 
-        column_ddl = {
+        sqlite_column_ddl = {
             "content_type": "VARCHAR(120) NOT NULL DEFAULT ''",
             "sitemap_source": "TEXT NOT NULL DEFAULT ''",
             "sitemap_lastmod": "VARCHAR(40) NOT NULL DEFAULT ''",
@@ -142,15 +150,48 @@ def ensure_indexes() -> None:
             "issue_count": "INTEGER NOT NULL DEFAULT 0",
             "checks_json": "TEXT NOT NULL DEFAULT '{}'",
         }
+        pg_column_ddl = {
+            "content_type": "VARCHAR(120) NOT NULL DEFAULT ''",
+            "sitemap_source": "TEXT NOT NULL DEFAULT ''",
+            "sitemap_lastmod": "VARCHAR(40) NOT NULL DEFAULT ''",
+            "title_length": "INTEGER NOT NULL DEFAULT 0",
+            "meta_description_length": "INTEGER NOT NULL DEFAULT 0",
+            "h1_count": "INTEGER NOT NULL DEFAULT 0",
+            "canonical_matches_final": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "meta_robots": "TEXT NOT NULL DEFAULT ''",
+            "has_og_description": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "search_clicks": "DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "search_impressions": "DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "search_ctr": "DOUBLE PRECISION NOT NULL DEFAULT 0",
+            "search_console_seen": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "indexed_via": "VARCHAR(20) NOT NULL DEFAULT 'none'",
+            "inspection_verdict": "VARCHAR(30) NOT NULL DEFAULT ''",
+            "issue_count": "INTEGER NOT NULL DEFAULT 0",
+            "checks_json": "TEXT NOT NULL DEFAULT '{}'",
+        }
+
+        column_ddl = sqlite_column_ddl if _IS_SQLITE else pg_column_ddl
+
         for column_name, ddl in column_ddl.items():
             if column_name in existing_cols:
                 continue
             try:
-                conn.execute(
-                    __import__("sqlalchemy").text(
-                        f"ALTER TABLE url_audit_records ADD COLUMN {column_name} {ddl}"
+                if _IS_SQLITE:
+                    conn.execute(
+                        __import__("sqlalchemy").text(
+                            f"ALTER TABLE url_audit_records ADD COLUMN {column_name} {ddl}"
+                        )
                     )
-                )
+                else:
+                    _txt = __import__("sqlalchemy").text
+                    try:
+                        conn.execute(
+                            _txt(
+                                f"ALTER TABLE url_audit_records ADD COLUMN IF NOT EXISTS {column_name} {ddl}"
+                            )
+                        )
+                    except Exception:  # noqa: BLE001
+                        conn.execute(_txt(f"ALTER TABLE url_audit_records ADD COLUMN {column_name} {ddl}"))
             except Exception as exc:  # noqa: BLE001
                 LOGGER.debug("ALTER TABLE url_audit_records ADD COLUMN %s atlandı: %s", column_name, exc)
         # ai_brief_run_logs: eski kurulumlara eksik sütunlar (create_all mevcut tabloları genişletmez)
