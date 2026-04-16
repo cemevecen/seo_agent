@@ -1045,9 +1045,11 @@
             var match = ga4DataAttr(panel, 'data-ga4-pages-kind-panel') === k;
             panel.classList.toggle('hidden', !match);
             if (match) {
-              // Bir frame sonra: hidden kalktıktan sonra htmx tetiklensin (Haberler takılması önlemi).
+              // İki frame: layout/paint sonrası ga4-load (tek frame bazen HTMX isteği kaçırıyordu).
               window.requestAnimationFrame(function () {
-                triggerGa4Load(panel);
+                window.requestAnimationFrame(function () {
+                  triggerGa4Load(panel);
+                });
               });
             }
           });
@@ -1346,6 +1348,15 @@
     if (ga4SiteListBootstrapped && list.contains(t)) {
       ga4HtmxNestedPending += 1;
       updateGa4ActivityBar();
+    }
+  });
+
+  document.body.addEventListener('htmx:timeout', function (event) {
+    var detail = event.detail || {};
+    var elt = detail.elt;
+    if (elt && elt.hasAttribute && elt.hasAttribute('data-ga4-pages-placeholder-news')) {
+      elt.outerHTML =
+        '<div class="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 px-4 py-6 text-center text-sm text-rose-800 dark:text-rose-200">Haberler tablosu zaman aşımına uğradı (GA4 yanıt vermiyor). Sayfayı yenileyip tekrar deneyin veya bir süre sonra tekrar açın.</div>';
     }
   });
 

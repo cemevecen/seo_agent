@@ -46,9 +46,9 @@
                 <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-slate-900 dark:text-slate-100" title="{{ _pl }}" dir="rtl"><bdi dir="ltr">{{ _pl }}</bdi></span>
               {% endif %}
             </td>
-            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.web_views | tr_int }}</td>
-            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.mweb_views | tr_int }}</td>
-            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.total_views | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row['web_views'] | default(0) | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row['mweb_views'] | default(0) | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row['total_views'] | default(0) | tr_int }}</td>
           </tr>
         {% else %}
           <tr>

@@ -5,7 +5,6 @@ import os
 import re
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -6911,7 +6910,7 @@ def ga4_pages_partial(request: Request, site_id: int):
     except ValueError:
         days = 30
 
-    # Haberler: GA4 + ThreadPoolExecutor sırasında DB oturumu açık kalmasın (SQLite/gRPC etkileşimi).
+    # Haberler: GA4 çağrısından önce DB oturumu kapanır (eski SQLite/gRPC etkileşimi notu).
     if news_only:
         with SessionLocal() as db:
             site = db.query(Site).filter(Site.id == site_id).first()
@@ -6949,18 +6948,8 @@ def ga4_pages_partial(request: Request, site_id: int):
 
         try:
             merged: dict[str, dict] = {}
-            if len(profile_candidates) == 1:
-                profile_rows = [_fetch_news_enriched(profile_candidates[0])]
-            else:
-                workers = min(4, len(profile_candidates))
-                try:
-                    with ThreadPoolExecutor(max_workers=workers) as pool:
-                        profile_rows = list(pool.map(_fetch_news_enriched, profile_candidates))
-                except Exception:
-                    logging.exception(
-                        "GA4 haber paralel çekim başarısız (site_id=%s), sırayla deneniyor", site_id
-                    )
-                    profile_rows = [_fetch_news_enriched(p) for p in profile_candidates]
+            # Sıralı çekim: gRPC istemcisi + ortam farklarında paralel çağrılar takılma/500 üretebiliyor.
+            profile_rows = [_fetch_news_enriched(p) for p in profile_candidates]
 
             for pf, rows_pf in profile_rows:
                 for row in rows_pf:
@@ -6990,23 +6979,32 @@ def ga4_pages_partial(request: Request, site_id: int):
                     bucket["total_views"] = float(bucket["web_views"]) + float(bucket["mweb_views"])
 
             rows = sorted(merged.values(), key=lambda item: float(item.get("total_views") or 0.0), reverse=True)[:30]
+            for item in rows:
+                item.setdefault("web_views", 0.0)
+                item.setdefault("mweb_views", 0.0)
+                item.setdefault("total_views", float(item.get("web_views") or 0.0) + float(item.get("mweb_views") or 0.0))
         except Exception as exc:  # noqa: BLE001
+            logging.exception("GA4 haber tablosu (site_id=%s) başarısız", site_id)
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
-        news_resp = templates.TemplateResponse(
-            request,
-            "partials/ga4_news_pages_table.html",
-            context={
-                "request": request,
-                "rows": rows,
-                "days": days,
-                "profile": profile,
-                "property_id": property_id,
-                "site_domain": site_domain,
-            },
-        )
-        news_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
-        return news_resp
+        try:
+            news_resp = templates.TemplateResponse(
+                request,
+                "partials/ga4_news_pages_table.html",
+                context={
+                    "request": request,
+                    "rows": rows,
+                    "days": days,
+                    "profile": profile,
+                    "property_id": property_id,
+                    "site_domain": site_domain,
+                },
+            )
+            news_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+            return news_resp
+        except Exception as exc:  # noqa: BLE001
+            logging.exception("GA4 haber şablonu (site_id=%s) başarısız", site_id)
+            return HTMLResponse(f"GA4 haber tablosu oluşturulamadı: {exc}", status_code=500)
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
