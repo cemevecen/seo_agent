@@ -894,7 +894,8 @@ def fetch_ga4_news_landing_pages_total(
 ) -> list[dict]:
     """Tek dönem: en çok oturum alan haber landing sayfaları (karşılaştırma yok)."""
     safe_days = int(days) if int(days) > 0 else 7
-    lim = max(30, min(int(limit or 30), 250))
+    # Haber filtresi toplam sonrasında uygulanıyor; 30'u garantilemek için her zaman üst limiti yüksek tut.
+    lim = 250
     (last_start, last_end), _ = _calendar_windows(safe_days)
 
     client = _client()
