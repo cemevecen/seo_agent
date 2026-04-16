@@ -59,6 +59,14 @@
     z-index: 0;
     isolation: isolate;
   }
+  /* Sayfalar / Haberler / Kaynak: üst katmanda tut (kart overflow / grafik stacking) */
+  [data-ga4-pages-section] {
+    position: relative;
+    z-index: 2;
+  }
+  [data-ga4-pages-kind-switch] {
+    min-height: 2.5rem;
+  }
 </style>
 <div data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
@@ -687,8 +695,36 @@
         }
         return response.text();
       })
+      .then(function () {
+        return fetch('/ga4/site/' + encodeURIComponent(siteId), {
+          headers: { 'HX-Request': 'true' },
+        }).then(function (r) {
+          if (!r.ok) {
+            throw new Error('card reload failed');
+          }
+          return r.text();
+        });
+      })
       .then(function (html) {
-        if (target) {
+        var sid = String(siteId);
+        var card =
+          document.getElementById('ga4-card-' + sid) ||
+          document.querySelector('[data-ga4-site-card][data-site-id="' + sid + '"]');
+        if (card && card.parentElement) {
+          var wrap = document.createElement('div');
+          wrap.innerHTML = html.trim();
+          var next = wrap.firstElementChild;
+          if (next) {
+            card.replaceWith(next);
+            window.setTimeout(function () {
+              initGa4Panels(next);
+              var grid = next.closest && next.closest('[data-ga4-split-root]');
+              if (grid) {
+                initGa4SplitView(grid);
+              }
+            }, 50);
+          }
+        } else if (target) {
           target.innerHTML = html;
           window.setTimeout(function () {
             initGa4Panels(target);
