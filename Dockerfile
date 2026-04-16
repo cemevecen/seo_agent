@@ -24,4 +24,10 @@ COPY . .
 
 EXPOSE 8012
 
+<<<<<<< HEAD
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"]
+=======
+# Railway/Render gibi ortamlarda PORT dinamik verilir. JSON-array CMD'de shell expansion
+# çalışmadığı için sh -c kullanıyoruz (PORT yoksa 8012).
+CMD ["sh", "-c", "exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}"]
+>>>>>>> 3e68681 (fix: use Railway PORT env when starting uvicorn)
