@@ -57,8 +57,10 @@ class Settings(BaseSettings):
     pagespeed_auto_collect_on_page_load: bool = False
     search_console_daily_limit: int = 80
     search_console_monthly_limit: int = 1500
-    search_console_row_batch_size: int = 2500
-    search_console_max_rows: int = 10000
+    # Storage/DB güvenliği: çok büyük SC snapshot'ları diski hızla şişiriyor.
+    # Gerekirse .env ile yükseltilebilir.
+    search_console_row_batch_size: int = 1000
+    search_console_max_rows: int = 2500
     search_console_refresh_cooldown_seconds: int = 21600
     search_console_live_fetch_on_read: bool = False
     search_console_scheduled_refresh_enabled: bool = True

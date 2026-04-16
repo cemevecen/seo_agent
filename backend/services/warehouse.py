@@ -8,7 +8,7 @@ from datetime import datetime
 
 LOGGER = logging.getLogger(__name__)
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.models import (
@@ -175,6 +175,16 @@ def get_latest_search_console_rows(
     site_id: int,
     data_scope: str = "current_28d",
 ) -> list[dict]:
+    try:
+        from backend.database import _IS_SQLITE
+
+        if not _IS_SQLITE:
+            # PostgreSQL'de disk baskısı altında paralel worker init dosyası yazımı
+            # "No space left on device" hatasına düşebiliyor.
+            db.execute(text("SET LOCAL max_parallel_workers_per_gather = 0"))
+    except Exception:
+        pass
+
     latest_timestamp = (
         db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
         .filter(
@@ -194,6 +204,7 @@ def get_latest_search_console_rows(
             SearchConsoleQuerySnapshot.collected_at == latest_timestamp,
         )
         .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
+        .limit(1000)
         .all()
     )
     return [
@@ -244,7 +255,15 @@ def get_latest_search_console_rows_batch(
     #    Böylece düşük tıklı scope'lar (current_day vb.) yüksek tıklı scope'lar
     #    tarafından ezilmez.
     from sqlalchemy import and_
-    PER_SCOPE_LIMIT = 5000  # scope başına max satır (2 device × ~1000-2500 row)
+    try:
+        from backend.database import _IS_SQLITE
+
+        if not _IS_SQLITE:
+            db.execute(text("SET LOCAL max_parallel_workers_per_gather = 0"))
+    except Exception:
+        pass
+
+    PER_SCOPE_LIMIT = 1000  # scope başına max satır; disk kullanımını sınırlar
 
     result: dict[str, list[dict]] = {scope: [] for scope in scopes}
     for scope, ts in scope_to_ts.items():
