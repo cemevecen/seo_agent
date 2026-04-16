@@ -1,7 +1,7 @@
 {% if lazy_mode %}
   {# İlk yükleme: iskelet kartlar + HTMX lazy load tetikleyicileri #}
   {% if lazy_site_ids %}
-    <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
+    <div class="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
       {% for site_id, display_name in lazy_site_ids %}
         <div
           id="sc-card-{{ site_id }}"
@@ -39,7 +39,7 @@
 {% else %}
   {# Yenileme sonrası tam veri (refresh endpoint'lerinden döner) #}
   {% if search_console_sites %}
-    <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
+    <div class="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" data-sc-split-root>
       {% for site in search_console_sites %}
         {% set site_count = search_console_sites|length %}
         {% include "partials/sc_single_site_card.html" %}

@@ -1,7 +1,7 @@
 {% if lazy_mode %}
   {# İlk yükleme: iskelet kartlar + HTMX lazy load tetikleyicileri #}
   {% if lazy_site_ids %}
-    <div class="grid gap-4 xl:grid-cols-2" data-ga4-split-root>
+    <div class="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-2" data-ga4-split-root>
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
           id="ga4-card-{{ site_id }}"
@@ -38,7 +38,7 @@
 {% else %}
   {# Eager mode: refresh sonrası tam veri (eski davranış) #}
   {% if ga4_sites %}
-    <div class="grid gap-4 xl:grid-cols-2" data-ga4-split-root>
+    <div class="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-2" data-ga4-split-root>
       {% for site in ga4_sites %}
         {% set site_count = ga4_sites|length %}
         {% include "partials/ga4_single_site_card.html" %}

@@ -7,7 +7,7 @@
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
   {% set favicon_v = "3" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
-  {% set app_css_v = "6" %}
+  {% set app_css_v = "7" %}
   <link rel="icon" href="/favicon.ico?v={{ favicon_v }}" sizes="any" />
   <link rel="shortcut icon" href="/favicon.ico?v={{ favicon_v }}" />
   <link rel="icon" href="/static/favicon.svg?v={{ favicon_v }}" type="image/svg+xml" />
@@ -80,6 +80,29 @@
       background-color: rgb(51 65 85) !important;
     }
   </style>
+  <style id="seo-responsive-shell">
+    /* <lg: sidebar tam genişlikte içeriğin üzerinde; ana alan her zaman tam genişlik */
+    @media (max-width: 1023.98px) {
+      #sidebar.seo-sidebar-mobile-closed {
+        transform: translateX(-100%);
+        pointer-events: none;
+        visibility: hidden;
+      }
+      #sidebar.seo-sidebar-mobile-open {
+        transform: translateX(0);
+        pointer-events: auto;
+        visibility: visible;
+      }
+    }
+    @media (min-width: 1024px) {
+      #sidebar.seo-sidebar-mobile-closed,
+      #sidebar.seo-sidebar-mobile-open {
+        transform: none !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+      }
+    }
+  </style>
   <!-- HTMX CDN -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <!-- Plotly CDN -->
@@ -87,8 +110,16 @@
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
-  <div id="app-shell" class="flex min-h-screen w-full max-w-[100vw] overflow-x-hidden">
-    <aside id="sidebar" class="w-72 shrink-0 overflow-x-hidden overflow-y-auto bg-slate-900 text-slate-100 p-5 transition-all duration-300 ease-out">
+  <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden lg:flex-row">
+    <div
+      id="sidebar-backdrop"
+      class="fixed inset-0 z-30 hidden bg-slate-900/45 backdrop-blur-[1px] lg:hidden"
+      aria-hidden="true"
+    ></div>
+    <aside
+      id="sidebar"
+      class="seo-sidebar-mobile-closed fixed inset-y-0 left-0 z-40 flex h-[100dvh] w-[min(18rem,calc(100vw-0.75rem))] max-w-[min(18rem,92vw)] shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain border-r border-slate-800 bg-slate-900 p-4 text-slate-100 shadow-2xl shadow-black/25 transition-[transform,width,padding] duration-300 ease-out sm:p-5 lg:relative lg:inset-auto lg:z-10 lg:h-auto lg:max-h-none lg:min-h-screen lg:max-w-none lg:translate-x-0 lg:shadow-none"
+    >
       <h1 id="sidebar-title" class="text-xl font-bold">SEO Agent</h1>
       <p id="sidebar-subtitle" class="text-sm text-slate-300 mt-1">İzlenen Siteler</p>
 
@@ -114,7 +145,7 @@
       </nav>
     </aside>
 
-    <main class="min-w-0 flex-1 max-w-full overflow-x-hidden">
+    <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden lg:min-w-0">
       <header class="border-b border-slate-200 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-900">
         <div class="flex flex-col gap-3">
           <div class="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
@@ -122,10 +153,10 @@
               <button
                 id="sidebar-toggle"
                 type="button"
-                class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 sm:mt-0 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 sm:mt-0 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 lg:mt-0"
                 aria-expanded="true"
                 aria-controls="sidebar"
-                title="Sidebar Daralt/Genişlet"
+                title="Menü (mobil) / Sidebar (masaüstü)"
               >
                 <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 rotate-180" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -171,7 +202,7 @@
         </div>
       </header>
 
-      <section id="content" class="max-w-full overflow-x-hidden p-3 sm:p-6">
+      <section id="content" class="mx-auto w-full max-w-full overflow-x-hidden p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5 md:p-6 md:pb-6">
         {% block content %}{% endblock %}
       </section>
     </main>
@@ -181,6 +212,7 @@
     (function () {
       const shell = document.getElementById('app-shell');
       const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
       const title = document.getElementById('sidebar-title');
       const subtitle = document.getElementById('sidebar-subtitle');
       const nav = document.getElementById('sidebar-nav');
@@ -191,24 +223,41 @@
         return;
       }
 
+      function isDesktopShell() {
+        return window.matchMedia('(min-width: 1024px)').matches;
+      }
+
       function setCollapsed(collapsed) {
-        sidebar.classList.toggle('w-72', !collapsed);
-        sidebar.classList.toggle('w-0', collapsed);
-        sidebar.classList.toggle('px-5', !collapsed);
-        sidebar.classList.toggle('px-0', collapsed);
-        sidebar.classList.toggle('py-5', !collapsed);
-        sidebar.classList.toggle('py-0', collapsed);
-        sidebar.classList.toggle('border-r', !collapsed);
-        sidebar.classList.toggle('border-slate-800', !collapsed);
+        const desktop = isDesktopShell();
+        if (desktop) {
+          sidebar.classList.remove('seo-sidebar-mobile-open', 'seo-sidebar-mobile-closed');
+          if (backdrop) {
+            backdrop.classList.add('hidden');
+          }
+          if (collapsed) {
+            sidebar.classList.remove('lg:w-72');
+            sidebar.classList.add('lg:w-0', 'lg:p-0', 'lg:overflow-hidden');
+            sidebar.classList.remove('lg:border-r', 'lg:border-slate-800');
+          } else {
+            sidebar.classList.add('lg:w-72', 'lg:border-r', 'lg:border-slate-800');
+            sidebar.classList.remove('lg:w-0', 'lg:p-0', 'lg:overflow-hidden');
+          }
+        } else {
+          sidebar.classList.toggle('seo-sidebar-mobile-closed', collapsed);
+          sidebar.classList.toggle('seo-sidebar-mobile-open', !collapsed);
+          if (backdrop) {
+            backdrop.classList.toggle('hidden', collapsed);
+          }
+        }
 
         if (title) {
-          title.classList.toggle('hidden', collapsed);
+          title.classList.toggle('hidden', collapsed && desktop);
         }
         if (subtitle) {
-          subtitle.classList.toggle('hidden', collapsed);
+          subtitle.classList.toggle('hidden', collapsed && desktop);
         }
         if (nav) {
-          nav.classList.toggle('hidden', collapsed);
+          nav.classList.toggle('hidden', collapsed && desktop);
         }
         linkItems.forEach(function (item) {
           item.classList.toggle('px-3', true);
@@ -226,8 +275,48 @@
       setCollapsed(stored);
 
       toggle.addEventListener('click', function () {
-        const collapsed = sidebar.classList.contains('w-0');
-        setCollapsed(!collapsed);
+        if (isDesktopShell()) {
+          setCollapsed(!sidebar.classList.contains('lg:w-0'));
+        } else {
+          setCollapsed(!sidebar.classList.contains('seo-sidebar-mobile-closed'));
+        }
+      });
+
+      if (backdrop) {
+        backdrop.addEventListener('click', function () {
+          if (!isDesktopShell()) {
+            setCollapsed(true);
+          }
+        });
+      }
+
+      linkItems.forEach(function (item) {
+        item.addEventListener('click', function () {
+          if (!isDesktopShell()) {
+            setCollapsed(true);
+          }
+        });
+      });
+
+      window.addEventListener(
+        'resize',
+        function () {
+          var c = localStorage.getItem('seo-sidebar-collapsed') === '1';
+          setCollapsed(c);
+        },
+        { passive: true }
+      );
+
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') {
+          return;
+        }
+        if (isDesktopShell()) {
+          return;
+        }
+        if (!sidebar.classList.contains('seo-sidebar-mobile-closed')) {
+          setCollapsed(true);
+        }
       });
 
       function syncHeaderFromContent() {

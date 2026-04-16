@@ -159,12 +159,16 @@
 </div>
 
 <div class="min-w-0 space-y-2" data-ga4-pages-section>
+  {# w-max iç satır: üç chip dar kartta kesilmesin; yatay kaydırma ile Source da görünsün #}
   <div
-    class="inline-flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]"
-    data-ga4-pages-kind-switch
-    role="tablist"
-    aria-label="Landing sayfa tabloları"
+    class="w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]"
   >
+    <div
+      class="inline-flex w-max max-w-none flex-nowrap items-stretch gap-0.5"
+      data-ga4-pages-kind-switch
+      role="tablist"
+      aria-label="GA4 sayfa ve kaynak tabloları"
+    >
     <button
       type="button"
       role="tab"
@@ -183,6 +187,16 @@
     >
       Haberler (30)
     </button>
+    <button
+      type="button"
+      role="tab"
+      class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3 sm:text-sm"
+      data-ga4-pages-kind="sources"
+      data-active="false"
+    >
+      Source
+    </button>
+    </div>
   </div>
   <div data-ga4-pages-kind-panel="content" class="min-w-0">
     <div
@@ -208,15 +222,16 @@
       <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
     </div>
   </div>
-</div>
-
-<div
-  data-ga4-sources-placeholder
-  hx-get="/ga4/sources/{{ site.id }}?days={{ period_days }}&profile={{ pk }}"
-  hx-trigger="ga4-load"
-  hx-swap="outerHTML"
-  class="rounded-2xl border border-slate-200 dark:border-slate-700"
->
-  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
-  <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+  <div data-ga4-pages-kind-panel="sources" class="hidden min-w-0">
+    <div
+      data-ga4-sources-placeholder
+      hx-get="/ga4/sources/{{ site.id }}?days={{ period_days }}&profile={{ pk }}"
+      hx-trigger="ga4-load"
+      hx-swap="outerHTML"
+      class="rounded-2xl border border-slate-200 dark:border-slate-700"
+    >
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
+      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+    </div>
+  </div>
 </div>

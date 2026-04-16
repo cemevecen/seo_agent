@@ -4,7 +4,7 @@
 {% set llm_default = 'gemini' if llm_gemini else ('groq' if llm_groq else 'gemini') %}
 <div
   id="ai-brief-view"
-  class="mx-auto max-w-6xl space-y-4"
+  class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4"
   data-groq-available="{{ 1 if llm_groq else 0 }}"
   data-gemini-available="{{ 1 if llm_gemini else 0 }}"
 >

@@ -30,6 +30,9 @@ from backend.services.warehouse import finish_collector_run, save_ga4_report_sna
 
 LOGGER = logging.getLogger(__name__)
 
+# Haber landing raporu: sonsuz bekleme yerine makul üst süre (özellikle local / zayıf ağ).
+_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC = 120.0
+
 
 def _channel_pct_change(last_v: float, prev_v: float) -> float:
     """Önceki döneme göre % değişim (main._ga4_period_pct_change ile aynı mantık)."""
@@ -148,6 +151,45 @@ def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> F
             or_group=FilterExpressionList(expressions=expressions),
         ),
     )
+
+
+def _landing_news_include_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
+    """Haber landing'leri: API tarafında süz — tüm siteden top-N çekip sonra filtrelemek web'de satır kaçırır."""
+    exprs: list[FilterExpression] = []
+    # Son segment sayısal ID (_NEWS_DETAIL_PATH_RE ile aynı mantık: .../847860, .../847860/amp...)
+    exprs.append(
+        FilterExpression(
+            filter=Filter(
+                field_name=field_name,
+                string_filter=Filter.StringFilter(
+                    match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
+                    value=r"^.*/[0-9]+(?:[/?#].*)?$",
+                    case_sensitive=False,
+                ),
+            ),
+        )
+    )
+    for sub in _exclude_path_substrings():
+        frag = (sub or "").strip()
+        if not frag:
+            continue
+        exprs.append(
+            FilterExpression(
+                filter=Filter(
+                    field_name=field_name,
+                    string_filter=Filter.StringFilter(
+                        match_type=Filter.StringFilter.MatchType.CONTAINS,
+                        value=frag,
+                        case_sensitive=False,
+                    ),
+                ),
+            )
+        )
+    if not exprs:
+        return None
+    if len(exprs) == 1:
+        return exprs[0]
+    return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
 
 
 def _run_kpi_for_single_range(
@@ -322,6 +364,7 @@ def _run_landing_host_path_metric_single_range(
     end: str,
     limit: int,
     dimension_filter: FilterExpression | None = None,
+    timeout: float | None = None,
 ) -> dict[str, float]:
     """hostName + landingPagePlusQueryString -> seçilen metric (anahtar: host\\x1fpath)."""
     metric = str(metric_name or "sessions").strip() or "sessions"
@@ -338,7 +381,10 @@ def _run_landing_host_path_metric_single_range(
     }
     if dimension_filter is not None:
         req_kwargs["dimension_filter"] = dimension_filter
-    response = client.run_report(RunReportRequest(**req_kwargs))
+    call_kw: dict = {}
+    if timeout is not None:
+        call_kw["timeout"] = float(timeout)
+    response = client.run_report(RunReportRequest(**req_kwargs), **call_kw)
     out: dict[str, float] = {}
     for row in response.rows:
         if len(row.dimension_values) < 2:
@@ -932,20 +978,39 @@ def fetch_ga4_news_landing_pages_total(
 ) -> list[dict]:
     """Tek dönem: en çok görüntülenen haber landing sayfaları (karşılaştırma yok)."""
     safe_days = int(days) if int(days) > 0 else 7
-    # Haber filtresi toplam sonrasında uygulanıyor; 30'u garantilemek için her zaman üst limiti yüksek tut.
-    lim = 250
+    # Rapor: GA4 sayfa başına en fazla 250 satır; haber filtresi sonrası da yeterli kapsama için tam kullan.
+    api_lim = 250
     (last_start, last_end), _ = _calendar_windows(safe_days)
 
     client = _client()
-    last_map = _run_landing_host_path_metric_single_range(
-        client,
-        property_id,
-        metric_name="screenPageViews",
-        start=last_start,
-        end=last_end,
-        limit=lim,
-        dimension_filter=None,
-    )
+    news_filt = _landing_news_include_filter("landingPagePlusQueryString")
+    try:
+        last_map = _run_landing_host_path_metric_single_range(
+            client,
+            property_id,
+            metric_name="screenPageViews",
+            start=last_start,
+            end=last_end,
+            limit=api_lim,
+            dimension_filter=news_filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 haber landing raporu (filtreli) başarısız, filtresiz tekrar deneniyor — property=%s",
+            property_id,
+            exc_info=True,
+        )
+        last_map = _run_landing_host_path_metric_single_range(
+            client,
+            property_id,
+            metric_name="screenPageViews",
+            start=last_start,
+            end=last_end,
+            limit=api_lim,
+            dimension_filter=None,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
     rows: list[dict] = []
     for key, sess in last_map.items():
         host, sep, path = key.partition("\x1f")
@@ -967,7 +1032,8 @@ def fetch_ga4_news_landing_pages_total(
             }
         )
     rows.sort(key=lambda item: float(item.get("views") or 0.0), reverse=True)
-    return rows[: max(1, min(int(limit or 30), 50))]
+    cap = max(1, min(int(limit or 30), 250))
+    return rows[:cap]
 
 
 def fetch_ga4_session_source_medium(

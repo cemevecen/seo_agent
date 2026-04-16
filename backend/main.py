@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -6796,11 +6797,13 @@ def ga4_single_site_card(request: Request, site_id: int):
                 f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></section>',
                 status_code=200,
             )
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             request,
             "partials/ga4_single_site_card.html",
             context={"request": request, "site": site_data, "site_count": site_count},
         )
+        response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+        return response
 
 
 @app.post("/ga4/refresh/{site_id}")
@@ -6908,6 +6911,103 @@ def ga4_pages_partial(request: Request, site_id: int):
     except ValueError:
         days = 30
 
+    # Haberler: GA4 + ThreadPoolExecutor sırasında DB oturumu açık kalmasın (SQLite/gRPC etkileşimi).
+    if news_only:
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None:
+                return HTMLResponse("Site bulunamadı.", status_code=404)
+            if _is_external_site(db, site.id):
+                return HTMLResponse("Bu site GA4 listesinde yer almaz (external).", status_code=404)
+            ga4_status = get_ga4_connection_status(db, site.id)
+            properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+            property_id = str(properties.get(profile) or "").strip()
+            if not property_id:
+                return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
+            site_domain = site.domain
+            profile_candidates: list[tuple[str, str]] = []
+            for pf in ("web", "mweb"):
+                prop = str(properties.get(pf) or "").strip()
+                if prop:
+                    profile_candidates.append((pf, prop))
+            if not profile_candidates:
+                profile_candidates.append((profile, property_id))
+
+        from backend.collectors.ga4 import fetch_ga4_news_landing_pages_total
+
+        def _news_merge_key(row: dict) -> str:
+            raw = str(row.get("page") or row.get("page_url") or "").strip()
+            m = re.search(r"/(\d+)(?:/amp)?(?:[/?#].*)?$", raw)
+            if m:
+                return f"id:{m.group(1)}"
+            return f"url:{raw.lower()}"
+
+        def _fetch_news_enriched(pair: tuple[str, str]) -> tuple[str, list]:
+            pf, prop = pair
+            raw_rows = fetch_ga4_news_landing_pages_total(property_id=prop, days=days, limit=250)
+            return pf, _enrich_ga4_page_rows(raw_rows, keep_news_articles=True)
+
+        try:
+            merged: dict[str, dict] = {}
+            if len(profile_candidates) == 1:
+                profile_rows = [_fetch_news_enriched(profile_candidates[0])]
+            else:
+                workers = min(4, len(profile_candidates))
+                try:
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
+                        profile_rows = list(pool.map(_fetch_news_enriched, profile_candidates))
+                except Exception:
+                    logging.exception(
+                        "GA4 haber paralel çekim başarısız (site_id=%s), sırayla deneniyor", site_id
+                    )
+                    profile_rows = [_fetch_news_enriched(p) for p in profile_candidates]
+
+            for pf, rows_pf in profile_rows:
+                for row in rows_pf:
+                    key = _news_merge_key(row)
+                    if not key:
+                        continue
+                    bucket = merged.setdefault(
+                        key,
+                        {
+                            "page": row.get("page", ""),
+                            "page_host": row.get("page_host", ""),
+                            "page_url": row.get("page_url", ""),
+                            "web_views": 0.0,
+                            "mweb_views": 0.0,
+                            "total_views": 0.0,
+                        },
+                    )
+                    if "/amp" in str(bucket.get("page") or "").lower() and "/amp" not in str(row.get("page") or "").lower():
+                        bucket["page"] = row.get("page", "")
+                        bucket["page_host"] = row.get("page_host", "")
+                        bucket["page_url"] = row.get("page_url", "")
+                    v = float(row.get("views") or 0.0)
+                    if pf == "mweb":
+                        bucket["mweb_views"] += v
+                    else:
+                        bucket["web_views"] += v
+                    bucket["total_views"] = float(bucket["web_views"]) + float(bucket["mweb_views"])
+
+            rows = sorted(merged.values(), key=lambda item: float(item.get("total_views") or 0.0), reverse=True)[:30]
+        except Exception as exc:  # noqa: BLE001
+            return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
+
+        news_resp = templates.TemplateResponse(
+            request,
+            "partials/ga4_news_pages_table.html",
+            context={
+                "request": request,
+                "rows": rows,
+                "days": days,
+                "profile": profile,
+                "property_id": property_id,
+                "site_domain": site_domain,
+            },
+        )
+        news_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+        return news_resp
+
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
@@ -6922,78 +7022,10 @@ def ga4_pages_partial(request: Request, site_id: int):
             return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
 
         try:
-            if news_only:
-                # Haberler: tek dönem toplam views (karşılaştırma/snapshot yok).
-                # Mümkünse web + mweb birlikte çekilir; tabloda ayrı kolonlar gösterilir.
-                from backend.collectors.ga4 import fetch_ga4_news_landing_pages_total
-
-                def _news_merge_key(row: dict) -> str:
-                    # Aynı haber web/mweb'de farklı URL varyasyonlarıyla (örn: /amp) gelebilir.
-                    # Son numeric ID'ye göre birleştirince platform kırılımı tutarlı olur.
-                    raw = str(row.get("page") or row.get("page_url") or "").strip()
-                    m = re.search(r"/(\d+)(?:/amp)?(?:[/?#].*)?$", raw)
-                    if m:
-                        return f"id:{m.group(1)}"
-                    return f"url:{raw.lower()}"
-
-                profile_candidates: list[tuple[str, str]] = []
-                for pf in ("web", "mweb"):
-                    prop = str(properties.get(pf) or "").strip()
-                    if prop:
-                        profile_candidates.append((pf, prop))
-                if not profile_candidates:
-                    profile_candidates.append((profile, property_id))
-
-                merged: dict[str, dict] = {}
-                for pf, prop in profile_candidates:
-                    raw_rows = fetch_ga4_news_landing_pages_total(property_id=prop, days=days, limit=250)
-                    rows_pf = _enrich_ga4_page_rows(raw_rows, keep_news_articles=True)
-                    for row in rows_pf:
-                        key = _news_merge_key(row)
-                        if not key:
-                            continue
-                        bucket = merged.setdefault(
-                            key,
-                            {
-                                "page": row.get("page", ""),
-                                "page_host": row.get("page_host", ""),
-                                "page_url": row.get("page_url", ""),
-                                "web_views": 0.0,
-                                "mweb_views": 0.0,
-                                "total_views": 0.0,
-                            },
-                        )
-                        # Görsel etiket olarak mümkünse /amp içermeyen satırı tercih et.
-                        if "/amp" in str(bucket.get("page") or "").lower() and "/amp" not in str(row.get("page") or "").lower():
-                            bucket["page"] = row.get("page", "")
-                            bucket["page_host"] = row.get("page_host", "")
-                            bucket["page_url"] = row.get("page_url", "")
-                        v = float(row.get("views") or 0.0)
-                        if pf == "mweb":
-                            bucket["mweb_views"] += v
-                        else:
-                            bucket["web_views"] += v
-                        bucket["total_views"] = float(bucket["web_views"]) + float(bucket["mweb_views"])
-
-                rows = sorted(merged.values(), key=lambda item: float(item.get("total_views") or 0.0), reverse=True)[:30]
-                return templates.TemplateResponse(
-                    request,
-                    "partials/ga4_news_pages_table.html",
-                    context={
-                        "request": request,
-                        "rows": rows,
-                        "days": days,
-                        "profile": profile,
-                        "property_id": property_id,
-                        "site_domain": site.domain,
-                    },
-                )
-
             from backend.collectors.ga4 import fetch_ga4_landing_pages
 
             api_limit = 50
             if days == 1:
-                # 1g: grafik 7g snapshot ile aynı kalır; landing listesi ayrı — dün vs geçen haftanın aynı günü
                 rows = fetch_ga4_landing_pages(
                     property_id=property_id,
                     days=1,
@@ -7012,7 +7044,7 @@ def ga4_pages_partial(request: Request, site_id: int):
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
-        return templates.TemplateResponse(
+        pages_resp = templates.TemplateResponse(
             request,
             "partials/ga4_pages_table.html",
             context={
@@ -7025,6 +7057,8 @@ def ga4_pages_partial(request: Request, site_id: int):
                 "table_heading": "Pages (excl. news)",
             },
         )
+        pages_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+        return pages_resp
 
 
 @app.get("/ga4/sources/{site_id}")
@@ -7074,7 +7108,7 @@ def ga4_sources_partial(request: Request, site_id: int):
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 kaynak/ortam verisi çekilemedi: {exc}", status_code=500)
 
-        return templates.TemplateResponse(
+        src_resp = templates.TemplateResponse(
             request,
             "partials/ga4_sources_table.html",
             context={
@@ -7086,6 +7120,8 @@ def ga4_sources_partial(request: Request, site_id: int):
                 "site_domain": site.domain,
             },
         )
+        src_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+        return src_resp
 
 
 @app.get("/settings/alert-thresholds")
