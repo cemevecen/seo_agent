@@ -313,6 +313,44 @@ def _run_landing_host_path_sessions_single_range(
     return out
 
 
+def _run_landing_host_path_metric_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    *,
+    metric_name: str,
+    start: str,
+    end: str,
+    limit: int,
+    dimension_filter: FilterExpression | None = None,
+) -> dict[str, float]:
+    """hostName + landingPagePlusQueryString -> seçilen metric (anahtar: host\\x1fpath)."""
+    metric = str(metric_name or "sessions").strip() or "sessions"
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="hostName"),
+            Dimension(name="landingPagePlusQueryString"),
+        ],
+        "metrics": [Metric(name=metric)],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(10, min(int(limit), 250)),
+        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name=metric), desc=True)],
+    }
+    if dimension_filter is not None:
+        req_kwargs["dimension_filter"] = dimension_filter
+    response = client.run_report(RunReportRequest(**req_kwargs))
+    out: dict[str, float] = {}
+    for row in response.rows:
+        if len(row.dimension_values) < 2:
+            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = str(row.dimension_values[1].value or "").strip()
+        key = f"{host}\x1f{path}"
+        val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        out[key] = val
+    return out
+
+
 def _merge_period_maps(
     last_map: dict[str, float],
     prev_map: dict[str, float],
@@ -892,16 +930,17 @@ def fetch_ga4_news_landing_pages_total(
     days: int = 7,
     limit: int = 30,
 ) -> list[dict]:
-    """Tek dönem: en çok oturum alan haber landing sayfaları (karşılaştırma yok)."""
+    """Tek dönem: en çok görüntülenen haber landing sayfaları (karşılaştırma yok)."""
     safe_days = int(days) if int(days) > 0 else 7
     # Haber filtresi toplam sonrasında uygulanıyor; 30'u garantilemek için her zaman üst limiti yüksek tut.
     lim = 250
     (last_start, last_end), _ = _calendar_windows(safe_days)
 
     client = _client()
-    last_map = _run_landing_host_path_sessions_single_range(
+    last_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
         start=last_start,
         end=last_end,
         limit=lim,
@@ -924,10 +963,10 @@ def fetch_ga4_news_landing_pages_total(
                 "page": path,
                 "page_host": ph,
                 "page_url": page_url,
-                "sessions": float(sess or 0.0),
+                "views": float(sess or 0.0),
             }
         )
-    rows.sort(key=lambda item: float(item.get("sessions") or 0.0), reverse=True)
+    rows.sort(key=lambda item: float(item.get("views") or 0.0), reverse=True)
     return rows[: max(1, min(int(limit or 30), 50))]
 
 

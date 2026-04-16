@@ -7,12 +7,14 @@
 {% endif %}
 
 <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
-  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Haberler (30) — Sessions ({{ last_l }})</p>
+  <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Haberler (30) — Views ({{ last_l }})</p>
   <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
     <table class="w-full min-w-0 table-fixed text-[10px] sm:text-xs" data-ga4-table>
       <colgroup>
-        <col class="min-w-0" style="width: 74%" />
-        <col style="width: 26%" />
+        <col class="min-w-0" style="width: 58%" />
+        <col style="width: 14%" />
+        <col style="width: 14%" />
+        <col style="width: 14%" />
       </colgroup>
       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
@@ -20,7 +22,13 @@
             <span class="text-left font-semibold">Landing page</span>
           </th>
           <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right sm:px-2 sm:py-2">
-            <span class="whitespace-nowrap text-right font-semibold">Sessions</span>
+            <span class="whitespace-nowrap text-right font-semibold">Web</span>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right sm:px-2 sm:py-2">
+            <span class="whitespace-nowrap text-right font-semibold">Mobil Web</span>
+          </th>
+          <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right sm:px-2 sm:py-2">
+            <span class="whitespace-nowrap text-right font-semibold">Toplam</span>
           </th>
         </tr>
       </thead>
@@ -38,11 +46,13 @@
                 <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-slate-900 dark:text-slate-100" title="{{ _pl }}" dir="rtl"><bdi dir="ltr">{{ _pl }}</bdi></span>
               {% endif %}
             </td>
-            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.sessions | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.web_views | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.mweb_views | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1 text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100 sm:px-2 sm:py-1.5">{{ row.total_views | tr_int }}</td>
           </tr>
         {% else %}
           <tr>
-            <td colspan="2" class="px-2 py-6 text-center text-slate-500 dark:text-slate-400 sm:px-3">Bu dönemde haber landing verisi yok.</td>
+            <td colspan="4" class="px-2 py-6 text-center text-slate-500 dark:text-slate-400 sm:px-3">Bu dönemde haber landing verisi yok.</td>
           </tr>
         {% endfor %}
       </tbody>

@@ -6923,11 +6923,45 @@ def ga4_pages_partial(request: Request, site_id: int):
 
         try:
             if news_only:
-                # Haberler: tek dönem toplam sessions (karşılaştırma yok, DB snapshot'a yazılmaz)
+                # Haberler: tek dönem toplam views (karşılaştırma/snapshot yok).
+                # Mümkünse web + mweb birlikte çekilir; tabloda ayrı kolonlar gösterilir.
                 from backend.collectors.ga4 import fetch_ga4_news_landing_pages_total
 
-                rows = fetch_ga4_news_landing_pages_total(property_id=property_id, days=days, limit=30)
-                rows = _enrich_ga4_page_rows(rows, keep_news_articles=True)
+                profile_candidates: list[tuple[str, str]] = []
+                for pf in ("web", "mweb"):
+                    prop = str(properties.get(pf) or "").strip()
+                    if prop:
+                        profile_candidates.append((pf, prop))
+                if not profile_candidates:
+                    profile_candidates.append((profile, property_id))
+
+                merged: dict[str, dict] = {}
+                for pf, prop in profile_candidates:
+                    raw_rows = fetch_ga4_news_landing_pages_total(property_id=prop, days=days, limit=120)
+                    rows_pf = _enrich_ga4_page_rows(raw_rows, keep_news_articles=True)
+                    for row in rows_pf:
+                        key = str(row.get("page_url") or row.get("page") or "").strip()
+                        if not key:
+                            continue
+                        bucket = merged.setdefault(
+                            key,
+                            {
+                                "page": row.get("page", ""),
+                                "page_host": row.get("page_host", ""),
+                                "page_url": row.get("page_url", ""),
+                                "web_views": 0.0,
+                                "mweb_views": 0.0,
+                                "total_views": 0.0,
+                            },
+                        )
+                        v = float(row.get("views") or 0.0)
+                        if pf == "mweb":
+                            bucket["mweb_views"] += v
+                        else:
+                            bucket["web_views"] += v
+                        bucket["total_views"] = float(bucket["web_views"]) + float(bucket["mweb_views"])
+
+                rows = sorted(merged.values(), key=lambda item: float(item.get("total_views") or 0.0), reverse=True)[:30]
                 return templates.TemplateResponse(
                     request,
                     "partials/ga4_news_pages_table.html",
