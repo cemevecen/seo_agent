@@ -49,7 +49,12 @@ from backend.collectors.pagespeed import (
     fetch_live_lighthouse_category_scores,
     get_latest_pagespeed_audit_snapshot,
 )
-from backend.collectors.search_console import collect_search_console_alert_metrics, collect_search_console_metrics, get_top_queries
+from backend.collectors.search_console import (
+    _resolve_search_console_targets,
+    collect_search_console_alert_metrics,
+    collect_search_console_metrics,
+    get_top_queries,
+)
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import settings
 from backend.database import SessionLocal, _IS_SQLITE, init_db
@@ -63,7 +68,18 @@ from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_day_over_day_score
 from backend.services.quota_guard import get_quota_status
-from backend.services.search_console_auth import build_oauth_flow, decode_oauth_state, delete_oauth_credentials, encode_oauth_state, get_search_console_connection_status, oauth_is_configured, save_oauth_credentials
+from backend.services.search_console_auth import (
+    SEARCH_CONSOLE_SCOPES,
+    build_oauth_flow,
+    decode_oauth_state,
+    delete_oauth_credentials,
+    encode_oauth_state,
+    get_search_console_connection_status,
+    get_search_console_credentials_record,
+    load_google_credentials,
+    oauth_is_configured,
+    save_oauth_credentials,
+)
 from backend.services.ga4_auth import ga4_is_configured, get_ga4_connection_status
 from backend.services.pagespeed_analyzer import analyze_pagespeed_alerts
 from backend.services.pagespeed_detailed import analyze_pagespeed_detailed
@@ -549,58 +565,27 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
 @app.on_event("startup")
 def on_startup() -> None:
-    # Railway gibi platformlarda container ayağa kalkarken healthcheck,
-    # FastAPI startup event'inin tamamlanmasını bekler. DB init / scheduler
-    # başlangıcı bazı ortamlarda (özellikle DB hazır değilken) uzun sürebilir ve
-    # deploy'u "asılı" bırakabilir. Bu yüzden startup işlerini arkaplanda başlat.
+    # Uygulama açılışında tablolar create_all ile hazırlanır.
     global SCHEDULER
-
-    def _startup_work() -> None:
-        global SCHEDULER
-        # DB servisi (Railway Postgres) uygulamadan sonra ayağa kalkabilir.
-        # init_db başarısız olursa retry yap; startup'u asla bloklama.
-        for attempt in range(1, 13):
-            try:
-                init_db()
-                LOGGER.info("Database initialized (attempt %d).", attempt)
-                break
-            except Exception as exc:  # noqa: BLE001
-                wait_s = min(60, 5 * attempt)
-                LOGGER.warning("init_db failed (attempt %d/%d), retrying in %ss: %s", attempt, 12, wait_s, exc)
-                try:
-                    import time
-
-                    time.sleep(wait_s)
-                except Exception:  # noqa: BLE001
-                    pass
-
-        try:
-            if SCHEDULER is None:
-                SCHEDULER = _build_daily_refresh_scheduler()
-                if SCHEDULER is not None:
-                    SCHEDULER.start()
-                    ga4_sched = (
-                        f", GA4={int(settings.ga4_scheduled_refresh_hour):02d}:{int(settings.ga4_scheduled_refresh_minute):02d}"
-                        if settings.ga4_scheduled_refresh_enabled
-                        else ""
-                    )
-                    LOGGER.info(
-                        "Scheduled jobs started. Search Console=%02d:%02d%s, full refresh=%02d:%02d %s.",
-                        int(settings.search_console_scheduled_refresh_hour),
-                        int(settings.search_console_scheduled_refresh_minute),
-                        ga4_sched,
-                        int(settings.scheduled_refresh_hour),
-                        int(settings.scheduled_refresh_minute),
-                        settings.scheduled_refresh_timezone,
-                    )
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.exception("Scheduler startup failed: %s", exc)
-
-    import threading
-
-    LOGGER.info("Startup: spawning background init thread.")
-    t = threading.Thread(target=_startup_work, name="startup-work", daemon=True)
-    t.start()
+    init_db()
+    if SCHEDULER is None:
+        SCHEDULER = _build_daily_refresh_scheduler()
+        if SCHEDULER is not None:
+            SCHEDULER.start()
+            ga4_sched = (
+                f", GA4={int(settings.ga4_scheduled_refresh_hour):02d}:{int(settings.ga4_scheduled_refresh_minute):02d}"
+                if settings.ga4_scheduled_refresh_enabled
+                else ""
+            )
+            LOGGER.info(
+                "Scheduled jobs started. Search Console=%02d:%02d%s, full refresh=%02d:%02d %s.",
+                int(settings.search_console_scheduled_refresh_hour),
+                int(settings.search_console_scheduled_refresh_minute),
+                ga4_sched,
+                int(settings.scheduled_refresh_hour),
+                int(settings.scheduled_refresh_minute),
+                settings.scheduled_refresh_timezone,
+            )
 
 
 @app.on_event("shutdown")
@@ -633,8 +618,15 @@ def _dashboard_spotlight_card_limit(domain: str | None) -> int:
     return 24
 
 
+_sidebar_cache: dict = {"data": None, "ts": 0.0}
+_SIDEBAR_CACHE_TTL = 30  # saniye
+
+
 def get_sidebar_sites() -> list[dict]:
-    # Sidebar için aktif siteler veritabanından okunur.
+    # Sidebar için aktif siteler veritabanından okunur (30sn TTL cache).
+    now = time.monotonic()
+    if _sidebar_cache["data"] is not None and (now - _sidebar_cache["ts"]) < _SIDEBAR_CACHE_TTL:
+        return _sidebar_cache["data"]
     with SessionLocal() as db:
         external_site_ids = {
             int(row.site_id)
@@ -661,7 +653,15 @@ def get_sidebar_sites() -> list[dict]:
                 }
             )
         rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
+        _sidebar_cache["data"] = rows
+        _sidebar_cache["ts"] = now
         return rows
+
+
+def invalidate_sidebar_cache():
+    """Site eklendiğinde/silindiğinde sidebar cache'ini geçersiz kıl."""
+    _sidebar_cache["data"] = None
+    _sidebar_cache["ts"] = 0.0
 
 
 def _external_site_ids(db) -> set[int]:
@@ -899,6 +899,82 @@ def _build_search_console_top_queries(current_rows: list[dict], previous_rows: l
     return items
 
 
+def _build_search_console_top_entities(
+    current_rows: list[dict],
+    previous_rows: list[dict],
+    *,
+    label_key: str = "query",
+    limit: int = 50,
+) -> list[dict]:
+    current_map: dict[str, dict] = {}
+    previous_map: dict[str, dict] = {}
+    for row in current_rows:
+        key = str(row.get(label_key) or row.get("query") or "").strip()
+        if not key:
+            continue
+        bucket = current_map.setdefault(
+            key,
+            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+        )
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impressions
+        if impressions > 0:
+            bucket["position_weighted_sum"] += position * impressions
+            bucket["position_weight"] += impressions
+    for row in previous_rows:
+        key = str(row.get(label_key) or row.get("query") or "").strip()
+        if not key:
+            continue
+        bucket = previous_map.setdefault(
+            key,
+            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+        )
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        position = float(row.get("position") or 0.0)
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impressions
+        if impressions > 0:
+            bucket["position_weighted_sum"] += position * impressions
+            bucket["position_weight"] += impressions
+
+    rows: list[dict] = []
+    for key in set(current_map.keys()) | set(previous_map.keys()):
+        current = current_map.get(key) or {}
+        previous = previous_map.get(key) or {}
+        current_clicks = float(current.get("clicks") or 0.0)
+        previous_clicks = float(previous.get("clicks") or 0.0)
+        current_impressions = float(current.get("impressions") or 0.0)
+        previous_impressions = float(previous.get("impressions") or 0.0)
+        current_weight = float(current.get("position_weight") or 0.0)
+        previous_weight = float(previous.get("position_weight") or 0.0)
+        current_position = (
+            float(current.get("position_weighted_sum") or 0.0) / current_weight if current_weight > 0 else 0.0
+        )
+        previous_position = (
+            float(previous.get("position_weighted_sum") or 0.0) / previous_weight if previous_weight > 0 else 0.0
+        )
+        rows.append(
+            {
+                "label": key,
+                "clicks_current": current_clicks,
+                "clicks_previous": previous_clicks,
+                "clicks_diff": current_clicks - previous_clicks,
+                "impressions_current": current_impressions,
+                "impressions_previous": previous_impressions,
+                "impressions_diff": current_impressions - previous_impressions,
+                "position_current": current_position,
+                "position_previous": previous_position,
+                "position_diff": current_position - previous_position,
+            }
+        )
+    rows.sort(key=lambda item: float(item.get("clicks_current") or 0.0), reverse=True)
+    return rows[:limit]
+
+
 def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
     if str(sanitized.get("mode") or "") == "last_28d":
@@ -993,7 +1069,26 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     _sc_batch = get_latest_search_console_rows_batch(
         db,
         site_id=site_id,
-        scopes=["current_7d", "previous_7d", "current_30d", "previous_30d", "current_day", "previous_week_same_weekday"],
+        scopes=[
+            "current_7d",
+            "previous_7d",
+            "current_30d",
+            "previous_30d",
+            "current_day",
+            "previous_week_same_weekday",
+            "current_1d_pages",
+            "previous_1d_pages",
+            "current_7d_pages",
+            "previous_7d_pages",
+            "current_30d_pages",
+            "previous_30d_pages",
+            "current_1d_countries",
+            "previous_1d_countries",
+            "current_7d_countries",
+            "previous_7d_countries",
+            "current_30d_countries",
+            "previous_30d_countries",
+        ],
     )
     current_rows_7 = _sc_batch.get("current_7d", [])
     previous_rows_7 = _sc_batch.get("previous_7d", [])
@@ -1001,6 +1096,18 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     previous_rows_30 = _sc_batch.get("previous_30d", [])
     current_rows_1 = _sc_batch.get("current_day", [])
     previous_rows_wow = _sc_batch.get("previous_week_same_weekday", [])
+    current_pages_1 = _sc_batch.get("current_1d_pages", [])
+    previous_pages_1 = _sc_batch.get("previous_1d_pages", [])
+    current_pages_7 = _sc_batch.get("current_7d_pages", [])
+    previous_pages_7 = _sc_batch.get("previous_7d_pages", [])
+    current_pages_30 = _sc_batch.get("current_30d_pages", [])
+    previous_pages_30 = _sc_batch.get("previous_30d_pages", [])
+    current_countries_1 = _sc_batch.get("current_1d_countries", [])
+    previous_countries_1 = _sc_batch.get("previous_1d_countries", [])
+    current_countries_7 = _sc_batch.get("current_7d_countries", [])
+    previous_countries_7 = _sc_batch.get("previous_7d_countries", [])
+    current_countries_30 = _sc_batch.get("current_30d_countries", [])
+    previous_countries_30 = _sc_batch.get("previous_30d_countries", [])
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
@@ -1106,6 +1213,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = q_cur if fc else (sc or q_cur)
                 summary_previous = q_prev if fp else (sp or q_prev)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_1, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_1, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_1, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_1, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = (
                     _format_sc_tr_date(ref_d_global)
@@ -1121,6 +1232,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = current_7d_by_device.get(device_code) or _summarize_search_console_rows(fc)
                 summary_previous = previous_7d_by_device.get(device_code) or _summarize_search_console_rows(fp)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_7, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_7, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_7, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_7, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_7_last)
                 range_prev = _format_sc_tr_date_range(*range_7_prev)
@@ -1130,6 +1245,10 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 summary_current = current_30d_by_device.get(device_code) or _summarize_search_console_rows(fc)
                 summary_previous = previous_30d_by_device.get(device_code) or _summarize_search_console_rows(fp)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_30, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_30, device_code)
+                countries_current = _filter_search_console_rows_by_device(current_countries_30, device_code)
+                countries_previous = _filter_search_console_rows_by_device(previous_countries_30, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
@@ -1150,6 +1269,12 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 "summary_previous": summary_previous,
                 "trend": chart_trend,
                 "top_queries": device_top,
+                "top_pages": _build_search_console_top_entities(
+                    pages_current, pages_previous, label_key="query", limit=50
+                ),
+                "top_countries": _build_search_console_top_entities(
+                    countries_current, countries_previous, label_key="query", limit=50
+                ),
                 "table_label_current": tbl_cur,
                 "table_label_previous": tbl_prev,
                 "range_last": range_last,
@@ -1502,7 +1627,7 @@ def _is_sqlite_lock_error(exc: Exception) -> bool:
 def _commit_with_lock_retry(db, *, attempts: int = 6, base_wait: float = 0.25) -> None:
     for attempt in range(1, attempts + 1):
         try:
-            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            db.commit()
             return
         except PendingRollbackError as exc:
             db.rollback()
@@ -2010,6 +2135,24 @@ def _run_app_intel_scheduled() -> None:
         LOGGER.exception("Scheduled App Intel digest job failed.")
 
 
+_RANK_REFRESH_LOCK = threading.Lock()
+
+
+def _run_rank_refresh_job() -> None:
+    """Sadece kategori sırasını çekip kaydeder. 3 saatte bir çalışır."""
+    if not _RANK_REFRESH_LOCK.acquire(blocking=False):
+        LOGGER.info("Rank refresh zaten çalışıyor, atlandı.")
+        return
+    try:
+        from backend.services.app_intel import refresh_category_ranks
+        results = refresh_category_ranks()
+        LOGGER.info("Periyodik rank refresh tamamlandı: %s", results)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Periyodik rank refresh başarısız.")
+    finally:
+        _RANK_REFRESH_LOCK.release()
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -2100,7 +2243,20 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    if settings.ai_daily_brief_enabled:
+        # Her 3 saatte bir sadece kategori sırasını güncelle
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            _run_rank_refresh_job,
+            trigger=IntervalTrigger(hours=3, timezone=timezone),
+            id="rank-refresh-3h",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1800,
+        )
+        job_count += 1
+
+    if settings.ai_daily_brief_enabled and settings.ai_daily_brief_scheduler_enabled:
         try:
             ai_tz = ZoneInfo(settings.ai_daily_brief_timezone)
         except Exception as exc:  # noqa: BLE001
@@ -3427,6 +3583,17 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
 def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict] | None = None) -> dict[str, dict]:
     summary = (snapshot or {}).get("summary") or {}
     series = summary.get("series") or {}
+    # Eski snapshot'larda summary.series, null p75 haftalarını atlayarak üretilmiş olabilir.
+    # Ham API record'undan yeniden çıkarınca eksen düzelir (yeniden çekmeye gerek kalmayabilir).
+    payload = (snapshot or {}).get("payload") or {}
+    hist = payload.get("history") if isinstance(payload.get("history"), dict) else {}
+    raw_record = hist.get("record")
+    if isinstance(raw_record, dict) and (
+        raw_record.get("collectionPeriods") or raw_record.get("metrics") is not None
+    ):
+        from backend.collectors.crux_history import _extract_crux_points
+
+        series = _extract_crux_points(raw_record) or series
     current = summary.get("current") or {}
     current_override = current_override or {}
     formatted: dict[str, dict] = {}
@@ -3500,6 +3667,10 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
 
     for metric_key, info in _CWV_METRIC_INFO.items():
         mp = metrics_data.get(metric_key) or {}
+        if metric_key == "interaction_to_next_paint":
+            alt_mp = metrics_data.get("experimental_interaction_to_next_paint") or {}
+            if (not mp or len(mp.get("histogramTimeseries") or []) < 3) and isinstance(alt_mp, dict):
+                mp = alt_mp or mp
         hist = mp.get("histogramTimeseries") or []
         if len(hist) < 3:
             continue
@@ -5061,19 +5232,40 @@ def data_explorer(request: Request, domain: str):
     except ValueError:
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
+    de_headers = {"Cache-Control": "no-store, max-age=0"}
     if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "partials/data_explorer_content.html", context={"request": request, **payload})
-    return templates.TemplateResponse(request, "data_explorer.html", context={"request": request, **payload})
+        return templates.TemplateResponse(
+            request,
+            "partials/data_explorer_content.html",
+            context={"request": request, **payload},
+            headers=de_headers,
+        )
+    return templates.TemplateResponse(
+        request,
+        "data_explorer.html",
+        context={"request": request, **payload},
+        headers=de_headers,
+    )
 
 
 @app.get("/external")
 @app.get("/public-sites")
 def public_sites_page(request: Request):
     with SessionLocal() as db:
+        ext_sites = (
+            db.query(Site)
+            .join(ExternalSite, ExternalSite.site_id == Site.id)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.desc())
+            .all()
+        )
+        ext_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in ext_sites]
         payload = {
             "site_name": "External",
             "sites": get_sidebar_sites(),
-            "public_sites": _public_sites_payload(db),
+            "lazy_mode": True,
+            "lazy_site_ids": lazy_site_ids,
         }
     template_name = "partials/public_sites_content.html" if request.headers.get("HX-Request") == "true" else "public_sites.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -5095,14 +5287,82 @@ def public_explorer(request: Request, domain: str):
 @app.get("/external/site-list")
 @app.get("/public-sites/site-list")
 def public_sites_list(request: Request):
+    """External site listesi: varsayılan lazy, refresh sonrası eager."""
+    mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     with SessionLocal() as db:
+        if mode == "eager":
+            return templates.TemplateResponse(
+                request,
+                "partials/public_site_cards.html",
+                context={"request": request, "lazy_mode": False, "public_sites": _public_sites_payload(db)},
+            )
+        ext_sites = (
+            db.query(Site)
+            .join(ExternalSite, ExternalSite.site_id == Site.id)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.created_at.desc())
+            .all()
+        )
+        ext_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in ext_sites]
+    return templates.TemplateResponse(
+        request,
+        "partials/public_site_cards.html",
+        context={"request": request, "lazy_mode": True, "lazy_site_ids": lazy_site_ids},
+    )
+
+
+@app.get("/external/site/{site_id}", response_class=HTMLResponse)
+def external_single_site_card(request: Request, site_id: int):
+    """HTMX lazy loading ile tek external site kartını tam veriyle render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        if not _is_external_site(db, site.id):
+            return HTMLResponse("", status_code=404)
+        try:
+            latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
+            warehouse = get_site_warehouse_summary(db, site_id=site.id)
+            crawler_link_audit = _crawler_link_audit_with_metric_fallback(
+                _latest_crawler_link_audit_summary(db, site_id=site.id),
+                latest,
+            )
+            mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+            desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+            crawler_run = _latest_provider_run(db, site_id=site.id, provider="crawler", strategy="sitewide")
+            last_updated = max((metric.collected_at for metric in latest.values()), default=site.created_at)
+            site_data = {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "last_updated": format_local_datetime(last_updated, fallback="Henüz veri yok"),
+                "pagespeed_mobile": round(_metric_value(latest, "pagespeed_mobile_score", 0.0)) if latest.get("pagespeed_mobile_score") else None,
+                "pagespeed_desktop": round(_metric_value(latest, "pagespeed_desktop_score", 0.0)) if latest.get("pagespeed_desktop_score") else None,
+                "crawler_broken_links": int(_metric_value(latest, "crawler_broken_links_count", 0.0)),
+                "crawler_redirect_chains": int(_metric_value(latest, "crawler_redirect_chain_count", 0.0)),
+                "crawler_audited_urls": crawler_link_audit.get("audited_urls", 0),
+                "crawler_status": str(crawler_run.status or "").lower() if crawler_run and crawler_run.status else "never",
+                "crux_ready": bool(mobile_crux or desktop_crux),
+                "warehouse": warehouse,
+                "alerts": get_site_alerts(db, site_id=site.id, limit=1000),
+            }
+        except Exception as exc:
+            logging.exception("external_single_site_card site_id=%s hata", site_id)
+            import html as _html
+            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
+            return HTMLResponse(
+                f'<article id="ext-card-{site_id}" class="rounded-[1.7rem] border border-red-300 dark:border-red-700 '
+                f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
+                f'<p class="font-semibold">External kart yüklenemedi</p>'
+                f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu.</p>'
+                f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></article>',
+                status_code=200,
+            )
         return templates.TemplateResponse(
             request,
-            "partials/public_site_cards.html",
-            context={
-                "request": request,
-                "public_sites": _public_sites_payload(db),
-            },
+            "partials/public_single_site_card.html",
+            context={"request": request, "site": site_data},
         )
 
 
@@ -5166,6 +5426,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
         try:
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             db.refresh(site)
+            invalidate_sidebar_cache()
         except OperationalError as exc:
             if _is_sqlite_lock_error(exc):
                 return JSONResponse(
@@ -5231,6 +5492,7 @@ def public_sites_delete_site(request: Request, site_id: int):
             db.delete(site)
             try:
                 db.commit()
+                invalidate_sidebar_cache()
             except OperationalError as exc:
                 db.rollback()
                 if _is_sqlite_lock_error(exc):
@@ -5245,6 +5507,7 @@ def public_sites_delete_site(request: Request, site_id: int):
                     "partials/public_site_cards.html",
                     context={
                         "request": request,
+                        "lazy_mode": False,
                         "public_sites": _public_sites_payload(db),
                     },
                 )
@@ -5297,6 +5560,7 @@ def public_sites_refresh_site(request: Request, site_id: int):
             "partials/public_site_cards.html",
             context={
                 "request": request,
+                "lazy_mode": False,
                 "public_sites": _public_sites_payload(db),
             },
         )
@@ -5348,6 +5612,7 @@ def public_sites_refresh_all(request: Request):
             "partials/public_site_cards.html",
             context={
                 "request": request,
+                "lazy_mode": False,
                 "public_sites": _public_sites_payload(db),
             },
         )
@@ -6331,7 +6596,7 @@ def ai_daily_brief_page(request: Request):
 
 @app.post("/ai/generate")
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
-    """Operasyon: aynı gün özeti yeniden üretilir ve operasyon alıcılarına e-posta gider (Groq veya Gemini; yalnızca bu akış LLM kullanır)."""
+    """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir."""
 
     from backend.services.ai_daily_brief import (
         get_ai_brief_run_stats,
@@ -6408,6 +6673,18 @@ def app_intel_manual_refresh():
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+@app.post("/app/intel/rank-refresh")
+def app_intel_rank_refresh():
+    """Sadece kategori sırasını günceller (hızlı, yorum verisi çekmez)."""
+    try:
+        from backend.services.app_intel import refresh_category_ranks
+        results = refresh_category_ranks()
+        return JSONResponse({"ok": True, "results": results})
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Manual rank refresh failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 @app.get("/api/app/aso")
 def api_app_aso(
     product: str = "doviz",
@@ -6468,11 +6745,79 @@ def api_app_aso_benchmark(
 
 @app.get("/ga4/site-list")
 def ga4_site_list(request: Request):
+    """GA4 site listesi: varsayılan lazy mode ile iskelet kartlar döner, her kart HTMX ile ayrı yüklenir."""
+    mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     with SessionLocal() as db:
+        if mode == "eager":
+            return templates.TemplateResponse(
+                request,
+                "partials/ga4_site_cards.html",
+                context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
+            )
+        external_site_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_site_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in sites]
+    return templates.TemplateResponse(
+        request,
+        "partials/ga4_site_cards.html",
+        context={"request": request, "lazy_mode": True, "lazy_site_ids": lazy_site_ids},
+    )
+
+
+@app.get("/ga4/site/{site_id}", response_class=HTMLResponse)
+def ga4_single_site_card(request: Request, site_id: int):
+    """HTMX lazy loading ile tek GA4 site kartını tam veriyle render eder."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404)
+        if _is_external_site(db, site.id):
+            return HTMLResponse("", status_code=404)
+        try:
+            external_site_ids = _external_site_ids(db)
+            from sqlalchemy import func as sqlfunc
+            site_count = db.query(sqlfunc.count(Site.id)).filter(Site.id.notin_(external_site_ids)).scalar() or 1
+
+            latest = {m.metric_type: m.value for m in get_latest_metrics(db, site.id)}
+            ga4_status = get_ga4_connection_status(db, site.id)
+            profiles: dict[str, dict] = {}
+            for profile in ("web", "mweb", "android", "ios"):
+                prop_id = str((ga4_status.get("properties") or {}).get(profile, "") or "").strip()
+                if not prop_id:
+                    continue
+                profiles[profile] = {
+                    "property_id": prop_id,
+                    "periods": {
+                        "1": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=1, latest=latest, prop_id=prop_id),
+                        "7": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7, latest=latest, prop_id=prop_id),
+                        "30": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=30, latest=latest, prop_id=prop_id),
+                    },
+                }
+            site_data = {
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "ga4": ga4_status,
+                "profiles": profiles,
+                "default_profile": next((k for k in ("web", "mweb", "android", "ios") if k in profiles), "web"),
+            }
+        except Exception as exc:
+            logging.exception("ga4_single_site_card site_id=%s hata", site_id)
+            import html as _html
+            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
+            return HTMLResponse(
+                f'<section id="ga4-card-{site_id}" class="rounded-3xl border border-red-300 dark:border-red-700 '
+                f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'
+                f'<p class="font-semibold">GA4 kart yüklenemedi</p>'
+                f'<p class="mt-1 text-xs">Site #{site_id} verisi hazırlanırken hata oluştu.</p>'
+                f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></section>',
+                status_code=200,
+            )
         return templates.TemplateResponse(
             request,
-            "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            "partials/ga4_single_site_card.html",
+            context={"request": request, "site": site_data, "site_count": site_count},
         )
 
 
@@ -6525,7 +6870,7 @@ def ga4_refresh_site(request: Request, site_id: int):
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
         )
 
 
@@ -6567,7 +6912,7 @@ def ga4_refresh_all(request: Request):
         return templates.TemplateResponse(
             request,
             "partials/ga4_site_cards.html",
-            context={"request": request, "ga4_sites": _ga4_sites_payload(db)},
+            context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
         )
 
 
@@ -6798,6 +7143,124 @@ def search_console_health():
     return {"status": "ok"}
 
 
+_CWV_VARIANT_ORDER = ("full", "mobile", "desktop", "extra")
+
+
+def _validate_cwv_screenshot_bytes(content: bytes, filename: str) -> str | None:
+    """Geçerliyse None; aksi halde kullanıcıya gösterilecek kısa hata metni."""
+    name = (filename or "").lower()
+    if not (name.endswith(".png") or name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".webp")):
+        return "Sadece png/jpg/webp kabul edilir."
+    if not content:
+        return "Boş dosya."
+    if len(content) > 10 * 1024 * 1024:
+        return "Dosya çok büyük (max 10MB)."
+    if not (
+        content.startswith(b"\x89PNG\r\n\x1a\n")
+        or content.startswith(b"\xff\xd8\xff")
+        or content.startswith(b"RIFF")  # webp container
+    ):
+        return "Dosya tipi doğrulanamadı."
+    return None
+
+
+_CWV_FILENAME_HINTS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("mobile", re.compile(r"(?:^|[^a-z0-9])mobile(?:[^a-z0-9]|$)", re.I)),
+    ("desktop", re.compile(r"(?:^|[^a-z0-9])desktop(?:[^a-z0-9]|$)", re.I)),
+    ("extra", re.compile(r"(?:^|[^a-z0-9])extra(?:[^a-z0-9]|$)", re.I)),
+    ("full", re.compile(r"(?:^|[^a-z0-9])full(?:[^a-z0-9]|$)", re.I)),
+)
+
+
+def _cwv_variant_from_filename(name: str) -> str | None:
+    """Dosya adından varyant tahmini (extranet → extra yanlış eşleşmesin diye kelime sınırı)."""
+    n = name or ""
+    for variant, rx in _CWV_FILENAME_HINTS:
+        if rx.search(n):
+            return variant
+    return None
+
+
+def _occupied_cwv_slots(domain_slug: str) -> set[str]:
+    """Diskte zaten dolu olan varyantlar (aynı istekte üzerine yazılacak slotlar hariç tutulur)."""
+    occ: set[str] = set()
+    for v in _CWV_VARIANT_ORDER:
+        p = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{v}.png"
+        try:
+            if p.exists() and p.stat().st_size > 0:
+                occ.add(v)
+        except OSError:
+            continue
+    return occ
+
+
+def _pair_cwv_uploads_to_variants(files: list[UploadFile], domain_slug: str) -> list[tuple[str, UploadFile]]:
+    """Çoklu yüklemede dosyaları varyantlara eşle (dosya adı ipucu + diskte boş slota sırayla).
+
+    İsim ipucu yoksa: önce bu istekteki explicit slotlar, sonra diskte dolu olanlar \"dolu\"
+    sayılır; kalan ilk boş slot (full→mobile→desktop→extra) kullanılır. Tek tek yüklemede
+    ikinci dosya artık birincinin üzerine yazılmaz.
+    """
+    if not files:
+        raise ValueError("Dosya seçilmedi.")
+    if len(files) > 4:
+        raise ValueError("En fazla 4 dosya yükleyebilirsin (mobile, desktop, full, extra).")
+    explicit: dict[str, UploadFile] = {}
+    implicit: list[UploadFile] = []
+    for f in files:
+        v = _cwv_variant_from_filename(f.filename or "")
+        if v:
+            if v in explicit:
+                raise ValueError(f"İki dosya aynı varyantı işaret ediyor: {v}. Dosya adlarını ayırın.")
+            explicit[v] = f
+        else:
+            implicit.append(f)
+    taken: set[str] = set(explicit.keys()) | _occupied_cwv_slots(domain_slug)
+    for f in implicit:
+        placed = False
+        for slot in _CWV_VARIANT_ORDER:
+            if slot not in taken:
+                explicit[slot] = f
+                taken.add(slot)
+                placed = True
+                break
+        if not placed:
+            # Dört slot da dolu: tam sayfa görselini güncelle (tek “ana” slot)
+            explicit["full"] = f
+            taken.add("full")
+    return [(v, explicit[v]) for v in _CWV_VARIANT_ORDER if v in explicit]
+
+
+@app.post("/search-console/cwv-screenshot/upload-batch/{site_id}", response_class=HTMLResponse)
+async def search_console_upload_cwv_screenshot_batch(
+    request: Request,
+    site_id: int,
+    files: list[UploadFile] = File(...),
+):
+    """Birden fazla CWV ekran görüntüsü (aynı istekte mobile/desktop/full/extra)."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        domain_slug = _gsc_domain_slug(site.domain)
+
+    try:
+        pairs = _pair_cwv_uploads_to_variants(files, domain_slug)
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=400)
+
+    GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    for variant, upload in pairs:
+        content = await upload.read()
+        err = _validate_cwv_screenshot_bytes(content, upload.filename or "")
+        if err:
+            return HTMLResponse(f"{upload.filename or 'dosya'}: {err}", status_code=400)
+        out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
+        out_path.write_bytes(content)
+
+    return search_console_single_site_card(request, site_id)
+
+
 @app.post("/search-console/cwv-screenshot/upload/{site_id}", response_class=HTMLResponse)
 async def search_console_upload_cwv_screenshot(
     request: Request,
@@ -6816,23 +7279,21 @@ async def search_console_upload_cwv_screenshot(
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
 
-    name = (file.filename or "").lower()
-    if not (name.endswith(".png") or name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".webp")):
-        return HTMLResponse("Sadece png/jpg/webp kabul edilir.", status_code=400)
+    hint = _cwv_variant_from_filename(file.filename or "")
+    if hint:
+        variant = hint
+    elif variant == "full":
+        # Eski davranış: hep full → ardışık tek dosyalar birbirini siliyordu; sıradaki boş slota yaz.
+        occupied = _occupied_cwv_slots(domain_slug)
+        for slot in _CWV_VARIANT_ORDER:
+            if slot not in occupied:
+                variant = slot
+                break
 
     content = await file.read()
-    if not content:
-        return HTMLResponse("Boş dosya.", status_code=400)
-    if len(content) > 10 * 1024 * 1024:
-        return HTMLResponse("Dosya çok büyük (max 10MB).", status_code=413)
-
-    # PNG/JPG magic check (basit)
-    if not (
-        content.startswith(b"\x89PNG\r\n\x1a\n")
-        or content.startswith(b"\xff\xd8\xff")
-        or content.startswith(b"RIFF")  # webp container
-    ):
-        return HTMLResponse("Dosya tipi doğrulanamadı.", status_code=400)
+    err = _validate_cwv_screenshot_bytes(content, file.filename or "")
+    if err:
+        return HTMLResponse(err, status_code=400)
 
     GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
@@ -7258,6 +7719,248 @@ def admin_sc_scope_stats():
         })
     finally:
         db.close()
+
+
+def _build_sc_service_and_targets(db, site_id: int):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if site is None:
+        raise ValueError("Site bulunamadi.")
+
+    credential = get_search_console_credentials_record(db, site.id)
+    if credential is None:
+        raise ValueError("Search Console baglantisi yok.")
+
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except ImportError as exc:
+        raise RuntimeError("Google Search Console istemcisi yuklu degil.") from exc
+
+    credential_data = load_google_credentials(credential)
+    if credential.credential_type == "search_console_oauth":
+        credentials = credential_data
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(GoogleAuthRequest())
+    else:
+        credentials = service_account.Credentials.from_service_account_info(
+            credential_data,
+            scopes=SEARCH_CONSOLE_SCOPES,
+        )
+
+    service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+    targets = _resolve_search_console_targets(service, site)
+    return site, service, targets
+
+
+@app.get("/admin/sc/raw/sites/{site_id}")
+def admin_sc_raw_sites(site_id: int):
+    """Google Search Console sites.list ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        response = service.sites().list().execute()
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "resolved_targets": targets,
+                "raw": response,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/query/{site_id}")
+def admin_sc_raw_query(
+    site_id: int,
+    start_date: str,
+    end_date: str,
+    dimensions: str = "query,device",
+    row_limit: int = 250,
+    start_row: int = 0,
+    device: str = "",
+    search_type: str = "",
+):
+    """Google Search Console searchanalytics.query ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        dim_list = [d.strip() for d in dimensions.split(",") if d.strip()]
+        if not dim_list:
+            dim_list = ["query", "device"]
+        safe_row_limit = max(1, min(25000, int(row_limit)))
+        safe_start_row = max(0, int(start_row))
+        safe_device = str(device or "").strip().upper()
+
+        results: list[dict] = []
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            body: dict = {
+                "startDate": start_date,
+                "endDate": end_date,
+                "dimensions": dim_list,
+                "rowLimit": safe_row_limit,
+                "startRow": safe_start_row,
+            }
+            if search_type:
+                body["type"] = str(search_type)
+            if safe_device:
+                body["dimensionFilterGroups"] = [
+                    {
+                        "filters": [
+                            {
+                                "dimension": "device",
+                                "operator": "equals",
+                                "expression": safe_device,
+                            }
+                        ]
+                    }
+                ]
+            raw = (
+                service.searchanalytics()
+                .query(
+                    siteUrl=property_url,
+                    body=body,
+                )
+                .execute()
+            )
+            results.append(
+                {
+                    "target_device": target.get("device"),
+                    "property_url": property_url,
+                    "request_body": body,
+                    "raw": raw,
+                }
+            )
+
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "results": results,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/url-inspection/{site_id}")
+def admin_sc_raw_url_inspection(site_id: int, inspection_url: str = "", language_code: str = "tr-TR"):
+    """Google URL Inspection API ham cevabi."""
+    db = SessionLocal()
+    try:
+        site, service, targets = _build_sc_service_and_targets(db, site_id)
+        property_url = str((targets[0] or {}).get("property_url") or "")
+        normalized_inspection_url = inspection_url.strip() or (
+            site.domain if str(site.domain).startswith(("http://", "https://")) else f"https://{site.domain}"
+        )
+        raw = (
+            service.urlInspection()
+            .index()
+            .inspect(
+                body={
+                    "inspectionUrl": normalized_inspection_url,
+                    "siteUrl": property_url,
+                    "languageCode": language_code,
+                }
+            )
+            .execute()
+        )
+        return JSONResponse(
+            {
+                "site_id": site.id,
+                "domain": site.domain,
+                "property_url": property_url,
+                "inspection_url": normalized_inspection_url,
+                "raw": raw,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=400)
+    finally:
+        db.close()
+
+
+@app.get("/admin/sc/raw/catalog")
+def admin_sc_raw_catalog():
+    """SC'den sentetik olmayan yeni sekme/basliklar icin veri katalogu."""
+    return JSONResponse(
+        {
+            "searchanalytics": {
+                "metrics": ["clicks", "impressions", "ctr", "position"],
+                "dimensions": [
+                    "date",
+                    "query",
+                    "page",
+                    "country",
+                    "device",
+                    "searchAppearance",
+                    "type",
+                ],
+                "ready_tabs": [
+                    {
+                        "tab_key": "pages",
+                        "title": "Top Pages",
+                        "dimensions": ["page"],
+                        "description": "Landing URL bazinda tiklama/gosterim/CTR/pozisyon dagilimi.",
+                    },
+                    {
+                        "tab_key": "countries",
+                        "title": "Countries",
+                        "dimensions": ["country"],
+                        "description": "Ulke bazli performans (TR, DE, US vb.).",
+                    },
+                    {
+                        "tab_key": "devices",
+                        "title": "Devices",
+                        "dimensions": ["device"],
+                        "description": "Mobile/Desktop ayriminda gercek Search Console verisi.",
+                    },
+                    {
+                        "tab_key": "search_types",
+                        "title": "Search Type Split",
+                        "dimensions": ["type"],
+                        "description": "web/image/video/news kesitleri.",
+                    },
+                    {
+                        "tab_key": "page_query_matrix",
+                        "title": "Page x Query Matrix",
+                        "dimensions": ["page", "query"],
+                        "description": "Hangi query hangi landing page'e trafik tasiyor.",
+                    },
+                    {
+                        "tab_key": "appearance",
+                        "title": "Search Appearance",
+                        "dimensions": ["searchAppearance"],
+                        "description": "Rich result, AMP vb. gorunum tipleri etkisi.",
+                    },
+                ],
+            },
+            "url_inspection": {
+                "key_fields": [
+                    "coverageState",
+                    "indexingState",
+                    "pageFetchState",
+                    "robotsTxtState",
+                    "googleCanonical",
+                    "userCanonical",
+                    "lastCrawlTime",
+                    "mobileUsabilityResult.verdict",
+                    "richResultsResult.verdict",
+                ]
+            },
+            "notes": [
+                "Tum basliklar sentetik degil; Search Console API ham response alanlarina dayanir.",
+                "Yeni sekmeleri dogrudan /admin/sc/raw/query/{site_id} endpoint'i ile prototipleyebilirsin.",
+            ],
+        }
+    )
 
 
 @app.get("/health")
