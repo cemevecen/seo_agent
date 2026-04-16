@@ -210,7 +210,7 @@
                           <th scope="col" class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right sm:py-1 sm:pl-2 sm:pr-2">
                             <button type="button" class="touch-manipulation whitespace-nowrap text-right font-semibold text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300" data-sort-key="impressionsCurrent" data-sort-type="number">Impr.</button>
                           </th>
-                          <th scope="col" class="whitespace-nowrap py-0.5 pl-1 pr-3 text-right sm:py-1 sm:pl-2 sm:pr-3">
+                          <th scope="col" class="whitespace-nowrap py-0.5 pl-1 pr-4 text-right sm:py-1 sm:pl-2 sm:pr-4">
                             <button type="button" class="touch-manipulation whitespace-nowrap text-right font-semibold text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="positionCurrent" data-sort-type="number">Pos.</button>
                           </th>
                         </tr>
@@ -234,7 +234,7 @@
                             </td>
                             <td class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-2">{{ row.clicks_current | tr_int }}</td>
                             <td class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-2">{{ row.impressions_current | tr_int }}</td>
-                            <td class="whitespace-nowrap py-0.5 pl-1 pr-3 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-3">{{ "{:.2f}".format(row.position_current) }}</td>
+                            <td class="whitespace-nowrap py-0.5 pl-1 pr-4 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-4">{{ "{:.2f}".format(row.position_current) }}</td>
                           </tr>
                         {% else %}
                           <tr><td colspan="4" class="px-2 py-6 text-center text-slate-500 dark:text-slate-400 sm:px-3">{{ view.device_label }} için bu dönemde page kırılımı yok.</td></tr>
