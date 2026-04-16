@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import search_console_should_purge_before_collect, settings
 from backend.locale.tr import weekday_tr
 from backend.models import Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
@@ -19,6 +19,7 @@ from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
 from backend.services.timezone_utils import report_calendar_yesterday
 from backend.services.warehouse import (
+    delete_search_console_snapshots_for_site,
     finish_collector_run,
     get_latest_search_console_rows,
     save_search_console_query_rows,
@@ -26,6 +27,19 @@ from backend.services.warehouse import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _maybe_purge_search_console_snapshots_before_collect(db: Session, site: Site, *, label: str) -> None:
+    if not search_console_should_purge_before_collect():
+        return
+    deleted = delete_search_console_snapshots_for_site(db, site_id=site.id)
+    if deleted:
+        LOGGER.info(
+            "Search Console: %s çekiminden önce site_id=%s için %s snapshot satırı silindi",
+            label,
+            site.id,
+            deleted,
+        )
 
 
 def _normalize_site_host(domain: str) -> str:
@@ -1292,6 +1306,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         target_url=site.domain,
         requested_at=collected_at,
     )
+    _maybe_purge_search_console_snapshots_before_collect(db, site, label="tam yenileme")
     payload = _load_search_console_data(site, credential)
     rows = payload.get("rows", [])
     # Payload anahtarları: "current_day" ve "previous_day" (sonuna _rows eklenmez)

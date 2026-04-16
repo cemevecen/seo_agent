@@ -1,5 +1,6 @@
 """Uygulama konfigürasyonlarını .env üzerinden yöneten güvenli ayar katmanı."""
 
+import os
 from pathlib import Path
 
 from pydantic import Field, model_validator
@@ -67,6 +68,11 @@ class Settings(BaseSettings):
     search_console_scheduled_refresh_hour: int = 4
     search_console_scheduled_refresh_minute: int = 0
     search_console_scheduled_refresh_site_spacing_seconds: int = 20
+    # Tam SC yenilemesinde (collect_search_console_metrics): çekimden önce bu siteye ait snapshot satırlarını sil.
+    # Alert/hafif job buna dokunmaz (yoksa 28g/trend tek başına yazılamaz).
+    # RAILWAY_ENVIRONMENT / RAILWAY_PROJECT_ID yoksa yalnızca search_console_purge_before_collect=true ile çalışır.
+    search_console_purge_on_railway: bool = True
+    search_console_purge_before_collect: bool = False
     alerts_scheduled_refresh_enabled: bool = False
     alerts_scheduled_refresh_hour: int = 4
     alerts_scheduled_refresh_minute: int = 0
@@ -183,3 +189,15 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def is_railway_runtime() -> bool:
+    """Railway deploy: ortam değişkenleri ile tespit (resmi image'da RAILWAY_ENVIRONMENT set)."""
+    return bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+
+
+def search_console_should_purge_before_collect() -> bool:
+    """SC canlı çekiminden önce bu site için eski snapshot satırlarını silmek gerekiyor mu."""
+    if settings.search_console_purge_before_collect:
+        return True
+    return bool(is_railway_runtime() and settings.search_console_purge_on_railway)

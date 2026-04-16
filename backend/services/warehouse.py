@@ -169,6 +169,16 @@ def save_search_console_query_rows(
     return count
 
 
+def delete_search_console_snapshots_for_site(db: Session, *, site_id: int) -> int:
+    """Siteye ait tüm Search Console query snapshot satırlarını siler (çekimden önce disk için)."""
+    return int(
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(SearchConsoleQuerySnapshot.site_id == int(site_id))
+        .delete(synchronize_session=False)
+        or 0
+    )
+
+
 def get_latest_search_console_rows(
     db: Session,
     *,
