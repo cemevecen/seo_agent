@@ -1295,6 +1295,12 @@
     if (swappedEl && swappedEl.hasAttribute && swappedEl.hasAttribute('data-ga4-site-card')) {
       window.setTimeout(function () {
         initGa4Panels(swappedEl);
+        // Kartlar lazily swap olunca split root daha önce bound olsa bile bu kartın
+        // split/focus butonları event alamayabilir. En yakın grid üzerinden tekrar bind et.
+        var grid = swappedEl.closest && swappedEl.closest('[data-ga4-split-root]');
+        if (grid) {
+          initGa4SplitView(grid);
+        }
       }, 50);
     }
     // Pages / Session source tabloları HTMX ile yüklendi — sort butonlarını etkinleştir
