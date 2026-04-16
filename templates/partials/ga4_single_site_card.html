@@ -107,7 +107,7 @@
         Bu site için GA4 profilinde henüz oturum verisi yok. Yenile ile tekrar deneyin.
       </div>
     {% else %}
-      <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5 overflow-hidden">
+      <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5 overflow-x-auto overflow-y-clip">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <div class="min-w-0 flex-1">
             {% set _dp = site.default_profile %}

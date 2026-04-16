@@ -158,13 +158,13 @@
   </div>
 </div>
 
-<div class="min-w-0 space-y-2" data-ga4-pages-section>
-  {# w-fit: kutu chip genişliğinde biter; max-w-full: dar ekranda taşarsa kaydır #}
+<div class="min-w-0 w-full space-y-2" data-ga4-pages-section>
+  {# Dış: tam genişlik + yatay kaydırma (w-fit dış kutu bazı tarayıcı/overflow-hidden kombinasyonlarında genişlik 0’a çöküyordu). İç: gerçek pill. #}
   <div
-    class="w-fit max-w-full overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]"
+    class="w-full min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
   >
     <div
-      class="inline-flex w-max max-w-none flex-nowrap items-stretch gap-0.5"
+      class="inline-flex w-max max-w-none flex-nowrap items-stretch gap-0.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1"
       data-ga4-pages-kind-switch
       role="tablist"
       aria-label="GA4 sayfa ve kaynak tabloları"
