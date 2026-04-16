@@ -1141,6 +1141,9 @@
             initGa4ProfileSwitches(panel);
             initGa4PagesKindSwitch(panel);
             bindGa4SiteRefreshButtons(panel);
+            // İlk render'da placeholder'lar için ga4-load tetiklenmezse tablolar "Yükleniyor…"da kalabiliyor
+            // (özellikle refresh-all sonrası innerHTML swap). Aktif panel için otomatik tetikle.
+            triggerGa4Load(panel);
             fitGa4Text(panel);
             renderGa4TrendCharts(panel);
           }, 60);
