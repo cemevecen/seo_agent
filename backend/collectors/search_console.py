@@ -897,12 +897,6 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         previous_7d_pages_rows: list[dict] = []
         current_30d_pages_rows: list[dict] = []
         previous_30d_pages_rows: list[dict] = []
-        current_1d_countries_rows: list[dict] = []
-        previous_1d_countries_rows: list[dict] = []
-        current_7d_countries_rows: list[dict] = []
-        previous_7d_countries_rows: list[dict] = []
-        current_30d_countries_rows: list[dict] = []
-        previous_30d_countries_rows: list[dict] = []
         trend_28d_rows: list[dict] = []
 
         for target in targets:
@@ -984,72 +978,6 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                     primary_dimension="page",
                 )
             )
-            current_1d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_date,
-                    current_date,
-                    device=device,
-                    max_rows=300,
-                    primary_dimension="country",
-                )
-            )
-            previous_1d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    same_weekday_previous_date,
-                    same_weekday_previous_date,
-                    device=device,
-                    max_rows=300,
-                    primary_dimension="country",
-                )
-            )
-            current_7d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_7d_start,
-                    end_date,
-                    device=device,
-                    max_rows=400,
-                    primary_dimension="country",
-                )
-            )
-            previous_7d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    previous_7d_start,
-                    previous_7d_end,
-                    device=device,
-                    max_rows=400,
-                    primary_dimension="country",
-                )
-            )
-            current_30d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_30d_start,
-                    end_date,
-                    device=device,
-                    max_rows=500,
-                    primary_dimension="country",
-                )
-            )
-            previous_30d_countries_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    previous_30d_start,
-                    previous_30d_end,
-                    device=device,
-                    max_rows=500,
-                    primary_dimension="country",
-                )
-            )
             trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, trend_start_date, end_date, device=device))
 
         return {
@@ -1067,12 +995,6 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "previous_7d_pages_rows": previous_7d_pages_rows,
             "current_30d_pages_rows": current_30d_pages_rows,
             "previous_30d_pages_rows": previous_30d_pages_rows,
-            "current_1d_countries_rows": current_1d_countries_rows,
-            "previous_1d_countries_rows": previous_1d_countries_rows,
-            "current_7d_countries_rows": current_7d_countries_rows,
-            "previous_7d_countries_rows": previous_7d_countries_rows,
-            "current_30d_countries_rows": current_30d_countries_rows,
-            "previous_30d_countries_rows": previous_30d_countries_rows,
             "trend_28d_rows": trend_28d_rows,
             "source": "live",
             "error": None,
@@ -1386,12 +1308,6 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     previous_7d_pages_rows = payload.get("previous_7d_pages_rows", [])
     current_30d_pages_rows = payload.get("current_30d_pages_rows", [])
     previous_30d_pages_rows = payload.get("previous_30d_pages_rows", [])
-    current_1d_countries_rows = payload.get("current_1d_countries_rows", [])
-    previous_1d_countries_rows = payload.get("previous_1d_countries_rows", [])
-    current_7d_countries_rows = payload.get("current_7d_countries_rows", [])
-    previous_7d_countries_rows = payload.get("previous_7d_countries_rows", [])
-    current_30d_countries_rows = payload.get("current_30d_countries_rows", [])
-    previous_30d_countries_rows = payload.get("previous_30d_countries_rows", [])
     trend_28d_rows = payload.get("trend_28d_rows", [])
     source = payload.get("source", "failed")
     error = payload.get("error")
@@ -1669,72 +1585,6 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         end_date=str(payload.get("previous_30d_end") or ""),
         collector_run_id=collector_run.id,
     )
-    current_1d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_1d_countries",
-        rows=current_1d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_date") or ""),
-        end_date=str(payload.get("current_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_1d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_1d_countries",
-        rows=previous_1d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("same_weekday_previous_date") or ""),
-        end_date=str(payload.get("same_weekday_previous_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_7d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_7d_countries",
-        rows=current_7d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_7d_start") or ""),
-        end_date=str(payload.get("current_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_7d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_7d_countries",
-        rows=previous_7d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_7d_start") or ""),
-        end_date=str(payload.get("previous_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_30d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_30d_countries",
-        rows=current_30d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_30d_start") or ""),
-        end_date=str(payload.get("current_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_30d_countries_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_30d_countries",
-        rows=previous_30d_countries_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_30d_start") or ""),
-        end_date=str(payload.get("previous_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
     finish_collector_run(
         db,
         collector_run,
@@ -1767,12 +1617,6 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
             "previous_7d_pages_rows": previous_7d_pages_row_count,
             "current_30d_pages_rows": current_30d_pages_row_count,
             "previous_30d_pages_rows": previous_30d_pages_row_count,
-            "current_1d_countries_rows": current_1d_countries_row_count,
-            "previous_1d_countries_rows": previous_1d_countries_row_count,
-            "current_7d_countries_rows": current_7d_countries_row_count,
-            "previous_7d_countries_rows": previous_7d_countries_row_count,
-            "current_30d_countries_rows": current_30d_countries_row_count,
-            "previous_30d_countries_rows": previous_30d_countries_row_count,
             "same_weekday_day": same_weekday_day_summary,
             "trend_28d_summary": trend_summary,
             "trend_28d_summary_by_device": trend_summary_by_device,
@@ -1801,13 +1645,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
         + current_7d_pages_row_count
         + previous_7d_pages_row_count
         + current_30d_pages_row_count
-        + previous_30d_pages_row_count
-        + current_1d_countries_row_count
-        + previous_1d_countries_row_count
-        + current_7d_countries_row_count
-        + previous_7d_countries_row_count
-        + current_30d_countries_row_count
-        + previous_30d_countries_row_count,
+        + previous_30d_pages_row_count,
     )
     # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
     db.commit()

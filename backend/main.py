@@ -1082,12 +1082,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             "previous_7d_pages",
             "current_30d_pages",
             "previous_30d_pages",
-            "current_1d_countries",
-            "previous_1d_countries",
-            "current_7d_countries",
-            "previous_7d_countries",
-            "current_30d_countries",
-            "previous_30d_countries",
         ],
     )
     current_rows_7 = _sc_batch.get("current_7d", [])
@@ -1102,12 +1096,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     previous_pages_7 = _sc_batch.get("previous_7d_pages", [])
     current_pages_30 = _sc_batch.get("current_30d_pages", [])
     previous_pages_30 = _sc_batch.get("previous_30d_pages", [])
-    current_countries_1 = _sc_batch.get("current_1d_countries", [])
-    previous_countries_1 = _sc_batch.get("previous_1d_countries", [])
-    current_countries_7 = _sc_batch.get("current_7d_countries", [])
-    previous_countries_7 = _sc_batch.get("previous_7d_countries", [])
-    current_countries_30 = _sc_batch.get("current_30d_countries", [])
-    previous_countries_30 = _sc_batch.get("previous_30d_countries", [])
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
@@ -1215,8 +1203,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = _filter_search_console_rows_by_device(current_pages_1, device_code)
                 pages_previous = _filter_search_console_rows_by_device(previous_pages_1, device_code)
-                countries_current = _filter_search_console_rows_by_device(current_countries_1, device_code)
-                countries_previous = _filter_search_console_rows_by_device(previous_countries_1, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = (
                     _format_sc_tr_date(ref_d_global)
@@ -1234,8 +1220,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = _filter_search_console_rows_by_device(current_pages_7, device_code)
                 pages_previous = _filter_search_console_rows_by_device(previous_pages_7, device_code)
-                countries_current = _filter_search_console_rows_by_device(current_countries_7, device_code)
-                countries_previous = _filter_search_console_rows_by_device(previous_countries_7, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_7_last)
                 range_prev = _format_sc_tr_date_range(*range_7_prev)
@@ -1247,8 +1231,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = _filter_search_console_rows_by_device(current_pages_30, device_code)
                 pages_previous = _filter_search_console_rows_by_device(previous_pages_30, device_code)
-                countries_current = _filter_search_console_rows_by_device(current_countries_30, device_code)
-                countries_previous = _filter_search_console_rows_by_device(previous_countries_30, device_code)
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
@@ -1271,9 +1253,6 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 "top_queries": device_top,
                 "top_pages": _build_search_console_top_entities(
                     pages_current, pages_previous, label_key="query", limit=50
-                ),
-                "top_countries": _build_search_console_top_entities(
-                    countries_current, countries_previous, label_key="query", limit=50
                 ),
                 "table_label_current": tbl_cur,
                 "table_label_previous": tbl_prev,
@@ -7898,7 +7877,6 @@ def admin_sc_raw_catalog():
                     "date",
                     "query",
                     "page",
-                    "country",
                     "device",
                     "searchAppearance",
                     "type",
@@ -7909,12 +7887,6 @@ def admin_sc_raw_catalog():
                         "title": "Top Pages",
                         "dimensions": ["page"],
                         "description": "Landing URL bazinda tiklama/gosterim/CTR/pozisyon dagilimi.",
-                    },
-                    {
-                        "tab_key": "countries",
-                        "title": "Countries",
-                        "dimensions": ["country"],
-                        "description": "Ulke bazli performans (TR, DE, US vb.).",
                     },
                     {
                         "tab_key": "devices",
