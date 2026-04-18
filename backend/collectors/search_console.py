@@ -1330,12 +1330,21 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     property_urls_by_device = payload.get("property_urls_by_device", {}) or {}
 
     if source != "live":
+        err_text = str(error or "Search Console canli veri alinamadi.")
+        if "invalid_grant" in err_text.lower() or "expired or revoked" in err_text.lower():
+            LOGGER.error(
+                "Search Console OAuth token invalid/revoked. site=%s site_id=%s run_id=%s action=reauth_required error=%s",
+                site.domain,
+                site.id,
+                collector_run.id,
+                err_text,
+            )
         finish_collector_run(
             db,
             collector_run,
             status="failed",
             finished_at=datetime.utcnow(),
-            error_message=str(error or "Search Console canli veri alinamadi."),
+            error_message=err_text,
             summary={"source": source},
             row_count=0,
         )
@@ -1716,12 +1725,21 @@ def collect_search_console_alert_metrics(
     property_urls_by_device = payload.get("property_urls_by_device", {}) or {}
 
     if source != "live":
+        err_text = str(error or "Search Console alert verisi alinamadi.")
+        if "invalid_grant" in err_text.lower() or "expired or revoked" in err_text.lower():
+            LOGGER.error(
+                "Search Console OAuth token invalid/revoked (alerts run). site=%s site_id=%s run_id=%s action=reauth_required error=%s",
+                site.domain,
+                site.id,
+                collector_run.id,
+                err_text,
+            )
         finish_collector_run(
             db,
             collector_run,
             status="failed",
             finished_at=datetime.utcnow(),
-            error_message=str(error or "Search Console alert verisi alinamadi."),
+            error_message=err_text,
             summary={"source": source},
             row_count=0,
         )
