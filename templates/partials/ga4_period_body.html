@@ -218,9 +218,9 @@
         type="button"
         class="min-h-[2.25rem] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
         data-ga4-news-days="1"
-        data-ga4-news-timeout-target="#ga4-news-body-{{ site.id }}-{{ pk }}"
+        data-ga4-news-timeout-target="#ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}"
         hx-get="/ga4/pages/{{ site.id }}?days=1&amp;profile={{ pk }}&amp;news=1"
-        hx-target="#ga4-news-body-{{ site.id }}-{{ pk }}"
+        hx-target="#ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}"
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
@@ -230,22 +230,22 @@
         type="button"
         class="min-h-[2.25rem] rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm dark:border-slate-600 dark:bg-slate-600"
         data-ga4-news-days="7"
-        data-ga4-news-timeout-target="#ga4-news-body-{{ site.id }}-{{ pk }}"
+        data-ga4-news-timeout-target="#ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}"
         hx-get="/ga4/pages/{{ site.id }}?days=7&amp;profile={{ pk }}&amp;news=1"
-        hx-target="#ga4-news-body-{{ site.id }}-{{ pk }}"
+        hx-target="#ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}"
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
         Son 7 gün
       </button>
     </div>
-    <div id="ga4-news-body-{{ site.id }}-{{ pk }}" data-ga4-news-body class="min-w-0">
+    <div id="ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}" data-ga4-news-body class="min-w-0">
       <div
         class="rounded-2xl border border-slate-200 dark:border-slate-700"
         data-ga4-pages-placeholder-news
         hx-get="/ga4/pages/{{ site.id }}?days=7&amp;profile={{ pk }}&amp;news=1"
         hx-trigger="ga4-load"
-        hx-target="#ga4-news-body-{{ site.id }}-{{ pk }}"
+        hx-target="#ga4-news-body-{{ site.id }}-{{ period_key }}-{{ pk }}"
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
