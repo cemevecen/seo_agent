@@ -9,6 +9,16 @@
   {% endif %}
 {% endmacro %}
 
+{# SC ort. pozisyon: önceki − güncel (sıra birimi); pozitif = iyileşme #}
+{% macro delta_sc_position_block(d, cls) %}
+  {% set ad = (d | default(0)) | float %}
+  {% if ad > 0.005 or ad < -0.005 %}
+    <p class="{{ cls }} {% if ad > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ ad | signed_max_two_decimals }}</p>
+  {% else %}
+    <p class="{{ cls }} text-slate-400 dark:text-slate-500">—</p>
+  {% endif %}
+{% endmacro %}
+
 {% macro ga4_dashboard_cell(block) %}
   <div class="flex min-h-[7.5rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-3 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 sm:min-h-[8rem] sm:px-4">
     <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ block.label }}</p>
@@ -204,7 +214,7 @@
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
               <div data-sc-period-content="{{ pid }}" class="{% if pid != sc_segment %}hidden{% endif %} flex min-h-0 w-full flex-col items-center">
-                {{ delta_pct_block(p.position_change, "dash-fl-pct-hero mt-2 font-bold tabular-nums tracking-tight") }}
+                {{ delta_sc_position_block(p.position_change, "dash-fl-pct-hero mt-2 font-bold tabular-nums tracking-tight") }}
                 <p class="dash-fl-val-hero mt-1.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.position_label }}</p>
                 <p class="dash-fl-cap mt-1 text-slate-400 dark:text-slate-500">{{ p.position_subcaption }}</p>
               </div>
@@ -339,7 +349,7 @@
             {% for pid in ['1', '7', '30'] %}
               {% set p = pc[pid] %}
               <div data-sc-period-content="{{ pid }}" class="{% if pid != sc_segment %}hidden{% endif %} flex w-full flex-col items-center">
-                {{ delta_pct_block(p.position_change, "dash-fl-pct-foot mt-1.5 font-bold tabular-nums") }}
+                {{ delta_sc_position_block(p.position_change, "dash-fl-pct-foot mt-1.5 font-bold tabular-nums") }}
                 <p class="dash-fl-val-foot mt-1 font-semibold tabular-nums text-slate-800 dark:text-slate-100">{{ p.position_label }}</p>
                 <p class="dash-fl-cmp-foot compare-line mt-0.5 font-medium tabular-nums text-slate-500 dark:text-slate-400" title="Önceki dönem → güncel">{{ p.position_compare_line }}</p>
               </div>

@@ -83,11 +83,11 @@
               {% set cp = (view.clicks_pct_change | default(0)) | float %}
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
               {% set tp = (view.ctr_pct_change | default(0)) | float %}
-              {% set pp = (view.position_pct_change | default(0)) | float %}
+              {% set pd = (view.position_delta | default(0)) | float %}
               {% set clicks_pct_class = 'text-emerald-600' if cp > 0 else ('text-rose-600' if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set impressions_pct_class = 'text-emerald-600' if ip > 0 else ('text-rose-600' if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set ctr_pct_class = 'text-emerald-600' if tp > 0 else ('text-rose-600' if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
-              {% set position_pct_class = 'text-emerald-600' if pp < 0 else ('text-rose-600' if pp > 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set position_delta_class = 'text-emerald-600 dark:text-emerald-400' if pd > 0 else ('text-rose-600 dark:text-rose-400' if pd < 0 else 'text-slate-500 dark:text-slate-400') %}
 
               <article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0">
                 <p class="shrink-0 text-[10px] font-medium uppercase tracking-[0.1em] text-blue-500 dark:text-blue-400 sm:text-xs sm:tracking-[0.12em]">Clicks</p>
@@ -138,7 +138,7 @@
                 <p class="shrink-0 text-[10px] font-medium uppercase tracking-[0.1em] text-orange-500 dark:text-orange-400 sm:text-xs sm:tracking-[0.12em]">Position</p>
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
-                    <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ position_pct_class }}">{{ view.position_pct_change | signed_max_two_decimals }}%</p>
+                    <p class="text-xl font-bold tabular-nums leading-none sm:text-2xl {{ position_delta_class }}">{{ view.position_delta | signed_max_two_decimals }}</p>
                     <p class="truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ view.table_label_current }}">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
@@ -184,7 +184,7 @@
                         <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_current) }}</td>
                         <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3 sm:py-3">{{ "{:.2f}".format(row.position_previous) }}</td>
-                        <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.position_diff < 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+.2f}".format(row.position_diff) }}</td>
+                        <td class="whitespace-nowrap px-2 py-2.5 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-3 sm:py-3">{{ "{:+.2f}".format(row.position_diff) }}</td>
                       </tr>
                     {% else %}
                       <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde ilk 50 anahtar kelime verisi henüz yok.</td></tr>

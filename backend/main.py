@@ -915,7 +915,7 @@ def _build_search_console_top_queries(current_rows: list[dict], previous_rows: l
                     "clicks_diff": float(current.get("clicks", 0.0)) - float(previous.get("clicks", 0.0)),
                     "position_current": current_position,
                     "position_previous": previous_position,
-                    "position_diff": current_position - previous_position,
+                    "position_diff": _sc_position_delta(current_position, previous_position),
                 }
             )
     elif previous_map:
@@ -1005,7 +1005,7 @@ def _build_search_console_top_entities(
                 "impressions_diff": current_impressions - previous_impressions,
                 "position_current": current_position,
                 "position_previous": previous_position,
-                "position_diff": current_position - previous_position,
+                "position_diff": _sc_position_delta(current_position, previous_position),
             }
         )
     rows.sort(key=lambda item: float(item.get("clicks_current") or 0.0), reverse=True)
@@ -1307,7 +1307,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                     float(_cur.get("ctr") or 0),
                     float(_prev.get("ctr") or 0),
                 ),
-                "position_pct_change": _ga4_period_pct_change(
+                "position_delta": _sc_position_delta(
                     float(_cur.get("position") or 0),
                     float(_prev.get("position") or 0),
                 ),
@@ -4005,7 +4005,7 @@ _DASHBOARD_PLATFORM_LABELS = {
 
 
 def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
-    """Search Console kartı için tek dönem (1g/7g/30g) etiket ve % değişimleri."""
+    """Search Console kartı için tek dönem (1g/7g/30g) etiketler; tıklama/CTR %, pozisyon mutlak fark."""
     c = cur if isinstance(cur, dict) else {}
     p = prev if isinstance(prev, dict) else {}
     cc = float(c.get("clicks") or 0.0)
@@ -4035,7 +4035,7 @@ def _dashboard_sc_period_metrics(cur: dict | None, prev: dict | None) -> dict:
         "position_label": pos_cur,
         "position_prev_label": pos_prev,
         "position_compare_line": f"{pos_prev} → {pos_cur}",
-        "position_change": _ga4_period_pct_change(npp, npc),
+        "position_change": _sc_position_delta(npc, npp),
         "has_data": has,
     }
 
@@ -4604,7 +4604,7 @@ def _build_dashboard_top_drops(
             position_current = float(query.get("position_current", 0.0))
             position_previous = float(query.get("position_previous", position_current))
             position_diff = float(query.get("position_diff", 0.0))
-            if clicks_diff >= 0 and position_diff <= 0.15:
+            if clicks_diff >= 0 and position_diff >= -0.15:
                 continue
 
             reason = "Tıklama düşüşü"
@@ -4613,17 +4613,17 @@ def _build_dashboard_top_drops(
             secondary = ""
             impact = abs(clicks_diff)
 
-            if clicks_diff < 0 and position_diff > 0.15:
+            if clicks_diff < 0 and position_diff < -0.15:
                 reason = "Tıklama + pozisyon kaybı"
                 metric = f"{_format_compact_number(clicks_previous)} -> {_format_compact_number(clicks_current)} tıklama"
                 secondary = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
-                impact = abs(clicks_diff) + (position_diff * 1000)
-            elif position_diff > 0.15:
+                impact = abs(clicks_diff) + abs(position_diff) * 1000
+            elif position_diff < -0.15:
                 reason = "Pozisyon düşüşü"
                 tone = "rose"
                 metric = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
                 secondary = f"{_format_compact_number(clicks_current)} tıklama"
-                impact = max(clicks_current, 1.0) + (position_diff * 1000)
+                impact = max(clicks_current, 1.0) + abs(position_diff) * 1000
 
             key = (card.get("domain", ""), str(query.get("query") or "").strip().lower())
             if not key[1] or key in seen_queries:
@@ -4757,13 +4757,13 @@ def _build_dashboard_opportunities(
             action = ""
             score = 0.0
 
-            if clicks_current >= 2000 and 3.0 <= position_current <= 8.0 and position_diff <= 0.25:
+            if clicks_current >= 2000 and 3.0 <= position_current <= 8.0 and position_diff >= -0.25:
                 title = "İlk sayfa fırsatı"
                 detail = f"Pozisyon {_format_max_two_decimals(position_current)} · {_format_compact_number(clicks_current)} tıklama"
                 action = "İçerik, başlık ve iç link güçlendirmesiyle daha yukarı taşınabilir."
                 tone = "sky"
                 score = clicks_current / max(position_current, 1.0)
-            elif clicks_current >= 800 and position_diff < -0.15 and clicks_current >= clicks_previous:
+            elif clicks_current >= 800 and position_diff > 0.15 and clicks_current >= clicks_previous:
                 title = "Momentum yakalayan sorgu"
                 detail = f"Pozisyon {_format_max_two_decimals(position_previous)} -> {_format_max_two_decimals(position_current)}"
                 action = "Kazanım yeni ise landing sayfayı desteklemek için iyi bir zaman."
@@ -6016,6 +6016,17 @@ def _ga4_period_pct_change(last: float, prev: float) -> float:
     if lv > 0.0:
         return 100.0
     return 0.0
+
+
+def _sc_position_delta(current: float, previous: float) -> float:
+    """Search Console ort. pozisyon: önceki − güncel (sıra birimi, yüzde değil).
+    Pozitif = sıra sayısı düştü (iyileşme), negatif = yükseldi (kötüleşme)."""
+    try:
+        c = float(current or 0.0)
+        p = float(previous or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return p - c
 
 
 def _ga4_sw_float(m: dict | None, key: str) -> float:
