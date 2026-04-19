@@ -49,70 +49,36 @@
 {% set avg_session_pct_class = pct_pos if asp > 0 else (pct_neg if asp < 0 else pct_zero) %}
 {% set pageviews_pct_class = pct_pos if pvp > 0 else (pct_neg if pvp < 0 else pct_zero) %}
 
-{# 6 KPI kutusu (engagement rate kutusu kaldırıldı) #}
-<div class="w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]" data-ga4-kpi-row>
-  <div class="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+{# GA4 KPI: SC kartlarına benzer dikey blok; auto-fit ile sarmalanır, truncate yok #}
+{% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
+  {% set card_bg = 'bg-slate-50/80 dark:bg-slate-900/55' if alt_bg else 'bg-white dark:bg-slate-900' %}
+  <article class="ga4-kpi-card flex min-h-[12rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[13rem] sm:p-4">
+    <p class="min-h-[2.5em] shrink-0 text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] sm:text-[11px] sm:tracking-[0.1em] {{ label_tone }}">{{ label }}</p>
+    <div class="min-w-0 flex flex-col gap-1.5">
+      <p
+        class="min-w-0 break-words text-center text-lg font-bold tabular-nums leading-tight sm:text-left sm:text-xl {{ pct_class }}"
+        data-fit-text
+        data-fit-text-max="1.85"
+        data-fit-text-min="0.75"
+      >{{ pct_signed }}%</p>
+      <p class="min-w-0 break-words text-center text-xs font-semibold tabular-nums leading-snug text-slate-800 dark:text-slate-100 sm:text-left sm:text-sm">{{ main_line }}</p>
+    </div>
+    <div class="mt-1 shrink-0 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+      <p class="min-w-0 break-words text-center text-[10px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-left sm:text-[11px]">{{ prev_line }}</p>
+    </div>
+  </article>
+{% endmacro %}
 
-    {# 1 — Sessions (primary) #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Sessions">Sessions</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ sessions_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.sessions_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.last_total | tr_int }}</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.prev_total | tr_int }}</p>
-    </article>
-
-    {# 2 — Users #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Users">Users</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.users_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.users_last | tr_int }}</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.users_prev | tr_int }}</p>
-    </article>
-
-    {# 3 — Engaged sessions #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Engaged sessions">Engaged</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ engaged_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.engaged_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.engaged_last | tr_int }}</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.engaged_prev | tr_int }}</p>
-    </article>
-
-    {# 4 — New users #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="New users">New users</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ new_users_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.new_users_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.new_users_last | tr_int }}</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.new_users_prev | tr_int }}</p>
-    </article>
-
-    {# 5 — Avg session duration #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Avg. session">Avg. session</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ avg_session_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.avg_session_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.avg_session_last_sec | default(0) | int | tr_int }} s</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.avg_session_prev_sec | default(0) | int | tr_int }} s</p>
-    </article>
-
-    {# 6 — Screen page views #}
-    <article class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 p-2.5 sm:p-4">
-      <p class="min-w-0 shrink-0 truncate text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-slate-500 dark:text-slate-400" title="Page views">Page views</p>
-      <div class="mt-2 min-w-0 flex-1">
-        <p class="min-w-0 overflow-hidden whitespace-nowrap font-bold leading-none tabular-nums {{ pageviews_pct_class }}" data-fit-text data-fit-text-max="2.2" data-fit-text-min="1.0">{{ p.pageviews_pct_change | signed_max_two_decimals }}%</p>
-        <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-semibold tabular-nums leading-tight text-slate-600 dark:text-slate-300">{{ p.pageviews_last | tr_int }}</p>
-      </div>
-      <p class="mt-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-slate-400">prev: {{ p.pageviews_prev | tr_int }}</p>
-    </article>
-
+<div class="w-full min-w-0" data-ga4-kpi-row>
+  <div
+    class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
+  >
+    {{ ga4_kpi_card('Sessions', 'text-sky-600 dark:text-sky-400', sessions_pct_class, p.sessions_pct_change | signed_max_two_decimals, p.last_total | tr_int, 'prev: ' ~ (p.prev_total | tr_int), false) }}
+    {{ ga4_kpi_card('Users', 'text-violet-600 dark:text-violet-400', users_pct_class, p.users_pct_change | signed_max_two_decimals, p.users_last | tr_int, 'prev: ' ~ (p.users_prev | tr_int), false) }}
+    {{ ga4_kpi_card('Engaged sessions', 'text-indigo-600 dark:text-indigo-400', engaged_pct_class, p.engaged_pct_change | signed_max_two_decimals, p.engaged_last | tr_int, 'prev: ' ~ (p.engaged_prev | tr_int), false) }}
+    {{ ga4_kpi_card('New users', 'text-amber-700 dark:text-amber-400', new_users_pct_class, p.new_users_pct_change | signed_max_two_decimals, p.new_users_last | tr_int, 'prev: ' ~ (p.new_users_prev | tr_int), true) }}
+    {{ ga4_kpi_card('Avg. session', 'text-teal-600 dark:text-teal-400', avg_session_pct_class, p.avg_session_pct_change | signed_max_two_decimals, (p.avg_session_last_sec | default(0) | int | tr_int) ~ ' s', 'prev: ' ~ (p.avg_session_prev_sec | default(0) | int | tr_int) ~ ' s', true) }}
+    {{ ga4_kpi_card('Page views', 'text-fuchsia-600 dark:text-fuchsia-400', pageviews_pct_class, p.pageviews_pct_change | signed_max_two_decimals, p.pageviews_last | tr_int, 'prev: ' ~ (p.pageviews_prev | tr_int), true) }}
   </div>
 </div>
 
