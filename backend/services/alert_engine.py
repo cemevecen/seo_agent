@@ -879,6 +879,8 @@ def emit_custom_alert(
     alert_type: str,
     message: str,
     dedupe_hours: int = 6,
+    *,
+    send_mail: bool = False,
 ) -> AlertLog | None:
     # Metric dışı güvenlik/operasyon olayları için alarm log kaydı üretir.
     alert = db.query(Alert).filter(Alert.site_id == site.id, Alert.alert_type == alert_type).first()
@@ -912,37 +914,38 @@ def emit_custom_alert(
     db.commit()
     db.refresh(log)
 
-    subject = f"SEO Quota Alert: {site.domain}"
-    body = render_email_shell(
-        eyebrow="SEO Agent Quota",
-        title=f"{site.domain} icin quota uyarisi",
-        intro="Bu mail, entegrasyon kotasina yaklasildigini veya limitin asildigini haber verir.",
-        tone="amber",
-        status_label="Quota",
-        sections=[
-            section(
-                "Ozet",
-                summary_table(
-                    [
-                        ("Site", site.domain),
-                        ("Zaman", format_local_datetime(log.triggered_at)),
-                    ]
+    if send_mail:
+        subject = f"SEO Quota Alert: {site.domain}"
+        body = render_email_shell(
+            eyebrow="SEO Agent Quota",
+            title=f"{site.domain} icin quota uyarisi",
+            intro="Bu mail, entegrasyon kotasina yaklasildigini veya limitin asildigini haber verir.",
+            tone="amber",
+            status_label="Quota",
+            sections=[
+                section(
+                    "Ozet",
+                    summary_table(
+                        [
+                            ("Site", site.domain),
+                            ("Zaman", format_local_datetime(log.triggered_at)),
+                        ]
+                    ),
                 ),
-            ),
-            section(
-                "Detay",
-                note_box("Quota Mesaji", message, tone="amber"),
-            ),
-        ],
-    )
-    if send_email(subject, body):
-        log.sent_mail = True
-        try:
-            _commit_with_retry(db)
-            db.refresh(log)
-        except OperationalError as exc:
-            db.rollback()
-            LOGGER.warning("Kota alert mail sent_mail güncellenemedi (DB lock): %s", exc)
+                section(
+                    "Detay",
+                    note_box("Quota Mesaji", message, tone="amber"),
+                ),
+            ],
+        )
+        if send_email(subject, body):
+            log.sent_mail = True
+            try:
+                _commit_with_retry(db)
+                db.refresh(log)
+            except OperationalError as exc:
+                db.rollback()
+                LOGGER.warning("Kota alert mail sent_mail güncellenemedi (DB lock): %s", exc)
     return log
 
 

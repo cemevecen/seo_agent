@@ -1284,9 +1284,20 @@ def fetch_search_console_query_comparison(
         }
 
 
-def collect_search_console_metrics(db: Session, site: Site) -> dict:
+def collect_search_console_metrics(
+    db: Session,
+    site: Site,
+    *,
+    send_notifications: bool = False,
+) -> dict:
     """Son 28 gün query/ranking özetini çıkarır ve veritabanına kaydeder."""
-    decision = consume_api_quota(db, site, provider="search_console", units=8)
+    decision = consume_api_quota(
+        db,
+        site,
+        provider="search_console",
+        units=8,
+        send_alert_emails=send_notifications,
+    )
     if not decision.allowed:
         return {
             "site_id": site.id,
@@ -1673,7 +1684,7 @@ def collect_search_console_metrics(db: Session, site: Site) -> dict:
     )
     # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
     db.commit()
-    evaluate_site_alerts(db, site)
+    evaluate_site_alerts(db, site, send_notifications=send_notifications)
     return {
         "site_id": site.id,
         "rows": rows,
@@ -1693,10 +1704,16 @@ def collect_search_console_alert_metrics(
     db: Session,
     site: Site,
     *,
-    send_notifications: bool = True,
+    send_notifications: bool = False,
 ) -> dict:
     """Alert taramasi icin hafif Search Console yenilemesi yapar."""
-    decision = consume_api_quota(db, site, provider="search_console", units=2)
+    decision = consume_api_quota(
+        db,
+        site,
+        provider="search_console",
+        units=2,
+        send_alert_emails=send_notifications,
+    )
     if not decision.allowed:
         return {
             "site_id": site.id,

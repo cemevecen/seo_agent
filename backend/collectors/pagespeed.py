@@ -1192,9 +1192,16 @@ def collect_pagespeed_metrics(
     request_timeout: int | None = None,
     max_retries: int | None = None,
     retry_backoff_seconds: float | None = None,
+    send_notifications: bool = False,
 ) -> dict:
     """Mobile ve desktop performans verilerini toplayıp Metric tablosuna kaydeder."""
-    decision = consume_api_quota(db, site, provider="pagespeed", units=2)
+    decision = consume_api_quota(
+        db,
+        site,
+        provider="pagespeed",
+        units=2,
+        send_alert_emails=send_notifications,
+    )
     if not decision.allowed:
         return {
             "site_id": site.id,
@@ -1279,6 +1286,7 @@ def collect_pagespeed_metrics(
                     f"pagespeed_{strategy}_fetch_error",
                     f"{site.domain} icin {strategy} PageSpeed istegi basarisiz oldu. Son basarili olcum korunuyor. Hata: {exc}",
                     dedupe_hours=3,
+                    send_mail=send_notifications,
                 )
             else:
                 strategy_status[strategy] = {
@@ -1291,6 +1299,7 @@ def collect_pagespeed_metrics(
                     f"pagespeed_{strategy}_fetch_error",
                     f"{site.domain} icin {strategy} PageSpeed istegi basarisiz oldu ve onceki olcum bulunmuyor. Hata: {exc}",
                     dedupe_hours=3,
+                    send_mail=send_notifications,
                 )
             LOGGER.warning("PageSpeed %s fallback durumuna gecti for %s: %s", strategy, site.domain, exc)
             finish_collector_run(
@@ -1315,7 +1324,7 @@ def collect_pagespeed_metrics(
             dedupe_pagespeed_performance_scores_for_local_calendar_day(db, site.id, yesterday_local)
             prune_pagespeed_performance_scores_older_than_local_date(db, site.id, yesterday_local)
             db.commit()
-        evaluate_site_alerts(db, site)
+        evaluate_site_alerts(db, site, send_notifications=send_notifications)
 
     return {
         "site_id": site.id,

@@ -1917,7 +1917,7 @@ def _run_daily_alert_refresh_job() -> None:
             for index, site in enumerate(sites):
                 LOGGER.info("Daily alert refresh processing site=%s", site.domain)
                 try:
-                    result = collect_search_console_alert_metrics(db, site, send_notifications=True)
+                    result = collect_search_console_alert_metrics(db, site, send_notifications=False)
                     db.commit()
                     alert_batch.append((site, result))
                 except Exception as exc:  # noqa: BLE001
@@ -2459,6 +2459,7 @@ def _refresh_site_detail_measurements(
     include_crawler: bool = False,
     include_search_console: bool = False,
     force: bool = False,
+    send_notifications: bool = False,
 ) -> dict[str, dict]:
     if not settings.live_refresh_enabled:
         return {}
@@ -2483,7 +2484,7 @@ def _refresh_site_detail_measurements(
             }
         else:
             try:
-                results["pagespeed"] = collect_pagespeed_metrics(db, site)
+                results["pagespeed"] = collect_pagespeed_metrics(db, site, send_notifications=send_notifications)
             except Exception as exc:  # noqa: BLE001
                 results["pagespeed"] = {"errors": {"exception": str(exc)}}
     if include_crawler:
@@ -2512,7 +2513,7 @@ def _refresh_site_detail_measurements(
             }
         else:
             try:
-                results["crawler"] = collect_crawler_metrics(db, site)
+                results["crawler"] = collect_crawler_metrics(db, site, send_notifications=send_notifications)
             except Exception as exc:  # noqa: BLE001
                 results["crawler"] = {"errors": {"exception": str(exc)}}
     if include_search_console:
@@ -2534,7 +2535,11 @@ def _refresh_site_detail_measurements(
             }
         else:
             try:
-                results["search_console"] = collect_search_console_metrics(db, site)
+                results["search_console"] = collect_search_console_metrics(
+                    db,
+                    site,
+                    send_notifications=send_notifications,
+                )
             except Exception as exc:  # noqa: BLE001
                 results["search_console"] = {"errors": {"exception": str(exc)}}
     return results
@@ -5194,6 +5199,7 @@ def dashboard_measure_site(request: Request, site_id: int):
                 include_crawler=True,
                 include_search_console=search_console_connected,
                 force=True,
+                send_notifications=True,
             )
             if not search_console_connected:
                 try:
@@ -5811,6 +5817,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
             include_crawler=False,
             include_search_console=False,
             force=True,
+            send_notifications=True,
         )
         try:
             results["crux_history"] = collect_crux_history(db, site)
@@ -5854,6 +5861,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
             include_crawler=True,
             include_search_console=search_console_connected,
             force=True,
+            send_notifications=True,
         )
         try:
             results["crux_history"] = collect_crux_history(db, site)
@@ -5929,7 +5937,7 @@ def alerts_refresh(request: Request):
                     "search_console": collect_search_console_alert_metrics(
                         db,
                         site,
-                        send_notifications=False,
+                        send_notifications=True,
                     )
                 }
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
@@ -6615,7 +6623,7 @@ def ai_daily_brief_page(request: Request):
 
 @app.post("/ai/generate")
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
-    """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir."""
+    """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir. AI_DAILY_BRIEF_ENABLED=false olsa da bu uç force ile çalışır."""
 
     from backend.services.ai_daily_brief import (
         get_ai_brief_run_stats,
@@ -7468,6 +7476,7 @@ def search_console_refresh_all(request: Request):
                     include_crawler=False,
                     include_search_console=True,
                     force=True,
+                    send_notifications=True,
                 )
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
                 if isinstance(results.get("search_console"), dict):
@@ -7517,6 +7526,7 @@ def search_console_manual_refresh(request: Request, site_id: int):
             include_crawler=False,
             include_search_console=True,
             force=True,
+            send_notifications=True,
         )
         try:
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)

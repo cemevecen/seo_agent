@@ -109,6 +109,8 @@ class Settings(BaseSettings):
     outbound_email_enabled: bool = False
     # Tetik/operasyon özet mailleri (PageSpeed/CrUX günlük vb.); outbound açıkken anlam taşır.
     operations_trigger_email_enabled: bool = False
+    # True iken operasyon/GA4 özet e-postaları yalnızca trigger_source=manual ile gider (zamanlayıcı ve monitör dahil).
+    email_manual_triggers_only: bool = True
 
     # GA4 günlük toplama (Ankara saati; Search Console 04:00, tam yenileme 05:00 ile sıralı)
     ga4_scheduled_refresh_enabled: bool = True
@@ -121,8 +123,9 @@ class Settings(BaseSettings):
     app_intel_scheduled_refresh_hour: int = 7
     app_intel_scheduled_refresh_minute: int = 0
 
-    # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar). Kapalıyken job çalışmaz (manuel dahil).
-    ai_daily_brief_enabled: bool = True
+    # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar). False iken zamanlanmış LLM job çalışmaz;
+    # POST /ai/generate (force) yine üretir.
+    ai_daily_brief_enabled: bool = False
     # APScheduler ile sabit saatte otomatik üretim. Kapalıyken yalnızca manuel tetik (ör. /ai/generate).
     ai_daily_brief_scheduler_enabled: bool = False
     # Özet kaydedildikten sonra operasyon alıcılarına e-posta gönder.
@@ -189,6 +192,13 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def email_allows_trigger_source(trigger_source: str) -> bool:
+    """Operasyon/GA4 özet gibi tetik e-postalarında: yalnızca manuel mi?"""
+    if not settings.email_manual_triggers_only:
+        return True
+    return (trigger_source or "").strip().lower() == "manual"
 
 
 def is_railway_runtime() -> bool:

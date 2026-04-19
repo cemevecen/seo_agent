@@ -499,6 +499,7 @@ def collect_crawler_metrics(
     issue_sample_limit: int | None = None,
     sitemap_url_limit: int | None = None,
     request_timeout_seconds: int | None = None,
+    send_notifications: bool = False,
 ) -> dict:
     """robots, sitemap, schema, canonical ve site ici link denetimlerini yapip kaydeder."""
     collected_at = datetime.utcnow()
@@ -568,7 +569,7 @@ def collect_crawler_metrics(
         "crawler_redirect_max_hops": float(link_audit["max_hops"]),
     }
     save_metrics(db, site.id, metrics, collected_at)
-    evaluate_site_alerts(db, site)
+    evaluate_site_alerts(db, site, send_notifications=send_notifications)
     finish_collector_run(
         db,
         run,

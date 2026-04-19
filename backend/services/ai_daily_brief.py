@@ -1,6 +1,7 @@
-"""Günlük AI özet: GA4, PageSpeed, Search Console ve uyarılar — Türkçe, sabah cron, e-posta.
+"""Günlük AI özet: GA4, PageSpeed, Search Console ve uyarılar — Türkçe.
 
-LLM çağrıları *yalnızca* bu modülde yapılır: zamanlanmış günlük job veya POST /ai/generate.
+LLM çağrıları *yalnızca* bu modülde yapılır. Varsayılan: yalnızca POST /ai/generate (manuel);
+zamanlanmış üretim için ayarlarda AI_DAILY_BRIEF_ENABLED ve AI_DAILY_BRIEF_SCHEDULER_ENABLED açılmalı.
 Kota: İstanbul günü başına üst sınır (ayar) ve eşzamanlı çalışma kilidi.
 """
 
@@ -824,8 +825,8 @@ def build_brief_email_html(
 
 
 def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None = None) -> None:
-    if not settings.ai_daily_brief_enabled:
-        LOGGER.info("AI daily brief disabled via settings.")
+    if not settings.ai_daily_brief_enabled and not force:
+        LOGGER.info("AI günlük özet kapalı (zamanlanmış). Manuel üretim: POST /ai/generate.")
         return
 
     if not _BRIEF_JOB_LOCK.acquire(blocking=False):

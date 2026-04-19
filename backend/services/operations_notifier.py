@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import email_allows_trigger_source, settings
 from backend.models import CollectorRun, NotificationDeliveryLog, Site
 from backend.services.email_templates import data_table, note_box, render_email_shell, section, stat_cards, summary_table
 from backend.services.mailer import send_email
@@ -446,6 +446,8 @@ def send_consolidated_system_email(
     """
     Aynı sistem için tek konu başlıklı özet maili; eski 'tetiklendi' içeriği site bloklarının sonunda.
     """
+    if not email_allows_trigger_source(trigger_source):
+        return False
     if not settings.operations_trigger_email_enabled:
         return False
     system_label = SYSTEM_LABELS.get(system_key, system_key.replace("_", " ").title())
@@ -718,6 +720,8 @@ def _scheduled_system_specs() -> list[ScheduledSystemSpec]:
 def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
     if not settings.scheduled_refresh_monitor_enabled:
         return []
+    if settings.email_manual_triggers_only:
+        return []
 
     local_now = now_local()
     grace = timedelta(minutes=max(0, int(settings.scheduled_refresh_monitor_grace_minutes)))
@@ -923,6 +927,8 @@ def notify_crawler_audit_emails_batch(
     trigger_source: str,
 ) -> list[str]:
     """Tüm dahili siteler için tek günlük crawler raporu (rapor + varsa uyarı blokları bir arada)."""
+    if not email_allows_trigger_source(trigger_source):
+        return []
     parsed: list[tuple[Site, dict, dict]] = []
     for site, result in items:
         link_audit = _crawler_summary_from_result(result)

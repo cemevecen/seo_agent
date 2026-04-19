@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.config import email_allows_trigger_source
 from backend.locale import tr as tr_locale
 from backend.models import Site
 from backend.services.ga4_page_urls import enrich_ga4_page_rows, ga4_row_page_href, ga4_row_page_label
@@ -613,6 +614,8 @@ def send_ga4_weekly_digest_emails(
     Döviz ve Sinemalar için ayrı HTML e-posta gönderir.
     only_buckets: None ise ikisi; {'doviz'} veya {'sinema'} ile tek grup.
     """
+    if not email_allows_trigger_source(trigger_source):
+        return []
     from backend.main import _external_site_ids
 
     external = _external_site_ids(db)

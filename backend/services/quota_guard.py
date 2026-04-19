@@ -80,7 +80,14 @@ def _get_or_create_usage(
     return row
 
 
-def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) -> QuotaDecision:
+def consume_api_quota(
+    db: Session,
+    site: Site,
+    provider: str,
+    units: int = 1,
+    *,
+    send_alert_emails: bool = False,
+) -> QuotaDecision:
     # Guard kapaliysa cagrilari oldugu gibi gecirir.
     if not settings.quota_guard_enabled:
         return QuotaDecision(allowed=True, reason="quota guard disabled")
@@ -88,7 +95,7 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
     with _API_USAGE_LOCK:
         for attempt in range(1, 5):
             try:
-                return _consume_api_quota_impl(db, site, provider, units)
+                return _consume_api_quota_impl(db, site, provider, units, send_alert_emails=send_alert_emails)
             except (OperationalError, PendingRollbackError) as exc:
                 db.rollback()
                 if not _is_sqlite_lock_error(exc) or attempt >= 4:
@@ -96,7 +103,14 @@ def consume_api_quota(db: Session, site: Site, provider: str, units: int = 1) ->
                 time.sleep(0.08 * attempt)
 
 
-def _consume_api_quota_impl(db: Session, site: Site, provider: str, units: int) -> QuotaDecision:
+def _consume_api_quota_impl(
+    db: Session,
+    site: Site,
+    provider: str,
+    units: int,
+    *,
+    send_alert_emails: bool,
+) -> QuotaDecision:
     now = datetime.utcnow()
     warning_ratio = max(0.0, min(settings.quota_warning_ratio, 0.99))
 
@@ -117,7 +131,14 @@ def _consume_api_quota_impl(db: Session, site: Site, provider: str, units: int) 
             f"Gunluk: {day_row.call_count}/{day_limit}, Aylik: {month_row.call_count}/{month_limit}. "
             f"Yeni API cagrisı bloke edildi."
         )
-        emit_custom_alert(db, site, f"quota_{provider}_hard_limit", message, dedupe_hours=2)
+        emit_custom_alert(
+            db,
+            site,
+            f"quota_{provider}_hard_limit",
+            message,
+            dedupe_hours=2,
+            send_mail=send_alert_emails,
+        )
         db.commit()
         return QuotaDecision(allowed=False, reason=message)
 
@@ -129,7 +150,14 @@ def _consume_api_quota_impl(db: Session, site: Site, provider: str, units: int) 
             f"{site.domain} icin {provider} kota kullanimı warning seviyesine geldi. "
             f"Gunluk: {next_day}/{day_limit}, Aylik: {next_month}/{month_limit}."
         )
-        emit_custom_alert(db, site, f"quota_{provider}_warning", message, dedupe_hours=12)
+        emit_custom_alert(
+            db,
+            site,
+            f"quota_{provider}_warning",
+            message,
+            dedupe_hours=12,
+            send_mail=send_alert_emails,
+        )
 
     day_row.call_count = next_day
     day_row.updated_at = now
