@@ -26,7 +26,10 @@
       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
           <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-1 py-1.5 text-left align-top shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)] sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation text-left font-semibold hover:text-slate-900 dark:text-slate-100" data-sort-key="source" data-sort-type="string">Source / medium</button>
+            <button type="button" class="touch-manipulation flex w-full flex-col items-start gap-0.5 text-left font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="source" data-sort-type="string">
+              <span>Source / medium</span>
+              <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">channel</span>
+            </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
             <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="last" data-sort-type="number" title="Sessions ({{ last_l }})">
@@ -41,10 +44,16 @@
             </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="delta" data-sort-type="number">Change</button>
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="delta" data-sort-type="number">
+              <span>Change</span>
+              <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">abs</span>
+            </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="deltaPct" data-sort-type="number">Δ%</button>
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="deltaPct" data-sort-type="number">
+              <span>Change</span>
+              <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">%</span>
+            </button>
           </th>
         </tr>
       </thead>
