@@ -52,8 +52,8 @@
 {# GA4 KPI: SC kartlarına benzer dikey blok; auto-fit ile sarmalanır, truncate yok #}
 {% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
   {% set card_bg = 'bg-slate-50/80 dark:bg-slate-900/55' if alt_bg else 'bg-white dark:bg-slate-900' %}
-  <article class="ga4-kpi-card flex min-h-[12rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[13rem] sm:p-4">
-    <p class="min-h-[2.5em] shrink-0 text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] sm:text-[11px] sm:tracking-[0.1em] {{ label_tone }}">{{ label }}</p>
+  <article class="ga4-kpi-card flex min-h-[13rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[14rem] sm:p-4">
+    <p class="min-h-[2.75em] shrink-0 text-xl font-semibold uppercase leading-tight tracking-wide sm:min-h-[2.5em] sm:text-[22px] sm:tracking-[0.12em] {{ label_tone }}">{{ label }}</p>
     <div class="min-w-0 flex flex-col gap-1.5">
       <p
         class="min-w-0 break-words text-center text-lg font-bold tabular-nums leading-tight sm:text-left sm:text-xl {{ pct_class }}"
