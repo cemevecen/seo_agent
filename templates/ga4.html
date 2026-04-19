@@ -1125,6 +1125,11 @@
     });
   }
 
+  var GA4_NEWS_DAY_INACTIVE =
+    'touch-manipulation min-h-[2rem] rounded-full border border-transparent bg-transparent px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-white/90 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/80 dark:hover:text-white';
+  var GA4_NEWS_DAY_ACTIVE =
+    'touch-manipulation min-h-[2rem] rounded-full border border-violet-300 bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900 shadow-sm hover:bg-violet-200 dark:border-transparent dark:bg-violet-600 dark:text-white dark:hover:bg-violet-500';
+
   function setNewsDaysButtonActive(button) {
     if (!button) return;
     var wrap = button.closest('[data-ga4-pages-kind-panel="news"]');
@@ -1134,14 +1139,7 @@
       var isActive = b === button;
       b.dataset.active = isActive ? 'true' : 'false';
       b.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      b.classList.toggle('bg-violet-700', isActive);
-      b.classList.toggle('hover:bg-violet-800', isActive);
-      b.classList.toggle('dark:bg-violet-600', isActive);
-      b.classList.toggle('dark:hover:bg-violet-500', isActive);
-      b.classList.toggle('text-white', isActive);
-      b.classList.toggle('bg-transparent', !isActive);
-      b.classList.toggle('text-slate-700', !isActive);
-      b.classList.toggle('dark:text-slate-200', !isActive);
+      b.className = isActive ? GA4_NEWS_DAY_ACTIVE : GA4_NEWS_DAY_INACTIVE;
     });
   }
 
