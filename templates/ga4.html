@@ -1277,7 +1277,17 @@
   }
 
   function initGa4SplitView(root) {
-    (root || document).querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
+    // querySelectorAll yalnızca alt öğeleri döner; HTMX lazy swap sonrası closest(grid)
+    // ile kökün kendisi verildiğinde boş liste oluşuyordu (Railway'de split tıklanmıyordu).
+    var grids = [];
+    if (!root || root === document) {
+      grids = Array.prototype.slice.call(document.querySelectorAll('[data-ga4-split-root]'));
+    } else if (root.nodeType === 1 && root.matches && root.matches('[data-ga4-split-root]')) {
+      grids = [root];
+    } else if (root.querySelectorAll) {
+      grids = Array.prototype.slice.call(root.querySelectorAll('[data-ga4-split-root]'));
+    }
+    grids.forEach(function (grid) {
       // Lazy kartlar HTMX ile sonradan geldiğinde, grid daha önce bound olduysa
       // yeni eklenen split butonları event alamayabiliyor. applyFocus'u grid'e
       // bağlayıp butonları idempotent şekilde tek tek bind edelim.
