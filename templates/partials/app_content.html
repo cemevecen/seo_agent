@@ -1655,7 +1655,9 @@
       if (arank && arank.rank != null) {
         var rankPrefix =
           arank.chart === "store_search_package" ? "Play araması (paket)" : "Kategori sırası";
-        aRankText = rankPrefix + ": " + (arank.estimated ? "≥ #" : "#") + arank.rank;
+        var useLowerBound =
+          arank.estimated === true && arank.chart !== "store_search_package";
+        aRankText = rankPrefix + ": " + (useLowerBound ? "≥ #" : "#") + arank.rank;
       } else {
         aRankText = "Kategori sırası: —";
       }

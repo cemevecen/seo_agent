@@ -1023,7 +1023,8 @@ def _fetch_android_rank_package_search_http(
         "chart": "store_search_package",
         "chart_label": "Play araması",
         "category_name": "Finans",
-        "estimated": True,
+        # Kesin arama sonucu sırası; ≥ öneki yalnızca kısmi liste tahmininde kullanılır.
+        "estimated": False,
     }
 
 
