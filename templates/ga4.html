@@ -640,7 +640,7 @@
       steps: [
         { percent: 14, title: 'Bağlantılar kontrol ediliyor', detail: 'Service account ve site property eşlemeleri doğrulanıyor.' },
         { percent: 30, title: 'KPI ve kanal raporları', detail: 'Oturum, kullanıcı ve kanal kırılımları alınıyor.' },
-        { percent: 48, title: 'Sayfa ve kaynak tabloları', detail: 'Landing ve kaynak/ortam raporları (30g’de haber listesi dahil) yazılıyor.' },
+        { percent: 48, title: 'Sayfa ve kaynak tabloları', detail: 'Landing ve kaynak/ortam raporları (haber listesi 1/7 gün) yazılıyor.' },
         { percent: 64, title: 'Veritabanı', detail: 'Metrikler ve GA4 snapshot kayıtları güncelleniyor.' },
         { percent: 82, title: 'Kartlar hazırlanıyor', detail: 'Sunucu yanıtı tamamlanıyor; liste HTML üretiliyor.' },
       ],
@@ -1369,6 +1369,7 @@
     }
     // Pages / Haberler / Kaynak tabloları HTMX ile yüklendi — sort butonlarını etkinleştir
     var el = detail.elt;
+    var newsSwapHost = detail.target;
     if (
       el &&
       (el.hasAttribute('data-ga4-pages-placeholder') ||
@@ -1382,6 +1383,11 @@
           initGa4Tables(swapped.closest('section') || swapped);
         }, 30);
       }
+    }
+    if (newsSwapHost && newsSwapHost.getAttribute && newsSwapHost.getAttribute('data-ga4-news-body')) {
+      window.setTimeout(function () {
+        initGa4Tables(newsSwapHost.closest('section') || newsSwapHost);
+      }, 30);
     }
   });
 
@@ -1415,6 +1421,15 @@
     if (elt && elt.hasAttribute && elt.hasAttribute('data-ga4-pages-placeholder-news')) {
       elt.outerHTML =
         '<div class="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 px-4 py-6 text-center text-sm text-rose-800 dark:text-rose-200">Haberler tablosu zaman aşımına uğradı (GA4 yanıt vermiyor). Sayfayı yenileyip tekrar deneyin veya bir süre sonra tekrar açın.</div>';
+      return;
+    }
+    if (elt && elt.getAttribute && elt.getAttribute('data-ga4-news-timeout-target')) {
+      var sel = elt.getAttribute('data-ga4-news-timeout-target');
+      var node = sel ? document.querySelector(sel) : null;
+      if (node) {
+        node.innerHTML =
+          '<div class="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 px-4 py-6 text-center text-sm text-rose-800 dark:text-rose-200">Haberler tablosu zaman aşımına uğradı (GA4 yanıt vermiyor). Sayfayı yenileyip tekrar deneyin veya bir süre sonra tekrar açın.</div>';
+      }
     }
   });
 

@@ -6955,6 +6955,11 @@ def ga4_pages_partial(request: Request, site_id: int):
     except ValueError:
         days = 30
 
+    # Haberler tablosu: yalnızca son 1 veya 7 gün (diğer değerler 7'ye düşer).
+    if news_only:
+        if days not in (1, 7):
+            days = 7
+
     # Haberler: GA4 çağrısından önce DB oturumu kapanır (eski SQLite/gRPC etkileşimi notu).
     if news_only:
         with SessionLocal() as db:
