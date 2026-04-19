@@ -1132,6 +1132,7 @@
     var buttons = wrap.querySelectorAll('[data-ga4-news-days]');
     buttons.forEach(function (b) {
       var isActive = b === button;
+      b.dataset.active = isActive ? 'true' : 'false';
       b.setAttribute('aria-selected', isActive ? 'true' : 'false');
       b.classList.toggle('bg-violet-700', isActive);
       b.classList.toggle('hover:bg-violet-800', isActive);
@@ -1141,6 +1142,18 @@
       b.classList.toggle('bg-transparent', !isActive);
       b.classList.toggle('text-slate-700', !isActive);
       b.classList.toggle('dark:text-slate-200', !isActive);
+    });
+  }
+
+  function initGa4NewsDayButtons(root) {
+    (root || document).querySelectorAll('[data-ga4-pages-kind-panel="news"]').forEach(function (panel) {
+      var preferred =
+        panel.querySelector('[data-ga4-news-days][data-active="true"]') ||
+        panel.querySelector('[data-ga4-news-days="7"]') ||
+        panel.querySelector('[data-ga4-news-days]');
+      if (preferred) {
+        setNewsDaysButtonActive(preferred);
+      }
     });
   }
 
@@ -1355,6 +1368,7 @@
     initGa4PeriodSwitch(root);
     initGa4ProfileSwitches(root);
     initGa4PagesKindSwitch(root);
+    initGa4NewsDayButtons(root);
     initGa4Tables(root);
     bindGa4SiteRefreshButtons(root);
     window.requestAnimationFrame(function () {
