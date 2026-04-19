@@ -1125,6 +1125,33 @@
     });
   }
 
+  function setNewsDaysButtonActive(button) {
+    if (!button) return;
+    var wrap = button.closest('[data-ga4-pages-kind-panel="news"]');
+    if (!wrap) return;
+    var buttons = wrap.querySelectorAll('[data-ga4-news-days]');
+    buttons.forEach(function (b) {
+      var isActive = b === button;
+      b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      b.classList.toggle('bg-slate-900', isActive);
+      b.classList.toggle('dark:bg-slate-600', isActive);
+      b.classList.toggle('text-white', isActive);
+      b.classList.toggle('bg-white', !isActive);
+      b.classList.toggle('dark:bg-slate-800/90', !isActive);
+      b.classList.toggle('text-slate-600', !isActive);
+      b.classList.toggle('dark:text-slate-300', !isActive);
+    });
+  }
+
+  // Haberler: Son 1 gün / Son 7 gün buton seçimini UI'da sabit tut.
+  document.addEventListener('click', function (event) {
+    var t = event.target;
+    if (!t) return;
+    var btn = t.closest && t.closest('[data-ga4-news-days]');
+    if (!btn) return;
+    setNewsDaysButtonActive(btn);
+  });
+
   function initGa4ProfileSwitches(root) {
     (root || document).querySelectorAll('[data-ga4-profile-switch]').forEach(function (switcher) {
       if (switcher.dataset.switchReady === '1') {
