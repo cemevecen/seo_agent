@@ -1653,10 +1653,9 @@
       var arank = am.store_category_rank || {};
       var aRankText = "";
       if (arank && arank.rank != null) {
-        aRankText =
-          "Kategori sırası: " +
-          (arank.estimated ? "≥ #" : "#") +
-          arank.rank;
+        var rankPrefix =
+          arank.chart === "store_search_package" ? "Play araması (paket)" : "Kategori sırası";
+        aRankText = rankPrefix + ": " + (arank.estimated ? "≥ #" : "#") + arank.rank;
       } else {
         aRankText = "Kategori sırası: —";
       }

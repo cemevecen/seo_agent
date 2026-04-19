@@ -13,6 +13,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus
 
 import httpx
 
@@ -948,6 +949,84 @@ def _fetch_ios_category_rank(
     return None
 
 
+def _android_play_category_slug(category_id: str | None) -> str:
+    """Play mağaza URL segmenti (örn. FINANCE). Geçersizse FINANCE."""
+    raw = (category_id or "FINANCE").strip().upper()
+    if raw and re.fullmatch(r"[A-Z][A-Z0-9_]*", raw):
+        return raw
+    return "FINANCE"
+
+
+def _merge_android_pkg_orders(*sequences: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for seq in sequences:
+        for p in seq:
+            k = (p or "").lower()
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            out.append(p)
+    return out
+
+
+def _android_pkg_index(pkgs: list[str], target: str) -> int | None:
+    t = (target or "").strip().lower()
+    if not t:
+        return None
+    for i, p in enumerate(pkgs):
+        if (p or "").strip().lower() == t:
+            return i
+    return None
+
+
+def _fetch_android_rank_package_search_http(
+    package: str,
+    *,
+    country: str = "tr",
+    lang: str = "tr",
+) -> dict[str, Any] | None:
+    """Paket adıyla Play uygulama araması — kategori DOM'unda yoksa yaklaşık sıra."""
+    if not package:
+        return None
+    url = f"https://play.google.com/store/search?q={quote_plus(package)}&c=apps&hl={lang}&gl={country}"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
+    try:
+        with httpx.Client(timeout=14.0, follow_redirects=True, headers=headers) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            html = r.text
+    except Exception as exc:
+        logger.debug("android package search rank: %s", exc)
+        return None
+    ids: list[str] = []
+    seen: set[str] = set()
+    for m in re.finditer(r"details\?id=([A-Za-z0-9._]+)", html):
+        pid = m.group(1)
+        k = pid.lower()
+        if k not in seen:
+            seen.add(k)
+            ids.append(pid)
+    if not ids:
+        return None
+    idx = _android_pkg_index(ids, package)
+    if idx is None:
+        return None
+    return {
+        "rank": idx + 1,
+        "total": len(ids),
+        "chart": "store_search_package",
+        "chart_label": "Play araması",
+        "category_name": "Finans",
+        "estimated": True,
+    }
+
+
 def _fetch_android_category_rank(
     package: str,
     *,
@@ -955,20 +1034,23 @@ def _fetch_android_category_rank(
     lang: str = "tr",
     category_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """Play Store Finance kategorisindeki gerçek sıralamayı döner.
+    """Play kategori sırası (Playwright); yoksa paket araması; son çare detay HTML."""
 
-    Önce batchexecute API yanıtını Playwright ile yakalar (en doğru).
-    Başarısız olursa statik HTTP fallback dener.
-    """
     if not package:
         return None
 
-    # ── 1) Playwright + batchexecute (birincil, en doğru) ────────────────────
-    result = _fetch_android_rank_playwright(package, country=country, lang=lang)
+    slug = _android_play_category_slug(category_id)
+    result = _fetch_android_rank_playwright(
+        package, country=country, lang=lang, category_slug=slug
+    )
     if result is not None:
         return result
 
-    # ── 2) HTTP fallback: detay sayfasından metin tarama ─────────────────────
+    search_hit = _fetch_android_rank_package_search_http(package, country=country, lang=lang)
+    if search_hit is not None:
+        logger.info("android rank: paket araması %s → #%s", package, search_hit.get("rank"))
+        return search_hit
+
     return _fetch_android_rank_http_fallback(package, country=country, lang=lang, category_id=category_id)
 
 
@@ -993,11 +1075,11 @@ def _fetch_android_rank_playwright(
     *,
     country: str = "tr",
     lang: str = "tr",
+    category_slug: str = "FINANCE",
 ) -> dict[str, Any] | None:
-    """Play Store top-free Finance chart'ını scroll ederek gerçek sıralamayı çeker.
+    """Kategori sayfasını (ör. FINANCE) scroll ederek DOM + batchexecute ile sıra bulur.
 
-    Tam chart sayfasına gider, batchexecute yanıtlarını yakalar ve sayfayı aşağı
-    kaydırarak lazy-load ile ek sayfaları tetikler. ~200 uygulamayı tarayabilir.
+    Eski `/collection/top_free` URL'i 404; mağaza `category/{SLUG}` kullanıyor.
     """
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
@@ -1005,14 +1087,10 @@ def _fetch_android_rank_playwright(
         logger.debug("playwright kurulu değil; android rank fallback kullanılıyor")
         return None
 
-    # Tam top-free chart sayfası (kategori landing değil, asıl liste sayfası)
-    chart_url = (
-        f"https://play.google.com/store/apps/category/FINANCE"
-        f"/collection/top_free?hl={lang}&gl={country}"
-    )
-
-    # Her batchexecute yanıtını sırayla sakla; scroll sonrası yenileri eklenir
+    slug = _android_play_category_slug(category_slug)
+    chart_url = f"https://play.google.com/store/apps/category/{slug}?hl={lang}&gl={country}"
     captured_texts: list[str] = []
+    batch_ordered: list[str] = []
 
     try:
         with sync_playwright() as pw:
@@ -1020,9 +1098,8 @@ def _fetch_android_rank_playwright(
             ctx = browser.new_context(
                 locale=f"{lang}-{country.upper()}",
                 user_agent=(
-                    "Mozilla/5.0 (Linux; Android 12; Pixel 6) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Mobile Safari/537.36"
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                 ),
             )
             page = ctx.new_page()
@@ -1037,90 +1114,85 @@ def _fetch_android_rank_playwright(
             page.on("response", _on_response)
 
             try:
-                page.goto(chart_url, wait_until="domcontentloaded", timeout=35_000)
-                page.wait_for_timeout(4_000)
+                page.goto(chart_url, wait_until="domcontentloaded", timeout=40_000)
+                page.wait_for_timeout(3_000)
             except PWTimeout:
                 pass
 
-            # Scroll ile lazy-load: her adımda ~50 uygulama daha yüklenebilir.
-            # 12 scroll × ~50 = ~600 uygulama üst sınırı (Finance'de genelde ~200)
-            seen_global: set[str] = set()
-            ordered_global: list[str] = []
-
-            for scroll_i in range(12):
-                # Mevcut yanıtları işle
+            seen_batch: set[str] = set()
+            for scroll_i in range(16):
                 for txt in captured_texts:
                     for p in _extract_android_packages(txt):
-                        if p not in seen_global:
-                            seen_global.add(p)
-                            ordered_global.append(p)
+                        k = p.lower()
+                        if k not in seen_batch:
+                            seen_batch.add(k)
+                            batch_ordered.append(p)
                 captured_texts.clear()
 
-                logger.debug(
-                    "android rank scroll %d: %d paket tarandı",
-                    scroll_i,
-                    len(ordered_global),
-                )
-
-                # Hedef paket bulunduysa dur
-                if package in seen_global:
+                if len(batch_ordered) >= 400:
                     break
-
-                # Yeterince tarandıysa dur (Finance listesi genellikle ~200)
-                if len(ordered_global) >= 250:
-                    break
-
-                # Sayfayı aşağı kaydır, yeni batchexecute tetikle
                 try:
                     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(2_500)
+                    page.wait_for_timeout(900)
                 except Exception:
                     break
 
-            # Son kalan yanıtları işle
             for txt in captured_texts:
                 for p in _extract_android_packages(txt):
-                    if p not in seen_global:
-                        seen_global.add(p)
-                        ordered_global.append(p)
+                    k = p.lower()
+                    if k not in seen_batch:
+                        seen_batch.add(k)
+                        batch_ordered.append(p)
+
+            dom_ids: list[str] = []
+            try:
+                hrefs = page.eval_on_selector_all(
+                    'a[href*="details?id="]',
+                    'els => els.map(e => e.getAttribute("href"))',
+                )
+                seen_dom: set[str] = set()
+                for href in hrefs or []:
+                    m = re.search(r"details\?id=([A-Za-z0-9._]+)", href or "")
+                    if not m:
+                        continue
+                    pid = m.group(1)
+                    k = pid.lower()
+                    if k not in seen_dom:
+                        seen_dom.add(k)
+                        dom_ids.append(pid)
+            except Exception:
+                pass
 
             browser.close()
     except Exception as exc:
         logger.warning("Playwright android rank hatası: %s", exc)
         return None
 
+    ordered_global = _merge_android_pkg_orders(dom_ids, batch_ordered)
     if not ordered_global:
-        logger.debug("batchexecute yanıtından paket listesi çıkarılamadı")
+        logger.debug("android rank: kategori DOM/batchexecute boş (%s)", slug)
         return None
 
-    logger.info("batchexecute toplam: %d paket tarandı", len(ordered_global))
-
-    if package in ordered_global:
-        rank = ordered_global.index(package) + 1
-        logger.info("batchexecute: %s #%d sırada (Finance)", package, rank)
-        return {
-            "rank": rank,
-            "total": len(ordered_global),
-            "chart": "top_free",
-            "chart_label": "Ücretsiz",
-            "category_name": "Finance",
-            "estimated": False,
-        }
-
-    # Listede bulunamadı → alt sınır tahmini
+    idx = _android_pkg_index(ordered_global, package)
     logger.info(
-        "batchexecute: %s %d uygulama tarandı; listede bulunamadı (>%d tahmini)",
-        package,
-        len(ordered_global),
+        "android rank playwright: slug=%s dom=%d batch=%d merged=%d",
+        slug,
+        len(dom_ids),
+        len(batch_ordered),
         len(ordered_global),
     )
+    if idx is None:
+        return None
+
+    rank = idx + 1
+    logger.info("android rank: %s #%d / %d (%s)", package, rank, len(ordered_global), slug)
     return {
-        "rank": len(ordered_global) + 1,
+        "rank": rank,
         "total": len(ordered_global),
-        "chart": "top_free",
-        "chart_label": "Ücretsiz",
-        "category_name": "Finance",
-        "estimated": True,
+        "chart": "category_top",
+        "chart_label": "Kategori",
+        "category_name": slug.replace("_", " ").title(),
+        "estimated": False,
     }
 
 
@@ -1167,7 +1239,7 @@ def _fetch_android_rank_http_fallback(
                 "category_name": category_name,
             }
 
-    return {"rank": None, "total": None, "chart": "details_page", "category_name": category_name} if category_name else None
+    return None
 
 
 def _fetch_google_bundle(
@@ -1505,7 +1577,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         lang="tr",
         category_id=str(meta.get("genreId") or "") or None,
     )
-    if a_rank:
+    if a_rank and a_rank.get("rank") is not None:
         meta = {**(meta or {}), **{"category_rank": a_rank}}
 
     payload = {
@@ -1702,7 +1774,7 @@ def refresh_category_ranks() -> dict[str, Any]:
 
             # Android
             a_rank = _fetch_android_category_rank(spec["android_package"], country="tr", lang="tr")
-            if a_rank:
+            if a_rank and a_rank.get("rank") is not None:
                 _append_rank_snapshot(product_id, "android", a_rank, at_iso=now_iso)
             results[product_id]["android"] = a_rank
             logger.info("Rank refresh (%s) Android: %s", product_id, a_rank)
