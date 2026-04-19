@@ -13,7 +13,6 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote_plus
 
 import httpx
 
@@ -980,54 +979,6 @@ def _android_pkg_index(pkgs: list[str], target: str) -> int | None:
     return None
 
 
-def _fetch_android_rank_package_search_http(
-    package: str,
-    *,
-    country: str = "tr",
-    lang: str = "tr",
-) -> dict[str, Any] | None:
-    """Paket adıyla Play uygulama araması — kategori DOM'unda yoksa yaklaşık sıra."""
-    if not package:
-        return None
-    url = f"https://play.google.com/store/search?q={quote_plus(package)}&c=apps&hl={lang}&gl={country}"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
-    try:
-        with httpx.Client(timeout=14.0, follow_redirects=True, headers=headers) as client:
-            r = client.get(url)
-            r.raise_for_status()
-            html = r.text
-    except Exception as exc:
-        logger.debug("android package search rank: %s", exc)
-        return None
-    ids: list[str] = []
-    seen: set[str] = set()
-    for m in re.finditer(r"details\?id=([A-Za-z0-9._]+)", html):
-        pid = m.group(1)
-        k = pid.lower()
-        if k not in seen:
-            seen.add(k)
-            ids.append(pid)
-    if not ids:
-        return None
-    idx = _android_pkg_index(ids, package)
-    if idx is None:
-        return None
-    return {
-        "rank": idx + 1,
-        "total": len(ids),
-        "chart": "store_search_package",
-        "chart_label": "Play araması",
-        "category_name": "Finans",
-        # Kesin arama sonucu sırası; ≥ öneki yalnızca kısmi liste tahmininde kullanılır.
-        "estimated": False,
-    }
-
-
 def _fetch_android_category_rank(
     package: str,
     *,
@@ -1035,7 +986,12 @@ def _fetch_android_category_rank(
     lang: str = "tr",
     category_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """Play kategori sırası (Playwright); yoksa paket araması; son çare detay HTML."""
+    """Play kategori sırası (Playwright); yoksa detay sayfası HTML (grafik metni).
+
+    Paket kimliğiyle `store/search` kullanılmaz: Play bu sorguda uygulamayı
+    listenin başına aldığı için neredeyse her zaman #1 üretir; kategori sırası
+    ile karıştırılmamalıdır.
+    """
 
     if not package:
         return None
@@ -1046,11 +1002,6 @@ def _fetch_android_category_rank(
     )
     if result is not None:
         return result
-
-    search_hit = _fetch_android_rank_package_search_http(package, country=country, lang=lang)
-    if search_hit is not None:
-        logger.info("android rank: paket araması %s → #%s", package, search_hit.get("rank"))
-        return search_hit
 
     return _fetch_android_rank_http_fallback(package, country=country, lang=lang, category_id=category_id)
 
