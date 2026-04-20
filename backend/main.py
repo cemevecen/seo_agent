@@ -503,7 +503,7 @@ PERIOD_DAYS_MAP = {
 
 
 def _resolve_period(raw_period: str | None) -> tuple[str, int]:
-    normalized = (raw_period or "monthly").strip().lower()
+    normalized = (raw_period or "weekly").strip().lower()
     aliases = {
         "day": "daily",
         "week": "weekly",
@@ -512,7 +512,7 @@ def _resolve_period(raw_period: str | None) -> tuple[str, int]:
         "weekly": "weekly",
         "monthly": "monthly",
     }
-    period = aliases.get(normalized, "monthly")
+    period = aliases.get(normalized, "weekly")
     return period, PERIOD_DAYS_MAP[period]
 
 
@@ -526,7 +526,7 @@ def _dashboard_sc_scopes_for_url_period(period: str) -> tuple[str, str]:
 
 
 def _dashboard_period_to_sc_segment(period: str) -> str:
-    return {"daily": "1", "weekly": "7", "monthly": "30"}.get(period, "30")
+    return {"daily": "1", "weekly": "7", "monthly": "30"}.get(period, "7")
 
 
 def _dashboard_ga4_period_caption(period: str) -> str:
@@ -6798,8 +6798,32 @@ def api_app_intel(product: str = "doviz", period: int = 30):
 @app.post("/app/intel/refresh")
 def app_intel_manual_refresh():
     try:
-        _run_app_intel_digest_job(trigger_source="manual", action_label="Manuel App mağaza yenilemesi")
-        return JSONResponse({"ok": True, "message": "Manuel yenileme tamamlandı; özet mail gönderildi."})
+        if APP_INTEL_REFRESH_LOCK.locked():
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "started": False,
+                    "message": "App mağaza yenilemesi zaten çalışıyor. Birkaç dakika sonra veriler güncellenecek.",
+                }
+            )
+
+        def _run_in_background() -> None:
+            try:
+                _run_app_intel_digest_job(
+                    trigger_source="manual",
+                    action_label="Manuel App mağaza yenilemesi",
+                )
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Manual app intel refresh background worker failed.")
+
+        threading.Thread(target=_run_in_background, daemon=True).start()
+        return JSONResponse(
+            {
+                "ok": True,
+                "started": True,
+                "message": "Manuel yenileme başlatıldı. İşlem arka planda devam ediyor; kartlar kısa süre içinde güncellenecek.",
+            }
+        )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Manual app intel refresh failed: %s", exc)
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)

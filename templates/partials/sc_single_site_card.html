@@ -25,8 +25,8 @@
         role="tablist"
         aria-label="Search Console dönem karşılaştırması"
       >
-        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5" data-sc-period-toggle="1" data-active="true">1g</button>
-        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="7" data-active="false">7g</button>
+        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="1" data-active="false">1g</button>
+        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5" data-sc-period-toggle="7" data-active="true">7g</button>
         <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="30" data-active="false">30g</button>
       </div>
       <div class="relative z-30 inline-flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]" data-search-console-device-switch>
@@ -72,7 +72,7 @@
       {% set period = site.report.periods[period_key] %}
       <div
         data-sc-period-panel="{{ period_key }}"
-        class="{% if period_key != '1' %}hidden {% endif %}flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:space-y-5 sm:p-5"
+        class="{% if period_key != '7' %}hidden {% endif %}flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:space-y-5 sm:p-5"
       >
         {% for device_key, view in period.views.items() %}
           <div

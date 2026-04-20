@@ -1,3 +1,20 @@
+<style>
+  /* Dashboard readability overrides without rebuild dependency */
+  #content .dash-fl-pct-hero { font-size: clamp(1rem, 8.2cqi + 0.46rem, 2.3rem); line-height: 1.08; }
+  #content .dash-fl-val-hero { font-size: clamp(0.9rem, 4.7cqi + 0.45rem, 1.52rem); line-height: 1.18; }
+  #content .dash-fl-cap { font-size: clamp(0.72rem, 1.8cqi + 0.36rem, 0.84rem); line-height: 1.32; }
+  #content .dash-fl-label { font-size: clamp(0.7rem, 1.6cqi + 0.34rem, 0.82rem); line-height: 1.3; }
+  #content .dash-fl-pct-foot { font-size: clamp(0.86rem, 5.2cqi + 0.36rem, 1.2rem); line-height: 1.1; }
+  #content .dash-fl-val-foot { font-size: clamp(0.82rem, 3.2cqi + 0.34rem, 1rem); line-height: 1.2; }
+  #content .dash-fl-cmp-foot { font-size: clamp(0.66rem, 1.9cqi + 0.3rem, 0.78rem); line-height: 1.35; overflow-wrap: anywhere; }
+  #content .dash-fl-pct-ps { font-size: clamp(0.96rem, 7.2cqi + 0.4rem, 1.9rem); line-height: 1.08; }
+  #content .dash-fl-val-ps { font-size: clamp(0.9rem, 4.2cqi + 0.38rem, 1.52rem); line-height: 1.12; }
+  #content .dash-compare-text { font-size: clamp(0.72rem, 1.7cqi + 0.34rem, 0.82rem); line-height: 1.35; overflow-wrap: anywhere; }
+  #content .dash-fl-seg { font-size: clamp(0.7rem, 1.2cqi + 0.34rem, 0.78rem); line-height: 1.2; }
+  #content .dash-fl-fallback-big { font-size: clamp(0.95rem, 7cqi + 0.4rem, 2.1rem); line-height: 1.1; }
+  #content .dash-fl-alert-title { font-size: clamp(0.82rem, 2.1cqi + 0.36rem, 0.96rem); line-height: 1.25; overflow-wrap: anywhere; }
+  #content .dash-fl-alert-metric { font-size: clamp(0.7rem, 1.6cqi + 0.32rem, 0.8rem); line-height: 1.3; overflow-wrap: anywhere; }
+</style>
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-6 sm:space-y-8">
   <span id="dash-ctx" class="hidden" data-sc-segment="{{ sc_segment }}" aria-hidden="true"></span>
   <div class="flex w-full min-w-0 flex-col gap-4 rounded-2xl bg-white px-4 py-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-[2rem] sm:px-6 sm:py-7 lg:flex-row lg:items-end lg:justify-between">
@@ -55,7 +72,8 @@
         <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
       </div>
-      <div class="space-y-1.5">
+      <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">Öncelik sırası yüksek uyarılar ve ani bozulmalar.</p>
+      <div class="space-y-2">
         {% for alert in critical_alerts %}
           <a
             href="/alerts?selected_alert={{ alert.id }}"
@@ -67,11 +85,11 @@
           >
             <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               {% if alert.display_query %}
-                <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">'{{ alert.display_query }}'</span>
+                <span class="text-sm font-semibold text-slate-900 [overflow-wrap:anywhere] dark:text-slate-100">'{{ alert.display_query }}'</span>
               {% endif %}
-              <span class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-500 dark:text-slate-400{% endif %} shrink-0 break-words">{{ alert.display_metric }}</span>
+              <span class="text-sm font-medium {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-600 dark:text-slate-300{% endif %} shrink-0 break-words">{{ alert.display_metric }}</span>
             </div>
-            <span class="shrink-0 text-[11px] text-slate-400 sm:text-right">{{ alert.triggered_at }}</span>
+            <span class="shrink-0 text-xs text-slate-500 sm:text-right dark:text-slate-400">{{ alert.triggered_at }}</span>
           </a>
         {% else %}
           <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -87,17 +105,18 @@
         <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
            hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
       </div>
-      <div class="space-y-1.5">
+      <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">En hızlı trafik/sıralama düşüşü görülen sorgular.</p>
+      <div class="space-y-2">
         {% for item in top_drop_items %}
           {% set _href = "/alerts?selected_alert=" ~ item.alert_id if item.alert_id else "/alerts" %}
           <a href="{{ _href }}"
              class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
              hx-get="{{ _href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
             <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-              <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">{{ item.query }}</span>
+              <span class="text-sm font-semibold text-slate-900 [overflow-wrap:anywhere] dark:text-slate-100">{{ item.query }}</span>
               <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0 break-words">{{ item.metric }}</span>
               {% if item.secondary %}
-                <span class="text-xs text-slate-500 dark:text-slate-400">{{ item.secondary }}</span>
+                <span class="text-xs text-slate-600 dark:text-slate-300">{{ item.secondary }}</span>
               {% endif %}
             </div>
             <span class="w-fit shrink-0 self-start text-xs font-medium rounded-full border px-2 py-0.5 sm:self-center {{ item.classes.badge }}">{{ item.reason }}</span>
@@ -193,17 +212,18 @@
       <a href="/alerts" class="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:text-slate-100"
          hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">Tümünü Gör</a>
     </div>
-    <div class="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
+    <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Hızlı kazanım sağlayabilecek sorgu ve sayfa fırsatları.</p>
+    <div class="grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-2">
       {% for item in opportunity_items %}
         {% set _href = "/alerts?selected_alert=" ~ item.alert_id if item.alert_id else "/alerts" %}
         <a href="{{ _href }}"
            class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/80 {% if 'sinemalar' in item.domain %}border-l-4 border-l-rose-500{% elif 'doviz' in item.domain %}border-l-4 border-l-blue-500{% else %}border-l-4 border-l-slate-400{% endif %}"
            hx-get="{{ _href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
           <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-            <span class="text-sm font-medium text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">'{{ item.query }}'</span>
+            <span class="text-sm font-semibold text-slate-900 [overflow-wrap:anywhere] dark:text-slate-100">'{{ item.query }}'</span>
             <span class="text-sm font-semibold {{ item.classes.accent }} shrink-0 break-words">{{ item.detail }}</span>
             {% if item.action %}
-              <span class="text-xs text-slate-500 dark:text-slate-400">{{ item.action }}</span>
+              <span class="text-xs text-slate-600 dark:text-slate-300">{{ item.action }}</span>
             {% endif %}
           </div>
           <span class="w-fit shrink-0 self-start text-[11px] font-medium rounded-full border px-2 py-0.5 sm:self-center {{ item.classes.badge }}">{{ item.title }}</span>
@@ -346,8 +366,8 @@
   function wireCard(el) {
     var root = el.querySelector('[data-dashboard-sc-compare-root]');
     if (!root) return;
-    var period = window.__DASH_SC_SEGMENT || '30';
-    if (period !== '1' && period !== '7' && period !== '30') period = '30';
+    var period = window.__DASH_SC_SEGMENT || '7';
+    if (period !== '1' && period !== '7' && period !== '30') period = '7';
     applyPeriodToRoot(root, period);
   }
 
@@ -357,7 +377,7 @@
       var t = e.detail && e.detail.target != null ? e.detail.target : e.target;
       if (t && t.id === 'content') {
         var c = t.querySelector('#dash-ctx');
-        if (c) window.__DASH_SC_SEGMENT = c.getAttribute('data-sc-segment') || '30';
+        if (c) window.__DASH_SC_SEGMENT = c.getAttribute('data-sc-segment') || '7';
         if (typeof window.__seoReinitDashboardProgress === 'function') {
           window.__seoReinitDashboardProgress();
         }

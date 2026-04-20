@@ -2088,6 +2088,13 @@
             throw new Error((x.j && (x.j.error || x.j.message)) || "Manuel tetikleme başarısız");
           }
           if (status) status.textContent = x.j.message || "Manuel yenileme tamamlandı.";
+          if (x.j && x.j.started) {
+            // Arka plan job'ı başladıktan kısa süre sonra güncel payload'ı yeniden çek.
+            setTimeout(function () {
+              loadIntel({ keepProgress: true });
+            }, 2500);
+            return;
+          }
           loadIntel({ keepProgress: true });
         })
         .catch(function (e) {
