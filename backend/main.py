@@ -240,6 +240,32 @@ def _format_signed_max_two_decimals(value) -> str:
     return "0"
 
 
+def _format_signed_pct_tr(value) -> str:
+    """Yüzde farklarını TR biçimde gösterir: +41.328,18 / -4,2 / 0."""
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+
+    clipped = decimal_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if clipped == 0:
+        return "0"
+
+    abs_text = f"{abs(float(clipped)):,.2f}"
+    # EN 12,345.60 -> TR 12.345,60
+    abs_text = abs_text.replace(",", "_").replace(".", ",").replace("_", ".")
+    if abs_text.endswith(",00"):
+        abs_text = abs_text[:-3]
+    elif abs_text.endswith("0"):
+        abs_text = abs_text[:-1]
+
+    return f"+{abs_text}" if clipped > 0 else f"-{abs_text}"
+
+
 def _ms_to_exact_seconds(value) -> str:
     if value is None:
         return "N/A"
@@ -324,6 +350,7 @@ jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
 jinja_env.filters["signed_max_two_decimals"] = _format_signed_max_two_decimals
+jinja_env.filters["signed_pct_tr"] = _format_signed_pct_tr
 jinja_env.filters["seconds_exact"] = _ms_to_exact_seconds
 jinja_env.filters["tr_int"] = _format_tr_int
 jinja_env.filters["ga4_abs_page_url"] = _filter_ga4_abs_page_url
