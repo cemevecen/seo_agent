@@ -169,6 +169,33 @@ def _release_impact(rows: list[dict[str, Any]]) -> dict[str, Any]:
             prev.append(s)
     recent_avg = round(sum(recent) / len(recent), 2) if recent else None
     prev_avg = round(sum(prev) / len(prev), 2) if prev else None
+
+    # App Store'da önceki 30 gün bazı dönemlerde boş kalabiliyor.
+    # Bu durumda, son 30 günün öncesindeki geçmişten en yakın dolu 30g pencereyi bul.
+    if recent_avg is not None and prev_avg is None and prev_end_exclusive is not None:
+        older_points: list[tuple[datetime, int]] = []
+        for r in rows:
+            at = r.get("at")
+            if not isinstance(at, datetime):
+                continue
+            dt = at if at.tzinfo else at.replace(tzinfo=_UTC)
+            if dt >= prev_end_exclusive:
+                continue
+            older_points.append((dt, int(r.get("score") or 0)))
+
+        if older_points:
+            older_points.sort(key=lambda x: x[0], reverse=True)
+            newest_older = older_points[0][0]
+            # En fazla 12 adet 30 günlük pencereyi geriye tarıyoruz.
+            cursor_end = newest_older + timedelta(seconds=1)
+            for _ in range(12):
+                window_start = cursor_end - timedelta(days=30)
+                window_scores = [score for dt, score in older_points if window_start <= dt < cursor_end]
+                if window_scores:
+                    prev_avg = round(sum(window_scores) / len(window_scores), 2)
+                    break
+                cursor_end = window_start
+
     delta = round((recent_avg or 0) - (prev_avg or 0), 2) if recent_avg is not None and prev_avg is not None else None
     return {"monthly": monthly, "recent30_avg": recent_avg, "prev30_avg": prev_avg, "delta": delta}
 

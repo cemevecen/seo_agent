@@ -686,7 +686,7 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
             section(
                 "Uyari Tablosu",
                 data_table(
-                    ["Durum", "Olcum", "Sorgu / Alan", "Once", "Simdi", "Delta", "Ek Veri"],
+                    ["Durum", "Olcum", "Sorgu / Alan", "Once", "Simdi", "Fark", "Ek Veri"],
                     rows,
                 ),
             ),
@@ -1036,7 +1036,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "display_metric": (
                 f"CTR {_format_percent(ctr_match.group(3), decimals=3)} -> "
                 f"{_format_percent(ctr_match.group(4), decimals=3)} | "
-                f"Click {_format_number(clicks)} | Delta {_format_percent(str(ctr_match.group(5)).replace('%', ''), decimals=1)}"
+                f"Click {_format_number(clicks)} | Fark {_format_percent(str(ctr_match.group(5)).replace('%', ''), decimals=1)}"
             ),
         }
 
@@ -1063,7 +1063,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "display_metric": (
                 f"Impression {_format_number(impression_match.group(3))} -> "
                 f"{_format_number(impression_match.group(4))} | "
-                f"Click {_format_number(clicks)} | Delta {_format_percent(str(impression_match.group(5)).replace('%', ''), decimals=1)}"
+                f"Click {_format_number(clicks)} | Fark {_format_percent(str(impression_match.group(5)).replace('%', ''), decimals=1)}"
             ),
         }
 
