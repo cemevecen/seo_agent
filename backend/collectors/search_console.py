@@ -500,6 +500,59 @@ def _fetch_search_console_query_rows(
     return _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
 
 
+def _analytics_page_key(row: dict) -> str:
+    """searchanalytics satırında page dimension, normalize sonrası `query` alanında tutulur."""
+    return str(row.get("page") or row.get("query") or "").strip()
+
+
+def _aggregate_page_clicks(rows: list[dict]) -> dict[str, dict[str, float]]:
+    """Aynı URL için MOBILE+DESKTOP satırlarını birleştirir (Insights benzeri toplam tıklama)."""
+    out: dict[str, dict[str, float]] = {}
+    for row in rows:
+        page = _analytics_page_key(row)
+        if not page:
+            continue
+        bucket = out.setdefault(page, {"clicks": 0.0, "impressions": 0.0})
+        bucket["clicks"] += float(row.get("clicks") or 0.0)
+        bucket["impressions"] += float(row.get("impressions") or 0.0)
+    return out
+
+
+def _build_content_trending_down(current_rows: list[dict], previous_rows: list[dict], *, limit: int = 25) -> list[dict]:
+    current_map = _aggregate_page_clicks(current_rows)
+    previous_map = _aggregate_page_clicks(previous_rows)
+    pages = set(current_map.keys()) | set(previous_map.keys())
+    items: list[dict] = []
+    for page in pages:
+        cur = current_map.get(page) or {}
+        prev = previous_map.get(page) or {}
+        cur_clicks = float(cur.get("clicks") or 0.0)
+        prev_clicks = float(prev.get("clicks") or 0.0)
+        diff = cur_clicks - prev_clicks
+        if diff >= 0:
+            continue
+        pct_drop = 0.0 if prev_clicks <= 0 else (abs(diff) / prev_clicks) * 100.0
+        items.append(
+            {
+                "page": page,
+                "clicks_current": cur_clicks,
+                "clicks_previous": prev_clicks,
+                "clicks_diff": diff,
+                "clicks_drop_pct": pct_drop,
+                "impressions_current": float(cur.get("impressions") or 0.0),
+                "impressions_previous": float(prev.get("impressions") or 0.0),
+            }
+        )
+    items.sort(
+        key=lambda row: (
+            float(row.get("clicks_drop_pct") or 0.0),
+            abs(float(row.get("clicks_diff") or 0.0)),
+        ),
+        reverse=True,
+    )
+    return items[: max(1, int(limit))]
+
+
 def _fetch_search_console_daily_rows(
     service,
     site_url: str,
@@ -1406,6 +1459,11 @@ def collect_search_console_metrics(
 
     current_30d_summary = _summarize_rows(current_30d_rows)
     previous_30d_summary = _summarize_rows(previous_30d_rows)
+    content_trending_down = _build_content_trending_down(
+        current_30d_pages_rows,
+        previous_30d_pages_rows,
+        limit=25,
+    )
     current_30d_summary_by_device = {
         "MOBILE": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
         "DESKTOP": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
@@ -1652,6 +1710,7 @@ def collect_search_console_metrics(
             "previous_7d_pages_rows": previous_7d_pages_row_count,
             "current_30d_pages_rows": current_30d_pages_row_count,
             "previous_30d_pages_rows": previous_30d_pages_row_count,
+            "content_trending_down": content_trending_down,
             "same_weekday_day": same_weekday_day_summary,
             "trend_28d_summary": trend_summary,
             "trend_28d_summary_by_device": trend_summary_by_device,

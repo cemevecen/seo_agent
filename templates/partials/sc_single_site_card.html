@@ -249,6 +249,39 @@
                   </div>
                 </div>
               </div>
+              {% if period_key == '30' %}
+              <div class="mt-1 space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Düşen içerikler (Son 30 gün vs Önceki 30 gün · tıklama)</p>
+                <div class="w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
+                  <table class="w-full min-w-[56rem] text-[10px] sm:text-xs">
+                    <thead class="border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3">Sayfa</th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Düşüş %</th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Tıklama fark</th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Son 30g</th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Önceki 30g</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in view.content_trending_down %}
+                      <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80">
+                        <td class="sticky left-0 z-[1] max-w-[min(100vw,30rem)] bg-white px-2 py-2 text-left font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-all shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:text-sm">{{ row.page }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">-{{ "{:.1f}".format(row.clicks_drop_pct or 0) }}%</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
+                      </tr>
+                      {% else %}
+                      <tr>
+                        <td colspan="5" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">Bu dönem için düşen içerik bulunamadı.</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {% endif %}
             </div>
           </div>
         {% endfor %}

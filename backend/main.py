@@ -1182,6 +1182,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         "position": [],
     })
     top_queries = _build_search_console_top_queries(current_rows_7, previous_rows_7, limit=50)
+    content_trending_down = summary_payload.get("content_trending_down") or []
     trend_summary_by_device = _raw_trend_by_device
 
     range_7_last = _scope_range_from_rows(current_rows_7)
@@ -1311,6 +1312,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                     float(_cur.get("position") or 0),
                     float(_prev.get("position") or 0),
                 ),
+                "content_trending_down": content_trending_down if period_key == "30" else [],
             }
 
         mv = views.get("mobile") or {}
