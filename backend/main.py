@@ -6090,8 +6090,28 @@ def _ga4_top_channels_with_pct_change(
     pd_days: int,
     snapshot_payload: dict | None = None,
 ) -> list[dict]:
-    """Son N gün kanal oturumları vs önceki N gün. Önce snapshot (channel_summary_rows), sonra channels_*, sonra metrics."""
+    """Son N gün kanal oturumları vs önceki N gün.
+
+    Not: Eski snapshot'larda channel_summary_rows yüzde hesabı hatalı kalmış olabilir.
+    Bu yüzden öncelik her zaman channels_last/channels_prev -> runtime hesaplamadır.
+    """
     pl = snapshot_payload if isinstance(snapshot_payload, dict) else None
+    cl = pl.get("channels_last") if isinstance(pl, dict) else None
+    cp = pl.get("channels_prev") if isinstance(pl, dict) else None
+    if isinstance(cl, dict) and isinstance(cp, dict) and cl:
+        rows: list[tuple[str, float, float, float]] = []
+        for slug, last_val in cl.items():
+            last_v = float(last_val or 0.0)
+            prev_v = float(cp.get(slug, 0.0) or 0.0)
+            pct = _ga4_period_pct_change(last_v, prev_v)
+            label = str(slug).replace("_", " ")
+            rows.append((label, last_v, prev_v, pct))
+        rows.sort(key=lambda x: x[1], reverse=True)
+        out: list[dict] = []
+        for label, last_v, _pv, pct in rows[:4]:
+            out.append({"label": label, "value": last_v, "pct_change": pct})
+        return out
+
     if isinstance(pl, dict):
         pre = pl.get("channel_summary_rows")
         if isinstance(pre, list) and len(pre) > 0:
@@ -6111,21 +6131,6 @@ def _ga4_top_channels_with_pct_change(
                     continue
             if out:
                 return out
-    cl = pl.get("channels_last") if isinstance(pl, dict) else None
-    cp = pl.get("channels_prev") if isinstance(pl, dict) else None
-    if isinstance(cl, dict) and isinstance(cp, dict) and cl:
-        rows: list[tuple[str, float, float, float]] = []
-        for slug, last_val in cl.items():
-            last_v = float(last_val or 0.0)
-            prev_v = float(cp.get(slug, 0.0) or 0.0)
-            pct = _ga4_period_pct_change(last_v, prev_v)
-            label = str(slug).replace("_", " ")
-            rows.append((label, last_v, prev_v, pct))
-        rows.sort(key=lambda x: x[1], reverse=True)
-        out: list[dict] = []
-        for label, last_v, _pv, pct in rows[:4]:
-            out.append({"label": label, "value": last_v, "pct_change": pct})
-        return out
 
     last_prefix = f"ga4_{profile}_sessions_last{pd_days}d_channel__"
     prev_prefix = f"ga4_{profile}_sessions_prev{pd_days}d_channel__"
