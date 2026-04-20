@@ -6249,6 +6249,19 @@ def _ga4_profile_payload_for_same_weekday_day(
 
     sw_channels_last = swk.get("channels_last") if isinstance(swk.get("channels_last"), dict) else None
     sw_channels_prev = swk.get("channels_prev") if isinstance(swk.get("channels_prev"), dict) else None
+    if not (isinstance(sw_channels_last, dict) and sw_channels_last and isinstance(sw_channels_prev, dict)):
+        try:
+            from backend.collectors.ga4 import fetch_ga4_same_weekday_channel_maps
+
+            _sw_live = fetch_ga4_same_weekday_channel_maps(property_id=prop_id)
+            _swl = _sw_live.get("channels_last")
+            _swp = _sw_live.get("channels_prev")
+            if isinstance(_swl, dict) and _swl:
+                sw_channels_last = _swl
+            if isinstance(_swp, dict):
+                sw_channels_prev = _swp
+        except Exception:
+            pass
     _org_sw_day = _ga4_organic_share_from_channel_maps(sw_channels_last, sw_channels_prev)
     if _org_sw_day is not None:
         organic_share = _org_sw_day[0]

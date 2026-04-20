@@ -1135,3 +1135,38 @@ def fetch_ga4_session_source_medium(
         prev_end=prev_end,
         limit=lim,
     )
+
+
+def fetch_ga4_same_weekday_channel_maps(*, property_id: str) -> dict[str, dict[str, float]]:
+    """Son tam gün vs geçen haftanın aynı günü için kanal map'i."""
+    (last_start, last_end), (prev_start, prev_end) = _same_weekday_day_windows()
+    client = _client()
+    last_raw = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "sessionDefaultChannelGroup",
+        start=last_start,
+        end=last_end,
+        limit=100,
+        dimension_filter=None,
+    )
+    prev_raw = _run_dim_sessions_single_range(
+        client,
+        property_id,
+        "sessionDefaultChannelGroup",
+        start=prev_start,
+        end=prev_end,
+        limit=100,
+        dimension_filter=None,
+    )
+
+    def _slugify(value: str) -> str:
+        safe = (value or "").strip().lower()
+        safe = safe.replace(" ", "_").replace("-", "_")
+        safe = "".join(ch for ch in safe if ch.isalnum() or ch == "_")
+        return safe or "unknown"
+
+    return {
+        "channels_last": {_slugify(k): float(v or 0.0) for k, v in (last_raw or {}).items()},
+        "channels_prev": {_slugify(k): float(v or 0.0) for k, v in (prev_raw or {}).items()},
+    }
