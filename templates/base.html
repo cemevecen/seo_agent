@@ -80,29 +80,6 @@
       background-color: rgb(51 65 85) !important;
     }
   </style>
-  <style id="seo-responsive-shell">
-    /* <lg: sidebar tam genişlikte içeriğin üzerinde; ana alan her zaman tam genişlik */
-    @media (max-width: 1023.98px) {
-      #sidebar.seo-sidebar-mobile-closed {
-        transform: translateX(-100%);
-        pointer-events: none;
-        visibility: hidden;
-      }
-      #sidebar.seo-sidebar-mobile-open {
-        transform: translateX(0);
-        pointer-events: auto;
-        visibility: visible;
-      }
-    }
-    @media (min-width: 1024px) {
-      #sidebar.seo-sidebar-mobile-closed,
-      #sidebar.seo-sidebar-mobile-open {
-        transform: none !important;
-        pointer-events: auto !important;
-        visibility: visible !important;
-      }
-    }
-  </style>
   <!-- HTMX CDN -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <!-- Plotly CDN -->
@@ -110,69 +87,29 @@
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
-  <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden lg:flex-row">
-    <div
-      id="sidebar-backdrop"
-      class="fixed inset-0 z-30 hidden bg-slate-900/45 backdrop-blur-[1px] lg:hidden"
-      aria-hidden="true"
-    ></div>
-    <aside
-      id="sidebar"
-      class="seo-sidebar-mobile-closed fixed inset-y-0 left-0 z-40 flex h-[100dvh] w-[min(18rem,calc(100vw-0.75rem))] max-w-[min(18rem,92vw)] shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain border-r border-slate-800 bg-slate-900 p-4 text-slate-100 shadow-2xl shadow-black/25 transition-[transform,width,padding] duration-300 ease-out sm:p-5 lg:relative lg:inset-auto lg:z-10 lg:h-auto lg:max-h-none lg:min-h-screen lg:max-w-none lg:translate-x-0 lg:shadow-none"
-    >
-      <h1 id="sidebar-title" class="text-xl font-bold">SEO Agent</h1>
-      <p id="sidebar-subtitle" class="text-sm text-slate-300 mt-1">İzlenen Siteler</p>
-
-      <nav id="sidebar-nav" class="mt-6 space-y-2">
-        {% if sites %}
-          {% for site in sites %}
-            <a
-              href="{{ site.href if site.href else '/data-explorer/' ~ site.domain }}"
-              class="block rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-700 sidebar-link"
-              hx-get="{{ site.href if site.href else '/data-explorer/' ~ site.domain }}"
-              hx-target="#content"
-              hx-swap="innerHTML"
-              hx-push-url="true"
-            >
-              {{ site.label }}
-            </a>
-          {% endfor %}
-        {% else %}
-          <span class="block rounded-md bg-slate-800 px-3 py-2 text-sm text-slate-300">
-            Henüz site eklenmedi.
-          </span>
-        {% endif %}
-      </nav>
-    </aside>
-
-    <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden lg:min-w-0">
-      <header class="border-b border-slate-200 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-900">
-        <div class="flex flex-col gap-3">
-          <div class="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
-            <div class="flex min-w-0 flex-1 items-start gap-2 sm:items-center sm:gap-3">
-              <button
-                id="sidebar-toggle"
-                type="button"
-                class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 sm:mt-0 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 lg:mt-0"
-                aria-expanded="true"
-                aria-controls="sidebar"
-                title="Menü (mobil) / Sidebar (masaüstü)"
-              >
-                <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 rotate-180" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M12.293 14.707a1 1 0 010-1.414L15.586 10l-3.293-3.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L9.586 10 6.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                </svg>
-              </button>
-              <h2
-                id="header-site-title"
-                class="min-w-0 flex-1 text-base font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere] [word-break:break-word] sm:text-lg sm:leading-tight md:text-xl lg:max-w-[min(100%,42rem)] lg:truncate xl:max-w-[min(100%,52rem)] dark:text-slate-100"
-              >
-                {{ site_name or "SEO Agent Dashboard" }}
-              </h2>
-            </div>
+  <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
+    <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
+      <header class="px-3 py-3 sm:px-6 sm:py-4">
+        <div class="rounded-2xl border border-slate-700/70 bg-[linear-gradient(110deg,#0f172a,#0b2e36_55%,#0f172a)] px-3 py-2.5 shadow-[0_18px_40px_-30px_rgba(2,132,199,0.45)] sm:px-4">
+          <div class="flex min-w-0 items-center gap-2.5">
+            <h2 id="header-site-title" class="shrink-0 text-xl font-extrabold tracking-tight text-white sm:text-2xl">
+              {{ site_name or "SEO Agent" }}
+            </h2>
+            <nav id="header-main-nav" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2" aria-label="Ana gezinme">
+              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Dashboard</a>
+              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">GA4</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Search Console</a>
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Alerts</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">PageSpeed</a>
+              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">App</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">AI</a>
+              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">External</a>
+              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Settings</a>
+            </nav>
             <button
               id="theme-toggle"
               type="button"
-              class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white/90 transition hover:bg-white/20"
               title="Açık / koyu tema"
               aria-label="Tema değiştir"
             >
@@ -185,21 +122,6 @@
               <span class="sr-only">Tema</span>
             </button>
           </div>
-          <nav
-            id="header-main-nav"
-            class="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-slate-200 pt-3 text-[11px] font-medium dark:border-slate-700 sm:gap-x-3 sm:text-xs md:text-sm"
-            aria-label="Ana gezinme"
-          >
-            <a href="/" data-nav-match="/" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Dashboard</a>
-            <a href="/ga4" data-nav-match="/ga4" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">GA4</a>
-            <a href="/search-console" data-nav-match="/search-console" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Search Console</a>
-            <a href="/alerts" data-nav-match="/alerts" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Alerts</a>
-            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">PageSpeed</a>
-            <a href="/app" data-nav-match="/app" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">App</a>
-            <a href="/ai" data-nav-match="/ai" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">AI</a>
-            <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">External</a>
-            <a href="/settings" data-nav-match="/settings" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Settings</a>
-          </nav>
         </div>
       </header>
 
@@ -211,115 +133,6 @@
 
   <script>
     (function () {
-      const shell = document.getElementById('app-shell');
-      const sidebar = document.getElementById('sidebar');
-      const backdrop = document.getElementById('sidebar-backdrop');
-      const title = document.getElementById('sidebar-title');
-      const subtitle = document.getElementById('sidebar-subtitle');
-      const nav = document.getElementById('sidebar-nav');
-      const toggle = document.getElementById('sidebar-toggle');
-      const icon = document.getElementById('sidebar-toggle-icon');
-      const linkItems = document.querySelectorAll('.sidebar-link');
-      if (!shell || !sidebar || !toggle || !icon) {
-        return;
-      }
-
-      function isDesktopShell() {
-        return window.matchMedia('(min-width: 1024px)').matches;
-      }
-
-      function setCollapsed(collapsed) {
-        const desktop = isDesktopShell();
-        if (desktop) {
-          sidebar.classList.remove('seo-sidebar-mobile-open', 'seo-sidebar-mobile-closed');
-          if (backdrop) {
-            backdrop.classList.add('hidden');
-          }
-          if (collapsed) {
-            sidebar.classList.remove('lg:w-72');
-            sidebar.classList.add('lg:w-0', 'lg:p-0', 'lg:overflow-hidden');
-            sidebar.classList.remove('lg:border-r', 'lg:border-slate-800');
-          } else {
-            sidebar.classList.add('lg:w-72', 'lg:border-r', 'lg:border-slate-800');
-            sidebar.classList.remove('lg:w-0', 'lg:p-0', 'lg:overflow-hidden');
-          }
-        } else {
-          sidebar.classList.toggle('seo-sidebar-mobile-closed', collapsed);
-          sidebar.classList.toggle('seo-sidebar-mobile-open', !collapsed);
-          if (backdrop) {
-            backdrop.classList.toggle('hidden', collapsed);
-          }
-        }
-
-        if (title) {
-          title.classList.toggle('hidden', collapsed && desktop);
-        }
-        if (subtitle) {
-          subtitle.classList.toggle('hidden', collapsed && desktop);
-        }
-        if (nav) {
-          nav.classList.toggle('hidden', collapsed && desktop);
-        }
-        linkItems.forEach(function (item) {
-          item.classList.toggle('px-3', true);
-          item.removeAttribute('title');
-        });
-
-        icon.classList.toggle('rotate-180', !collapsed);
-        icon.classList.add('transition-transform', 'duration-300');
-        toggle.setAttribute('aria-expanded', String(!collapsed));
-        localStorage.setItem('seo-sidebar-collapsed', collapsed ? '1' : '0');
-      }
-
-      const storedValue = localStorage.getItem('seo-sidebar-collapsed');
-      const stored = storedValue === null ? window.innerWidth < 1024 : storedValue === '1';
-      setCollapsed(stored);
-
-      toggle.addEventListener('click', function () {
-        if (isDesktopShell()) {
-          setCollapsed(!sidebar.classList.contains('lg:w-0'));
-        } else {
-          setCollapsed(!sidebar.classList.contains('seo-sidebar-mobile-closed'));
-        }
-      });
-
-      if (backdrop) {
-        backdrop.addEventListener('click', function () {
-          if (!isDesktopShell()) {
-            setCollapsed(true);
-          }
-        });
-      }
-
-      linkItems.forEach(function (item) {
-        item.addEventListener('click', function () {
-          if (!isDesktopShell()) {
-            setCollapsed(true);
-          }
-        });
-      });
-
-      window.addEventListener(
-        'resize',
-        function () {
-          var c = localStorage.getItem('seo-sidebar-collapsed') === '1';
-          setCollapsed(c);
-        },
-        { passive: true }
-      );
-
-      document.addEventListener('keydown', function (ev) {
-        if (ev.key !== 'Escape') {
-          return;
-        }
-        if (isDesktopShell()) {
-          return;
-        }
-        if (!sidebar.classList.contains('seo-sidebar-mobile-closed')) {
-          setCollapsed(true);
-        }
-      });
-
       function syncHeaderFromContent() {
         const content = document.getElementById('content');
         if (!content) {
@@ -406,28 +219,12 @@
           }
           if (active) {
             link.setAttribute('aria-current', 'page');
-            link.classList.add(
-              'bg-sky-100',
-              'text-sky-800',
-              'ring-1',
-              'ring-sky-300',
-              'dark:bg-sky-900/45',
-              'dark:text-sky-200',
-              'dark:ring-sky-700'
-            );
-            link.classList.remove('text-slate-600', 'hover:text-slate-900', 'dark:text-slate-300', 'dark:hover:text-white');
+            link.classList.add('bg-white', 'text-slate-900', 'border-white', 'shadow-sm');
+            link.classList.remove('text-white/90', 'border-white/20', 'bg-white/10');
           } else {
             link.removeAttribute('aria-current');
-            link.classList.remove(
-              'bg-sky-100',
-              'text-sky-800',
-              'ring-1',
-              'ring-sky-300',
-              'dark:bg-sky-900/45',
-              'dark:text-sky-200',
-              'dark:ring-sky-700'
-            );
-            link.classList.add('text-slate-600', 'hover:text-slate-900', 'dark:text-slate-300', 'dark:hover:text-white');
+            link.classList.remove('bg-white', 'text-slate-900', 'border-white', 'shadow-sm');
+            link.classList.add('text-white/90', 'border-white/20', 'bg-white/10');
           }
         });
       }

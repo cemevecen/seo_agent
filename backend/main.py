@@ -5155,8 +5155,15 @@ def dashboard(request: Request):
     with SessionLocal() as db:
         recent_alerts = get_recent_alerts(db, limit=100, include_external=False)
         external_ids = _external_site_ids(db)
-        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
-        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        all_sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
+        all_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        sites = list(all_sites)
+        selected_site_raw = (request.query_params.get("site") or "").strip()
+        selected_site_id = int(selected_site_raw) if selected_site_raw.isdigit() else None
+        if selected_site_id is not None:
+            sites = [s for s in sites if s.id == selected_site_id]
+            if not sites:
+                selected_site_id = None
         period, _period_days = _resolve_period(request.query_params.get("period"))
         # Batched queries: N+1 yerine ~5 toplam sorgu (SC scope'ları seçilen döneme göre)
         slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts, period=period)
@@ -5172,6 +5179,8 @@ def dashboard(request: Request):
             "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
             "critical_alerts": _build_dashboard_critical_panel(slim_cards, recent_alerts, limit=6),
             "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
+            "site_filters": [(s.id, s.display_name) for s in all_sites],
+            "selected_site_id": selected_site_id,
             "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=7, recent_alerts=recent_alerts),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
         }

@@ -24,25 +24,46 @@
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
         <nav class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Dashboard tarih filtresi">
           {% set _pf = ('&platform=' ~ dashboard_platform) if dashboard_platform and dashboard_platform != 'web' else '' %}
-          <a href="/?period=daily{{ _pf }}"
-             hx-get="/?period=daily{{ _pf }}"
+          {% set _sf = ('&site=' ~ selected_site_id) if selected_site_id else '' %}
+          <a href="/?period=daily{{ _pf }}{{ _sf }}"
+             hx-get="/?period=daily{{ _pf }}{{ _sf }}"
              hx-target="#content"
              hx-swap="innerHTML"
              hx-push-url="true"
              class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'daily' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Günlük</a>
-          <a href="/?period=weekly{{ _pf }}"
-             hx-get="/?period=weekly{{ _pf }}"
+          <a href="/?period=weekly{{ _pf }}{{ _sf }}"
+             hx-get="/?period=weekly{{ _pf }}{{ _sf }}"
              hx-target="#content"
              hx-swap="innerHTML"
              hx-push-url="true"
              class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'weekly' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Haftalık</a>
-          <a href="/?period=monthly{{ _pf }}"
-             hx-get="/?period=monthly{{ _pf }}"
+          <a href="/?period=monthly{{ _pf }}{{ _sf }}"
+             hx-get="/?period=monthly{{ _pf }}{{ _sf }}"
              hx-target="#content"
              hx-swap="innerHTML"
              hx-push-url="true"
              class="rounded-md px-2.5 py-1 text-xs font-semibold transition {% if period == 'monthly' %}bg-white text-sky-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-sky-300 dark:ring-slate-600{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">Aylık</a>
         </nav>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <a
+          href="/?period={{ period }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
+          hx-get="/?period={{ period }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
+          hx-target="#content"
+          hx-swap="innerHTML"
+          hx-push-url="true"
+          class="rounded-full border px-2.5 py-1 text-xs font-semibold transition {% if not selected_site_id %}border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/45 dark:text-sky-200{% else %}border-slate-200 bg-white text-slate-600 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}"
+        >Tümü</a>
+        {% for sid, sname in site_filters %}
+        <a
+          href="/?period={{ period }}&site={{ sid }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
+          hx-get="/?period={{ period }}&site={{ sid }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
+          hx-target="#content"
+          hx-swap="innerHTML"
+          hx-push-url="true"
+          class="rounded-full border px-2.5 py-1 text-xs font-semibold transition {% if selected_site_id == sid %}border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/45 dark:text-sky-200{% else %}border-slate-200 bg-white text-slate-600 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}"
+        >{{ sname }}</a>
+        {% endfor %}
       </div>
     </div>
     <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
@@ -152,7 +173,7 @@
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
           id="dashboard-card-{{ site_id }}"
-          hx-get="/dashboard/cards/{{ site_id }}?period={{ period }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}"
+          hx-get="/dashboard/cards/{{ site_id }}?period={{ period }}{% if dashboard_platform and dashboard_platform != 'web' %}&platform={{ dashboard_platform }}{% endif %}{% if selected_site_id %}&site={{ selected_site_id }}{% endif %}"
           hx-trigger="load"
           hx-swap="outerHTML"
           class="overflow-hidden rounded-3xl bg-white shadow-md shadow-slate-200/40 ring-1 ring-slate-200/90 animate-pulse dark:bg-slate-900 dark:shadow-black/25 dark:ring-slate-700"
