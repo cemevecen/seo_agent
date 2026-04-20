@@ -390,19 +390,21 @@ def _run_landing_host_path_metric_single_range(
     property_id: str,
     *,
     metric_name: str,
+    path_dimension: str = "landingPagePlusQueryString",
     start: str,
     end: str,
     limit: int,
     dimension_filter: FilterExpression | None = None,
     timeout: float | None = None,
 ) -> dict[str, float]:
-    """hostName + landingPagePlusQueryString -> seçilen metric (anahtar: host\\x1fpath)."""
+    """hostName + path_dimension -> seçilen metric (anahtar: host\\x1fpath)."""
     metric = str(metric_name or "sessions").strip() or "sessions"
+    dim = str(path_dimension or "landingPagePlusQueryString").strip() or "landingPagePlusQueryString"
     req_kwargs: dict = {
         "property": f"properties/{property_id}",
         "dimensions": [
             Dimension(name="hostName"),
-            Dimension(name="landingPagePlusQueryString"),
+            Dimension(name=dim),
         ],
         "metrics": [Metric(name=metric)],
         "date_ranges": [DateRange(start_date=start, end_date=end)],
@@ -445,19 +447,24 @@ def _run_landing_pages_excl_news(
     prev_end: str,
     limit: int = 100,
 ) -> list[dict]:
-    filt = _landing_exclude_filter("landingPagePlusQueryString")
+    # Analytics "Pages and screens" ile uyum: pagePath + screenPageViews
+    filt = _landing_exclude_filter("pagePath")
     lim = max(10, min(int(limit), 250))
-    last_map = _run_landing_host_path_sessions_single_range(
+    last_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=last_start,
         end=last_end,
         limit=lim,
         dimension_filter=filt,
     )
-    prev_map = _run_landing_host_path_sessions_single_range(
+    prev_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=prev_start,
         end=prev_end,
         limit=lim,
@@ -504,20 +511,24 @@ def _run_landing_pages_news_only(
     limit: int = 250,
     top_n: int = 30,
 ) -> list[dict]:
-    """En çok oturum alan haber URL'leri (API'de tüm landing'ler, sonra haber filtresi)."""
+    """En çok görüntülenen haber URL'leri (API'de tüm sayfalar, sonra haber filtresi)."""
     lim = max(30, min(int(limit), 250))
     n = max(1, min(int(top_n), 50))
-    last_map = _run_landing_host_path_sessions_single_range(
+    last_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=last_start,
         end=last_end,
         limit=lim,
         dimension_filter=None,
     )
-    prev_map = _run_landing_host_path_sessions_single_range(
+    prev_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=prev_start,
         end=prev_end,
         limit=lim,
@@ -928,7 +939,7 @@ def fetch_ga4_landing_pages(
     news_only: bool = False,
     same_weekday_day: bool = False,
 ) -> list[dict]:
-    """Landing page kırılımı: son N gün vs önceki N gün sessions.
+    """Sayfa kırılımı (pagePath/screenPageViews): son N gün vs önceki N gün.
 
     same_weekday_day=True: 1g modu — son tam gün vs bir önceki haftanın aynı günü (7g snapshot listesiyle karıştırma).
     news_only=True: en çok oturum alan haber URL'leri (üst sınır 30 satır).
@@ -948,18 +959,22 @@ def fetch_ga4_landing_pages(
         (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
 
     client = _client()
-    filt = _landing_exclude_filter("landingPagePlusQueryString") if exclude_news else None
-    last_map = _run_landing_host_path_sessions_single_range(
+    filt = _landing_exclude_filter("pagePath") if exclude_news else None
+    last_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=last_start,
         end=last_end,
         limit=safe_limit,
         dimension_filter=filt,
     )
-    prev_map = _run_landing_host_path_sessions_single_range(
+    prev_map = _run_landing_host_path_metric_single_range(
         client,
         property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
         start=prev_start,
         end=prev_end,
         limit=safe_limit,
@@ -1013,12 +1028,13 @@ def fetch_ga4_news_landing_pages_total(
     (last_start, last_end), _ = _calendar_windows(safe_days)
 
     client = _client()
-    news_filt = _landing_news_include_filter("landingPagePlusQueryString")
+    news_filt = _landing_news_include_filter("pagePath")
     try:
         last_map = _run_landing_host_path_metric_single_range(
             client,
             property_id,
             metric_name="screenPageViews",
+            path_dimension="pagePath",
             start=last_start,
             end=last_end,
             limit=api_lim,
@@ -1035,6 +1051,7 @@ def fetch_ga4_news_landing_pages_total(
             client,
             property_id,
             metric_name="screenPageViews",
+            path_dimension="pagePath",
             start=last_start,
             end=last_end,
             limit=api_lim,
