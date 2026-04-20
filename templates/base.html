@@ -99,15 +99,15 @@
               {{ site_name or "SEO Agent" }}
             </h2>
             <nav id="header-main-nav" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2" aria-label="Ana gezinme">
-              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Dashboard</a>
-              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">GA4</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Search Console</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">PageSpeed</a>
-              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">App</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">AI</a>
-              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">External</a>
-              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/20">Settings</a>
+              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">Dashboard</a>
+              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">GA4</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">Search Console</a>
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">Alerts</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">PageSpeed</a>
+              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">App</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">AI</a>
+              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">External</a>
+              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20">Settings</a>
             </nav>
             <button
               id="theme-toggle"
@@ -223,11 +223,11 @@
           if (active) {
             link.setAttribute('aria-current', 'page');
             link.classList.add('bg-white', 'text-slate-900', 'border-white', 'shadow-sm');
-            link.classList.remove('text-white/90', 'border-white/20', 'bg-white/10');
+            link.classList.remove('text-white', 'border-white/20', 'bg-white/10');
           } else {
             link.removeAttribute('aria-current');
             link.classList.remove('bg-white', 'text-slate-900', 'border-white', 'shadow-sm');
-            link.classList.add('text-white/90', 'border-white/20', 'bg-white/10');
+            link.classList.add('text-white', 'border-white/20', 'bg-white/10');
           }
         });
       }
