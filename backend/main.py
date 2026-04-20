@@ -6730,12 +6730,14 @@ def ai_daily_brief_page(request: Request):
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
     """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir. AI_DAILY_BRIEF_ENABLED=false olsa da bu uç force ile çalışır."""
 
+    from backend.models import AiBriefRunLog
     from backend.services.ai_daily_brief import (
         get_ai_brief_run_stats,
         get_last_ai_brief_run_label_tr,
         get_latest_brief_for_ui,
         run_ai_daily_brief_job,
     )
+    from sqlalchemy import func
 
     raw = (llm_provider or "gemini").strip().lower()
     pov = raw if raw in ("groq", "gemini") else "gemini"
@@ -6748,7 +6750,18 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
         )
         return PlainTextResponse(msg, status_code=400)
 
+    with SessionLocal() as db:
+        before_runs = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
+
     run_ai_daily_brief_job(force=True, provider_override=pov)
+
+    with SessionLocal() as db:
+        after_runs = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
+    if after_runs <= before_runs:
+        return PlainTextResponse(
+            "AI yorumu üretilemedi. Lütfen birkaç saniye sonra tekrar deneyin.",
+            status_code=500,
+        )
     if request.headers.get("HX-Request") == "true":
         with SessionLocal() as db:
             brief = get_latest_brief_for_ui(db)

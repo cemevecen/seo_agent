@@ -236,7 +236,7 @@
       </div>
       <div class="grid min-w-0 max-w-xl grid-cols-2 gap-3 sm:max-w-none">
         <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2.5 py-3.5 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3.5 sm:py-4 md:px-4 md:py-5">
-          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Mobile</p>
+          <p lang="en" class="dash-fl-label font-semibold tracking-wide text-slate-500 dark:text-slate-400">MOBILE</p>
           {% if card.pagespeed_mobile_change is not none %}
             {{ delta_pct_block(card.pagespeed_mobile_change, "dash-fl-pct-ps mt-2 font-bold tabular-nums") }}
             <p class="dash-fl-val-ps mt-1.5 font-bold tabular-nums {{ card.pagespeed_mobile_color }}">{{ card.pagespeed_mobile_label }}</p>
@@ -252,7 +252,7 @@
           {% endif %}
         </div>
         <div class="dash-metric-cell flex min-h-[6.75rem] min-w-0 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 px-2.5 py-3.5 text-center shadow-sm dark:border-slate-600/80 dark:bg-slate-800/85 dark:shadow-none sm:min-h-[7.75rem] sm:px-3.5 sm:py-4 md:px-4 md:py-5">
-          <p class="dash-fl-label font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desktop</p>
+          <p lang="en" class="dash-fl-label font-semibold tracking-wide text-slate-500 dark:text-slate-400">DESKTOP</p>
           {% if card.pagespeed_desktop_change is not none %}
             {{ delta_pct_block(card.pagespeed_desktop_change, "dash-fl-pct-ps mt-2 font-bold tabular-nums") }}
             <p class="dash-fl-val-ps mt-1.5 font-bold tabular-nums {{ card.pagespeed_desktop_color }}">{{ card.pagespeed_desktop_label }}</p>

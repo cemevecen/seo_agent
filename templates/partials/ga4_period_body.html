@@ -1,19 +1,19 @@
 {% set pd = period_days | int %}
 {% if pd == 1 %}
-  {% set last_l = 'Last full day' %}
-  {% set prev_l = 'last wday' %}
-  {% set ch_l = 'Channel summary (last full day vs last wday)' %}
-  {% set org_l = 'Organic share (last full day vs last wday)' %}
+  {% set last_l = 'LAST FULL DAY' %}
+  {% set prev_l = 'LAST WDAY' %}
+  {% set ch_l = 'CHANNEL SUMMARY (LAST FULL DAY VS LAST WDAY)' %}
+  {% set org_l = 'ORGANIC SHARE (LAST FULL DAY VS LAST WDAY)' %}
 {% elif pd == 7 %}
-  {% set last_l = 'Last 7 days' %}
-  {% set prev_l = 'Previous 7 days' %}
-  {% set ch_l = 'Channel summary (last 7 days)' %}
-  {% set org_l = 'Organic share (last 7 days)' %}
+  {% set last_l = 'LAST 7 DAYS' %}
+  {% set prev_l = 'PREVIOUS 7 DAYS' %}
+  {% set ch_l = 'CHANNEL SUMMARY (LAST 7 DAYS)' %}
+  {% set org_l = 'ORGANIC SHARE (LAST 7 DAYS)' %}
 {% else %}
-  {% set last_l = 'Last 30 days' %}
-  {% set prev_l = 'Previous 30 days' %}
-  {% set ch_l = 'Channel summary (last 30 days)' %}
-  {% set org_l = 'Organic share (last 30 days)' %}
+  {% set last_l = 'LAST 30 DAYS' %}
+  {% set prev_l = 'PREVIOUS 30 DAYS' %}
+  {% set ch_l = 'CHANNEL SUMMARY (LAST 30 DAYS)' %}
+  {% set org_l = 'ORGANIC SHARE (LAST 30 DAYS)' %}
 {% endif %}
 
 {% set _has_period = p.has_period_data if p.has_period_data is defined else p.has_snapshot %}
@@ -53,7 +53,7 @@
 {% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
   {% set card_bg = 'bg-slate-50/80 dark:bg-slate-900/55' if alt_bg else 'bg-white dark:bg-slate-900' %}
   <article class="ga4-kpi-card flex min-h-[13rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[14rem] sm:p-4">
-    <p class="min-h-[2.75em] shrink-0 text-xl font-semibold uppercase leading-tight tracking-wide sm:min-h-[2.5em] sm:text-[22px] sm:tracking-[0.12em] {{ label_tone }}">{{ label }}</p>
+    <p lang="en" class="min-h-[2.75em] shrink-0 text-xl font-semibold leading-tight tracking-wide sm:min-h-[2.5em] sm:text-[22px] sm:tracking-[0.12em] {{ label_tone }}">{{ label }}</p>
     <div class="min-w-0 flex flex-col gap-1.5">
       <p
         class="min-w-0 break-words text-center text-lg font-bold tabular-nums leading-tight sm:text-left sm:text-xl {{ pct_class }}"
@@ -73,12 +73,12 @@
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >
-    {{ ga4_kpi_card('Sessions', 'text-sky-600 dark:text-sky-400', sessions_pct_class, p.sessions_pct_change | signed_pct_tr, p.last_total | tr_int, 'prev: ' ~ (p.prev_total | tr_int), false) }}
-    {{ ga4_kpi_card('Users', 'text-violet-600 dark:text-violet-400', users_pct_class, p.users_pct_change | signed_pct_tr, p.users_last | tr_int, 'prev: ' ~ (p.users_prev | tr_int), false) }}
-    {{ ga4_kpi_card('Engaged sessions', 'text-indigo-600 dark:text-indigo-400', engaged_pct_class, p.engaged_pct_change | signed_pct_tr, p.engaged_last | tr_int, 'prev: ' ~ (p.engaged_prev | tr_int), false) }}
-    {{ ga4_kpi_card('New users', 'text-amber-700 dark:text-amber-400', new_users_pct_class, p.new_users_pct_change | signed_pct_tr, p.new_users_last | tr_int, 'prev: ' ~ (p.new_users_prev | tr_int), true) }}
-    {{ ga4_kpi_card('Avg. session', 'text-teal-600 dark:text-teal-400', avg_session_pct_class, p.avg_session_pct_change | signed_pct_tr, (p.avg_session_last_sec | default(0) | int | tr_int) ~ ' s', 'prev: ' ~ (p.avg_session_prev_sec | default(0) | int | tr_int) ~ ' s', true) }}
-    {{ ga4_kpi_card('Page views', 'text-fuchsia-600 dark:text-fuchsia-400', pageviews_pct_class, p.pageviews_pct_change | signed_pct_tr, p.pageviews_last | tr_int, 'prev: ' ~ (p.pageviews_prev | tr_int), true) }}
+    {{ ga4_kpi_card('SESSIONS', 'text-sky-600 dark:text-sky-400', sessions_pct_class, p.sessions_pct_change | signed_pct_tr, p.last_total | tr_int, 'prev: ' ~ (p.prev_total | tr_int), false) }}
+    {{ ga4_kpi_card('USERS', 'text-violet-600 dark:text-violet-400', users_pct_class, p.users_pct_change | signed_pct_tr, p.users_last | tr_int, 'prev: ' ~ (p.users_prev | tr_int), false) }}
+    {{ ga4_kpi_card('ENGAGED SESSIONS', 'text-indigo-600 dark:text-indigo-400', engaged_pct_class, p.engaged_pct_change | signed_pct_tr, p.engaged_last | tr_int, 'prev: ' ~ (p.engaged_prev | tr_int), false) }}
+    {{ ga4_kpi_card('NEW USERS', 'text-amber-700 dark:text-amber-400', new_users_pct_class, p.new_users_pct_change | signed_pct_tr, p.new_users_last | tr_int, 'prev: ' ~ (p.new_users_prev | tr_int), true) }}
+    {{ ga4_kpi_card('AVG. SESSION', 'text-teal-600 dark:text-teal-400', avg_session_pct_class, p.avg_session_pct_change | signed_pct_tr, (p.avg_session_last_sec | default(0) | int | tr_int) ~ ' s', 'prev: ' ~ (p.avg_session_prev_sec | default(0) | int | tr_int) ~ ' s', true) }}
+    {{ ga4_kpi_card('PAGE VIEWS', 'text-fuchsia-600 dark:text-fuchsia-400', pageviews_pct_class, p.pageviews_pct_change | signed_pct_tr, p.pageviews_last | tr_int, 'prev: ' ~ (p.pageviews_prev | tr_int), true) }}
   </div>
 </div>
 
@@ -99,7 +99,7 @@
 {% endif %}
 
 <div>
-  <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ ch_l }}</p>
+  <p lang="en" class="text-xs tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ ch_l }}</p>
   <div class="mt-2 grid gap-2 sm:grid-cols-2">
     {% for row in p.top_channels %}
       {% set rcp = (row['pct_change'] | default(0)) | float %}
