@@ -25,7 +25,8 @@ GA4_DIGEST_SAME_WEEKDAY_SUBTITLE = (
 # GA4 aynı gün (haftalık) KPI satır etiketleri
 GA4_KPI_LABELS = {
     "sessions": "Oturumlar",
-    "totalUsers": "Kullanıcılar",
+    "activeUsers": "Aktif kullanıcılar",
+    "totalUsers": "Toplam kullanıcılar",
     "newUsers": "Yeni kullanıcılar",
     "engagedSessions": "Etkileşimli oturumlar",
     "engagementRate": "Etkileşim oranı",
@@ -36,7 +37,7 @@ GA4_KPI_LABELS = {
 # Aynı gün e-posta tablosunda gösterilecek KPI sırası
 GA4_DIGEST_WOW_KPI_FIELDS = (
     "sessions",
-    "totalUsers",
+    "activeUsers",
     "newUsers",
     "engagedSessions",
     "engagementRate",

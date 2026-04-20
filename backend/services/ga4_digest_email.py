@@ -26,6 +26,17 @@ from backend.services.timezone_utils import format_local_datetime, now_local
 GA4_DIGEST_DOVIZ_DOMAINS = frozenset({"doviz.com", "www.doviz.com", "m.doviz.com"})
 GA4_DIGEST_SINEMA_DOMAINS = frozenset({"sinemalar.com", "www.sinemalar.com", "m.sinemalar.com"})
 
+
+def _ga4_kpi_dict_with_active_users(side: Any) -> dict[str, Any]:
+    """Eski snapshot'larda activeUsers yoksa e-posta tablosu için totalUsers ile doldur."""
+    if not isinstance(side, dict):
+        return {}
+    out = dict(side)
+    if out.get("activeUsers") is None and out.get("totalUsers") is not None:
+        out["activeUsers"] = out.get("totalUsers")
+    return out
+
+
 MIN_NOTES = 20
 MAX_NOTES = 50
 
@@ -520,8 +531,8 @@ def _build_bucket_digest(
                         "reference_date": sw.get("reference_date"),
                         "previous_week_date": sw.get("previous_week_date"),
                         "weekday_label_tr": sw.get("weekday_label_tr"),
-                        "last": sw.get("last") or {},
-                        "prev": sw.get("prev") or {},
+                        "last": _ga4_kpi_dict_with_active_users(sw.get("last") or {}),
+                        "prev": _ga4_kpi_dict_with_active_users(sw.get("prev") or {}),
                         "property_id": sw.get("property_id"),
                     }
                 )

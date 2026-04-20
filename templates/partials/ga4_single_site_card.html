@@ -119,8 +119,14 @@
                   data-ga4-period-heading="{{ period_key }}"
                   class="{% if period_key != '1' %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600 dark:text-slate-300"
                 >
-                  {% if _pr.ranges and (_pr.ranges.last_end or _pr.ranges.prev_end) %}
-                    {{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }} vs {{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
+                  {% if _pr.ranges and (_pr.ranges.last_start or _pr.ranges.last_end) %}
+                    {% if _pr.ranges.prev_start and _pr.ranges.prev_end %}
+                      {{ _pr.ranges.prev_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }}
+                      vs
+                      {{ _pr.ranges.last_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
+                    {% else %}
+                      {{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }} vs {{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
+                    {% endif %}
                   {% endif %}
                 </div>
               {% endfor %}

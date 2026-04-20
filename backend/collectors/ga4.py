@@ -46,9 +46,11 @@ def _channel_pct_change(last_v: float, prev_v: float) -> float:
     return 100.0 if lv > 0.0 else 0.0
 
 
+# GA4 Data API — Traffic acquisition vb. arayüzdeki "Users" = activeUsers ile daha uyumlu.
 KPI_METRIC_NAMES = (
     "sessions",
     "totalUsers",
+    "activeUsers",
     "newUsers",
     "engagedSessions",
     "engagementRate",
@@ -192,6 +194,21 @@ def _landing_news_include_filter(field_name: str = "landingPagePlusQueryString")
     return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
 
 
+def _metrics_from_report_row(response) -> dict[str, float]:
+    """RunReport cevabının ilk satırından metrik adı -> değer (metric_headers ile; sıra kayması yok)."""
+    headers = list(response.metric_headers or [])
+    names = [str(getattr(h, "name", "") or "").strip() for h in headers if str(getattr(h, "name", "") or "").strip()]
+    rows = list(response.rows or [])
+    if not rows or not names:
+        return {}
+    vals = list(rows[0].metric_values or [])
+    out: dict[str, float] = {}
+    for i, name in enumerate(names):
+        if i < len(vals):
+            out[name] = float(vals[i].value or 0.0)
+    return out
+
+
 def _run_kpi_for_single_range(
     client: BetaAnalyticsDataClient,
     property_id: str,
@@ -211,6 +228,11 @@ def _run_kpi_for_single_range(
     )
     z = {k: 0.0 for k in names}
     if not response.rows:
+        return z
+    parsed = _metrics_from_report_row(response)
+    if parsed and "sessions" in parsed:
+        for k in names:
+            z[k] = float(parsed.get(k, 0.0))
         return z
     row = response.rows[0]
     for i, name in enumerate(names):
@@ -237,7 +259,7 @@ def _empty_daily_trend() -> dict[str, list]:
     return {
         "dates": [],
         "sessions": [],
-        "totalUsers": [],
+        "activeUsers": [],
         "engagedSessions": [],
         "engagementRate": [],
     }
@@ -250,8 +272,8 @@ def _run_daily_kpi_trend(
     start: str,
     end: str,
 ) -> dict[str, list]:
-    """Son tarih aralığında günlük: sessions, users, engagedSessions, engagementRate (0–100)."""
-    trend_metrics = ("sessions", "totalUsers", "engagedSessions", "engagementRate")
+    """Son tarih aralığında günlük: sessions, activeUsers, engagedSessions, engagementRate (0–100)."""
+    trend_metrics = ("sessions", "activeUsers", "engagedSessions", "engagementRate")
     response = client.run_report(
         RunReportRequest(
             property=f"properties/{property_id}",
@@ -262,28 +284,36 @@ def _run_daily_kpi_trend(
             order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name="date"))],
         )
     )
+    m_headers = [str(getattr(h, "name", "") or "").strip() for h in (response.metric_headers or []) if getattr(h, "name", None)]
     dates: list[str] = []
     sessions: list[float] = []
     users: list[float] = []
     engaged: list[float] = []
     er_pct: list[float] = []
-    for row in response.rows:
+    for row in response.rows or []:
         raw = str(row.dimension_values[0].value or "")
         if len(raw) == 8 and raw.isdigit():
             d_iso = f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
         else:
             d_iso = raw
         dates.append(d_iso)
-        vals = row.metric_values
-        sessions.append(float(vals[0].value or 0) if len(vals) > 0 else 0.0)
-        users.append(float(vals[1].value or 0) if len(vals) > 1 else 0.0)
-        engaged.append(float(vals[2].value or 0) if len(vals) > 2 else 0.0)
-        er_raw = float(vals[3].value or 0) if len(vals) > 3 else 0.0
+        vals = list(row.metric_values or [])
+        if m_headers and len(m_headers) == len(vals):
+            m: dict[str, float] = {m_headers[i]: float(vals[i].value or 0) for i in range(len(m_headers))}
+            sessions.append(float(m.get("sessions", 0.0)))
+            users.append(float(m.get("activeUsers", 0.0)))
+            engaged.append(float(m.get("engagedSessions", 0.0)))
+            er_raw = float(m.get("engagementRate", 0.0))
+        else:
+            sessions.append(float(vals[0].value or 0) if len(vals) > 0 else 0.0)
+            users.append(float(vals[1].value or 0) if len(vals) > 1 else 0.0)
+            engaged.append(float(vals[2].value or 0) if len(vals) > 2 else 0.0)
+            er_raw = float(vals[3].value or 0) if len(vals) > 3 else 0.0
         er_pct.append(er_raw * 100.0 if er_raw <= 1.0 else er_raw)
     return {
         "dates": dates,
         "sessions": sessions,
-        "totalUsers": users,
+        "activeUsers": users,
         "engagedSessions": engaged,
         "engagementRate": er_pct,
     }

@@ -912,7 +912,7 @@
             },
             {
               x: trend.dates,
-              y: trend.totalUsers || [],
+              y: (trend.activeUsers && trend.activeUsers.length ? trend.activeUsers : trend.totalUsers) || [],
               type: 'scatter',
               mode: lineMode,
               name: 'Users',

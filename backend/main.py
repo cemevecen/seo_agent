@@ -6040,6 +6040,23 @@ def _ga4_sw_float(m: dict | None, key: str) -> float:
         return 0.0
 
 
+def _ga4_users_from_kpi_slice(m: dict | None) -> float | None:
+    """GA4 arayüzündeki 'Users' (Traffic acquisition vb.) ile uyum: activeUsers, yoksa totalUsers."""
+    if not isinstance(m, dict):
+        return None
+    for key in ("activeUsers", "totalUsers"):
+        if key not in m:
+            continue
+        raw = m.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _ga4_organic_share_from_channel_maps(
     channels_last: dict[str, float] | None, channels_prev: dict[str, float] | None
 ) -> tuple[float, float, float] | None:
@@ -6195,7 +6212,7 @@ def _ga4_profile_payload_for_same_weekday_day(
             "daily_trend": (
                 pl.get("daily_trend")
                 if isinstance(pl.get("daily_trend"), dict) and (pl.get("daily_trend") or {}).get("dates")
-                else {"dates": [], "sessions": [], "totalUsers": [], "engagedSessions": [], "engagementRate": []}
+                else {"dates": [], "sessions": [], "activeUsers": [], "engagedSessions": [], "engagementRate": []}
             ),
             "same_weekday_kpi": swk,
             "has_snapshot": bool(snap_ref),
@@ -6204,8 +6221,12 @@ def _ga4_profile_payload_for_same_weekday_day(
 
     last_total = _ga4_sw_float(la, "sessions")
     prev_total = _ga4_sw_float(pr, "sessions")
-    users_last = _ga4_sw_float(la, "totalUsers")
-    users_prev = _ga4_sw_float(pr, "totalUsers")
+    users_last = _ga4_users_from_kpi_slice(la)
+    if users_last is None:
+        users_last = _ga4_sw_float(la, "activeUsers") or _ga4_sw_float(la, "totalUsers")
+    users_prev = _ga4_users_from_kpi_slice(pr)
+    if users_prev is None:
+        users_prev = _ga4_sw_float(pr, "activeUsers") or _ga4_sw_float(pr, "totalUsers")
     new_users_last = _ga4_sw_float(la, "newUsers")
     new_users_prev = _ga4_sw_float(pr, "newUsers")
     engaged_last = _ga4_sw_float(la, "engagedSessions")
@@ -6249,7 +6270,7 @@ def _ga4_profile_payload_for_same_weekday_day(
         daily_trend = {
             "dates": [],
             "sessions": [],
-            "totalUsers": [],
+            "activeUsers": [],
             "engagedSessions": [],
             "engagementRate": [],
         }
@@ -6406,18 +6427,28 @@ def _ga4_profile_payload_for_period(
             organic_share_prev = (organic_prev / prev_total * 100.0) if prev_total > 0 else 0.0
             organic_share_pct_change = _ga4_period_pct_change(organic_share, organic_share_prev)
 
-    users_last = float(
-        last_s.get("totalUsers")
-        or pick(f"ga4_{profile}_kpi_last_totalUsers{sk}")
-        or (pick(f"ga4_{profile}_kpi_last_totalUsers") if pd == 30 else 0.0)
-        or 0.0
-    )
-    users_prev = float(
-        prev_s.get("totalUsers")
-        or pick(f"ga4_{profile}_kpi_prev_totalUsers{sk}")
-        or (pick(f"ga4_{profile}_kpi_prev_totalUsers") if pd == 30 else 0.0)
-        or 0.0
-    )
+    _ul = _ga4_users_from_kpi_slice(last_s)
+    if _ul is not None:
+        users_last = _ul
+    else:
+        users_last = float(
+            pick(f"ga4_{profile}_kpi_last_activeUsers{sk}")
+            or pick(f"ga4_{profile}_kpi_last_totalUsers{sk}")
+            or (pick(f"ga4_{profile}_kpi_last_activeUsers") if pd == 30 else 0.0)
+            or (pick(f"ga4_{profile}_kpi_last_totalUsers") if pd == 30 else 0.0)
+            or 0.0
+        )
+    _up = _ga4_users_from_kpi_slice(prev_s)
+    if _up is not None:
+        users_prev = _up
+    else:
+        users_prev = float(
+            pick(f"ga4_{profile}_kpi_prev_activeUsers{sk}")
+            or pick(f"ga4_{profile}_kpi_prev_totalUsers{sk}")
+            or (pick(f"ga4_{profile}_kpi_prev_activeUsers") if pd == 30 else 0.0)
+            or (pick(f"ga4_{profile}_kpi_prev_totalUsers") if pd == 30 else 0.0)
+            or 0.0
+        )
     new_users_last = float(
         last_s.get("newUsers")
         or pick(f"ga4_{profile}_kpi_last_newUsers{sk}")
@@ -6520,7 +6551,7 @@ def _ga4_profile_payload_for_period(
         or {
             "dates": [],
             "sessions": [],
-            "totalUsers": [],
+            "activeUsers": [],
             "engagedSessions": [],
             "engagementRate": [],
         },
