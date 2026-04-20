@@ -205,25 +205,25 @@
     </div>
   </section>
 
-  <section class="mt-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="ASO Intelligence">
-    <div class="mb-3 flex items-center justify-between gap-2">
-      <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">ASO Intelligence</h2>
-      <span id="app-aso-generated-at" class="text-xs text-slate-500 dark:text-slate-300">—</span>
+  <section class="mt-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-6" aria-label="ASO Intelligence">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">ASO Intelligence</h2>
+      <span id="app-aso-generated-at" class="text-sm text-slate-500 dark:text-slate-300">—</span>
     </div>
-    <div id="app-aso-rank-summary" class="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200">Sira bilgileri yukleniyor…</div>
-    <div id="app-aso-alerts" class="mb-3"></div>
-    <div class="grid grid-cols-1 gap-2 xl:grid-cols-4">
-      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
-        <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Keyword Intelligence</p>
-        <div id="app-aso-keywords" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+    <div id="app-aso-rank-summary" class="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200 sm:text-base">Sira bilgileri yukleniyor…</div>
+    <div id="app-aso-alerts" class="mb-4"></div>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70 sm:p-4">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300 sm:text-sm">Keyword Intelligence</p>
+        <div id="app-aso-keywords" class="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-100 sm:text-base"></div>
       </div>
-      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
-        <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Conversion Funnel</p>
-        <div id="app-aso-funnel" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70 sm:p-4">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300 sm:text-sm">Conversion Funnel</p>
+        <div id="app-aso-funnel" class="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-100 sm:text-base"></div>
       </div>
-      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-800/70">
-        <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Release Impact</p>
-        <div id="app-aso-release" class="space-y-1 text-sm text-slate-700 dark:text-slate-100"></div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-800/70 sm:p-4">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300 sm:text-sm">Release Impact</p>
+        <div id="app-aso-release" class="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-100 sm:text-base"></div>
       </div>
     </div>
   </section>
@@ -479,7 +479,7 @@
     if (!reEl) return;
     var by = rel && rel.by_product;
     if (!by || typeof by !== "object") {
-      reEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Release verisi yok.</div>';
+      reEl.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-300">Release verisi yok.</div>';
       return;
     }
     var ids = products
@@ -504,7 +504,7 @@
         var slice = by[pid] || {};
         var on = pid === activeId;
         var cls =
-          "rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 transition " +
+          "rounded-md px-3 py-1.5 text-sm font-semibold ring-1 transition " +
           (on
             ? "bg-sky-50 text-sky-900 ring-sky-400 dark:bg-sky-950/50 dark:text-sky-100 dark:ring-sky-600"
             : "bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600");
@@ -525,7 +525,7 @@
       var secondLineLabel = isReleaseMode ? "Önceki release" : "Önceki 30 gün";
       var releaseMeta = isReleaseMode
         ? (
-            '<div class="mt-1.5 border-t border-slate-200/80 pt-1.5 text-[10px] text-slate-500 dark:border-slate-600 dark:text-slate-300">' +
+            '<div class="mt-2 border-t border-slate-200/80 pt-2 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-300 sm:text-sm">' +
             '<div>Son: <span class="font-semibold">' + esc(curRel.version ? "v" + curRel.version : "—") + '</span> · ' +
             '<span class="font-medium">' + esc(curRel.live_days == null ? "—" : curRel.live_days + " gün") + "</span></div>" +
             '<div>Önceki: <span class="font-semibold">' + esc(prevRel.version ? "v" + prevRel.version : (mode === "release_window_compare" ? "önceki sürüm" : "—")) + '</span> · ' +
@@ -534,11 +534,11 @@
           )
         : "";
       return (
-        '<div class="min-w-0 rounded-lg border border-slate-200 bg-white/80 px-2 py-2 dark:border-slate-600 dark:bg-slate-800/60">' +
-        '<p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' +
+        '<div class="min-w-0 rounded-lg border border-slate-200 bg-white/80 px-3 py-3 dark:border-slate-600 dark:bg-slate-800/60">' +
+        '<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">' +
         esc(title) +
         "</p>" +
-        '<div class="space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
+        '<div class="space-y-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">' +
         "<div>" + esc(firstLineLabel) + ": <span class=\"font-semibold\">" +
         esc(p.recent30_avg == null ? "—" : p.recent30_avg) +
         "</span></div>" +
@@ -564,14 +564,14 @@
     var iv = si.version ? "v" + esc(si.version) : "—";
 
     reEl.innerHTML =
-      '<div class="mb-2 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Ürün seçimi">' +
+      '<div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="Ürün seçimi">' +
       tabs +
       "</div>" +
-      '<div class="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">' +
+      '<div class="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">' +
       impactBlock("Play", pl.android) +
       impactBlock("App Store", pl.ios) +
       "</div>" +
-      '<div class="mt-3 space-y-1 border-t border-slate-200 pt-2 text-[11px] text-slate-600 dark:border-slate-600 dark:text-slate-300">' +
+      '<div class="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300 sm:text-base">' +
       "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">Play mağaza</span> · Sürüm " +
       av +
       " · Son güncelleme: <span class=\"font-medium\">" +
@@ -1153,7 +1153,7 @@
     if (!payload) {
       ids.forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
+        if (el) el.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
       });
       resetCompetitorBenchmarkPanel(true);
       return;
@@ -1189,11 +1189,11 @@
     if (kwEl) {
       var lead = kw[0];
       var leadText = lead
-        ? '<div class="rounded-md border border-emerald-300/70 bg-emerald-50/70 px-2 py-1 text-[11px] text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">Öne çıkan tema: <span class="font-semibold">' + esc(lead.keyword) + '</span> (' + esc(lead.avg_score) + '★, ' + esc(lead.mentions) + ' yorum)</div>'
+        ? '<div class="rounded-md border border-emerald-300/70 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100 sm:text-base">Öne çıkan tema: <span class="font-semibold">' + esc(lead.keyword) + '</span> (' + esc(lead.avg_score) + '★, ' + esc(lead.mentions) + ' yorum)</div>'
         : "";
       kwEl.innerHTML = leadText + kw.map(function (k) {
-        return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium">' +
-          esc(k.keyword) + '</span><span class="text-xs text-slate-600 dark:text-slate-200">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
+        return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium text-sm sm:text-base">' +
+          esc(k.keyword) + '</span><span class="text-sm text-slate-600 dark:text-slate-200 sm:text-base">x' + esc(k.mentions) + " · " + esc(k.avg_score) + "★</span></div>";
       }).join("");
     }
 
@@ -1205,30 +1205,30 @@
       var sa = s.android || {};
       var si = s.ios || {};
       fEl.innerHTML =
-        '<div class="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">' +
-        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Gerçek mağaza verisi</div>' +
-        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Toplam değerlendirme: <span class="font-semibold">' + esc(fmtNum(f.ratings_total || 0, 0)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Dönem yorum: <span class="font-semibold">' + esc(fmtNum(f.reviews_period || 0, 0)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Yorum/Değerlendirme: <span class="font-semibold">' + esc(fmtPct(k.reviews_to_ratings_pct, 2)) + '</span></div>' +
+        '<div class="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">' +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Gerçek mağaza verisi</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Toplam değerlendirme: <span class="font-semibold">' + esc(fmtNum(f.ratings_total || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Dönem yorum: <span class="font-semibold">' + esc(fmtNum(f.reviews_period || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Yorum/Değerlendirme: <span class="font-semibold">' + esc(fmtPct(k.reviews_to_ratings_pct, 2)) + '</span></div>' +
         "</div>" +
-        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem yoğunluğu</div>' +
-        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Dönem (gün): <span class="font-semibold">' + esc(fmtNum(s.period_days || 0, 0)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Günlük yorum: <span class="font-semibold">' + esc(fmtNum(k.reviews_daily, 2)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor (mix): <span class="font-semibold">' + esc(fmtNum(s.rating_mix_score, 2)) + '</span></div>' +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Dönem yoğunluğu</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Dönem (gün): <span class="font-semibold">' + esc(fmtNum(s.period_days || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Günlük yorum: <span class="font-semibold">' + esc(fmtNum(k.reviews_daily, 2)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor (mix): <span class="font-semibold">' + esc(fmtNum(s.rating_mix_score, 2)) + '</span></div>' +
         "</div>" +
-        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Play</div>' +
-        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(sa.ratings, 0)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor: <span class="font-semibold">' + esc(fmtNum(sa.score, 2)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Pay: <span class="font-semibold">' + esc(fmtPct(k.android_ratings_share_pct, 2)) + '</span></div>' +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Play</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(sa.ratings, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor: <span class="font-semibold">' + esc(fmtNum(sa.score, 2)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Pay: <span class="font-semibold">' + esc(fmtPct(k.android_ratings_share_pct, 2)) + '</span></div>' +
         "</div>" +
-        '<div class="rounded-md border border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">App Store</div>' +
-        '<div class="mt-0.5 text-xs text-slate-700 dark:text-slate-200">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(si.ratings, 0)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Skor: <span class="font-semibold">' + esc(fmtNum(si.score, 2)) + '</span></div>' +
-        '<div class="text-xs text-slate-700 dark:text-slate-200">Pay: <span class="font-semibold">' + esc(fmtPct(k.ios_ratings_share_pct, 2)) + '</span></div>' +
+        '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">App Store</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(si.ratings, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor: <span class="font-semibold">' + esc(fmtNum(si.score, 2)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Pay: <span class="font-semibold">' + esc(fmtPct(k.ios_ratings_share_pct, 2)) + '</span></div>' +
         "</div>" +
         "</div>";
     }
