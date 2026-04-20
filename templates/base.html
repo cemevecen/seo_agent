@@ -186,18 +186,19 @@
             </button>
           </div>
           <nav
+            id="header-main-nav"
             class="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-slate-200 pt-3 text-[11px] font-medium dark:border-slate-700 sm:gap-x-3 sm:text-xs md:text-sm"
             aria-label="Ana gezinme"
           >
-            <a href="/" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</a>
-            <a href="/ga4" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">GA4</a>
-            <a href="/search-console" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Search Console</a>
-            <a href="/alerts" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Alerts</a>
-            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">PageSpeed</a>
-            <a href="/app" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">App</a>
-            <a href="/ai" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">AI</a>
-            <a href="/external" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">External</a>
-            <a href="/settings" class="shrink-0 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Settings</a>
+            <a href="/" data-nav-match="/" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Dashboard</a>
+            <a href="/ga4" data-nav-match="/ga4" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">GA4</a>
+            <a href="/search-console" data-nav-match="/search-console" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Search Console</a>
+            <a href="/alerts" data-nav-match="/alerts" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Alerts</a>
+            <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">PageSpeed</a>
+            <a href="/app" data-nav-match="/app" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">App</a>
+            <a href="/ai" data-nav-match="/ai" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">AI</a>
+            <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">External</a>
+            <a href="/settings" data-nav-match="/settings" class="header-nav-link shrink-0 rounded-md px-2 py-1 transition">Settings</a>
           </nav>
         </div>
       </header>
@@ -375,12 +376,71 @@
         document.title = siteTitle;
       }
 
+      function syncTopNavActive() {
+        const nav = document.getElementById('header-main-nav');
+        if (!nav) {
+          return;
+        }
+        const path = (window.location.pathname || '/').toLowerCase();
+        const links = nav.querySelectorAll('.header-nav-link');
+        links.forEach(function (link) {
+          const raw = (link.getAttribute('data-nav-match') || '').toLowerCase();
+          const rules = raw
+            .split(',')
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean);
+          let active = false;
+          for (var i = 0; i < rules.length; i += 1) {
+            var rule = rules[i];
+            if (rule === '/') {
+              if (path === '/') {
+                active = true;
+                break;
+              }
+            } else if (path === rule || path.startsWith(rule + '/')) {
+              active = true;
+              break;
+            }
+          }
+          if (active) {
+            link.setAttribute('aria-current', 'page');
+            link.classList.add(
+              'bg-sky-100',
+              'text-sky-800',
+              'ring-1',
+              'ring-sky-300',
+              'dark:bg-sky-900/45',
+              'dark:text-sky-200',
+              'dark:ring-sky-700'
+            );
+            link.classList.remove('text-slate-600', 'hover:text-slate-900', 'dark:text-slate-300', 'dark:hover:text-white');
+          } else {
+            link.removeAttribute('aria-current');
+            link.classList.remove(
+              'bg-sky-100',
+              'text-sky-800',
+              'ring-1',
+              'ring-sky-300',
+              'dark:bg-sky-900/45',
+              'dark:text-sky-200',
+              'dark:ring-sky-700'
+            );
+            link.classList.add('text-slate-600', 'hover:text-slate-900', 'dark:text-slate-300', 'dark:hover:text-white');
+          }
+        });
+      }
+
       /* HTMX afterSwap target genelde #content degil; swap edilen cocuk dugumdur. */
       document.body.addEventListener('htmx:afterSwap', function () {
         syncHeaderFromContent();
+        syncTopNavActive();
       });
 
       syncHeaderFromContent();
+      syncTopNavActive();
+      window.addEventListener('popstate', syncTopNavActive);
     })();
 
     (function () {

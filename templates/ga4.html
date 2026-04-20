@@ -637,6 +637,21 @@
     };
   }
 
+  function isGa4CardsMarkup(html) {
+    return typeof html === 'string' && html.indexOf('data-ga4-site-card') !== -1;
+  }
+
+  function reloadGa4SiteListMarkup() {
+    return fetch('/ga4/site-list', {
+      headers: { 'HX-Request': 'true' },
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('site-list reload failed');
+      }
+      return response.text();
+    });
+  }
+
   function refreshGa4Sites(button) {
     const trigger = button || document.getElementById('refresh-ga4-sites-button');
     const target = document.getElementById('ga4-site-list');
@@ -682,7 +697,25 @@
       })
       .catch(function (error) {
         console.warn('GA4 bulk refresh failed:', error);
-        progress.fail('Yenileme tamamlanamadı', 'Sunucu hatası veya GA4 ayarı eksik olabilir. Log ve .env kontrolü yap.');
+        return reloadGa4SiteListMarkup()
+          .then(function (html) {
+            if (!isGa4CardsMarkup(html)) {
+              throw new Error('site-list markup invalid');
+            }
+            if (target) {
+              target.innerHTML = html;
+              window.setTimeout(function () {
+                initGa4Panels(target);
+              }, 50);
+            }
+            progress.complete(
+              'Yenileme tamamlandı',
+              'Sunucu yanıtı kesildi ancak kartlar güncel veriden yeniden yüklendi.'
+            );
+          })
+          .catch(function () {
+            progress.fail('Yenileme tamamlanamadı', 'Sunucu hatası veya GA4 ayarı eksik olabilir. Log ve .env kontrolü yap.');
+          });
       })
       .finally(function () {
         if (trigger) {
@@ -761,7 +794,42 @@
       })
       .catch(function (error) {
         console.warn('GA4 site refresh failed:', error);
-        progress.fail('Yenileme başarısız', 'Bu site için GA4 verisi alınamadı.');
+        return fetch('/ga4/site/' + encodeURIComponent(siteId), {
+          headers: { 'HX-Request': 'true' },
+        })
+          .then(function (r) {
+            if (!r.ok) {
+              throw new Error('site card reload failed');
+            }
+            return r.text();
+          })
+          .then(function (html) {
+            var sid = String(siteId);
+            var card =
+              document.getElementById('ga4-card-' + sid) ||
+              document.querySelector('[data-ga4-site-card][data-site-id="' + sid + '"]');
+            if (!card || !card.parentElement) {
+              throw new Error('card container not found');
+            }
+            var wrap = document.createElement('div');
+            wrap.innerHTML = html.trim();
+            var next = wrap.firstElementChild;
+            if (!next) {
+              throw new Error('card markup missing');
+            }
+            card.replaceWith(next);
+            window.setTimeout(function () {
+              initGa4Panels(next);
+              var grid = next.closest && next.closest('[data-ga4-split-root]');
+              if (grid) {
+                initGa4SplitView(grid);
+              }
+            }, 50);
+            progress.complete('Güncellendi', (siteDomain || 'Site') + ' için kart yeniden yüklendi.');
+          })
+          .catch(function () {
+            progress.fail('Yenileme başarısız', 'Bu site için GA4 verisi alınamadı.');
+          });
       })
       .finally(function () {
         if (button) {
