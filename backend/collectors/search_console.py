@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import search_console_should_purge_before_collect, settings
 from backend.locale.tr import weekday_tr
-from backend.models import Site, SiteCredential
+from backend.models import CollectorRun, Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
 from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
 from backend.services.metric_store import save_metrics
@@ -979,72 +979,80 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             previous_7d_rows.extend(_fetch_search_console_rows(service, property_url, previous_7d_start, previous_7d_end, device=device))
             current_30d_rows.extend(_fetch_search_console_rows(service, property_url, current_30d_start, end_date, device=device))
             previous_30d_rows.extend(_fetch_search_console_rows(service, property_url, previous_30d_start, previous_30d_end, device=device))
-            current_1d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_date,
-                    current_date,
-                    device=device,
-                    max_rows=1000,
-                    primary_dimension="page",
+            if settings.search_console_include_page_dimension:
+                page_cap = max(
+                    100,
+                    min(
+                        int(settings.search_console_page_report_row_cap),
+                        int(settings.search_console_max_rows),
+                    ),
                 )
-            )
-            previous_1d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    same_weekday_previous_date,
-                    same_weekday_previous_date,
-                    device=device,
-                    max_rows=1000,
-                    primary_dimension="page",
+                current_1d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        current_date,
+                        current_date,
+                        device=device,
+                        max_rows=min(1000, page_cap),
+                        primary_dimension="page",
+                    )
                 )
-            )
-            current_7d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_7d_start,
-                    end_date,
-                    device=device,
-                    max_rows=1500,
-                    primary_dimension="page",
+                previous_1d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        same_weekday_previous_date,
+                        same_weekday_previous_date,
+                        device=device,
+                        max_rows=min(1000, page_cap),
+                        primary_dimension="page",
+                    )
                 )
-            )
-            previous_7d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    previous_7d_start,
-                    previous_7d_end,
-                    device=device,
-                    max_rows=1500,
-                    primary_dimension="page",
+                current_7d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        current_7d_start,
+                        end_date,
+                        device=device,
+                        max_rows=min(1500, page_cap),
+                        primary_dimension="page",
+                    )
                 )
-            )
-            current_30d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    current_30d_start,
-                    end_date,
-                    device=device,
-                    max_rows=2000,
-                    primary_dimension="page",
+                previous_7d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        previous_7d_start,
+                        previous_7d_end,
+                        device=device,
+                        max_rows=min(1500, page_cap),
+                        primary_dimension="page",
+                    )
                 )
-            )
-            previous_30d_pages_rows.extend(
-                _fetch_search_console_rows_limited(
-                    service,
-                    property_url,
-                    previous_30d_start,
-                    previous_30d_end,
-                    device=device,
-                    max_rows=2000,
-                    primary_dimension="page",
+                current_30d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        current_30d_start,
+                        end_date,
+                        device=device,
+                        max_rows=min(2000, page_cap),
+                        primary_dimension="page",
+                    )
                 )
-            )
+                previous_30d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        previous_30d_start,
+                        previous_30d_end,
+                        device=device,
+                        max_rows=min(2000, page_cap),
+                        primary_dimension="page",
+                    )
+                )
             trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, trend_start_date, end_date, device=device))
 
         return {
@@ -1419,343 +1427,378 @@ def collect_search_console_metrics(
             "source": source,
             "error": error,
         }
-    previous_map = {
-        (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
-        for row in previous_7d_rows
-    }
-    total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
-    total_impressions = sum(float(row.get("impressions", 0)) for row in rows)
-    avg_ctr = (total_clicks / total_impressions * 100.0) if total_impressions > 0 else 0.0
-    avg_position = sum(float(row.get("position", 0)) for row in rows) / len(rows) if rows else 0.0
-    max_drop = 0.0
-    for row in current_7d_rows:
-        query = str(row.get("query") or "")
-        device = str(row.get("device") or "ALL").upper()
-        current_position = float(row.get("position", 0))
-        previous_position = previous_map.get((query, device))
-        if previous_position is None:
-            continue
-        drop = current_position - previous_position
-        if drop > 0.5:
-            max_drop = max(max_drop, drop)
-
-    metrics = {
-        "search_console_clicks_28d": total_clicks,
-        "search_console_impressions_28d": total_impressions,
-        "search_console_avg_ctr_28d": avg_ctr,
-        "search_console_avg_position_28d": avg_position,
-        "search_console_dropped_queries": 0.0,
-        "search_console_biggest_drop": max_drop,
-    }
-    period_summaries = _build_period_summaries_from_daily_rows(
-        trend_28d_rows,
-        previous_7d_start=date.fromisoformat(str(payload.get("previous_7d_start") or "")),
-        previous_7d_end=date.fromisoformat(str(payload.get("previous_7d_end") or "")),
-        current_7d_start=date.fromisoformat(str(payload.get("current_7d_start") or "")),
-        current_7d_end=date.fromisoformat(str(payload.get("current_7d_end") or "")),
-    )
-    current_7d_summary = period_summaries["current"]
-    previous_7d_summary = period_summaries["previous"]
-
-    current_30d_summary = _summarize_rows(current_30d_rows)
-    previous_30d_summary = _summarize_rows(previous_30d_rows)
-    content_trending_down = _build_content_trending_down(
-        current_30d_pages_rows,
-        previous_30d_pages_rows,
-        limit=25,
-    )
-    current_30d_summary_by_device = {
-        "MOBILE": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
-        "DESKTOP": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
-    }
-    previous_30d_summary_by_device = {
-        "MOBILE": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
-        "DESKTOP": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
-    }
-
-    same_weekday_day_summary: dict | None = None
     try:
-        wow_ref = date.fromisoformat(str(payload.get("current_date") or ""))
-        wow_prev = wow_ref - timedelta(days=7)
-
-        def _rows_for_day(target: date) -> list[dict]:
-            key = target.isoformat()
-            return [r for r in trend_28d_rows if str(r.get("date") or "") == key]
-
-        by_device_sw: dict[str, dict[str, dict[str, float]]] = {}
-        for device_code in ("MOBILE", "DESKTOP"):
-            by_device_sw[device_code] = {
-                "current_day_summary": _build_period_summary(
-                    [r for r in _rows_for_day(wow_ref) if str(r.get("device") or "").upper() == device_code]
-                ),
-                "previous_week_same_weekday_summary": _build_period_summary(
-                    [r for r in _rows_for_day(wow_prev) if str(r.get("device") or "").upper() == device_code]
-                ),
-            }
-
-        same_weekday_day_summary = {
-            "reference_date": wow_ref.isoformat(),
-            "weekday_label_tr": weekday_tr(wow_ref),
-            "previous_week_date": wow_prev.isoformat(),
-            "current_day_summary": _build_period_summary(_rows_for_day(wow_ref)),
-            "previous_week_same_weekday_summary": _build_period_summary(_rows_for_day(wow_prev)),
-            "by_device": by_device_sw,
-            "property_url": site_url,
+        previous_map = {
+            (str(row.get("query") or ""), str(row.get("device") or "ALL").upper()): float(row.get("position", 0))
+            for row in previous_7d_rows
         }
-    except (ValueError, TypeError, OSError):
-        same_weekday_day_summary = None
+        total_clicks = sum(float(row.get("clicks", 0)) for row in rows)
+        total_impressions = sum(float(row.get("impressions", 0)) for row in rows)
+        avg_ctr = (total_clicks / total_impressions * 100.0) if total_impressions > 0 else 0.0
+        avg_position = sum(float(row.get("position", 0)) for row in rows) / len(rows) if rows else 0.0
+        max_drop = 0.0
+        for row in current_7d_rows:
+            query = str(row.get("query") or "")
+            device = str(row.get("device") or "ALL").upper()
+            current_position = float(row.get("position", 0))
+            previous_position = previous_map.get((query, device))
+            if previous_position is None:
+                continue
+            drop = current_position - previous_position
+            if drop > 0.5:
+                max_drop = max(max_drop, drop)
 
-    _trend_start = str(payload.get("trend_start_date") or payload.get("start_date") or "")
-    _trend_end = str(payload.get("trend_end_date") or payload.get("end_date") or "")
-    try:
-        trend_range_start = date.fromisoformat(_trend_start)
-        trend_range_end = date.fromisoformat(_trend_end)
-    except (ValueError, TypeError, OSError):
-        trend_range_start = date.fromisoformat(str(payload.get("start_date") or ""))
-        trend_range_end = date.fromisoformat(str(payload.get("end_date") or ""))
-    trend_summary_by_device = _build_recent_trend_summary_by_device(
-        trend_28d_rows,
-        start_date=trend_range_start,
-        end_date=trend_range_end,
-    )
-    trend_summary = _build_recent_trend_summary(
-        trend_28d_rows,
-        start_date=trend_range_start,
-        end_date=trend_range_end,
-    )
-    save_metrics(db, site.id, metrics, collected_at)
-    current_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_28d",
-        rows=rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("start_date") or ""),
-        end_date=str(payload.get("end_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_day_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_day",
-        rows=current_day_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_date") or ""),
-        end_date=str(payload.get("current_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_day",
-        rows=previous_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_date") or ""),
-        end_date=str(payload.get("previous_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_7d_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_7d",
-        rows=current_7d_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_7d_start") or ""),
-        end_date=str(payload.get("current_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_7d_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_7d",
-        rows=previous_7d_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_7d_start") or ""),
-        end_date=str(payload.get("previous_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_30d_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_30d",
-        rows=current_30d_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_30d_start") or ""),
-        end_date=str(payload.get("current_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_30d_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_30d",
-        rows=previous_30d_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_30d_start") or ""),
-        end_date=str(payload.get("previous_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_week_same_weekday_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_week_same_weekday",
-        rows=previous_week_same_weekday_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("same_weekday_previous_date") or ""),
-        end_date=str(payload.get("same_weekday_previous_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_1d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_1d_pages",
-        rows=current_1d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_date") or ""),
-        end_date=str(payload.get("current_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_1d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_1d_pages",
-        rows=previous_1d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("same_weekday_previous_date") or ""),
-        end_date=str(payload.get("same_weekday_previous_date") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_7d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_7d_pages",
-        rows=current_7d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_7d_start") or ""),
-        end_date=str(payload.get("current_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_7d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_7d_pages",
-        rows=previous_7d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_7d_start") or ""),
-        end_date=str(payload.get("previous_7d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    current_30d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="current_30d_pages",
-        rows=current_30d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("current_30d_start") or ""),
-        end_date=str(payload.get("current_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    previous_30d_pages_row_count = save_search_console_query_rows(
-        db,
-        site_id=site.id,
-        property_url=site_url,
-        data_scope="previous_30d_pages",
-        rows=previous_30d_pages_rows,
-        collected_at=collected_at,
-        start_date=str(payload.get("previous_30d_start") or ""),
-        end_date=str(payload.get("previous_30d_end") or ""),
-        collector_run_id=collector_run.id,
-    )
-    finish_collector_run(
-        db,
-        collector_run,
-        status="success",
-        finished_at=collected_at,
-        summary={
-            "source": "live",
-            "property_url": site_url,
-            "property_url_by_device": property_urls_by_device,
-            "current_rows": current_row_count,
-            "current_day_rows": current_day_row_count,
-            "previous_rows": previous_row_count,
-            "current_7d_rows": current_7d_row_count,
-            "previous_7d_rows": previous_7d_row_count,
-            "current_7d_summary": current_7d_summary,
-            "previous_7d_summary": previous_7d_summary,
-            "current_7d_summary_by_device": {
-                device: values["current"] for device, values in period_summaries["by_device"].items()
-            },
-            "previous_7d_summary_by_device": {
-                device: values["previous"] for device, values in period_summaries["by_device"].items()
-            },
-            "current_30d_summary": current_30d_summary,
-            "previous_30d_summary": previous_30d_summary,
-            "current_30d_summary_by_device": current_30d_summary_by_device,
-            "previous_30d_summary_by_device": previous_30d_summary_by_device,
-            "current_1d_pages_rows": current_1d_pages_row_count,
-            "previous_1d_pages_rows": previous_1d_pages_row_count,
-            "current_7d_pages_rows": current_7d_pages_row_count,
-            "previous_7d_pages_rows": previous_7d_pages_row_count,
-            "current_30d_pages_rows": current_30d_pages_row_count,
-            "previous_30d_pages_rows": previous_30d_pages_row_count,
-            "content_trending_down": content_trending_down,
-            "same_weekday_day": same_weekday_day_summary,
-            "trend_28d_summary": trend_summary,
-            "trend_28d_summary_by_device": trend_summary_by_device,
-            # Ham günlük satırlar (impressions/ctr backfill için)
-            "trend_28d_rows": [
-                {
-                    "date": r.get("date", ""),
-                    "device": r.get("device", "ALL"),
-                    "clicks": float(r.get("clicks") or 0.0),
-                    "impressions": float(r.get("impressions") or 0.0),
-                    "position": float(r.get("position") or 0.0),
+        metrics = {
+            "search_console_clicks_28d": total_clicks,
+            "search_console_impressions_28d": total_impressions,
+            "search_console_avg_ctr_28d": avg_ctr,
+            "search_console_avg_position_28d": avg_position,
+            "search_console_dropped_queries": 0.0,
+            "search_console_biggest_drop": max_drop,
+        }
+        period_summaries = _build_period_summaries_from_daily_rows(
+            trend_28d_rows,
+            previous_7d_start=date.fromisoformat(str(payload.get("previous_7d_start") or "")),
+            previous_7d_end=date.fromisoformat(str(payload.get("previous_7d_end") or "")),
+            current_7d_start=date.fromisoformat(str(payload.get("current_7d_start") or "")),
+            current_7d_end=date.fromisoformat(str(payload.get("current_7d_end") or "")),
+        )
+        current_7d_summary = period_summaries["current"]
+        previous_7d_summary = period_summaries["previous"]
+
+        current_30d_summary = _summarize_rows(current_30d_rows)
+        previous_30d_summary = _summarize_rows(previous_30d_rows)
+        content_trending_down = _build_content_trending_down(
+            current_30d_pages_rows,
+            previous_30d_pages_rows,
+            limit=25,
+        )
+        current_30d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in current_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
+        previous_30d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
+
+        same_weekday_day_summary: dict | None = None
+        try:
+            wow_ref = date.fromisoformat(str(payload.get("current_date") or ""))
+            wow_prev = wow_ref - timedelta(days=7)
+
+            def _rows_for_day(target: date) -> list[dict]:
+                key = target.isoformat()
+                return [r for r in trend_28d_rows if str(r.get("date") or "") == key]
+
+            by_device_sw: dict[str, dict[str, dict[str, float]]] = {}
+            for device_code in ("MOBILE", "DESKTOP"):
+                by_device_sw[device_code] = {
+                    "current_day_summary": _build_period_summary(
+                        [r for r in _rows_for_day(wow_ref) if str(r.get("device") or "").upper() == device_code]
+                    ),
+                    "previous_week_same_weekday_summary": _build_period_summary(
+                        [r for r in _rows_for_day(wow_prev) if str(r.get("device") or "").upper() == device_code]
+                    ),
                 }
-                for r in trend_28d_rows
-            ],
-        },
-        row_count=current_row_count
-        + current_day_row_count
-        + previous_row_count
-        + current_7d_row_count
-        + previous_7d_row_count
-        + current_30d_row_count
-        + previous_30d_row_count
-        + previous_week_same_weekday_row_count
-        + current_1d_pages_row_count
-        + previous_1d_pages_row_count
-        + current_7d_pages_row_count
-        + previous_7d_pages_row_count
-        + current_30d_pages_row_count
-        + previous_30d_pages_row_count,
-    )
-    # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
-    db.commit()
-    evaluate_site_alerts(db, site, send_notifications=send_notifications)
-    return {
-        "site_id": site.id,
-        "rows": rows,
-        "summary": metrics,
-        "comparison": {
-            "current_7d_summary": current_7d_summary,
-            "previous_7d_summary": previous_7d_summary,
-            "same_weekday_day": same_weekday_day_summary,
-        },
-        "source": "live",
-        "error": None,
-    }
+
+            same_weekday_day_summary = {
+                "reference_date": wow_ref.isoformat(),
+                "weekday_label_tr": weekday_tr(wow_ref),
+                "previous_week_date": wow_prev.isoformat(),
+                "current_day_summary": _build_period_summary(_rows_for_day(wow_ref)),
+                "previous_week_same_weekday_summary": _build_period_summary(_rows_for_day(wow_prev)),
+                "by_device": by_device_sw,
+                "property_url": site_url,
+            }
+        except (ValueError, TypeError, OSError):
+            same_weekday_day_summary = None
+
+        _trend_start = str(payload.get("trend_start_date") or payload.get("start_date") or "")
+        _trend_end = str(payload.get("trend_end_date") or payload.get("end_date") or "")
+        try:
+            trend_range_start = date.fromisoformat(_trend_start)
+            trend_range_end = date.fromisoformat(_trend_end)
+        except (ValueError, TypeError, OSError):
+            trend_range_start = date.fromisoformat(str(payload.get("start_date") or ""))
+            trend_range_end = date.fromisoformat(str(payload.get("end_date") or ""))
+        trend_summary_by_device = _build_recent_trend_summary_by_device(
+            trend_28d_rows,
+            start_date=trend_range_start,
+            end_date=trend_range_end,
+        )
+        trend_summary = _build_recent_trend_summary(
+            trend_28d_rows,
+            start_date=trend_range_start,
+            end_date=trend_range_end,
+        )
+        save_metrics(db, site.id, metrics, collected_at)
+        current_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_28d",
+            rows=rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("start_date") or ""),
+            end_date=str(payload.get("end_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_day_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_day",
+            rows=current_day_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_date") or ""),
+            end_date=str(payload.get("current_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_day",
+            rows=previous_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_date") or ""),
+            end_date=str(payload.get("previous_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_7d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_7d",
+            rows=current_7d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_7d_start") or ""),
+            end_date=str(payload.get("current_7d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_7d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_7d",
+            rows=previous_7d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_7d_start") or ""),
+            end_date=str(payload.get("previous_7d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_30d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_30d",
+            rows=current_30d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_30d_start") or ""),
+            end_date=str(payload.get("current_30d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_30d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_30d",
+            rows=previous_30d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_30d_start") or ""),
+            end_date=str(payload.get("previous_30d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_week_same_weekday_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_week_same_weekday",
+            rows=previous_week_same_weekday_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("same_weekday_previous_date") or ""),
+            end_date=str(payload.get("same_weekday_previous_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_1d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_1d_pages",
+            rows=current_1d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_date") or ""),
+            end_date=str(payload.get("current_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_1d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_1d_pages",
+            rows=previous_1d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("same_weekday_previous_date") or ""),
+            end_date=str(payload.get("same_weekday_previous_date") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_7d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_7d_pages",
+            rows=current_7d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_7d_start") or ""),
+            end_date=str(payload.get("current_7d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_7d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_7d_pages",
+            rows=previous_7d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_7d_start") or ""),
+            end_date=str(payload.get("previous_7d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        current_30d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_30d_pages",
+            rows=current_30d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_30d_start") or ""),
+            end_date=str(payload.get("current_30d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_30d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_30d_pages",
+            rows=previous_30d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_30d_start") or ""),
+            end_date=str(payload.get("previous_30d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        finish_collector_run(
+            db,
+            collector_run,
+            status="success",
+            finished_at=collected_at,
+            summary={
+                "source": "live",
+                "property_url": site_url,
+                "property_url_by_device": property_urls_by_device,
+                "current_rows": current_row_count,
+                "current_day_rows": current_day_row_count,
+                "previous_rows": previous_row_count,
+                "current_7d_rows": current_7d_row_count,
+                "previous_7d_rows": previous_7d_row_count,
+                "current_7d_summary": current_7d_summary,
+                "previous_7d_summary": previous_7d_summary,
+                "current_7d_summary_by_device": {
+                    device: values["current"] for device, values in period_summaries["by_device"].items()
+                },
+                "previous_7d_summary_by_device": {
+                    device: values["previous"] for device, values in period_summaries["by_device"].items()
+                },
+                "current_30d_summary": current_30d_summary,
+                "previous_30d_summary": previous_30d_summary,
+                "current_30d_summary_by_device": current_30d_summary_by_device,
+                "previous_30d_summary_by_device": previous_30d_summary_by_device,
+                "current_1d_pages_rows": current_1d_pages_row_count,
+                "previous_1d_pages_rows": previous_1d_pages_row_count,
+                "current_7d_pages_rows": current_7d_pages_row_count,
+                "previous_7d_pages_rows": previous_7d_pages_row_count,
+                "current_30d_pages_rows": current_30d_pages_row_count,
+                "previous_30d_pages_rows": previous_30d_pages_row_count,
+                "content_trending_down": content_trending_down,
+                "same_weekday_day": same_weekday_day_summary,
+                "trend_28d_summary": trend_summary,
+                "trend_28d_summary_by_device": trend_summary_by_device,
+                # Ham günlük satırlar (impressions/ctr backfill için)
+                "trend_28d_rows": [
+                    {
+                        "date": r.get("date", ""),
+                        "device": r.get("device", "ALL"),
+                        "clicks": float(r.get("clicks") or 0.0),
+                        "impressions": float(r.get("impressions") or 0.0),
+                        "position": float(r.get("position") or 0.0),
+                    }
+                    for r in trend_28d_rows
+                ],
+            },
+            row_count=current_row_count
+            + current_day_row_count
+            + previous_row_count
+            + current_7d_row_count
+            + previous_7d_row_count
+            + current_30d_row_count
+            + previous_30d_row_count
+            + previous_week_same_weekday_row_count
+            + current_1d_pages_row_count
+            + previous_1d_pages_row_count
+            + current_7d_pages_row_count
+            + previous_7d_pages_row_count
+            + current_30d_pages_row_count
+            + previous_30d_pages_row_count,
+        )
+        # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
+        db.commit()
+        evaluate_site_alerts(db, site, send_notifications=send_notifications)
+        return {
+            "site_id": site.id,
+            "rows": rows,
+            "summary": metrics,
+            "comparison": {
+                "current_7d_summary": current_7d_summary,
+                "previous_7d_summary": previous_7d_summary,
+                "same_weekday_day": same_weekday_day_summary,
+            },
+            "source": "live",
+            "error": None,
+        }
+    except Exception as exc:
+        LOGGER.exception(
+            "Search Console tam yenileme hatasi site=%s site_id=%s run_id=%s",
+            site.domain,
+            site.id,
+            collector_run.id,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        run = db.get(CollectorRun, collector_run.id)
+        if run is not None and str(run.status or "").lower() == "started":
+            finish_collector_run(
+                db,
+                run,
+                status="failed",
+                finished_at=datetime.utcnow(),
+                error_message=str(exc)[:4000],
+                summary={"source": "error", "exception": type(exc).__name__},
+                row_count=0,
+            )
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+        return {
+            "site_id": site.id,
+            "rows": [],
+            "summary": {},
+            "source": "failed",
+            "error": str(exc),
+        }
+
 
 
 

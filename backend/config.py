@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Gerekirse .env ile yükseltilebilir.
     search_console_row_batch_size: int = 1000
     search_console_max_rows: int = 2500
+    # Tam yenilemede "page" boyutlu raporlar çok fazla API çağrısı / süre üretir (Railway timeout).
+    search_console_include_page_dimension: bool = True
+    search_console_page_report_row_cap: int = 1000
     search_console_refresh_cooldown_seconds: int = 21600
     search_console_live_fetch_on_read: bool = False
     search_console_scheduled_refresh_enabled: bool = True

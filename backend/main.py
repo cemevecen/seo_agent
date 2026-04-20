@@ -7553,12 +7553,18 @@ def search_console_manual_refresh(request: Request, site_id: int):
             if _is_sqlite_lock_error(exc):
                 return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
             raise
-        notify_result_map(
-            trigger_source="manual",
-            site=site,
-            results=results,
-            action_label="Search Console verisini yenile",
-        )
+        try:
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                results=results,
+                action_label="Search Console verisini yenile",
+            )
+        except Exception:
+            logging.exception(
+                "Search Console manual refresh: notify_result_map failed site_id=%s",
+                site_id,
+            )
         # Yalnızca bu site kartını döndür — hx-target="closest section" veya #sc-card-{id}
         schedule_label = (
             f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
