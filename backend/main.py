@@ -6247,25 +6247,32 @@ def _ga4_profile_payload_for_same_weekday_day(
     prev_d = str(swk.get("previous_week_date") or "")
     wow = _ga4_period_pct_change(last_total, prev_total)
 
-    _org_flat_sw = _ga4_organic_from_snapshot_payload(pl)
-    if _org_flat_sw is not None:
-        organic_share, organic_share_pct_change = _org_flat_sw
+    sw_channels_last = swk.get("channels_last") if isinstance(swk.get("channels_last"), dict) else None
+    sw_channels_prev = swk.get("channels_prev") if isinstance(swk.get("channels_prev"), dict) else None
+    _org_sw_day = _ga4_organic_share_from_channel_maps(sw_channels_last, sw_channels_prev)
+    if _org_sw_day is not None:
+        organic_share = _org_sw_day[0]
+        organic_share_pct_change = _org_sw_day[2]
     else:
-        _org_sw = _ga4_organic_share_from_channel_maps(
-            pl.get("channels_last") if isinstance(pl.get("channels_last"), dict) else None,
-            pl.get("channels_prev") if isinstance(pl.get("channels_prev"), dict) else None,
-        )
-        if _org_sw is not None:
-            organic_share = _org_sw[0]
-            organic_share_pct_change = _org_sw[2]
+        _org_flat_sw = _ga4_organic_from_snapshot_payload(pl)
+        if _org_flat_sw is not None:
+            organic_share, organic_share_pct_change = _org_flat_sw
         else:
-            lt7 = float(pick(f"ga4_{profile}_sessions_last7d_total") or 0.0)
-            lt7_prev = float(pick(f"ga4_{profile}_sessions_prev7d_total") or 0.0)
-            organic = float(pick(f"ga4_{profile}_sessions_last7d_channel__organic_search") or 0.0)
-            organic_prev = float(pick(f"ga4_{profile}_sessions_prev7d_channel__organic_search") or 0.0)
-            organic_share = (organic / lt7 * 100.0) if lt7 > 0 else 0.0
-            organic_share_prev = (organic_prev / lt7_prev * 100.0) if lt7_prev > 0 else 0.0
-            organic_share_pct_change = _ga4_period_pct_change(organic_share, organic_share_prev)
+            _org_sw = _ga4_organic_share_from_channel_maps(
+                pl.get("channels_last") if isinstance(pl.get("channels_last"), dict) else None,
+                pl.get("channels_prev") if isinstance(pl.get("channels_prev"), dict) else None,
+            )
+            if _org_sw is not None:
+                organic_share = _org_sw[0]
+                organic_share_pct_change = _org_sw[2]
+            else:
+                lt7 = float(pick(f"ga4_{profile}_sessions_last7d_total") or 0.0)
+                lt7_prev = float(pick(f"ga4_{profile}_sessions_prev7d_total") or 0.0)
+                organic = float(pick(f"ga4_{profile}_sessions_last7d_channel__organic_search") or 0.0)
+                organic_prev = float(pick(f"ga4_{profile}_sessions_prev7d_channel__organic_search") or 0.0)
+                organic_share = (organic / lt7 * 100.0) if lt7 > 0 else 0.0
+                organic_share_prev = (organic_prev / lt7_prev * 100.0) if lt7_prev > 0 else 0.0
+                organic_share_pct_change = _ga4_period_pct_change(organic_share, organic_share_prev)
 
     # Grafik: 7g snapshot ile aynı günlük seri (2 noktalı WoW çizgisi yanıltıcı oluyordu)
     _dt = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
@@ -6314,7 +6321,16 @@ def _ga4_profile_payload_for_same_weekday_day(
         "pageviews_pct_change": _ga4_period_pct_change(pageviews_last, pageviews_prev),
         "organic_share_pct": organic_share,
         "organic_share_pct_change": organic_share_pct_change,
-        "top_channels": _ga4_top_channels_with_pct_change(latest, profile, 7, pl),
+        "top_channels": (
+            _ga4_top_channels_with_pct_change(
+                latest,
+                profile,
+                1,
+                {"channels_last": sw_channels_last or {}, "channels_prev": sw_channels_prev or {}},
+            )
+            if (isinstance(sw_channels_last, dict) and sw_channels_last)
+            else _ga4_top_channels_with_pct_change(latest, profile, 7, pl)
+        ),
         "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
         "pages_news": _enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True),
         "sources": pl.get("sources") or [],

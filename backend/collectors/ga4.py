@@ -771,6 +771,31 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                 LOGGER.warning("GA4 same_weekday KPI başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 wow_last_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
                 wow_prev_kpi = {k: 0.0 for k in KPI_METRIC_NAMES}
+            try:
+                wow_last_ch_raw = _run_dim_sessions_single_range(
+                    client,
+                    property_id,
+                    "sessionDefaultChannelGroup",
+                    start=last_end,
+                    end=last_end,
+                    limit=100,
+                    dimension_filter=None,
+                )
+                wow_prev_ch_raw = _run_dim_sessions_single_range(
+                    client,
+                    property_id,
+                    "sessionDefaultChannelGroup",
+                    start=wow_prev.isoformat(),
+                    end=wow_prev.isoformat(),
+                    limit=100,
+                    dimension_filter=None,
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("GA4 same_weekday channel başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                wow_last_ch_raw = {}
+                wow_prev_ch_raw = {}
+            wow_channels_last = {slugify(k): float(v) for k, v in (wow_last_ch_raw or {}).items()}
+            wow_channels_prev = {slugify(k): float(v) for k, v in (wow_prev_ch_raw or {}).items()}
 
             # UI kanal özeti: ham kanal adıyla last/prev eşleştirilir (DB metric anahtarı / JSON slug hatası yok).
             channel_summary_rows: list[dict] = []
@@ -815,6 +840,8 @@ def collect_ga4_channel_sessions(db: Session, site: Site, *, profile: str | None
                     "weekday_label_tr": weekday_tr(wow_ref),
                     "last": wow_last_kpi,
                     "prev": wow_prev_kpi,
+                    "channels_last": wow_channels_last,
+                    "channels_prev": wow_channels_prev,
                     "property_id": property_id,
                 },
             }
