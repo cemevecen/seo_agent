@@ -475,3 +475,14 @@ class LlmSpendMonth(Base):
     month_key: Mapped[str] = mapped_column(String(7), nullable=False, unique=True, index=True)
     total_try: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AdminAuthSetting(Base):
+    """Allowlist dışı erişim için tek admin parola ayarı."""
+
+    __tablename__ = "admin_auth_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    password_salt: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -1,5 +1,7 @@
 """FastAPI uygulama giriş noktası."""
 import json
+import hashlib
+import hmac
 import logging
 import os
 import re
@@ -63,7 +65,7 @@ from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
-    SearchConsoleQuerySnapshot, Site, UrlAuditRecord, UrlInspectionSnapshot,
+    SearchConsoleQuerySnapshot, Site, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
 )
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
@@ -605,24 +607,110 @@ def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
     return False
 
 
-@app.middleware("http")
-async def ip_allowlist_middleware(request: Request, call_next):
-    # ALLOWED_CLIENT_IPS doluysa sadece listedeki IP'lere erişim izni verir.
+_ADMIN_AUTH_COOKIE = "seo_admin_auth"
+
+
+def _admin_auth_row(db) -> AdminAuthSetting | None:
+    return db.query(AdminAuthSetting).order_by(AdminAuthSetting.id.asc()).first()
+
+
+def _admin_password_configured(db) -> bool:
+    row = _admin_auth_row(db)
+    return bool(row and row.password_hash and row.password_salt)
+
+
+def _hash_admin_password(raw_password: str, salt_hex: str) -> str:
+    key = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_password.encode("utf-8"),
+        bytes.fromhex(salt_hex),
+        260_000,
+    )
+    return key.hex()
+
+
+def _verify_admin_password(db, raw_password: str) -> bool:
+    row = _admin_auth_row(db)
+    if not row or not row.password_hash or not row.password_salt:
+        return False
+    actual = _hash_admin_password(raw_password, row.password_salt)
+    return hmac.compare_digest(actual, row.password_hash)
+
+
+def _upsert_admin_password(db, raw_password: str) -> None:
+    row = _admin_auth_row(db)
+    salt_hex = os.urandom(16).hex()
+    pwd_hash = _hash_admin_password(raw_password, salt_hex)
+    if not row:
+        row = AdminAuthSetting(password_hash=pwd_hash, password_salt=salt_hex, updated_at=datetime.utcnow())
+        db.add(row)
+    else:
+        row.password_hash = pwd_hash
+        row.password_salt = salt_hex
+        row.updated_at = datetime.utcnow()
+    _commit_with_lock_retry(db, attempts=5, base_wait=0.15)
+
+
+def _build_admin_cookie_token(password_hash: str) -> str:
+    secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
+    return hmac.new(secret, password_hash.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+
+
+def _is_admin_authenticated(request: Request) -> bool:
+    token = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
+    if not token:
+        return False
+    with SessionLocal() as db:
+        row = _admin_auth_row(db)
+        if not row or not row.password_hash:
+            return False
+        expected = _build_admin_cookie_token(row.password_hash)
+    return hmac.compare_digest(token, expected)
+
+
+def _request_is_allowlisted(request: Request) -> bool:
     allowlist = [item.strip() for item in settings.allowed_client_ips.split(",") if item.strip()]
     if not allowlist:
-        return await call_next(request)
-
+        return False
     client_ip = _extract_client_ip(request)
-    if _is_ip_allowed(client_ip, allowlist):
+    return _is_ip_allowed(client_ip, allowlist)
+
+
+@app.middleware("http")
+async def ip_allowlist_middleware(request: Request, call_next):
+    # Allowlist IP'ler doğrudan geçer; diğerleri admin parolası ile giriş yapar.
+    path = (request.url.path or "").strip()
+    public_prefixes = (
+        "/health",
+        "/static/",
+        "/favicon",
+        "/apple-touch-icon",
+        "/admin/login",
+        "/admin/auth/login",
+    )
+    if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
 
-    return JSONResponse(
-        status_code=403,
-        content={
-            "detail": "IP erişim izni yok.",
-            "client_ip": client_ip,
-        },
+    if _request_is_allowlisted(request):
+        return await call_next(request)
+
+    with SessionLocal() as db:
+        password_ready = _admin_password_configured(db)
+    if password_ready and _is_admin_authenticated(request):
+        return await call_next(request)
+
+    wants_json = request.headers.get("hx-request") == "true" or "application/json" in (
+        request.headers.get("accept", "").lower()
     )
+    if wants_json:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": "Admin girişi gerekli.",
+                "client_ip": _extract_client_ip(request),
+            },
+        )
+    return RedirectResponse(url="/admin/login", status_code=303)
 
 # (legacy) Router include blokları yukarı taşındı.
 
@@ -6027,6 +6115,7 @@ def alerts_refresh(request: Request):
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
     with SessionLocal() as db:
+        admin_password_configured = _admin_password_configured(db)
         payload = {
             "site_name": "Settings",
             "sites": get_sidebar_sites(),
@@ -6034,6 +6123,8 @@ def settings_page(request: Request):
             "quota_status": get_quota_status(db),
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
+            "admin_password_configured": admin_password_configured,
+            "admin_allowlisted_ip": _request_is_allowlisted(request),
         }
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
@@ -6048,6 +6139,82 @@ def settings_site_list(request: Request):
             "partials/site_list.html",
             context={"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
         )
+
+
+@app.get("/admin/login")
+def admin_login_page(request: Request):
+    if _request_is_allowlisted(request) or _is_admin_authenticated(request):
+        return RedirectResponse(url="/", status_code=303)
+    with SessionLocal() as db:
+        configured = _admin_password_configured(db)
+    return templates.TemplateResponse(
+        request,
+        "admin_login.html",
+        context={
+            "request": request,
+            "site_name": "Admin Login",
+            "password_configured": configured,
+            "client_ip": _extract_client_ip(request),
+        },
+    )
+
+
+@app.post("/admin/auth/login")
+def admin_auth_login(request: Request, password: str = Form(default="")):
+    raw_password = str(password or "").strip()
+    with SessionLocal() as db:
+        if not _admin_password_configured(db):
+            return JSONResponse(status_code=503, content={"ok": False, "detail": "Admin şifresi henüz ayarlanmadı."})
+        if not raw_password or not _verify_admin_password(db, raw_password):
+            return JSONResponse(status_code=401, content={"ok": False, "detail": "Şifre hatalı."})
+        row = _admin_auth_row(db)
+        token = _build_admin_cookie_token(row.password_hash if row else "")
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key=_ADMIN_AUTH_COOKIE,
+        value=token,
+        httponly=True,
+        secure=not _is_docker_runtime(),
+        samesite="lax",
+        max_age=60 * 60 * 12,
+        path="/",
+    )
+    return response
+
+
+@app.post("/admin/auth/logout")
+def admin_auth_logout():
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie(key=_ADMIN_AUTH_COOKIE, path="/")
+    return response
+
+
+@app.post("/admin/password")
+def admin_password_set(request: Request, password: str = Form(default=""), password_confirm: str = Form(default="")):
+    # Şifre belirleme/güncelleme: yalnız allowlist IP'den veya oturum açmış admin'den.
+    if not (_request_is_allowlisted(request) or _is_admin_authenticated(request)):
+        return JSONResponse(status_code=403, content={"ok": False, "detail": "Bu işlem için yetki yok."})
+    raw_password = str(password or "")
+    confirm = str(password_confirm or "")
+    if len(raw_password) < 6:
+        return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifre en az 6 karakter olmalı."})
+    if raw_password != confirm:
+        return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifreler eşleşmiyor."})
+    with SessionLocal() as db:
+        _upsert_admin_password(db, raw_password)
+        row = _admin_auth_row(db)
+        token = _build_admin_cookie_token(row.password_hash if row else "")
+    response = RedirectResponse(url="/settings", status_code=303)
+    response.set_cookie(
+        key=_ADMIN_AUTH_COOKIE,
+        value=token,
+        httponly=True,
+        secure=not _is_docker_runtime(),
+        samesite="lax",
+        max_age=60 * 60 * 12,
+        path="/",
+    )
+    return response
 
 
 def _ga4_engagement_rate_pct(raw: float) -> float:
