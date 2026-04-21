@@ -81,7 +81,7 @@
     }
   </style>
   <style id="seo-header-pill-nav">
-    /* Başlık + pill + tema: mobilde üst satır başlık|tema, alt satır pill (sol hizada); lg+ tek satır */
+    /* Başlık + pill + tema: mobilde üst satır başlık|tema, alt satır yatay kaydırmalı pill */
     .header-app-shell {
       display: grid;
       min-width: 0;
@@ -101,16 +101,30 @@
         column-gap: 0.65rem;
       }
     }
+    .header-main-nav {
+      display: flex;
+      min-width: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .header-main-nav::-webkit-scrollbar {
+      display: none;
+    }
     .header-nav-link {
       border-color: rgba(255, 255, 255, 0.35);
       color: #ffffff;
       background: linear-gradient(118deg, rgba(36, 54, 78, 0.92), rgba(92, 124, 158, 0.58));
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
       text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
-      max-width: 100%;
+      max-width: none;
       overflow-wrap: anywhere;
       word-break: normal;
       text-align: center;
+      white-space: nowrap;
+      flex: 0 0 auto;
       transition: background 0.24s ease, transform 0.24s ease, color 0.24s ease, border-color 0.24s ease;
     }
     .header-nav-link:hover {
@@ -123,6 +137,16 @@
       text-shadow: none;
       border-color: rgba(255, 255, 255, 0.95);
       box-shadow: 0 5px 16px -12px rgba(15, 23, 42, 0.75);
+    }
+    @media (max-width: 1023px) {
+      .header-main-nav {
+        justify-content: flex-start;
+      }
+    }
+    @media (min-width: 1024px) {
+      .header-main-nav {
+        justify-content: flex-end;
+      }
     }
     @media (max-width: 380px) {
       .header-nav-link {
@@ -141,9 +165,9 @@
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
-      <header class="px-2 py-2 sm:px-4 sm:py-2">
+      <header class="px-2 py-1.5 sm:px-4 sm:py-2">
         <div
-          class="mx-auto w-full max-w-[min(100%,96rem)] rounded-xl border border-slate-600/50 px-2.5 py-2 shadow-[0_12px_28px_-18px_rgba(71,85,105,0.38)] sm:px-3 sm:py-2"
+          class="mx-auto w-full max-w-[min(100%,96rem)] rounded-xl border border-slate-600/50 px-2.5 py-1.5 shadow-[0_10px_22px_-18px_rgba(71,85,105,0.38)] sm:px-3 sm:py-2"
           style="background: linear-gradient(110deg, #2a3d56, #3d5578 48%, #4d6b8a);"
         >
           <div class="header-app-shell">
@@ -155,7 +179,7 @@
             </h2>
             <nav
               id="header-main-nav"
-              class="flex min-w-0 flex-wrap items-center justify-start gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:justify-end lg:gap-1.5"
+              class="header-main-nav flex min-w-0 items-center gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:gap-1.5"
               aria-label="Ana gezinme"
             >
               <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Dashboard</a>
