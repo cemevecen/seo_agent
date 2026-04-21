@@ -518,40 +518,50 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
         "Authorization": f"Bearer {(settings.groq_api_key or '').strip()}",
         "Content-Type": "application/json",
     }
+    model_candidates: list[str] = []
+    for cand in (
+        str(model or "").strip(),
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
+        "mixtral-8x7b-32768",
+    ):
+        if cand and cand not in model_candidates:
+            model_candidates.append(cand)
     last_err: Exception | None = None
     with httpx.Client(timeout=420.0) as client:
-        for json_mode in (True, False):
-            body: dict = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.35,
-            }
-            if json_mode:
-                body["response_format"] = {"type": "json_object"}
-            try:
-                r = client.post(url, headers=headers, json=body)
-                if r.status_code == 413:
-                    # Payload hâlâ büyük: fallback boyutuna kırp, tekrar dene
-                    LOGGER.warning("Groq 413 aldı; prompt %d'e kırpılıyor.", _GROQ_FALLBACK_PROMPT_CHARS)
-                    body["messages"][0]["content"] = _truncate_prompt(prompt, _GROQ_FALLBACK_PROMPT_CHARS)
+        for model_name in model_candidates:
+            for json_mode in (True, False):
+                body: dict = {
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.35,
+                }
+                if json_mode:
+                    body["response_format"] = {"type": "json_object"}
+                try:
                     r = client.post(url, headers=headers, json=body)
-                r.raise_for_status()
-                data = r.json()
-                usage = data.get("usage") or {}
-                pt = int(usage.get("prompt_tokens") or 0)
-                ct = int(usage.get("completion_tokens") or 0)
-                if ct <= 0:
-                    tt = int(usage.get("total_tokens") or 0)
-                    if tt > pt:
-                        ct = max(0, tt - pt)
-                content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-                return _parse_json_object(content), (pt, ct)
-            except httpx.HTTPStatusError as exc:
-                last_err = exc
-                continue
-            except (httpx.TimeoutException, httpx.NetworkError, json.JSONDecodeError) as exc:
-                last_err = exc
-                continue
+                    if r.status_code == 413:
+                        # Payload hâlâ büyük: fallback boyutuna kırp, tekrar dene
+                        LOGGER.warning("Groq 413 aldı; prompt %d'e kırpılıyor.", _GROQ_FALLBACK_PROMPT_CHARS)
+                        body["messages"][0]["content"] = _truncate_prompt(prompt, _GROQ_FALLBACK_PROMPT_CHARS)
+                        r = client.post(url, headers=headers, json=body)
+                    r.raise_for_status()
+                    data = r.json()
+                    usage = data.get("usage") or {}
+                    pt = int(usage.get("prompt_tokens") or 0)
+                    ct = int(usage.get("completion_tokens") or 0)
+                    if ct <= 0:
+                        tt = int(usage.get("total_tokens") or 0)
+                        if tt > pt:
+                            ct = max(0, tt - pt)
+                    content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+                    return _parse_json_object(content), (pt, ct)
+                except httpx.HTTPStatusError as exc:
+                    last_err = exc
+                    continue
+                except (httpx.TimeoutException, httpx.NetworkError, json.JSONDecodeError) as exc:
+                    last_err = exc
+                    continue
     raise last_err if last_err else RuntimeError("Groq çağrısı başarısız")
 
 
