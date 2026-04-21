@@ -80,6 +80,34 @@
       background-color: rgb(51 65 85) !important;
     }
   </style>
+  <style id="seo-content-responsive-guards">
+    /* Mobilde metin kutuları taşmasın; gerekirse satır kırsın */
+    #content,
+    #content * {
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    #content :where(h1, h2, h3, h4, h5, h6, p, span, a, button, label, li, dt, dd, th, td) {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    #content :where(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[1\.5rem\], .rounded-\[2rem\]) {
+      max-width: 100%;
+    }
+
+    /* Yoğun tablo alanlarında dar ekranda yatay scroll garantisi */
+    #content :where(.overflow-x-auto, .overflow-x-scroll) {
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+    }
+    #content :where(table) {
+      max-width: 100%;
+    }
+    #content :where(.overflow-x-auto table, .overflow-x-scroll table) {
+      min-width: max-content;
+    }
+  </style>
   <style id="seo-header-pill-nav">
     /* Mobil: üst satır başlık + tema, alt satır yatay kaydırmalı menü */
     .header-app-shell {
