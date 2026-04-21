@@ -126,7 +126,7 @@
           {% for pid in ['1', '7', '30'] %}
             {% set p = pc[pid] %}
             <div data-sc-period-content="{{ pid }}" class="dash-compare-text w-full space-y-1.5 {% if pid != sc_segment %}hidden{% endif %}">
-              <div class="flex w-full flex-wrap items-baseline gap-x-2 gap-y-1">
+              <div class="flex w-full items-baseline gap-x-2 whitespace-nowrap overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                 <span class="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ p.compare_badge }} karşılaştırma</span>
                 <span class="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
                 <span class="font-semibold text-slate-800 dark:text-slate-100">{{ p.range_cur or "—" }}</span>
