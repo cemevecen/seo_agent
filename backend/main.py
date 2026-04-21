@@ -6893,6 +6893,7 @@ def _ai_brief_llm_availability() -> dict[str, bool]:
     return {
         "groq": bool((settings.groq_api_key or "").strip()),
         "gemini": bool((settings.gemini_api_key or "").strip()),
+        "openai": bool((settings.openai_api_key or "").strip()),
     }
 
 
@@ -6920,7 +6921,7 @@ def ai_daily_brief_page(request: Request):
 
 @app.post("/ai/generate")
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
-    """Operasyon: aynı gün özeti yeniden üretilir (Groq veya Gemini; yalnızca bu akış LLM kullanır). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir. AI_DAILY_BRIEF_ENABLED=false olsa da bu uç force ile çalışır."""
+    """Operasyon: aynı gün özeti yeniden üretir (Groq/Gemini/OpenAI). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir. AI_DAILY_BRIEF_ENABLED=false olsa da bu uç force ile çalışır."""
 
     from backend.models import AiBriefRunLog
     from backend.services.ai_daily_brief import (
@@ -6932,13 +6933,13 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     from sqlalchemy import func
 
     raw = (llm_provider or "gemini").strip().lower()
-    pov = raw if raw in ("groq", "gemini") else "gemini"
+    pov = raw if raw in ("groq", "gemini", "openai") else "gemini"
     avail = _ai_brief_llm_availability()
     if not avail.get(pov):
         msg = (
             "Groq API anahtarı yapılandırılmadı."
             if pov == "groq"
-            else "Gemini API anahtarı yapılandırılmadı."
+            else ("OpenAI API anahtarı yapılandırılmadı." if pov == "openai" else "Gemini API anahtarı yapılandırılmadı.")
         )
         return PlainTextResponse(msg, status_code=400)
 

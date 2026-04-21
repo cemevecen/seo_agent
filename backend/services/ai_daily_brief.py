@@ -64,7 +64,7 @@ def _format_brief_run_detail(
     bits: list[str] = []
     if force:
         req = (provider_override or "").strip().lower()
-        if req in ("groq", "gemini"):
+        if req in ("groq", "gemini", "openai"):
             bits.append(f'Manuel "Analiz yap" · seçilen {req}')
         else:
             bits.append('Manuel "Analiz yap" · yapılandırma sırası')
@@ -160,32 +160,42 @@ def _resolve_brief_llm() -> tuple[str, str] | None:
     """(provider, model_id) veya yapılandırma yetersizse None. Başka kod bu anahtarları kullanmaz."""
     groq_k = (settings.groq_api_key or "").strip()
     gem_k = (settings.gemini_api_key or "").strip()
+    oai_k = (settings.openai_api_key or "").strip()
     pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
     gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
 
     if pref == "gemini":
         return ("gemini", gm) if gem_k else None
     if pref == "groq":
         return ("groq", gq) if groq_k else None
+    if pref == "openai":
+        return ("openai", om) if oai_k else None
     if gem_k:
         return "gemini", gm
     if groq_k:
         return "groq", gq
+    if oai_k:
+        return "openai", om
     return None
 
 
 def _resolve_brief_llm_with_override(provider_override: str | None) -> tuple[str, str] | None:
-    """Arayüzden gelen groq|gemini seçimini uygular; geçersiz veya boşsa ayarlardaki auto mantığı."""
+    """Arayüzden gelen groq|gemini|openai seçimini uygular; geçersizse auto."""
     o = (provider_override or "").strip().lower()
-    if o not in ("groq", "gemini"):
+    if o not in ("groq", "gemini", "openai"):
         return _resolve_brief_llm()
     groq_k = (settings.groq_api_key or "").strip()
     gem_k = (settings.gemini_api_key or "").strip()
+    oai_k = (settings.openai_api_key or "").strip()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
     gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     if o == "groq":
         return ("groq", gq) if groq_k else None
+    if o == "openai":
+        return ("openai", om) if oai_k else None
     return ("gemini", gm) if gem_k else None
 
 
@@ -196,30 +206,41 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
     """
     groq_k = bool((settings.groq_api_key or "").strip())
     gem_k = bool((settings.gemini_api_key or "").strip())
-    if not groq_k and not gem_k:
+    oai_k = bool((settings.openai_api_key or "").strip())
+    if not groq_k and not gem_k and not oai_k:
         return []
     gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
+    om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
 
     order_slug: list[str] = []
     ovr = (provider_override or "").strip().lower()
     if ovr == "groq":
-        order_slug = ["groq"] + (["gemini"] if failover else [])
+        order_slug = ["groq"] + (["gemini", "openai"] if failover else [])
     elif ovr == "gemini":
-        order_slug = ["gemini"] + (["groq"] if failover else [])
+        order_slug = ["gemini"] + (["groq", "openai"] if failover else [])
+    elif ovr == "openai":
+        order_slug = ["openai"] + (["gemini", "groq"] if failover else [])
     else:
         pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
         if pref == "groq":
-            order_slug = ["groq"] + (["gemini"] if failover else [])
+            order_slug = ["groq"] + (["gemini", "openai"] if failover else [])
         elif pref == "gemini":
-            order_slug = ["gemini"] + (["groq"] if failover else [])
+            order_slug = ["gemini"] + (["groq", "openai"] if failover else [])
+        elif pref == "openai":
+            order_slug = ["openai"] + (["gemini", "groq"] if failover else [])
         else:
             # auto: ücretsiz Gemini öncelikli; olmazsa veya failover ile Groq.
             if failover:
-                order_slug = ["gemini", "groq"]
+                order_slug = ["gemini", "groq", "openai"]
             else:
-                order_slug = ["gemini"] if gem_k else ["groq"]
+                if gem_k:
+                    order_slug = ["gemini"]
+                elif groq_k:
+                    order_slug = ["groq"]
+                else:
+                    order_slug = ["openai"]
 
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
@@ -232,6 +253,9 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
         elif p == "gemini" and gem_k:
             out.append(("gemini", gm))
             seen.add("gemini")
+        elif p == "openai" and oai_k:
+            out.append(("openai", om))
+            seen.add("openai")
     return out
 
 
@@ -565,12 +589,51 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
     raise last_err if last_err else RuntimeError("Groq çağrısı başarısız")
 
 
+def _openai_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
+    prompt = _truncate_prompt(prompt, _GROQ_MAX_PROMPT_CHARS)
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {(settings.openai_api_key or '').strip()}",
+        "Content-Type": "application/json",
+    }
+    with httpx.Client(timeout=420.0) as client:
+        for json_mode in (True, False):
+            body: dict = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.35,
+            }
+            if json_mode:
+                body["response_format"] = {"type": "json_object"}
+            r = client.post(url, headers=headers, json=body)
+            if r.status_code == 413:
+                body["messages"][0]["content"] = _truncate_prompt(prompt, _GROQ_FALLBACK_PROMPT_CHARS)
+                r = client.post(url, headers=headers, json=body)
+            try:
+                r.raise_for_status()
+                data = r.json()
+                usage = data.get("usage") or {}
+                pt = int(usage.get("prompt_tokens") or 0)
+                ct = int(usage.get("completion_tokens") or 0)
+                if ct <= 0:
+                    tt = int(usage.get("total_tokens") or 0)
+                    if tt > pt:
+                        ct = max(0, tt - pt)
+                content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+                return _parse_json_object(content), (pt, ct)
+            except (httpx.HTTPStatusError, json.JSONDecodeError):
+                continue
+    raise RuntimeError("OpenAI çağrısı başarısız")
+
+
 def _llm_json(prompt: str, *, provider: str, model_name: str) -> tuple[dict, float]:
     """LLM yanıtı ve bu çağrı için tahmini TRY (record_llm_call_try ile aynı mantık)."""
     if provider == "groq":
         data, (pt, ct) = _groq_chat_json(prompt, model=model_name)
     elif provider == "gemini":
         data, (pt, ct) = _gemini_json(prompt, model_name=model_name)
+    elif provider == "openai":
+        data, (pt, ct) = _openai_chat_json(prompt, model=model_name)
     else:
         raise ValueError(f"Bilinmeyen LLM sağlayıcı: {provider}")
     delta_try = 0.0

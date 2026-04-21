@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     # İsteğe bağlı: günlük AI özetinde Groq sağlayıcı seçilirse kullanılır. Başka modüller bu anahtarı kullanmaz.
     groq_api_key: str = ""
+    # İsteğe bağlı: günlük AI özetinde OpenAI sağlayıcı seçilirse kullanılır.
+    openai_api_key: str = ""
     encryption_key: str
 
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
@@ -143,6 +145,8 @@ class Settings(BaseSettings):
     ai_daily_brief_provider: str = "gemini"
     # Groq üretim modeli: GPT-OSS 120B — özet kalitesi güçlü; Groq fiyat tablosuna göre .env fiyatlarını güncelleyin.
     ai_daily_brief_groq_model: str = "openai/gpt-oss-120b"
+    # OpenAI üretim modeli: maliyet/kalite dengesi için varsayılan mini model.
+    ai_daily_brief_openai_model: str = "gpt-4.1-mini"
     # 429 / kota / erişim hatasında diğer anahtar varsa otomatik Groq ↔ Gemini geçişi (tek üretim turu içinde).
     ai_daily_brief_provider_failover: bool = True
     # true: üretim + Türkçe tek istekte (günde en fazla yarı yarıya daha az LLM çağrısı).
@@ -161,6 +165,8 @@ class Settings(BaseSettings):
     # Gemini Flash ailesi için kabaca $/1M — model/plana göre .env ile düzeltin.
     llm_gemini_prompt_usd_per_mtok: float = 0.075
     llm_gemini_completion_usd_per_mtok: float = 0.30
+    llm_openai_prompt_usd_per_mtok: float = 0.15
+    llm_openai_completion_usd_per_mtok: float = 0.60
 
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"

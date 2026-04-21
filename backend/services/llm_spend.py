@@ -40,6 +40,9 @@ def _tokens_to_usd(provider: str, prompt_tokens: int, completion_tokens: int) ->
     elif p == "gemini":
         inp = float(getattr(settings, "llm_gemini_prompt_usd_per_mtok", 0.075) or 0.0)
         out = float(getattr(settings, "llm_gemini_completion_usd_per_mtok", 0.30) or 0.0)
+    elif p == "openai":
+        inp = float(getattr(settings, "llm_openai_prompt_usd_per_mtok", 0.15) or 0.0)
+        out = float(getattr(settings, "llm_openai_completion_usd_per_mtok", 0.60) or 0.0)
     else:
         return 0.0
     return (pt / 1_000_000.0) * inp + (ct / 1_000_000.0) * out
