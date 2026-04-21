@@ -14,6 +14,11 @@
   #content .dash-fl-fallback-big { font-size: clamp(0.95rem, 7cqi + 0.4rem, 2.1rem); line-height: 1.1; }
   #content .dash-fl-alert-title { font-size: clamp(0.82rem, 2.1cqi + 0.36rem, 0.96rem); line-height: 1.25; overflow-wrap: anywhere; }
   #content .dash-fl-alert-metric { font-size: clamp(0.7rem, 1.6cqi + 0.32rem, 0.8rem); line-height: 1.3; overflow-wrap: anywhere; }
+  #content .dash-metric-cell,
+  #content .dash-metric-cell p,
+  #content .dash-metric-cell span {
+    overflow-wrap: anywhere;
+  }
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-6 sm:space-y-8">
   <span id="dash-ctx" class="hidden" data-sc-segment="{{ sc_segment }}" aria-hidden="true"></span>

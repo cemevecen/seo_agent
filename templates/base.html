@@ -82,21 +82,34 @@
   </style>
   <style id="seo-header-pill-nav">
     .header-nav-link {
-      border-color: rgba(255, 255, 255, 0.24);
+      border-color: rgba(255, 255, 255, 0.35);
       color: #ffffff;
-      background: linear-gradient(110deg, rgba(6, 59, 55, 0.86), rgba(14, 103, 94, 0.72));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      background: linear-gradient(118deg, rgba(15, 118, 110, 0.88), rgba(45, 212, 191, 0.52));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.28);
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      text-align: center;
       transition: background 0.24s ease, transform 0.24s ease, color 0.24s ease, border-color 0.24s ease;
     }
     .header-nav-link:hover {
-      background: linear-gradient(110deg, rgba(10, 75, 68, 0.92), rgba(25, 132, 120, 0.86));
+      background: linear-gradient(118deg, rgba(13, 148, 136, 0.92), rgba(94, 234, 212, 0.72));
       transform: translateY(-1px);
     }
     .header-nav-link.nav-active {
-      background: linear-gradient(110deg, #ffffff, #e2e8f0);
+      background: linear-gradient(118deg, #ecfdf5, #ffffff);
       color: #0f172a;
+      text-shadow: none;
       border-color: rgba(255, 255, 255, 0.95);
       box-shadow: 0 5px 16px -12px rgba(15, 23, 42, 0.75);
+    }
+    @media (max-width: 380px) {
+      .header-nav-link {
+        font-size: 0.625rem;
+        line-height: 1.15;
+        padding: 0.3rem 0.45rem;
+      }
     }
   </style>
   <!-- HTMX CDN -->
@@ -110,28 +123,36 @@
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
       <header class="px-3 py-3 sm:px-6 sm:py-4">
         <div
-          class="rounded-2xl border border-emerald-900/60 px-3 py-2.5 shadow-[0_18px_40px_-30px_rgba(16,185,129,0.45)] sm:px-4"
-          style="background: linear-gradient(110deg, #063b37, #0b5b52 52%, #08443e);"
+          class="rounded-2xl border border-teal-600/50 px-3 py-2.5 shadow-[0_18px_40px_-28px_rgba(45,212,191,0.45)] sm:px-4"
+          style="background: linear-gradient(110deg, #0f766e, #2dd4bf 46%, #14b8a6);"
         >
-          <div class="flex min-w-0 items-center gap-2.5">
-            <h2 id="header-site-title" class="shrink-0 text-xl font-extrabold tracking-tight text-white sm:text-2xl">
+          <div class="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:gap-3">
+            <h2
+              id="header-site-title"
+              class="min-w-0 break-words text-xl font-extrabold tracking-tight text-white sm:text-2xl md:max-w-[min(100%,22rem)] lg:max-w-md xl:max-w-xl"
+            >
               {{ site_name or "SEO Agent" }}
             </h2>
-            <nav id="header-main-nav" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2" aria-label="Ana gezinme">
-              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">Dashboard</a>
-              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">GA4</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">Search Console</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">Alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">PageSpeed</a>
-              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">App</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">AI</a>
-              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">External</a>
-              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-3 py-1.5 text-xs font-semibold">Settings</a>
-            </nav>
+            <div class="flex w-full min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
+              <nav
+                id="header-main-nav"
+                class="flex min-w-0 flex-1 flex-wrap content-start items-center justify-start gap-1 sm:justify-end sm:gap-1.5 md:gap-2"
+                aria-label="Ana gezinme"
+              >
+              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Dashboard</a>
+              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">GA4</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Search Console</a>
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Alerts</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">PageSpeed</a>
+              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">App</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">AI</a>
+              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">External</a>
+              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Settings</a>
+              </nav>
             <button
               id="theme-toggle"
               type="button"
-              class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white/90 transition hover:bg-white/20"
+              class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-xl border border-white/25 bg-white/15 text-white transition hover:bg-white/25 sm:self-center"
               title="Açık / koyu tema"
               aria-label="Tema değiştir"
             >
@@ -143,11 +164,15 @@
               </svg>
               <span class="sr-only">Tema</span>
             </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <section id="content" class="mx-auto w-full max-w-full overflow-x-hidden p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5 md:p-6 md:pb-6">
+      <section
+        id="content"
+        class="mx-auto w-full min-w-0 max-w-full break-words overflow-x-hidden p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5 md:p-6 md:pb-6"
+      >
         {% block content %}{% endblock %}
       </section>
     </main>
