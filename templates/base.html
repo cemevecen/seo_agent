@@ -81,6 +81,26 @@
     }
   </style>
   <style id="seo-header-pill-nav">
+    /* Başlık + pill + tema: mobilde üst satır başlık|tema, alt satır pill (sol hizada); lg+ tek satır */
+    .header-app-shell {
+      display: grid;
+      min-width: 0;
+      align-items: center;
+      column-gap: 0.5rem;
+      row-gap: 0.4rem;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "headline theme"
+        "nav nav";
+    }
+    @media (min-width: 1024px) {
+      .header-app-shell {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: "headline nav theme";
+        row-gap: 0;
+        column-gap: 0.65rem;
+      }
+    }
     .header-nav-link {
       border-color: rgba(255, 255, 255, 0.35);
       color: #ffffff;
@@ -108,7 +128,7 @@
       .header-nav-link {
         font-size: 0.625rem;
         line-height: 1.15;
-        padding: 0.3rem 0.45rem;
+        padding: 0.25rem 0.4rem;
       }
     }
   </style>
@@ -121,50 +141,48 @@
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
-      <header class="px-3 py-3 sm:px-6 sm:py-4">
+      <header class="px-2 py-2 sm:px-4 sm:py-2">
         <div
-          class="rounded-2xl border border-slate-600/55 px-3 py-2.5 shadow-[0_18px_40px_-26px_rgba(71,85,105,0.42)] sm:px-4"
+          class="mx-auto w-full max-w-[min(100%,96rem)] rounded-xl border border-slate-600/50 px-2.5 py-2 shadow-[0_12px_28px_-18px_rgba(71,85,105,0.38)] sm:px-3 sm:py-2"
           style="background: linear-gradient(110deg, #2a3d56, #3d5578 48%, #4d6b8a);"
         >
-          <div class="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:gap-3">
+          <div class="header-app-shell">
             <h2
               id="header-site-title"
-              class="min-w-0 break-words text-xl font-extrabold tracking-tight text-white sm:text-2xl md:max-w-[min(100%,22rem)] lg:max-w-md xl:max-w-xl"
+              class="min-w-0 break-words text-base font-extrabold leading-snug tracking-tight text-white [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md"
             >
               {{ site_name or "SEO Agent" }}
             </h2>
-            <div class="flex w-full min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
-              <nav
-                id="header-main-nav"
-                class="flex min-w-0 flex-1 flex-wrap content-start items-center justify-start gap-1 sm:justify-end sm:gap-1.5 md:gap-2"
-                aria-label="Ana gezinme"
-              >
-              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Dashboard</a>
-              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">GA4</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Search Console</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">PageSpeed</a>
-              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">App</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">AI</a>
-              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">External</a>
-              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-2.5 py-1.5 text-xs font-semibold sm:px-3">Settings</a>
-              </nav>
+            <nav
+              id="header-main-nav"
+              class="flex min-w-0 flex-wrap items-center justify-start gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:justify-end lg:gap-1.5"
+              aria-label="Ana gezinme"
+            >
+              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Dashboard</a>
+              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">GA4</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Search Console</a>
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Alerts</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">PageSpeed</a>
+              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">App</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">AI</a>
+              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">External</a>
+              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Settings</a>
+            </nav>
             <button
               id="theme-toggle"
               type="button"
-              class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-xl border border-white/25 bg-white/15 text-white transition hover:bg-white/25 sm:self-center"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/15 text-white transition hover:bg-white/25 [grid-area:theme]"
               title="Açık / koyu tema"
               aria-label="Tema değiştir"
             >
-              <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="hidden h-4 w-4 dark:inline" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="hidden h-3.5 w-3.5 dark:inline" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
               </svg>
-              <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4 dark:hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="inline h-3.5 w-3.5 dark:hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
               </svg>
               <span class="sr-only">Tema</span>
             </button>
-            </div>
           </div>
         </div>
       </header>
