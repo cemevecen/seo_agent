@@ -104,7 +104,7 @@
     #content :where(table) {
       max-width: 100%;
     }
-    #content :where(.overflow-x-auto table, .overflow-x-scroll table) {
+    #content :where(.overflow-x-auto table:not(.table-fixed), .overflow-x-scroll table:not(.table-fixed)) {
       min-width: max-content;
     }
   </style>
