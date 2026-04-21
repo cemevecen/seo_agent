@@ -1097,8 +1097,24 @@ def _format_sc_tr_date_range(start_iso: str, end_iso: str) -> str:
 def _scope_range_from_rows(rows: list[dict]) -> tuple[str, str]:
     if not rows:
         return ("", "")
-    first = rows[0]
-    return (str(first.get("start_date") or ""), str(first.get("end_date") or ""))
+    starts: list[str] = []
+    ends: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        s = str(row.get("start_date") or "").strip()
+        e = str(row.get("end_date") or "").strip()
+        if s:
+            starts.append(s)
+        if e:
+            ends.append(e)
+    if not starts and not ends:
+        return ("", "")
+    if not starts:
+        starts = ends[:]
+    if not ends:
+        ends = starts[:]
+    return (min(starts), max(ends))
 
 
 def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
