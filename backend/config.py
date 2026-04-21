@@ -36,8 +36,8 @@ class Settings(BaseSettings):
 
     # Uygulama sadece localhost üzerinde dinlenecek şekilde varsayılanlanır.
     app_host: str = "127.0.0.1"
-    allowed_client_ips: str = ""
-    trust_proxy_headers: bool = False
+    allowed_client_ips: str = "176.40.240.237,78.187.20.15"
+    trust_proxy_headers: bool = True
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
