@@ -138,24 +138,66 @@
       </div>
     </div>
 
-    <div class="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
-      <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div class="min-w-0">
-          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Search Console OAuth</h3>
+    <details
+      id="sc-oauth-details"
+      class="group rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6"
+    >
+      <summary
+        class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-left [&::-webkit-details-marker]:hidden"
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            class="inline-flex h-5 w-5 shrink-0 items-center justify-center self-start text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400 sm:self-center"
+            aria-hidden="true"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Search Console OAuth</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Google OAuth yönlendirme ve durum</p>
+          </div>
         </div>
-        {% if oauth_ready %}
-          <span class="inline-flex w-fit shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">OAuth hazır</span>
-        {% else %}
-          <span class="inline-flex w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300">OAuth ayarı eksik</span>
-        {% endif %}
+        <div
+          class="flex max-w-full shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center"
+          onclick="event.stopPropagation()"
+        >
+          {% if oauth_ready %}
+            <span
+              class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+            >
+              OAuth hazır
+            </span>
+          {% else %}
+            <span
+              class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300"
+            >
+              OAuth ayarı eksik
+            </span>
+          {% endif %}
+          <button
+            type="button"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
+            onclick="event.stopPropagation(); location.reload();"
+            title="OAuth / .env değişikliğini görmek için sayfayı yenile"
+          >
+            Yenile
+          </button>
+        </div>
+      </summary>
+
+      <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <div
+          class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200 sm:p-4 sm:text-sm"
+        >
+          <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
+          {% if not oauth_ready %}
+            <p class="mt-2 text-amber-700 dark:text-amber-300">.env içinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanımlaman gerekiyor.</p>
+          {% endif %}
+        </div>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200 sm:p-4 sm:text-sm">
-        <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
-        {% if not oauth_ready %}
-          <p class="mt-2 text-amber-700 dark:text-amber-300">.env içinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanımlaman gerekiyor.</p>
-        {% endif %}
-      </div>
-    </div>
+    </details>
 
     <details
       id="alert-thresholds-details"
