@@ -683,6 +683,21 @@ def _is_admin_authenticated(request: Request) -> bool:
     return hmac.compare_digest(token, expected)
 
 
+def _bootstrap_admin_password_from_env() -> None:
+    """Veritabanında admin hash yoksa .env ADMIN_PASSWORD (config: admin_bootstrap_password) ile doldurur."""
+    raw = (getattr(settings, "admin_bootstrap_password", None) or "").strip()
+    if len(raw) < 6:
+        return
+    try:
+        with SessionLocal() as db:
+            if _admin_password_configured(db):
+                return
+            _upsert_admin_password(db, raw)
+        LOGGER.info("Admin parolası ADMIN_PASSWORD ile veritabanına bootstrap edildi (ilk kurulum).")
+    except Exception as exc:
+        LOGGER.warning("ADMIN_PASSWORD veritabanına yazılamadı: %s", exc)
+
+
 def _request_is_allowlisted(request: Request) -> bool:
     allowlist = [item.strip() for item in settings.allowed_client_ips.split(",") if item.strip()]
     if not allowlist:
@@ -735,6 +750,7 @@ def on_startup() -> None:
     # Uygulama açılışında tablolar create_all ile hazırlanır.
     global SCHEDULER
     init_db()
+    _bootstrap_admin_password_from_env()
     if SCHEDULER is None:
         SCHEDULER = _build_daily_refresh_scheduler()
         if SCHEDULER is not None:

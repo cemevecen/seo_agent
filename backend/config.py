@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     app_host: str = "127.0.0.1"
     allowed_client_ips: str = "176.40.240.237,78.187.20.15"
     trust_proxy_headers: bool = True
+    # DB'de admin hash yokken tek seferlik bootstrap (ilk deploy). UI'dan şifre kaydı ile aynı tablo.
+    # Env: ADMIN_PASSWORD — en az 6 karakter; doluysa ve veritabanında kayıt yoksa açılışta yazılır.
+    admin_bootstrap_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("ADMIN_PASSWORD", "admin_bootstrap_password"),
+    )
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
