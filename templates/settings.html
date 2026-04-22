@@ -157,23 +157,42 @@
       </div>
     </div>
 
-    <div class="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
-      <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Alert Eşikleri</h3>
-        <button
-          type="button"
-          class="shrink-0 self-start rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70 sm:self-auto"
-          onclick="refreshAlertRules()"
-        >
-          Yenile
-        </button>
-      </div>
+    <details
+      id="alert-thresholds-details"
+      class="group rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6"
+    >
+      <summary
+        class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg text-left [&::-webkit-details-marker]:hidden"
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400"
+            aria-hidden="true"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Alert Eşikleri</h3>
+        </div>
+        <div class="shrink-0" onclick="event.stopPropagation()">
+          <button
+            type="button"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
+            onclick="event.stopPropagation(); refreshAlertRules();"
+          >
+            Yenile
+          </button>
+        </div>
+      </summary>
 
-      <div id="alert-thresholds" hx-get="/settings/alert-thresholds" hx-trigger="load" hx-swap="innerHTML">
-        <p class="text-sm text-slate-500 dark:text-slate-400">Alert eşikleri yükleniyor...</p>
+      <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <div id="alert-thresholds">
+          <p class="text-sm text-slate-500 dark:text-slate-400">Paneli açtığınızda eşikler yüklenecek.</p>
+        </div>
+        <p id="alert-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
       </div>
-      <p id="alert-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
-    </div>
+    </details>
 
     <div class="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
       <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -291,8 +310,34 @@
   }
 
   function refreshAlertRules() {
+    const d = document.getElementById('alert-thresholds-details');
+    const inner = document.getElementById('alert-thresholds');
+    if (inner) {
+      inner.setAttribute('data-alert-loaded', '1');
+    }
+    if (d && !d.open) {
+      d.open = true;
+    }
     htmx.ajax('GET', '/settings/alert-thresholds', { target: '#alert-thresholds', swap: 'innerHTML' });
   }
+
+  (function initAlertThresholdsDetails() {
+    const d = document.getElementById('alert-thresholds-details');
+    const inner = document.getElementById('alert-thresholds');
+    if (!d || !inner) {
+      return;
+    }
+    d.addEventListener('toggle', function () {
+      if (!d.open) {
+        return;
+      }
+      if (inner.getAttribute('data-alert-loaded') === '1') {
+        return;
+      }
+      inner.setAttribute('data-alert-loaded', '1');
+      htmx.ajax('GET', '/settings/alert-thresholds', { target: '#alert-thresholds', swap: 'innerHTML' });
+    });
+  })();
 
   function updateAlertRule(alertId) {
     const threshold = document.getElementById(`threshold-${alertId}`).value;
