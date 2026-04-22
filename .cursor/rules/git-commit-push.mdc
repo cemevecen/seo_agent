@@ -10,3 +10,8 @@ Bu repoda kod veya şablon değişikliği yaptıktan sonra, kullanıcı ayrıca 
 1. Anlamlı bir İngilizce veya Türkçe commit mesajı ile `git add` + `git commit` yap.
 2. `git push` ile `origin` üzerindeki varsayılan branch’e (genelde `main`) gönder.
 3. Onay veya “commit at” komutu beklemeden bunu otomatik uygula; sadece push gerçekten mümkün değilse (auth, ağ) kullanıcıyı bilgilendir.
+
+## Railway
+
+- Bu projede canlı dağıtım, GitHub `main` dalına **push** ile tetiklenir; anlamlı kod/şablon işi bittiğinde commit + push mutlaka tamamlanmalıdır.
+- Push sonrası deploy’un bitmesi birkaç dakika sürebilir; gerekirse `/health` `rev` alanı veya Railway paneli ile doğrula.
