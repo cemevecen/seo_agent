@@ -2,6 +2,7 @@
 
 {% block content %}
 <div class="mx-auto flex min-w-0 max-w-[1800px] flex-col gap-5 sm:gap-6 lg:gap-8">
+  {% if admin_access_ui() %}
   <div class="min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
     <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Admin Erişimi</h3>
@@ -65,6 +66,7 @@
     </form>
     {% endif %}
   </div>
+  {% endif %}
 
   {# Site ekle: tam genişlik, üstte — yan sütun kaldırıldı #}
   <div class="min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">

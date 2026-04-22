@@ -772,6 +772,9 @@ def _admin_auth_active() -> bool:
     return bool(settings.admin_auth_enforced)
 
 
+jinja_env.globals["admin_access_ui"] = _admin_auth_active
+
+
 @app.middleware("http")
 async def ip_allowlist_middleware(request: Request, call_next):
     # Allowlist IP'ler doğrudan geçer; diğerleri admin parolası ile giriş yapar.
