@@ -59,7 +59,7 @@ from backend.collectors.search_console import (
     get_top_queries,
 )
 from backend.collectors.url_inspection import collect_url_inspection
-from backend.config import settings
+from backend.config import is_railway_runtime, settings
 from backend.database import SessionLocal, _IS_SQLITE, init_db
 from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
@@ -655,6 +655,8 @@ def _is_local_dev_first_password_client(request: Request) -> bool:
 
 def _may_set_or_update_admin_password(request: Request) -> bool:
     """Allowlist / oturum VEYA (şifre hiç yokken yalnızca yerel ilk kurulum)."""
+    if not _admin_auth_active():
+        return True
     if _request_is_allowlisted(request) or _is_admin_authenticated(request):
         return True
     with SessionLocal() as db:
@@ -763,9 +765,18 @@ def _request_is_allowlisted(request: Request) -> bool:
     return _is_ip_allowed(client_ip, allowlist)
 
 
+def _admin_auth_active() -> bool:
+    """IP allowlist + admin oturum. Railway'de daima açık; yerelde ADMIN_AUTH_ENFORCED=false ile kapatılabilir."""
+    if is_railway_runtime():
+        return True
+    return bool(settings.admin_auth_enforced)
+
+
 @app.middleware("http")
 async def ip_allowlist_middleware(request: Request, call_next):
     # Allowlist IP'ler doğrudan geçer; diğerleri admin parolası ile giriş yapar.
+    if not _admin_auth_active():
+        return await call_next(request)
     path = (request.url.path or "").strip()
     public_prefixes = (
         "/health",
@@ -6254,6 +6265,8 @@ def settings_site_list(request: Request):
 
 @app.get("/admin/login")
 def admin_login_page(request: Request):
+    if not _admin_auth_active():
+        return RedirectResponse(url="/", status_code=303)
     if _request_is_allowlisted(request) or _is_admin_authenticated(request):
         return RedirectResponse(url="/", status_code=303)
     with SessionLocal() as db:
@@ -6281,6 +6294,8 @@ def admin_auth_login_get():
 
 
 def _admin_password_login_submit(request: Request, password: str):
+    if not _admin_auth_active():
+        return RedirectResponse(url="/", status_code=303)
     raw_password = str(password or "").strip()
     with SessionLocal() as db:
         if not _admin_password_configured(db):

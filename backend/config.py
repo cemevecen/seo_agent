@@ -46,6 +46,11 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("ADMIN_PASSWORD", "admin_bootstrap_password"),
     )
+    # IP allowlist + /admin girişi. Yerelde false yapılabilir. Railway tespit edilirse uygulama yok sayar, her zaman açık kalır.
+    admin_auth_enforced: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ADMIN_AUTH_ENFORCED", "admin_auth_enforced"),
+    )
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
