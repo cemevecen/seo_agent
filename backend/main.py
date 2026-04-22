@@ -6157,7 +6157,24 @@ def settings_page(request: Request):
             "admin_password_configured": admin_password_configured,
             "admin_allowlisted_ip": _request_is_allowlisted(request),
         }
+    flash_key = (request.query_params.get("admin_pw") or "").strip()
+    _admin_pw_flash_messages = {
+        "short": "Şifre en az 6 karakter olmalı.",
+        "mismatch": "Şifreler eşleşmiyor.",
+        "save_error": "Şifre kaydedilemedi (veritabanı veya sunucu hatası). Railway deploy loglarına bakın; bir süre sonra tekrar deneyin.",
+        "forbidden": "Bu işlem için yetki yok.",
+        "saved": "Şifre güncellendi.",
+    }
+    if flash_key in _admin_pw_flash_messages:
+        payload["admin_password_flash"] = _admin_pw_flash_messages[flash_key]
+        payload["admin_password_flash_ok"] = flash_key == "saved"
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
+
+
+def _admin_password_form_wants_json(request: Request) -> bool:
+    return request.headers.get("hx-request") == "true" or "application/json" in (
+        request.headers.get("accept", "").lower()
+    )
 
 
 @app.get("/settings/site-list")
@@ -6243,19 +6260,38 @@ def admin_auth_logout(request: Request):
 @app.post("/admin/password")
 def admin_password_set(request: Request, password: str = Form(default=""), password_confirm: str = Form(default="")):
     # Şifre belirleme/güncelleme: yalnız allowlist IP'den veya oturum açmış admin'den.
+    wants_json = _admin_password_form_wants_json(request)
     if not (_request_is_allowlisted(request) or _is_admin_authenticated(request)):
-        return JSONResponse(status_code=403, content={"ok": False, "detail": "Bu işlem için yetki yok."})
+        if wants_json:
+            return JSONResponse(status_code=403, content={"ok": False, "detail": "Bu işlem için yetki yok."})
+        return RedirectResponse(url="/settings?admin_pw=forbidden", status_code=303)
     raw_password = str(password or "")
     confirm = str(password_confirm or "")
     if len(raw_password) < 6:
-        return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifre en az 6 karakter olmalı."})
+        if wants_json:
+            return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifre en az 6 karakter olmalı."})
+        return RedirectResponse(url="/settings?admin_pw=short", status_code=303)
     if raw_password != confirm:
-        return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifreler eşleşmiyor."})
-    with SessionLocal() as db:
-        _upsert_admin_password(db, raw_password)
-        row = _admin_auth_row(db)
-        token = _build_admin_cookie_token(row.password_hash if row else "")
-    response = RedirectResponse(url="/settings", status_code=303)
+        if wants_json:
+            return JSONResponse(status_code=400, content={"ok": False, "detail": "Şifreler eşleşmiyor."})
+        return RedirectResponse(url="/settings?admin_pw=mismatch", status_code=303)
+    try:
+        with SessionLocal() as db:
+            _upsert_admin_password(db, raw_password)
+            row = _admin_auth_row(db)
+            token = _build_admin_cookie_token(row.password_hash if row else "")
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Admin şifre kaydı başarısız (POST /admin/password)")
+        if wants_json:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "ok": False,
+                    "detail": "Şifre kaydedilemedi. Veritabanı veya sunucu hatası; deploy loglarına bakın.",
+                },
+            )
+        return RedirectResponse(url="/settings?admin_pw=save_error", status_code=303)
+    response = RedirectResponse(url="/settings?admin_pw=saved", status_code=303)
     response.set_cookie(
         key=_ADMIN_AUTH_COOKIE,
         value=token,
