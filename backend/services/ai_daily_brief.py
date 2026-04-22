@@ -214,14 +214,20 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
     om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
 
-    order_slug: list[str] = []
     ovr = (provider_override or "").strip().lower()
-    if ovr == "groq":
-        order_slug = ["groq"] + (["gemini", "openai"] if failover else [])
-    elif ovr == "gemini":
-        order_slug = ["gemini"] + (["groq", "openai"] if failover else [])
-    elif ovr == "openai":
-        order_slug = ["openai"] + (["gemini", "groq"] if failover else [])
+    # Manuel provider seçimi, kullanıcı niyetini korumak için fallback yapmaz.
+    if ovr in {"groq", "gemini", "openai"}:
+        if ovr == "groq" and groq_k:
+            return [("groq", gq)]
+        if ovr == "gemini" and gem_k:
+            return [("gemini", gm)]
+        if ovr == "openai" and oai_k:
+            return [("openai", om)]
+        return []
+
+    order_slug: list[str] = []
+    if ovr:
+        order_slug = []
     else:
         pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
         if pref == "groq":
