@@ -22,7 +22,7 @@
     </p>
     {% if admin_password_flash %}
     <p
-      class="mt-3 rounded-lg border px-3 py-2 text-xs sm:text-sm {% if admin_password_flash_ok %}border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100{% else %}border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100{% endif %}"
+      class="mt-3 rounded-lg border px-3 py-2 text-xs sm:text-sm {% if admin_password_flash_ok %}border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100{% elif admin_password_flash_info %}border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100{% else %}border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100{% endif %}"
       role="status"
     >
       {{ admin_password_flash }}

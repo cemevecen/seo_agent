@@ -6179,10 +6179,12 @@ def settings_page(request: Request):
         "save_error": "Şifre kaydedilemedi (veritabanı veya sunucu hatası). Railway deploy loglarına bakın; bir süre sonra tekrar deneyin.",
         "forbidden": "Bu işlem için yetki yok.",
         "saved": "Şifre güncellendi.",
+        "first_setup": "Henüz veritabanında admin şifresi yok. Aşağıda en az 6 karakter olacak şekilde belirleyip kaydedin; sonra /admin/login ile giriş yapın.",
     }
     if flash_key in _admin_pw_flash_messages:
         payload["admin_password_flash"] = _admin_pw_flash_messages[flash_key]
         payload["admin_password_flash_ok"] = flash_key == "saved"
+        payload["admin_password_flash_info"] = flash_key == "first_setup"
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
 
@@ -6210,6 +6212,9 @@ def admin_login_page(request: Request):
         return RedirectResponse(url="/", status_code=303)
     with SessionLocal() as db:
         configured = _admin_password_configured(db)
+    # Şifre yokken giriş formu yine 503; yerelde önce /settings’te belirle.
+    if not configured and _is_loopback_direct_client(request):
+        return RedirectResponse(url="/settings?admin_pw=first_setup", status_code=303)
     return templates.TemplateResponse(
         request,
         "admin_login.html",
