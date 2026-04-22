@@ -1,0 +1,33 @@
+---
+description: Docker app servisi — kod/şablon değişince otomatik build + recreate
+alwaysApply: true
+---
+
+# Docker `app` (8012) — otomatik yenile
+
+Bu repoda `docker-compose.yml` içinde `app` hizmeti vardır; imaj `COPY . .` ile build sırasında kaynağı alır, **kaynak mount yok** — sadece `git pull` yetmez, **rebuild gerekir**.
+
+## Ne zaman (iş bitince, kullanıcıya sormadan)
+
+Bir oturumda aşağıdakileri **değiştirip** işi tamamladıysan (commit / push bittikten veya değişiklik uygulandıktan sonra), proje kökünde **otomatik çalıştır:**
+
+```bash
+./scripts/docker-rebuild-app.sh
+```
+
+Eşdeğer:
+
+```bash
+cd "$(repoda seo_agent kökü)" && docker compose build app && docker compose up -d --force-recreate app
+```
+
+- **Gerekli yollar (tipik):** `templates/**`, `backend/**`, `Dockerfile`, `requirements.txt`, `docker-compose.yml`, `static/**` (imaja giren)
+- **Gereksiz (atla):** yalnızca `.md`, yalnızca `.cursor/rules/`, sadece test dokümanı, kullanıcının açıkça yalnızca Railway deploy istediği anlar
+
+## Hata
+
+`docker: command not found` veya compose hatası olursa adımı atla; cevabında kısaca “Docker yok / hata: …” de. Zorlama yok.
+
+## Amaç
+
+Kullanıcının her seferinde manuel `build && up` söylemesine gerek kalmasın; `8012` üzerindeki konteyner güncel şablon ve Python ile aynı kalsın.
