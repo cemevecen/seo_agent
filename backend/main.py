@@ -152,6 +152,21 @@ def _is_docker_runtime() -> bool:
     return Path("/.dockerenv").is_file()
 
 
+def _request_uses_https(request: Request) -> bool:
+    """Uvicorn http gösterse bile (Railway edge) TLS: X-Forwarded-Proto ve eşdeğer başlıklar."""
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if proto in ("https", "on", "1"):
+        return True
+    if (request.headers.get("x-forwarded-ssl") or "").strip() in ("1", "on", "true", "True"):
+        return True
+    return (request.url.scheme or "").lower() == "https"
+
+
+def _admin_auth_cookie_secure(request: Request) -> bool:
+    # Secure=True iken http://127.0.0.1 gibi HTTP oturumları çerez kaydetmez; sadece gerçekten TLS kırılımında aç.
+    return _request_uses_https(request)
+
+
 DAILY_REFRESH_LOCK = threading.Lock()
 APP_INTEL_REFRESH_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
@@ -6174,7 +6189,7 @@ def admin_auth_login(request: Request, password: str = Form(default="")):
         key=_ADMIN_AUTH_COOKIE,
         value=token,
         httponly=True,
-        secure=not _is_docker_runtime(),
+        secure=_admin_auth_cookie_secure(request),
         samesite="lax",
         max_age=60 * 60 * 12,
         path="/",
@@ -6183,9 +6198,13 @@ def admin_auth_login(request: Request, password: str = Form(default="")):
 
 
 @app.post("/admin/auth/logout")
-def admin_auth_logout():
+def admin_auth_logout(request: Request):
     response = RedirectResponse(url="/admin/login", status_code=303)
-    response.delete_cookie(key=_ADMIN_AUTH_COOKIE, path="/")
+    response.delete_cookie(
+        key=_ADMIN_AUTH_COOKIE,
+        path="/",
+        secure=_admin_auth_cookie_secure(request),
+    )
     return response
 
 
@@ -6209,7 +6228,7 @@ def admin_password_set(request: Request, password: str = Form(default=""), passw
         key=_ADMIN_AUTH_COOKIE,
         value=token,
         httponly=True,
-        secure=not _is_docker_runtime(),
+        secure=_admin_auth_cookie_secure(request),
         samesite="lax",
         max_age=60 * 60 * 12,
         path="/",
