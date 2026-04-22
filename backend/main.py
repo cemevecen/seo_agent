@@ -606,6 +606,17 @@ def _extract_client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+def _is_loopback_direct_client(request: Request) -> bool:
+    """Sadece TCP peer loopback mi (127.0.0.1 / ::1). X-Forwarded-For kullanılmaz; sahte başlıkla bypass riski olmasın."""
+    direct = (request.client.host or "").strip() if request.client else ""
+    if not direct:
+        return False
+    try:
+        return bool(ip_address(direct).is_loopback)
+    except ValueError:
+        return False
+
+
 def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
     # Tek IP ve CIDR formatlarını destekleyen allowlist kontrolü.
     if not client_ip:
@@ -726,6 +737,10 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
     with SessionLocal() as db:
         password_ready = _admin_password_configured(db)
+    # İlk admin şifresi yokken: allowlist dışındaki 127.0.0.1/::1 yine de /settings ve şifre formuna erişebilsin (yerel dev).
+    if not password_ready and _is_loopback_direct_client(request):
+        if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
+            return await call_next(request)
     if password_ready and _is_admin_authenticated(request):
         return await call_next(request)
 
@@ -6203,6 +6218,7 @@ def admin_login_page(request: Request):
             "site_name": "Admin Login",
             "password_configured": configured,
             "client_ip": _extract_client_ip(request),
+            "local_first_setup": (not configured) and _is_loopback_direct_client(request),
         },
     )
 
