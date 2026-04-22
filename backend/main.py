@@ -617,6 +617,52 @@ def _is_loopback_direct_client(request: Request) -> bool:
         return False
 
 
+def _request_target_host_looks_local(request: Request) -> bool:
+    """Tarayıcıda 127.0.0.1 / localhost ile açılmış mı (Host başlığı).
+
+    Docker veya reverse proxy arkasında TCP istemcisi 172.x olsa da Host genelde 127.0.0.1:port gelir;
+    sadece _is_loopback_direct_client kullanınca ilk kurulum /settings döngüsü kırılmıyordu.
+    """
+    raw = (request.headers.get("host") or "").strip()
+    if not raw:
+        return False
+    if raw.startswith("["):
+        end = raw.find("]")
+        if end > 1:
+            try:
+                return bool(ip_address(raw[1:end]).is_loopback)
+            except ValueError:
+                return False
+        return False
+    host = raw
+    if ":" in host:
+        pre, last = host.rsplit(":", 1)
+        if last.isdigit():
+            host = pre
+    h = host.lower()
+    if h in ("localhost", "127.0.0.1", "::1"):
+        return True
+    try:
+        return bool(ip_address(h).is_loopback)
+    except ValueError:
+        return False
+
+
+def _is_local_dev_first_password_client(request: Request) -> bool:
+    """İlk admin şifresi (henüz DB'de yok) için yerel tarayıcı / loopback TCP."""
+    return _is_loopback_direct_client(request) or _request_target_host_looks_local(request)
+
+
+def _may_set_or_update_admin_password(request: Request) -> bool:
+    """Allowlist / oturum VEYA (şifre hiç yokken yalnızca yerel ilk kurulum)."""
+    if _request_is_allowlisted(request) or _is_admin_authenticated(request):
+        return True
+    with SessionLocal() as db:
+        if _admin_password_configured(db):
+            return False
+    return _is_local_dev_first_password_client(request)
+
+
 def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
     # Tek IP ve CIDR formatlarını destekleyen allowlist kontrolü.
     if not client_ip:
@@ -737,8 +783,8 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
     with SessionLocal() as db:
         password_ready = _admin_password_configured(db)
-    # İlk admin şifresi yokken: allowlist dışındaki 127.0.0.1/::1 yine de /settings ve şifre formuna erişebilsin (yerel dev).
-    if not password_ready and _is_loopback_direct_client(request):
+    # İlk admin şifresi yokken: yerel tarayıcı (Host: 127.0.0.1 veya loopback TCP) /settings ve şifre formuna gidebilsin.
+    if not password_ready and _is_local_dev_first_password_client(request):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
     if password_ready and _is_admin_authenticated(request):
@@ -6213,7 +6259,7 @@ def admin_login_page(request: Request):
     with SessionLocal() as db:
         configured = _admin_password_configured(db)
     # Şifre yokken giriş formu yine 503; yerelde önce /settings’te belirle.
-    if not configured and _is_loopback_direct_client(request):
+    if not configured and _is_local_dev_first_password_client(request):
         return RedirectResponse(url="/settings?admin_pw=first_setup", status_code=303)
     return templates.TemplateResponse(
         request,
@@ -6223,7 +6269,7 @@ def admin_login_page(request: Request):
             "site_name": "Admin Login",
             "password_configured": configured,
             "client_ip": _extract_client_ip(request),
-            "local_first_setup": (not configured) and _is_loopback_direct_client(request),
+            "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),
         },
     )
 
@@ -6280,9 +6326,9 @@ def admin_auth_logout(request: Request):
 
 @app.post("/admin/password")
 def admin_password_set(request: Request, password: str = Form(default=""), password_confirm: str = Form(default="")):
-    # Şifre belirleme/güncelleme: yalnız allowlist IP'den veya oturum açmış admin'den.
+    # Şifre belirleme/güncelleme: allowlist / oturum; ilk kurumda ayrıca yerel Host/loopback (yukarıdaki yardımcı).
     wants_json = _admin_password_form_wants_json(request)
-    if not (_request_is_allowlisted(request) or _is_admin_authenticated(request)):
+    if not _may_set_or_update_admin_password(request):
         if wants_json:
             return JSONResponse(status_code=403, content={"ok": False, "detail": "Bu işlem için yetki yok."})
         return RedirectResponse(url="/settings?admin_pw=forbidden", status_code=303)
