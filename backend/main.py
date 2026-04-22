@@ -6174,6 +6174,12 @@ def admin_login_page(request: Request):
     )
 
 
+@app.get("/admin/auth/login")
+def admin_auth_login_get():
+    """Adres çubuğundan GET ile açılınca 405 vermemek için form sayfasına yönlendir."""
+    return RedirectResponse(url="/admin/login", status_code=303)
+
+
 @app.post("/admin/auth/login")
 def admin_auth_login(request: Request, password: str = Form(default="")):
     raw_password = str(password or "").strip()
