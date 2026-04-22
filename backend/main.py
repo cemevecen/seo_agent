@@ -6176,12 +6176,11 @@ def admin_login_page(request: Request):
 
 @app.get("/admin/auth/login")
 def admin_auth_login_get():
-    """Adres çubuğundan GET ile açılınca 405 vermemek için form sayfasına yönlendir."""
+    """Eski/yanlış URL; giriş formu `/admin/login` üzerinde."""
     return RedirectResponse(url="/admin/login", status_code=303)
 
 
-@app.post("/admin/auth/login")
-def admin_auth_login(request: Request, password: str = Form(default="")):
+def _admin_password_login_submit(request: Request, password: str):
     raw_password = str(password or "").strip()
     with SessionLocal() as db:
         if not _admin_password_configured(db):
@@ -6201,6 +6200,17 @@ def admin_auth_login(request: Request, password: str = Form(default="")):
         path="/",
     )
     return response
+
+
+@app.post("/admin/login")
+def admin_login_submit(request: Request, password: str = Form(default="")):
+    """Form doğrudan `/admin/login` adresine POST edebilsin (tek sayfa, 405 yok)."""
+    return _admin_password_login_submit(request, password)
+
+
+@app.post("/admin/auth/login")
+def admin_auth_login(request: Request, password: str = Form(default="")):
+    return _admin_password_login_submit(request, password)
 
 
 @app.post("/admin/auth/logout")
