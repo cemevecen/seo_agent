@@ -48,34 +48,6 @@
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
-    {% if sc_compare_dates %}
-    <div class="mb-4 rounded-xl border border-slate-200/85 bg-slate-50/90 px-3 py-2.5 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-100/80 dark:border-slate-600 dark:bg-slate-800/45 dark:text-slate-300 dark:ring-slate-700/60 sm:px-4 sm:text-xs">
-      <p class="font-semibold text-slate-800 dark:text-slate-100">
-        Tarih karşılaştırması
-        <span class="font-normal text-slate-500 dark:text-slate-400">({{ sc_compare_dates.site_label }})</span>
-      </p>
-      <p class="mt-1.5 min-w-0 break-words text-slate-700 dark:text-slate-200">
-        <span class="text-slate-500 dark:text-slate-400">7g</span>
-        <span class="mx-0.5 text-slate-400">·</span>
-        <span class="font-medium">{{ sc_compare_dates.cur_7 or "—" }}</span>
-        <span class="px-1 text-slate-400">vs</span>
-        <span class="font-medium">{{ sc_compare_dates.prev_7 or "—" }}</span>
-      </p>
-      <p class="mt-1 min-w-0 break-words text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">
-        <span>1g</span>
-        <span class="mx-0.5">·</span>
-        <span>{{ sc_compare_dates.cur_1 or "—" }}</span>
-        <span class="px-0.5">vs</span>
-        <span>{{ sc_compare_dates.prev_1 or "—" }}</span>
-        <span class="mx-1.5 text-slate-300 dark:text-slate-600">|</span>
-        <span>30g</span>
-        <span class="mx-0.5">·</span>
-        <span>{{ sc_compare_dates.cur_30 or "—" }}</span>
-        <span class="px-0.5">vs</span>
-        <span>{{ sc_compare_dates.prev_30 or "—" }}</span>
-      </p>
-    </div>
-    {% endif %}
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-2">
         <button
@@ -888,6 +860,21 @@
     });
   }
 
+  function syncSearchConsoleDateHint(hostCard) {
+    if (!hostCard) {
+      return;
+    }
+    var periodBtn = hostCard.querySelector('[data-sc-period-toggle][data-active="true"]');
+    var devSwitch = hostCard.querySelector('[data-search-console-device-switch]');
+    var devBtn = devSwitch ? devSwitch.querySelector('[data-device-toggle][data-active="true"]') : null;
+    var pk = periodBtn ? String(periodBtn.getAttribute('data-sc-period-toggle') || '7') : '7';
+    var dk = devBtn ? String(devBtn.getAttribute('data-device-toggle') || 'mobile') : 'mobile';
+    hostCard.querySelectorAll('[data-sc-date-hint]').forEach(function (el) {
+      var match = el.getAttribute('data-period') === pk && el.getAttribute('data-device') === dk;
+      el.classList.toggle('hidden', !match);
+    });
+  }
+
   function initSearchConsoleDeviceSwitches(root) {
     (root || document).querySelectorAll('[data-search-console-device-switch]').forEach(function (switcher) {
       if (switcher.dataset.switchReady === '1') {
@@ -914,6 +901,7 @@
             panel.classList.toggle('hidden', !isActive);
           });
         }
+        syncSearchConsoleDateHint(hostCard);
         window.setTimeout(function () {
           initSearchConsoleTables(hostCard);
           renderSearchConsoleTrendCharts(hostCard);
@@ -984,6 +972,7 @@
             panel.classList.toggle('hidden', !isActive);
           });
         }
+        syncSearchConsoleDateHint(hostCard);
         window.setTimeout(function () {
           syncDeviceForActivePeriod();
           initSearchConsoleTables(hostCard);

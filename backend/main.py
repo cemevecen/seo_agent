@@ -7515,54 +7515,16 @@ def settings_alert_thresholds(request: Request):
     return templates.TemplateResponse(request, "partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
 
 
-def _search_console_compare_date_banner(db) -> dict | None:
-    """Kartlar lazy yüklense de üst bantta göstermek için referans siteden karşılaştırma tarihleri (7g/1g/30g)."""
-    external_ids = _external_site_ids(db)
-    sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
-    sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-    if not sites:
-        return None
-    scopes = [
-        "current_7d",
-        "previous_7d",
-        "current_day",
-        "previous_week_same_weekday",
-        "current_30d",
-        "previous_30d",
-    ]
-
-    def _rng(batch: dict[str, list[dict]], key: str) -> str:
-        return _format_sc_tr_date_range(*_scope_range_from_rows(batch.get(key) or []))
-
-    for site in sites[:20]:
-        batch = get_latest_search_console_rows_batch(db, site_id=site.id, scopes=scopes)
-        out = {
-            "site_label": (site.display_name or site.domain or "").strip() or f"site #{site.id}",
-            "cur_7": _rng(batch, "current_7d"),
-            "prev_7": _rng(batch, "previous_7d"),
-            "cur_1": _rng(batch, "current_day"),
-            "prev_1": _rng(batch, "previous_week_same_weekday"),
-            "cur_30": _rng(batch, "current_30d"),
-            "prev_30": _rng(batch, "previous_30d"),
-        }
-        if out["cur_7"] or out["prev_7"] or out["cur_1"] or out["cur_30"]:
-            return out
-    return None
-
-
 @app.get("/search-console")
 def search_console_page(request: Request):
     # Site kartları HTMX ile lazy load edildiğinden burada ağır veri hesabı yapılmaz.
     site_list_mode = "eager" if str(request.query_params.get("refresh_complete") or "").strip() == "1" else "lazy"
-    with SessionLocal() as db:
-        sc_compare_dates = _search_console_compare_date_banner(db)
     payload = {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         "site_list_mode": site_list_mode,
-        "sc_compare_dates": sc_compare_dates,
     }
     return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
 

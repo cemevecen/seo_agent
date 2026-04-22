@@ -19,15 +19,35 @@
     </button>
     <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-1.5 lg:justify-end">
       {% if site.report.has_data and site.report.periods %}
-      <div
-        class="relative z-30 flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
-        data-sc-period-switch
-        role="tablist"
-        aria-label="Search Console dönem karşılaştırması"
-      >
-        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="1" data-active="false">1g</button>
-        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5" data-sc-period-toggle="7" data-active="true">7g</button>
-        <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="30" data-active="false">30g</button>
+      <div class="flex min-w-0 max-w-full flex-col gap-1">
+        <div
+          class="relative z-30 flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
+          data-sc-period-switch
+          role="tablist"
+          aria-label="Search Console dönem karşılaştırması"
+        >
+          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="1" data-active="false">1g</button>
+          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5" data-sc-period-toggle="7" data-active="true">7g</button>
+          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="30" data-active="false">30g</button>
+        </div>
+        <div class="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] pl-0.5" data-sc-period-date-wrap>
+          {% for period_key in ['1', '7', '30'] %}
+            {% set period = site.report.periods[period_key] %}
+            {% for device_key in ['mobile', 'desktop'] %}
+              {% set v = period.views[device_key] %}
+              <p
+                data-sc-date-hint
+                data-period="{{ period_key }}"
+                data-device="{{ device_key }}"
+                class="{% if period_key != '7' or device_key != site.report.default_device %}hidden {% endif %}min-w-0 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-[11px]"
+              >
+                <span class="inline tabular-nums font-medium text-slate-600 dark:text-slate-300">{{ v.range_last or "—" }}</span>
+                <span class="inline px-0.5 text-slate-400 sm:px-1">vs</span>
+                <span class="inline tabular-nums font-medium text-slate-600 dark:text-slate-300">{{ v.range_prev or "—" }}</span>
+              </p>
+            {% endfor %}
+          {% endfor %}
+        </div>
       </div>
       <div class="relative z-30 inline-flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]" data-search-console-device-switch>
         <button type="button" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5 sm:py-1.5" data-device-toggle="mobile" data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}">Mobile</button>
