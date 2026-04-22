@@ -15,14 +15,37 @@
       Allowlist IP’leri doğrudan geçer. Diğer IP’ler bu tek şifre ile giriş yapar.
       {% if admin_allowlisted_ip %} Şu an allowlist IP’den bağlısın.{% endif %}
     </p>
-    <form method="post" action="/admin/password" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <p class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400 sm:text-xs">
+      Kayıtlı şifre güvenlik nedeniyle bu alanlarda <span class="font-medium text-slate-700 dark:text-slate-300">gösterilmez</span>.
+      Sarı renk veya dolu görünen kutu genelde <span class="font-medium">tarayıcı otomatik doldurmasıdır</span> (eski kayıtlı parola); Railway’deki veya veritabanındaki şifreyle aynı olmayabilir.
+      Değiştirmek için alanları temizleyip yeni şifreyi yazın veya tarayıcıda bu site için kayıtlı giriş bilgisini silin.
+    </p>
+    <form method="post" action="/admin/password" autocomplete="off" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div>
         <label for="admin-password" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Yeni Password</label>
-        <input id="admin-password" name="password" type="password" required minlength="6" class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring" />
+        <input
+          id="admin-password"
+          name="password"
+          type="password"
+          required
+          minlength="6"
+          autocomplete="new-password"
+          inputmode="text"
+          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+        />
       </div>
       <div>
         <label for="admin-password-confirm" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Password Tekrar</label>
-        <input id="admin-password-confirm" name="password_confirm" type="password" required minlength="6" class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring" />
+        <input
+          id="admin-password-confirm"
+          name="password_confirm"
+          type="password"
+          required
+          minlength="6"
+          autocomplete="new-password"
+          inputmode="text"
+          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+        />
       </div>
       <div class="flex items-end gap-2">
         <button type="submit" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">Password Kaydet</button>
