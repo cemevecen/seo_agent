@@ -124,6 +124,10 @@ _SC_HTML_NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+_SC_JSON_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 def get_app_revision() -> str:
@@ -7984,15 +7988,33 @@ def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant
 
 @app.post("/search-console/refresh-all")
 def search_console_refresh_all(request: Request):
+    """Toplu GSC çekimi; yanıt JSON — istemci mesajı ve süre (0 sn) yanıltıcı olmasın diye."""
+    if not settings.live_refresh_enabled:
+        return JSONResponse(
+            {
+                "ok": True,
+                "live_refresh_enabled": False,
+                "refreshed": 0,
+                "failed": 0,
+                "not_connected": 0,
+                "title": "Canlı yenileme kapalı",
+                "detail": "LIVE_REFRESH_ENABLED=0. Google Search Console API çağrılmadı; ekran yalnızca veritabanındaki mevcut veriyle tazelenecek.",
+            },
+            headers=_SC_JSON_NO_CACHE_HEADERS,
+        )
     with SessionLocal() as db:
         external = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
         sc_batch: list[tuple[Site, dict]] = []
+        refreshed_ok = 0
+        failed = 0
+        not_connected = 0
         for site in sites:
             if site.id in external:
                 continue
             connection = get_search_console_connection_status(db, site.id)
             if not connection.get("connected"):
+                not_connected += 1
                 continue
             try:
                 results = _refresh_site_detail_measurements(
@@ -8005,10 +8027,21 @@ def search_console_refresh_all(request: Request):
                     send_notifications=True,
                 )
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-                if isinstance(results.get("search_console"), dict):
-                    sc_batch.append((site, results["search_console"]))
+                sc = results.get("search_console")
+                if isinstance(sc, dict):
+                    if str(sc.get("state") or "").lower() == "failed":
+                        failed += 1
+                    else:
+                        refreshed_ok += 1
+                    sc_batch.append((site, sc))
+                else:
+                    failed += 1
+                    sc_batch.append(
+                        (site, {"state": "failed", "error": "Search Console ölçümü dönmedi (içerik yok veya boş)."}),
+                    )
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
+                failed += 1
                 sc_batch.append((site, {"state": "failed", "error": str(exc)}))
         if sc_batch:
             try:
@@ -8021,19 +8054,42 @@ def search_console_refresh_all(request: Request):
                 )
             except Exception:
                 logging.warning("SC refresh-all: bildirim maili gönderilemedi, atlanıyor.")
-        # Refresh-all sonrası her kart lazy yeniden yüklenir
-        external_ids = _external_site_ids(db)
-        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
-        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        return templates.TemplateResponse(
-            request,
-            "partials/search_console_site_cards.html",
-            context={
-                "request": request,
-                "lazy_mode": True,
-                "lazy_site_ids": [(s.id, s.display_name) for s in sites],
-                "oauth_ready": oauth_is_configured(),
+        n_active_non_external = len([s for s in sites if s.id not in external])
+        if refreshed_ok == 0 and failed == 0:
+            if n_active_non_external == 0:
+                title, detail = "Yenilenecek site yok", "Aktif, internal (external olmayan) site bulunamadı."
+            elif not_connected > 0:
+                title, detail = (
+                    "API çağrılmadı",
+                    f"Bağlı GSC (OAuth) sitesi yok: {not_connected} aktif site Search Console property’si ile eşleşmiyor.",
+                )
+            else:
+                title, detail = (
+                    "API sonucu yok",
+                    "Search Console ölçümü dönmedi; ayrıntı için uygulama loglarına bakın.",
+                )
+        elif failed and refreshed_ok:
+            title = "Kısmi yenileme"
+            detail = f"{refreshed_ok} site güncellendi, {failed} sitede hata."
+        elif failed and not refreshed_ok:
+            title = "Yenileme başarısız"
+            detail = f"{failed} site için Search Console verisi alınamadı."
+        else:
+            title = "Tüm siteler güncellendi"
+            detail = f"{refreshed_ok} site Search Console API verisiyle güncellendi."
+            if not_connected:
+                detail += f" {not_connected} site GSC’ye bağlı olmadığı için atlandı."
+        return JSONResponse(
+            {
+                "ok": True,
+                "live_refresh_enabled": True,
+                "refreshed": refreshed_ok,
+                "failed": failed,
+                "not_connected": not_connected,
+                "title": title,
+                "detail": detail,
             },
+            headers=_SC_JSON_NO_CACHE_HEADERS,
         )
 
 

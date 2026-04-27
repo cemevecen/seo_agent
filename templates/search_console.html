@@ -343,12 +343,18 @@
     let lastBaseDetail = config.detail || 'İşlem sürüyor.';
 
     function formatElapsed() {
-      var s = Math.floor((Date.now() - startTime) / 1000);
-      var m = Math.floor(s / 60);
-      s = s % 60;
-      return m > 0
-        ? m + ' dk ' + (s < 10 ? '0' : '') + s + ' sn'
-        : s + ' sn';
+      var ms = Date.now() - startTime;
+      var sec = ms / 1000;
+      if (sec < 60) {
+        // Tam saniyeye yuvarlama: 0,4 s işlem "0 sn" gibi görünmesin
+        if (sec < 10) {
+          return String(sec.toFixed(1)).replace('.', ',') + ' sn';
+        }
+        return Math.floor(sec) + ' sn';
+      }
+      var m = Math.floor(sec / 60);
+      var s = Math.floor(sec % 60);
+      return m + ' dk ' + (s < 10 ? '0' : '') + s + ' sn';
     }
 
     function render(step) {
@@ -578,16 +584,22 @@
 
     fetch('/search-console/refresh-all', {
       method: 'POST',
-      headers: { 'HX-Request': 'true' }
+      headers: { 'HX-Request': 'true', 'Accept': 'application/json' }
     })
       .then(function (response) {
         if (!response.ok) {
           throw new Error('refresh failed');
         }
-        return response.text();
+        return response.json();
       })
-      .then(function () {
-        progress.complete('Tüm siteler güncellendi', 'Search Console kartları yeni verilerle yeniden çizildi.');
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error('invalid response');
+        }
+        progress.complete(
+          data.title || 'İşlem tamamlandı',
+          data.detail || 'Search Console toplu yenileme yanıtı alındı.'
+        );
         reloadSearchConsolePage(450);
       })
       .catch(function (error) {
