@@ -17,20 +17,20 @@
       <h5 class="text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100 sm:text-xl">{{ site.display_name }}</h5>
       <p class="mt-0.5 break-all text-sm leading-snug text-slate-600 dark:text-slate-300">{{ site.domain }}</p>
     </button>
-    <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-1.5 lg:justify-end">
+    <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-1.5 self-start sm:self-auto lg:justify-end">
       {% if site.report.has_data and site.report.periods %}
-      <div class="flex min-w-0 max-w-full flex-col gap-1">
+      <div class="flex w-full min-w-0 max-w-full flex-col gap-1 sm:w-auto sm:max-w-[min(100%,20rem)]">
         <div
-          class="relative z-30 flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
+          class="relative z-30 inline-flex h-8 w-full max-w-[11.25rem] shrink-0 items-stretch sm:h-9 sm:max-w-[12.5rem] rounded-full border border-violet-200/95 bg-violet-100/80 p-0.5 dark:border-slate-600 dark:bg-slate-800/90"
           data-sc-period-switch
           role="tablist"
           aria-label="Search Console dönem karşılaştırması"
         >
-          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="1" data-active="false">1g</button>
-          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-600 sm:px-3.5 sm:py-1.5" data-sc-period-toggle="7" data-active="true">7g</button>
-          <button type="button" role="tab" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5" data-sc-period-toggle="30" data-active="false">30g</button>
+          <button type="button" role="tab" class="min-w-0 flex-1 cursor-pointer rounded-full px-1.5 text-xs font-semibold text-slate-600 transition dark:text-slate-300 sm:px-2 sm:text-sm" data-sc-period-toggle="1" data-active="false">1g</button>
+          <button type="button" role="tab" class="min-w-0 flex-1 cursor-pointer rounded-full bg-violet-900 px-1.5 text-xs font-semibold text-white transition dark:bg-violet-600 sm:px-2 sm:text-sm" data-sc-period-toggle="7" data-active="true">7g</button>
+          <button type="button" role="tab" class="min-w-0 flex-1 cursor-pointer rounded-full px-1.5 text-xs font-semibold text-slate-600 transition dark:text-slate-300 sm:px-2 sm:text-sm" data-sc-period-toggle="30" data-active="false">30g</button>
         </div>
-        <div class="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] pl-0.5" data-sc-period-date-wrap>
+        <div class="min-w-0 max-w-full pl-0.5" data-sc-period-date-wrap>
           {% for period_key in ['1', '7', '30'] %}
             {% set period = site.report.periods[period_key] %}
             {% for device_key in ['mobile', 'desktop'] %}
@@ -39,19 +39,19 @@
                 data-sc-date-hint
                 data-period="{{ period_key }}"
                 data-device="{{ device_key }}"
-                class="{% if period_key != '7' or device_key != site.report.default_device %}hidden {% endif %}min-w-0 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-[11px]"
+                class="{% if period_key != '7' or device_key != site.report.default_device %}hidden {% endif %}w-full min-w-0 break-words text-balance text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-[11px] sm:leading-snug"
               >
-                <span class="inline tabular-nums font-medium text-slate-600 dark:text-slate-300">{{ v.range_last or "—" }}</span>
-                <span class="inline px-0.5 text-slate-400 sm:px-1">vs</span>
-                <span class="inline tabular-nums font-medium text-slate-600 dark:text-slate-300">{{ v.range_prev or "—" }}</span>
+                <span class="font-medium tabular-nums text-slate-600 dark:text-slate-300">{{ v.range_last or "—" }}</span>
+                <span class="px-0.5 text-slate-400 sm:px-1">vs</span>
+                <span class="font-medium tabular-nums text-slate-600 dark:text-slate-300">{{ v.range_prev or "—" }}</span>
               </p>
             {% endfor %}
           {% endfor %}
         </div>
       </div>
-      <div class="relative z-30 inline-flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch]" data-search-console-device-switch>
-        <button type="button" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5 sm:py-1.5" data-device-toggle="mobile" data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}">Mobile</button>
-        <button type="button" class="relative z-10 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5 sm:py-1.5" data-device-toggle="desktop" data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}">Desktop</button>
+      <div class="relative z-30 inline-flex h-8 w-full max-w-[10.25rem] shrink-0 items-stretch rounded-full border border-slate-200/95 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/90 sm:h-9 sm:max-w-[11.5rem]" data-search-console-device-switch>
+        <button type="button" class="min-w-0 flex-1 cursor-pointer rounded-full px-1.5 text-xs font-semibold transition sm:px-2 sm:text-sm" data-device-toggle="mobile" data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}">Mobile</button>
+        <button type="button" class="min-w-0 flex-1 cursor-pointer rounded-full px-1.5 text-xs font-semibold transition sm:px-2 sm:text-sm" data-device-toggle="desktop" data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}">Desktop</button>
       </div>
       {% endif %}
       {% if site_count > 1 %}
