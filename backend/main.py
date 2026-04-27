@@ -3666,6 +3666,21 @@ def _pagespeed_metric_numeric_value(audit: dict, fallback_value: float | None = 
     return None
 
 
+def _pagespeed_metric_benchmark_tr(metric_key: str) -> str:
+    """Google CWV (lab) ve Lighthouse ile uyumlu eşikler; arayüzde 'hedef' satırı için."""
+    mapping = {
+        "fcp": "Hedef (lab): iyi ≤1,8 sn · geliştirilebilir ≤3 sn",
+        "lcp": "Hedef (lab): iyi ≤2,5 sn · geliştirilebilir ≤4 sn",
+        "tbt": "Hedef (lab): iyi ≤200 ms · geliştirilebilir ≤600 ms",
+        "cls": "Hedef (lab): iyi ≤0,10 · geliştirilebilir ≤0,25",
+        "speed_index": "Hedef (Lighthouse SI): iyi ≤3,4 sn · geliştirilebilir ≤5,8 sn",
+    }
+    return mapping.get(metric_key, "")
+
+
+PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR = "Kategori skoru: iyi ≥90 · geliştirilebilir 50–89 · zayıf <50"
+
+
 def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict[str, str]:
     if numeric_value is None:
         return {
@@ -3741,6 +3756,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         {
             "key": "fcp",
             "label": "First Contentful Paint",
+            "benchmark_tr": _pagespeed_metric_benchmark_tr("fcp"),
             "value": _format_pagespeed_metric_display(
                 audits.get("first-contentful-paint") or {},
                 field_metrics.get("first_contentful_paint", {}).get("latest"),
@@ -3756,6 +3772,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         {
             "key": "lcp",
             "label": "Largest Contentful Paint",
+            "benchmark_tr": _pagespeed_metric_benchmark_tr("lcp"),
             "value": _format_pagespeed_metric_display(
                 audits.get("largest-contentful-paint") or {},
                 field_metrics.get("largest_contentful_paint", {}).get("latest"),
@@ -3771,6 +3788,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         {
             "key": "tbt",
             "label": "Total Blocking Time",
+            "benchmark_tr": _pagespeed_metric_benchmark_tr("tbt"),
             "value": _format_pagespeed_metric_display(audits.get("total-blocking-time") or {}),
             "tone": _pagespeed_metric_tone(
                 "tbt",
@@ -3780,6 +3798,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         {
             "key": "cls",
             "label": "Cumulative Layout Shift",
+            "benchmark_tr": _pagespeed_metric_benchmark_tr("cls"),
             "value": _format_pagespeed_metric_display(
                 audits.get("cumulative-layout-shift") or {},
                 field_metrics.get("cumulative_layout_shift", {}).get("latest"),
@@ -3796,6 +3815,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         {
             "key": "speed_index",
             "label": "Speed Index",
+            "benchmark_tr": _pagespeed_metric_benchmark_tr("speed_index"),
             "value": _format_pagespeed_metric_display(audits.get("speed-index") or {}),
             "tone": _pagespeed_metric_tone(
                 "speed_index",
@@ -3817,6 +3837,7 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
                 "label": label,
                 "value": value,
                 "tone": _score_color(value),
+                "benchmark_tr": PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR,
             }
         )
 

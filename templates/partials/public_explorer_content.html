@@ -150,11 +150,15 @@
             <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ report.cwv_badge_class }}">{{ report.cwv_label }}</span>
           </div>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Rapor zamanı: {{ report.report_time }}</p>
+          <p class="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">Hedef eşikleri: CWV (lab) ve Lighthouse; skorlar kategori puanı (iyi ≥90).</p>
           <div class="mt-3 grid grid-cols-2 gap-2">
             {% for score in report.score_tiles %}
               <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5">
                 <p class="text-[11px] uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{{ score.label }}</p>
                 <p class="mt-1 text-xl font-black {{ score.tone }}">{{ score.value }}</p>
+                {% if score.benchmark_tr %}
+                <p class="mt-1.5 text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">{{ score.benchmark_tr }}</p>
+                {% endif %}
               </div>
             {% endfor %}
           </div>
@@ -163,6 +167,9 @@
               <div class="rounded-xl border p-2.5 {{ metric.tone.shell_class }}">
                 <p class="text-[11px] uppercase tracking-[0.1em] {{ metric.tone.label_class }}">{{ metric.label }}</p>
                 <p class="mt-1 text-lg font-black {{ metric.tone.value_class }}">{{ metric.value }}</p>
+                {% if metric.benchmark_tr %}
+                <p class="mt-1.5 text-[9px] font-semibold leading-snug text-slate-700 dark:text-slate-300">{{ metric.benchmark_tr }}</p>
+                {% endif %}
                 <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold {{ metric.tone.badge_class }}">{{ metric.tone.status_label }}</span>
               </div>
             {% endfor %}
