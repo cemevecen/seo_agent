@@ -38,6 +38,19 @@
         left: 120%;
       }
     }
+    .app-asc-details summary {
+      list-style: none;
+    }
+    .app-asc-details summary::-webkit-details-marker {
+      display: none;
+    }
+    .app-asc-chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+    .app-asc-details[open] .app-asc-chevron {
+      transform: rotate(180deg);
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -228,39 +241,55 @@
     </div>
   </section>
 
-  <section
-    class="app-asc-shell mt-5 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:from-[#0b0f19] dark:to-[#0b0f19] dark:ring-slate-800/80 sm:p-6"
-    aria-label="App Store Connect özet"
+  <details
+    id="app-asc-details"
+    class="app-asc-details app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-sm ring-1 ring-slate-200 open:shadow-md dark:border-slate-800 dark:bg-[#0b0f19] dark:from-[#0b0f19] dark:to-[#0b0f19] dark:ring-slate-800/80 sm:rounded-2xl sm:p-6"
+    aria-label="App Store Connect özeti — aç / kapa"
   >
-    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <summary
+      class="app-asc-details-summary flex cursor-pointer list-none items-start justify-between gap-3 text-left outline-none sm:items-center"
+    >
       <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">App Store Connect (özet)</h2>
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Kazanım, satış ve abonelik kartları — App Store Analytics ekranına benzer yerleşim. Dönem: 1 / 7 / 30 gün.
+          Kazanım, satış ve abonelik kartları — App Store Analytics ekranına benzer yerleşim. Tıklayarak 1/7/30 gün detaylarını aç.
         </p>
-        <p id="app-asc-source-note" class="mt-2 text-[11px] text-amber-800/90 dark:text-amber-200/85"></p>
       </div>
-      <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-500">ASC dönemi</span>
-        <nav
-          id="app-asc-period-nav"
-          class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900/80"
-          aria-label="App Store Connect gün aralığı"
-        >
-          <button type="button" data-app-asc-period="1" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1g</button>
-          <button type="button" data-app-asc-period="7" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
-          <button type="button" data-app-asc-period="30" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
-        </nav>
+      <div
+        class="flex shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-1 py-0.5 text-slate-500 dark:text-slate-400"
+        aria-hidden="true"
+      >
+        <span class="text-[10px] font-medium opacity-80 max-sm:sr-only">Aç / kapa</span>
+        <span class="app-asc-chevron text-sm leading-none text-slate-500 dark:text-slate-300">▾</span>
       </div>
-    </div>
+    </summary>
     <div
-      id="app-asc-content"
-      class="space-y-8 text-slate-900 dark:text-slate-100"
-      style="overflow-anchor: none"
+      class="app-asc-details-body mt-4 border-t border-slate-200/80 pt-4 dark:border-slate-800"
     >
-      <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div class="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-500">ASC dönemi</span>
+          <nav
+            id="app-asc-period-nav"
+            class="inline-flex w-max max-w-full flex-wrap rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900/80"
+            aria-label="App Store Connect gün aralığı"
+          >
+            <button type="button" data-app-asc-period="1" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1g</button>
+            <button type="button" data-app-asc-period="7" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
+            <button type="button" data-app-asc-period="30" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
+          </nav>
+        </div>
+      </div>
+      <p id="app-asc-source-note" class="mb-3 text-[11px] text-amber-800/90 dark:text-amber-200/85"></p>
+      <div
+        id="app-asc-content"
+        class="space-y-8 text-slate-900 dark:text-slate-100"
+        style="overflow-anchor: none"
+      >
+        <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      </div>
     </div>
-  </section>
+  </details>
 </div>
 
 <script>
