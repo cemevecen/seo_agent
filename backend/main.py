@@ -5539,7 +5539,11 @@ def data_explorer(request: Request, domain: str):
     except ValueError:
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
-    de_headers = {"Cache-Control": "no-store, max-age=0"}
+    de_headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(
             request,

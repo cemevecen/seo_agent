@@ -9,6 +9,16 @@
 </div>
 {% endmacro %}
 
+{# Lab eşikleri: backend benchmark_tr ile uyumlu; sadece şablon güncell olsa bile kutu görünür #}
+{% set ps_lab_benchmarks = {
+  'fcp': 'Hedef (lab): iyi ≤1,8 sn · geliştirilebilir ≤3 sn',
+  'lcp': 'Hedef (lab): iyi ≤2,5 sn · geliştirilebilir ≤4 sn',
+  'tbt': 'Hedef (lab): iyi ≤200 ms · geliştirilebilir ≤600 ms',
+  'cls': 'Hedef (lab): iyi ≤0,10 · geliştirilebilir ≤0,25',
+  'speed_index': 'Hedef (Lighthouse SI): iyi ≤3,4 sn · geliştirilebilir ≤5,8 sn',
+} %}
+{% set ps_category_benchmark_tr = 'Kategori skoru: iyi ≥90 · geliştirilebilir 50–89 · zayıf <50' %}
+
 {% macro crux_metric_color_class(label) %}
 {% set normalized = (label or '')|upper %}
 {% if normalized == 'CLS' %}
@@ -151,8 +161,12 @@ text-slate-500 dark:text-slate-400
     style="font-size: 30px;"
   >{{ metric_value }}</p>
   {% endif %}
-  {% if metric.benchmark_tr %}
-  <p class="mt-2 text-[10px] font-semibold leading-snug text-indigo-800/90 dark:text-indigo-200/95" title="Endüstride yaygın kullanılan CWV / Lighthouse lab eşikleri">{{ metric.benchmark_tr }}</p>
+  {% set bench_line = (metric.benchmark_tr or ps_lab_benchmarks.get(metric.key, ''))|trim %}
+  {% if bench_line %}
+  <div class="mt-2 rounded-lg border border-violet-300/90 bg-violet-50/95 px-2 py-1.5 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45" data-ps-benchmark="1">
+    <p class="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-900 dark:text-violet-200">Referans (CWV / Lighthouse)</p>
+    <p class="mt-0.5 text-[11px] font-semibold leading-snug text-violet-950 dark:text-violet-50">{{ bench_line }}</p>
+  </div>
   {% endif %}
   <p
     data-fit-text
@@ -388,8 +402,9 @@ text-slate-500 dark:text-slate-400
               class="max-w-full px-2 text-center uppercase leading-4 tracking-[0.12em] font-black {{ score_label }}"
               style="font-size: 12px;"
             >{{ score.label }}</p>
-            {% if score.benchmark_tr %}
-            <p class="mt-1 max-w-[11rem] px-1 text-center text-[9px] font-medium leading-tight text-slate-500 dark:text-slate-400">{{ score.benchmark_tr }}</p>
+            {% set sc_bench = (score.benchmark_tr or ps_category_benchmark_tr)|trim %}
+            {% if sc_bench %}
+            <p class="mt-1 max-w-[12rem] px-1 text-center text-[9px] font-semibold leading-tight text-violet-800 dark:text-violet-200">{{ sc_bench }}</p>
             {% endif %}
           </div>
           {% endfor %}
@@ -1102,7 +1117,13 @@ text-slate-500 dark:text-slate-400
             detail: 'Yeni PSI ve CrUX verileri yükleniyor.',
           });
           setTimeout(function () {
-            window.location.reload();
+            try {
+              var u = new URL(window.location.href);
+              u.searchParams.set('_r', String(Date.now()));
+              window.location.replace(u.toString());
+            } catch (e) {
+              window.location.reload();
+            }
           }, 250);
         } catch (error) {
           if (progressTimer) {
