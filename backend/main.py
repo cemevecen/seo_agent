@@ -130,6 +130,13 @@ _SC_JSON_NO_CACHE_HEADERS = {
 }
 
 
+def _search_console_request_wants_json(request: Request) -> bool:
+    """Yenileme fetch'leri 401/500 gövdesini JSON okuyabilsin (admin middleware + hata ayrıntısı)."""
+    if (request.headers.get("hx-request") or "").lower() == "true":
+        return True
+    return "application/json" in (request.headers.get("accept") or "").lower()
+
+
 def get_app_revision() -> str:
     """Çalışan sürecin kod sürümü (Railway env, docker build, yerel git). Arayüz güncellenmiyorsa /health ile karşılaştır."""
     global _APP_REVISION_CACHE
@@ -8095,58 +8102,90 @@ def search_console_refresh_all(request: Request):
 
 @app.post("/search-console/refresh/{site_id}")
 def search_console_manual_refresh(request: Request, site_id: int):
-    with SessionLocal() as db:
-        site = db.query(Site).filter(Site.id == site_id).first()
-        if site is None:
-            return HTMLResponse("Site bulunamadı.", status_code=404)
-        if _is_external_site(db, site.id):
-            return HTMLResponse("Bu site için Search Console raporu gönderilmez (external).", status_code=404)
-        results = _refresh_site_detail_measurements(
-            db,
-            site,
-            include_pagespeed=False,
-            include_crawler=False,
-            include_search_console=True,
-            force=True,
-            send_notifications=True,
-        )
-        try:
-            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-        except OperationalError as exc:
-            db.rollback()
-            if _is_sqlite_lock_error(exc):
-                return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
-            raise
-        try:
-            notify_result_map(
-                trigger_source="manual",
-                site=site,
-                results=results,
-                action_label="Search Console verisini yenile",
+    wjson = _search_console_request_wants_json(request)
+    try:
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None:
+                if wjson:
+                    return JSONResponse(
+                        {"ok": False, "detail": "Site bulunamadı."},
+                        status_code=404,
+                        headers=_SC_JSON_NO_CACHE_HEADERS,
+                    )
+                return HTMLResponse("Site bulunamadı.", status_code=404)
+            if _is_external_site(db, site.id):
+                if wjson:
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "detail": "Bu site external profilde; Search Console raporu yok.",
+                        },
+                        status_code=404,
+                        headers=_SC_JSON_NO_CACHE_HEADERS,
+                    )
+                return HTMLResponse("Bu site için Search Console raporu gönderilmez (external).", status_code=404)
+            results = _refresh_site_detail_measurements(
+                db,
+                site,
+                include_pagespeed=False,
+                include_crawler=False,
+                include_search_console=True,
+                force=True,
+                send_notifications=True,
             )
-        except Exception:
-            logging.exception(
-                "Search Console manual refresh: notify_result_map failed site_id=%s",
-                site_id,
+            try:
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            except OperationalError as exc:
+                db.rollback()
+                if _is_sqlite_lock_error(exc):
+                    if wjson:
+                        return JSONResponse(
+                            {"ok": False, "detail": "Veritabanı meşgul, lütfen tekrar deneyin."},
+                            status_code=503,
+                            headers=_SC_JSON_NO_CACHE_HEADERS,
+                        )
+                    return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
+                raise
+            try:
+                notify_result_map(
+                    trigger_source="manual",
+                    site=site,
+                    results=results,
+                    action_label="Search Console verisini yenile",
+                )
+            except Exception:
+                logging.exception(
+                    "Search Console manual refresh: notify_result_map failed site_id=%s",
+                    site_id,
+                )
+            schedule_label = (
+                f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
+                f"{int(settings.search_console_scheduled_refresh_minute):02d}"
             )
-        # Yalnızca bu site kartını döndür — hx-target="closest section" veya #sc-card-{id}
-        schedule_label = (
-            f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
-            f"{int(settings.search_console_scheduled_refresh_minute):02d}"
-        )
-        external_ids = _external_site_ids(db)
-        site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
-        site_data = _search_console_single_site_data(db, site, schedule_label)
-        return templates.TemplateResponse(
-            request,
-            "partials/sc_single_site_card.html",
-            context={
-                "request": request,
-                "site": site_data,
-                "oauth_ready": oauth_is_configured(),
-                "site_count": site_count,
-            },
-        )
+            external_ids = _external_site_ids(db)
+            site_count = len([s for s in db.query(Site).all() if s.id not in external_ids])
+            site_data = _search_console_single_site_data(db, site, schedule_label)
+            return templates.TemplateResponse(
+                request,
+                "partials/sc_single_site_card.html",
+                context={
+                    "request": request,
+                    "site": site_data,
+                    "oauth_ready": oauth_is_configured(),
+                    "site_count": site_count,
+                },
+                headers=_SC_HTML_NO_CACHE_HEADERS,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("search_console_manual_refresh site_id=%s", site_id)
+        if wjson:
+            return JSONResponse(
+                status_code=500,
+                content={"ok": False, "detail": f"{type(exc).__name__}: {str(exc)[:2000]}"},
+                headers=_SC_JSON_NO_CACHE_HEADERS,
+            )
+        return HTMLResponse("Search Console yenilenemedi.", status_code=500)
 
 
 @app.post("/search-console/disconnect/{site_id}")

@@ -518,10 +518,8 @@
 
     {% if site.connection.connected %}
       <form
-        hx-post="/search-console/refresh/{{ site.id }}"
-        hx-target="#sc-card-{{ site.id }}"
-        hx-swap="outerHTML"
-        hx-disabled-elt="button"
+        method="post"
+        action="/search-console/refresh/{{ site.id }}"
         data-search-console-refresh-form
         data-site-domain="{{ site.domain }}"
       >

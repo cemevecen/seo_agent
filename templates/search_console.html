@@ -584,17 +584,42 @@
 
     fetch('/search-console/refresh-all', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'HX-Request': 'true', 'Accept': 'application/json' }
     })
       .then(function (response) {
-        if (!response.ok) {
-          throw new Error('refresh failed');
-        }
-        return response.json();
+        return response.text().then(function (text) {
+          if (response.ok) {
+            try {
+              return JSON.parse(text);
+            } catch (e) {
+              throw new Error('Sunucu JSON yanıtı okunamadı.');
+            }
+          }
+          var detail = 'HTTP ' + response.status;
+          if (response.status === 401) {
+            detail = 'Oturum yok veya süresi doldu. Sayfayı yenileyip tekrar deneyin.';
+          }
+          try {
+            var j = JSON.parse(text);
+            if (j && j.detail) {
+              detail = String(j.detail);
+            }
+          } catch (e) {
+            if (text && String(text).trim().length) {
+              detail = String(text).replace(/\s+/g, ' ').slice(0, 480);
+            }
+          }
+          var err = new Error('refresh_all_failed');
+          err.detail = detail;
+          throw err;
+        });
       })
       .then(function (data) {
         if (!data || !data.ok) {
-          throw new Error('invalid response');
+          var bad = new Error('invalid response');
+          bad.detail = (data && data.detail) || 'Geçersiz sunucu yanıtı.';
+          throw bad;
         }
         progress.complete(
           data.title || 'İşlem tamamlandı',
@@ -604,7 +629,11 @@
       })
       .catch(function (error) {
         console.warn('Search Console bulk refresh failed:', error);
-        progress.fail('Tüm siteler yenilenemedi', 'Search Console toplu yenileme tamamlanamadı. Log ve bağlantı durumunu kontrol et.');
+        var d =
+          (error && error.detail) ||
+          (error && error.message) ||
+          'Toplu yenileme tamamlanamadı. Oturum, ağ veya sunucu yanıtını kontrol edin.';
+        progress.fail('Tüm siteler yenilenemedi', d);
       })
       .finally(function () {
         if (trigger) {
@@ -1218,13 +1247,32 @@
 
         fetch(form.action, {
           method: 'POST',
-          headers: { 'HX-Request': 'true' }
+          credentials: 'same-origin',
+          headers: { 'Accept': 'text/html, application/json', 'HX-Request': 'true' }
         })
           .then(function (response) {
-            if (!response.ok) {
-              throw new Error('refresh failed');
-            }
-            return response.text();
+            return response.text().then(function (text) {
+              if (response.ok) {
+                return text;
+              }
+              var detail = 'HTTP ' + response.status;
+              if (response.status === 401) {
+                detail = 'Oturum yok veya süresi doldu. Sayfayı yenileyip (gerekirse) admin girişi yapın.';
+              }
+              try {
+                var j = JSON.parse(text);
+                if (j && j.detail) {
+                  detail = String(j.detail);
+                }
+              } catch (e) {
+                if (text && String(text).trim().length) {
+                  detail = String(text).replace(/\s+/g, ' ').slice(0, 480);
+                }
+              }
+              var err = new Error('sc_refresh_failed');
+              err.detail = detail;
+              throw err;
+            });
           })
           .then(function () {
             progress.complete(siteDomain + ' güncellendi', 'Search Console kartı yeni verilerle yenilendi.');
@@ -1232,7 +1280,11 @@
           })
           .catch(function (error) {
             console.warn('Search Console site refresh failed:', error);
-            progress.fail(siteDomain + ' yenilenemedi', 'Bu site için Search Console verisi yenilenemedi. Bağlantı ve backend loglarını kontrol et.');
+            var d =
+              (error && error.detail) ||
+              (error && error.message) ||
+              'İstek tamamlanamadı. Ağ, oturum veya sunucu loglarını kontrol edin.';
+            progress.fail(siteDomain + ' yenilenemedi', d);
           })
           .finally(function () {
             if (button) {
