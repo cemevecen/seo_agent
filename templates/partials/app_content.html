@@ -253,7 +253,11 @@
         </nav>
       </div>
     </div>
-    <div id="app-asc-content" class="space-y-8 text-slate-900 dark:text-slate-100">
+    <div
+      id="app-asc-content"
+      class="space-y-8 text-slate-900 dark:text-slate-100"
+      style="overflow-anchor: none"
+    >
       <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
     </div>
   </section>
@@ -723,7 +727,9 @@
       b.className = "app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
       if (!b.dataset.bound) {
         b.dataset.bound = "1";
-        b.addEventListener("click", function () {
+        b.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
           state.ascPeriod = v;
           renderAscPeriodNav();
           loadAscPreview();
@@ -999,9 +1005,23 @@
     if (!box) {
       return;
     }
+    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var prevH = box.offsetHeight;
+    if (prevH > 64) {
+      box.style.minHeight = prevH + "px";
+    }
     state.ascRequestSeq += 1;
     var req = state.ascRequestSeq;
     var url = "/api/app/asc-preview?product=" + encodeURIComponent(state.product) + "&period=" + encodeURIComponent(String(state.ascPeriod));
+    function restoreScroll() {
+      box.style.minHeight = "";
+      requestAnimationFrame(function () {
+        window.scrollTo(0, scrollY);
+        requestAnimationFrame(function () {
+          window.scrollTo(0, scrollY);
+        });
+      });
+    }
     box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">App Store metrikleri yükleniyor…</p>';
     fetch(url, { cache: "no-store" })
       .then(function (r) {
@@ -1015,15 +1035,18 @@
         }
         if (!x.ok) {
           renderAscPanel(null);
+          restoreScroll();
           return;
         }
         renderAscPanel(x.j);
+        restoreScroll();
       })
       .catch(function () {
         if (req !== state.ascRequestSeq) {
           return;
         }
         renderAscPanel(null);
+        restoreScroll();
       });
   }
 
