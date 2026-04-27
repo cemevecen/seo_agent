@@ -160,7 +160,7 @@
               {% set clicks_pct_class = 'text-emerald-600' if cp > 0 else ('text-rose-600' if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set impressions_pct_class = 'text-emerald-600' if ip > 0 else ('text-rose-600' if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set ctr_pct_class = 'text-emerald-600' if tp > 0 else ('text-rose-600' if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
-              {% set position_delta_class = 'text-emerald-600 dark:text-emerald-400' if pd > 0 else ('text-rose-600 dark:text-rose-400' if pd < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set position_delta_class = 'text-slate-500 dark:text-slate-400' if (pd|abs) < 0.005 else ('text-emerald-600 dark:text-emerald-400' if pd > 0.005 else 'text-rose-600 dark:text-rose-400') %}
 
               <article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0">
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-blue-500 dark:text-blue-400 sm:text-xs sm:tracking-[0.12em]">CLICKS</p>
@@ -266,7 +266,7 @@
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_current) }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_previous) }}</td>
-                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
+                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if (row.position_diff|float|abs) < 0.005 %}text-slate-500 dark:text-slate-400{% elif row.position_diff|float > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
                       </tr>
                     {% else %}
                       <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde ilk 50 anahtar kelime verisi henüz yok.</td></tr>
