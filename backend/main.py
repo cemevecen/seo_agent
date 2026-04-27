@@ -6460,7 +6460,11 @@ def _sc_position_delta(current: float, previous: float) -> float:
         p = float(previous or 0.0)
     except (TypeError, ValueError):
         return 0.0
-    return p - c
+    d = p - c
+    # UI `{:+.2f}` ile gösterim; iki ondalıkta 0.00 olan farkları tam sıfır yap (yeşil/kırmızı sınıfları)
+    if round(d, 2) == 0.0:
+        return 0.0
+    return d
 
 
 def _ga4_sw_float(m: dict | None, key: str) -> float:
