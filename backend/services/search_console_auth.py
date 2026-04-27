@@ -174,7 +174,8 @@ def _site_requires_oauth_reconnect(db: Session, site_id: int, oauth_record: Site
         return False
     saved_at = _oauth_saved_at(oauth_record)
     if saved_at is None:
-        return False
+        # Eski SiteCredential JSON'unda saved_at yok; invalid_grant yine de yeniden bağlanma gerektirir.
+        return True
     run_at = latest_run.requested_at
     if not run_at:
         return True
@@ -263,7 +264,12 @@ def get_sc_connections_batch(db: "Session", site_ids: list[int]) -> "dict[int, d
         status_val, err_val, run_at = run_errors.get(sid, ("", "", None))
         failed_reauth = status_val.lower() == "failed" and _is_oauth_revoked_error(err_val)
         saved_at = oauth_saved_at_by_site.get(sid)
-        requires_reauth = bool(saved_at) and failed_reauth and (run_at is None or run_at >= saved_at)
+        if not failed_reauth:
+            requires_reauth = False
+        elif not saved_at:
+            requires_reauth = True
+        else:
+            requires_reauth = run_at is None or run_at >= saved_at
         if OAUTH_CREDENTIAL_TYPE in types:
             result[sid] = {
                 "connected": True,
