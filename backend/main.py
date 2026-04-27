@@ -119,6 +119,11 @@ STATIC_DIR = BASE_DIR / "static"
 GSC_SCREENSHOT_DIR = STATIC_DIR / "gsc"
 LOGGER = logging.getLogger(__name__)
 _APP_REVISION_CACHE: str | None = None
+# Search Console HTML (sayfa + HTMX parçaları): tarayıcı önbelleği eski kart göstermesin; F5 gerçekten DB’den gelsin.
+_SC_HTML_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 def get_app_revision() -> str:
@@ -7689,16 +7694,21 @@ def settings_alert_thresholds(request: Request):
 
 @app.get("/search-console")
 def search_console_page(request: Request):
-    # Site kartları HTMX ile lazy load edildiğinden burada ağır veri hesabı yapılmaz.
-    site_list_mode = "eager" if str(request.query_params.get("refresh_complete") or "").strip() == "1" else "lazy"
+    # Her tam sayfa yüklemesinde site listesi eager: tek /site-list yanıtı tüm kart verisini DB’den üretir
+    # (lazy + çoklu HTMX zinciri tarayıcı önbelleği / kısmi yüklenmeyle “yenile işe yaramıyor” hissi verebiliyordu).
     payload = {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
-        "site_list_mode": site_list_mode,
+        "site_list_mode": "eager",
     }
-    return templates.TemplateResponse(request, "search_console.html", context={"request": request, **payload})
+    return templates.TemplateResponse(
+        request,
+        "search_console.html",
+        context={"request": request, **payload},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
 
 
 @app.get("/search-console/site-list")
@@ -7724,6 +7734,7 @@ def search_console_site_list(request: Request):
                     "search_console_sites": search_console_sites,
                     "oauth_ready": oauth_is_configured(),
                 },
+                headers=_SC_HTML_NO_CACHE_HEADERS,
             )
         lazy_site_ids = [(s.id, s.display_name) for s in sites]
     return templates.TemplateResponse(
@@ -7735,6 +7746,7 @@ def search_console_site_list(request: Request):
             "lazy_site_ids": lazy_site_ids,
             "oauth_ready": oauth_is_configured(),
         },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -7744,7 +7756,7 @@ def search_console_single_site_card(request: Request, site_id: int):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
-            return HTMLResponse("", status_code=404)
+            return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
         try:
             # site_count: tek COUNT sorgusu, tüm objeleri çekme
             external_ids = _external_site_ids(db)
@@ -7767,6 +7779,7 @@ def search_console_single_site_card(request: Request, site_id: int):
                 f'Sayfayı yenileyerek tekrar deneyin.</p>'
                 f'<p class="mt-2 text-xs opacity-70 font-mono break-all">{err_msg}</p></section>',
                 status_code=200,
+                headers=_SC_HTML_NO_CACHE_HEADERS,
             )
     return templates.TemplateResponse(
         request,
@@ -7777,6 +7790,7 @@ def search_console_single_site_card(request: Request, site_id: int):
             "oauth_ready": oauth_is_configured(),
             "site_count": site_count,
         },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
 

@@ -541,7 +541,8 @@
 
   function reloadSearchConsolePage(delayMs) {
     window.setTimeout(function () {
-      window.location.assign('/search-console?refresh_complete=1');
+      // _r: önbellek/proxy köşe vakalarında zorunlu GET; sayfa zaten no-store
+      window.location.assign('/search-console?_r=' + Date.now());
     }, Math.max(150, parseInt(delayMs || 0, 10) || 450));
   }
 
