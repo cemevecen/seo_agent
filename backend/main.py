@@ -7218,6 +7218,27 @@ def api_app_intel(product: str = "doviz", period: int = 30):
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/asc-preview")
+def api_app_asc_preview(product: str = "doviz", period: int = 30):
+    """App Store Connect benzeri kazanım / satış / abonelik özeti (şu an demo seriler)."""
+    from backend.services.app_asc_preview import build_asc_connect_preview_payload
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 30
+    if p not in (1, 7, 30):
+        p = 30
+    payload = build_asc_connect_preview_payload(pid, p)
+    if payload.get("error"):
+        return JSONResponse(intel_json_safe(payload), status_code=400)
+    return JSONResponse(intel_json_safe(payload))
+
+
 @app.post("/app/intel/refresh")
 def app_intel_manual_refresh():
     try:

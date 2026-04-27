@@ -227,6 +227,36 @@
       </div>
     </div>
   </section>
+
+  <section
+    class="mt-5 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-sm ring-1 ring-slate-200 dark:border-slate-600 dark:from-slate-900 dark:to-slate-900 dark:ring-slate-700 sm:p-6"
+    aria-label="App Store Connect özet"
+  >
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">App Store Connect (özet)</h2>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Kazanım, satış ve abonelik kartları — App Store Analytics ekranına benzer yerleşim. Dönem: 1 / 7 / 30 gün.
+        </p>
+        <p id="app-asc-source-note" class="mt-2 text-[11px] text-amber-800/90 dark:text-amber-200/90"></p>
+      </div>
+      <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">ASC dönemi</span>
+        <nav
+          id="app-asc-period-nav"
+          class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-800/80"
+          aria-label="App Store Connect gün aralığı"
+        >
+          <button type="button" data-app-asc-period="1" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1g</button>
+          <button type="button" data-app-asc-period="7" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
+          <button type="button" data-app-asc-period="30" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
+        </nav>
+      </div>
+    </div>
+    <div id="app-asc-content" class="space-y-8">
+      <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -268,6 +298,8 @@
     compBenchmarkPayloadByStore: { android: null, ios: null },
     compBenchmarkLastErrors: { android: null, ios: null },
     releasePanelProduct: null,
+    ascPeriod: 30,
+    ascRequestSeq: 0,
   };
   var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
   var COMP_BENCHMARK_HISTORY_KEY = "seo_agent_comp_benchmark_history_v1";
@@ -682,6 +714,233 @@
       var on = pid === state.product;
       b.className = productTabClass(pid, on);
     });
+  }
+
+  function renderAscPeriodNav() {
+    document.querySelectorAll(".app-asc-period-btn").forEach(function (b) {
+      var v = parseInt(b.getAttribute("data-app-asc-period"), 10);
+      var on = v === state.ascPeriod;
+      b.className = "app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
+      if (!b.dataset.bound) {
+        b.dataset.bound = "1";
+        b.addEventListener("click", function () {
+          state.ascPeriod = v;
+          renderAscPeriodNav();
+          loadAscPreview();
+        });
+      }
+    });
+  }
+
+  function ascDeltaClass(n) {
+    if (!isFinite(n)) {
+      return "text-slate-500 dark:text-slate-400";
+    }
+    if (n > 0) {
+      return "text-emerald-600 dark:text-emerald-400";
+    }
+    if (n < 0) {
+      return "text-rose-600 dark:text-rose-400";
+    }
+    return "text-slate-500 dark:text-slate-400";
+  }
+
+  function ascFormatDelta(n) {
+    if (!isFinite(n)) {
+      return "—";
+    }
+    return (n > 0 ? "+" : "") + n.toFixed(1).replace(/\.0$/, "") + "%";
+  }
+
+  function ascSparklineSvg(series, stroke) {
+    var s = series && series.length ? series : [0, 0];
+    var minV = Math.min.apply(null, s);
+    var maxV = Math.max.apply(null, s);
+    var span = maxV - minV || 1;
+    var pts = s
+      .map(function (v, i) {
+        var x = (i / (s.length - 1)) * 100;
+        var y = 32 - ((v - minV) / span) * 30 - 1;
+        return x + "," + y;
+      })
+      .join(" ");
+    return (
+      '<svg class="h-8 w-full text-sky-500 dark:text-sky-400" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">' +
+      "<polyline fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" points=\"" +
+      pts +
+      '"></polyline></svg>'
+    );
+  }
+
+  function renderAscPanel(j) {
+    var box = document.getElementById("app-asc-content");
+    var note = document.getElementById("app-asc-source-note");
+    if (note) {
+      if (j && j.source === "demo" && j.source_note) {
+        note.textContent = j.source_note;
+      } else {
+        note.textContent = "";
+      }
+    }
+    if (!box) {
+      return;
+    }
+    if (!j || j.error) {
+      box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-300">App Store Connect özeti yüklenemedi.</p>';
+      return;
+    }
+    var A = j.acquisition || {};
+    var S = j.sales || {};
+    var U = j.subscriptions || {};
+    var big3 = function (t, a) {
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80 sm:p-4">' +
+        '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' +
+        t +
+        "</p>" +
+        '<p class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">' +
+        esc(a && a.value_label) +
+        "</p>" +
+        '<p class="mt-0.5 text-sm font-medium ' +
+        ascDeltaClass((a && a.delta_pct) || 0) +
+        '">' +
+        esc(ascFormatDelta((a && a.delta_pct) || 0)) +
+        "</p>" +
+        '<div class="mt-2 opacity-90">' +
+        ascSparklineSvg((a && a.series) || [], "sky") +
+        "</div></div>"
+      );
+    };
+    var small1 = function (t, a) {
+      if (!a) {
+        return "";
+      }
+      return (
+        '<div class="rounded-lg border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80">' +
+        '<p class="text-[9px] font-semibold uppercase text-slate-500 dark:text-slate-400">' +
+        t +
+        "</p>" +
+        '<p class="text-base font-bold text-slate-900 dark:text-slate-100">' +
+        esc(a.value_label) +
+        "</p>" +
+        '<p class="text-xs ' +
+        ascDeltaClass((a && a.delta_pct) || 0) +
+        '">' +
+        esc(ascFormatDelta((a && a.delta_pct) || 0)) +
+        "</p></div>"
+      );
+    };
+    var dBars = (U.net_paid_plans && U.net_paid_plans.daily_bars) || [];
+    var mAbs = 1;
+    dBars.forEach(function (v) {
+      mAbs = Math.max(mAbs, Math.abs(v));
+    });
+    var barHtml =
+      '<div class="relative h-32 w-full rounded-lg bg-slate-100/80 dark:bg-slate-800/50">' +
+      '<div class="absolute left-0 right-0 top-1/2 h-px bg-slate-300 dark:bg-slate-600" aria-hidden="true"></div>';
+    var bw = 100 / Math.max(1, dBars.length);
+    dBars.forEach(function (v, i) {
+      var hP = (Math.abs(v) / mAbs) * 48;
+      var le = (i * bw + bw * 0.1) + "%";
+      var wd = (bw * 0.7) + "%";
+      if (v >= 0) {
+        barHtml +=
+          '<div class="absolute rounded-t-sm bg-sky-500" style="left:' + le + ";width:" + wd + ";bottom:50%;height:" + hP + '%"></div>';
+      } else {
+        barHtml +=
+          '<div class="absolute rounded-b-sm bg-rose-500" style="left:' + le + ";width:" + wd + ";top:50%;height:" + hP + '%"></div>';
+      }
+    });
+    barHtml += "</div>";
+    if (!dBars.length) {
+      barHtml = '<p class="text-sm text-slate-500">Günlük seri yok.</p>';
+    }
+    var html = "";
+    html += '<h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kazanım (Acquisition)</h3>';
+    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
+    html += big3("İlk indirmeler (First-time downloads)", A.first_time_downloads);
+    html += big3("Yeniden indirmeler", A.redownloads);
+    html += big3("Dönüşüm oranı (Product page → App)", A.conversion_rate);
+    html += "</div>";
+    html += '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">';
+    html += small1("Gösterimler (Impressions)", A.impressions);
+    html += small1("Ürün sayfası görüntülemesi", A.product_page_views);
+    html += small1("Güncellemeler (Updates)", A.updates);
+    html += "</div>";
+    html += '<h3 class="mt-8 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Satış (Sales)</h3>';
+    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
+    html += big3("Gelir (Proceeds)", S.proceeds);
+    html += big3("Ödeme yapan kullanıcı", S.paying_users);
+    html += big3("Uygulama içi satın alma (adet)", S.in_app_purchases);
+    html += "</div>";
+    html += '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">';
+    html +=
+      '<div class="rounded-lg border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80"><p class="text-[9px] font-semibold uppercase text-slate-500">Gün 1: İndirme → satın alma</p><p class="text-base font-bold text-slate-900 dark:text-slate-100">' +
+      (S.d1_download_to_paid != null ? esc(String(S.d1_download_to_paid) + "%") : "—") +
+      "</p></div>";
+    html +=
+      '<div class="rounded-lg border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80"><p class="text-[9px] font-semibold uppercase text-slate-500">Gün 7: İndirme → satın alma</p><p class="text-base font-bold text-slate-900 dark:text-slate-100">' +
+      (S.d7_download_to_paid != null ? esc(String(S.d7_download_to_paid) + "%") : "—") +
+      "</p></div>";
+    html +=
+      '<div class="rounded-lg border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/80"><p class="text-[9px] font-semibold uppercase text-slate-500">Gün 35: İndirme → satın alma</p><p class="text-base font-bold text-slate-900 dark:text-slate-100">' +
+      (S.d35_download_to_paid != null ? esc(String(S.d35_download_to_paid) + "%") : "—") +
+      "</p></div>";
+    html += "</div>";
+    html += '<h3 class="mt-8 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Abonelikler (Subscriptions)</h3>';
+    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
+    html += '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80 sm:p-4"><p class="text-[10px] font-semibold uppercase text-slate-500">Aktif plan</p><p class="mt-1 text-2xl font-bold">' + esc((U.active_plans && U.active_plans.value_label) || "—") + "</p><p class=\"mt-0.5 text-sm " + ascDeltaClass((U.active_plans && U.active_plans.delta_pct) || 0) + '">' + esc(ascFormatDelta((U.active_plans && U.active_plans.delta_pct) || 0)) + "</p></div>";
+    html += '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80 sm:p-4"><p class="text-[10px] font-semibold uppercase text-slate-500">Ücretli plan</p><p class="mt-1 text-2xl font-bold">' + esc((U.paid_plans && U.paid_plans.value_label) || "—") + "</p><p class=\"mt-0.5 text-sm " + ascDeltaClass((U.paid_plans && U.paid_plans.delta_pct) || 0) + '">' + esc(ascFormatDelta((U.paid_plans && U.paid_plans.delta_pct) || 0)) + "</p></div>";
+    html += '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/80 sm:p-4"><p class="text-[10px] font-semibold uppercase text-slate-500">Aylık tekrarlayan gelir (MRR)</p><p class="mt-1 text-2xl font-bold">' + esc((U.mrr && U.mrr.value_label) || "—") + "</p><p class=\"mt-0.5 text-sm " + ascDeltaClass((U.mrr && U.mrr.delta_pct) || 0) + '">' + esc(ascFormatDelta((U.mrr && U.mrr.delta_pct) || 0)) + "</p></div>";
+    html += "</div>";
+    html += '<div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch">';
+    html +=
+      '<div class="rounded-xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-600 dark:bg-slate-800/50 lg:col-span-8"><p class="text-[10px] font-semibold uppercase text-slate-500">Net ücretli plan (günlük)</p><p class="text-2xl font-bold text-slate-900 dark:text-slate-100">' +
+      esc((U.net_paid_plans && U.net_paid_plans.value_label) || "—") +
+      '</p><div class="mt-2">' +
+      barHtml +
+      "</div></div>";
+    html +=
+      '<div class="flex flex-col gap-2 lg:col-span-4"><div class="flex-1 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-900/80"><p class="text-[10px] font-semibold uppercase text-slate-500">Yeni abonelik başlangıcı</p><p class="text-2xl font-bold">' +
+      (U.plan_starts != null ? esc(String(U.plan_starts)) : "—") +
+      '</p></div><div class="flex-1 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-900/80"><p class="text-[10px] font-semibold uppercase text-slate-500">Churn (düşenler)</p><p class="text-2xl font-bold">' +
+      (U.churned != null ? esc(String(U.churned)) : "—") +
+      "</p></div></div>";
+    html += "</div>";
+    box.innerHTML = html;
+  }
+
+  function loadAscPreview() {
+    var box = document.getElementById("app-asc-content");
+    if (!box) {
+      return;
+    }
+    state.ascRequestSeq += 1;
+    var req = state.ascRequestSeq;
+    var url = "/api/app/asc-preview?product=" + encodeURIComponent(state.product) + "&period=" + encodeURIComponent(String(state.ascPeriod));
+    box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">App Store metrikleri yükleniyor…</p>';
+    fetch(url, { cache: "no-store" })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (x) {
+        if (req !== state.ascRequestSeq) {
+          return;
+        }
+        if (!x.ok) {
+          renderAscPanel(null);
+          return;
+        }
+        renderAscPanel(x.j);
+      })
+      .catch(function () {
+        if (req !== state.ascRequestSeq) {
+          return;
+        }
+        renderAscPanel(null);
+      });
   }
 
   function renderPeriodNav() {
@@ -2012,6 +2271,7 @@
         }
         return finishProgress().then(function () {
           redrawAll();
+          loadAscPreview();
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
           return fetch(asoUrl)
             .then(function (r2) {
@@ -2144,6 +2404,7 @@
 
   renderProductNav();
   renderPeriodNav();
+  renderAscPeriodNav();
   applyHeroShellFromState();
   restoreCompetitorBenchmarkState();
   updateClearBtnVisibility();
