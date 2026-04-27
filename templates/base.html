@@ -196,9 +196,9 @@
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
-      <header class="px-2 py-1.5 sm:px-4 sm:py-2">
+      <header class="px-3 py-1.5 sm:px-5 sm:py-2 md:px-6 md:py-2">
         <div
-          class="mx-auto w-full max-w-[min(100%,96rem)] rounded-xl px-2.5 py-1.5 shadow-[0_10px_22px_-18px_rgba(70,30,100,0.38)] sm:px-3 sm:py-2"
+          class="mx-auto w-full min-w-0 max-w-[min(100%,1800px)] rounded-xl px-2.5 py-1.5 shadow-[0_10px_22px_-18px_rgba(70,30,100,0.38)] sm:px-3 sm:py-2"
           style="background: linear-gradient(110deg, #4a3560 0%, #6b4a8a 45%, #8a5cad 100%);"
         >
           <div class="header-app-shell">
