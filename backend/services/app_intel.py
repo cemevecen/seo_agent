@@ -85,6 +85,8 @@ APP_PRODUCTS: dict[str, dict[str, str]] = {
     "doviz": {
         "label": "Döviz",
         "android_package": "com.Doviz",
+        # BigQuery’de tablo adı: bundle id noktaları → alt çizgi (örn. com.doviz → com_doviz). Firebase’deki gerçek iOS bundle ile eşleşmeli.
+        "ios_bundle_id": "com.Doviz",
         "android_url": "https://play.google.com/store/apps/details?id=com.Doviz&hl=tr",
         "ios_app_id": "465599322",
         "ios_slug": "d%C3%B6viz-kur-alt%C4%B1n-borsa-koin",
@@ -93,6 +95,7 @@ APP_PRODUCTS: dict[str, dict[str, str]] = {
     "sinemalar": {
         "label": "Sinemalar",
         "android_package": "com.nokta.sinemalar",
+        "ios_bundle_id": "com.nokta.sinemalar",
         "android_url": "https://play.google.com/store/apps/details?id=com.nokta.sinemalar&hl=tr",
         "ios_app_id": "711475888",
         "ios_slug": "sinemalar-com-vizyon-filmleri",

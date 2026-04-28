@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
     ga4_service_account_json: str = ""
     ga4_service_account_file: str = ""
+    # Firebase Crashlytics → BigQuery: GA4 ile aynı service account; IAM’da BigQuery Data Viewer + BigQuery Job User gerekir.
+    # Boş bırakılırsa proje id, GA4 service account JSON içindeki project_id alınır.
+    firebase_crashlytics_bigquery_project: str = ""
+    firebase_crashlytics_bigquery_dataset: str = "firebase_crashlytics"
+
     # GA4, Search Console, mağaza analitiği: rapor takvim günü (sunucu UTC olsa bile dün/son N gün TSİ).
     report_calendar_timezone: str = "Europe/Istanbul"
     # GA4 landing sayfa filtresi: virgülle ayrılmış path alt dizeleri (haber vb. hariç)

@@ -147,7 +147,7 @@ def build_asc_connect_preview_payload(product_id: str, period_days: int) -> dict
 
     return {
         "source": "demo",
-        "source_note": "Örnek trend verisi (App Store Connect API bağlantısı eklendiğinde canlı dolar).",
+        "source_note": "Örnek trend verisi (App Store Connect API bağlantısı eklendiğinde canlı veriyle değişecek).",
         "product": pid,
         "product_label": label,
         "period_days": period_days,

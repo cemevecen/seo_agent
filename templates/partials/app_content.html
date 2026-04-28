@@ -290,6 +290,50 @@
       </div>
     </div>
   </details>
+
+  <details
+    id="app-crashlytics-details"
+    class="app-asc-details app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-sm ring-1 ring-slate-200 open:shadow-md dark:border-slate-800 dark:bg-[#0b0f19] dark:from-[#0b0f19] dark:to-[#0b0f19] dark:ring-slate-800/80 sm:rounded-2xl sm:p-6"
+    aria-label="Firebase Crashlytics — aç / kapa"
+  >
+    <summary
+      class="app-asc-details-summary flex cursor-pointer list-none items-start justify-between gap-3 text-left outline-none sm:items-center"
+    >
+      <div class="min-w-0">
+        <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">Firebase Crashlytics</h2>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          BigQuery aktarımından son günlerdeki çökme ve ANR sayıları; issue başına olay adedi. Açmak için tıklayın.
+        </p>
+      </div>
+      <div
+        class="flex shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-1 py-0.5 text-slate-500 dark:text-slate-400"
+        aria-hidden="true"
+      >
+        <span class="text-[10px] font-medium opacity-80 max-sm:sr-only">Aç / kapa</span>
+        <span class="app-asc-chevron text-sm leading-none text-slate-500 dark:text-slate-300">▾</span>
+      </div>
+    </summary>
+    <div class="app-asc-details-body mt-4 border-t border-slate-200/80 pt-4 dark:border-slate-800">
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div class="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-500">Pencere</span>
+          <nav
+            id="app-crash-period-nav"
+            class="inline-flex w-max max-w-full flex-wrap rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900/80"
+            aria-label="Crashlytics gün aralığı"
+          >
+            <button type="button" data-app-crash-period="7" class="app-crash-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
+            <button type="button" data-app-crash-period="14" class="app-crash-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">14g</button>
+            <button type="button" data-app-crash-period="30" class="app-crash-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
+          </nav>
+        </div>
+      </div>
+      <p id="app-crashlytics-note" class="mb-3 text-[11px] text-slate-600 dark:text-slate-400"></p>
+      <div id="app-crashlytics-content" class="space-y-6 text-slate-900 dark:text-slate-100" style="overflow-anchor: none">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Paneli açınca veri yüklenir.</p>
+      </div>
+    </div>
+  </details>
 </div>
 
 <script>
@@ -333,6 +377,8 @@
     releasePanelProduct: null,
     ascPeriod: 30,
     ascRequestSeq: 0,
+    crashlyticsDays: 7,
+    crashlyticsRequestSeq: 0,
   };
   var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
   var COMP_BENCHMARK_HISTORY_KEY = "seo_agent_comp_benchmark_history_v1";
@@ -733,6 +779,10 @@
         refreshProductStyles();
         applyHeroShellFromState();
         loadIntel();
+        var cDet = document.getElementById("app-crashlytics-details");
+        if (cDet && cDet.open) {
+          loadCrashlyticsPreview();
+        }
       });
       nav.appendChild(b);
     });
@@ -1077,6 +1127,167 @@
         renderAscPanel(null);
         restoreScroll();
       });
+  }
+
+  function renderCrashPeriodNav() {
+    document.querySelectorAll(".app-crash-period-btn").forEach(function (b) {
+      var v = parseInt(b.getAttribute("data-app-crash-period"), 10);
+      var on = v === state.crashlyticsDays;
+      b.className = "app-crash-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
+      if (!b.dataset.bound) {
+        b.dataset.bound = "1";
+        b.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          state.crashlyticsDays = v;
+          renderCrashPeriodNav();
+          var cDet = document.getElementById("app-crashlytics-details");
+          if (cDet && cDet.open) {
+            loadCrashlyticsPreview();
+          }
+        });
+      }
+    });
+  }
+
+  function crashErrTypeClass(t) {
+    var u = (t || "").toUpperCase();
+    if (u === "FATAL") return "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200";
+    if (u === "ANR") return "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100";
+    if (u === "NON_FATAL") return "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200";
+    return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+  }
+
+  function renderCrashlyticsPanel(j) {
+    var box = document.getElementById("app-crashlytics-content");
+    var note = document.getElementById("app-crashlytics-note");
+    if (!box) return;
+    if (note) {
+      if (j && j.ok && j.bigquery_project) {
+        note.textContent =
+          "Proje: " +
+          j.bigquery_project +
+          " · Dataset: " +
+          (j.bigquery_dataset || "firebase_crashlytics") +
+          " · Tablo adları bundle id / package (nokta → alt çizgi).";
+      } else {
+        note.textContent = "";
+      }
+    }
+    if (!j) {
+      box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Crashlytics verisi alınamadı.</p>';
+      return;
+    }
+    if (j.ok === false) {
+      box.innerHTML =
+        '<p class="text-sm text-amber-800 dark:text-amber-200">' + esc(j.message || "Yapılandırma eksik.") + "</p>";
+      return;
+    }
+    var T = j.totals || {};
+    var head =
+      '<div class="flex flex-wrap gap-4 text-sm"><span class="rounded-lg bg-rose-50 px-3 py-1.5 font-medium text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-100 dark:ring-rose-800">FATAL olay: <strong class="tabular-nums">' +
+      esc(String(T.fatal_events != null ? T.fatal_events : "—")) +
+      '</strong></span><span class="rounded-lg bg-amber-50 px-3 py-1.5 font-medium text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800">ANR: <strong class="tabular-nums">' +
+      esc(String(T.anr_events != null ? T.anr_events : "—")) +
+      '</strong></span><span class="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-800 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600">NON_FATAL: <strong class="tabular-nums">' +
+      esc(String(T.non_fatal_events != null ? T.non_fatal_events : "—")) +
+      "</strong></span></div>";
+    var order = ["android", "ios"];
+    var parts = [head];
+    order.forEach(function (key) {
+      var P = j.platforms && j.platforms[key];
+      if (!P) return;
+      var sub =
+        '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-4"><h3 class="text-sm font-bold text-slate-900 dark:text-slate-100">' +
+        esc((P.label || key).toUpperCase()) +
+        "</h3>";
+      if (P.skipped) {
+        sub += '<p class="mt-2 text-sm text-slate-600 dark:text-slate-400">' + esc(P.reason || "") + "</p>";
+        sub += "</div>";
+        parts.push(sub);
+        return;
+      }
+      sub +=
+        '<p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Tablo: <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">' +
+        esc(P.table_id || "") +
+        "</code></p>";
+      if (P.error) {
+        sub += '<p class="mt-2 text-sm text-rose-600 dark:text-rose-400">' + esc(P.error) + "</p>";
+      }
+      var rows = P.issues || [];
+      if (!P.error && rows.length === 0) {
+        sub +=
+          '<p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Bu pencerede kayıt yok veya sorun listesi boş.</p>';
+      }
+      if (rows.length) {
+        sub +=
+          '<div class="mt-3 overflow-x-auto"><table class="w-full min-w-[480px] border-collapse text-left text-xs sm:text-sm"><thead><tr class="border-b border-slate-200 dark:border-slate-600"><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Issue</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Tür</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300 text-right">Olay</th></tr></thead><tbody>';
+        rows.forEach(function (row) {
+          var badge =
+            '<span class="inline-block rounded px-2 py-0.5 text-[10px] font-semibold ' +
+            crashErrTypeClass(row.error_type) +
+            '">' +
+            esc(row.error_type || "—") +
+            "</span>";
+          sub +=
+            '<tr class="border-b border-slate-100 dark:border-slate-800/80"><td class="py-2 pr-3 align-top"><div class="font-medium text-slate-900 dark:text-slate-100">' +
+            esc(row.issue_title || "(başlıksız)") +
+            '</div><div class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500 break-all">' +
+            esc(row.issue_id || "") +
+            "</div></td><td class="py-2 pr-3 align-top\">" +
+            badge +
+            '</td><td class="py-2 pr-3 align-top text-right tabular-nums font-semibold">' +
+            esc(String(row.event_count)) +
+            "</td></tr>";
+        });
+        sub += "</tbody></table></div>";
+      }
+      sub += "</div>";
+      parts.push(sub);
+    });
+    box.innerHTML = parts.join("");
+  }
+
+  function loadCrashlyticsPreview() {
+    var box = document.getElementById("app-crashlytics-content");
+    if (!box) return;
+    state.crashlyticsRequestSeq += 1;
+    var req = state.crashlyticsRequestSeq;
+    var url =
+      "/api/app/crashlytics?product=" +
+      encodeURIComponent(state.product) +
+      "&days=" +
+      encodeURIComponent(String(state.crashlyticsDays));
+    box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">Crashlytics sorgulanıyor…</p>';
+    fetch(url, { cache: "no-store" })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (x) {
+        if (req !== state.crashlyticsRequestSeq) return;
+        if (!x.ok) {
+          renderCrashlyticsPanel(null);
+          return;
+        }
+        renderCrashlyticsPanel(x.j);
+      })
+      .catch(function () {
+        if (req !== state.crashlyticsRequestSeq) return;
+        renderCrashlyticsPanel(null);
+      });
+  }
+
+  function bindCrashlyticsDetails() {
+    var det = document.getElementById("app-crashlytics-details");
+    if (!det || det.dataset.crashBound) return;
+    det.dataset.crashBound = "1";
+    det.addEventListener("toggle", function () {
+      if (det.open) {
+        loadCrashlyticsPreview();
+      }
+    });
   }
 
   function renderPeriodNav() {
@@ -2541,6 +2752,8 @@
   renderProductNav();
   renderPeriodNav();
   renderAscPeriodNav();
+  renderCrashPeriodNav();
+  bindCrashlyticsDetails();
   applyHeroShellFromState();
   restoreCompetitorBenchmarkState();
   updateClearBtnVisibility();
