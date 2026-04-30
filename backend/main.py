@@ -129,6 +129,10 @@ _SC_JSON_NO_CACHE_HEADERS = {
     "Pragma": "no-cache",
 }
 
+_SC_REFRESH_ALL_LOCK = threading.Lock()
+# Toplu GSC yenileme: uzun HTTP isteği tarayıcı/proxy tarafından kesilmesin diye arka planda çalışır.
+_SC_REFRESH_ALL_JOB: dict | None = None
+
 
 def _search_console_request_wants_json(request: Request) -> bool:
     """Yenileme fetch'leri 401/500 gövdesini JSON okuyabilsin (admin middleware + hata ayrıntısı)."""
@@ -8062,22 +8066,8 @@ def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant
     return search_console_single_site_card(request, site_id)
 
 
-@app.post("/search-console/refresh-all")
-def search_console_refresh_all(request: Request):
-    """Toplu GSC çekimi; yanıt JSON — istemci mesajı ve süre (0 sn) yanıltıcı olmasın diye."""
-    if not settings.live_refresh_enabled:
-        return JSONResponse(
-            {
-                "ok": True,
-                "live_refresh_enabled": False,
-                "refreshed": 0,
-                "failed": 0,
-                "not_connected": 0,
-                "title": "Canlı yenileme kapalı",
-                "detail": "LIVE_REFRESH_ENABLED=0. Google Search Console API çağrılmadı; ekran yalnızca veritabanındaki mevcut veriyle tazelenecek.",
-            },
-            headers=_SC_JSON_NO_CACHE_HEADERS,
-        )
+def _compute_search_console_refresh_all_payload() -> dict:
+    """LIVE_REFRESH açıkken toplu GSC çekimi; JSON gövdesi (live_refresh_enabled=True)."""
     with SessionLocal() as db:
         external = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
@@ -8155,18 +8145,115 @@ def search_console_refresh_all(request: Request):
             detail = f"{refreshed_ok} site Search Console API verisiyle güncellendi."
             if not_connected:
                 detail += f" {not_connected} site GSC’ye bağlı olmadığı için atlandı."
+        return {
+            "ok": True,
+            "live_refresh_enabled": True,
+            "refreshed": refreshed_ok,
+            "failed": failed,
+            "not_connected": not_connected,
+            "title": title,
+            "detail": detail,
+        }
+
+
+def _search_console_refresh_all_job_finish(job_id: str) -> None:
+    global _SC_REFRESH_ALL_JOB
+    try:
+        payload = _compute_search_console_refresh_all_payload()
+        with _SC_REFRESH_ALL_LOCK:
+            job = _SC_REFRESH_ALL_JOB
+            if job and job.get("id") == job_id:
+                job["status"] = "done"
+                job["result"] = payload
+    except Exception as exc:
+        LOGGER.exception("Search Console refresh-all background job failed")
+        with _SC_REFRESH_ALL_LOCK:
+            job = _SC_REFRESH_ALL_JOB
+            if job and job.get("id") == job_id:
+                job["status"] = "error"
+                job["error"] = str(exc).strip() or "Arka plan işinde beklenmeyen hata; loglara bakın."
+
+
+@app.post("/search-console/refresh-all")
+def search_console_refresh_all(request: Request, background_tasks: BackgroundTasks):
+    """Toplu GSC çekimi. Uzun sürdüğü için hemen yanıt + /status ile izlenir (bağlantı kesilmesini önler)."""
+    global _SC_REFRESH_ALL_JOB
+    if not settings.live_refresh_enabled:
         return JSONResponse(
             {
                 "ok": True,
-                "live_refresh_enabled": True,
-                "refreshed": refreshed_ok,
-                "failed": failed,
-                "not_connected": not_connected,
-                "title": title,
-                "detail": detail,
+                "live_refresh_enabled": False,
+                "refreshed": 0,
+                "failed": 0,
+                "not_connected": 0,
+                "title": "Canlı yenileme kapalı",
+                "detail": "LIVE_REFRESH_ENABLED=0. Google Search Console API çağrılmadı; ekran yalnızca veritabanındaki mevcut veriyle tazelenecek.",
             },
             headers=_SC_JSON_NO_CACHE_HEADERS,
         )
+    with _SC_REFRESH_ALL_LOCK:
+        cur = _SC_REFRESH_ALL_JOB
+        if cur and cur.get("status") == "running":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "detail": "Başka bir toplu Search Console yenilemesi hâlâ çalışıyor; bitene kadar bekleyin.",
+                },
+                status_code=409,
+                headers=_SC_JSON_NO_CACHE_HEADERS,
+            )
+        job_id = str(uuid4())
+        _SC_REFRESH_ALL_JOB = {
+            "id": job_id,
+            "status": "running",
+            "result": None,
+            "error": None,
+            "started": time.time(),
+        }
+    background_tasks.add_task(_search_console_refresh_all_job_finish, job_id)
+    return JSONResponse(
+        {
+            "ok": True,
+            "async": True,
+            "job_id": job_id,
+            "title": "Toplu yenileme başladı",
+            "detail": "İşlem arka planda sürüyor; birkaç dakika sürebilir — sayfayı kapatmayın.",
+        },
+        headers=_SC_JSON_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/search-console/refresh-all/status/{job_id}")
+def search_console_refresh_all_status(job_id: str):
+    """Arka plandaki toplu GSC yenileme durumu (kısa JSON; tarayıcı sık sık çağırabilir)."""
+    with _SC_REFRESH_ALL_LOCK:
+        job = _SC_REFRESH_ALL_JOB
+        if not job or job.get("id") != job_id:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "done": True,
+                    "detail": "İşlem bulunamadı (sunucu yeniden başladıysa yeniden deneyin).",
+                },
+                status_code=404,
+                headers=_SC_JSON_NO_CACHE_HEADERS,
+            )
+        if job.get("status") == "running":
+            return JSONResponse(
+                {"ok": True, "done": False, "job_id": job_id},
+                headers=_SC_JSON_NO_CACHE_HEADERS,
+            )
+        if job.get("status") == "error":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "done": True,
+                    "detail": job.get("error") or "Arka plan işi başarısız.",
+                },
+                headers=_SC_JSON_NO_CACHE_HEADERS,
+            )
+        payload = job.get("result") or {}
+        return JSONResponse({"ok": True, "done": True, **payload}, headers=_SC_JSON_NO_CACHE_HEADERS)
 
 
 @app.post("/search-console/refresh/{site_id}")

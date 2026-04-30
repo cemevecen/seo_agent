@@ -552,6 +552,67 @@
     }, Math.max(150, parseInt(delayMs || 0, 10) || 450));
   }
 
+  /** Uzun toplu yenileme tek POST’ta proxy/tarayıcı zaman aşımına düşmesin diye sunucu işi arka planda + kısa durum sorguları. */
+  function pollSearchConsoleRefreshAll(jobId, progress) {
+    var startTs = Date.now();
+    var maxMs = 45 * 60 * 1000;
+    var pollMs = 2000;
+    function tick() {
+      if (Date.now() - startTs > maxMs) {
+        progress.fail(
+          'Tüm siteler yenilenemedi',
+          'Zaman aşımı (45 dk). Sunucuda işlem sürüyor olabilir; docker logs ve sayfa yenilemesine bakın.'
+        );
+        return;
+      }
+      fetch('/search-console/refresh-all/status/' + encodeURIComponent(jobId), {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' },
+      })
+        .then(function (response) {
+          return response.text().then(function (text) {
+            return { response: response, text: text };
+          });
+        })
+        .then(function (pack) {
+          var data;
+          try {
+            data = JSON.parse(pack.text);
+          } catch (e) {
+            throw new Error('Durum JSON okunamadı.');
+          }
+          if (pack.response.status === 404) {
+            var err404 = new Error('not_found');
+            err404.detail = (data && data.detail) || 'İşlem bulunamadı.';
+            throw err404;
+          }
+          if (!data.done) {
+            window.setTimeout(tick, pollMs);
+            return;
+          }
+          if (!data.ok) {
+            var bad = new Error('job_failed');
+            bad.detail = (data && data.detail) || 'İşlem başarısız.';
+            throw bad;
+          }
+          progress.complete(
+            data.title || 'İşlem tamamlandı',
+            data.detail || 'Search Console toplu yenileme tamamlandı.'
+          );
+          reloadSearchConsolePage(450);
+        })
+        .catch(function (error) {
+          console.warn('Search Console refresh-all poll failed:', error);
+          var d =
+            (error && error.detail) ||
+            (error && error.message) ||
+            'Yenileme durumu alınamadı.';
+          progress.fail('Tüm siteler yenilenemedi', d);
+        });
+    }
+    tick();
+  }
+
   function refreshSearchConsoleSites(button) {
     const trigger = button || document.getElementById('refresh-search-console-sites-button');
     const original = trigger ? trigger.textContent : '';
@@ -616,6 +677,10 @@
         });
       })
       .then(function (data) {
+        if (data && data.async && data.job_id) {
+          pollSearchConsoleRefreshAll(String(data.job_id), progress);
+          return;
+        }
         if (!data || !data.ok) {
           var bad = new Error('invalid response');
           bad.detail = (data && data.detail) || 'Geçersiz sunucu yanıtı.';
