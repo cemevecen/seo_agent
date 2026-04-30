@@ -8,7 +8,7 @@ import logging
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -36,8 +36,11 @@ _RANK_HISTORY_FILE = Path(__file__).resolve().parent / "app_intel_rank_history.j
 _FORCED_REFRESH_AT: dict[str, str] = {}
 _RANK_HISTORY: dict[str, Any] = {}
 
-# Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi uzatır).
-GOOGLE_PLAY_MAX_REVIEWS = 1_200
+# Google Play: continuation token ile sayfalama (çok büyük değerler ilk yüklemeyi ve google-play-scraper takılmalarını uzatır).
+GOOGLE_PLAY_MAX_REVIEWS = 600
+
+# Paralel vitrin+Play yorum fazı: tek süre üst sınırı; aksi halde HTTP isteği 10+ dk sürebiliyor.
+_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC = 150.0
 
 # App Store web: tek vitrin ~50 yorum; birçok ülke vitrini birleştirerek geçmiş artar.
 _IOS_STOREFRONTS: tuple[str, ...] = (
@@ -1075,7 +1078,7 @@ def _fetch_android_rank_playwright(
                 pass
 
             seen_batch: set[str] = set()
-            for scroll_i in range(16):
+            for scroll_i in range(10):
                 for txt in captured_texts:
                     for p in _extract_android_packages(txt):
                         k = p.lower()
@@ -1485,21 +1488,48 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
             return hit[1]
 
-    # Ağ çağrılarını paralelleştir: soğuk açılış TTFB'sini düşür.
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    # Ağ çağrılarını paralelleştir; tüm faz için tek üst süre (takılı istek yok).
+    pool = ThreadPoolExecutor(max_workers=5)
+    try:
         f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
         f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
         f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
         f_ios_ratings = pool.submit(
             _fetch_ios_ssr_ratings, spec["ios_app_id"], spec["ios_slug"], country="tr"
         )
-        # Zaman filtreli histogram için RSS'ten en son yorumlar (max 250 adet)
         f_ios_rss = pool.submit(_fetch_ios_rss_reviews, spec["ios_app_id"], country="tr", max_pages=5)
-        meta, g_rows, g_err = f_play.result()
-        i_rows, i_snap, i_err, i_sf_ok, i_sf_n = f_ios_reviews.result()
-        i_lookup = f_ios_lookup.result()
-        i_ssr_ratings = f_ios_ratings.result()  # {"score", "ratings_count", "star_histogram"}
-        i_rss_rows = f_ios_rss.result()  # en son TR yorumları, tarih sıralı
+        futs = (f_play, f_ios_reviews, f_ios_lookup, f_ios_ratings, f_ios_rss)
+        _, pending_futs = wait(futs, timeout=_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC, return_when=ALL_COMPLETED)
+
+        def _future_get(fut, empty, label: str):  # noqa: ANN001
+            if fut in pending_futs:
+                logger.warning(
+                    "app_intel: %s cevabı %.0fs içinde tamamlanmadı; kısmi veri.",
+                    label,
+                    _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC,
+                )
+                return empty
+            try:
+                return fut.result()
+            except Exception as exc:
+                logger.warning("app_intel: %s future hata: %s", label, exc)
+                return empty
+
+        meta, g_rows, g_err = _future_get(
+            f_play,
+            ({}, [], f"Play: mağaza verisi {_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC:.0f} sn içinde tamamlanamadı."),
+            "google_play",
+        )
+        i_rows, i_snap, i_err, i_sf_ok, i_sf_n = _future_get(
+            f_ios_reviews,
+            ([], {}, f"App Store vitrinleri {_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC:.0f} sn içinde tamamlanamadı.", 0, len(_IOS_STOREFRONTS)),
+            "ios_multistore",
+        )
+        i_lookup = _future_get(f_ios_lookup, {}, "ios_lookup")
+        i_ssr_ratings = _future_get(f_ios_ratings, {}, "ios_ssr_ratings")
+        i_rss_rows = _future_get(f_ios_rss, [], "ios_rss")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     # RSS reviewlarını mevcut listeyie ekle (dedup: aynı tarih+puan+metin önlenir)
     if i_rss_rows:

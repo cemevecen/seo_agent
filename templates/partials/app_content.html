@@ -2591,7 +2591,7 @@
     var ac = new AbortController();
     var to = window.setTimeout(function () {
       ac.abort();
-    }, 240000);
+    }, 420000);
     fetch(url, { signal: ac.signal })
       .then(function (r) {
         return r.json().then(function (j) {
@@ -2657,7 +2657,7 @@
           var msg = "Veri alınırken bağlantı sorunu oluştu. Lütfen tekrar deneyin.";
           if (e && e.name === "AbortError") {
             msg =
-              "İstek zaman aşımına uğradı (4 dk). Sunucu hâlâ veri topluyor olabilir; bir süre sonra sayfayı yenileyin.";
+              "İstek zaman aşımına uğradı (7 dk). Sunucu yanıt veremedi veya mağaza erişimi çok yavaş; sayfayı yenileyip tekrar deneyin.";
           } else if (rawMsg.toLowerCase().indexOf("networkerror") >= 0) {
             msg = "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin.";
           }
