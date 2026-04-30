@@ -642,7 +642,8 @@
   }
 
   function reloadGa4SiteListMarkup() {
-    return fetch('/ga4/site-list', {
+    // Lazy varsayılan iskelet HTML'de data-ga4-site-card yok; kurtarma yolunda tam kartlar şart.
+    return fetch('/ga4/site-list?mode=eager', {
       headers: { 'HX-Request': 'true' },
     }).then(function (response) {
       if (!response.ok) {
