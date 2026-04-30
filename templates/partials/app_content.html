@@ -1313,7 +1313,15 @@
   }
 
   function plotStars(el, dist, starReviews, drilldownEl) {
-    if (!window.Plotly || !el) return;
+    if (!el) return;
+    if (!window.Plotly) {
+      if (el.querySelector(".app-intel-skeleton")) {
+        el.innerHTML = "";
+      }
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi (CDN engelli veya ağ). Reklam engelleyiciyi kapatıp sayfayı yenileyin.</p>';
+      return;
+    }
     if (el.querySelector(".app-intel-skeleton")) {
       el.innerHTML = "";
     }
@@ -1375,7 +1383,15 @@
   }
 
   function plotRankTrend(el, rows, label) {
-    if (!window.Plotly || !el) return;
+    if (!el) return;
+    if (!window.Plotly) {
+      if (el.querySelector(".app-intel-skeleton")) {
+        el.innerHTML = "";
+      }
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi. CDN erişimini kontrol edin.</p>';
+      return;
+    }
     if (el.querySelector(".app-intel-skeleton")) {
       el.innerHTML = "";
     }
@@ -1483,7 +1499,15 @@
   }
 
   function plotCats(el, categories, categoryReviews, drilldownEl) {
-    if (!window.Plotly || !el) return;
+    if (!el) return;
+    if (!window.Plotly) {
+      if (el.querySelector(".app-intel-skeleton")) {
+        el.innerHTML = "";
+      }
+      el.innerHTML =
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi. CDN erişimini kontrol edin.</p>';
+      return;
+    }
     if (el.querySelector(".app-intel-skeleton")) {
       el.innerHTML = "";
     }
@@ -2618,6 +2642,7 @@
         }
         return finishProgress().then(function () {
           redrawAll();
+          schedulePlotlyCatchup();
           loadAscPreview();
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
           return fetch(asoUrl)
@@ -2763,6 +2788,27 @@
     redrawAll();
   });
 
+  /** Plotly CDN geç gelirse veya ilk redraw çok erken kalırsa birkaç kez yeniden çiz. */
+  function schedulePlotlyCatchup() {
+    if (window.Plotly) {
+      return;
+    }
+    var tries = 0;
+    function tick() {
+      tries += 1;
+      if (window.Plotly && state.lastPayload) {
+        redrawAll();
+        return;
+      }
+      if (tries < 48) {
+        window.setTimeout(tick, 250);
+      } else if (state.lastPayload) {
+        redrawAll();
+      }
+    }
+    window.setTimeout(tick, 200);
+  }
+
   function boot() {
     // Veri çekimini Plotly script'ine bağımlı başlatma: ilk açılışta TTFB'yi düşür.
     loadIntel();
@@ -2777,6 +2823,9 @@
       }
       if (guard >= 200) {
         clearInterval(iv);
+        if (state.lastPayload) {
+          redrawAll();
+        }
       }
     }, 120);
   }
