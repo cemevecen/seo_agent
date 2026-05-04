@@ -345,8 +345,14 @@
   var root = document.getElementById("app-intel-root");
   if (!root) return;
   if (root.getAttribute("data-app-intel-bound") === "1") {
+    try {
+      window.__seoAppIntelScriptRan = true;
+    } catch (e0) {}
     return;
   }
+  try {
+    window.__seoAppIntelScriptRan = true;
+  } catch (e1) {}
   root.setAttribute("data-app-intel-bound", "1");
 
   var products = [];
@@ -2667,6 +2673,9 @@
   }
 
   function loadIntel(opts) {
+    try {
+      window.__seoAppIntelLoadStarted = true;
+    } catch (eStart) {}
     var keepProgress = !!(opts && opts.keepProgress);
     var reqSeq = ++state.requestSeq;
     var status = document.getElementById("app-intel-status");

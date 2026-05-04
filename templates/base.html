@@ -400,5 +400,32 @@
     };
   </script>
   <script src="/static/alerts_page.js" defer></script>
+  <script>
+    (function () {
+      document.addEventListener("DOMContentLoaded", function () {
+        var raw = window.location.pathname || "/";
+        var path = raw.replace(/\/+$/, "") || "/";
+        if (path !== "/app") return;
+        window.setTimeout(function () {
+          var fe = document.getElementById("app-intel-error");
+          if (!window.__seoAppIntelScriptRan) {
+            if (fe) {
+              fe.textContent =
+                "App paneli JavaScript’i çalışmadı (sayfa önbelleği veya betik hatası). Cmd+Shift+R ile tam yenileyin; Geliştirici Araçları → Console’da kırmızı “Uncaught” satırı var mı bakın.";
+              fe.classList.remove("hidden");
+            }
+            return;
+          }
+          if (!window.__seoAppIntelLoadStarted) {
+            if (fe && fe.classList.contains("hidden")) {
+              fe.textContent =
+                "Mağaza verisi isteği başlamadı. Bir eklenti betiği engelliyor olabilir; gizli pencerede deneyin veya /api/app/intel adresini yeni sekmede açıp JSON geliyor mu kontrol edin.";
+              fe.classList.remove("hidden");
+            }
+          }
+        }, 4000);
+      });
+    })();
+  </script>
 </body>
 </html>
