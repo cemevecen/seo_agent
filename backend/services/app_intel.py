@@ -359,18 +359,26 @@ def _latest_stored_category_rank(product_id: str, platform: str) -> dict[str, An
         return None
     try:
         with SessionLocal() as db:
-            row = (
+            rows = (
                 db.query(AppStoreRankSnapshot)
                 .filter(
                     AppStoreRankSnapshot.product_id == product_id,
                     AppStoreRankSnapshot.platform == platform,
                 )
                 .order_by(AppStoreRankSnapshot.collected_at.desc(), AppStoreRankSnapshot.id.desc())
-                .first()
+                .limit(48)
+                .all()
             )
     except Exception as exc:
         logger.debug("Son sıra snapshot okunamadı (%s/%s): %s", product_id, platform, exc)
         return None
+    row = None
+    for r in rows or []:
+        ch = str(r.chart or "").strip().lower()
+        if platform == "android" and ch in ("details_page", "category_dom_only"):
+            continue
+        row = r
+        break
     if row is None:
         return None
     chart = (str(row.chart or "").strip() or None) or ("category_top" if platform == "android" else None)
@@ -418,6 +426,13 @@ def _append_rank_snapshot(
         return
     rank_val = rank_info.get("rank")
     if rank_val is None:
+        return
+    if (
+        platform == "android"
+        and str(rank_info.get("chart") or "").lower() == "details_page"
+        and _skip_android_playwright_rank()
+    ):
+        logger.debug("Android details_page sırası DB'ye yazılmıyor (Play kapalı / HTTP güvenilmez)")
         return
     try:
         rank_int = int(rank_val)
@@ -1180,7 +1195,7 @@ def _fetch_android_category_rank(
     country: str = "tr",
     lang: str = "tr",
     category_id: str | None = None,
-    skip_playwright: bool = False,
+    skip_playwright: bool | None = None,
     genre_name_hint: str | None = None,
 ) -> dict[str, Any] | None:
     """Play kategori sırası (Playwright); yoksa detay sayfası HTML (grafik metni).
@@ -1194,7 +1209,8 @@ def _fetch_android_category_rank(
         return None
 
     slug = _android_play_category_slug(category_id)
-    if not skip_playwright:
+    sp = _skip_android_playwright_rank() if skip_playwright is None else bool(skip_playwright)
+    if not sp:
         result = _fetch_android_rank_playwright(
             package, country=country, lang=lang, category_slug=slug
         )
@@ -1734,12 +1750,12 @@ def get_last_forced_refresh_at(product_id: str) -> str | None:
 
 
 def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
-    """Eski DOM+batch birleşimi veya DB snapshot (rank_basis yok) disk/bellekte kaldıysa True."""
+    """Yalnızca batchexecute + category_top güvenilir; HTTP/DB/eski DOM birleşimi True döner."""
     if not isinstance(cr, dict) or cr.get("rank") is None:
         return False
-    if str(cr.get("chart") or "") != "category_top":
+    if str(cr.get("rank_basis") or "") == "batchexecute" and str(cr.get("chart") or "") == "category_top":
         return False
-    return str(cr.get("rank_basis") or "") != "batchexecute"
+    return True
 
 
 def _recompute_android_category_rank_only(
@@ -1758,13 +1774,19 @@ def _recompute_android_category_rank_only(
             country="tr",
             lang="tr",
             category_id=str(meta.get("genreId") or "") or None,
-            skip_playwright=_skip_android_playwright_rank(),
+            skip_playwright=None,
             genre_name_hint=(str(meta.get("genre") or "").strip() or None),
         )
 
     a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
     if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
-        meta = {**meta, "category_rank": a_rank}
+        if _skip_android_playwright_rank() and str(a_rank.get("chart") or "").lower() == "details_page":
+            logger.info(
+                "app_intel: Android HTTP sırası (details_page) atlandı — Playwright kapalı ortamda güvenilmez olabilir (%s)",
+                product_id,
+            )
+        else:
+            meta = {**meta, "category_rank": a_rank}
 
     cr_a = meta.get("category_rank")
     if allow_db_fallback and not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
@@ -2120,8 +2142,16 @@ def refresh_category_ranks() -> dict[str, Any]:
             results[product_id] = {"ios": i_rank}
             logger.info("Rank refresh (%s) iOS: %s", product_id, i_rank)
 
-            # Android
-            a_rank = _fetch_android_category_rank(spec["android_package"], country="tr", lang="tr")
+            # Android: cron sırasında Playwright açık (Railway ana istekten ayrı); genre ile HTTP yedeği de iyileşir.
+            meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 1)
+            a_rank = _fetch_android_category_rank(
+                spec["android_package"],
+                country="tr",
+                lang="tr",
+                category_id=str((meta_play or {}).get("genreId") or "") or None,
+                skip_playwright=False,
+                genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
+            )
             if a_rank and a_rank.get("rank") is not None:
                 _append_rank_snapshot(product_id, "android", a_rank, at_iso=now_iso)
             results[product_id]["android"] = a_rank
@@ -2132,6 +2162,9 @@ def refresh_category_ranks() -> dict[str, Any]:
             results[product_id] = {"error": str(exc)}
 
     _save_rank_history()
+    for pid, block in results.items():
+        if isinstance(block, dict) and block.get("android"):
+            invalidate_raw_cache(pid)
     return results
 
 
