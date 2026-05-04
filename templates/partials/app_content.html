@@ -111,7 +111,11 @@
         <div id="app-intel-progress-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 transition-[width] duration-200 ease-linear dark:from-sky-400 dark:via-cyan-300 dark:to-blue-400"></div>
       </div>
     </div>
-    <p id="app-intel-error" class="mt-2 hidden text-sm font-medium text-red-600 dark:text-red-400"></p>
+    <p
+      id="app-intel-error"
+      role="alert"
+      class="mt-2 hidden rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 dark:border-red-600 dark:bg-red-950/60 dark:text-red-100"
+    ></p>
   </div>
 
   <div id="app-intel-panels" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -2163,7 +2167,9 @@
 
   function redrawAll() {
     var p = state.lastPayload;
-    if (!p || !p.active_window) return;
+    if (!p || !p.active_window) {
+      return false;
+    }
     var w = p.active_window;
 
     document.getElementById("app-intel-link-android").href = p.urls.android || "#";
@@ -2488,6 +2494,7 @@
         if (node && window.Plotly) Plotly.Plots.resize(node);
       });
     }, 120);
+    return true;
   }
 
   function setProgressVisible(on) {
@@ -2595,6 +2602,24 @@
     if (rs) rs.textContent = "Sira bilgileri yukleniyor…";
   }
 
+  function assertIntelPayload(j) {
+    if (!j || typeof j !== "object") {
+      throw new Error("API geçersiz veya boş yanıt döndü.");
+    }
+    if (j.error && !j.active_window) {
+      throw new Error(String(j.error));
+    }
+    if (!j.active_window || typeof j.active_window !== "object") {
+      throw new Error(
+        "Mağaza özeti tamamlanmadı (active_window yok). Sunucu zaman aşımı veya ara katman yanıtı kırpması olabilir; tekrar deneyin.",
+      );
+    }
+    var w = j.active_window;
+    if (typeof w.android !== "object" || w.android === null || typeof w.ios !== "object" || w.ios === null) {
+      throw new Error("Play / App Store kolon verisi eksik; API yanıtı beklenen biçimde değil.");
+    }
+  }
+
   function flagIntelPanelsFailed(hint) {
     var msg = hint || "Veri yüklenemedi.";
     var chartFail =
@@ -2638,6 +2663,13 @@
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var asoUrl = "/api/app/aso?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
+    var slowHintTimer = window.setTimeout(function () {
+      if (reqSeq !== state.requestSeq) return;
+      if (status) {
+        status.textContent =
+          "Hâlâ sunucudan yanıt bekleniyor… Bazı ortamlarda ~60 sn sonra HTTP cevabı kesilebilir; kesilirse kırmızı uyarı kutusu görünür.";
+      }
+    }, 62000);
     var to = window.setTimeout(function () {
       ac.abort();
     }, 420000);
@@ -2657,9 +2689,13 @@
           });
       })
       .then(function (x) {
-        if (reqSeq !== state.requestSeq) return Promise.resolve();
+        if (reqSeq !== state.requestSeq) {
+          clearTimeout(slowHintTimer);
+          return Promise.resolve();
+        }
         if (!x.ok) {
           window.clearTimeout(to);
+          clearTimeout(slowHintTimer);
           var detail = x.j && (x.j.detail || x.j.error || x.j.message);
           throw new Error(
             typeof detail === "string"
@@ -2669,11 +2705,9 @@
                 : "İstek başarısız (" + (x.status || "?") + ")",
           );
         }
-        if (x.j && x.j.error && !x.j.active_window) {
-          window.clearTimeout(to);
-          throw new Error(String(x.j.error));
-        }
+        assertIntelPayload(x.j);
         window.clearTimeout(to);
+        clearTimeout(slowHintTimer);
         state.lastPayload = x.j;
         if (status) {
           status.textContent = "Son çekim: " + formatShortDate(x.j.display_fetched_at || x.j.fetched_at);
@@ -2686,7 +2720,18 @@
           errEl.classList.remove("hidden");
         }
         return finishProgress().then(function () {
-          redrawAll();
+          try {
+            if (!redrawAll()) {
+              throw new Error("Özet verisi çizilemedi; API yanıtı eksik veya beklenmeyen biçimde.");
+            }
+          } catch (drawErr) {
+            var dmsg = drawErr && drawErr.message ? String(drawErr.message) : "Çizim hatası.";
+            if (errEl) {
+              errEl.textContent = dmsg;
+              errEl.classList.remove("hidden");
+            }
+            flagIntelPanelsFailed(dmsg);
+          }
           schedulePlotlyCatchup();
           loadAscPreview();
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
@@ -2720,6 +2765,7 @@
       .catch(function (e) {
         if (reqSeq !== state.requestSeq) return;
         window.clearTimeout(to);
+        clearTimeout(slowHintTimer);
         finishProgress();
         if (status) status.textContent = "";
         var brief = e && e.message ? String(e.message) : "";
