@@ -189,8 +189,8 @@
   </style>
   <!-- HTMX CDN -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <!-- Plotly CDN -->
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
+  <script src="/static/vendor/plotly-2.35.2.min.js" onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}

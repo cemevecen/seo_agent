@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -26,6 +27,9 @@ from backend.services.timezone_utils import (
 
 logger = logging.getLogger(__name__)
 
+_APP_INTEL_ROOT = Path(__file__).resolve().parent.parent.parent
+_DISK_RAW_DIR = _APP_INTEL_ROOT / "data" / "app_intel_raw"
+
 _CACHE_LOCK = threading.Lock()
 _RAW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 # Normal API isteklerinde mağaza kaynaklarını tekrar tekrar çağırmamak için uzun TTL.
@@ -41,6 +45,120 @@ GOOGLE_PLAY_MAX_REVIEWS = 600
 
 # Paralel vitrin+Play yorum fazı: tek süre üst sınırı; aksi halde HTTP isteği 10+ dk sürebiliyor.
 _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC = 150.0
+
+
+def _railway_fast_mode() -> bool:
+    try:
+        from backend.config import is_railway_runtime
+
+        return bool(is_railway_runtime())
+    except Exception:
+        return False
+
+
+def _fetch_phase_timeout_sec() -> float:
+    # Railway / ters vekil çoğu zaman ~60s üzerinde yanıt keser; kısmi veri + disk cache şart.
+    return 48.0 if _railway_fast_mode() else _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC
+
+
+def _play_review_cap() -> int:
+    return 300 if _railway_fast_mode() else GOOGLE_PLAY_MAX_REVIEWS
+
+
+def _skip_android_playwright_rank() -> bool:
+    if (os.environ.get("APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY") or "").strip().lower() in ("1", "true", "yes"):
+        return False
+    return _railway_fast_mode()
+
+
+def _ios_review_storefronts() -> tuple[str, ...]:
+    if _railway_fast_mode():
+        return ("tr", "us", "gb", "de", "fr", "nl")
+    return _IOS_STOREFRONTS
+
+
+def _ios_lookup_countries() -> tuple[str, ...]:
+    if _railway_fast_mode():
+        return ("tr", "us", "gb", "de", "fr", "nl", "se", "jp")
+    return _IOS_STOREFRONTS
+
+
+def _disk_raw_path(product_id: str) -> Path:
+    return _DISK_RAW_DIR / f"{product_id}.json"
+
+
+def _hydrate_raw_payload(data: dict[str, Any]) -> dict[str, Any]:
+    def fix_rows(rows: list[Any]) -> None:
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            at = r.get("at")
+            if isinstance(at, str):
+                try:
+                    iso = at.replace("Z", "+00:00") if at.endswith("Z") else at
+                    r["at"] = datetime.fromisoformat(iso)
+                except ValueError:
+                    pass
+
+    for key in ("android", "ios"):
+        block = data.get(key)
+        if not isinstance(block, dict):
+            continue
+        revs = block.get("reviews")
+        if isinstance(revs, list):
+            fix_rows(revs)
+    return data
+
+
+def _load_disk_raw(product_id: str) -> dict[str, Any] | None:
+    p = _disk_raw_path(product_id)
+    if not p.is_file():
+        return None
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or raw.get("product_id") != product_id:
+            return None
+        return _hydrate_raw_payload(raw)
+    except Exception as exc:
+        logger.warning("app_intel disk okunamadı (%s): %s", product_id, exc)
+        return None
+
+
+def _write_disk_raw(product_id: str, payload: dict[str, Any]) -> None:
+    def _safe(o: Any) -> Any:
+        if isinstance(o, datetime):
+            return o.isoformat()
+        if isinstance(o, dict):
+            return {k: _safe(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [_safe(v) for v in o]
+        if isinstance(o, float):
+            return float(o) if o == o else None
+        return o
+
+    try:
+        _DISK_RAW_DIR.mkdir(parents=True, exist_ok=True)
+        p = _disk_raw_path(product_id)
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(_safe(payload), ensure_ascii=False), encoding="utf-8")
+        tmp.replace(p)
+    except Exception as exc:
+        logger.warning("app_intel disk yazılamadı (%s): %s", product_id, exc)
+
+
+def prewarm_app_intel_cache_background() -> None:
+    """Deploy / cold start sonrası disk+RAM doldurur; kullanıcı isteği proxy süresinde takılmasın."""
+
+    def _runner() -> None:
+        time.sleep(2.5)
+        for pid in list(APP_PRODUCTS.keys()):
+            try:
+                get_raw_product_data(pid, force_refresh=False)
+                logger.info("app_intel prewarm bitti: %s", pid)
+            except Exception as exc:
+                logger.warning("app_intel prewarm başarısız (%s): %s", pid, exc)
+
+    threading.Thread(target=_runner, name="app-intel-prewarm", daemon=True).start()
 
 # App Store web: tek vitrin ~50 yorum; birçok ülke vitrini birleştirerek geçmiş artar.
 _IOS_STOREFRONTS: tuple[str, ...] = (
@@ -654,7 +772,8 @@ def _fetch_ios_reviews_multistore(
     snap: dict[str, Any] = {}
     storefronts_ok = 0
     last_err: str | None = None
-    n_sf = len(_IOS_STOREFRONTS)
+    storefronts = _ios_review_storefronts()
+    n_sf = len(storefronts)
     # Apple rate limit'i aşmamak için eşzamanlı istek sayısı sınırlı tutulur.
     max_workers = min(4, n_sf)
     by_loc: dict[str, tuple[list[dict[str, Any]], dict[str, Any], bool, str | None]] = {}
@@ -663,7 +782,7 @@ def _fetch_ios_reviews_multistore(
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             future_to_loc = {
                 pool.submit(_fetch_ios_one_storefront, app_id, ios_slug, loc): loc
-                for loc in _IOS_STOREFRONTS
+                for loc in storefronts
             }
             for fut in as_completed(future_to_loc):
                 loc = future_to_loc[fut]
@@ -673,7 +792,7 @@ def _fetch_ios_reviews_multistore(
         last_err = str(e)
         logger.warning("App Store çoklu vitrin hatası (%s): %s", app_id, e)
 
-    for loc in _IOS_STOREFRONTS:
+    for loc in storefronts:
         if loc not in by_loc:
             continue
         revs, page_snap, ok, one_err = by_loc[loc]
@@ -761,8 +880,9 @@ def _fetch_ios_lookup_meta(app_id: str) -> dict[str, Any]:
 
     total_count = 0
     weighted_sum = 0.0
-    with ThreadPoolExecutor(max_workers=min(12, len(_IOS_STOREFRONTS))) as pool:
-        futs = [pool.submit(one, c) for c in _IOS_STOREFRONTS]
+    _countries = _ios_lookup_countries()
+    with ThreadPoolExecutor(max_workers=min(12, len(_countries))) as pool:
+        futs = [pool.submit(one, c) for c in _countries]
         for fut in futs:
             cnt, score, gid_i, gname, art_s, ver_s, cvrd_s = fut.result()
             if cnt > 0:
@@ -991,6 +1111,7 @@ def _fetch_android_category_rank(
     country: str = "tr",
     lang: str = "tr",
     category_id: str | None = None,
+    skip_playwright: bool = False,
 ) -> dict[str, Any] | None:
     """Play kategori sırası (Playwright); yoksa detay sayfası HTML (grafik metni).
 
@@ -1003,11 +1124,12 @@ def _fetch_android_category_rank(
         return None
 
     slug = _android_play_category_slug(category_id)
-    result = _fetch_android_rank_playwright(
-        package, country=country, lang=lang, category_slug=slug
-    )
-    if result is not None:
-        return result
+    if not skip_playwright:
+        result = _fetch_android_rank_playwright(
+            package, country=country, lang=lang, category_slug=slug
+        )
+        if result is not None:
+            return result
 
     return _fetch_android_rank_http_fallback(package, country=country, lang=lang, category_id=category_id)
 
@@ -1455,6 +1577,14 @@ def invalidate_raw_cache(product_id: str | None = None) -> None:
             _RAW_CACHE.pop(product_id, None)
         else:
             _RAW_CACHE.clear()
+    try:
+        if product_id:
+            _disk_raw_path(product_id).unlink(missing_ok=True)
+        elif _DISK_RAW_DIR.is_dir():
+            for child in _DISK_RAW_DIR.glob("*.json"):
+                child.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("app_intel disk cache silinemedi: %s", exc)
 
 
 def get_cached_raw_product_data(product_id: str) -> dict[str, Any] | None:
@@ -1488,10 +1618,26 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
             return hit[1]
 
+    if not force_refresh:
+        disk_payload = _load_disk_raw(product_id)
+        if disk_payload is not None:
+            try:
+                age = now - _disk_raw_path(product_id).stat().st_mtime
+            except OSError:
+                age = float("inf")
+            if age < _CACHE_TTL_SEC:
+                with _CACHE_LOCK:
+                    _RAW_CACHE[cache_key] = (now, disk_payload)
+                logger.info("app_intel disk cache hit: %s (%.1f h)", product_id, age / 3600.0)
+                return disk_payload
+
+    phase_timeout = _fetch_phase_timeout_sec()
+    play_cap = _play_review_cap()
+
     # Ağ çağrılarını paralelleştir; tüm faz için tek üst süre (takılı istek yok).
     pool = ThreadPoolExecutor(max_workers=5)
     try:
-        f_play = pool.submit(_fetch_google_bundle, spec["android_package"])
+        f_play = pool.submit(_fetch_google_bundle, spec["android_package"], play_cap)
         f_ios_reviews = pool.submit(_fetch_ios_reviews_multistore, spec["ios_app_id"], spec["ios_slug"])
         f_ios_lookup = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
         f_ios_ratings = pool.submit(
@@ -1499,14 +1645,14 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         )
         f_ios_rss = pool.submit(_fetch_ios_rss_reviews, spec["ios_app_id"], country="tr", max_pages=5)
         futs = (f_play, f_ios_reviews, f_ios_lookup, f_ios_ratings, f_ios_rss)
-        _, pending_futs = wait(futs, timeout=_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC, return_when=ALL_COMPLETED)
+        _, pending_futs = wait(futs, timeout=phase_timeout, return_when=ALL_COMPLETED)
 
         def _future_get(fut, empty, label: str):  # noqa: ANN001
             if fut in pending_futs:
                 logger.warning(
                     "app_intel: %s cevabı %.0fs içinde tamamlanmadı; kısmi veri.",
                     label,
-                    _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC,
+                    phase_timeout,
                 )
                 return empty
             try:
@@ -1517,12 +1663,12 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
 
         meta, g_rows, g_err = _future_get(
             f_play,
-            ({}, [], f"Play: mağaza verisi {_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC:.0f} sn içinde tamamlanamadı."),
+            ({}, [], f"Play: mağaza verisi {phase_timeout:.0f} sn içinde tamamlanamadı."),
             "google_play",
         )
         i_rows, i_snap, i_err, i_sf_ok, i_sf_n = _future_get(
             f_ios_reviews,
-            ([], {}, f"App Store vitrinleri {_APP_INTEL_FETCH_PHASE_TIMEOUT_SEC:.0f} sn içinde tamamlanamadı.", 0, len(_IOS_STOREFRONTS)),
+            ([], {}, f"App Store vitrinleri {phase_timeout:.0f} sn içinde tamamlanamadı.", 0, len(_ios_review_storefronts())),
             "ios_multistore",
         )
         i_lookup = _future_get(f_ios_lookup, {}, "ios_lookup")
@@ -1561,6 +1707,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         country="tr",
         lang="tr",
         category_id=str(meta.get("genreId") or "") or None,
+        skip_playwright=_skip_android_playwright_rank(),
     )
     if a_rank and a_rank.get("rank") is not None:
         meta = {**(meta or {}), **{"category_rank": a_rank}}
@@ -1620,6 +1767,8 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
     if force_refresh:
         _FORCED_REFRESH_AT[product_id] = payload["fetched_at"]
         _save_forced_refresh_meta()
+
+    _write_disk_raw(product_id, payload)
 
     with _CACHE_LOCK:
         _RAW_CACHE[cache_key] = (now, payload)

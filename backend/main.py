@@ -864,6 +864,12 @@ def on_startup() -> None:
                 int(settings.scheduled_refresh_minute),
                 settings.scheduled_refresh_timezone,
             )
+    try:
+        from backend.services.app_intel import prewarm_app_intel_cache_background
+
+        prewarm_app_intel_cache_background()
+    except Exception:
+        LOGGER.exception("app_intel prewarm registration failed")
 
 
 @app.on_event("shutdown")
