@@ -1285,8 +1285,7 @@ def _fetch_android_rank_playwright(
                             batch_ordered.append(p)
                 captured_texts.clear()
 
-                merged_probe = _merge_android_pkg_orders([], batch_ordered)
-                if pkg_l and _android_pkg_index(merged_probe, package) is not None:
+                if pkg_l and _android_pkg_index(batch_ordered, package) is not None:
                     break
                 if len(batch_ordered) >= 5000:
                     break
@@ -1327,31 +1326,61 @@ def _fetch_android_rank_playwright(
         logger.warning("Playwright android rank hatası: %s", exc)
         return None
 
-    ordered_global = _merge_android_pkg_orders(dom_ids, batch_ordered)
-    if not ordered_global:
+    # ÖNEMLİ: DOM'daki tüm details?id= linkleri (üst menü, benzer uygulamalar vb.) grafik sırası değil.
+    # dom_ids'i batch'ten önce birleştirmek #39 gibi yanlış düşük sıralar üretir; sıra yalnızca
+    # batchexecute ile gelen kategori listesi sırasına dayanmalı.
+    idx_b = _android_pkg_index(batch_ordered, package)
+    if idx_b is not None:
+        rank = idx_b + 1
+        total = len(batch_ordered)
+        logger.info(
+            "android rank playwright: slug=%s batch=%d dom=%d (sıra batchexecute)",
+            slug,
+            len(batch_ordered),
+            len(dom_ids),
+        )
+        logger.info("android rank: %s #%d / %d (%s)", package, rank, total, slug)
+        return {
+            "rank": rank,
+            "total": total,
+            "chart": "category_top",
+            "chart_label": "Kategori",
+            "category_name": slug.replace("_", " ").title(),
+            "estimated": False,
+            "rank_basis": "batchexecute",
+        }
+
+    if batch_ordered:
+        logger.info(
+            "android rank: paket batch listesinde yok (batch=%d, dom=%d, slug=%s) — DOM birleştirilmiyor",
+            len(batch_ordered),
+            len(dom_ids),
+            slug,
+        )
+        return None
+
+    idx_d = _android_pkg_index(dom_ids, package)
+    if idx_d is None:
         logger.debug("android rank: kategori DOM/batchexecute boş (%s)", slug)
         return None
 
-    idx = _android_pkg_index(ordered_global, package)
-    logger.info(
-        "android rank playwright: slug=%s dom=%d batch=%d merged=%d",
+    rank = idx_d + 1
+    total = len(dom_ids)
+    logger.warning(
+        "android rank: %s #%d / %d (%s) — yalnızca DOM (batchexecute boş), sıra güvenilir olmayabilir",
+        package,
+        rank,
+        total,
         slug,
-        len(dom_ids),
-        len(batch_ordered),
-        len(ordered_global),
     )
-    if idx is None:
-        return None
-
-    rank = idx + 1
-    logger.info("android rank: %s #%d / %d (%s)", package, rank, len(ordered_global), slug)
     return {
         "rank": rank,
-        "total": len(ordered_global),
-        "chart": "category_top",
+        "total": total,
+        "chart": "category_dom_only",
         "chart_label": "Kategori",
         "category_name": slug.replace("_", " ").title(),
-        "estimated": False,
+        "estimated": True,
+        "rank_basis": "dom_only",
     }
 
 
@@ -1396,7 +1425,6 @@ def _fetch_android_rank_http_fallback(
             r"(Finance|Finans|Business|İş|Haberleşme|Communication|Tools|Araçlar|Eğlence|Entertainment)",
             r"Top charts[^#]{0,120}#\s*([0-9]{1,5})",
             r"ranking[^#]{0,120}#\s*([0-9]{1,5})",
-            r"(?:Ücretsiz|FREE)[^#]{0,160}#\s*([0-9]{1,5})",
         ]
     )
     for pat in patterns:
