@@ -489,6 +489,10 @@
                   if (next && window.htmx) {
                     htmx.processNode(next);
                   }
+                  if (typeof window.initSearchConsolePanels === 'function') {
+                    var scList = document.getElementById('search-console-site-list');
+                    window.initSearchConsolePanels(scList || document);
+                  }
                 }
               } else if (errEl) {
                 var msg = (xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -520,23 +524,26 @@
         ('full', _gsc.full_url, 'GSC CWV tam sayfa', 'Tam sayfa CWV (büyütmek için tıkla)'),
         ('extra', _gsc.extra_url, 'GSC CWV Extra', 'Extra (büyütmek için tıkla)'),
       ] %}
-      <div class="mt-4 grid gap-3 sm:gap-4 lg:gap-5 md:grid-cols-2 items-start">
+      <div class="mt-4 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-5">
         {% for variant, url, alt, title in _cwv_slots %}
           {% if url %}
             {% set _wide = variant in ('full', 'extra') %}
             {% set _solo_half = (variant == 'mobile' and not _gsc.desktop_url) or (variant == 'desktop' and not _gsc.mobile_url) %}
-            <div class="relative {% if _wide or _solo_half %}md:col-span-2{% endif %}">
+            <div class="relative {% if _wide or _solo_half %}sm:col-span-2{% endif %}">
               <a
                 href="{{ url }}"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="block overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60"
+                data-sc-cwv-zoom
+                data-sc-cwv-src="{{ url }}"
+                class="block cursor-zoom-in overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60"
                 title="{{ title }}"
+                aria-label="{{ title }}"
               >
                 <img
                   src="{{ url }}"
                   alt="{{ alt }}"
-                  class="w-full h-auto object-contain max-h-[min(80vh,900px)]"
+                  class="h-auto max-h-[min(80vh,900px)] w-full object-contain"
                   loading="lazy"
                 >
               </a>
