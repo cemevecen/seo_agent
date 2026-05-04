@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
@@ -1732,16 +1733,97 @@ def get_last_forced_refresh_at(product_id: str) -> str | None:
     return str(v) if v else None
 
 
+def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
+    """Eski DOM+batch birleşimi veya DB snapshot (rank_basis yok) disk/bellekte kaldıysa True."""
+    if not isinstance(cr, dict) or cr.get("rank") is None:
+        return False
+    if str(cr.get("chart") or "") != "category_top":
+        return False
+    return str(cr.get("rank_basis") or "") != "batchexecute"
+
+
+def _recompute_android_category_rank_only(
+    product_id: str,
+    spec: dict[str, str],
+    meta: dict[str, Any],
+    *,
+    allow_db_fallback: bool,
+) -> dict[str, Any]:
+    """Play Android kategori sırasını yeniden hesaplar (meta içinde genre/genreId kullanılır)."""
+    meta = dict(meta or {})
+
+    def _android_rank_job() -> dict[str, Any] | None:
+        return _fetch_android_category_rank(
+            spec["android_package"],
+            country="tr",
+            lang="tr",
+            category_id=str(meta.get("genreId") or "") or None,
+            skip_playwright=_skip_android_playwright_rank(),
+            genre_name_hint=(str(meta.get("genre") or "").strip() or None),
+        )
+
+    a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
+    if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
+        meta = {**meta, "category_rank": a_rank}
+
+    cr_a = meta.get("category_rank")
+    if allow_db_fallback and not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
+        fb_a = _latest_stored_category_rank(product_id, "android")
+        if fb_a:
+            meta = {**meta, "category_rank": fb_a}
+    return meta
+
+
+def _refresh_obsolete_android_rank_in_payload(
+    product_id: str, spec: dict[str, str], payload: dict[str, Any]
+) -> bool:
+    """Disk/bellekten gelen payload'ta eski Android sırası varsa yeniden hesaplar. DB fallback kullanmaz (#39 tekrarını önler)."""
+    android = payload.get("android")
+    if not isinstance(android, dict):
+        return False
+    meta = android.get("meta")
+    if not isinstance(meta, dict):
+        return False
+    if not _android_cached_category_rank_is_obsolete(meta.get("category_rank")):
+        return False
+    logger.info("app_intel: eski Android kategori sırası tespit edildi; yeniden hesaplanıyor (%s)", product_id)
+    new_meta = _recompute_android_category_rank_only(
+        product_id, spec, meta, allow_db_fallback=False
+    )
+    payload["android"] = {**android, "meta": new_meta}
+    at_iso = str(payload.get("fetched_at") or datetime.now(tz=_UTC).isoformat())
+    cr = (new_meta or {}).get("category_rank")
+    if isinstance(cr, dict) and cr.get("rank") is not None:
+        _append_rank_snapshot(
+            product_id,
+            "android",
+            {**cr, "category_name": new_meta.get("genre")},
+            at_iso=at_iso,
+        )
+        _save_rank_history()
+    try:
+        _write_disk_raw(product_id, payload)
+    except OSError as exc:
+        logger.warning("app_intel: sıra yenilemesi disk yazılamadı (%s): %s", product_id, exc)
+    return True
+
+
 def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
     if product_id not in APP_PRODUCTS:
         return {"error": "unknown_product"}
     spec = APP_PRODUCTS[product_id]
     now = time.time()
     cache_key = product_id
+    mem_hit: dict[str, Any] | None = None
     with _CACHE_LOCK:
         hit = _RAW_CACHE.get(cache_key)
         if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
-            return hit[1]
+            mem_hit = copy.deepcopy(hit[1])
+    if mem_hit is not None:
+        if _refresh_obsolete_android_rank_in_payload(product_id, spec, mem_hit):
+            with _CACHE_LOCK:
+                _RAW_CACHE[cache_key] = (now, mem_hit)
+        return mem_hit
 
     if not force_refresh:
         disk_payload = _load_disk_raw(product_id)
@@ -1751,10 +1833,12 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             except OSError:
                 age = float("inf")
             if age < _CACHE_TTL_SEC:
+                pl = copy.deepcopy(disk_payload)
+                _refresh_obsolete_android_rank_in_payload(product_id, spec, pl)
                 with _CACHE_LOCK:
-                    _RAW_CACHE[cache_key] = (now, disk_payload)
+                    _RAW_CACHE[cache_key] = (now, pl)
                 logger.info("app_intel disk cache hit: %s (%.1f h)", product_id, age / 3600.0)
-                return disk_payload
+                return pl
 
     phase_timeout = _fetch_phase_timeout_sec()
     play_cap = _play_review_cap()
@@ -1832,25 +1916,9 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
     if i_rank:
         i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
 
-    def _android_rank_job() -> dict[str, Any] | None:
-        return _fetch_android_category_rank(
-            spec["android_package"],
-            country="tr",
-            lang="tr",
-            category_id=str(meta.get("genreId") or "") or None,
-            skip_playwright=_skip_android_playwright_rank(),
-            genre_name_hint=(str(meta.get("genre") or "").strip() or None),
-        )
-
-    a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
-    if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
-        meta = {**(meta or {}), **{"category_rank": a_rank}}
-
-    cr_a = (meta or {}).get("category_rank")
-    if not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
-        fb_a = _latest_stored_category_rank(product_id, "android")
-        if fb_a:
-            meta = {**(meta or {}), "category_rank": fb_a}
+    meta = _recompute_android_category_rank_only(
+        product_id, spec, meta, allow_db_fallback=True
+    )
 
     cr_i = (i_snap or {}).get("category_rank")
     if not (isinstance(cr_i, dict) and cr_i.get("rank") is not None):
