@@ -52,6 +52,8 @@ services:
       - ./keys:/app/keys:ro
       # GSC CWV manuel screenshot'ları host diskinde kalır (konteyner/OS yeniden başlasa da)
       - ./static/gsc:/app/static/gsc
+      # App paneli (mağaza intel) disk cache — recreate sonrası da 127.0.0.1:8012 hızlı dolmalı
+      - ./data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
