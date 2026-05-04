@@ -96,6 +96,10 @@ def _play_review_cap() -> int:
 
 
 def _skip_android_playwright_rank() -> bool:
+    """Railway'de varsayılan kapalı (süre); canlı boşsa DB'deki son gerçek snapshot kullanılır.
+
+    Tam kategori listesi taraması için: APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY=1
+    """
     if (os.environ.get("APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY") or "").strip().lower() in ("1", "true", "yes"):
         return False
     return _railway_fast_mode()
@@ -346,6 +350,40 @@ def _rank_row_to_dict(row: AppStoreRankSnapshot) -> dict[str, Any]:
         "category": row.category_name,
         "chart": row.chart,
     }
+
+
+def _latest_stored_category_rank(product_id: str, platform: str) -> dict[str, Any] | None:
+    """Veritabanındaki son gerçek sıra kaydı (cron / önceki Playwright turu). Canlı çekim boşsa doldurur."""
+    if platform not in ("android", "ios"):
+        return None
+    try:
+        with SessionLocal() as db:
+            row = (
+                db.query(AppStoreRankSnapshot)
+                .filter(
+                    AppStoreRankSnapshot.product_id == product_id,
+                    AppStoreRankSnapshot.platform == platform,
+                )
+                .order_by(AppStoreRankSnapshot.collected_at.desc(), AppStoreRankSnapshot.id.desc())
+                .first()
+            )
+    except Exception as exc:
+        logger.debug("Son sıra snapshot okunamadı (%s/%s): %s", product_id, platform, exc)
+        return None
+    if row is None:
+        return None
+    chart = (str(row.chart or "").strip() or None) or ("category_top" if platform == "android" else None)
+    out: dict[str, Any] = {
+        "rank": int(row.rank),
+        "total": row.total,
+        "chart": chart,
+        "chart_label": "Kategori",
+        "category_name": row.category_name,
+        "rank_source": "db_snapshot",
+    }
+    if platform == "ios" and row.chart:
+        out["chart_label"] = _CHART_LABELS.get(str(row.chart), str(row.chart))
+    return out
 
 
 def _load_rank_rows(product_id: str, platform: str) -> list[dict[str, Any]]:
@@ -1142,6 +1180,7 @@ def _fetch_android_category_rank(
     lang: str = "tr",
     category_id: str | None = None,
     skip_playwright: bool = False,
+    genre_name_hint: str | None = None,
 ) -> dict[str, Any] | None:
     """Play kategori sırası (Playwright); yoksa detay sayfası HTML (grafik metni).
 
@@ -1161,7 +1200,13 @@ def _fetch_android_category_rank(
         if result is not None:
             return result
 
-    return _fetch_android_rank_http_fallback(package, country=country, lang=lang, category_id=category_id)
+    return _fetch_android_rank_http_fallback(
+        package,
+        country=country,
+        lang=lang,
+        category_id=category_id,
+        genre_name_hint=genre_name_hint,
+    )
 
 
 def _extract_android_packages(text: str) -> list[str]:
@@ -1230,7 +1275,8 @@ def _fetch_android_rank_playwright(
                 pass
 
             seen_batch: set[str] = set()
-            for scroll_i in range(10):
+            pkg_l = (package or "").strip().lower()
+            for _scroll_i in range(50):
                 for txt in captured_texts:
                     for p in _extract_android_packages(txt):
                         k = p.lower()
@@ -1239,11 +1285,14 @@ def _fetch_android_rank_playwright(
                             batch_ordered.append(p)
                 captured_texts.clear()
 
-                if len(batch_ordered) >= 400:
+                merged_probe = _merge_android_pkg_orders([], batch_ordered)
+                if pkg_l and _android_pkg_index(merged_probe, package) is not None:
+                    break
+                if len(batch_ordered) >= 5000:
                     break
                 try:
                     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(900)
+                    page.wait_for_timeout(1100)
                 except Exception:
                     break
 
@@ -1312,6 +1361,7 @@ def _fetch_android_rank_http_fallback(
     country: str = "tr",
     lang: str = "tr",
     category_id: str | None = None,
+    genre_name_hint: str | None = None,
 ) -> dict[str, Any] | None:
     """HTTP ile Play Store detay sayfası ve kategori chart tarama (fallback)."""
     url = "https://play.google.com/store/apps/details"
@@ -1330,17 +1380,34 @@ def _fetch_android_rank_http_fallback(
     if m_cat:
         category_name = m_cat.group(1).strip()
 
-    patterns = [
-        r"#\s*([0-9]{1,4})\s*(?:in|içinde)?\s*(Finance|Finans|Business|İş)",
-        r"Top charts[^#]{0,120}#\s*([0-9]{1,4})",
-        r"ranking[^#]{0,120}#\s*([0-9]{1,4})",
-    ]
+    gname = (genre_name_hint or "").strip()
+    gid = (category_id or "").strip().upper()
+    slug_words = gid.replace("_", " ").title() if gid else ""
+
+    patterns: list[str] = []
+    if gname and len(gname) <= 60:
+        patterns.append(r"#\s*([0-9]{1,5})\s+içinde\s+" + re.escape(gname))
+        patterns.append(r"#\s*([0-9]{1,5})\s+i̇çinde\s+" + re.escape(gname))
+    if slug_words and slug_words != gname and len(slug_words) <= 60:
+        patterns.append(r"#\s*([0-9]{1,5})\s+(?:in|içinde|i̇çinde)?\s*" + re.escape(slug_words))
+    patterns.extend(
+        [
+            r"#\s*([0-9]{1,5})\s*(?:in|içinde|i̇çinde)?\s*"
+            r"(Finance|Finans|Business|İş|Haberleşme|Communication|Tools|Araçlar|Eğlence|Entertainment)",
+            r"Top charts[^#]{0,120}#\s*([0-9]{1,5})",
+            r"ranking[^#]{0,120}#\s*([0-9]{1,5})",
+            r"(?:Ücretsiz|FREE)[^#]{0,160}#\s*([0-9]{1,5})",
+        ]
+    )
     for pat in patterns:
         m = re.search(pat, html, flags=re.IGNORECASE)
         if m:
             rank = int(m.group(1))
-            if m.lastindex and m.lastindex >= 2 and m.group(2):
-                category_name = category_name or m.group(2)
+            if rank <= 0 or rank > 500_000:
+                continue
+            cat_g2 = m.group(2) if m.lastindex and m.lastindex >= 2 else None
+            if cat_g2:
+                category_name = category_name or cat_g2
             return {
                 "rank": rank,
                 "total": None,
@@ -1744,11 +1811,24 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             lang="tr",
             category_id=str(meta.get("genreId") or "") or None,
             skip_playwright=_skip_android_playwright_rank(),
+            genre_name_hint=(str(meta.get("genre") or "").strip() or None),
         )
 
     a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
     if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
         meta = {**(meta or {}), **{"category_rank": a_rank}}
+
+    cr_a = (meta or {}).get("category_rank")
+    if not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
+        fb_a = _latest_stored_category_rank(product_id, "android")
+        if fb_a:
+            meta = {**(meta or {}), "category_rank": fb_a}
+
+    cr_i = (i_snap or {}).get("category_rank")
+    if not (isinstance(cr_i, dict) and cr_i.get("rank") is not None):
+        fb_i = _latest_stored_category_rank(product_id, "ios")
+        if fb_i:
+            i_snap = {**(i_snap or {}), "category_rank": fb_i}
 
     payload = {
         "product_id": product_id,
