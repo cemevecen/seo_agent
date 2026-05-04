@@ -58,7 +58,32 @@ def _railway_fast_mode() -> bool:
 
 def _fetch_phase_timeout_sec() -> float:
     # Railway / ters vekil çoğu zaman ~60s üzerinde yanıt keser; kısmi veri + disk cache şart.
-    return 48.0 if _railway_fast_mode() else _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC
+    # Sonrasında sıra çekimi için pay bırak (aşağıdaki _bounded_rank_call).
+    return 38.0 if _railway_fast_mode() else _APP_INTEL_FETCH_PHASE_TIMEOUT_SEC
+
+
+def _store_rank_call_budget_sec() -> float:
+    """Play HTTP sıra fallback'i için tavan (iOS sıra Railway'de atlanır)."""
+    return 10.0 if _railway_fast_mode() else 55.0
+
+
+def _bounded_rank_call(fn, timeout_sec: float) -> Any:
+    """İsteğe bağlı sıra çağrılarını sınırla; asıl mağaza+yorum verisini geciktirmesin."""
+    if timeout_sec <= 0:
+        return None
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(fn)
+        try:
+            return fut.result(timeout=timeout_sec)
+        except TimeoutError:
+            logger.warning(
+                "app_intel: kategori sırası çağrısı %.0fs içinde tamamlanamadı",
+                timeout_sec,
+            )
+            return None
+        except Exception as exc:
+            logger.warning("app_intel: kategori sırası çağrısı hata: %s", exc)
+            return None
 
 
 def _play_review_cap() -> int:
@@ -1695,21 +1720,30 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             i_snap = {**(i_snap or {}), "score": i_ssr_ratings["score"]}
         if i_ssr_ratings.get("ratings_count") is not None and not (i_snap or {}).get("ratings_count"):
             i_snap = {**(i_snap or {}), "ratings_count": i_ssr_ratings["ratings_count"]}
-    i_rank = _fetch_ios_category_rank(
-        spec["ios_app_id"],
-        country="tr",
-        genre_id=(i_snap or {}).get("primary_genre_id"),
-    )
+    # iOS kategori sırası çoklu HTTP turu yapar; tek HTTP isteği süresini (proxy ~60s) aşır.
+    # Railway'de atlanır — sıra geçmişi zaten DB/anlık görünümde ayrı job ile güncellenebilir.
+    if _railway_fast_mode():
+        i_rank = None
+    else:
+        i_rank = _fetch_ios_category_rank(
+            spec["ios_app_id"],
+            country="tr",
+            genre_id=(i_snap or {}).get("primary_genre_id"),
+        )
     if i_rank:
         i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
-    a_rank = _fetch_android_category_rank(
-        spec["android_package"],
-        country="tr",
-        lang="tr",
-        category_id=str(meta.get("genreId") or "") or None,
-        skip_playwright=_skip_android_playwright_rank(),
-    )
-    if a_rank and a_rank.get("rank") is not None:
+
+    def _android_rank_job() -> dict[str, Any] | None:
+        return _fetch_android_category_rank(
+            spec["android_package"],
+            country="tr",
+            lang="tr",
+            category_id=str(meta.get("genreId") or "") or None,
+            skip_playwright=_skip_android_playwright_rank(),
+        )
+
+    a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
+    if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
         meta = {**(meta or {}), **{"category_rank": a_rank}}
 
     payload = {

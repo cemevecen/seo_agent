@@ -383,6 +383,8 @@
   var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
   var COMP_BENCHMARK_HISTORY_KEY = "seo_agent_comp_benchmark_history_v1";
   var COMP_BENCHMARK_HISTORY_MAX = 20;
+  /* Admin middleware: JSON isteyen çağrılar 401 gövdesi alsın; HTML login sayfasına düşmesin. */
+  var jsonCred = { credentials: "same-origin", headers: { Accept: "application/json" } };
 
   function esc(v) {
     return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
@@ -2593,6 +2595,29 @@
     if (rs) rs.textContent = "Sira bilgileri yukleniyor…";
   }
 
+  function flagIntelPanelsFailed(hint) {
+    var msg = hint || "Veri yüklenemedi.";
+    var chartFail =
+      '<p class="flex min-h-[120px] items-center justify-center px-2 text-center text-sm text-rose-600 dark:text-rose-300">' +
+      esc(msg) +
+      "</p>";
+    [
+      "app-chart-play-stars",
+      "app-chart-play-rank",
+      "app-chart-play-cats",
+      "app-chart-ios-stars",
+      "app-chart-ios-rank",
+      "app-chart-ios-cats",
+    ].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = chartFail;
+    });
+    ["app-intel-play-sat", "app-intel-ios-sat", "app-intel-play-latest", "app-intel-ios-latest"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">' + esc(msg) + "</p>";
+    });
+  }
+
   function loadIntel(opts) {
     var keepProgress = !!(opts && opts.keepProgress);
     var reqSeq = ++state.requestSeq;
@@ -2616,17 +2641,37 @@
     var to = window.setTimeout(function () {
       ac.abort();
     }, 420000);
-    fetch(url, { signal: ac.signal })
+    fetch(url, Object.assign({ signal: ac.signal, cache: "no-store" }, jsonCred))
       .then(function (r) {
-        return r.json().then(function (j) {
-          return { ok: r.ok, j: j };
-        });
+        return r
+          .json()
+          .then(function (j) {
+            return { ok: r.ok, j: j, status: r.status };
+          })
+          .catch(function () {
+            return {
+              ok: false,
+              j: { error: "Sunucu yanıtı JSON değil veya bozuk." },
+              status: r.status,
+            };
+          });
       })
       .then(function (x) {
         if (reqSeq !== state.requestSeq) return Promise.resolve();
         if (!x.ok) {
           window.clearTimeout(to);
-          throw new Error(x.j && x.j.error ? x.j.error : "İstek başarısız");
+          var detail = x.j && (x.j.detail || x.j.error || x.j.message);
+          throw new Error(
+            typeof detail === "string"
+              ? detail
+              : Array.isArray(detail) && detail[0] && detail[0].msg
+                ? detail[0].msg
+                : "İstek başarısız (" + (x.status || "?") + ")",
+          );
+        }
+        if (x.j && x.j.error && !x.j.active_window) {
+          window.clearTimeout(to);
+          throw new Error(String(x.j.error));
         }
         window.clearTimeout(to);
         state.lastPayload = x.j;
@@ -2645,7 +2690,7 @@
           schedulePlotlyCatchup();
           loadAscPreview();
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
-          return fetch(asoUrl)
+          return fetch(asoUrl, Object.assign({ cache: "no-store" }, jsonCred))
             .then(function (r2) {
               return r2.json().then(function (j2) {
                 return { ok: r2.ok, j: j2 };
@@ -2677,12 +2722,16 @@
         window.clearTimeout(to);
         finishProgress();
         if (status) status.textContent = "";
+        var brief = e && e.message ? String(e.message) : "";
+        flagIntelPanelsFailed("Bu bölüm yüklenemedi. Üstteki uyarıya bakın.");
         if (errEl) {
-          var rawMsg = e && e.message ? String(e.message) : "";
+          var rawMsg = brief;
           var msg = "Veri alınırken bağlantı sorunu oluştu. Lütfen tekrar deneyin.";
           if (e && e.name === "AbortError") {
             msg =
               "İstek zaman aşımına uğradı (7 dk). Sunucu yanıt veremedi veya mağaza erişimi çok yavaş; sayfayı yenileyip tekrar deneyin.";
+          } else if (rawMsg.toLowerCase().indexOf("admin girişi") >= 0 || rawMsg.toLowerCase().indexOf("girişi gerekli") >= 0) {
+            msg = "Oturum gerekli veya süresi dolmuş. Sayfayı yenileyip tekrar giriş yapın.";
           } else if (rawMsg.toLowerCase().indexOf("networkerror") >= 0) {
             msg = "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin.";
           }
@@ -2709,15 +2758,27 @@
       }
       if (status) status.textContent = "Manuel App mağaza yenilemesi çalışıyor, özet mail hazırlanıyor...";
       startProgress();
-      fetch("/app/intel/refresh", { method: "POST" })
+      fetch("/app/intel/refresh", Object.assign({ method: "POST", cache: "no-store" }, jsonCred))
         .then(function (r) {
-          return r.json().then(function (j) {
-            return { ok: r.ok, j: j };
-          });
+          return r
+            .json()
+            .then(function (j) {
+              return { ok: r.ok, j: j, status: r.status };
+            })
+            .catch(function () {
+              return { ok: false, j: { ok: false, error: "Yanıt okunamadı." }, status: r.status };
+            });
         })
         .then(function (x) {
           if (!x.ok || !x.j || !x.j.ok) {
-            throw new Error((x.j && (x.j.error || x.j.message)) || "Manuel tetikleme başarısız");
+            var det = x.j && (x.j.error || x.j.message || x.j.detail);
+            var detStr =
+              typeof det === "string"
+                ? det
+                : Array.isArray(det) && det[0] && det[0].msg
+                  ? det[0].msg
+                  : "";
+            throw new Error(detStr || "Manuel tetikleme başarısız (" + (x.status || "?") + ")");
           }
           if (status) status.textContent = x.j.message || "Manuel yenileme tamamlandı.";
           if (x.j && x.j.started) {
@@ -2736,7 +2797,9 @@
             errEl.textContent =
               rawMsg.toLowerCase().indexOf("networkerror") >= 0
                 ? "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin."
-                : "Manuel tetikleme sırasında bir sorun oluştu. Lütfen tekrar deneyin.";
+                : rawMsg.toLowerCase().indexOf("admin girişi") >= 0 || rawMsg.toLowerCase().indexOf("girişi gerekli") >= 0
+                  ? "Oturum gerekli. Sayfayı yenileyip tekrar giriş yapın."
+                  : rawMsg;
             errEl.classList.remove("hidden");
           }
         })
