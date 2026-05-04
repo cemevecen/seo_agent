@@ -2640,7 +2640,7 @@
     }
     if (!j.active_window || typeof j.active_window !== "object") {
       throw new Error(
-        "Mağaza özeti tamamlanmadı (active_window yok). Sunucu zaman aşımı veya ara katman yanıtı kırpması olabilir; tekrar deneyin.",
+        "Mağaza özeti tamamlanmadı (active_window yok). Sunucu zaman aşımı veya ara katman yanıtı kırpması olabilir; tekrar deneyin."
       );
     }
     var w = j.active_window;
@@ -2734,7 +2734,7 @@
               ? detail
               : Array.isArray(detail) && detail[0] && detail[0].msg
                 ? detail[0].msg
-                : "İstek başarısız (" + (x.status || "?") + ")",
+                : "İstek başarısız (" + (x.status || "?") + ")"
           );
         }
         assertIntelPayload(x.j);
