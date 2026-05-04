@@ -63,8 +63,13 @@ def _fetch_phase_timeout_sec() -> float:
 
 
 def _store_rank_call_budget_sec() -> float:
-    """Play HTTP sıra fallback'i için tavan (iOS sıra Railway'de atlanır)."""
+    """Play HTTP sıra fallback'i için tavan."""
     return 10.0 if _railway_fast_mode() else 55.0
+
+
+def _ios_store_rank_call_budget_sec() -> float:
+    """App Store charts + RSS sıra turu; Railway'de proxy payı için kısa tavan."""
+    return 12.0 if _railway_fast_mode() else 55.0
 
 
 def _bounded_rank_call(fn, timeout_sec: float) -> Any:
@@ -1720,16 +1725,15 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             i_snap = {**(i_snap or {}), "score": i_ssr_ratings["score"]}
         if i_ssr_ratings.get("ratings_count") is not None and not (i_snap or {}).get("ratings_count"):
             i_snap = {**(i_snap or {}), "ratings_count": i_ssr_ratings["ratings_count"]}
-    # iOS kategori sırası çoklu HTTP turu yapar; tek HTTP isteği süresini (proxy ~60s) aşır.
-    # Railway'de atlanır — sıra geçmişi zaten DB/anlık görünümde ayrı job ile güncellenebilir.
-    if _railway_fast_mode():
-        i_rank = None
-    else:
-        i_rank = _fetch_ios_category_rank(
+    # iOS kategori sırası birden fazla HTTP turu yapabilir; üst süre ile sınırla (Railway ~60s proxy).
+    def _ios_rank_job() -> dict[str, Any] | None:
+        return _fetch_ios_category_rank(
             spec["ios_app_id"],
             country="tr",
             genre_id=(i_snap or {}).get("primary_genre_id"),
         )
+
+    i_rank = _bounded_rank_call(_ios_rank_job, _ios_store_rank_call_budget_sec())
     if i_rank:
         i_snap = {**(i_snap or {}), **{"category_rank": i_rank}}
 
