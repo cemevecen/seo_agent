@@ -434,6 +434,8 @@ def _append_rank_snapshot(
     ):
         logger.debug("Android details_page sırası DB'ye yazılmıyor (Play kapalı / HTTP güvenilmez)")
         return
+    if str(rank_info.get("rank_basis") or "") == "env_override":
+        return
     try:
         rank_int = int(rank_val)
     except Exception:
@@ -1267,11 +1269,15 @@ def _fetch_android_rank_playwright(
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
+            # Mağaza mobil web daha uzun liste yükler; masaüstü headless'ta sık sık ~75 uygulamada kalınıyor.
             ctx = browser.new_context(
                 locale=f"{lang}-{country.upper()}",
+                viewport={"width": 412, "height": 915},
+                is_mobile=True,
+                has_touch=True,
                 user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
                 ),
             )
             page = ctx.new_page()
@@ -1286,15 +1292,27 @@ def _fetch_android_rank_playwright(
             page.on("response", _on_response)
 
             try:
-                page.goto(chart_url, wait_until="domcontentloaded", timeout=40_000)
-                page.wait_for_timeout(3_000)
+                page.goto(chart_url, wait_until="domcontentloaded", timeout=55_000)
+                page.wait_for_timeout(4_500)
             except PWTimeout:
                 pass
 
             seen_batch: set[str] = set()
             pkg_l = (package or "").strip().lower()
-            for _scroll_i in range(50):
-                for txt in captured_texts:
+            _scroll_js = """() => {
+  const se = document.scrollingElement;
+  if (se) { se.scrollTop = se.scrollHeight; }
+  window.scrollTo(0, document.body.scrollHeight);
+  document.querySelectorAll('c-wiz,div,section').forEach((el) => {
+    try {
+      const sh = el.scrollHeight - el.clientHeight;
+      if (sh > 400) { el.scrollTop = el.scrollHeight; }
+    } catch (e) {}
+  });
+}"""
+
+            def _drain_batches() -> None:
+                for txt in list(captured_texts):
                     for p in _extract_android_packages(txt):
                         k = p.lower()
                         if k not in seen_batch:
@@ -1302,22 +1320,44 @@ def _fetch_android_rank_playwright(
                             batch_ordered.append(p)
                 captured_texts.clear()
 
+            vw = page.viewport_size or {"width": 900, "height": 900}
+            cx = max(120, int(vw.get("width", 900)) // 2)
+            cy = max(200, int(vw.get("height", 900)) // 2)
+            try:
+                page.mouse.move(cx, cy)
+            except Exception:
+                pass
+
+            # İlk yükleme + batchexecute
+            for _scroll_i in range(8):
+                _drain_batches()
                 if pkg_l and _android_pkg_index(batch_ordered, package) is not None:
                     break
                 if len(batch_ordered) >= 5000:
                     break
                 try:
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(1100)
+                    page.evaluate(_scroll_js)
+                    page.wait_for_timeout(900)
                 except Exception:
                     break
 
-            for txt in captured_texts:
-                for p in _extract_android_packages(txt):
-                    k = p.lower()
-                    if k not in seen_batch:
-                        seen_batch.add(k)
-                        batch_ordered.append(p)
+            # Kategori listesi çoğunlukla wheel ile ek sayfa yükler (headless'ta scrollHeight tek başına yetmez).
+            for step_i in range(220):
+                _drain_batches()
+                if pkg_l and _android_pkg_index(batch_ordered, package) is not None:
+                    break
+                if len(batch_ordered) >= 5000:
+                    break
+                try:
+                    page.mouse.move(cx, cy)
+                    page.mouse.wheel(0, 700)
+                    if step_i % 18 == 17:
+                        page.evaluate(_scroll_js)
+                    page.wait_for_timeout(280)
+                except Exception:
+                    break
+
+            _drain_batches()
 
             dom_ids: list[str] = []
             try:
@@ -1750,12 +1790,66 @@ def get_last_forced_refresh_at(product_id: str) -> str | None:
 
 
 def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
-    """Yalnızca batchexecute + category_top güvenilir; HTTP/DB/eski DOM birleşimi True döner."""
+    """Yalnızca batchexecute + category_top veya env_override güvenilir; HTTP/DB/eski DOM birleşimi True döner."""
     if not isinstance(cr, dict) or cr.get("rank") is None:
         return False
-    if str(cr.get("rank_basis") or "") == "batchexecute" and str(cr.get("chart") or "") == "category_top":
+    rb = str(cr.get("rank_basis") or "")
+    if rb == "batchexecute" and str(cr.get("chart") or "") == "category_top":
+        return False
+    if rb == "env_override":
         return False
     return True
+
+
+def _apply_android_rank_env_to_payload(product_id: str, payload: dict[str, Any]) -> None:
+    """Disk/bellekten dönen ham payload'ta da APP_INTEL_ANDROID_RANK_OVERRIDES uygulanır."""
+    ov = _android_rank_env_override(product_id)
+    if not ov:
+        return
+    android = payload.get("android")
+    if not isinstance(android, dict):
+        return
+    meta = android.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+    payload["android"] = {**android, "meta": {**meta, "category_rank": ov}}
+
+
+def _android_rank_env_override(product_id: str) -> dict[str, Any] | None:
+    """Play headless sık sık ~50–75 uygulamada kalıyor; doğrulanmış sıra için operatör env.
+
+    APP_INTEL_ANDROID_RANK_OVERRIDES='{"doviz":161,"sinemalar":null}' — yalnızca sayı olan anahtarlar kullanılır.
+    """
+    raw = (os.environ.get("APP_INTEL_ANDROID_RANK_OVERRIDES") or "").strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("APP_INTEL_ANDROID_RANK_OVERRIDES JSON okunamadı")
+        return None
+    if not isinstance(data, dict):
+        return None
+    val = data.get(product_id)
+    if val is None:
+        val = data.get(str(product_id).lower())
+    if val is None:
+        return None
+    try:
+        rank_int = int(val)
+    except (TypeError, ValueError):
+        return None
+    if rank_int < 1 or rank_int > 999_999:
+        return None
+    return {
+        "rank": rank_int,
+        "total": None,
+        "chart": "operator_override",
+        "chart_label": "Kategori (doğrulanmış)",
+        "category_name": None,
+        "rank_basis": "env_override",
+        "estimated": False,
+    }
 
 
 def _recompute_android_category_rank_only(
@@ -1793,6 +1887,11 @@ def _recompute_android_category_rank_only(
         fb_a = _latest_stored_category_rank(product_id, "android")
         if fb_a:
             meta = {**meta, "category_rank": fb_a}
+
+    ov = _android_rank_env_override(product_id)
+    if ov:
+        # Operatör .env ile verdiği sıra, headless'taki kısmi liste / yanlış pozitiflerden önceliklidir.
+        meta = {**meta, "category_rank": ov}
     return meta
 
 
@@ -1845,6 +1944,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
         if _refresh_obsolete_android_rank_in_payload(product_id, spec, mem_hit):
             with _CACHE_LOCK:
                 _RAW_CACHE[cache_key] = (now, mem_hit)
+        _apply_android_rank_env_to_payload(product_id, mem_hit)
         return mem_hit
 
     if not force_refresh:
@@ -1857,6 +1957,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dic
             if age < _CACHE_TTL_SEC:
                 pl = copy.deepcopy(disk_payload)
                 _refresh_obsolete_android_rank_in_payload(product_id, spec, pl)
+                _apply_android_rank_env_to_payload(product_id, pl)
                 with _CACHE_LOCK:
                     _RAW_CACHE[cache_key] = (now, pl)
                 logger.info("app_intel disk cache hit: %s (%.1f h)", product_id, age / 3600.0)
