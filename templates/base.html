@@ -136,11 +136,11 @@
       display: none;
     }
     .header-nav-link {
-      border-color: rgba(255, 255, 255, 0.35);
-      color: #ffffff;
-      background: linear-gradient(118deg, rgba(72, 48, 102, 0.92), rgba(130, 90, 168, 0.58));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-      text-shadow: 0 1px 2px rgba(45, 20, 75, 0.4);
+      border-color: rgba(15, 23, 42, 0.12);
+      color: #334155;
+      background: linear-gradient(118deg, rgba(248, 250, 252, 0.98), rgba(226, 232, 240, 0.9));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      text-shadow: none;
       max-width: none;
       overflow-wrap: anywhere;
       word-break: normal;
@@ -150,15 +150,32 @@
       transition: background 0.24s ease, transform 0.24s ease, color 0.24s ease, border-color 0.24s ease;
     }
     .header-nav-link:hover {
-      background: linear-gradient(118deg, rgba(88, 60, 122, 0.95), rgba(150, 110, 188, 0.75));
+      background: linear-gradient(118deg, rgba(241, 245, 249, 1), rgba(203, 213, 225, 0.95));
       transform: translateY(-1px);
     }
     .header-nav-link.nav-active {
-      background: linear-gradient(118deg, #f5f0ff, #ffffff);
-      color: #3b0764;
+      background: #ffffff;
+      color: #0f172a;
       text-shadow: none;
-      border-color: rgba(255, 255, 255, 0.95);
-      box-shadow: 0 5px 16px -12px rgba(60, 20, 90, 0.45);
+      border-color: rgba(15, 23, 42, 0.16);
+      box-shadow: 0 4px 14px -8px rgba(15, 23, 42, 0.22);
+    }
+    html.dark .header-nav-link {
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #e2e8f0;
+      background: linear-gradient(118deg, rgba(51, 65, 85, 0.95), rgba(71, 85, 105, 0.72));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    html.dark .header-nav-link:hover {
+      background: linear-gradient(118deg, rgba(71, 85, 105, 0.98), rgba(100, 116, 139, 0.82));
+    }
+    html.dark .header-nav-link.nav-active {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-color: rgba(255, 255, 255, 0.22);
+      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.45);
+      text-shadow: none;
     }
     .header-main-nav {
       justify-content: flex-start;
@@ -199,21 +216,20 @@
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
       <header class="px-3 py-1.5 sm:px-5 sm:py-2 md:px-6 md:py-2">
         <div
-          class="mx-auto w-full min-w-0 max-w-[1800px] rounded-xl px-2.5 py-1.5 shadow-[0_10px_22px_-18px_rgba(70,30,100,0.38)] sm:px-3 sm:py-2"
-          style="background: linear-gradient(110deg, #4a3560 0%, #6b4a8a 45%, #8a5cad 100%);"
+          class="mx-auto w-full min-w-0 max-w-[1800px] rounded-xl border border-slate-300/90 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-2.5 py-1.5 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.14)] ring-1 ring-slate-300/50 sm:px-3 sm:py-2 dark:border-slate-600/90 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 dark:shadow-[0_10px_28px_-16px_rgba(0,0,0,0.45)] dark:ring-slate-600/60"
         >
           <div class="header-app-shell">
             <div class="header-top-row">
               <h2
                 id="header-site-title"
-                class="min-w-0 flex-1 truncate text-base font-extrabold leading-tight tracking-tight text-white [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md"
+                class="min-w-0 flex-1 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
               >
                 {{ site_name or "SEO Agent" }}
               </h2>
               <button
                 id="theme-toggle"
                 type="button"
-                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/15 text-white transition hover:bg-white/25 [grid-area:theme]"
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-400/40 bg-slate-300/40 text-slate-800 transition hover:bg-slate-300/70 [grid-area:theme] dark:border-slate-500/50 dark:bg-slate-700/70 dark:text-slate-100 dark:hover:bg-slate-600/80"
                 title="Açık / koyu tema"
                 aria-label="Tema değiştir"
               >
