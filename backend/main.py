@@ -617,6 +617,27 @@ def _search_console_latest_snapshot_collected_at(db, site_id: int) -> datetime |
     return ts if isinstance(ts, datetime) else None
 
 
+def _crux_history_latest_collected_at(db, site_id: int) -> datetime | None:
+    from sqlalchemy import func
+
+    ts = (
+        db.query(func.max(CruxHistorySnapshot.collected_at))
+        .filter(CruxHistorySnapshot.site_id == site_id)
+        .scalar()
+    )
+    return ts if isinstance(ts, datetime) else None
+
+
+def _psi_lighthouse_metrics_latest_collected_at(db, site_id: int) -> datetime | None:
+    latest = {m.metric_type: m for m in get_latest_metrics(db, site_id)}
+    times: list[datetime] = []
+    for key in ("pagespeed_mobile_score", "pagespeed_desktop_score"):
+        m = latest.get(key)
+        if m is not None and getattr(m, "collected_at", None):
+            times.append(m.collected_at)
+    return max(times) if times else None
+
+
 def _extract_client_ip(request: Request) -> str:
     # Proxy arkasında çalışırken gerçek istemci IP'sini alır.
     if settings.trust_proxy_headers:
@@ -2726,7 +2747,8 @@ def _refresh_site_detail_measurements(
     force: bool = False,
     send_notifications: bool = False,
 ) -> dict[str, dict]:
-    if not settings.live_refresh_enabled:
+    # LIVE_REFRESH yalnızca otomatik tetikleri kapatır; manuel/API `force=True` ile PSI vb. yine çalışır (Railway).
+    if not settings.live_refresh_enabled and not force:
         return {}
     results: dict[str, dict] = {}
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
@@ -4062,6 +4084,8 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
+        psi_collected = _psi_lighthouse_metrics_latest_collected_at(db, site.id)
+        crux_collected = _crux_history_latest_collected_at(db, site.id)
         mobile_state = _data_state_badge(
             "live" if mobile_crux else "failed",
             "CrUX güncel kaydı ve history serisi mevcut",
@@ -4091,6 +4115,14 @@ def _data_explorer_context(domain: str) -> dict:
             "cwv_desktop": desktop_cwv,
             "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
             "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
+            "psi_lighthouse_last_updated": format_local_datetime(
+                psi_collected,
+                fallback="Henüz PSI/Lighthouse ölçümü yok",
+            ),
+            "crux_history_last_updated": format_local_datetime(
+                crux_collected,
+                fallback="Henüz CrUX geçmişi yok",
+            ),
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
         }
@@ -4159,6 +4191,8 @@ def _public_explorer_context(domain: str) -> dict:
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
+        psi_collected = _psi_lighthouse_metrics_latest_collected_at(db, site.id)
+        crux_collected = _crux_history_latest_collected_at(db, site.id)
 
         cwv_rows = []
         mobile_series = _format_crux_series(mobile_crux)
@@ -4200,6 +4234,14 @@ def _public_explorer_context(domain: str) -> dict:
             "crux_rows": cwv_rows,
             "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
             "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
+            "psi_lighthouse_last_updated": format_local_datetime(
+                psi_collected,
+                fallback="Henüz PSI/Lighthouse ölçümü yok",
+            ),
+            "crux_history_last_updated": format_local_datetime(
+                crux_collected,
+                fallback="Henüz CrUX geçmişi yok",
+            ),
             "warehouse_summary": warehouse,
         }
 
@@ -4445,6 +4487,8 @@ def _dashboard_ga4_compact_block(
         "sessions_change": pl.get("sessions_pct_change"),
         "organic_display": f"{_format_max_two_decimals(float(pl.get('organic_share_pct') or 0.0))}%",
         "organic_change": pl.get("organic_share_pct_change"),
+        "sessions_last": float(pl.get("last_total") or 0.0) if pl.get("has_period_data") else None,
+        "organic_share_pct": float(pl.get("organic_share_pct") or 0.0) if pl.get("has_period_data") else None,
     }
 
 
@@ -7127,6 +7171,7 @@ def _ai_brief_llm_availability() -> dict[str, bool]:
 @app.get("/ai")
 def ai_daily_brief_page(request: Request):
     from backend.services.ai_daily_brief import (
+        build_ai_brief_visual_context,
         get_ai_brief_run_stats,
         get_last_ai_brief_run_label_tr,
         get_latest_brief_for_ui,
@@ -7141,6 +7186,7 @@ def ai_daily_brief_page(request: Request):
             "ai_brief_llm": _ai_brief_llm_availability(),
             "ai_brief_run_stats": get_ai_brief_run_stats(db),
             "ai_brief_last_run_at": get_last_ai_brief_run_label_tr(db),
+            "ai_brief_visual": build_ai_brief_visual_context(db),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -7150,14 +7196,13 @@ def ai_daily_brief_page(request: Request):
 def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")):
     """Operasyon: aynı gün özeti yeniden üretir (Groq/Gemini/OpenAI). E-posta `AI_DAILY_BRIEF_SEND_EMAIL=true` iken gönderilir. AI_DAILY_BRIEF_ENABLED=false olsa da bu uç force ile çalışır."""
 
-    from backend.models import AiBriefRunLog
     from backend.services.ai_daily_brief import (
+        build_ai_brief_visual_context,
         get_ai_brief_run_stats,
         get_last_ai_brief_run_label_tr,
         get_latest_brief_for_ui,
         run_ai_daily_brief_job,
     )
-    from sqlalchemy import func
 
     raw = (llm_provider or "gemini").strip().lower()
     pov = raw if raw in ("groq", "gemini", "openai") else "gemini"
@@ -7170,16 +7215,11 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
         )
         return PlainTextResponse(msg, status_code=400)
 
-    with SessionLocal() as db:
-        before_runs = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
-
-    run_ai_daily_brief_job(force=True, provider_override=pov)
-
-    with SessionLocal() as db:
-        after_runs = int(db.query(func.count(AiBriefRunLog.id)).scalar() or 0)
-    if after_runs <= before_runs:
+    outcome = run_ai_daily_brief_job(force=True, provider_override=pov)
+    if not outcome.ok:
         return PlainTextResponse(
-            "AI yorumu üretilemedi. Lütfen birkaç saniye sonra tekrar deneyin.",
+            outcome.message_tr
+            or "AI yorumu üretilemedi. Lütfen birkaç saniye sonra tekrar deneyin.",
             status_code=500,
         )
     if request.headers.get("HX-Request") == "true":
@@ -7193,6 +7233,7 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
                 "ai_brief_llm": _ai_brief_llm_availability(),
                 "ai_brief_run_stats": get_ai_brief_run_stats(db),
                 "ai_brief_last_run_at": get_last_ai_brief_run_label_tr(db),
+                "ai_brief_visual": build_ai_brief_visual_context(db),
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
     return RedirectResponse(url="/ai", status_code=303)

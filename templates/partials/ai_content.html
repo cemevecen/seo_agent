@@ -160,6 +160,19 @@
       0%, 100% { opacity: 0.72; filter: brightness(1); }
       50% { opacity: 1; filter: brightness(1.12); }
     }
+    #ai-brief-view .ai-brief-visual-slot {
+      display: grid;
+      gap: 0.75rem;
+    }
+    @media (min-width: 900px) {
+      #ai-brief-view .ai-brief-visual-slot.ai-brief-visual--ga4 {
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr);
+        align-items: start;
+      }
+    }
+    #ai-brief-view .ai-brief-plot {
+      border-radius: 0.65rem;
+    }
     #ai-brief-view .llm-chip-inner {
       position: relative;
       z-index: 1;
@@ -487,13 +500,15 @@
   {% else %}
     <div id="ai-brief-layout-root" class="space-y-4">
       <nav class="ai-pillar-nav" aria-label="Bölümler">
-        <a href="#ai-pillar-ga4" class="ai-pillar-chip">📊 <span>GA4</span></a>
+        <a href="#ai-pillar-ga4-analizi" class="ai-pillar-chip">📊 <span>GA4</span></a>
         <a href="#ai-pillar-pagespeed" class="ai-pillar-chip">⚡ <span>PageSpeed</span></a>
         <a href="#ai-pillar-search-console" class="ai-pillar-chip">🔍 <span>Search Console</span></a>
         <a href="#ai-pillar-uyarilar-ve-oncelik" class="ai-pillar-chip">🚨 <span>Uyarılar</span></a>
       </nav>
 
-      {% macro pillar_block(title_key, icon, raw) -%}
+      <script type="application/json" id="ai-brief-visual-json">{{ (ai_brief_visual if ai_brief_visual is defined else {'by_domain': {}}) | tojson }}</script>
+
+      {% macro pillar_block(title_key, icon, raw, pillar_key) -%}
         {% set p = raw|ai_brief_sites %}
         {% set section_id = 'ai-pillar-' ~ (title_key|lower|replace(' ', '-')|replace('ı', 'i')|replace('ğ', 'g')|replace('ş', 's')|replace('ç', 'c')|replace('ö', 'o')|replace('ü', 'u')) %}
         <section id="{{ section_id }}" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -510,7 +525,11 @@
           {% if p.mode == 'sites' and p['items'] %}
             <div class="divide-y divide-slate-100 dark:divide-slate-800">
               {% for it in p['items'] %}
-                <div class="ai-site-row px-5 py-4" data-ai-brief-site="{{ it.domain|e }}">
+                <div
+                  class="ai-site-row px-5 py-4"
+                  data-ai-brief-site="{{ it.domain|e }}"
+                  data-ai-brief-pillar="{{ pillar_key|e }}"
+                >
                   <div class="mb-2.5 flex items-start gap-2.5">
                     <span class="ai-site-badge" aria-hidden="true">{{ loop.index }}</span>
                     <div class="min-w-0">
@@ -518,6 +537,12 @@
                       <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ it.domain|e }}</span>
                     </div>
                   </div>
+                  {% if pillar_key in ('ga4', 'pagespeed', 'search_console') %}
+                  <div
+                    class="ai-brief-visual-slot ai-brief-visual--{{ pillar_key|e }} mb-3 hidden min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/60 p-2.5 dark:border-slate-600 dark:bg-slate-800/35"
+                    aria-label="Özet grafikler"
+                  ></div>
+                  {% endif %}
                   <div class="ai-brief-metin text-slate-800 dark:text-slate-100">{{ it.metin|ai_brief_html_paragraphs }}</div>
                 </div>
               {% endfor %}
@@ -534,10 +559,10 @@
         </section>
       {%- endmacro %}
 
-      {{ pillar_block("GA4 Analizi", "📊", ai_brief.ga4_text) }}
-      {{ pillar_block("PageSpeed", "⚡", ai_brief.pagespeed_text) }}
-      {{ pillar_block("Search Console", "🔍", ai_brief.search_console_text) }}
-      {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text) }}
+      {{ pillar_block("GA4 Analizi", "📊", ai_brief.ga4_text, "ga4") }}
+      {{ pillar_block("PageSpeed", "⚡", ai_brief.pagespeed_text, "pagespeed") }}
+      {{ pillar_block("Search Console", "🔍", ai_brief.search_console_text, "search_console") }}
+      {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text, "alerts") }}
     </div>
   {% endif %}
 
@@ -768,6 +793,9 @@
       }
     } catch (e) {
       applyAiBriefLlm(av.gemini ? "gemini" : (av.groq ? "groq" : "openai"));
+    }
+    if (typeof window.seoInitAiBriefVisualCharts === "function") {
+      window.seoInitAiBriefVisualCharts(0);
     }
   }
 

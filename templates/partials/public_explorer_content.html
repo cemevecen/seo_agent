@@ -14,6 +14,11 @@
         <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">{{ display_name }}</h2>
         <p class="mt-2 break-all text-sm text-slate-600 dark:text-slate-300">{{ domain }}</p>
         <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Search Console durumu: <span class="font-semibold text-slate-900 dark:text-slate-100">{{ search_console_label }}</span></p>
+        <p class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
+          PSI / Lighthouse skorları — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
+          <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+          CrUX geçmişi — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
+        </p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button
@@ -245,7 +250,7 @@
       button.textContent = 'Yenileniyor...';
     }
 
-    fetch('/api/site/' + domain + '/refresh', { method: 'POST' })
+    fetch('/api/site/' + domain + '/refresh', { method: 'POST', credentials: 'same-origin' })
       .then(function (response) {
         if (!response.ok) {
           throw new Error('External refresh failed');

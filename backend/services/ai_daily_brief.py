@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from html import escape
 from typing import Any
@@ -36,6 +37,14 @@ LOGGER = logging.getLogger(__name__)
 _BRIEF_SECTION_KEYS = ("ga4", "pagespeed", "search_console", "alerts")
 
 _BRIEF_RUN_LOGS_SEED_LOCK = threading.Lock()
+
+
+@dataclass(frozen=True)
+class AiBriefRunOutcome:
+    """Manuel / zamanlanmış AI özet çalıştırması sonucu."""
+
+    ok: bool
+    message_tr: str = ""
 
 
 def _istanbul_month_day_range_iso() -> tuple[str, str]:
@@ -215,15 +224,34 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
     failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
 
     ovr = (provider_override or "").strip().lower()
-    # Manuel provider seçimi, kullanıcı niyetini korumak için fallback yapmaz.
     if ovr in {"groq", "gemini", "openai"}:
+        primary: list[tuple[str, str]] = []
         if ovr == "groq" and groq_k:
-            return [("groq", gq)]
-        if ovr == "gemini" and gem_k:
-            return [("gemini", gm)]
-        if ovr == "openai" and oai_k:
-            return [("openai", om)]
-        return []
+            primary = [("groq", gq)]
+        elif ovr == "gemini" and gem_k:
+            primary = [("gemini", gm)]
+        elif ovr == "openai" and oai_k:
+            primary = [("openai", om)]
+        if not primary:
+            return []
+        if not failover:
+            return primary
+        # Seçilen model önce; başarısız olursa (429, zaman aşımı vb.) diğer anahtarlı sağlayıcılar devreye girer.
+        seen = {primary[0][0]}
+        tail: list[tuple[str, str]] = []
+        for p in ("gemini", "groq", "openai"):
+            if p in seen:
+                continue
+            if p == "groq" and groq_k:
+                tail.append(("groq", gq))
+                seen.add("groq")
+            elif p == "gemini" and gem_k:
+                tail.append(("gemini", gm))
+                seen.add("gemini")
+            elif p == "openai" and oai_k:
+                tail.append(("openai", om))
+                seen.add("openai")
+        return primary + tail
 
     order_slug: list[str] = []
     if ovr:
@@ -342,11 +370,14 @@ def _ga4_hucre_ozet(layout: dict) -> list[dict]:
         for block in layout.get(col) or []:
             cells.append(
                 {
+                    "profil_anahtar": block.get("profile"),
                     "profil": block.get("label"),
                     "oturum_etiket": block.get("sessions_display"),
                     "oturum_degisim_pct": block.get("sessions_change"),
                     "organik_pay": block.get("organic_display"),
                     "veri_var": bool(block.get("has_data")),
+                    "oturum_sayi": block.get("sessions_last"),
+                    "organik_pay_oran": block.get("organic_share_pct"),
                 }
             )
     return cells
@@ -358,13 +389,158 @@ def _ga4_cells_scrub_app_organic(cells: list[dict]) -> list[dict]:
     for c in cells:
         row = dict(c)
         prof = str(row.get("profil") or "").strip().lower()
-        if prof in ("android", "ios") or "android" in prof or "ios" in prof:
+        pk = str(row.get("profil_anahtar") or "").strip().lower()
+        if prof in ("android", "ios") or "android" in prof or "ios" in prof or pk in ("android", "ios"):
             row["organik_pay"] = None
+            row["organik_pay_oran"] = None
             row["profil_aciklama"] = (
                 "Mobil uygulama (app) akışı — organik arama payı veya GSC ile karşılaştırma yazılmaz."
             )
         out.append(row)
     return out
+
+
+def _build_ga4_chart_payload(ga4_by_gun: dict[str, list[dict]]) -> dict[str, Any]:
+    """AI özet kartları için GA4: oturum çubukları + (varsa) organik pay pastası."""
+
+    def _cell_map(cells: list[dict]) -> dict[str, dict]:
+        m: dict[str, dict] = {}
+        for c in cells or []:
+            pk = str(c.get("profil_anahtar") or "").strip().lower()
+            if pk:
+                m[pk] = c
+        return m
+
+    def _sess(cell: dict | None) -> float | None:
+        if not cell:
+            return None
+        v = cell.get("oturum_sayi")
+        if v is None:
+            return None
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return None
+        if x < 0:
+            return None
+        return x
+
+    period_meta = (("1", "1 gün"), ("7", "7 gün"), ("30", "30 gün"))
+    xs = [lbl for _, lbl in period_meta]
+
+    ref_cells = ga4_by_gun.get("30") or ga4_by_gun.get("7") or ga4_by_gun.get("1") or []
+    cm0 = _cell_map(ref_cells)
+    bar_profiles: list[tuple[str, str]] = []
+    for want in ("web", "mweb"):
+        if want in cm0:
+            bar_profiles.append((want, str(cm0[want].get("profil") or want)))
+    if len(bar_profiles) < 2:
+        for c in ref_cells:
+            pk = str(c.get("profil_anahtar") or "").strip().lower()
+            if not pk or pk in {x[0] for x in bar_profiles}:
+                continue
+            bar_profiles.append((pk, str(c.get("profil") or pk)))
+            if len(bar_profiles) >= 2:
+                break
+
+    traces: list[dict[str, Any]] = []
+    for pk, label in bar_profiles[:3]:
+        ys: list[float | None] = []
+        for pid, _ in period_meta:
+            ys.append(_sess(_cell_map(ga4_by_gun.get(pid) or []).get(pk)))
+        if any(v is not None for v in ys):
+            traces.append({"profile": pk, "name": label, "y": [v if v is not None else 0.0 for v in ys]})
+
+    pie: dict[str, Any] | None = None
+    cm30 = _cell_map(ga4_by_gun.get("30") or [])
+    for pk_try, title_suffix in (("web", "Web"), ("mweb", "Mobil web")):
+        cell = cm30.get(pk_try)
+        if not cell:
+            continue
+        org = cell.get("organik_pay_oran")
+        if org is None:
+            continue
+        try:
+            pct = float(org)
+        except (TypeError, ValueError):
+            continue
+        if pct <= 0 or pct > 100:
+            continue
+        pie = {
+            "title": f"30 gün · {title_suffix}",
+            "labels": ["Organik", "Diğer kanallar"],
+            "values": [round(pct, 2), round(max(0.0, 100.0 - pct), 2)],
+        }
+        break
+
+    return {
+        "period_labels": xs,
+        "session_bars": traces,
+        "organic_pie": pie,
+    }
+
+
+def build_ai_brief_visual_context(db: Session) -> dict[str, Any]:
+    """AI strateji sayfası: metinle aynı kaynaktan özet grafikler (Plotly)."""
+    from backend.main import (
+        _dashboard_ga4_layout,
+        _normalize_dashboard_platform,
+        _preferred_site_order_key,
+        _summarize_search_console_rows,
+        _search_console_status,
+    )
+
+    ext = _external_site_ids(db)
+    sites = (
+        db.query(Site)
+        .filter(Site.is_active.is_(True))
+        .order_by(Site.created_at.desc())
+        .all()
+    )
+    sites = [s for s in sites if s.id not in ext]
+    sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+    sc_scopes = ["current_day", "current_7d", "previous_7d", "current_30d", "previous_30d"]
+    by_domain: dict[str, dict[str, Any]] = {}
+    for site in sites:
+        dom = (site.domain or "").strip().lower()
+        if not dom:
+            continue
+        latest_list = get_latest_metrics(db, site.id)
+        latest = {m.metric_type: m for m in latest_list}
+        latest_floats = {k: float(v.value) for k, v in latest.items()}
+        mob = latest_floats.get("pagespeed_mobile_score")
+        desk = latest_floats.get("pagespeed_desktop_score")
+        ga4_conn = get_ga4_connection_status(db, site.id)
+        platform = _normalize_dashboard_platform("web")
+        ga4_by_gun: dict[str, list[dict]] = {}
+        for gun, pd in (("1", 1), ("7", 7), ("30", 30)):
+            layout = _dashboard_ga4_layout(db, site, platform, latest_floats, ga4_conn, period_days=pd)
+            ga4_by_gun[gun] = _ga4_cells_scrub_app_organic(_ga4_hucre_ozet(layout))
+        sc_batch = get_latest_search_console_rows_batch(db, site_id=site.id, scopes=sc_scopes)
+        cur7 = sc_batch.get("current_7d") or []
+        sum7 = _summarize_search_console_rows(cur7)
+        sc_status = _search_console_status(db, latest, site.id)
+        entry: dict[str, Any] = {
+            "domain": dom,
+            "ga4": _build_ga4_chart_payload(ga4_by_gun),
+            "pagespeed": {
+                "mobil": int(mob) if mob is not None else None,
+                "masaustu": int(desk) if desk is not None else None,
+            },
+            "search_console_7d": {
+                "clicks": round(float(sum7.get("clicks") or 0.0), 2),
+                "impressions": round(float(sum7.get("impressions") or 0.0), 2),
+                "ctr": round(float(sum7.get("ctr") or 0.0), 2),
+                "position": round(float(sum7.get("position") or 0.0), 2),
+            },
+            "search_console_label": str(sc_status.get("label") or sc_status.get("state") or ""),
+        }
+        by_domain[dom] = entry
+        if dom.startswith("www."):
+            by_domain[dom[4:]] = entry
+        else:
+            by_domain["www." + dom] = entry
+    return {"by_domain": by_domain}
 
 
 def gather_ai_brief_context(db: Session) -> dict:
@@ -903,25 +1079,31 @@ def build_brief_email_html(
     )
 
 
-def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None = None) -> None:
+def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None = None) -> AiBriefRunOutcome:
     if not settings.ai_daily_brief_enabled and not force:
         LOGGER.info("AI günlük özet kapalı (zamanlanmış). Manuel üretim: POST /ai/generate.")
-        return
+        return AiBriefRunOutcome(True, "")
 
     if not _BRIEF_JOB_LOCK.acquire(blocking=False):
         LOGGER.info("AI günlük özet zaten çalışıyor; çağrı atlandı (eşzamanlılık koruması).")
-        return
+        return AiBriefRunOutcome(
+            False,
+            "Başka bir analiz şu anda çalışıyor. Bir dakika bekleyip tekrar deneyin.",
+        )
     try:
-        _run_ai_daily_brief_job_impl(force=force, provider_override=provider_override)
+        return _run_ai_daily_brief_job_impl(force=force, provider_override=provider_override)
     finally:
         _BRIEF_JOB_LOCK.release()
 
 
-def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str | None = None) -> None:
+def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str | None = None) -> AiBriefRunOutcome:
     try_chain = brief_provider_try_chain(provider_override=provider_override)
     if not try_chain:
         LOGGER.warning("AI günlük özet atlandı: GROQ_API_KEY veya GEMINI_API_KEY yapılandırılmadı.")
-        return
+        return AiBriefRunOutcome(
+            False,
+            "Yapılandırılmış LLM API anahtarı yok. Railway ortamında GEMINI_API_KEY, GROQ_API_KEY veya OPENAI_API_KEY tanımlı mı kontrol edin.",
+        )
 
     single = bool(settings.ai_daily_brief_single_llm_call)
     planned_calls = 1 if single else 2
@@ -938,7 +1120,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
             and len((existing.ga4_text or "").strip()) > 50
         ):
             LOGGER.info("AI brief for %s already emailed, skip.", brief_date)
-            return
+            return AiBriefRunOutcome(True, "")
         if (
             existing
             and not force
@@ -969,12 +1151,15 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                     "AI brief for %s already stored; email sending disabled, skip resend.",
                     brief_date,
                 )
-            return
+            return AiBriefRunOutcome(True, "")
         try:
             context = gather_ai_brief_context(db)
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("AI brief context failed: %s", exc)
-            return
+            return AiBriefRunOutcome(
+                False,
+                "Özet için veri toplanırken sunucu hatası oluştu. GA4 / Search Console erişimini ve Railway günlüklerini kontrol edin.",
+            )
 
         from backend.services.llm_spend import (
             estimate_failover_upper_bound_try,
@@ -990,13 +1175,18 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         if not preflight_month_budget_allows(
             db, marginal_try_upper=worst_try, context_label="ai-brief-failover-worst"
         ):
-            return
+            return AiBriefRunOutcome(
+                False,
+                "Bu ay için tahmini LLM harcama üst sınırı aşılıyor; işlem güvenlik için durduruldu. "
+                "Limit ayarlarını veya ay sonunu bekleyin.",
+            )
 
         final: dict[str, str] | None = None
         qc_ok = False
         qc_detail = ""
         run_try_delta = 0.0
         attempt_index = -1
+        quota_blocked = False
 
         for idx, (provider, model_name) in enumerate(try_chain):
             marginal_one = estimate_single_attempt_upper_bound_try(
@@ -1013,6 +1203,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                     "AI günlük özet kota sınırı: %s denemesi atlandı (günlük LLM üst sınırı).",
                     provider,
                 )
+                quota_blocked = True
                 break
             try:
                 if single:
@@ -1049,7 +1240,19 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                     "AI günlük özet tüm sağlayıcılarla başarısız (denenen: %s).",
                     [p for p, _ in try_chain],
                 )
-            return
+            if quota_blocked:
+                return AiBriefRunOutcome(
+                    False,
+                    "Günlük LLM çağrı kotası doldu (AI_DAILY_BRIEF_MAX_LLM_CALLS_PER_CALENDAR_DAY). "
+                    "Yarın tekrar deneyin veya kotayı artırın.",
+                )
+            tried = ", ".join(f"{p}:{m}" for p, m in try_chain[:4]) if try_chain else "—"
+            return AiBriefRunOutcome(
+                False,
+                "Seçilen ve yedek modeller yanıt veremedi (zaman aşımı, kota veya ağ). "
+                f"Denenen zincir: {tried}. Biraz sonra tekrar deneyin; Groq veya OpenAI ile de test edin. "
+                "Ayrıntı için Railway uygulama günlüklerine bakın.",
+            )
 
         row = existing or AiDailyBriefReport(brief_date=brief_date)
         row.ga4_text = final.get("ga4", "")
@@ -1084,7 +1287,10 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("AI özet + analiz geçmişi birlikte kaydedilemedi: %s", exc)
             db.rollback()
-            return
+            return AiBriefRunOutcome(
+                False,
+                "Özet üretildi ancak veritabanına kaydedilemedi. Disk / PostgreSQL bağlantısını kontrol edip tekrar deneyin.",
+            )
         if settings.ai_daily_brief_send_email:
             recipients = operations_recipients()
             subject = f"SEO Agent · AI günlük özet · {brief_date}"
@@ -1099,6 +1305,8 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
                 LOGGER.warning("AI brief email not sent (SMTP or recipients).")
         else:
             LOGGER.info("AI brief stored for %s; email sending disabled (ai_daily_brief_send_email).", brief_date)
+
+    return AiBriefRunOutcome(True, "")
 
 
 def get_latest_brief_for_ui(db: Session) -> AiDailyBriefReport | None:

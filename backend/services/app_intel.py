@@ -375,7 +375,12 @@ def _latest_stored_category_rank(product_id: str, platform: str) -> dict[str, An
     row = None
     for r in rows or []:
         ch = str(r.chart or "").strip().lower()
-        if platform == "android" and ch in ("details_page", "category_dom_only"):
+        # Eski sürümler paket-id ile Play aramasından #1 üretip DB'ye yazıyordu; kategori sırası değil.
+        if platform == "android" and ch in (
+            "details_page",
+            "category_dom_only",
+            "store_search_package",
+        ):
             continue
         row = r
         break
@@ -1793,6 +1798,8 @@ def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
     """Yalnızca batchexecute + category_top veya env_override güvenilir; HTTP/DB/eski DOM birleşimi True döner."""
     if not isinstance(cr, dict) or cr.get("rank") is None:
         return False
+    if str(cr.get("chart") or "").strip().lower() == "store_search_package":
+        return True
     rb = str(cr.get("rank_basis") or "")
     if rb == "batchexecute" and str(cr.get("chart") or "") == "category_top":
         return False
@@ -1861,6 +1868,9 @@ def _recompute_android_category_rank_only(
 ) -> dict[str, Any]:
     """Play Android kategori sırasını yeniden hesaplar (meta içinde genre/genreId kullanılır)."""
     meta = dict(meta or {})
+    _prev_cr = meta.get("category_rank")
+    if isinstance(_prev_cr, dict) and str(_prev_cr.get("chart") or "").strip().lower() == "store_search_package":
+        meta = {k: v for k, v in meta.items() if k != "category_rank"}
 
     def _android_rank_job() -> dict[str, Any] | None:
         return _fetch_android_category_rank(

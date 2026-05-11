@@ -234,6 +234,11 @@ text-slate-500 dark:text-slate-400
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed</p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ domain }}</h3>
+      <p class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
+        PSI / Lighthouse skorları — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
+        <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+        CrUX geçmişi — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
+      </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <button
@@ -314,6 +319,7 @@ text-slate-500 dark:text-slate-400
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed Insights</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Resmi PSI ve Lighthouse Maddeleri</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Skorların veritabanına işlendiği zaman: {{ psi_lighthouse_last_updated|e }}</p>
       </div>
     </div>
 
@@ -1096,9 +1102,18 @@ text-slate-500 dark:text-slate-400
           stepIndex += 1;
         }, 900);
         try {
-          const response = await fetch(url, { method: 'POST' });
+          const response = await fetch(url, { method: 'POST', credentials: 'same-origin' });
           if (!response.ok) {
-            throw new Error('refresh failed');
+            let detail = 'refresh failed';
+            try {
+              const errBody = await response.json();
+              if (errBody && errBody.error) {
+                detail = String(errBody.error);
+              }
+            } catch (e) {
+              /* ignore */
+            }
+            throw new Error(detail);
           }
           if (progressTimer) {
             window.clearInterval(progressTimer);
@@ -1156,7 +1171,7 @@ text-slate-500 dark:text-slate-400
           renderProgress({
             percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
             title: 'Data Explorer yenilenemedi',
-            detail: 'PSI veya CrUX akışı tamamlanamadı. Backend loglarını kontrol et.',
+            detail: (error && error.message) ? error.message : 'PSI veya CrUX akışı tamamlanamadı. Backend loglarını kontrol et.',
           });
           refreshButton.textContent = 'Yenileme başarısız';
           setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
