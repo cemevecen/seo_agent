@@ -7253,7 +7253,7 @@ def app_intel_page(request: Request):
 
 
 @app.get("/api/app/intel")
-def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0):
+def api_app_intel(product: str = "doviz", period: int = 30):
     from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, intel_json_safe
 
     pid = (product or "doviz").strip().lower()
@@ -7265,10 +7265,7 @@ def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0)
         p = 30
     if p not in (0, 7, 30, 90, 180, 365, 730):
         p = 30
-    payload = build_intel_payload(pid, p, cache_only=bool(cache_only))
-    if payload.get("error"):
-        sc = 404 if payload["error"] == "no_cached_data" else 400
-        return JSONResponse(intel_json_safe(payload), status_code=sc)
+    payload = build_intel_payload(pid, p)
     return JSONResponse(intel_json_safe(payload))
 
 

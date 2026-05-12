@@ -1939,7 +1939,7 @@ def _refresh_obsolete_android_rank_in_payload(
     return True
 
 
-def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_only: bool = False) -> dict[str, Any]:
+def get_raw_product_data(product_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
     if product_id not in APP_PRODUCTS:
         return {"error": "unknown_product"}
     spec = APP_PRODUCTS[product_id]
@@ -1964,7 +1964,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
                 age = now - _disk_raw_path(product_id).stat().st_mtime
             except OSError:
                 age = float("inf")
-            if age < _CACHE_TTL_SEC or cache_only:
+            if age < _CACHE_TTL_SEC:
                 pl = copy.deepcopy(disk_payload)
                 _refresh_obsolete_android_rank_in_payload(product_id, spec, pl)
                 _apply_android_rank_env_to_payload(product_id, pl)
@@ -1972,9 +1972,6 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
                     _RAW_CACHE[cache_key] = (now, pl)
                 logger.info("app_intel disk cache hit: %s (%.1f h)", product_id, age / 3600.0)
                 return pl
-
-    if cache_only:
-        return {"error": "no_cached_data", "message": "Henüz mağaza verisi yok. Yorum çekmek için 'Verileri yenile' butonunu kullanın."}
 
     phase_timeout = _fetch_phase_timeout_sec()
     play_cap = _play_review_cap()
@@ -2125,11 +2122,11 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
     return payload
 
 
-def build_intel_payload(product_id: str, period_days: int, *, force_refresh: bool = False, cache_only: bool = False) -> dict[str, Any]:
+def build_intel_payload(product_id: str, period_days: int, *, force_refresh: bool = False) -> dict[str, Any]:
     valid_periods = (0, 7, 30, 90, 180, 365, 730)
     if period_days not in valid_periods:
         period_days = 7
-    raw = get_raw_product_data(product_id, force_refresh=force_refresh, cache_only=cache_only)
+    raw = get_raw_product_data(product_id, force_refresh=force_refresh)
     if raw.get("error"):
         return raw
 
