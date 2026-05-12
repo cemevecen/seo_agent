@@ -86,11 +86,12 @@ def fetch_realtime_comparison(
     if client is None:
         client = _build_client()
 
-    w = max(1, min(window_minutes, 15))
-    current_end = 0
-    current_start = w - 1
-    previous_end = w
-    previous_start = 2 * w - 1
+    # Realtime API max 29 dakika geriye gidebilir (0–29 = 30 dk).
+    # Karşılaştırma için 30 dk'yı iki 15'lik yarıya böleriz.
+    # Gösterim için tam 30 dk'lık "total" range eklenir (activeUsers toplanabilir
+    # olmadığı için ayrı range gerekir).
+    half = 15
+    total_start = min(max(1, window_minutes), 30) - 1  # 0-indexed: 29 for 30dk
 
     metrics = [
         Metric(name="activeUsers"),
@@ -103,16 +104,9 @@ def fetch_realtime_comparison(
         property=f"properties/{property_id}",
         metrics=metrics,
         minute_ranges=[
-            MinuteRange(
-                name="current",
-                start_minutes_ago=current_start,
-                end_minutes_ago=current_end,
-            ),
-            MinuteRange(
-                name="previous",
-                start_minutes_ago=previous_start,
-                end_minutes_ago=previous_end,
-            ),
+            MinuteRange(name="total", start_minutes_ago=total_start, end_minutes_ago=0),
+            MinuteRange(name="current", start_minutes_ago=half - 1, end_minutes_ago=0),
+            MinuteRange(name="previous", start_minutes_ago=2 * half - 1, end_minutes_ago=half),
         ],
     )
 
@@ -121,17 +115,17 @@ def fetch_realtime_comparison(
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     metric_names = [m.name for m in response.metric_headers]
-    windows: dict[str, dict[str, float]] = {"current": {}, "previous": {}}
+    windows: dict[str, dict[str, float]] = {"total": {}, "current": {}, "previous": {}}
 
     for row in response.rows:
         range_name = ""
         for dv in row.dimension_values:
             val = dv.value
-            if val in ("current", "previous"):
+            if val in ("total", "current", "previous"):
                 range_name = val
                 break
 
-        key = range_name if range_name in ("current", "previous") else "current"
+        key = range_name if range_name in windows else "total"
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
@@ -143,7 +137,8 @@ def fetch_realtime_comparison(
 
     return {
         "property_id": property_id,
-        "window_minutes": w,
+        "window_minutes": total_start + 1,
+        "total": windows["total"],
         "current": windows["current"],
         "previous": windows["previous"],
         "comparison": comparison,
@@ -360,13 +355,15 @@ def _save_snapshot(db: Session, site_id: int, profile: str, result: dict[str, An
 
     from backend.models import RealtimeSnapshot
 
+    total = result.get("total") or result.get("current") or {}
+    prev_half = result.get("previous") or {}
     snapshot = RealtimeSnapshot(
         site_id=site_id,
         profile=profile,
-        active_users_current=result.get("current", {}).get("activeUsers", 0),
-        active_users_previous=result.get("previous", {}).get("activeUsers", 0),
-        pageviews_current=result.get("current", {}).get("screenPageViews", 0),
-        pageviews_previous=result.get("previous", {}).get("screenPageViews", 0),
+        active_users_current=total.get("activeUsers", 0),
+        active_users_previous=prev_half.get("activeUsers", 0),
+        pageviews_current=total.get("screenPageViews", 0),
+        pageviews_previous=prev_half.get("screenPageViews", 0),
         window_minutes=result.get("window_minutes", DEFAULT_WINDOW_MINUTES),
         alarm_count=len(result.get("alarms", [])),
         payload_json=_json.dumps(result, default=str, ensure_ascii=False),

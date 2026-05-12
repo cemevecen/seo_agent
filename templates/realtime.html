@@ -175,6 +175,7 @@
 
   function _renderKpis(box, data) {
     var comp = data.comparison || {};
+    var total = data.total || {};
     box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
       var key = kpiBox.getAttribute('data-rt-kpi');
       var c = comp[key];
@@ -182,7 +183,8 @@
       var valEl = kpiBox.querySelector('[data-rt-val]');
       var prevEl = kpiBox.querySelector('[data-rt-prev]');
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
-      if (valEl) valEl.textContent = _fmt(c.current);
+      var mainVal = (total[key] != null) ? total[key] : c.current;
+      if (valEl) valEl.textContent = _fmt(mainVal);
       if (prevEl) prevEl.textContent = 'önceki: ' + _fmt(c.previous);
       if (pctEl) {
         var pct = c.change_pct || 0;
