@@ -486,3 +486,42 @@ class AdminAuthSetting(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     password_salt: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class RealtimeSnapshot(Base):
+    """GA4 Realtime API kontrol sonuçları — trend grafiği ve geçmiş için."""
+
+    __tablename__ = "realtime_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile: Mapped[str] = mapped_column(String(20), nullable=False, default="web", index=True)
+    active_users_current: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    active_users_previous: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    pageviews_current: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    pageviews_previous: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    window_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    alarm_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
+class RealtimeAlarmLog(Base):
+    """GA4 Realtime alarm tetiklenme geçmişi."""
+
+    __tablename__ = "realtime_alarm_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    metric: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning")
+    current_value: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    previous_value: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    change_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    triggered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")

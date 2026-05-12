@@ -184,6 +184,11 @@ class Settings(BaseSettings):
     llm_openai_prompt_usd_per_mtok: float = 0.15
     llm_openai_completion_usd_per_mtok: float = 0.60
 
+    # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
+    ga4_realtime_enabled: bool = False
+    ga4_realtime_interval_minutes: int = 10
+    ga4_realtime_window_minutes: int = 10
+
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"

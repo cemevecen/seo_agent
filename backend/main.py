@@ -2592,6 +2592,27 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
+    if settings.ga4_realtime_enabled:
+        from apscheduler.triggers.interval import IntervalTrigger as _IntTrigger
+        scheduler.add_job(
+            _run_ga4_realtime_check_job,
+            trigger=_IntTrigger(
+                minutes=max(5, int(settings.ga4_realtime_interval_minutes)),
+                timezone=timezone,
+            ),
+            id="ga4-realtime-check",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=600,
+        )
+        LOGGER.info(
+            "GA4 Realtime monitoring aktif: her %d dk, pencere %d dk.",
+            settings.ga4_realtime_interval_minutes,
+            settings.ga4_realtime_window_minutes,
+        )
+        job_count += 1
+
     # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
     scheduler.add_job(
         _run_scheduled_db_cleanup_job,
@@ -7490,7 +7511,14 @@ def ga4_single_site_card(request: Request, site_id: int):
         response = templates.TemplateResponse(
             request,
             "partials/ga4_single_site_card.html",
-            context={"request": request, "site": site_data, "site_count": site_count},
+            context={
+                "request": request,
+                "site": site_data,
+                "site_count": site_count,
+                "site_id": site_id,
+                "window_minutes": settings.ga4_realtime_window_minutes,
+                "interval_minutes": settings.ga4_realtime_interval_minutes,
+            },
         )
         response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
         return response
@@ -7817,6 +7845,66 @@ def ga4_sources_partial(request: Request, site_id: int):
         src_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
         return src_resp
 
+
+# ── GA4 Realtime ──────────────────────────────────────────────────────────────
+
+@app.get("/api/ga4/realtime/{site_id}")
+def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
+    """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır."""
+    from backend.services.ga4_realtime import check_site_realtime, get_recent_snapshots, get_recent_alarms
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        result = check_site_realtime(db, site, window_minutes=window, profile=profile)
+        result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=30)
+        result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
+    return JSONResponse(result)
+
+
+@app.get("/api/ga4/realtime/{site_id}/trend")
+def api_ga4_realtime_trend(site_id: int, profile: str = "web", limit: int = 30):
+    """Son N snapshot — mini trend grafiği için (API çağırmadan sadece DB okur)."""
+    from backend.services.ga4_realtime import get_recent_snapshots
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        snapshots = get_recent_snapshots(db, site_id, profile=profile, limit=min(limit, 100))
+    return JSONResponse({"site_id": site_id, "profile": profile, "trend": snapshots})
+
+
+@app.get("/api/ga4/realtime/{site_id}/alarms")
+def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
+    """Son N alarm kaydı."""
+    from backend.services.ga4_realtime import get_recent_alarms
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        alarms = get_recent_alarms(db, site_id, limit=min(limit, 100))
+    return JSONResponse({"site_id": site_id, "alarms": alarms})
+
+
+@app.post("/api/ga4/realtime/check-all")
+def api_ga4_realtime_check_all(request: Request):
+    """Tüm aktif siteleri kontrol et — manuel tetik veya scheduler'dan çağrılır."""
+    from backend.services.ga4_realtime import run_all_sites_realtime_check
+
+    with SessionLocal() as db:
+        results = run_all_sites_realtime_check(db)
+    alarm_total = sum(r.get("alarm_count", 0) for r in results if isinstance(r, dict))
+    return JSONResponse({
+        "checked": len(results),
+        "alarm_total": alarm_total,
+        "results": results,
+    })
+
+
+# ── /settings (devam) ────────────────────────────────────────────────────────
 
 @app.get("/settings/alert-thresholds")
 def settings_alert_thresholds(request: Request):
@@ -8577,6 +8665,25 @@ def _run_db_retention_cleanup() -> dict:
     total_deleted = sum(v for v in stats.values() if v > 0)
     logging.info("DB retention cleanup tamamlandı — toplam %d satır silindi: %s", total_deleted, stats)
     return stats
+
+
+def _run_ga4_realtime_check_job() -> None:
+    """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü."""
+    try:
+        from backend.services.ga4_realtime import run_all_sites_realtime_check
+
+        with SessionLocal() as db:
+            results = run_all_sites_realtime_check(
+                db,
+                window_minutes=settings.ga4_realtime_window_minutes,
+            )
+        alarm_total = sum(r.get("alarm_count", 0) for r in results if isinstance(r, dict))
+        if alarm_total:
+            LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d site kontrol edildi).", alarm_total, len(results))
+        else:
+            LOGGER.info("GA4 Realtime: %d site kontrol edildi, alarm yok.", len(results))
+    except Exception:
+        logging.exception("GA4 Realtime check hatası")
 
 
 def _run_scheduled_db_cleanup_job() -> None:
