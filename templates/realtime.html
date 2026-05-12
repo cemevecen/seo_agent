@@ -35,7 +35,7 @@
       {{ site.display_name or site.domain }}
       <span class="ml-2 text-xs font-normal text-slate-400">{{ site.domain }}</span>
     </h2>
-    <div class="grid gap-4 {{ 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' if site.profiles|length >= 4 else ('grid-cols-1 sm:grid-cols-2' if site.profiles|length >= 2 else 'grid-cols-1') }}">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {% for profile in site.profiles %}
       <div
         class="rt-profile-box rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 via-white to-violet-50/40 p-4 dark:border-indigo-800/50 dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-800"
@@ -231,7 +231,7 @@
     var listEl = box.querySelector('[data-rt-pages-list]');
     var tsEl = box.querySelector('[data-rt-pages-ts]');
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=5')
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=10')
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages) {

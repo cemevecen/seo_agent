@@ -7858,7 +7858,7 @@ def realtime_page(request: Request):
             if not ga4_status.get("connected"):
                 continue
             props = ga4_status.get("properties") or {}
-            profiles = [p for p in ("web", "mweb", "android", "ios") if str(props.get(p, "")).strip()]
+            profiles = [p for p in ("web", "mweb", "ios", "android") if str(props.get(p, "")).strip()]
             if not profiles:
                 continue
             site_list.append({
