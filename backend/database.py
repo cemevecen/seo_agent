@@ -109,6 +109,10 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_app_rank_prod_platform_collected ON app_store_rank_snapshots(product_id, platform, collected_at)",
         # ga4_report_snapshots: get_latest_ga4_report_snapshot (site_id, profile, period_days, collected_at desc)
         "CREATE INDEX IF NOT EXISTS ix_ga4_snapshots_site_profile_period_collected ON ga4_report_snapshots(site_id, profile, period_days, collected_at DESC)",
+        # realtime_snapshots: trend sorgusu (site_id + profile + collected_at desc)
+        "CREATE INDEX IF NOT EXISTS ix_rt_snapshots_site_profile_collected ON realtime_snapshots(site_id, profile, collected_at DESC)",
+        # realtime_alarm_logs: son alarmlar (site_id + triggered_at desc)
+        "CREATE INDEX IF NOT EXISTS ix_rt_alarms_site_triggered ON realtime_alarm_logs(site_id, triggered_at DESC)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:
