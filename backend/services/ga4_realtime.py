@@ -200,12 +200,14 @@ def fetch_realtime_top_pages(
     window_minutes: int = 30,
     *,
     limit: int = 10,
+    dimension: str = "unifiedScreenName",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime API ile son N dakikadaki top sayfaları çeker.
+    """Realtime API ile son N dakikadaki top sayfaları/linkleri çeker.
 
-    unifiedPagePathScreen dimension'ı ile sayfa bazlı activeUsers ve
-    screenPageViews döner.
+    dimension parametresi:
+      - "unifiedScreenName" → sayfa başlıkları (Top Sayfalar)
+      - "pagePath"          → URL path'leri  (Top Linkler)
     """
     if client is None:
         client = _build_client()
@@ -214,7 +216,7 @@ def fetch_realtime_top_pages(
 
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
-        dimensions=[Dimension(name="unifiedScreenName")],
+        dimensions=[Dimension(name=dimension)],
         metrics=[
             Metric(name="activeUsers"),
             Metric(name="screenPageViews"),

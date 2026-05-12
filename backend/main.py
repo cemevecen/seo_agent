@@ -7922,10 +7922,15 @@ def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
 
 
 @app.get("/api/ga4/realtime/{site_id}/top-pages")
-def api_ga4_realtime_top_pages(site_id: int, profile: str = "web", window: int = 30, limit: int = 10):
-    """Realtime top sayfalar — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
+def api_ga4_realtime_top_pages(
+    site_id: int, profile: str = "web", window: int = 30, limit: int = 10,
+    type: str = "pages",
+):
+    """Realtime top sayfalar/linkler — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
     from backend.services.ga4_realtime import fetch_realtime_top_pages
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+
+    dimension = "pagePath" if type == "links" else "unifiedScreenName"
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -7938,12 +7943,16 @@ def api_ga4_realtime_top_pages(site_id: int, profile: str = "web", window: int =
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
     try:
-        result = fetch_realtime_top_pages(property_id, window_minutes=min(window, 30), limit=min(limit, 25))
+        result = fetch_realtime_top_pages(
+            property_id, window_minutes=min(window, 30),
+            limit=min(limit, 25), dimension=dimension,
+        )
         result["site_id"] = site_id
         result["profile"] = profile
+        result["type"] = type
         return JSONResponse(result)
     except Exception as exc:
-        LOGGER.exception("Top pages hatası [site=%s, profile=%s]", site_id, profile)
+        LOGGER.exception("Top pages hatası [site=%s, profile=%s, type=%s]", site_id, profile, type)
         return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
 
 

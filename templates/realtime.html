@@ -90,13 +90,28 @@
           <div class="h-24 w-full" data-rt-chart></div>
         </div>
 
-        {# Top Sayfalar #}
-        <div class="mt-3" data-rt-top-pages>
-          <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Top Sayfalar</p>
-          <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
-            <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+        {# Top Sayfalar / Top Linkler — sekmeli #}
+        <div class="mt-3" data-rt-top-section>
+          <div class="mb-1.5 flex items-center gap-0.5">
+            <button type="button" onclick="rtSwitchTopTab(this,'pages')"
+              class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+              data-rt-top-tab="pages">Top Sayfalar</button>
+            <button type="button" onclick="rtSwitchTopTab(this,'links')"
+              class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              data-rt-top-tab="links">Top Linkler</button>
           </div>
-          <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+          <div data-rt-top-panel="pages">
+            <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
+              <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+          </div>
+          <div data-rt-top-panel="links" class="hidden">
+            <div class="space-y-0.5 text-[11px]" data-rt-links-list>
+              <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-links-ts></p>
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -240,13 +255,14 @@
     }, {displayModeBar: false, responsive: true});
   }
 
-  function rtFetchTopPages(siteId, profile) {
+  function _fetchTopData(siteId, profile, type) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
-    var listEl = box.querySelector('[data-rt-pages-list]');
-    var tsEl = box.querySelector('[data-rt-pages-ts]');
+    var isLinks = (type === 'links');
+    var listEl = box.querySelector(isLinks ? '[data-rt-links-list]' : '[data-rt-pages-list]');
+    var tsEl = box.querySelector(isLinks ? '[data-rt-links-ts]' : '[data-rt-pages-ts]');
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=10')
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=10&type=' + type)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages) {
@@ -263,7 +279,26 @@
         if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">hata</p>';
       });
   }
+
+  function rtFetchTopPages(siteId, profile) {
+    _fetchTopData(siteId, profile, 'pages');
+    _fetchTopData(siteId, profile, 'links');
+  }
   window.rtFetchTopPages = rtFetchTopPages;
+
+  function rtSwitchTopTab(btn, tab) {
+    var section = btn.closest('[data-rt-top-section]');
+    if (!section) return;
+    section.querySelectorAll('[data-rt-top-panel]').forEach(function (p) {
+      p.classList.toggle('hidden', p.getAttribute('data-rt-top-panel') !== tab);
+    });
+    var activeClass = 'rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
+    var inactiveClass = 'rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300';
+    section.querySelectorAll('[data-rt-top-tab]').forEach(function (t) {
+      t.className = (t.getAttribute('data-rt-top-tab') === tab) ? activeClass : inactiveClass;
+    });
+  }
+  window.rtSwitchTopTab = rtSwitchTopTab;
 
   function _renderTopPages(listEl, pages) {
     if (!listEl) return;
