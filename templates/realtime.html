@@ -106,10 +106,18 @@
 
   {# Global alarm section #}
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
-    <h3 class="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-      Son Alarmlar
-      <span class="hidden rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
-    </h3>
+    <div class="mb-3 flex items-center justify-between">
+      <h3 class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+        Son Alarmlar
+        <span class="hidden rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
+      </h3>
+      <button
+        type="button"
+        id="rt-alarm-expand-btn"
+        onclick="rtToggleAlarms()"
+        class="text-[11px] font-semibold text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
+      >Genişlet (50)</button>
+    </div>
     <div class="space-y-1.5" id="rt-alarm-list-global">
       <p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
     </div>
@@ -123,6 +131,7 @@
   var WINDOW = {{ window_minutes }};
   var _timers = {};
   var _pageTimers = {};
+  var _alarmExpanded = false;
 
   function _fmt(n) {
     if (n == null) return '—';
@@ -300,7 +309,8 @@
   }
   window.rtCheckAll = rtCheckAll;
 
-  function _fetchGlobalAlarms() {
+  function _fetchGlobalAlarms(limit) {
+    var perSiteLimit = limit || (_alarmExpanded ? 50 : 10);
     var siteEls = document.querySelectorAll('[data-rt-site]');
     var siteIds = [];
     siteEls.forEach(function (el) {
@@ -311,7 +321,7 @@
     var pending = siteIds.length;
     if (!pending) return;
     siteIds.forEach(function (sid) {
-      fetch('/api/ga4/realtime/' + sid + '/alarms?limit=10')
+      fetch('/api/ga4/realtime/' + sid + '/alarms?limit=' + perSiteLimit)
         .then(function (r) { return r.json(); })
         .then(function (data) {
           (data.alarms || []).forEach(function (a) { allAlarms.push(a); });
@@ -323,6 +333,14 @@
         });
     });
   }
+
+  function rtToggleAlarms() {
+    _alarmExpanded = !_alarmExpanded;
+    var btn = document.getElementById('rt-alarm-expand-btn');
+    if (btn) btn.textContent = _alarmExpanded ? 'Daralt (10)' : 'Genişlet (50)';
+    _fetchGlobalAlarms(_alarmExpanded ? 50 : 10);
+  }
+  window.rtToggleAlarms = rtToggleAlarms;
 
   function _renderGlobalAlarms(alarms) {
     var list = document.getElementById('rt-alarm-list-global');
@@ -340,7 +358,8 @@
       badge.textContent = String(alarms.length);
       badge.classList.remove('hidden');
     }
-    list.innerHTML = alarms.slice(0, 15).map(function (a) {
+    var showCount = _alarmExpanded ? 50 : 10;
+    list.innerHTML = alarms.slice(0, showCount).map(function (a) {
       var sev = a.severity === 'critical'
         ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200'
         : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
