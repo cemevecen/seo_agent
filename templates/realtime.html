@@ -373,13 +373,16 @@
   }
 
   function _startPolling() {
-    document.querySelectorAll('[data-rt-site-id]').forEach(function (box) {
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]'));
+    boxes.forEach(function (box, idx) {
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
       var key = sid + ':' + prof;
       var sidInt = parseInt(sid, 10);
-      rtFetchProfile(sidInt, prof);
-      rtFetchTopPages(sidInt, prof);
+
+      setTimeout(function () { rtFetchProfile(sidInt, prof); }, idx * 400);
+      setTimeout(function () { rtFetchTopPages(sidInt, prof); }, 3000 + idx * 500);
+
       if (_timers[key]) clearInterval(_timers[key]);
       _timers[key] = setInterval(function () {
         rtFetchProfile(sidInt, prof);
@@ -389,7 +392,7 @@
         rtFetchTopPages(sidInt, prof);
       }, PAGES_INTERVAL_MS);
     });
-    _fetchGlobalAlarms();
+    setTimeout(_fetchGlobalAlarms, 1000);
   }
 
   document.addEventListener('DOMContentLoaded', _startPolling);
