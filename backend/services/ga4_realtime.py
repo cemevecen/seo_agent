@@ -377,6 +377,16 @@ def check_site_realtime(
 
     alarms = evaluate_alarms(result["comparison"])
 
+    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+    for a in alarms:
+        a["domain"] = site.domain
+        a["profile"] = profile
+        a["profile_label"] = profile_label
+        a["message"] = (
+            f"{a['label']}: {site.domain} {profile_label} — "
+            f"{a['metric']} {a['previous_value']:.0f} → {a['current_value']:.0f} ({a['change_pct']:+.1f}%)"
+        )
+
     result["site_id"] = site.id
     result["domain"] = site.domain
     result["profile"] = profile
@@ -387,6 +397,7 @@ def check_site_realtime(
 
     if alarms:
         _save_alarm_logs(db, site.id, alarms)
+        _send_site_alarm_emails(site.domain, profile, alarms)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -445,6 +456,93 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
     except Exception:
         db.rollback()
         logger.exception("RealtimeAlarmLog kayıt hatası (site_id=%s)", site_id)
+
+
+def _rt_send_email(subject: str, html_body: str) -> bool:
+    """Realtime alarmları için e-posta gönderir.
+    outbound_email_enabled'dan bağımsız çalışır — kendi flag'i ga4_realtime_page_alert_email."""
+    import smtplib as _smtplib
+    from email.message import EmailMessage as _EM
+
+    from backend.config import settings
+
+    required = [settings.smtp_host, settings.smtp_user, settings.smtp_password, settings.mail_from]
+    if not all(v and v.strip() and not v.startswith("local-") for v in required):
+        return False
+    recipients = [r.strip() for r in settings.mail_to.split(",") if r.strip()]
+    if not recipients:
+        return False
+
+    msg = _EM()
+    msg["Subject"] = subject
+    msg["From"] = settings.mail_from
+    msg["To"] = ", ".join(recipients)
+    msg.set_content("Realtime alarm — plain text fallback.")
+    msg.add_alternative(html_body, subtype="html")
+    try:
+        with _smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
+            smtp.starttls()
+            smtp.login(settings.smtp_user, settings.smtp_password)
+            smtp.send_message(msg)
+        logger.info("Realtime alarm e-posta gönderildi: %s", subject[:80])
+        return True
+    except Exception:
+        logger.exception("Realtime alarm e-posta gönderilemedi: %s", subject[:80])
+        return False
+
+
+def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
+    """Genel site alarmları (trafik düşüşü/artışı) için e-posta gönderir."""
+    from backend.config import settings
+    if not settings.ga4_realtime_page_alert_email:
+        return
+
+    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+
+    for alarm in alarms:
+        metric = alarm.get("metric", "activeUsers")
+        cur = alarm.get("current_value", 0)
+        prev = alarm.get("previous_value", 0)
+        pct = alarm.get("change_pct", 0)
+        label = alarm.get("label", "Alarm")
+
+        if pct < 0:
+            subject = f"📉 {label}: {domain} {profile_label} — {metric} {prev:.0f} → {cur:.0f} ({pct:+.1f}%)"
+        else:
+            subject = f"📈 {label}: {domain} {profile_label} — {metric} {prev:.0f} → {cur:.0f} ({pct:+.1f}%)"
+
+        color = "#dc2626" if pct < 0 else "#16a34a"
+        html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
+            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
+                    <td style="padding: 8px 12px;">{domain}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
+                    <td style="padding: 8px 12px;">{profile_label}</td>
+                </tr>
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Metrik</td>
+                    <td style="padding: 8px 12px;">{metric}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Değer</td>
+                    <td style="padding: 8px 12px;">
+                        <strong>{cur:.0f}</strong>
+                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
+                        <span style="color: {color}; font-weight: 700;"> {pct:+.1f}%</span>
+                    </td>
+                </tr>
+            </table>
+            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
+                SEO Agent Realtime Site Alarmı — otomatik gönderilmiştir.
+            </p>
+        </div>
+        """
+        _rt_send_email(subject, html_body)
 
 
 def get_recent_snapshots(
@@ -621,6 +719,8 @@ def evaluate_page_alarms(
         return []
 
     triggered: list[dict[str, Any]] = []
+    plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+    tag = f"{site_domain} {plabel}" if site_domain else plabel
 
     prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
@@ -632,7 +732,6 @@ def evaluate_page_alarms(
         if prev:
             prev_users = prev.get("activeUsers", 0)
 
-            # Trafik düşüşü
             rule = PAGE_ALARM_RULES["page_traffic_drop"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
@@ -646,10 +745,9 @@ def evaluate_page_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": f"📉 {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} kullanıcı ({pct:+.1f}%)",
+                        "message": f"📉 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
 
-            # Trafik artışı
             rule = PAGE_ALARM_RULES["page_traffic_spike"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
@@ -663,10 +761,9 @@ def evaluate_page_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": f"📈 {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} kullanıcı ({pct:+.1f}%)",
+                        "message": f"📈 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
         else:
-            # Yeni giriş
             rule = PAGE_ALARM_RULES["page_new_entry"]
             if curr_users >= rule["min_users"]:
                 triggered.append({
@@ -678,10 +775,9 @@ def evaluate_page_alarms(
                     "current_users": curr_users,
                     "previous_users": 0,
                     "change_pct": 100.0,
-                    "message": f"🆕 {page_path[:60]} — top listeye girdi ({curr_users:.0f} kullanıcı)",
+                    "message": f"🆕 [{tag}] {page_path[:60]} — top listeye girdi ({curr_users:.0f} kullanıcı)",
                 })
 
-    # Listeden düşen sayfalar
     rule = PAGE_ALARM_RULES["page_disappeared"]
     for page_path, prev in prev_map.items():
         if page_path not in curr_map:
@@ -696,7 +792,7 @@ def evaluate_page_alarms(
                     "current_users": 0,
                     "previous_users": prev_users,
                     "change_pct": -100.0,
-                    "message": f"⚠️ {page_path[:60]} — top listeden düştü (önceki: {prev_users:.0f} kullanıcı)",
+                    "message": f"⚠️ [{tag}] {page_path[:60]} — listeden düştü (önceki: {prev_users:.0f})",
                 })
 
     return triggered
@@ -777,12 +873,8 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
 
 def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
     """Sayfa bazlı alarmlar için e-posta gönderir."""
-    try:
-        from backend.services.mailer import send_email, is_mail_configured
-    except ImportError:
-        return
-
-    if not is_mail_configured():
+    from backend.config import settings
+    if not settings.ga4_realtime_page_alert_email:
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
@@ -838,11 +930,7 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
             </p>
         </div>
         """
-
-        try:
-            send_email(subject, html_body)
-        except Exception:
-            logger.exception("Sayfa alarm e-posta gönderilemedi: %s", subject[:80])
+        _rt_send_email(subject, html_body)
 
 
 def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> list[dict[str, Any]]:

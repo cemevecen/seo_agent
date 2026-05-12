@@ -104,13 +104,13 @@
   </div>
   {% endfor %}
 
-  {# Global alarm section #}
+  {# Global alarm section — 2 sekmeli #}
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
     <div class="mb-3 flex items-center justify-between">
-      <h3 class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-        Son Alarmlar
+      <div class="flex items-center gap-2">
+        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">Son Alarmlar</h3>
         <span class="hidden rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
-      </h3>
+      </div>
       <button
         type="button"
         id="rt-alarm-expand-btn"
@@ -118,8 +118,21 @@
         class="text-[11px] font-semibold text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
       >Genişlet (50)</button>
     </div>
-    <div class="space-y-1.5" id="rt-alarm-list-global">
+    <div class="mb-3 flex gap-1 border-b border-slate-200 dark:border-slate-700">
+      <button type="button" onclick="rtSwitchAlarmTab('site')" id="rt-alarm-tab-site"
+        class="px-3 py-1.5 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300">
+        Site Alarmları
+      </button>
+      <button type="button" onclick="rtSwitchAlarmTab('page')" id="rt-alarm-tab-page"
+        class="px-3 py-1.5 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+        Sayfa Alarmları
+      </button>
+    </div>
+    <div class="space-y-1.5" id="rt-alarm-list-site">
       <p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
+    </div>
+    <div class="space-y-1.5 hidden" id="rt-alarm-list-page">
+      <p class="text-xs text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
     </div>
   </div>
 </div>
@@ -344,30 +357,76 @@
   }
   window.rtToggleAlarms = rtToggleAlarms;
 
-  function _renderGlobalAlarms(alarms) {
-    var list = document.getElementById('rt-alarm-list-global');
-    var badge = document.getElementById('rt-alarm-badge-global');
-    if (!list) return;
-    if (!alarms.length) {
-      list.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>';
-      if (badge) { badge.textContent = '0'; badge.classList.add('hidden'); }
-      return;
+  var _currentAlarmTab = 'site';
+  function rtSwitchAlarmTab(tab) {
+    _currentAlarmTab = tab;
+    var siteList = document.getElementById('rt-alarm-list-site');
+    var pageList = document.getElementById('rt-alarm-list-page');
+    var siteTab = document.getElementById('rt-alarm-tab-site');
+    var pageTab = document.getElementById('rt-alarm-tab-page');
+    var activeClass = 'px-3 py-1.5 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300';
+    var inactiveClass = 'px-3 py-1.5 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300';
+    if (tab === 'site') {
+      if (siteList) siteList.classList.remove('hidden');
+      if (pageList) pageList.classList.add('hidden');
+      if (siteTab) siteTab.className = activeClass;
+      if (pageTab) pageTab.className = inactiveClass;
+    } else {
+      if (siteList) siteList.classList.add('hidden');
+      if (pageList) pageList.classList.remove('hidden');
+      if (siteTab) siteTab.className = inactiveClass;
+      if (pageTab) pageTab.className = activeClass;
     }
+  }
+  window.rtSwitchAlarmTab = rtSwitchAlarmTab;
+
+  function _renderGlobalAlarms(alarms) {
+    var siteList = document.getElementById('rt-alarm-list-site');
+    var pageList = document.getElementById('rt-alarm-list-page');
+    var badge = document.getElementById('rt-alarm-badge-global');
+
     alarms.sort(function (a, b) {
       return (b.triggered_at || '').localeCompare(a.triggered_at || '');
     });
+
+    var siteAlarms = [];
+    var pageAlarms = [];
+    alarms.forEach(function (a) {
+      var metric = a.metric || '';
+      if (metric.indexOf('page:') === 0) {
+        pageAlarms.push(a);
+      } else {
+        siteAlarms.push(a);
+      }
+    });
+
+    var total = siteAlarms.length + pageAlarms.length;
     if (badge) {
-      badge.textContent = String(alarms.length);
-      badge.classList.remove('hidden');
+      badge.textContent = String(total);
+      badge.classList.toggle('hidden', total === 0);
     }
+
     var showCount = _alarmExpanded ? 50 : 10;
-    list.innerHTML = alarms.slice(0, showCount).map(function (a) {
+    _renderAlarmList(siteList, siteAlarms, showCount, 'Henüz site alarmı yok.');
+    _renderAlarmList(pageList, pageAlarms, showCount, 'Henüz sayfa alarmı yok.');
+  }
+
+  function _renderAlarmList(listEl, alarms, showCount, emptyMsg) {
+    if (!listEl) return;
+    if (!alarms.length) {
+      listEl.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
+      return;
+    }
+    listEl.innerHTML = alarms.slice(0, showCount).map(function (a) {
       var sev = a.severity === 'critical'
         ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200'
+        : a.severity === 'info'
+        ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
         : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
+      var icon = a.severity === 'critical' ? '🔴' : a.severity === 'info' ? '🔵' : '🟡';
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
       return '<div class="rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ' + sev + '">'
-        + '<span class="font-semibold">' + (a.severity === 'critical' ? '🔴' : '🟡') + '</span> '
+        + '<span class="font-semibold">' + icon + '</span> '
         + _esc(a.message) + ' <span class="opacity-60">' + dt + '</span></div>';
     }).join('');
   }
