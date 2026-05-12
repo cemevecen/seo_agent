@@ -171,7 +171,7 @@ def fetch_realtime_top_pages(
 
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
-        dimensions=[Dimension(name="unifiedPagePathScreen")],
+        dimensions=[Dimension(name="unifiedScreenName")],
         metrics=[
             Metric(name="activeUsers"),
             Metric(name="screenPageViews"),
