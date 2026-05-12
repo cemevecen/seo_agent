@@ -65,6 +65,7 @@ from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
+    RealtimeAlarmLog, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
 )
 from backend.rate_limiter import limiter
@@ -8693,6 +8694,9 @@ def _run_db_retention_cleanup() -> dict:
                 settings.db_retention_notification_delivery_days,
                 "notification_delivery_logs",
             ),
+            (RealtimeSnapshot, RealtimeSnapshot.collected_at, 7, "realtime_snapshots"),
+            (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, 30, "realtime_alarm_logs"),
+            (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, 3, "realtime_page_snapshots"),
         ]
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:
@@ -8733,7 +8737,7 @@ def _run_ga4_realtime_check_job() -> None:
         LOGGER.debug("GA4 Realtime: saat %02d — gece aralığı, atlanıyor.", hour)
         return
     try:
-        from backend.services.ga4_realtime import run_all_sites_realtime_check
+        from backend.services.ga4_realtime import run_all_sites_realtime_check, run_page_alarm_check_all_sites
 
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
@@ -8745,6 +8749,14 @@ def _run_ga4_realtime_check_job() -> None:
             LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d site kontrol edildi).", alarm_total, len(results))
         else:
             LOGGER.info("GA4 Realtime: %d site kontrol edildi, alarm yok.", len(results))
+
+        if settings.ga4_realtime_page_alerts_enabled:
+            with SessionLocal() as db:
+                page_alarms = run_page_alarm_check_all_sites(
+                    db, window_minutes=settings.ga4_realtime_window_minutes,
+                )
+            if page_alarms:
+                LOGGER.warning("GA4 Realtime sayfa alarmları: %d alarm tetiklendi.", len(page_alarms))
     except Exception:
         logging.exception("GA4 Realtime check hatası")
 

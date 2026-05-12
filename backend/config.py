@@ -188,6 +188,8 @@ class Settings(BaseSettings):
     ga4_realtime_enabled: bool = False
     ga4_realtime_interval_minutes: int = 10
     ga4_realtime_window_minutes: int = 30
+    ga4_realtime_page_alerts_enabled: bool = True
+    ga4_realtime_page_alert_email: bool = True
 
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
     live_refresh_enabled: bool = True

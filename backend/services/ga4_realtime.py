@@ -60,6 +60,36 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Sayfa bazlı alarm eşikleri
+PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
+    "page_traffic_drop": {
+        "label": "Sayfa trafik düşüşü",
+        "direction": "drop",
+        "threshold_pct": 50,
+        "min_users": 20,
+        "severity": "warning",
+    },
+    "page_traffic_spike": {
+        "label": "Sayfa trafik artışı",
+        "direction": "spike",
+        "threshold_pct": 100,
+        "min_users": 20,
+        "severity": "warning",
+    },
+    "page_disappeared": {
+        "label": "Sayfa top listeden düştü",
+        "direction": "disappeared",
+        "min_prev_users": 30,
+        "severity": "critical",
+    },
+    "page_new_entry": {
+        "label": "Yeni sayfa top listeye girdi",
+        "direction": "new_entry",
+        "min_users": 50,
+        "severity": "info",
+    },
+}
+
 # Varsayılan pencere boyutu (dakika)
 DEFAULT_WINDOW_MINUTES = 10
 
@@ -501,3 +531,340 @@ def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_W
                 "message": str(exc),
             })
     return results
+
+
+# ── Sayfa bazlı alarm sistemi ────────────────────────────────────────────────
+
+def save_page_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+    pages: list[dict[str, Any]],
+) -> None:
+    """Top sayfa sonuçlarını DB'ye kaydeder."""
+    from backend.models import RealtimePageSnapshot
+
+    for i, page in enumerate(pages[:25]):
+        snap = RealtimePageSnapshot(
+            site_id=site_id,
+            profile=profile,
+            page_path=str(page.get("page", ""))[:500],
+            active_users=page.get("activeUsers", 0),
+            pageviews=page.get("screenPageViews", 0),
+            rank=i + 1,
+        )
+        db.add(snap)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("RealtimePageSnapshot kayıt hatası (site_id=%s)", site_id)
+
+
+def get_previous_page_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+) -> list[dict[str, Any]]:
+    """Son kayıtlı sayfa snapshot'ını döner (karşılaştırma için)."""
+    from backend.models import RealtimePageSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    latest_time = (
+        db.query(sqlfunc.max(RealtimePageSnapshot.collected_at))
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile == profile,
+        )
+        .scalar()
+    )
+    if not latest_time:
+        return []
+
+    rows = (
+        db.query(RealtimePageSnapshot)
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile == profile,
+            RealtimePageSnapshot.collected_at == latest_time,
+        )
+        .order_by(RealtimePageSnapshot.rank)
+        .all()
+    )
+    return [
+        {
+            "page": row.page_path,
+            "activeUsers": row.active_users,
+            "screenPageViews": row.pageviews,
+            "rank": row.rank,
+        }
+        for row in rows
+    ]
+
+
+def evaluate_page_alarms(
+    current_pages: list[dict[str, Any]],
+    previous_pages: list[dict[str, Any]],
+    *,
+    site_domain: str = "",
+    profile: str = "web",
+) -> list[dict[str, Any]]:
+    """Sayfa bazlı alarm kurallarını değerlendirir.
+
+    Kontrol edilen durumlar:
+    - Sayfa trafik düşüşü (>%50)
+    - Sayfa trafik artışı (>%100)
+    - Sayfa top listeden düştü (önceki listede var, şimdikinde yok)
+    - Yeni sayfa top listeye girdi (öncekinde yok, şimdikinde var)
+    """
+    if not previous_pages:
+        return []
+
+    triggered: list[dict[str, Any]] = []
+
+    prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
+    curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
+
+    for page_path, curr in curr_map.items():
+        curr_users = curr.get("activeUsers", 0)
+        prev = prev_map.get(page_path)
+
+        if prev:
+            prev_users = prev.get("activeUsers", 0)
+
+            # Trafik düşüşü
+            rule = PAGE_ALARM_RULES["page_traffic_drop"]
+            if prev_users >= rule["min_users"] and prev_users > 0:
+                pct = ((curr_users - prev_users) / prev_users) * 100
+                if pct <= -rule["threshold_pct"]:
+                    triggered.append({
+                        "rule_id": "page_traffic_drop",
+                        "severity": rule["severity"],
+                        "page": page_path,
+                        "profile": profile,
+                        "domain": site_domain,
+                        "current_users": curr_users,
+                        "previous_users": prev_users,
+                        "change_pct": round(pct, 1),
+                        "message": f"📉 {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} kullanıcı ({pct:+.1f}%)",
+                    })
+
+            # Trafik artışı
+            rule = PAGE_ALARM_RULES["page_traffic_spike"]
+            if prev_users >= rule["min_users"] and prev_users > 0:
+                pct = ((curr_users - prev_users) / prev_users) * 100
+                if pct >= rule["threshold_pct"]:
+                    triggered.append({
+                        "rule_id": "page_traffic_spike",
+                        "severity": rule["severity"],
+                        "page": page_path,
+                        "profile": profile,
+                        "domain": site_domain,
+                        "current_users": curr_users,
+                        "previous_users": prev_users,
+                        "change_pct": round(pct, 1),
+                        "message": f"📈 {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} kullanıcı ({pct:+.1f}%)",
+                    })
+        else:
+            # Yeni giriş
+            rule = PAGE_ALARM_RULES["page_new_entry"]
+            if curr_users >= rule["min_users"]:
+                triggered.append({
+                    "rule_id": "page_new_entry",
+                    "severity": rule["severity"],
+                    "page": page_path,
+                    "profile": profile,
+                    "domain": site_domain,
+                    "current_users": curr_users,
+                    "previous_users": 0,
+                    "change_pct": 100.0,
+                    "message": f"🆕 {page_path[:60]} — top listeye girdi ({curr_users:.0f} kullanıcı)",
+                })
+
+    # Listeden düşen sayfalar
+    rule = PAGE_ALARM_RULES["page_disappeared"]
+    for page_path, prev in prev_map.items():
+        if page_path not in curr_map:
+            prev_users = prev.get("activeUsers", 0)
+            if prev_users >= rule["min_prev_users"]:
+                triggered.append({
+                    "rule_id": "page_disappeared",
+                    "severity": rule["severity"],
+                    "page": page_path,
+                    "profile": profile,
+                    "domain": site_domain,
+                    "current_users": 0,
+                    "previous_users": prev_users,
+                    "change_pct": -100.0,
+                    "message": f"⚠️ {page_path[:60]} — top listeden düştü (önceki: {prev_users:.0f} kullanıcı)",
+                })
+
+    return triggered
+
+
+def check_page_alarms_for_site(
+    db: Session,
+    site: Site,
+    *,
+    profile: str = "web",
+    window_minutes: int = 30,
+) -> list[dict[str, Any]]:
+    """Tek site+profil için sayfa bazlı alarm kontrolü yapar.
+
+    1. Önceki snapshot'ı DB'den al
+    2. Yeni top sayfaları API'den çek
+    3. Karşılaştır, alarmları değerlendir
+    4. Yeni snapshot'ı DB'ye kaydet
+    5. Alarmları DB'ye kaydet ve mail gönder
+    """
+    from backend.config import settings
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    property_id = properties.get(profile) or properties.get("web")
+    if not property_id:
+        return []
+
+    previous_pages = get_previous_page_snapshots(db, site.id, profile)
+
+    try:
+        result = fetch_realtime_top_pages(property_id, window_minutes=window_minutes, limit=25)
+    except Exception as exc:
+        logger.warning("Sayfa alarm: top pages API hatası [%s/%s]: %s", site.domain, profile, exc)
+        return []
+
+    current_pages = result.get("pages", [])
+    save_page_snapshots(db, site.id, profile, current_pages)
+
+    if not previous_pages:
+        return []
+
+    alarms = evaluate_page_alarms(
+        current_pages, previous_pages,
+        site_domain=site.domain, profile=profile,
+    )
+
+    if alarms:
+        _save_page_alarm_logs(db, site.id, alarms)
+        if settings.ga4_realtime_page_alert_email:
+            _send_page_alarm_email(site.domain, profile, alarms)
+
+    return alarms
+
+
+def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) -> None:
+    """Sayfa bazlı alarmları RealtimeAlarmLog'a kaydeder."""
+    from backend.models import RealtimeAlarmLog
+
+    for a in alarms:
+        log = RealtimeAlarmLog(
+            site_id=site_id,
+            rule_id=a["rule_id"],
+            metric="page:" + a.get("page", "")[:200],
+            severity=a.get("severity", "warning"),
+            current_value=a.get("current_users", 0),
+            previous_value=a.get("previous_users", 0),
+            change_pct=a.get("change_pct", 0),
+            message=a["message"],
+        )
+        db.add(log)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Sayfa alarm log kayıt hatası (site_id=%s)", site_id)
+
+
+def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
+    """Sayfa bazlı alarmlar için e-posta gönderir."""
+    try:
+        from backend.services.mailer import send_email, is_mail_configured
+    except ImportError:
+        return
+
+    if not is_mail_configured():
+        return
+
+    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+
+    for alarm in alarms:
+        page = alarm.get("page", "bilinmiyor")
+        page_short = page[:80] if len(page) > 80 else page
+        curr = alarm.get("current_users", 0)
+        prev = alarm.get("previous_users", 0)
+        pct = alarm.get("change_pct", 0)
+        rule_id = alarm.get("rule_id", "")
+
+        if rule_id == "page_traffic_drop":
+            subject = f"📉 Trafik düşüşü: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
+        elif rule_id == "page_traffic_spike":
+            subject = f"📈 Trafik artışı: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
+        elif rule_id == "page_disappeared":
+            subject = f"⚠️ Sayfa düştü: {page_short} ({domain} {profile_label}) — önceki {prev:.0f} kullanıcı"
+        elif rule_id == "page_new_entry":
+            subject = f"🆕 Yeni sayfa: {page_short} ({domain} {profile_label}) — {curr:.0f} kullanıcı"
+        else:
+            subject = f"Realtime sayfa alarmı: {page_short} ({domain})"
+
+        html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
+            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
+                    <td style="padding: 8px 12px;">{domain}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
+                    <td style="padding: 8px 12px;">{profile_label}</td>
+                </tr>
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Sayfa</td>
+                    <td style="padding: 8px 12px; word-break: break-all;">{page}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Aktif Kullanıcı</td>
+                    <td style="padding: 8px 12px;">
+                        <strong>{curr:.0f}</strong>
+                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
+                        <span style="color: {'#dc2626' if pct < 0 else '#16a34a'}; font-weight: 700;">
+                            {pct:+.1f}%
+                        </span>
+                    </td>
+                </tr>
+            </table>
+            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
+                SEO Agent Realtime Sayfa Alarmı — otomatik gönderilmiştir.
+            </p>
+        </div>
+        """
+
+        try:
+            send_email(subject, html_body)
+        except Exception:
+            logger.exception("Sayfa alarm e-posta gönderilemedi: %s", subject[:80])
+
+
+def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> list[dict[str, Any]]:
+    """Tüm aktif siteler ve profilleri için sayfa bazlı alarm kontrolü."""
+    from backend.models import Site as SiteModel
+
+    all_alarms: list[dict[str, Any]] = []
+    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+
+    for site in sites:
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        for profile in ("web", "mweb", "ios", "android"):
+            prop_id = str(properties.get(profile, "")).strip()
+            if not prop_id:
+                continue
+            try:
+                alarms = check_page_alarms_for_site(
+                    db, site, profile=profile, window_minutes=window_minutes,
+                )
+                all_alarms.extend(alarms)
+            except Exception as exc:
+                logger.exception("Sayfa alarm check hatası [%s/%s]: %s", site.domain, profile, exc)
+
+    return all_alarms
