@@ -100,7 +100,7 @@
       </div>
     </div>
     <p id="app-intel-status" class="mt-1 text-xs text-slate-700 dark:text-white">
-      Mağaza yorumları çekiliyor (bu işlem birkaç dakika sürebilir)…
+      Önbellek kontrol ediliyor…
     </p>
     <div id="app-intel-progress-wrap" class="mt-2 hidden">
       <div class="mb-1 flex items-center justify-between">
@@ -790,7 +790,7 @@
         state.releasePanelProduct = null;
         refreshProductStyles();
         applyHeroShellFromState();
-        loadIntel();
+        loadIntel({ cacheOnly: true });
         var cDet = document.getElementById("app-crashlytics-details");
         if (cDet && cDet.open) {
           loadCrashlyticsPreview();
@@ -1312,7 +1312,7 @@
         b.addEventListener("click", function () {
           state.period = v;
           renderPeriodNav();
-          loadIntel();
+          loadIntel({ cacheOnly: true });
         });
       }
     });
@@ -2677,22 +2677,25 @@
       window.__seoAppIntelLoadStarted = true;
     } catch (eStart) {}
     var keepProgress = !!(opts && opts.keepProgress);
+    var cacheOnly = !!(opts && opts.cacheOnly);
     var reqSeq = ++state.requestSeq;
     var status = document.getElementById("app-intel-status");
     var errEl = document.getElementById("app-intel-error");
     if (errEl) {
       errEl.classList.add("hidden");
       errEl.textContent = "";
+      errEl.className = "mt-2 hidden rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 dark:border-red-600 dark:bg-red-950/60 dark:text-red-100";
     }
     if (status) {
-      status.textContent =
-        "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
+      status.textContent = cacheOnly
+        ? "Önbellek kontrol ediliyor…"
+        : "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
     }
     if (!keepProgress) {
       startProgress();
     }
     renderSkeletonState();
-    var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
+    var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period + (cacheOnly ? "&cache_only=1" : "");
     var asoUrl = "/api/app/aso?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
     var slowHintTimer = window.setTimeout(function () {
@@ -2728,6 +2731,16 @@
         if (!x.ok) {
           window.clearTimeout(to);
           clearTimeout(slowHintTimer);
+          if (cacheOnly && x.j && x.j.error === "no_cached_data") {
+            finishProgress();
+            if (status) status.textContent = "";
+            flagIntelPanelsFailed("Henüz mağaza verisi yok. Yorumları çekmek için \"Verileri yenile\" butonuna tıklayın.");
+            if (errEl) {
+              errEl.textContent = x.j.message || "Henüz mağaza verisi yok. Yorumları çekmek için \"Verileri yenile\" butonuna tıklayın.";
+              errEl.className = "mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-600 dark:bg-amber-950/60 dark:text-amber-100";
+            }
+            return Promise.resolve();
+          }
           var detail = x.j && (x.j.detail || x.j.error || x.j.message);
           throw new Error(
             typeof detail === "string"
@@ -2960,8 +2973,7 @@
   }
 
   function boot() {
-    // Veri çekimini Plotly script'ine bağımlı başlatma: ilk açılışta TTFB'yi düşür.
-    loadIntel();
+    loadIntel({ cacheOnly: true });
     if (window.Plotly) return;
     var guard = 0;
     var iv = setInterval(function () {
