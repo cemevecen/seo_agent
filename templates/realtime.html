@@ -156,7 +156,7 @@
       .then(function (d) {
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
         if (d.error) {
-          if (tsEl) tsEl.textContent = d.message || d.error;
+          if (tsEl) tsEl.textContent = 'hata';
           return;
         }
         _renderKpis(box, d);
