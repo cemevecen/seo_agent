@@ -65,23 +65,23 @@
           </div>
         </div>
 
-        {# KPI: Aktif Kullanıcı #}
-        <div class="mb-2" data-rt-kpi="activeUsers">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
-          <p class="mt-1 text-2xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
-          <div class="mt-0.5 flex items-baseline gap-2">
-            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-prev>önceki: —</span>
-            <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+        {# KPI satırları — yan yana Aktif Kullanıcı + Sayfa Gör. #}
+        <div class="grid grid-cols-2 gap-3 mb-2">
+          <div data-rt-kpi="activeUsers">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
+            <p class="mt-1 text-2xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
+            <div class="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+              <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+              <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+            </div>
           </div>
-        </div>
-
-        {# KPI: Sayfa Görüntüleme #}
-        <div class="mb-2" data-rt-kpi="screenPageViews">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Gör.</p>
-          <p class="mt-1 text-lg font-bold tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
-          <div class="mt-0.5 flex items-baseline gap-2">
-            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-prev>önceki: —</span>
-            <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+          <div data-rt-kpi="screenPageViews">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Gör.</p>
+            <p class="mt-1 text-2xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
+            <div class="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+              <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+              <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+            </div>
           </div>
         </div>
 
@@ -194,11 +194,13 @@
       var c = comp[key];
       if (!c) return;
       var valEl = kpiBox.querySelector('[data-rt-val]');
-      var prevEl = kpiBox.querySelector('[data-rt-prev]');
+      var halvesEl = kpiBox.querySelector('[data-rt-halves]');
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
       var mainVal = (total[key] != null) ? total[key] : c.current;
       if (valEl) valEl.textContent = _fmt(mainVal);
-      if (prevEl) prevEl.textContent = 'önceki: ' + _fmt(c.previous);
+      if (halvesEl) {
+        halvesEl.textContent = _fmt(c.previous) + ' → ' + _fmt(c.current);
+      }
       if (pctEl) {
         var pct = c.change_pct || 0;
         var arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
