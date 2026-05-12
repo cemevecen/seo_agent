@@ -98,7 +98,7 @@
               data-rt-top-tab="pages">{% if profile in ('ios','android') %}Top Ekranlar{% else %}Top Sayfalar{% endif %}</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
               class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-              data-rt-top-tab="views">{% if profile in ('ios','android') %}Top Eventler{% else %}Top Görüntüleme{% endif %}</button>
+              data-rt-top-tab="views">Top Görüntüleme</button>
           </div>
           <div data-rt-top-panel="pages">
             <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
@@ -259,7 +259,6 @@
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
     var isViews = (type === 'views');
-    var isApp = (profile === 'ios' || profile === 'android');
     var listEl = box.querySelector(isViews ? '[data-rt-views-list]' : '[data-rt-pages-list]');
     var tsEl = box.querySelector(isViews ? '[data-rt-views-ts]' : '[data-rt-pages-ts]');
 
@@ -270,8 +269,7 @@
           if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
           return;
         }
-        var isEvent = (isApp && isViews);
-        _renderTopPages(listEl, d.pages, isViews, isEvent);
+        _renderTopPages(listEl, d.pages, isViews);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
@@ -302,34 +300,27 @@
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
 
-  function _renderTopPages(listEl, pages, viewsMode, eventMode) {
+  function _renderTopPages(listEl, pages, viewsMode) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
       return;
     }
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
-    if (eventMode) sortKey = 'eventCount' in (pages[0] || {}) ? 'eventCount' : 'screenPageViews';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var path = _esc(p.page || '(bilinmiyor)');
       if (path.length > 40) path = path.substring(0, 38) + '…';
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
-      var evts = _fmt(p.eventCount || p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
-      var barColor = eventMode ? 'bg-amber-400' : viewsMode ? 'bg-violet-400' : 'bg-indigo-400';
-      var primary, secondary;
-      if (eventMode) {
-        primary = '<strong>' + evts + '</strong> <span class="text-[10px] text-slate-400">event</span>';
-        secondary = users + ' <span class="text-[10px]">k.</span>';
-      } else if (viewsMode) {
-        primary = '<strong>' + views + '</strong> <span class="text-[10px] text-slate-400">sg.</span>';
-        secondary = users + ' <span class="text-[10px]">k.</span>';
-      } else {
-        primary = '<strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span>';
-        secondary = views + ' <span class="text-[10px]">sg.</span>';
-      }
+      var barColor = viewsMode ? 'bg-violet-400' : 'bg-indigo-400';
+      var primary = viewsMode
+        ? '<strong>' + views + '</strong> <span class="text-[10px] text-slate-400">sg.</span>'
+        : '<strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span>';
+      var secondary = viewsMode
+        ? users + ' <span class="text-[10px]">k.</span>'
+        : views + ' <span class="text-[10px]">sg.</span>';
       return '<div class="flex items-center gap-1.5 rounded px-1 py-0.5' + (i % 2 === 0 ? ' bg-slate-50 dark:bg-slate-800/40' : '') + '">'
         + '<span class="w-3 text-right text-[10px] font-bold text-slate-400">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
