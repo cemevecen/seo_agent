@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+  .rt-profile-box{transition:box-shadow .2s,border-color .2s}
+  .rt-profile-box:hover{box-shadow:0 4px 24px rgba(99,102,241,.12)}
+  .rt-spin{animation:rt-spin-kf .8s linear infinite}
+  @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
+</style>
+
+<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+  <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-3">
+      <span class="relative flex h-3 w-3">
+        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+      </span>
+      <h1 class="text-xl font-bold text-slate-900 dark:text-slate-100">Realtime</h1>
+      <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{{ interval_minutes }} dk aralık</span>
+    </div>
+    <button
+      type="button"
+      onclick="rtCheckAll()"
+      class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+    >
+      <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+      Tümünü Kontrol Et
+    </button>
+  </div>
+
+  {% for site in sites %}
+  <div class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-rt-site="{{ site.id }}">
+    <h2 class="mb-4 text-base font-bold text-slate-800 dark:text-slate-200">
+      {{ site.display_name or site.domain }}
+      <span class="ml-2 text-xs font-normal text-slate-400">{{ site.domain }}</span>
+    </h2>
+    <div class="grid gap-4 {{ 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' if site.profiles|length >= 4 else ('grid-cols-1 sm:grid-cols-2' if site.profiles|length >= 2 else 'grid-cols-1') }}">
+      {% for profile in site.profiles %}
+      <div
+        class="rt-profile-box rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 via-white to-violet-50/40 p-4 dark:border-indigo-800/50 dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-800"
+        data-rt-site-id="{{ site.id }}"
+        data-rt-profile="{{ profile }}"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="rt-dot absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+              <span class="rt-dot relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            <span class="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+              {% if profile == 'web' %}Desktop{% elif profile == 'mweb' %}Mobile Web{% elif profile == 'android' %}Android{% elif profile == 'ios' %}iOS{% else %}{{ profile }}{% endif %}
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-ts>—</span>
+            <button
+              type="button"
+              class="inline-flex h-6 w-6 items-center justify-center rounded-md text-indigo-400 transition hover:bg-indigo-100 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+              onclick="rtFetchProfile({{ site.id }}, '{{ profile }}')"
+              title="Kontrol"
+            >
+              <svg class="h-3.5 w-3.5 rt-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {# KPI: Aktif Kullanıcı #}
+        <div class="mb-2" data-rt-kpi="activeUsers">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
+          <div class="mt-0.5 flex items-baseline gap-2">
+            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-prev>önceki: —</span>
+            <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+          </div>
+        </div>
+
+        {# KPI: Sayfa Görüntüleme #}
+        <div class="mb-2" data-rt-kpi="screenPageViews">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Gör.</p>
+          <p class="mt-1 text-lg font-bold tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
+          <div class="mt-0.5 flex items-baseline gap-2">
+            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-prev>önceki: —</span>
+            <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+          </div>
+        </div>
+
+        {# Mini Trend Chart #}
+        <div class="mt-3 overflow-hidden rounded-lg border border-indigo-100/60 bg-white/60 dark:border-slate-700 dark:bg-slate-800/40">
+          <div class="h-24 w-full" data-rt-chart></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Global alarm section #}
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
+    <h3 class="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+      Son Alarmlar
+      <span class="hidden rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
+    </h3>
+    <div class="space-y-1.5" id="rt-alarm-list-global">
+      <p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var INTERVAL_MS = {{ (interval_minutes * 60000)|int }};
+  var WINDOW = {{ window_minutes }};
+  var _timers = {};
+
+  function _fmt(n) {
+    if (n == null) return '—';
+    n = Number(n);
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(Math.round(n));
+  }
+  function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
+
+  function rtFetchProfile(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    var tsEl = box.querySelector('[data-rt-ts]');
+    var refreshIcon = box.querySelector('.rt-refresh-icon');
+    if (tsEl) tsEl.textContent = '…';
+    if (refreshIcon) refreshIcon.classList.add('rt-spin');
+
+    fetch('/api/ga4/realtime/' + siteId + '?window=' + WINDOW + '&profile=' + profile)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (refreshIcon) refreshIcon.classList.remove('rt-spin');
+        if (d.error) {
+          if (tsEl) tsEl.textContent = d.message || d.error;
+          return;
+        }
+        _renderKpis(box, d);
+        _renderChart(box, siteId, profile, d.trend || []);
+        if (tsEl) {
+          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+          tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        }
+      })
+      .catch(function (e) {
+        if (refreshIcon) refreshIcon.classList.remove('rt-spin');
+        if (tsEl) tsEl.textContent = 'hata';
+      });
+  }
+  window.rtFetchProfile = rtFetchProfile;
+
+  function _renderKpis(box, data) {
+    var comp = data.comparison || {};
+    box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
+      var key = kpiBox.getAttribute('data-rt-kpi');
+      var c = comp[key];
+      if (!c) return;
+      var valEl = kpiBox.querySelector('[data-rt-val]');
+      var prevEl = kpiBox.querySelector('[data-rt-prev]');
+      var pctEl = kpiBox.querySelector('[data-rt-pct]');
+      if (valEl) valEl.textContent = _fmt(c.current);
+      if (prevEl) prevEl.textContent = 'önceki: ' + _fmt(c.previous);
+      if (pctEl) {
+        var pct = c.change_pct || 0;
+        var arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+        pctEl.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '%';
+        pctEl.className = 'text-[11px] font-semibold tabular-nums ' +
+          (pct > 5 ? 'text-emerald-600 dark:text-emerald-400' :
+           pct < -5 ? 'text-rose-600 dark:text-rose-400' :
+           'text-slate-500 dark:text-slate-400');
+      }
+    });
+  }
+
+  function _renderChart(box, siteId, profile, trend) {
+    if (!window.Plotly || !trend.length) return;
+    var el = box.querySelector('[data-rt-chart]');
+    if (!el) return;
+    if (!el.id) el.id = _chartId(siteId, profile);
+    var labels = trend.map(function (t) {
+      return t.collected_at ? new Date(t.collected_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+    });
+    var users = trend.map(function (t) { return t.active_users || 0; });
+    var isDark = document.documentElement.classList.contains('dark');
+    Plotly.react(el, [
+      {
+        x: labels, y: users, type: 'scatter', mode: 'lines+markers',
+        name: 'Kullanıcı', line: {color: '#6366f1', width: 2}, marker: {size: 3},
+        fill: 'tozeroy', fillcolor: 'rgba(99,102,241,0.08)'
+      }
+    ], {
+      margin: {t: 4, r: 8, b: 22, l: 30},
+      height: el.offsetHeight || 96,
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      showlegend: false,
+      xaxis: {showgrid: false, tickfont: {size: 8, color: isDark ? '#94a3b8' : '#64748b'}},
+      yaxis: {showgrid: false, tickfont: {size: 8, color: isDark ? '#94a3b8' : '#64748b'}}
+    }, {displayModeBar: false, responsive: true});
+  }
+
+  function rtCheckAll() {
+    var icon = document.getElementById('rt-global-refresh-icon');
+    if (icon) icon.classList.add('rt-spin');
+    var boxes = document.querySelectorAll('[data-rt-site-id]');
+    var pending = boxes.length;
+    boxes.forEach(function (box) {
+      var sid = box.getAttribute('data-rt-site-id');
+      var prof = box.getAttribute('data-rt-profile');
+      fetch('/api/ga4/realtime/' + sid + '?window=' + WINDOW + '&profile=' + prof)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.error) {
+            _renderKpis(box, d);
+            _renderChart(box, sid, prof, d.trend || []);
+            var tsEl = box.querySelector('[data-rt-ts]');
+            if (tsEl) {
+              var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+              tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+            }
+          }
+        })
+        .catch(function () {})
+        .finally(function () {
+          pending--;
+          if (pending <= 0 && icon) icon.classList.remove('rt-spin');
+        });
+    });
+    _fetchGlobalAlarms();
+  }
+  window.rtCheckAll = rtCheckAll;
+
+  function _fetchGlobalAlarms() {
+    var siteEls = document.querySelectorAll('[data-rt-site]');
+    var siteIds = [];
+    siteEls.forEach(function (el) {
+      var sid = el.getAttribute('data-rt-site');
+      if (sid && siteIds.indexOf(sid) === -1) siteIds.push(sid);
+    });
+    var allAlarms = [];
+    var pending = siteIds.length;
+    if (!pending) return;
+    siteIds.forEach(function (sid) {
+      fetch('/api/ga4/realtime/' + sid + '/alarms?limit=10')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          (data.alarms || []).forEach(function (a) { allAlarms.push(a); });
+        })
+        .catch(function () {})
+        .finally(function () {
+          pending--;
+          if (pending <= 0) _renderGlobalAlarms(allAlarms);
+        });
+    });
+  }
+
+  function _renderGlobalAlarms(alarms) {
+    var list = document.getElementById('rt-alarm-list-global');
+    var badge = document.getElementById('rt-alarm-badge-global');
+    if (!list) return;
+    if (!alarms.length) {
+      list.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>';
+      if (badge) { badge.textContent = '0'; badge.classList.add('hidden'); }
+      return;
+    }
+    alarms.sort(function (a, b) {
+      return (b.triggered_at || '').localeCompare(a.triggered_at || '');
+    });
+    if (badge) {
+      badge.textContent = String(alarms.length);
+      badge.classList.remove('hidden');
+    }
+    list.innerHTML = alarms.slice(0, 15).map(function (a) {
+      var sev = a.severity === 'critical'
+        ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200'
+        : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
+      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+      return '<div class="rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ' + sev + '">'
+        + '<span class="font-semibold">' + (a.severity === 'critical' ? '🔴' : '🟡') + '</span> '
+        + _esc(a.message) + ' <span class="opacity-60">' + dt + '</span></div>';
+    }).join('');
+  }
+
+  function _startPolling() {
+    document.querySelectorAll('[data-rt-site-id]').forEach(function (box) {
+      var sid = box.getAttribute('data-rt-site-id');
+      var prof = box.getAttribute('data-rt-profile');
+      var key = sid + ':' + prof;
+      rtFetchProfile(parseInt(sid, 10), prof);
+      if (_timers[key]) clearInterval(_timers[key]);
+      _timers[key] = setInterval(function () {
+        rtFetchProfile(parseInt(sid, 10), prof);
+      }, INTERVAL_MS);
+    });
+    _fetchGlobalAlarms();
+  }
+
+  document.addEventListener('DOMContentLoaded', _startPolling);
+})();
+</script>
+{% endblock %}

@@ -7515,9 +7515,6 @@ def ga4_single_site_card(request: Request, site_id: int):
                 "request": request,
                 "site": site_data,
                 "site_count": site_count,
-                "site_id": site_id,
-                "window_minutes": settings.ga4_realtime_window_minutes,
-                "interval_minutes": settings.ga4_realtime_interval_minutes,
             },
         )
         response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
@@ -7847,6 +7844,40 @@ def ga4_sources_partial(request: Request, site_id: int):
 
 
 # ── GA4 Realtime ──────────────────────────────────────────────────────────────
+
+@app.get("/realtime")
+def realtime_page(request: Request):
+    """Bağımsız Realtime sayfası — her site için profil bazlı kutular."""
+    with SessionLocal() as db:
+        external_site_ids = _external_site_ids(db)
+        sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_site_ids]
+        sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        site_list = []
+        for site in sites:
+            ga4_status = get_ga4_connection_status(db, site.id)
+            if not ga4_status.get("connected"):
+                continue
+            props = ga4_status.get("properties") or {}
+            profiles = [p for p in ("web", "mweb", "android", "ios") if str(props.get(p, "")).strip()]
+            if not profiles:
+                continue
+            site_list.append({
+                "id": site.id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "profiles": profiles,
+            })
+    return templates.TemplateResponse(
+        request,
+        "realtime.html",
+        context={
+            "request": request,
+            "sites": site_list,
+            "window_minutes": settings.ga4_realtime_window_minutes,
+            "interval_minutes": settings.ga4_realtime_interval_minutes,
+        },
+    )
+
 
 @app.get("/api/ga4/realtime/{site_id}")
 def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
