@@ -8699,7 +8699,13 @@ def _run_db_retention_cleanup() -> dict:
 
 
 def _run_ga4_realtime_check_job() -> None:
-    """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü."""
+    """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü.
+    Sadece 07:00–01:00 arası çalışır (gece 01–07 arası kota tasarrufu için atlanır)."""
+    from datetime import datetime as _dt
+    hour = _dt.now().hour
+    if 1 <= hour < 7:
+        LOGGER.debug("GA4 Realtime: saat %02d — gece aralığı, atlanıyor.", hour)
+        return
     try:
         from backend.services.ga4_realtime import run_all_sites_realtime_check
 
