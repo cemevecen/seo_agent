@@ -86,12 +86,10 @@ def fetch_realtime_comparison(
     if client is None:
         client = _build_client()
 
-    # Realtime API max 29 dakika geriye gidebilir (0–29 = 30 dk).
-    # Karşılaştırma için 30 dk'yı iki 15'lik yarıya böleriz.
-    # Gösterim için tam 30 dk'lık "total" range eklenir (activeUsers toplanabilir
-    # olmadığı için ayrı range gerekir).
+    # Realtime API max 2 MinuteRange destekler ve max 29 dk geriye gider.
+    # 30 dk'yı iki 15'lik yarıya böleriz: current (0-14) + previous (15-29).
+    # Toplam 30 dk değeri için ayrı tek range'li bir çağrı yapılır.
     half = 15
-    total_start = min(max(1, window_minutes), 30) - 1  # 0-indexed: 29 for 30dk
 
     metrics = [
         Metric(name="activeUsers"),
@@ -100,36 +98,56 @@ def fetch_realtime_comparison(
         Metric(name="conversions"),
     ]
 
-    request = RunRealtimeReportRequest(
+    # Çağrı 1: Karşılaştırma (2 range)
+    req_compare = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         metrics=metrics,
         minute_ranges=[
-            MinuteRange(name="total", start_minutes_ago=total_start, end_minutes_ago=0),
             MinuteRange(name="current", start_minutes_ago=half - 1, end_minutes_ago=0),
             MinuteRange(name="previous", start_minutes_ago=2 * half - 1, end_minutes_ago=half),
         ],
     )
 
+    # Çağrı 2: Toplam 30 dk (1 range)
+    total_start = min(max(1, window_minutes), 30) - 1
+    req_total = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        metrics=metrics,
+        minute_ranges=[
+            MinuteRange(name="total", start_minutes_ago=total_start, end_minutes_ago=0),
+        ],
+    )
+
     t0 = time.monotonic()
-    response = client.run_realtime_report(request)
+    resp_compare = client.run_realtime_report(req_compare)
+    resp_total = client.run_realtime_report(req_total)
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
-    metric_names = [m.name for m in response.metric_headers]
-    windows: dict[str, dict[str, float]] = {"total": {}, "current": {}, "previous": {}}
+    metric_names = [m.name for m in resp_compare.metric_headers]
+    windows: dict[str, dict[str, float]] = {"current": {}, "previous": {}}
 
-    for row in response.rows:
+    for row in resp_compare.rows:
         range_name = ""
         for dv in row.dimension_values:
             val = dv.value
-            if val in ("total", "current", "previous"):
+            if val in ("current", "previous"):
                 range_name = val
                 break
-
-        key = range_name if range_name in windows else "total"
+        key = range_name if range_name in windows else "current"
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
                 windows[key][mname] = windows[key].get(mname, 0) + float(mv.value)
+            except (ValueError, TypeError):
+                pass
+
+    total: dict[str, float] = {}
+    total_metric_names = [m.name for m in resp_total.metric_headers]
+    for row in resp_total.rows:
+        for i, mv in enumerate(row.metric_values):
+            mname = total_metric_names[i] if i < len(total_metric_names) else f"metric_{i}"
+            try:
+                total[mname] = total.get(mname, 0) + float(mv.value)
             except (ValueError, TypeError):
                 pass
 
@@ -138,7 +156,7 @@ def fetch_realtime_comparison(
     return {
         "property_id": property_id,
         "window_minutes": total_start + 1,
-        "total": windows["total"],
+        "total": total,
         "current": windows["current"],
         "previous": windows["previous"],
         "comparison": comparison,
