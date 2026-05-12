@@ -4,25 +4,29 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 <style>
   .rt-profile-box{transition:box-shadow .2s,border-color .2s}
-  .rt-profile-box:hover{box-shadow:0 4px 24px rgba(99,102,241,.12)}
+  .rt-profile-box:hover{box-shadow:0 6px 32px rgba(99,102,241,.14)}
   .rt-spin{animation:rt-spin-kf .8s linear infinite}
   @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
+  .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#4ade80}
+  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#f87171}
+  .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#94a3b8}
 </style>
 
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-  <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+  {# Page header #}
+  <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-3">
-      <span class="relative flex h-3 w-3">
+      <span class="relative flex h-3.5 w-3.5">
         <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-        <span class="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+        <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500"></span>
       </span>
-      <h1 class="text-xl font-bold text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{{ interval_minutes }} dk aralık</span>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
+      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{{ interval_minutes }} dk aralık</span>
     </div>
     <button
       type="button"
       onclick="rtCheckAll()"
-      class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+      class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
     >
       <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
       Tümünü Kontrol Et
@@ -30,87 +34,88 @@
   </div>
 
   {% for site in sites %}
-  <div class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-rt-site="{{ site.id }}">
-    <h2 class="mb-4 text-base font-bold text-slate-800 dark:text-slate-200">
+  <div class="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-rt-site="{{ site.id }}">
+    <h2 class="mb-5 flex items-baseline gap-2 text-lg font-extrabold text-slate-800 dark:text-slate-200">
       {{ site.display_name or site.domain }}
-      <span class="ml-2 text-xs font-normal text-slate-400">{{ site.domain }}</span>
+      <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
     </h2>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
       {% for profile in site.profiles %}
       <div
-        class="rt-profile-box rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 via-white to-violet-50/40 p-4 dark:border-indigo-800/50 dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-800"
+        class="rt-profile-box rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 p-5 dark:border-slate-700/60 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-800/40"
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
       >
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="relative flex h-2 w-2">
+        {# Profile header #}
+        <div class="mb-4 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <span class="relative flex h-2.5 w-2.5">
               <span class="rt-dot absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
-              <span class="rt-dot relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span class="rt-dot relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
             </span>
-            <span class="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+            <span class="text-sm font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
               {% if profile == 'web' %}Desktop{% elif profile == 'mweb' %}Mobile Web{% elif profile == 'android' %}Android{% elif profile == 'ios' %}iOS{% else %}{{ profile }}{% endif %}
             </span>
           </div>
-          <div class="flex items-center gap-1.5">
-            <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-ts>—</span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-ts>—</span>
             <button
               type="button"
-              class="inline-flex h-6 w-6 items-center justify-center rounded-md text-indigo-400 transition hover:bg-indigo-100 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-indigo-400 transition hover:bg-indigo-100 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
               onclick="rtFetchProfile({{ site.id }}, '{{ profile }}')"
               title="Kontrol"
             >
-              <svg class="h-3.5 w-3.5 rt-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+              <svg class="h-4 w-4 rt-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
             </button>
           </div>
         </div>
 
-        {# KPI satırları — yan yana Aktif Kullanıcı + Sayfa Gör. #}
-        <div class="grid grid-cols-2 gap-3 mb-2">
-          <div data-rt-kpi="activeUsers">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
-            <p class="mt-1 text-2xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
-            <div class="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-              <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-              <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+        {# KPI cards — side by side #}
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="rounded-lg border border-slate-100 bg-white/80 p-3 dark:border-slate-700/50 dark:bg-slate-800/50" data-rt-kpi="activeUsers">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
+            <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
+            <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+              <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+              <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
             </div>
           </div>
-          <div data-rt-kpi="screenPageViews">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Gör.</p>
-            <p class="mt-1 text-2xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
-            <div class="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-              <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-              <span class="text-[11px] font-semibold tabular-nums text-slate-400" data-rt-pct>—</span>
+          <div class="rounded-lg border border-slate-100 bg-white/80 p-3 dark:border-slate-700/50 dark:bg-slate-800/50" data-rt-kpi="screenPageViews">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
+            <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
+            <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+              <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+              <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
             </div>
           </div>
         </div>
 
-        {# Mini Trend Chart #}
-        <div class="mt-3 overflow-hidden rounded-lg border border-indigo-100/60 bg-white/60 dark:border-slate-700 dark:bg-slate-800/40">
-          <div class="h-24 w-full" data-rt-chart></div>
+        {# Trend Chart #}
+        <div class="overflow-hidden rounded-lg border border-slate-100 bg-white/60 dark:border-slate-700/40 dark:bg-slate-800/30">
+          <div class="h-32 w-full" data-rt-chart></div>
         </div>
 
-        {# Top Sayfalar / Top Eventler — sekmeli #}
-        <div class="mt-3" data-rt-top-section>
-          <div class="mb-1.5 flex items-center gap-0.5">
+        {# Top Pages — tabbed #}
+        <div class="mt-4" data-rt-top-section>
+          <div class="mb-2 flex items-center gap-1">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
-              class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
               data-rt-top-tab="pages">{% if profile in ('ios','android') %}Top Ekranlar{% else %}Top Sayfalar{% endif %}</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
-              class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               data-rt-top-tab="views">Top Görüntüleme</button>
           </div>
           <div data-rt-top-panel="pages">
-            <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
-              <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            <div class="space-y-1" data-rt-pages-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
           </div>
           <div data-rt-top-panel="views" class="hidden">
-            <div class="space-y-0.5 text-[11px]" data-rt-views-list>
-              <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            <div class="space-y-1" data-rt-views-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
           </div>
         </div>
       </div>
@@ -119,35 +124,35 @@
   </div>
   {% endfor %}
 
-  {# Global alarm section — 2 sekmeli #}
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
-    <div class="mb-3 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">Son Alarmlar</h3>
-        <span class="hidden rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
+  {# Global alarms #}
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
+    <div class="mb-4 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <h3 class="text-base font-extrabold text-slate-800 dark:text-slate-200">Son Alarmlar</h3>
+        <span class="hidden rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold leading-none text-white" id="rt-alarm-badge-global">0</span>
       </div>
       <button
         type="button"
         id="rt-alarm-expand-btn"
         onclick="rtToggleAlarms()"
-        class="text-[11px] font-semibold text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
+        class="text-xs font-bold text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
       >Genişlet (50)</button>
     </div>
-    <div class="mb-3 flex gap-1 border-b border-slate-200 dark:border-slate-700">
+    <div class="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-700">
       <button type="button" onclick="rtSwitchAlarmTab('site')" id="rt-alarm-tab-site"
-        class="px-3 py-1.5 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300">
+        class="px-3 py-2 text-sm font-bold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300">
         Site Alarmları
       </button>
       <button type="button" onclick="rtSwitchAlarmTab('page')" id="rt-alarm-tab-page"
-        class="px-3 py-1.5 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+        class="px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
         Sayfa Alarmları
       </button>
     </div>
-    <div class="space-y-1.5" id="rt-alarm-list-site">
-      <p class="text-xs text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
+    <div class="space-y-2" id="rt-alarm-list-site">
+      <p class="text-sm text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
     </div>
-    <div class="space-y-1.5 hidden" id="rt-alarm-list-page">
-      <p class="text-xs text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
+    <div class="space-y-2 hidden" id="rt-alarm-list-page">
+      <p class="text-sm text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
     </div>
   </div>
 </div>
@@ -220,10 +225,26 @@
         var pct = c.change_pct || 0;
         var arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
         pctEl.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '%';
-        pctEl.className = 'text-[11px] font-semibold tabular-nums ' +
-          (pct > 5 ? 'text-emerald-600 dark:text-emerald-400' :
-           pct < -5 ? 'text-rose-600 dark:text-rose-400' :
-           'text-slate-500 dark:text-slate-400');
+        if (pct > 0) {
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-up';
+        } else if (pct < 0) {
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-down';
+        } else {
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
+        }
+      }
+      if (halvesEl) {
+        var pct2 = c.change_pct || 0;
+        if (pct2 > 0) {
+          halvesEl.className = 'text-xs tabular-nums rt-change-up';
+          halvesEl.style.opacity = '0.7';
+        } else if (pct2 < 0) {
+          halvesEl.className = 'text-xs tabular-nums rt-change-down';
+          halvesEl.style.opacity = '0.7';
+        } else {
+          halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500';
+          halvesEl.style.opacity = '1';
+        }
       }
     });
   }
@@ -237,21 +258,32 @@
       return t.collected_at ? new Date(t.collected_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
     });
     var users = trend.map(function (t) { return t.active_users || 0; });
-    var isDark = document.documentElement.classList.contains('dark');
+    var th = (typeof window.seoPlotlyTheme === 'function') ? window.seoPlotlyTheme() : {};
     Plotly.react(el, [
       {
         x: labels, y: users, type: 'scatter', mode: 'lines+markers',
-        name: 'Kullanıcı', line: {color: '#6366f1', width: 2}, marker: {size: 3},
-        fill: 'tozeroy', fillcolor: 'rgba(99,102,241,0.08)'
+        name: 'Aktif Kullanıcı', line: {color: '#6366f1', width: 2.5, shape: 'spline'},
+        marker: {size: 4, color: '#6366f1'},
+        fill: 'tozeroy', fillcolor: 'rgba(99,102,241,0.06)'
       }
     ], {
-      margin: {t: 4, r: 8, b: 22, l: 30},
-      height: el.offsetHeight || 96,
+      margin: {t: 8, r: 12, b: 28, l: 40},
+      height: el.offsetHeight || 128,
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       showlegend: false,
-      xaxis: {showgrid: false, tickfont: {size: 8, color: isDark ? '#94a3b8' : '#64748b'}},
-      yaxis: {showgrid: false, tickfont: {size: 8, color: isDark ? '#94a3b8' : '#64748b'}}
+      xaxis: {
+        showgrid: false,
+        tickfont: {size: 10, color: th.tick || '#64748b'},
+        tickangle: -30
+      },
+      yaxis: {
+        showgrid: true,
+        gridcolor: th.grid || '#e2e8f0',
+        gridwidth: 1,
+        tickfont: {size: 10, color: th.tick || '#64748b'},
+        zeroline: false
+      }
     }, {displayModeBar: false, responsive: true});
   }
 
@@ -266,7 +298,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages) {
-          if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic">veri yok</p>';
           return;
         }
         _renderTopPages(listEl, d.pages, isViews);
@@ -276,7 +308,7 @@
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic">hata</p>';
       });
   }
 
@@ -292,8 +324,8 @@
     section.querySelectorAll('[data-rt-top-panel]').forEach(function (p) {
       p.classList.toggle('hidden', p.getAttribute('data-rt-top-panel') !== tab);
     });
-    var activeClass = 'rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
-    var inactiveClass = 'rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300';
+    var activeClass = 'rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
+    var inactiveClass = 'rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300';
     section.querySelectorAll('[data-rt-top-tab]').forEach(function (t) {
       t.className = (t.getAttribute('data-rt-top-tab') === tab) ? activeClass : inactiveClass;
     });
@@ -303,32 +335,35 @@
   function _renderTopPages(listEl, pages, viewsMode) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
+      listEl.innerHTML = '<p class="text-sm text-slate-400 italic">veri yok</p>';
       return;
     }
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var path = _esc(p.page || '(bilinmiyor)');
-      if (path.length > 40) path = path.substring(0, 38) + '…';
+      if (path.length > 45) path = path.substring(0, 43) + '…';
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
-      var barColor = viewsMode ? 'bg-violet-400' : 'bg-indigo-400';
+      var barColor = viewsMode ? 'bg-violet-500/70' : 'bg-indigo-500/70';
       var primary = viewsMode
-        ? '<strong>' + views + '</strong> <span class="text-[10px] text-slate-400">sg.</span>'
-        : '<strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span>';
+        ? '<strong class="text-sm">' + views + '</strong> <span class="text-xs text-slate-400">gör.</span>'
+        : '<strong class="text-sm">' + users + '</strong> <span class="text-xs text-slate-400">kul.</span>';
       var secondary = viewsMode
-        ? users + ' <span class="text-[10px]">k.</span>'
-        : views + ' <span class="text-[10px]">sg.</span>';
-      return '<div class="flex items-center gap-1.5 rounded px-1 py-0.5' + (i % 2 === 0 ? ' bg-slate-50 dark:bg-slate-800/40' : '') + '">'
-        + '<span class="w-3 text-right text-[10px] font-bold text-slate-400">' + (i + 1) + '</span>'
+        ? '<span class="text-xs text-slate-400">' + users + ' kul.</span>'
+        : '<span class="text-xs text-slate-400">' + views + ' gör.</span>';
+      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800/30' : '';
+      return '<div class="flex items-center gap-2 rounded-md px-2 py-1.5' + zebra + '">'
+        + '<span class="w-5 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
-        + '<div class="truncate font-medium text-slate-700 dark:text-slate-300" title="' + _esc(p.page || '') + '">' + path + '</div>'
-        + '<div class="mt-0.5 h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full ' + barColor + '" style="width:' + barW + '%"></div></div>'
+        + '<div class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + _esc(p.page || '') + '">' + path + '</div>'
+        + '<div class="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded-full ' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400">' + primary + '</span>'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-400 dark:text-slate-500">' + secondary + '</span>'
+        + '<div class="flex flex-col items-end gap-0.5">'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">' + primary + '</span>'
+        + secondary
+        + '</div>'
         + '</div>';
     }).join('');
   }
@@ -410,8 +445,8 @@
     var pageList = document.getElementById('rt-alarm-list-page');
     var siteTab = document.getElementById('rt-alarm-tab-site');
     var pageTab = document.getElementById('rt-alarm-tab-page');
-    var activeClass = 'px-3 py-1.5 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300';
-    var inactiveClass = 'px-3 py-1.5 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300';
+    var activeClass = 'px-3 py-2 text-sm font-bold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300';
+    var inactiveClass = 'px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300';
     if (tab === 'site') {
       if (siteList) siteList.classList.remove('hidden');
       if (pageList) pageList.classList.add('hidden');
@@ -460,20 +495,33 @@
   function _renderAlarmList(listEl, alarms, showCount, emptyMsg) {
     if (!listEl) return;
     if (!alarms.length) {
-      listEl.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
+      listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
       return;
     }
     listEl.innerHTML = alarms.slice(0, showCount).map(function (a) {
-      var sev = a.severity === 'critical'
-        ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200'
-        : a.severity === 'info'
-        ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
-        : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
-      var icon = a.severity === 'critical' ? '🔴' : a.severity === 'info' ? '🔵' : '🟡';
+      var isDown = (a.message || '').indexOf('düşüş') !== -1 || (a.message || '').indexOf('kaybol') !== -1;
+      var isUp = (a.message || '').indexOf('artış') !== -1 || (a.message || '').indexOf('yeni') !== -1;
+      var sev, icon;
+      if (isDown) {
+        sev = 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+        icon = '🔴';
+      } else if (isUp) {
+        sev = 'border-green-200 bg-green-50 text-green-800 dark:border-green-800/60 dark:bg-green-950/40 dark:text-green-200';
+        icon = '🟢';
+      } else if (a.severity === 'critical') {
+        sev = 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+        icon = '🔴';
+      } else if (a.severity === 'info') {
+        sev = 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200';
+        icon = '🔵';
+      } else {
+        sev = 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
+        icon = '🟡';
+      }
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
-      return '<div class="rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ' + sev + '">'
+      return '<div class="rounded-lg border px-3 py-2 text-sm font-medium ' + sev + '">'
         + '<span class="font-semibold">' + icon + '</span> '
-        + _esc(a.message) + ' <span class="opacity-60">' + dt + '</span></div>';
+        + _esc(a.message) + ' <span class="ml-1 opacity-50 text-xs">' + dt + '</span></div>';
     }).join('');
   }
 
