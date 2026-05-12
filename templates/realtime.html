@@ -95,10 +95,10 @@
           <div class="mb-1.5 flex items-center gap-0.5">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
-              data-rt-top-tab="pages">Top Sayfalar</button>
-            <button type="button" onclick="rtSwitchTopTab(this,'links')"
+              data-rt-top-tab="pages">Top Kullanıcı</button>
+            <button type="button" onclick="rtSwitchTopTab(this,'views')"
               class="rt-top-tab rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-              data-rt-top-tab="links">Top Linkler</button>
+              data-rt-top-tab="views">Top Görüntüleme</button>
           </div>
           <div data-rt-top-panel="pages">
             <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
@@ -106,11 +106,11 @@
             </div>
             <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
           </div>
-          <div data-rt-top-panel="links" class="hidden">
-            <div class="space-y-0.5 text-[11px]" data-rt-links-list>
+          <div data-rt-top-panel="views" class="hidden">
+            <div class="space-y-0.5 text-[11px]" data-rt-views-list>
               <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-links-ts></p>
+            <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
           </div>
         </div>
       </div>
@@ -258,9 +258,9 @@
   function _fetchTopData(siteId, profile, type) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
-    var isLinks = (type === 'links');
-    var listEl = box.querySelector(isLinks ? '[data-rt-links-list]' : '[data-rt-pages-list]');
-    var tsEl = box.querySelector(isLinks ? '[data-rt-links-ts]' : '[data-rt-pages-ts]');
+    var isViews = (type === 'views');
+    var listEl = box.querySelector(isViews ? '[data-rt-views-list]' : '[data-rt-pages-list]');
+    var tsEl = box.querySelector(isViews ? '[data-rt-views-ts]' : '[data-rt-pages-ts]');
 
     fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=10&type=' + type)
       .then(function (r) { return r.json(); })
@@ -269,7 +269,7 @@
           if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
           return;
         }
-        _renderTopPages(listEl, d.pages);
+        _renderTopPages(listEl, d.pages, isViews);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
@@ -282,7 +282,7 @@
 
   function rtFetchTopPages(siteId, profile) {
     _fetchTopData(siteId, profile, 'pages');
-    _fetchTopData(siteId, profile, 'links');
+    _fetchTopData(siteId, profile, 'views');
   }
   window.rtFetchTopPages = rtFetchTopPages;
 
@@ -300,26 +300,35 @@
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
 
-  function _renderTopPages(listEl, pages) {
+  function _renderTopPages(listEl, pages, viewsMode) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
       return;
     }
+    var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
+    var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var path = _esc(p.page || '(bilinmiyor)');
       if (path.length > 40) path = path.substring(0, 38) + '…';
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
-      var barW = pages[0].activeUsers > 0 ? Math.max(4, Math.round((p.activeUsers / pages[0].activeUsers) * 100)) : 0;
+      var barW = Math.max(4, Math.round((p[sortKey] / maxVal) * 100));
+      var barColor = viewsMode ? 'bg-violet-400' : 'bg-indigo-400';
+      var primary = viewsMode
+        ? '<strong>' + views + '</strong> <span class="text-[10px] text-slate-400">sg.</span>'
+        : '<strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span>';
+      var secondary = viewsMode
+        ? users + ' <span class="text-[10px]">k.</span>'
+        : views + ' <span class="text-[10px]">sg.</span>';
       return '<div class="flex items-center gap-1.5 rounded px-1 py-0.5' + (i % 2 === 0 ? ' bg-slate-50 dark:bg-slate-800/40' : '') + '">'
         + '<span class="w-3 text-right text-[10px] font-bold text-slate-400">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
         + '<div class="truncate font-medium text-slate-700 dark:text-slate-300" title="' + _esc(p.page || '') + '">' + path + '</div>'
-        + '<div class="mt-0.5 h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full bg-indigo-400" style="width:' + barW + '%"></div></div>'
+        + '<div class="mt-0.5 h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full ' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400"><strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span></span>'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-400 dark:text-slate-500">' + views + ' <span class="text-[10px]">sg.</span></span>'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400">' + primary + '</span>'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-400 dark:text-slate-500">' + secondary + '</span>'
         + '</div>';
     }).join('');
   }

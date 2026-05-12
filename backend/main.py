@@ -7930,7 +7930,7 @@ def api_ga4_realtime_top_pages(
     from backend.services.ga4_realtime import fetch_realtime_top_pages
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
-    dimension = "pagePath" if type == "links" else "unifiedScreenName"
+    sort_by = "screenPageViews" if type == "views" else "activeUsers"
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -7945,7 +7945,7 @@ def api_ga4_realtime_top_pages(
     try:
         result = fetch_realtime_top_pages(
             property_id, window_minutes=min(window, 30),
-            limit=min(limit, 25), dimension=dimension,
+            limit=min(limit, 25), sort_by=sort_by,
         )
         result["site_id"] = site_id
         result["profile"] = profile

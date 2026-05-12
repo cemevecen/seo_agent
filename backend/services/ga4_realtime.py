@@ -201,13 +201,12 @@ def fetch_realtime_top_pages(
     *,
     limit: int = 10,
     dimension: str = "unifiedScreenName",
+    sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime API ile son N dakikadaki top sayfaları/linkleri çeker.
+    """Realtime API ile son N dakikadaki top sayfaları çeker.
 
-    dimension parametresi:
-      - "unifiedScreenName" → sayfa başlıkları (Top Sayfalar)
-      - "pagePath"          → URL path'leri  (Top Linkler)
+    sort_by: "activeUsers" veya "screenPageViews" — sıralama kriteri.
     """
     if client is None:
         client = _build_client()
@@ -248,7 +247,7 @@ def fetch_realtime_top_pages(
                 metrics_dict[mname] = 0.0
         pages.append({"page": page_path, **metrics_dict})
 
-    pages.sort(key=lambda p: p.get("activeUsers", 0), reverse=True)
+    pages.sort(key=lambda p: p.get(sort_by, 0), reverse=True)
 
     return {
         "property_id": property_id,
