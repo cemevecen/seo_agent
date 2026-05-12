@@ -7920,6 +7920,32 @@ def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
     return JSONResponse({"site_id": site_id, "alarms": alarms})
 
 
+@app.get("/api/ga4/realtime/{site_id}/top-pages")
+def api_ga4_realtime_top_pages(site_id: int, profile: str = "web", window: int = 30, limit: int = 10):
+    """Realtime top sayfalar — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
+    from backend.services.ga4_realtime import fetch_realtime_top_pages
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(profile) or properties.get("web")
+        if not property_id:
+            return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
+
+    try:
+        result = fetch_realtime_top_pages(property_id, window_minutes=min(window, 30), limit=min(limit, 25))
+        result["site_id"] = site_id
+        result["profile"] = profile
+        return JSONResponse(result)
+    except Exception as exc:
+        LOGGER.exception("Top pages hatası [site=%s, profile=%s]", site_id, profile)
+        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+
+
 @app.post("/api/ga4/realtime/check-all")
 def api_ga4_realtime_check_all(request: Request):
     """Tüm aktif siteleri kontrol et — manuel tetik veya scheduler'dan çağrılır."""

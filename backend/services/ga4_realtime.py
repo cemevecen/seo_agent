@@ -152,6 +152,69 @@ def fetch_realtime_comparison(
     }
 
 
+def fetch_realtime_top_pages(
+    property_id: str,
+    window_minutes: int = 30,
+    *,
+    limit: int = 10,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Realtime API ile son N dakikadaki top sayfaları çeker.
+
+    unifiedPagePathScreen dimension'ı ile sayfa bazlı activeUsers ve
+    screenPageViews döner.
+    """
+    if client is None:
+        client = _build_client()
+
+    w = max(1, min(window_minutes, 30))
+
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="unifiedPagePathScreen")],
+        metrics=[
+            Metric(name="activeUsers"),
+            Metric(name="screenPageViews"),
+        ],
+        minute_ranges=[
+            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        ],
+    )
+
+    t0 = time.monotonic()
+    response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    metric_names = [m.name for m in response.metric_headers]
+    pages: list[dict[str, Any]] = []
+
+    for row in response.rows:
+        page_path = ""
+        for dv in row.dimension_values:
+            if dv.value not in ("current", "previous"):
+                page_path = dv.value
+                break
+        metrics_dict: dict[str, float] = {}
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                metrics_dict[mname] = float(mv.value)
+            except (ValueError, TypeError):
+                metrics_dict[mname] = 0.0
+        pages.append({"page": page_path, **metrics_dict})
+
+    pages.sort(key=lambda p: p.get("activeUsers", 0), reverse=True)
+
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "pages": pages[:limit],
+        "total_pages": len(pages),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+    }
+
+
 def _build_comparison(current: dict[str, float], previous: dict[str, float]) -> dict[str, dict[str, Any]]:
     """Her metrik için yüzdesel değişim ve yön hesaplar."""
     result: dict[str, dict[str, Any]] = {}

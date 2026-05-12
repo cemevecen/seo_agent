@@ -89,6 +89,15 @@
         <div class="mt-3 overflow-hidden rounded-lg border border-indigo-100/60 bg-white/60 dark:border-slate-700 dark:bg-slate-800/40">
           <div class="h-24 w-full" data-rt-chart></div>
         </div>
+
+        {# Top Sayfalar #}
+        <div class="mt-3" data-rt-top-pages>
+          <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Top Sayfalar</p>
+          <div class="space-y-0.5 text-[11px]" data-rt-pages-list>
+            <p class="text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+          </div>
+          <p class="mt-1 text-[9px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -110,8 +119,10 @@
 <script>
 (function () {
   var INTERVAL_MS = {{ (interval_minutes * 60000)|int }};
+  var PAGES_INTERVAL_MS = 30 * 60000;
   var WINDOW = {{ window_minutes }};
   var _timers = {};
+  var _pageTimers = {};
 
   function _fmt(n) {
     if (n == null) return '—';
@@ -203,6 +214,55 @@
     }, {displayModeBar: false, responsive: true});
   }
 
+  function rtFetchTopPages(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    var listEl = box.querySelector('[data-rt-pages-list]');
+    var tsEl = box.querySelector('[data-rt-pages-ts]');
+
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=5')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.pages) {
+          if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
+          return;
+        }
+        _renderTopPages(listEl, d.pages);
+        if (tsEl) {
+          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+        }
+      })
+      .catch(function () {
+        if (listEl) listEl.innerHTML = '<p class="text-slate-400 italic">hata</p>';
+      });
+  }
+  window.rtFetchTopPages = rtFetchTopPages;
+
+  function _renderTopPages(listEl, pages) {
+    if (!listEl) return;
+    if (!pages.length) {
+      listEl.innerHTML = '<p class="text-slate-400 italic">veri yok</p>';
+      return;
+    }
+    listEl.innerHTML = pages.map(function (p, i) {
+      var path = _esc(p.page || '(bilinmiyor)');
+      if (path.length > 40) path = path.substring(0, 38) + '…';
+      var users = _fmt(p.activeUsers);
+      var views = _fmt(p.screenPageViews);
+      var barW = pages[0].activeUsers > 0 ? Math.max(4, Math.round((p.activeUsers / pages[0].activeUsers) * 100)) : 0;
+      return '<div class="flex items-center gap-1.5 rounded px-1 py-0.5' + (i % 2 === 0 ? ' bg-slate-50 dark:bg-slate-800/40' : '') + '">'
+        + '<span class="w-3 text-right text-[10px] font-bold text-slate-400">' + (i + 1) + '</span>'
+        + '<div class="min-w-0 flex-1">'
+        + '<div class="truncate font-medium text-slate-700 dark:text-slate-300" title="' + _esc(p.page || '') + '">' + path + '</div>'
+        + '<div class="mt-0.5 h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full bg-indigo-400" style="width:' + barW + '%"></div></div>'
+        + '</div>'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400"><strong>' + users + '</strong> <span class="text-[10px] text-slate-400">k.</span></span>'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-400 dark:text-slate-500">' + views + ' <span class="text-[10px]">sg.</span></span>'
+        + '</div>';
+    }).join('');
+  }
+
   function rtCheckAll() {
     var icon = document.getElementById('rt-global-refresh-icon');
     if (icon) icon.classList.add('rt-spin');
@@ -229,6 +289,12 @@
           pending--;
           if (pending <= 0 && icon) icon.classList.remove('rt-spin');
         });
+    });
+    document.querySelectorAll('[data-rt-site-id]').forEach(function (box) {
+      rtFetchTopPages(
+        parseInt(box.getAttribute('data-rt-site-id'), 10),
+        box.getAttribute('data-rt-profile')
+      );
     });
     _fetchGlobalAlarms();
   }
@@ -290,11 +356,17 @@
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
       var key = sid + ':' + prof;
-      rtFetchProfile(parseInt(sid, 10), prof);
+      var sidInt = parseInt(sid, 10);
+      rtFetchProfile(sidInt, prof);
+      rtFetchTopPages(sidInt, prof);
       if (_timers[key]) clearInterval(_timers[key]);
       _timers[key] = setInterval(function () {
-        rtFetchProfile(parseInt(sid, 10), prof);
+        rtFetchProfile(sidInt, prof);
       }, INTERVAL_MS);
+      if (_pageTimers[key]) clearInterval(_pageTimers[key]);
+      _pageTimers[key] = setInterval(function () {
+        rtFetchTopPages(sidInt, prof);
+      }, PAGES_INTERVAL_MS);
     });
     _fetchGlobalAlarms();
   }
