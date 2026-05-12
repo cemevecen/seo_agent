@@ -124,13 +124,14 @@ def fetch_realtime_comparison(
     windows: dict[str, dict[str, float]] = {"current": {}, "previous": {}}
 
     for row in response.rows:
-        range_idx = 0
-        if row.dimension_values:
-            try:
-                range_idx = int(row.dimension_values[0].value)
-            except (IndexError, ValueError):
-                pass
-        key = "current" if range_idx == 0 else "previous"
+        range_name = ""
+        for dv in row.dimension_values:
+            val = dv.value
+            if val in ("current", "previous"):
+                range_name = val
+                break
+
+        key = range_name if range_name in ("current", "previous") else "current"
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
