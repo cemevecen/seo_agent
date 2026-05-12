@@ -213,13 +213,17 @@ def fetch_realtime_top_pages(
 
     w = max(1, min(window_minutes, 30))
 
+    metrics = [
+        Metric(name="activeUsers"),
+        Metric(name="screenPageViews"),
+    ]
+    if dimension == "eventName":
+        metrics.append(Metric(name="eventCount"))
+
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         dimensions=[Dimension(name=dimension)],
-        metrics=[
-            Metric(name="activeUsers"),
-            Metric(name="screenPageViews"),
-        ],
+        metrics=metrics,
         minute_ranges=[
             MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
         ],

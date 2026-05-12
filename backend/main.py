@@ -7930,7 +7930,13 @@ def api_ga4_realtime_top_pages(
     from backend.services.ga4_realtime import fetch_realtime_top_pages
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
-    sort_by = "screenPageViews" if type == "views" else "activeUsers"
+    is_app = profile in ("ios", "android")
+    if type == "views" and is_app:
+        sort_by = "eventCount"
+    elif type == "views":
+        sort_by = "screenPageViews"
+    else:
+        sort_by = "activeUsers"
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -7942,10 +7948,13 @@ def api_ga4_realtime_top_pages(
         if not property_id:
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
+    dimension = "eventName" if (is_app and type == "views") else "unifiedScreenName"
+
     try:
         result = fetch_realtime_top_pages(
             property_id, window_minutes=min(window, 30),
             limit=min(limit, 25), sort_by=sort_by,
+            dimension=dimension,
         )
         result["site_id"] = site_id
         result["profile"] = profile
