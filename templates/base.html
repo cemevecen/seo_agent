@@ -22,9 +22,12 @@
         var v = localStorage.getItem(k);
         var root = document.documentElement;
         if (v === 'dark') {
+          root.classList.add('dark', 'midnight');
+        } else if (v === 'dim') {
           root.classList.add('dark');
+          root.classList.remove('midnight');
         } else if (v === 'light') {
-          root.classList.remove('dark');
+          root.classList.remove('dark', 'midnight');
         } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
           root.classList.add('dark');
         }
@@ -72,6 +75,102 @@
       border-radius: 0.375rem;
       padding: 0.25rem 0.5rem;
       margin-right: 0.5rem;
+    }
+  </style>
+  <style id="seo-midnight-overrides">
+    /* Midnight (true dark) — antrasit/siyah ağırlıklı */
+    html.midnight {
+      color-scheme: dark;
+    }
+    html.midnight body {
+      background: radial-gradient(circle at top, #09090b, #111113 55%, #18181b) !important;
+      color: #d4d4d8 !important;
+    }
+    html.midnight input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+    html.midnight textarea,
+    html.midnight select {
+      background-color: #18181b;
+      color: #e4e4e7;
+      border-color: #3f3f46;
+    }
+    html.midnight input::placeholder,
+    html.midnight textarea::placeholder {
+      color: #71717a;
+    }
+    html.midnight input:focus,
+    html.midnight textarea:focus,
+    html.midnight select:focus {
+      box-shadow: 0 0 0 2px #27272a;
+      border-color: #52525b;
+    }
+    html.midnight input[type="checkbox"],
+    html.midnight input[type="radio"] {
+      accent-color: #a78bfa;
+      border-color: #3f3f46;
+    }
+    html.midnight input[type="file"]::file-selector-button {
+      background-color: #27272a;
+      color: #d4d4d8;
+      border-color: #3f3f46;
+    }
+    /* Midnight header bar */
+    html.midnight .header-card-midnight {
+      border-color: rgba(63, 63, 70, 0.7) !important;
+      background: linear-gradient(to bottom right, #18181b, #1c1c1f, #18181b) !important;
+      box-shadow: 0 10px 28px -16px rgba(0,0,0,0.7) !important;
+      --tw-ring-color: rgba(63, 63, 70, 0.4) !important;
+    }
+    /* Midnight nav pills */
+    html.midnight .header-nav-link {
+      border-color: rgba(63, 63, 70, 0.6);
+      color: #a1a1aa;
+      background: linear-gradient(118deg, rgba(24, 24, 27, 0.95), rgba(39, 39, 42, 0.72));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    html.midnight .header-nav-link:hover {
+      background: linear-gradient(118deg, rgba(39, 39, 42, 0.98), rgba(63, 63, 70, 0.72));
+      color: #d4d4d8;
+    }
+    html.midnight .header-nav-link.nav-active {
+      background: #fafafa;
+      color: #09090b;
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.65);
+      text-shadow: none;
+    }
+    /* Midnight cards — override common dark card patterns */
+    html.midnight [class*="dark:bg-slate-800"],
+    html.midnight [class*="dark:bg-slate-900"] {
+      --tw-bg-opacity: 1 !important;
+    }
+    /* Midnight skeleton pulse */
+    html.midnight .animate-pulse [class*="bg-slate-200"] {
+      background-color: rgb(39, 39, 42) !important;
+    }
+    /* Midnight theme switcher */
+    html.midnight #theme-switcher {
+      border-color: rgba(63, 63, 70, 0.6);
+      background-color: rgba(24, 24, 27, 0.8);
+    }
+    /* Midnight — deepen all slate-800/900 cards to zinc-900/950 */
+    html.midnight .dark\:bg-slate-800\/50,
+    html.midnight .dark\:bg-slate-800\/40,
+    html.midnight .dark\:bg-slate-800 {
+      background-color: rgba(24, 24, 27, 0.95) !important;
+    }
+    html.midnight .dark\:border-slate-700,
+    html.midnight .dark\:border-slate-600 {
+      border-color: #27272a !important;
+    }
+    html.midnight .dark\:text-slate-100 {
+      color: #d4d4d8 !important;
+    }
+    html.midnight .dark\:text-slate-300 {
+      color: #a1a1aa !important;
+    }
+    html.midnight .dark\:text-slate-400 {
+      color: #71717a !important;
     }
   </style>
   <style id="seo-dark-skeleton-progress">
@@ -210,13 +309,13 @@
   <script src="/static/vendor/plotly-2.35.2.min.js" onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
 </head>
-<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
+<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
       <header class="px-3 py-1.5 sm:px-5 sm:py-2 md:px-6 md:py-2">
         <div
-          class="mx-auto w-full min-w-0 max-w-[1800px] rounded-xl border border-slate-300/90 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-2.5 py-1.5 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.14)] ring-1 ring-slate-300/50 sm:px-3 sm:py-2 dark:border-slate-600/90 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 dark:shadow-[0_10px_28px_-16px_rgba(0,0,0,0.45)] dark:ring-slate-600/60"
+          class="header-card-midnight mx-auto w-full min-w-0 max-w-[1800px] rounded-xl border border-slate-300/90 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-2.5 py-1.5 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.14)] ring-1 ring-slate-300/50 transition-colors duration-300 sm:px-3 sm:py-2 dark:border-slate-600/90 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 dark:shadow-[0_10px_28px_-16px_rgba(0,0,0,0.45)] dark:ring-slate-600/60"
         >
           <div class="header-app-shell">
             <div class="header-top-row">
@@ -226,21 +325,23 @@
               >
                 {{ site_name or "SEO Agent" }}
               </h2>
-              <button
-                id="theme-toggle"
-                type="button"
-                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-400/40 bg-slate-300/40 text-slate-800 transition hover:bg-slate-300/70 [grid-area:theme] dark:border-slate-500/50 dark:bg-slate-700/70 dark:text-slate-100 dark:hover:bg-slate-600/80"
-                title="Açık / koyu tema"
-                aria-label="Tema değiştir"
+              <div
+                id="theme-switcher"
+                class="relative inline-flex h-7 shrink-0 items-center rounded-full border border-slate-300/80 bg-slate-200/60 p-0.5 [grid-area:theme] dark:border-slate-600/70 dark:bg-slate-700/50"
+                role="radiogroup"
+                aria-label="Tema seçimi"
               >
-                <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="hidden h-3.5 w-3.5 dark:inline" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
-                </svg>
-                <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="inline h-3.5 w-3.5 dark:hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                </svg>
-                <span class="sr-only">Tema</span>
-              </button>
+                <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-slate-500/80" style="left:2px;width:28px"></span>
+                <button type="button" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-700 transition-colors dark:text-slate-400" title="Açık" aria-label="Açık tema">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
+                </button>
+                <button type="button" data-theme-value="dim" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dim" aria-label="Dim tema">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 15a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm-7-7a1 1 0 011-1h1a1 1 0 110 2H4a1 1 0 01-1-1zm14 0a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1z"/><circle cx="10" cy="10" r="4" opacity=".5"/></svg>
+                </button>
+                <button type="button" data-theme-value="dark" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dark" aria-label="Dark tema">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                </button>
+              </div>
             </div>
             <nav
               id="header-main-nav"
@@ -385,40 +486,83 @@
 
     (function () {
       var THEME_KEY = 'seo-theme';
+      var THEMES = ['light', 'dim', 'dark'];
       var root = document.documentElement;
-      var btn = document.getElementById('theme-toggle');
-      function isDark() {
-        return root.classList.contains('dark');
+      var switcher = document.getElementById('theme-switcher');
+      var pill = document.getElementById('theme-pill');
+      var btns = switcher ? switcher.querySelectorAll('.theme-btn') : [];
+
+      function getTheme() {
+        if (root.classList.contains('midnight')) return 'dark';
+        if (root.classList.contains('dark')) return 'dim';
+        return 'light';
       }
-      function applyTheme(dark) {
-        if (dark) {
-          root.classList.add('dark');
+
+      function movePill(theme) {
+        if (!pill) return;
+        var idx = THEMES.indexOf(theme);
+        if (idx < 0) idx = 0;
+        var offset = 2 + idx * 28;
+        pill.style.left = offset + 'px';
+        if (theme === 'dark') {
+          pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
+        } else if (theme === 'dim') {
+          pill.className = 'absolute h-6 rounded-full bg-slate-500/80 shadow-md transition-all duration-300 ease-out';
         } else {
-          root.classList.remove('dark');
+          pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out';
         }
-        try {
-          localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-        } catch (e) {}
-        try {
-          document.dispatchEvent(new CustomEvent('seo-theme-change', { detail: { dark: dark } }));
-        } catch (e) {}
       }
-      if (btn) {
-        btn.addEventListener('click', function () {
-          applyTheme(!isDark());
+
+      function applyTheme(theme) {
+        root.classList.remove('dark', 'midnight');
+        if (theme === 'dim') {
+          root.classList.add('dark');
+        } else if (theme === 'dark') {
+          root.classList.add('dark', 'midnight');
+        }
+        movePill(theme);
+        btns.forEach(function (b) {
+          var v = b.getAttribute('data-theme-value');
+          if (v === theme) {
+            b.classList.add('text-current', 'font-bold');
+            b.classList.remove('text-slate-500');
+            b.setAttribute('aria-checked', 'true');
+          } else {
+            b.classList.remove('text-current', 'font-bold');
+            b.classList.add('text-slate-500');
+            b.setAttribute('aria-checked', 'false');
+          }
         });
+        try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+        try {
+          document.dispatchEvent(new CustomEvent('seo-theme-change', { detail: { dark: theme !== 'light', theme: theme } }));
+        } catch (e) {}
       }
+
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () {
+          applyTheme(b.getAttribute('data-theme-value'));
+        });
+      });
+
+      var initial = getTheme();
+      movePill(initial);
     })();
 
     window.seoPlotlyTheme = function () {
+      var mn = document.documentElement.classList.contains('midnight');
       var d = document.documentElement.classList.contains('dark');
+      if (mn) return {
+        grid: '#27272a', tick: '#a1a1aa', legend: '#a1a1aa',
+        muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
+      };
+      if (d) return {
+        grid: '#334155', tick: '#cbd5e1', legend: '#cbd5e1',
+        muted: '#94a3b8', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
+      };
       return {
-        grid: d ? '#334155' : '#e2e8f0',
-        tick: d ? '#cbd5e1' : '#64748b',
-        legend: d ? '#cbd5e1' : '#475569',
-        muted: d ? '#94a3b8' : '#64748b',
-        paper: 'rgba(0,0,0,0)',
-        plot: 'rgba(0,0,0,0)',
+        grid: '#e2e8f0', tick: '#64748b', legend: '#475569',
+        muted: '#64748b', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
     };
   </script>
