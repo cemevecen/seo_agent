@@ -44,6 +44,7 @@ from backend.api.alerts import router as alerts_router
 from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
+from backend.api.store_catalog import router as store_catalog_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
@@ -629,6 +630,7 @@ app.include_router(alerts_router, prefix="/api")
 app.include_router(metrics_router, prefix="/api")
 app.include_router(sites_router, prefix="/api")
 app.include_router(ga4_router, prefix="/api")
+app.include_router(store_catalog_router, prefix="/api")
 
 PERIOD_DAYS_MAP = {
     "daily": 1,
