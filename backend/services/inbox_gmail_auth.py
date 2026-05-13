@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
+import httpx
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from sqlalchemy.orm import Session
@@ -18,6 +20,9 @@ GMAIL_INBOX_SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
 ]
+
+LOGGER = logging.getLogger(__name__)
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 def inbox_oauth_is_configured() -> bool:
@@ -42,11 +47,71 @@ def build_inbox_oauth_flow(state: str | None = None) -> Flow:
             "redirect_uris": [redirect],
         }
     }
+    # Gizli web istemcisi: PKCE kullanmıyoruz. Aksi halde /oauth/start ile /oauth/callback
+    # farklı Flow örnekleri oluşturulduğunda her biri yeni code_verifier üretir; token
+    # değişiminde Google (invalid_grant) reddeder.
     return Flow.from_client_config(
         client_config,
         scopes=GMAIL_INBOX_SCOPES,
         redirect_uri=redirect,
         state=state,
+        autogenerate_code_verifier=False,
+    )
+
+
+def exchange_inbox_authorization_code(code: str) -> Credentials:
+    """Yetkilendirme kodunu doğrudan Google token uç noktasında değiştirir (oauthlib yok).
+
+    Aynı Client ID ile Search Console izni varken yanıtta ek ``webmasters.readonly`` scope
+    gelebilir; oauthlib ``Scope has changed`` ile düşer. Burada yanıt ayrıştırılır, Gmail
+    için Credentials üretilir.
+    """
+    redirect = get_inbox_oauth_redirect_uri()
+    body = {
+        "code": code.strip(),
+        "client_id": settings.google_client_id.strip(),
+        "client_secret": settings.google_client_secret.strip(),
+        "redirect_uri": redirect,
+        "grant_type": "authorization_code",
+    }
+    with httpx.Client(timeout=30.0) as client:
+        resp = client.post(_GOOGLE_TOKEN_URI, data=body)
+    try:
+        data = resp.json()
+    except json.JSONDecodeError as exc:
+        LOGGER.warning("inbox token response not json status=%s body=%s", resp.status_code, resp.text[:500])
+        raise RuntimeError("Google token yanıtı okunamadı.") from exc
+
+    if resp.status_code != 200 or "error" in data:
+        err = str(data.get("error") or "token_error")
+        desc = str(data.get("error_description") or data.get("error_uri") or resp.text[:400])
+        raise RuntimeError(f"{err}: {desc}".strip())
+
+    access = data.get("access_token")
+    if not access:
+        raise RuntimeError("Google token yanıtında access_token yok.")
+
+    expires_in = int(data.get("expires_in") or 3600)
+    expiry = datetime.utcnow() + timedelta(seconds=max(60, expires_in))
+
+    # Google aynı Client ID ile önceden verilmiş scope'ları (ör. webmasters.readonly)
+    # token yanıtına ekleyebilir. granted_scopes parametresi bu listeyi Credentials'a
+    # yazarsa google-api-python-client scope uyuşmazlığı tespit edip hata verir.
+    # Sadece GMAIL_INBOX_SCOPES'u scopes olarak set edip granted_scopes'u vermiyoruz.
+    LOGGER.info(
+        "inbox token exchange ok; google returned scopes=%s (using fixed=%s)",
+        data.get("scope"),
+        GMAIL_INBOX_SCOPES,
+    )
+    return Credentials(
+        token=access,
+        refresh_token=data.get("refresh_token"),
+        token_uri=_GOOGLE_TOKEN_URI,
+        client_id=settings.google_client_id.strip(),
+        client_secret=settings.google_client_secret.strip(),
+        scopes=list(GMAIL_INBOX_SCOPES),
+        expiry=expiry,
+        # granted_scopes verilmiyor: Google'ın ekstra scope döndürmesi hata vermez.
     )
 
 
