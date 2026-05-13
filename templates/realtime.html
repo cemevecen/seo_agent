@@ -758,7 +758,11 @@
       .then(function (d) {
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
         if (d.error) {
-          if (tsEl) tsEl.textContent = 'hata';
+          if (tsEl) {
+            tsEl.textContent = 'hata';
+            if (d.message) tsEl.setAttribute('title', String(d.message));
+            else tsEl.removeAttribute('title');
+          }
           return;
         }
         _renderKpis(box, d);
@@ -1312,6 +1316,14 @@
             if (tsEl) {
               var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
               tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+              tsEl.removeAttribute('title');
+            }
+          } else {
+            var tsErr = box.querySelector('[data-rt-ts]');
+            if (tsErr) {
+              tsErr.textContent = 'hata';
+              if (d.message) tsErr.setAttribute('title', String(d.message));
+              else tsErr.removeAttribute('title');
             }
           }
         })

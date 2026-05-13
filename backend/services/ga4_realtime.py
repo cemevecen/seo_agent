@@ -35,6 +35,14 @@ from backend.services.ga4_auth import (
 logger = logging.getLogger(__name__)
 
 
+def _normalize_ga4_property_id(property_id: str) -> str:
+    """Ayarlar bazen `properties/123` veya çift önek içerir; Realtime isteği yalnız sayısal id ister."""
+    pid = str(property_id or "").strip().strip("/")
+    while pid.lower().startswith("properties/"):
+        pid = pid.split("/", 1)[1].strip().strip("/")
+    return pid
+
+
 def _realtime_email_thread_key(domain: str, profile: str) -> str:
     """Gmail iş parçacığı / References için site+profil anahtarı (ASCII, kısa)."""
     d = (domain or "").strip().lower()
@@ -456,37 +464,18 @@ def _build_client() -> BetaAnalyticsDataClient:
     return BetaAnalyticsDataClient(credentials=creds)
 
 
-def fetch_realtime_comparison(
+def _fetch_realtime_comparison_with_metrics(
+    client: BetaAnalyticsDataClient,
     property_id: str,
-    window_minutes: int = DEFAULT_WINDOW_MINUTES,
-    *,
-    client: BetaAnalyticsDataClient | None = None,
+    window_minutes: int,
+    metrics: list[Metric],
 ) -> dict[str, Any]:
-    """İki minuteRange ile Realtime API karşılaştırması + tek aralık toplamı.
-
-    GA Realtime en fazla ~29 dk geriye gider; karşılaştırma için sabit iki **15 dk**
-    aralığı kullanılır: ``current`` (son 15 dk) ve ``previous`` (önceki 15 dk).
-    ``window_minutes`` yalnızca ikinci istekteki **toplam** (tek minuteRange)
-    uzunluğunu ``min(max(1, window_minutes), 30)`` ile sınırlar.
-    """
-    if client is None:
-        client = _build_client()
-
-    # Realtime API max 2 MinuteRange destekler ve max 29 dk geriye gider.
-    # 30 dk'yı iki 15'lik yarıya böleriz: current (0-14) + previous (15-29).
-    # Toplam 30 dk değeri için ayrı tek range'li bir çağrı yapılır.
+    """İki minuteRange + tek toplam aralık; metrik listesi dışarıdan (yeniden deneme için)."""
     half = 15
+    prop = f"properties/{property_id}"
 
-    metrics = [
-        Metric(name="activeUsers"),
-        Metric(name="screenPageViews"),
-        Metric(name="eventCount"),
-        Metric(name="conversions"),
-    ]
-
-    # Çağrı 1: Karşılaştırma (2 range)
     req_compare = RunRealtimeReportRequest(
-        property=f"properties/{property_id}",
+        property=prop,
         metrics=metrics,
         minute_ranges=[
             MinuteRange(name="current", start_minutes_ago=half - 1, end_minutes_ago=0),
@@ -494,10 +483,9 @@ def fetch_realtime_comparison(
         ],
     )
 
-    # Çağrı 2: Toplam 30 dk (1 range)
     total_start = min(max(1, window_minutes), 30) - 1
     req_total = RunRealtimeReportRequest(
-        property=f"properties/{property_id}",
+        property=prop,
         metrics=metrics,
         minute_ranges=[
             MinuteRange(name="total", start_minutes_ago=total_start, end_minutes_ago=0),
@@ -551,6 +539,78 @@ def fetch_realtime_comparison(
     }
 
 
+def fetch_realtime_comparison(
+    property_id: str,
+    window_minutes: int = DEFAULT_WINDOW_MINUTES,
+    *,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """İki minuteRange ile Realtime API karşılaştırması + tek aralık toplamı.
+
+    GA Realtime en fazla ~29 dk geriye gider; karşılaştırma için sabit iki **15 dk**
+    aralığı kullanılır: ``current`` (son 15 dk) ve ``previous`` (önceki 15 dk).
+    ``window_minutes`` yalnızca ikinci istekteki **toplam** (tek minuteRange)
+    uzunluğunu ``min(max(1, window_minutes), 30)`` ile sınırlar.
+
+    Firebase / uygulama veri akışlarında ``conversions`` (ve bazen ``eventCount``)
+    Realtime toplu istekte INVALID_ARGUMENT üretebilir; bu durumda metrik kümesi
+    otomatik daraltılır.
+    """
+    if client is None:
+        client = _build_client()
+
+    pid = _normalize_ga4_property_id(property_id)
+    metric_sets: tuple[tuple[str, list[Metric]], ...] = (
+        (
+            "activeUsers+screenPageViews+eventCount+conversions",
+            [
+                Metric(name="activeUsers"),
+                Metric(name="screenPageViews"),
+                Metric(name="eventCount"),
+                Metric(name="conversions"),
+            ],
+        ),
+        (
+            "activeUsers+screenPageViews+eventCount",
+            [
+                Metric(name="activeUsers"),
+                Metric(name="screenPageViews"),
+                Metric(name="eventCount"),
+            ],
+        ),
+        (
+            "activeUsers+screenPageViews",
+            [
+                Metric(name="activeUsers"),
+                Metric(name="screenPageViews"),
+            ],
+        ),
+    )
+
+    last_exc: Exception | None = None
+    for label, mset in metric_sets:
+        try:
+            out = _fetch_realtime_comparison_with_metrics(client, pid, window_minutes, mset)
+            if label != metric_sets[0][0]:
+                logger.warning(
+                    "GA4 Realtime karşılaştırma — uygulama/web uyumu için metrik kümesi düşürüldü (%s, property=%s).",
+                    label,
+                    pid,
+                )
+            return out
+        except Exception as exc:
+            last_exc = exc
+            logger.debug(
+                "Realtime karşılaştırma metrik seti başarısız (%s, property=%s): %s",
+                label,
+                pid,
+                exc,
+            )
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("fetch_realtime_comparison: no metric set")
+
+
 def fetch_realtime_top_pages(
     property_id: str,
     window_minutes: int = 30,
@@ -567,6 +627,7 @@ def fetch_realtime_top_pages(
     if client is None:
         client = _build_client()
 
+    property_id = _normalize_ga4_property_id(property_id)
     w = max(1, min(window_minutes, 30))
 
     request = RunRealtimeReportRequest(
@@ -845,6 +906,7 @@ def fetch_realtime_top_event_names(
     if client is None:
         client = _build_client()
 
+    property_id = _normalize_ga4_property_id(property_id)
     w = max(1, min(window_minutes, 30))
     fetch_cap = min(250, max(limit * 8, 40))
 
@@ -977,6 +1039,7 @@ def fetch_realtime_top_events_fallback_active_users(
     """Bazı Android stream'lerde eventCount kırılımı boş döner; activeUsers ile etkinlik sırası dene."""
     if client is None:
         client = _build_client()
+    property_id = _normalize_ga4_property_id(property_id)
     w = max(1, min(window_minutes, 30))
     fetch_limit = max(1, min(limit, 250))
     request = RunRealtimeReportRequest(
@@ -1043,6 +1106,7 @@ def fetch_realtime_top_events(
     if client is None:
         client = _build_client()
 
+    property_id = _normalize_ga4_property_id(property_id)
     w = max(1, min(window_minutes, 30))
     fetch_limit = max(1, min(limit, 250))
 
