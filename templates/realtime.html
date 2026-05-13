@@ -1207,76 +1207,61 @@
     var y0 = Math.max(0, uMin - pad * 0.55);
     var y1 = uMax + pad;
 
-    var lineCore = isDark ? '#e0e7ff' : '#312e81';
-    var lineMid = isDark ? '#a5b4fc' : '#4f46e5';
-    var glowWide = isDark ? 'rgba(129, 140, 248, 0.22)' : 'rgba(79, 70, 229, 0.14)';
-    var fillTop = isDark ? 'rgba(165, 180, 252, 0.55)' : 'rgba(79, 70, 229, 0.45)';
-    var fillArea = isDark ? 'rgba(67, 56, 202, 0.28)' : 'rgba(99, 102, 241, 0.14)';
-    var spline = {shape: 'spline', smoothing: 1.22};
-
-    try {
-      Plotly.purge(el);
-    } catch (ePurgeBefore) {}
-
-    var traces = [
-      {
-        x: xDates,
-        y: users,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Alan',
-        line: {color: fillTop, width: 2.25, shape: spline.shape, smoothing: spline.smoothing},
-        fill: 'tozeroy',
-        fillcolor: fillArea,
-        hoverinfo: 'skip',
-        showlegend: false,
+    /* Önceki: spline + glow katmanları + dolu alan — tarayıcıda hep aynı “yumuşak şerit”.
+     * Şimdi: tek trace, hv (basamak) = diskret snapshot okuması; ince alan + nokta vurgusu. */
+    var lineMain = isDark ? '#7dd3fc' : '#0369a1';
+    var lineEdge = isDark ? '#0c4a6e' : '#bae6fd';
+    var fillSoft = isDark ? 'rgba(14, 165, 233, 0.11)' : 'rgba(14, 165, 233, 0.09)';
+    var n = xDates.length;
+    var dense = n > 24;
+    var mainTrace = {
+      x: xDates,
+      y: users,
+      type: 'scatter',
+      mode: dense ? 'lines' : 'lines+markers',
+      name: 'Aktif kullanıcı',
+      line: {
+        color: lineMain,
+        width: 2,
+        shape: 'hv',
       },
-      {
-        x: xDates,
-        y: users,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Glow',
-        line: {color: glowWide, width: 8, shape: spline.shape, smoothing: spline.smoothing},
-        hoverinfo: 'skip',
-        showlegend: false,
-      },
-      {
-        x: xDates,
-        y: users,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Aktif',
-        line: {color: lineMid, width: 2.45, shape: spline.shape, smoothing: spline.smoothing},
-        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
-        showlegend: false,
-      },
-      {
-        x: xDates,
-        y: users,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Kenar',
-        line: {color: lineCore, width: 1.05, shape: spline.shape, smoothing: spline.smoothing},
-        hoverinfo: 'skip',
-        showlegend: false,
-      },
-      {
-        x: [xDates[xDates.length - 1]],
-        y: [users[users.length - 1]],
+      fill: 'tozeroy',
+      fillcolor: fillSoft,
+      hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
+      showlegend: false,
+    };
+    if (!dense) {
+      mainTrace.marker = {
+        size: xDates.map(function (_, i) {
+          return i === n - 1 ? (isDark ? 9 : 8) : n > 14 ? 3 : 4;
+        }),
+        color: lineMain,
+        line: {color: lineEdge, width: 1},
+        symbol: 'circle',
+      };
+    }
+    var traces = [mainTrace];
+    if (dense) {
+      traces.push({
+        x: [xDates[n - 1]],
+        y: [users[n - 1]],
         type: 'scatter',
         mode: 'markers',
-        name: 'Son',
+        name: 'Son örnek',
         marker: {
-          size: isDark ? 11 : 10,
-          color: isDark ? 'rgba(224, 231, 255, 0.98)' : '#fff',
-          line: {color: lineMid, width: 2},
+          size: isDark ? 9 : 8,
+          color: lineMain,
+          line: {color: lineEdge, width: 2},
           symbol: 'circle',
         },
         hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı (son)<extra></extra>',
         showlegend: false,
-      },
-    ];
+      });
+    }
+
+    try {
+      Plotly.purge(el);
+    } catch (ePurgeBefore) {}
 
     Plotly.react(
       el,
@@ -1294,7 +1279,7 @@
         datarevision: dataRevision,
         hoverlabel: {
           bgcolor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
-          bordercolor: isDark ? 'rgba(129, 140, 248, 0.55)' : 'rgba(79, 70, 229, 0.35)',
+          bordercolor: isDark ? 'rgba(56, 189, 248, 0.55)' : 'rgba(14, 165, 233, 0.4)',
           font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#e2e8f0' : '#0f172a' },
         },
         xaxis: {
