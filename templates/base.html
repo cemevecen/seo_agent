@@ -105,7 +105,7 @@
     }
     html.midnight input[type="checkbox"],
     html.midnight input[type="radio"] {
-      accent-color: #a78bfa;
+      accent-color: #737373;
       border-color: #3f3f46;
     }
     html.midnight input[type="file"]::file-selector-button {
@@ -139,11 +139,6 @@
       box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.65);
       text-shadow: none;
     }
-    /* Midnight cards — override common dark card patterns */
-    html.midnight [class*="dark:bg-slate-800"],
-    html.midnight [class*="dark:bg-slate-900"] {
-      --tw-bg-opacity: 1 !important;
-    }
     /* Midnight skeleton pulse */
     html.midnight .animate-pulse [class*="bg-slate-200"] {
       background-color: rgb(39, 39, 42) !important;
@@ -151,31 +146,105 @@
     /* Midnight theme switcher */
     html.midnight #theme-switcher {
       border-color: rgba(63, 63, 70, 0.6);
-      background-color: rgba(24, 24, 27, 0.8);
+      background-color: rgba(9, 9, 11, 0.92);
     }
-    /* Midnight — deepen all slate-800/900 cards to zinc-900/950 */
-    html.midnight .dark\:bg-slate-800\/50,
-    html.midnight .dark\:bg-slate-800\/40,
-    html.midnight .dark\:bg-slate-800 {
-      background-color: rgba(24, 24, 27, 0.95) !important;
+    /* Slate = mavi alt tonlu; midnight’da tamamen zinc/siyah palete çevir */
+    html.midnight [class*="dark:bg-slate"] {
+      background-color: #18181b !important;
+      background-image: none !important;
     }
-    html.midnight .dark\:border-slate-700,
-    html.midnight .dark\:border-slate-600 {
+    html.midnight [class*="dark:bg-slate-950"],
+    html.midnight [class*="dark:bg-slate-900"] {
+      background-color: #09090b !important;
+    }
+    html.midnight [class*="dark:bg-slate-600"] {
+      background-color: #27272a !important;
+    }
+    html.midnight [class*="dark:border-slate"] {
       border-color: #27272a !important;
     }
-    html.midnight .dark\:text-slate-100 {
-      color: #d4d4d8 !important;
+    html.midnight [class*="dark:ring-slate"],
+    html.midnight [class*="dark:ring-sky"] {
+      --tw-ring-color: rgba(39, 39, 42, 0.5) !important;
     }
-    html.midnight .dark\:text-slate-300 {
+    html.midnight [class*="dark:text-slate-100"],
+    html.midnight [class*="dark:text-slate-200"] {
+      color: #e4e4e7 !important;
+    }
+    html.midnight [class*="dark:text-slate-300"] {
       color: #a1a1aa !important;
     }
-    html.midnight .dark\:text-slate-400 {
+    html.midnight [class*="dark:text-slate-400"],
+    html.midnight [class*="dark:text-slate-500"],
+    html.midnight [class*="dark:text-slate-600"] {
       color: #71717a !important;
+    }
+    html.midnight [class*="dark:hover:bg-slate-600"]:hover,
+    html.midnight [class*="dark:hover:bg-slate-700"]:hover {
+      background-color: #3f3f46 !important;
+    }
+    html.midnight [class*="dark:hover:border-slate"]:hover {
+      border-color: #3f3f46 !important;
+    }
+    /* Slate tabanlı koyu gradyanları düzleştir (lacivertsiz) */
+    html.midnight [class*="bg-gradient-to"][class*="dark:from-slate"] {
+      background-image: linear-gradient(to bottom right, #18181b, #0f0f10, #18181b) !important;
+    }
+    /* Yapısal mavi gökyüzü (Detay butonu vb.) — rozet chip’lere dokunma */
+    html.midnight button.toggle-details {
+      background-color: #27272a !important;
+      color: #e4e4e7 !important;
+      border: 1px solid #3f3f46 !important;
+    }
+    html.midnight button.toggle-details:hover {
+      background-color: #3f3f46 !important;
+    }
+    html.midnight [class*="dark:focus:ring-sky"],
+    html.midnight [class*="dark:focus:ring-blue"] {
+      --tw-ring-color: #52525b !important;
+    }
+    html.midnight [class*="dark:border-indigo"] {
+      border-color: #3f3f46 !important;
+    }
+    html.midnight [class*="dark:bg-indigo"]:not([class*="rounded-full"]) {
+      background-color: rgba(39, 39, 42, 0.55) !important;
+    }
+    html.midnight [class*="dark:text-indigo"]:not([class*="rounded-full"]) {
+      color: #d4d4d8 !important;
+    }
+    html.midnight [class*="dark:hover:bg-indigo"]:not([class*="rounded-full"]):hover {
+      background-color: rgba(63, 63, 70, 0.45) !important;
+    }
+    html.midnight [class*="dark:border-violet"] {
+      border-color: #27272a !important;
+    }
+    html.midnight [class*="dark:ring-violet"] {
+      --tw-ring-color: rgba(63, 63, 70, 0.4) !important;
+    }
+    /* İlerleme çubukları — mavi/cyan yerine gri ton */
+    html.midnight #alerts-progress-bar,
+    html.midnight #ga4-progress-bar,
+    html.midnight #search-console-progress-bar,
+    html.midnight #data-explorer-progress-bar,
+    html.midnight #external-onboarding-progress-bar,
+    html.midnight #app-intel-progress-bar {
+      background: linear-gradient(90deg, #3f3f46 0%, #a1a1aa 45%, #71717a 100%) !important;
+      box-shadow: none !important;
+    }
+    html.midnight [id$="-progress-bar"] {
+      box-shadow: none !important;
+    }
+    /* dark: olmadan kalan slate-900 butonlar (lacivertsiz siyah) */
+    html.midnight button[class*="bg-slate-900"] {
+      background-color: #09090b !important;
+    }
+    html.midnight button[class*="bg-slate-900"]:hover {
+      background-color: #27272a !important;
     }
   </style>
   <style id="seo-dark-skeleton-progress">
-    /* Skeleton (animate-pulse) açık gri — dark: için yedek */
-    html.dark .animate-pulse [class*="bg-slate-200"] {
+    /* Skeleton (animate-pulse) açık gri — dark: için yedek (midnight hariç; orada zinc) */
+    html.dark:not(.midnight) .animate-pulse [class*="bg-slate-200"] {
       background-color: rgb(51 65 85) !important;
     }
   </style>
@@ -331,7 +400,7 @@
                 role="radiogroup"
                 aria-label="Tema seçimi"
               >
-                <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-slate-500/80" style="left:2px;width:28px"></span>
+                <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90" style="left:2px;width:28px"></span>
                 <button type="button" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-700 transition-colors dark:text-slate-400" title="Açık" aria-label="Açık tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
                 </button>
@@ -507,7 +576,7 @@
         if (theme === 'dark') {
           pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else if (theme === 'dim') {
-          pill.className = 'absolute h-6 rounded-full bg-slate-500/80 shadow-md transition-all duration-300 ease-out';
+          pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else {
           pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out';
         }
