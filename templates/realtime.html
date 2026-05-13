@@ -1198,67 +1198,26 @@
       if (v < uMin) uMin = v;
       if (v > uMax) uMax = v;
     });
-    if (!isFinite(uMin) || !isFinite(uMax)) {
-      uMin = 0;
-      uMax = 1;
-    }
-    var span = Math.max(uMax - uMin, 1e-6);
-    var pad = Math.max(span * 0.38, uMax * 0.1, 0.5);
-    var y0 = Math.max(0, uMin - pad * 0.55);
-    var y1 = uMax + pad;
-
-    /* Önceki: spline + glow katmanları + dolu alan — tarayıcıda hep aynı “yumuşak şerit”.
-     * Şimdi: tek trace, hv (basamak) = diskret snapshot okuması; ince alan + nokta vurgusu. */
-    /* Çizgi rengi: dark modda ince, sade beyaz/gri ton; light modda slate-600 */
-    var lineMain = isDark ? '#e4e4e7' : '#475569';
-    var lineEdge = isDark ? '#52525b' : '#cbd5e1';
-    var fillSoft = isDark ? 'rgba(228, 228, 231, 0.08)' : 'rgba(71, 85, 105, 0.07)';
+    if (!isFinite(uMin) || !isFinite(uMax)) { uMin = 0; uMax = 1; }
+    var y1 = uMax * 1.15 + 1;
+    /* Sütun grafik renkleri: dark modda cyan-400, light modda slate-600 */
+    var barColor = isDark ? '#22d3ee' : '#475569';
+    var barOpacity = isDark ? 0.85 : 0.75;
     var n = xDates.length;
-    var dense = n > 24;
     var mainTrace = {
       x: xDates,
       y: users,
-      type: 'scatter',
-      mode: dense ? 'lines' : 'lines+markers',
+      type: 'bar',
       name: 'Aktif kullanıcı',
-      line: {
-        color: lineMain,
-        width: isDark ? 1.5 : 2,
-        shape: 'hv',
+      marker: {
+        color: barColor,
+        opacity: barOpacity,
+        line: { width: 0 },
       },
-      fill: 'tozeroy',
-      fillcolor: fillSoft,
       hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
       showlegend: false,
     };
-    if (!dense) {
-      mainTrace.marker = {
-        size: xDates.map(function (_, i) {
-          return i === n - 1 ? (isDark ? 9 : 8) : n > 14 ? 3 : 4;
-        }),
-        color: lineMain,
-        line: {color: lineEdge, width: 1},
-        symbol: 'circle',
-      };
-    }
     var traces = [mainTrace];
-    if (dense) {
-      traces.push({
-        x: [xDates[n - 1]],
-        y: [users[n - 1]],
-        type: 'scatter',
-        mode: 'markers',
-        name: 'Son örnek',
-        marker: {
-          size: isDark ? 9 : 8,
-          color: lineMain,
-          line: {color: lineEdge, width: 2},
-          symbol: 'circle',
-        },
-        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı (son)<extra></extra>',
-        showlegend: false,
-      });
-    }
 
     try {
       Plotly.purge(el);
@@ -1268,19 +1227,20 @@
       el,
       traces,
       {
-        margin: {t: 5, r: 4, b: 2, l: 4},
+        margin: {t: 4, r: 4, b: 2, l: 4},
         height: sparkH,
         autosize: true,
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         showlegend: false,
         dragmode: false,
+        bargap: 0.15,
         hovermode: 'x',
         uirevision: wantId,
         datarevision: dataRevision,
         hoverlabel: {
           bgcolor: isDark ? 'rgba(39, 39, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-          bordercolor: isDark ? 'rgba(113, 113, 122, 0.6)' : 'rgba(71, 85, 105, 0.4)',
+          bordercolor: isDark ? 'rgba(34, 211, 238, 0.5)' : 'rgba(71, 85, 105, 0.4)',
           font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#f4f4f5' : '#0f172a' },
         },
         xaxis: {
@@ -1295,9 +1255,10 @@
           visible: false,
           showgrid: false,
           fixedrange: true,
-          zeroline: false,
-          range: [y0, y1],
-          rangemode: 'normal',
+          zeroline: true,
+          zerolinecolor: isDark ? 'rgba(63,63,70,0.4)' : 'rgba(148,163,184,0.3)',
+          range: [0, y1],
+          rangemode: 'nonnegative',
         },
       },
       {displayModeBar: false, responsive: true, staticPlot: false}
