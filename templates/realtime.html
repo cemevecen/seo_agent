@@ -136,46 +136,9 @@
           <div class="h-12 w-full min-h-[48px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
         </div>
 
-        {# Top Pages — tabbed #}
-        <div class="mt-4 flex min-h-[200px] flex-1 flex-col" data-rt-top-section>
-          <div class="mb-2 flex flex-wrap items-center gap-1">
-            <button type="button" onclick="rtSwitchTopTab(this,'pages')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
-              data-rt-top-tab="pages">{% if profile in ('ios','android') %}Top Ekranlar{% else %}Top Sayfalar{% endif %}</button>
-            <button type="button" onclick="rtSwitchTopTab(this,'views')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-              data-rt-top-tab="views">Top Görüntüleme</button>
-            {% if profile in ('web', 'mweb') %}
-            <button type="button" onclick="rtSwitchTopTab(this,'news')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-              data-rt-top-tab="news">Haberler</button>
-            {% endif %}
-          </div>
-          <div data-rt-top-panel="pages">
-            <div class="space-y-1" data-rt-pages-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
-            </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
-          </div>
-          <div data-rt-top-panel="views" class="hidden">
-            <div class="space-y-1" data-rt-views-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
-            </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
-          </div>
-          {% if profile in ('web', 'mweb') %}
-          <div data-rt-top-panel="news" class="hidden">
-            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4 Realtime’da tam URL yok; başlık (unifiedScreenName) filtrelenir. Çoğu satırda link, Google <span class="whitespace-nowrap">site:alanadı</span> aramasıdır. Path görünürse doğrudan site linki kullanılır.</p>
-            <div class="space-y-1" data-rt-news-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
-            </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-news-ts></p>
-          </div>
-          {% endif %}
-        </div>
-
         {% if profile in ('android', 'ios') %}
-        <div class="mt-4 flex min-h-[140px] flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-4 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
+        {# Mobil uygulama: Top ekran / görüntüleme listeleri yok; etkinlik kartı spark’ın altında #}
+        <div class="mt-4 flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-4 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
           <p class="border-b border-dashed border-slate-300 pb-1 text-sm font-semibold text-slate-800 dark:border-slate-600 dark:text-slate-100">Etkinlik sayısı (etkinlik adı)</p>
           <p class="mt-1 min-h-[2.25rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-events-basis></p>
           <div class="mt-3 flex gap-3">
@@ -199,6 +162,40 @@
             <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Sonraki">›</button>
           </div>
           <p class="mt-1 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-events-ts></p>
+        </div>
+        {% else %}
+        {# Web / mweb: Top sayfalar — tabbed #}
+        <div class="mt-4 flex min-h-[200px] flex-1 flex-col" data-rt-top-section>
+          <div class="mb-2 flex flex-wrap items-center gap-1">
+            <button type="button" onclick="rtSwitchTopTab(this,'pages')"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+              data-rt-top-tab="pages">Top Sayfalar</button>
+            <button type="button" onclick="rtSwitchTopTab(this,'views')"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              data-rt-top-tab="views">Top Görüntüleme</button>
+            <button type="button" onclick="rtSwitchTopTab(this,'news')"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              data-rt-top-tab="news">Haberler</button>
+          </div>
+          <div data-rt-top-panel="pages">
+            <div class="space-y-1" data-rt-pages-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+          </div>
+          <div data-rt-top-panel="views" class="hidden">
+            <div class="space-y-1" data-rt-views-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
+          </div>
+          <div data-rt-top-panel="news" class="hidden">
+            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4 Realtime’da tam URL yok; başlık (unifiedScreenName) filtrelenir. Çoğu satırda link, Google <span class="whitespace-nowrap">site:alanadı</span> aramasıdır. Path görünürse doğrudan site linki kullanılır.</p>
+            <div class="space-y-1" data-rt-news-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-news-ts></p>
+          </div>
         </div>
         {% endif %}
       </div>
@@ -526,6 +523,7 @@
     var isViews = (type === 'views');
     var listEl = box.querySelector(isViews ? '[data-rt-views-list]' : '[data-rt-pages-list]');
     var tsEl = box.querySelector(isViews ? '[data-rt-views-ts]' : '[data-rt-pages-ts]');
+    if (!listEl) return;
 
     fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + WINDOW + '&limit=10&type=' + type)
       .then(function (r) { return r.json(); })
@@ -689,6 +687,7 @@
   window.rtEventsNav = rtEventsNav;
 
   function rtFetchTopPages(siteId, profile) {
+    if (profile === 'ios' || profile === 'android') return;
     _fetchTopData(siteId, profile, 'pages');
     _fetchTopData(siteId, profile, 'views');
     _fetchTopNews(siteId, profile);
