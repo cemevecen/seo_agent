@@ -826,6 +826,55 @@
   var RT_ALARM_SITES = {{ sites | tojson }};
   var _alarmSiteFilter = 'all';
   var _lastMergedAlarms = [];
+  var RT_SCROLL_SS_PREFIX = 'seo_agent_rt_scroll_y_v1';
+
+  window.addEventListener('pagehide', function () {
+    try {
+      var y = Math.round(
+        window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
+      );
+      sessionStorage.setItem(RT_SCROLL_SS_PREFIX + ':' + location.pathname, String(y));
+    } catch (eScrollSave) {}
+  });
+
+  function _navigationIsReload() {
+    try {
+      var entries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+      if (entries && entries.length && entries[0].type === 'reload') return true;
+    } catch (eNav) {}
+    try {
+      if (performance.navigation && performance.navigation.type === 1) return true;
+    } catch (eNav2) {}
+    return false;
+  }
+
+  function _restoreRealtimeScroll() {
+    if (!_navigationIsReload()) return;
+    var key = RT_SCROLL_SS_PREFIX + ':' + location.pathname;
+    var raw;
+    try {
+      raw = sessionStorage.getItem(key);
+    } catch (eGet) {
+      return;
+    }
+    if (raw === null || raw === '') return;
+    var y = parseInt(raw, 10);
+    if (isNaN(y) || y < 0) return;
+    function apply() {
+      var se = document.documentElement;
+      var bh = document.body ? document.body.scrollHeight : 0;
+      var sh = Math.max(se.scrollHeight, bh);
+      var max = Math.max(0, sh - window.innerHeight);
+      window.scrollTo(0, Math.min(y, max));
+    }
+    apply();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(apply);
+    });
+    [0, 80, 250, 600, 1500].forEach(function (ms) {
+      setTimeout(apply, ms);
+    });
+  }
 
   function _updateLiveBadge() {
     var el = document.querySelector('[data-rt-live-countdown]');
@@ -1972,6 +2021,7 @@
     rtInitViewMode();
     _initRtAlarmSitePills();
     _startPolling();
+    _restoreRealtimeScroll();
   });
 })();
 </script>
