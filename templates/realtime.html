@@ -26,6 +26,14 @@
   html.dark [data-rt-chart] {
     background-color: transparent !important;
   }
+  /* Özet görünüm: yalnız KPI + spark; listeler / app etkinlik kartı gizlenir */
+  html.rt-view--compact [data-rt-top-section],
+  html.rt-view--compact [data-rt-events-section] {
+    display: none !important;
+  }
+  html.rt-view--compact [data-rt-profile-box] {
+    min-height: 0;
+  }
 </style>
 
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -41,14 +49,28 @@
         ~{{ ui_poll_seconds }} sn canlı · {{ interval_minutes }} dk job
       </span>
     </div>
-    <button
-      type="button"
-      onclick="rtCheckAll()"
-      class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
-    >
-      <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-      Tümünü Kontrol Et
-    </button>
+    <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+      <div class="flex items-center gap-2">
+        <label for="rt-view-mode" class="hidden text-xs font-bold text-slate-500 dark:text-slate-400 md:inline">Görünüm</label>
+        <select
+          id="rt-view-mode"
+          title="Tam: listeler; Özet: yalnızca anlık toplamlar ve sparkline"
+          onchange="rtSetViewMode(this.value)"
+          class="max-w-[min(100vw-2rem,20rem)] rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-xs font-bold text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+        >
+          <option value="full">Tam — Top sayfalar, haberler, etkinlikler</option>
+          <option value="compact">Özet — Yalnız KPI + spark</option>
+        </select>
+      </div>
+      <button
+        type="button"
+        onclick="rtCheckAll()"
+        class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+      >
+        <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+        Tümünü Kontrol Et
+      </button>
+    </div>
   </div>
 
   {% for site in sites %}
@@ -61,6 +83,7 @@
       {% for profile in site.profiles %}
       <div
         class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+        data-rt-profile-box
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
       >
@@ -231,6 +254,7 @@
   /* DB sparkline; GA’dan daha sık, job süresine göre tavan */
   var TREND_POLL_MS = Math.min(45000, Math.max(12000, Math.floor(Math.min(JOB_INTERVAL_MS, PROFILE_POLL_MS * 4) / 5)));
   var _alarmExpanded = false;
+  var RT_VIEW_LS_KEY = 'rt_view_mode';
 
   function _fmt(n) {
     if (n == null) return '—';
@@ -767,6 +791,34 @@
   }
   window.rtCheckAll = rtCheckAll;
 
+  function rtGetViewMode() {
+    try {
+      var v = localStorage.getItem(RT_VIEW_LS_KEY);
+      return v === 'compact' ? 'compact' : 'full';
+    } catch (e) {
+      return 'full';
+    }
+  }
+
+  function rtApplyViewMode(mode) {
+    var m = mode === 'compact' ? 'compact' : 'full';
+    try {
+      localStorage.setItem(RT_VIEW_LS_KEY, m);
+    } catch (e2) {}
+    document.documentElement.classList.toggle('rt-view--compact', m === 'compact');
+    var sel = document.getElementById('rt-view-mode');
+    if (sel && sel.value !== m) sel.value = m;
+  }
+
+  function rtSetViewMode(mode) {
+    rtApplyViewMode(mode);
+  }
+  window.rtSetViewMode = rtSetViewMode;
+
+  function rtInitViewMode() {
+    rtApplyViewMode(rtGetViewMode());
+  }
+
   function _fetchGlobalAlarms(limit) {
     var perSiteLimit = limit || (_alarmExpanded ? 50 : 10);
     var siteEls = document.querySelectorAll('[data-rt-site]');
@@ -939,7 +991,10 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', _startPolling);
+  document.addEventListener('DOMContentLoaded', function () {
+    rtInitViewMode();
+    _startPolling();
+  });
 })();
 </script>
 {% endblock %}
