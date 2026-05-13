@@ -776,7 +776,11 @@
             <span class="text-right">Sayı</span>
           </div>
           <div class="rt-scroll-area mt-1 max-h-80 space-y-0 overflow-y-auto" data-rt-events-list>
-            <p class="text-sm italic text-slate-400 dark:text-slate-400">yükleniyor…</p>
+            <div class="animate-pulse space-y-2 py-2">
+              <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+            </div>
           </div>
           <div class="mt-2 flex items-center justify-end gap-2">
             <span class="text-[11px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-events-range></span>
@@ -801,19 +805,31 @@
           </div>
           <div data-rt-top-panel="pages" class="min-w-0">
             <div class="min-w-0 space-y-1" data-rt-pages-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+              <div class="animate-pulse space-y-2 py-2">
+                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              </div>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
           <div data-rt-top-panel="views" class="hidden min-w-0">
             <div class="min-w-0 space-y-1" data-rt-views-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+              <div class="animate-pulse space-y-2 py-2">
+                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              </div>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-views-ts></p>
           </div>
           <div data-rt-top-panel="news" class="hidden min-w-0">
             <div class="min-w-0 space-y-1" data-rt-news-list>
-              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+              <div class="animate-pulse space-y-2 py-2">
+                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              </div>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-news-ts></p>
           </div>
@@ -852,13 +868,20 @@
     <div id="rt-alarm-panel-site">
       <div id="rt-alarm-site-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Site filtresi"></div>
       <div class="rt-alarm-site-table-wrap" id="rt-alarm-list-site">
-        <p class="text-sm text-slate-400 dark:text-slate-500">Henüz site alarmı yok.</p>
+        <div class="animate-pulse space-y-2 py-2">
+          <div class="h-8 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+          <div class="h-8 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+          <div class="h-8 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+        </div>
       </div>
     </div>
     <div id="rt-alarm-panel-page" class="hidden">
       <div id="rt-alarm-page-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sayfa ve haber — site filtresi"></div>
       <div class="space-y-2" id="rt-alarm-list-page">
-        <p class="text-sm text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
+        <div class="animate-pulse space-y-3 py-2">
+          <div class="h-16 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+          <div class="h-16 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+        </div>
       </div>
     </div>
   </div>
