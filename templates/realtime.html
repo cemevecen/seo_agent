@@ -453,11 +453,12 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.error || !d.pages) {
+        if (d.error) {
           listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
           return;
         }
-        _renderNewsList(listEl, d.pages, box.getAttribute('data-rt-domain'));
+        var rows = Array.isArray(d.pages) ? d.pages : [];
+        _renderNewsList(listEl, rows, box.getAttribute('data-rt-domain'));
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});

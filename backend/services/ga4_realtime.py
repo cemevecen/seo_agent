@@ -318,7 +318,7 @@ def fetch_realtime_top_news_pages(
         minute_ranges=[
             MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
         ],
-        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name=sort_metric, desc=True))],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name=sort_metric), desc=True)],
         limit=fetch_cap,
     )
     t0 = time.monotonic()
@@ -612,7 +612,7 @@ def fetch_realtime_top_events_fallback_active_users(
         minute_ranges=[
             MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
         ],
-        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="activeUsers", desc=True))],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="activeUsers"), desc=True)],
         limit=fetch_limit,
     )
     t0 = time.monotonic()
@@ -702,7 +702,7 @@ def fetch_realtime_top_events(
         minute_ranges=[
             MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
         ],
-        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount", desc=True))],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
         limit=fetch_limit,
     )
 
