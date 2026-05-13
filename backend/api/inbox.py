@@ -582,4 +582,6 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox send failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    t.answered_flag = True
+    db.commit()
     return {"ok": True, "gmail_message_id": mid}
