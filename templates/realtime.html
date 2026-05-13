@@ -292,7 +292,7 @@
   var PROFILE_POLL_MS = {{ (ui_poll_seconds * 1000)|int }};
   var PAGES_INTERVAL_MS = 15 * 60000;
   var WINDOW = {{ window_minutes }};
-  /* Top sayfalar / haberler / etkinlik listeleri: GA Realtime tek aralık; 15 dk + 15 dk karşılaştırma KPI tarafında ayrı çağrıda */
+  /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi: aynı aralık; KPI poll bunları tetiklemez */
   var LIST_WINDOW = 15;
   var _timers = {};
   var _pageTimers = {};
@@ -348,9 +348,6 @@
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-        }
-        if (profile === 'android' || profile === 'ios') {
-          rtFetchTopEvents(siteId, profile);
         }
       })
       .catch(function (e) {
