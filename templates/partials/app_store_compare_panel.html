@@ -314,15 +314,10 @@
 </style>
 
 <section class="rt-viv-panel mb-4 sm:mb-5" aria-labelledby="rt-viv-heading" data-rt-viv-root>
-  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+  <div class="mb-3">
     <h2 id="rt-viv-heading" class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">
       Mağaza keşif &amp; uygulama karşılaştırma
     </h2>
-    <p class="text-[11px] text-slate-500 dark:text-slate-400">
-      Play + App Store katalog araması. Android sonuçlarında yorum sayısı her uygulama için mağaza sayfasından çekilir (birkaç saniye sürebilir).
-      Metin yorum analizi üstteki ürün grafiklerinde; harici derinlemesine analiz için
-      <a href="https://github.com/cemevecen/vivindis" class="text-indigo-600 underline dark:text-indigo-300" target="_blank" rel="noopener noreferrer">Vivindis</a>.
-    </p>
   </div>
   <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
     <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Mağaza analiz</button>
@@ -330,7 +325,6 @@
   </div>
 
   <div data-rt-viv-panel="store">
-    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Uygulama adı, paket veya mağaza bağlantısı ile arayın (Google Play ve/veya App Store). Sonuç satırına tıklayınca paket veya App Store kimliği arama kutusuna yazılır; mağazayı yeni sekmede açmak için satırdaki küçük bağlantıyı kullanın.</p>
     <div class="rt-viv-row">
       <input id="rt-viv-q-store" type="search" class="rt-viv-input" placeholder="Örn. sofascore, com.spotify.music" autocomplete="off" />
       <select id="rt-viv-pl-store" class="rt-viv-select" title="Platform">
