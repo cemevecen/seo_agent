@@ -216,8 +216,6 @@ def send_realtime_email(
         return False
 
     subj = subject.strip()
-    if not subj.startswith("[GA4 Realtime]"):
-        subj = f"[GA4 Realtime] {subj}"
 
     message = EmailMessage()
     message["Subject"] = subj
@@ -277,8 +275,6 @@ def send_realtime_news_email(
         return False
 
     subj = subject.strip()
-    if not subj.startswith("[GA4 Realtime]"):
-        subj = f"[GA4 Realtime] {subj}"
 
     message = EmailMessage()
     message["Subject"] = subj
