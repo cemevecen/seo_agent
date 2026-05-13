@@ -470,9 +470,9 @@
       .header-app-shell {
         display: grid;
         align-items: center;
-        column-gap: 0.65rem;
+        column-gap: 0.5rem;
         row-gap: 0;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
         grid-template-areas: "headline nav theme";
       }
       .header-top-row {
@@ -485,6 +485,9 @@
         justify-self: end;
         width: fit-content;
         max-width: 100%;
+      }
+      #header-site-title {
+        max-width: 14rem;
       }
     }
     @media (max-width: 380px) {
@@ -540,12 +543,12 @@
               class="header-main-nav flex min-w-0 items-center gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:gap-1.5"
               aria-label="Ana gezinme"
             >
-              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Dashboard</a>
+              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Home</a>
               <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">GA4</a>
               <a href="/realtime" data-nav-match="/realtime" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Realtime</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Search Console</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Console</a>
               <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">PageSpeed</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Speed</a>
               <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">App</a>
               <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">AI</a>
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">External</a>

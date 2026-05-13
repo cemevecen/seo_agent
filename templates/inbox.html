@@ -150,6 +150,17 @@
     return "";
   }
 
+  function extractSenderEmailFromBody(messages) {
+    // Mail gövdesinde "Email: kullanici@ornek.com" satırını ara (Doviz.com feedback formu)
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].is_outbound) continue;
+      var body = messages[i].body_text || "";
+      var m = body.match(/Email\s*:\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+      if (m && m[1]) return m[1].trim();
+    }
+    return "";
+  }
+
   function lastInboundGmailId(messages) {
     for (var i = messages.length - 1; i >= 0; i--) {
       if (!messages[i].is_outbound && messages[i].gmail_message_id) return messages[i].gmail_message_id;
@@ -340,7 +351,10 @@
       sum.textContent = "";
       sum.classList.add("hidden");
     }
-    document.getElementById("inbox-send-to").value = lastInboundFrom(messages);
+    // ALICI: önce gövdeden gerçek e-postayı bul, yoksa from_addr headerını kullan
+    var bodyEmail = extractSenderEmailFromBody(messages);
+    var fromHdr = lastInboundFrom(messages);
+    document.getElementById("inbox-send-to").value = bodyEmail || extractEmail(fromHdr);
     document.getElementById("inbox-send-subject").value = t.subject && t.subject.indexOf("Re:") === 0 ? t.subject : "Re: " + (t.subject || "");
     document.getElementById("inbox-send-body").value = t.ai_draft_reply || "";
     var mb = document.getElementById("inbox-messages");
