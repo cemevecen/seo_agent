@@ -19,12 +19,88 @@
     background-color: rgb(15 23 42) !important;
   }
   html.dark [data-rt-kpi],
-  html.dark [data-rt-chart-wrap],
   html.dark [data-rt-events-section] {
     background-color: rgb(15 23 42) !important;
   }
   html.dark [data-rt-chart] {
     background-color: transparent !important;
+  }
+  /* Spark: kart opaklığından ayrı; aurora / cam çerçeve (gradient için chart-wrap ayrı) */
+  .rt-spark-wrap {
+    position: relative;
+    border-radius: 0.875rem;
+    padding: 3px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(238, 242, 255, 0.98) 42%,
+      rgba(224, 242, 254, 0.92) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(99, 102, 241, 0.12),
+      0 4px 24px -6px rgba(79, 70, 229, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+  html.dark .rt-spark-wrap {
+    background: linear-gradient(
+      145deg,
+      rgba(30, 27, 75, 0.95) 0%,
+      rgba(15, 23, 42, 0.98) 48%,
+      rgba(49, 46, 129, 0.55) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(129, 140, 248, 0.22),
+      0 0 48px -12px rgba(99, 102, 241, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .rt-spark-inner {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.625rem;
+    background: rgba(248, 250, 252, 0.65);
+  }
+  html.dark .rt-spark-inner {
+    background: rgba(2, 6, 23, 0.35);
+  }
+  .rt-spark-aurora {
+    position: absolute;
+    inset: -20% -10% -30%;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 70% 55% at 50% -5%,
+      rgba(129, 140, 248, 0.35) 0%,
+      rgba(56, 189, 248, 0.12) 42%,
+      transparent 68%
+    );
+    opacity: 0.85;
+    animation: rt-spark-aurora-shift 10s ease-in-out infinite;
+  }
+  html.dark .rt-spark-aurora {
+    background: radial-gradient(
+      ellipse 75% 60% at 30% 0%,
+      rgba(167, 139, 250, 0.4) 0%,
+      rgba(99, 102, 241, 0.2) 38%,
+      transparent 70%
+    );
+    opacity: 0.9;
+  }
+  @keyframes rt-spark-aurora-shift {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(4%, 2%) scale(1.04);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rt-spark-aurora {
+      animation: none;
+    }
+  }
+  .rt-spark-plot {
+    position: relative;
+    z-index: 1;
   }
   /* Özet görünüm: yalnız KPI + spark; listeler / app etkinlik kartı gizlenir */
   html.rt-view--compact [data-rt-top-section],
@@ -178,9 +254,12 @@
           </div>
         </div>
 
-        {# Aktif kullanıcı sparkline (DB snapshot; arka plan job ile güncellenir) #}
-        <div class="mt-2 overflow-hidden rounded-md border border-slate-100 bg-slate-50 dark:border-slate-600/60 dark:bg-slate-900" data-rt-chart-wrap>
-          <div class="h-12 w-full min-h-[48px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
+        {# Aktif kullanıcı sparkline (DB snapshot) — aurora çerçeve + Plotly katmanlı çizim #}
+        <div class="rt-spark-wrap mt-2" data-rt-chart-wrap>
+          <div class="rt-spark-inner">
+            <div class="rt-spark-aurora" aria-hidden="true"></div>
+            <div class="rt-spark-plot h-14 w-full min-h-[56px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
+          </div>
         </div>
 
         {% if profile in ('android', 'ios') %}
@@ -452,7 +531,7 @@
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
     if (!el.id) el.id = _chartId(siteId, profile);
-    var sparkH = 48;
+    var sparkH = 56;
     el.style.height = sparkH + 'px';
     if (!trend || !trend.length) {
       try {
@@ -480,44 +559,116 @@
     }
     var root = document.documentElement;
     var isDark = root.classList.contains('dark');
-    var lineColor = isDark ? '#818cf8' : '#4f46e5';
-    var fillColor = isDark ? 'rgba(129,140,248,0.18)' : 'rgba(79,70,229,0.12)';
+    var uMin = Infinity;
+    var uMax = -Infinity;
+    users.forEach(function (v) {
+      if (v < uMin) uMin = v;
+      if (v > uMax) uMax = v;
+    });
+    if (!isFinite(uMin) || !isFinite(uMax)) {
+      uMin = 0;
+      uMax = 1;
+    }
+    var span = Math.max(uMax - uMin, 1e-6);
+    var pad = Math.max(span * 0.38, uMax * 0.1, 0.5);
+    var y0 = Math.max(0, uMin - pad * 0.55);
+    var y1 = uMax + pad;
+
+    var lineCore = isDark ? '#e0e7ff' : '#312e81';
+    var lineMid = isDark ? '#a5b4fc' : '#4f46e5';
+    var glowWide = isDark ? 'rgba(129, 140, 248, 0.22)' : 'rgba(79, 70, 229, 0.14)';
+    var fillTop = isDark ? 'rgba(165, 180, 252, 0.55)' : 'rgba(79, 70, 229, 0.45)';
+    var fillArea = isDark ? 'rgba(67, 56, 202, 0.28)' : 'rgba(99, 102, 241, 0.14)';
+    var spline = {shape: 'spline', smoothing: 1.22};
+
+    var traces = [
+      {
+        x: xDates,
+        y: users,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Alan',
+        line: {color: fillTop, width: 2.25, shape: spline.shape, smoothing: spline.smoothing},
+        fill: 'tozeroy',
+        fillcolor: fillArea,
+        hoverinfo: 'skip',
+        showlegend: false,
+      },
+      {
+        x: xDates,
+        y: users,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Glow',
+        line: {color: glowWide, width: 8, shape: spline.shape, smoothing: spline.smoothing},
+        hoverinfo: 'skip',
+        showlegend: false,
+      },
+      {
+        x: xDates,
+        y: users,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Aktif',
+        line: {color: lineMid, width: 2.45, shape: spline.shape, smoothing: spline.smoothing},
+        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
+        showlegend: false,
+      },
+      {
+        x: xDates,
+        y: users,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Kenar',
+        line: {color: lineCore, width: 1.05, shape: spline.shape, smoothing: spline.smoothing},
+        hoverinfo: 'skip',
+        showlegend: false,
+      },
+      {
+        x: [xDates[xDates.length - 1]],
+        y: [users[users.length - 1]],
+        type: 'scatter',
+        mode: 'markers',
+        name: 'Son',
+        marker: {
+          size: isDark ? 11 : 10,
+          color: isDark ? 'rgba(224, 231, 255, 0.98)' : '#fff',
+          line: {color: lineMid, width: 2},
+          symbol: 'circle',
+        },
+        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı (son)<extra></extra>',
+        showlegend: false,
+      },
+    ];
+
     Plotly.react(
       el,
-      [
-        {
-          x: xDates,
-          y: users,
-          type: 'scatter',
-          mode: 'lines',
-          name: 'Aktif',
-          line: {color: lineColor, width: 1.75, shape: 'linear'},
-          fill: 'tozeroy',
-          fillcolor: fillColor,
-          hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
-        },
-      ],
+      traces,
       {
-        margin: {t: 0, r: 0, b: 0, l: 0},
+        margin: {t: 5, r: 4, b: 2, l: 4},
         height: sparkH,
         autosize: true,
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         showlegend: false,
+        dragmode: false,
         hovermode: 'x',
-        transition: {duration: 420, easing: 'cubic-in-out'},
+        transition: {duration: 520, easing: 'cubic-in-out'},
         xaxis: {
           type: 'date',
           visible: false,
           showgrid: false,
           fixedrange: true,
           showspikes: false,
+          zeroline: false,
         },
         yaxis: {
           visible: false,
           showgrid: false,
           fixedrange: true,
           zeroline: false,
+          range: [y0, y1],
+          rangemode: 'normal',
         },
       },
       {displayModeBar: false, responsive: true, staticPlot: false}
