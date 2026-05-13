@@ -7,9 +7,9 @@ import re
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -32,16 +32,25 @@ class AnsweredBody(BaseModel):
 
 
 class SendBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     to: str = Field(..., min_length=3, max_length=512)
     subject: str = Field("", max_length=998)
-    text: str = Field(..., min_length=1, max_length=50_000)
-    reply_to_gmail_message_id: str | None = Field(None, max_length=128)
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=50_000,
+        validation_alias=AliasChoices("text", "body"),
+    )
+    reply_to_gmail_message_id: str | None = Field(default=None, max_length=128)
 
 
 class ReplyTemplatesBody(BaseModel):
     """Hangi gelen iletiye yanıt şablonları üretileceği; boşsa son gelen ileti."""
 
-    focus_gmail_message_id: str | None = Field(None, max_length=128)
+    model_config = ConfigDict(extra="ignore")
+
+    focus_gmail_message_id: str | None = Field(default=None, max_length=128)
 
 
 def _thread_or_404(db: Session, thread_id: int) -> SupportInboxThread:
@@ -422,7 +431,7 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
 def inbox_thread_reply_templates(
     request: Request,
     thread_id: int,
-    body: ReplyTemplatesBody,
+    body: ReplyTemplatesBody = Body(default_factory=ReplyTemplatesBody),
     db: Session = Depends(get_db),
 ):
     """Bağlı LLM (OpenAI / Gemini / Groq) ile 3 Türkçe yanıt şablonu üretir."""

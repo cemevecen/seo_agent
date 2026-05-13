@@ -295,7 +295,10 @@
           msg = data.detail
             .map(function (d) {
               if (!d) return "";
-              return String(d.msg || d.message || d.loc || "").trim();
+              var loc = Array.isArray(d.loc) ? d.loc.join(" → ") : String(d.loc || "");
+              var m = String(d.msg || d.message || "").trim();
+              if (loc && m) return loc + ": " + m;
+              return m || loc;
             })
             .filter(Boolean)
             .join("; ");
@@ -667,7 +670,11 @@
     var subj = document.getElementById("inbox-send-subject").value.trim();
     var text = document.getElementById("inbox-send-body").value;
     try {
-      var payload = { to: to, subject: subj, text: text };
+      var payload = {
+        to: String(to),
+        subject: String(subj),
+        text: String(text != null ? text : ""),
+      };
       if (replyToGmailId) payload.reply_to_gmail_message_id = replyToGmailId;
       await jfetch("/api/inbox/threads/" + selectedId + "/send", {
         method: "POST",

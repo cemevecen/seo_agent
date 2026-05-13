@@ -468,10 +468,14 @@ def send_reply_plain(
         raise RuntimeError("Gmail gelen kutusu bağlı değil.")
     creds = _ensure_fresh_creds(db, creds)
     service = _gmail_service(creds)
+    cred_row = inbox_gmail_auth.get_inbox_credential_row(db)
+    from_account = (cred_row.account_email if cred_row else "").strip()
 
     msg = MIMEText(body, "plain", "utf-8")
     msg["to"] = to_email.strip()
     msg["subject"] = subject.strip() or "Re:"
+    if from_account:
+        msg["From"] = from_account
     if reply_to_gmail_message_id:
         rfc_mid = _rfc_message_id_header(service, gmail_message_id=reply_to_gmail_message_id.strip())
         if rfc_mid:
@@ -483,6 +487,11 @@ def send_reply_plain(
             msg["References"] = clean
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     send_body = {"raw": raw, "threadId": gmail_thread_id}
-    sent = service.users().messages().send(userId="me", body=send_body).execute()
+    try:
+        sent = service.users().messages().send(userId="me", body=send_body).execute()
+    except HttpError as exc:
+        detail = _gmail_http_error_message(exc)
+        st = getattr(getattr(exc, "resp", None), "status", "") or ""
+        raise RuntimeError(f"Gmail gönderilemedi (HTTP {st}): {detail}") from exc
     sync_inbox_threads(db, max_threads=5)
     return str(sent.get("id") or "")
