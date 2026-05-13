@@ -445,14 +445,26 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
 
 @router.post("/threads/{thread_id}/reply-templates")
 @limiter.limit("20/minute")
-def inbox_thread_reply_templates(
+async def inbox_thread_reply_templates(
     request: Request,
     thread_id: int,
     provider: str | None = Query(default=None, max_length=12, description="groq|gemini|openai"),
-    payload: ReplyTemplatesBody | None = Body(default=None),
     db: Session = Depends(get_db),
 ):
     """Bağlı LLM (Groq / Gemini / OpenAI) ile 3 Türkçe yanıt şablonu üretir."""
+    # Body() + Pydantic forward ref (from __future__ import annotations) çakışmasını
+    # önlemek için JSON gövde manuel parse edilir.
+    focus_gmail_message_id: str | None = None
+    try:
+        raw = await request.body()
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                fid_raw = parsed.get("focus_gmail_message_id")
+                if fid_raw and isinstance(fid_raw, str):
+                    focus_gmail_message_id = fid_raw.strip()[:128] or None
+    except Exception:  # noqa: BLE001
+        pass  # gövde yoksa veya JSON değilse varsayılan None
     t = _thread_or_404(db, thread_id)
     msgs = (
         db.query(SupportInboxMessage)
@@ -466,8 +478,7 @@ def inbox_thread_reply_templates(
             status_code=400,
             detail="Geçersiz provider. Kullanın: groq, gemini veya openai.",
         )
-    fid = payload.focus_gmail_message_id if payload is not None else None
-    focus = _resolve_inbound_focus(msgs, (fid or "").strip() or None)
+    focus = _resolve_inbound_focus(msgs, focus_gmail_message_id)
     blob = _thread_blob_for_reply_templates(msgs, focus)
     try:
         templates, used = inbox_llm.reply_templates_three_tr_tr(blob, preferred_provider=pref)
