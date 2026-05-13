@@ -11,6 +11,7 @@ import hashlib
 import html
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -525,20 +526,32 @@ def _fetch_realtime_comparison_with_metrics(
     )
 
     t0 = time.monotonic()
-    resp_compare = client.run_realtime_report(req_compare)
-    resp_total = client.run_realtime_report(req_total)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_c = pool.submit(client.run_realtime_report, req_compare)
+        fut_t = pool.submit(client.run_realtime_report, req_total)
+        resp_compare = fut_c.result()
+        resp_total = fut_t.result()
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     metric_names = [m.name for m in resp_compare.metric_headers]
+    dim_headers_cmp = [h.name for h in resp_compare.dimension_headers]
     windows: dict[str, dict[str, float]] = {"current": {}, "previous": {}}
 
     for row in resp_compare.rows:
         range_name = ""
-        for dv in row.dimension_values:
-            val = dv.value
-            if val in ("current", "previous"):
-                range_name = val
-                break
+        if dim_headers_cmp:
+            dm = _realtime_row_dimensions(row, dim_headers_cmp)
+            for v in dm.values():
+                sv = str(v or "").strip().lower()
+                if sv in ("current", "previous"):
+                    range_name = sv
+                    break
+        if not range_name:
+            for dv in row.dimension_values:
+                val = str(dv.value or "").strip().lower()
+                if val in ("current", "previous"):
+                    range_name = val
+                    break
         key = range_name if range_name in windows else "current"
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
@@ -558,6 +571,23 @@ def _fetch_realtime_comparison_with_metrics(
                 pass
 
     comparison = _build_comparison(windows["current"], windows["previous"])
+    # Karşılaştırma satırı boş gelse bile toplam penceresi dolu olabiliyor; KPI alanları boş kalmasın.
+    for m in metrics:
+        name = m.name
+        if name in comparison:
+            continue
+        tv = float(total.get(name, 0) or 0)
+        comparison[name] = {
+            "current": tv,
+            "previous": tv,
+            "change_pct": 0.0,
+            "direction": "flat",
+        }
+    if not resp_compare.rows and total:
+        logger.warning(
+            "GA4 Realtime: karşılaştırma satırı boş, toplam metrik dolu (property=%s); KPI için comparison tamamlandı.",
+            property_id,
+        )
 
     return {
         "property_id": property_id,

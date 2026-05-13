@@ -797,6 +797,10 @@
             if (d.message) tsEl.setAttribute('title', String(d.message));
             else tsEl.removeAttribute('title');
           }
+          if (d.trend && d.trend.length) {
+            _renderChart(box, siteId, profile, d.trend);
+            _fillKpisFromTrend(box, d.trend);
+          }
           return;
         }
         _renderKpis(box, d);
@@ -831,12 +835,53 @@
   }
   window.rtFetchTrend = rtFetchTrend;
 
+  /** Canlı API hata verdiğinde son DB snapshot trendinden KPI rakamlarını doldurur (grafikle uyumlu). */
+  function _fillKpisFromTrend(box, trend) {
+    if (!trend || !trend.length) return;
+    var last = trend[trend.length - 1];
+    var map = { activeUsers: last.active_users, screenPageViews: last.pageviews };
+    box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
+      var key = kpiBox.getAttribute('data-rt-kpi');
+      var v = map[key];
+      if (v == null) return;
+      var valEl = kpiBox.querySelector('[data-rt-val]');
+      var halvesEl = kpiBox.querySelector('[data-rt-halves]');
+      var pctEl = kpiBox.querySelector('[data-rt-pct]');
+      if (valEl) valEl.textContent = _fmt(v);
+      if (halvesEl) {
+        halvesEl.textContent = 'son kayıt (önbellek)';
+        halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500';
+        halvesEl.style.opacity = '1';
+      }
+      if (pctEl) {
+        pctEl.textContent = '—';
+        pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
+      }
+    });
+  }
+
   function _renderKpis(box, data) {
     var comp = data.comparison || {};
     var total = data.total || {};
+    var curWin = data.current || {};
+    var prevWin = data.previous || {};
     box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
       var key = kpiBox.getAttribute('data-rt-kpi');
       var c = comp[key];
+      if (!c) {
+        var cw = curWin[key];
+        var pw = prevWin[key];
+        var totv = total[key];
+        if (cw != null || pw != null) {
+          var cu = cw != null ? Number(cw) : 0;
+          var pr = pw != null ? Number(pw) : 0;
+          var pctRaw = pr > 0 ? ((cu - pr) / pr) * 100 : cu > 0 ? 100 : 0;
+          c = { current: cu, previous: pr, change_pct: Math.round(pctRaw * 10) / 10 };
+        } else if (totv != null) {
+          var tnum = Number(totv) || 0;
+          c = { current: tnum, previous: tnum, change_pct: 0 };
+        }
+      }
       if (!c) return;
       var valEl = kpiBox.querySelector('[data-rt-val]');
       var halvesEl = kpiBox.querySelector('[data-rt-halves]');
@@ -1358,6 +1403,10 @@
               tsErr.textContent = 'hata';
               if (d.message) tsErr.setAttribute('title', String(d.message));
               else tsErr.removeAttribute('title');
+            }
+            if (d.trend && d.trend.length) {
+              _renderChart(box, sid, prof, d.trend);
+              _fillKpisFromTrend(box, d.trend);
             }
           }
         })
