@@ -200,13 +200,15 @@ def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("gmail thread get failed %s: %s", tid, exc)
             continue
-        _upsert_thread_from_gmail(db, full, account_lower)
+        _upsert_thread_from_gmail(db, full, account_lower, service)
         synced += 1
     db.commit()
     return {"synced_threads": synced, "query": q}
 
 
-def _upsert_thread_from_gmail(db: Session, full: dict[str, Any], account_lower: str) -> SupportInboxThread:
+def _upsert_thread_from_gmail(
+    db: Session, full: dict[str, Any], account_lower: str, service: Any
+) -> SupportInboxThread:
     tid = str(full.get("id") or "")
     gmail_unread = _thread_has_unread(full)
     msgs_raw = full.get("messages") or []
