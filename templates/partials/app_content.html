@@ -2633,6 +2633,17 @@
     if (rs) rs.textContent = "Sira bilgileri yukleniyor…";
   }
 
+  /** Sunucudan gelen son başarılı payload, şu anki ürün + dönem seçimiyle aynı mı (iskeletsiz yeniden çekim için). */
+  function lastPayloadMatchesSelection() {
+    var p = state.lastPayload;
+    if (!p || !p.active_window) return false;
+    var pk = String(p.product_key || p.product_id || "").toLowerCase();
+    if (pk !== String(state.product || "").toLowerCase()) return false;
+    var pd = p.active_window.period_days;
+    if (pd == null || pd === "") return false;
+    return Number(pd) === Number(state.period);
+  }
+
   function assertIntelPayload(j) {
     if (!j || typeof j !== "object") {
       throw new Error("API geçersiz veya boş yanıt döndü.");
@@ -2680,6 +2691,8 @@
     } catch (eStart) {}
     var keepProgress = !!(opts && opts.keepProgress);
     var cacheOnly = !!(opts && opts.cacheOnly);
+    var skipSkeleton =
+      keepProgress || (cacheOnly && lastPayloadMatchesSelection());
     var reqSeq = ++state.requestSeq;
     var status = document.getElementById("app-intel-status");
     var errEl = document.getElementById("app-intel-error");
@@ -2696,7 +2709,9 @@
     if (!keepProgress) {
       startProgress();
     }
-    renderSkeletonState();
+    if (!skipSkeleton) {
+      renderSkeletonState();
+    }
     var url = "/api/app/intel?product=" + encodeURIComponent(state.product) + "&period=" + state.period + (cacheOnly ? "&cache_only=1" : "");
     var asoUrl = "/api/app/aso?product=" + encodeURIComponent(state.product) + "&period=" + state.period;
     var ac = new AbortController();
