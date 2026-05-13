@@ -17,6 +17,20 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     google_oauth_redirect_uri: str = "http://127.0.0.1:8012/api/search-console/oauth/callback"
+    # Gmail gelen kutusu (/inbox): Google Cloud OAuth istemcisine bu redirect URI de eklenmeli.
+    gmail_inbox_oauth_redirect_uri: str = Field(
+        default="http://127.0.0.1:8012/api/inbox/oauth/callback",
+        validation_alias=AliasChoices("GMAIL_INBOX_OAUTH_REDIRECT_URI", "gmail_inbox_oauth_redirect_uri"),
+    )
+    # Gmail arama sözdizimi: https://support.google.com/mail/answer/7190
+    inbox_gmail_query: str = Field(
+        default="(to:info@doviz.com OR to:feedback@doviz.com)",
+        validation_alias=AliasChoices("INBOX_GMAIL_QUERY", "inbox_gmail_query"),
+    )
+    inbox_openai_model: str = Field(
+        default="gpt-4.1-mini",
+        validation_alias=AliasChoices("INBOX_OPENAI_MODEL", "inbox_openai_model"),
+    )
     database_url: str
     secret_key: str
     smtp_password: str

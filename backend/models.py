@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -580,3 +580,60 @@ class AppIntelRawCache(Base):
     product_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class InboxGmailCredential(Base):
+    """Gelen kutusu (Gmail API) için global OAuth — tek satır (id=1)."""
+
+    __tablename__ = "inbox_gmail_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
+    encrypted_data: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class SupportInboxThread(Base):
+    """info@ / feedback@ gibi adreslere gelen destek e-posta konuşmaları (Gmail thread)."""
+
+    __tablename__ = "support_inbox_threads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    gmail_thread_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(String(998), nullable=False, default="")
+    snippet: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    route_tag: Mapped[str] = mapped_column(String(32), nullable=False, default="mixed")
+    gmail_unread: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    answered_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_internal_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    ai_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    ai_draft_reply: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    messages: Mapped[list["SupportInboxMessage"]] = relationship(
+        "SupportInboxMessage",
+        back_populates="thread",
+        cascade="all, delete-orphan",
+    )
+
+
+class SupportInboxMessage(Base):
+    """Konuşma içindeki tek Gmail mesajı."""
+
+    __tablename__ = "support_inbox_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(
+        ForeignKey("support_inbox_threads.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    gmail_message_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    from_addr: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    to_addr: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    subject: Mapped[str] = mapped_column(String(998), nullable=False, default="")
+    body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    internal_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    is_outbound: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    thread: Mapped["SupportInboxThread"] = relationship("SupportInboxThread", back_populates="messages")

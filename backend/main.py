@@ -44,6 +44,7 @@ from backend.api.alerts import router as alerts_router
 from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
+from backend.api.inbox import router as inbox_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
@@ -631,6 +632,7 @@ app.include_router(metrics_router, prefix="/api")
 app.include_router(sites_router, prefix="/api")
 app.include_router(ga4_router, prefix="/api")
 app.include_router(store_catalog_router, prefix="/api")
+app.include_router(inbox_router, prefix="/api")
 
 PERIOD_DAYS_MAP = {
     "daily": 1,
@@ -7997,6 +7999,16 @@ def realtime_page(request: Request):
             "interval_minutes": settings.ga4_realtime_interval_minutes,
             "ui_poll_seconds": settings.ga4_realtime_ui_poll_seconds,
         },
+    )
+
+
+@app.get("/inbox")
+def inbox_page(request: Request):
+    """Gmail (info@ / feedback@) gelen kutusu — OAuth + senkron + OpenAI özet/taslak."""
+    return templates.TemplateResponse(
+        request,
+        "inbox.html",
+        context={"request": request},
     )
 
 

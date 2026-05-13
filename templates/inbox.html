@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Gelen kutusu</h1>
+      <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+        Gmail üzerinden <code class="rounded bg-slate-100 px-1 dark:bg-zinc-800">info@doviz.com</code> ve
+        <code class="rounded bg-slate-100 px-1 dark:bg-zinc-800">feedback@doviz.com</code> adreslerine gelen iletileri
+        senkronize eder; okundu / cevaplandı işaretleri ve OpenAI ile özet + taslak üretir.
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2" id="inbox-toolbar">
+      <a
+        id="inbox-connect-btn"
+        href="/api/inbox/oauth/start?next=/inbox"
+        class="hidden rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow hover:bg-indigo-700"
+      >Google ile bağla</a>
+      <button type="button" id="inbox-sync-btn" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">Senkronize et</button>
+      <button type="button" id="inbox-disconnect-btn" class="hidden rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40">Bağlantıyı kes</button>
+    </div>
+  </div>
+
+  <div id="inbox-banner" class="mb-4 hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
+
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-zinc-900/80">
+      <div class="mb-3 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtre</span>
+        <select id="inbox-route-filter" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950">
+          <option value="">Tümü</option>
+          <option value="info">info@</option>
+          <option value="feedback">feedback@</option>
+          <option value="mixed">Karışık</option>
+        </select>
+        <span id="inbox-account" class="ml-auto text-xs text-slate-500 dark:text-slate-400"></span>
+      </div>
+      <div id="inbox-list" class="max-h-[70vh] space-y-2 overflow-y-auto text-sm"></div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-zinc-900/80">
+      <div id="inbox-detail-empty" class="text-sm text-slate-500 dark:text-slate-400">Soldan bir konuşma seçin.</div>
+      <div id="inbox-detail" class="hidden space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="inbox-detail-subject" class="text-lg font-extrabold text-slate-900 dark:text-slate-100"></h2>
+            <p id="inbox-detail-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="btn-read" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Okundu</button>
+            <button type="button" id="btn-unread" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Okunmadı</button>
+            <button type="button" id="btn-answered" class="rounded-md border border-emerald-600 px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-200">Cevaplandı işaretle</button>
+            <button type="button" id="btn-unanswered" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Cevaplandı kaldır</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" id="btn-summarize" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI özet</button>
+          <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI taslak cevap</button>
+        </div>
+        <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-950"></div>
+        <div class="space-y-2">
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Alıcı</label>
+          <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Konu</label>
+          <input id="inbox-send-subject" type="text" class="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Gövde (düzenleyebilirsiniz)</label>
+          <textarea id="inbox-send-body" rows="10" class="w-full rounded-md border border-slate-300 px-2 py-1 font-mono text-sm dark:border-zinc-600 dark:bg-zinc-950"></textarea>
+          <button type="button" id="btn-send" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700">Gmail ile gönder</button>
+        </div>
+        <div>
+          <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
+          <div id="inbox-messages" class="max-h-[40vh] space-y-3 overflow-y-auto text-sm"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var selectedId = null;
+  var status = {};
+
+  function showBanner(msg) {
+    var el = document.getElementById("inbox-banner");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function hideBanner() {
+    var el = document.getElementById("inbox-banner");
+    if (!el) return;
+    el.classList.add("hidden");
+    el.textContent = "";
+  }
+
+  function esc(s) {
+    if (!s) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function fmtMs(ms) {
+    if (!ms) return "—";
+    try {
+      return new Date(ms).toLocaleString("tr-TR");
+    } catch (e) {
+      return "—";
+    }
+  }
+
+  function lastInboundFrom(messages) {
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].is_outbound) return messages[i].from || "";
+    }
+    return "";
+  }
+
+  async function jfetch(url, opts) {
+    var r = await fetch(url, Object.assign({ credentials: "same-origin", headers: { Accept: "application/json" } }, opts || {}));
+    var ct = r.headers.get("content-type") || "";
+    var data = null;
+    if (ct.indexOf("application/json") !== -1) {
+      data = await r.json();
+    }
+    if (!r.ok) {
+      var msg = (data && (data.detail || data.message)) || r.statusText;
+      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    }
+    return data;
+  }
+
+  async function loadStatus() {
+    status = await jfetch("/api/inbox/status");
+    var acc = document.getElementById("inbox-account");
+    var connect = document.getElementById("inbox-connect-btn");
+    var sync = document.getElementById("inbox-sync-btn");
+    var disc = document.getElementById("inbox-disconnect-btn");
+    if (acc) {
+      acc.textContent = status.connected ? status.account_email || "Bağlı" : "Bağlı değil";
+    }
+    if (connect) connect.classList.toggle("hidden", !status.oauth_client_configured || status.connected);
+    if (sync) sync.classList.toggle("hidden", !status.connected);
+    if (disc) disc.classList.toggle("hidden", !status.connected);
+    if (!status.openai_ready) {
+      showBanner("OPENAI_API_KEY yoksa AI özet ve taslak çalışmaz; Gmail senkron yine çalışır.");
+    } else {
+      hideBanner();
+    }
+  }
+
+  async function loadThreads() {
+    var route = document.getElementById("inbox-route-filter");
+    var q = route && route.value ? "?route=" + encodeURIComponent(route.value) : "";
+    var data = await jfetch("/api/inbox/threads" + q);
+    var box = document.getElementById("inbox-list");
+    if (!box) return;
+    var items = data.items || [];
+    if (!items.length) {
+      box.innerHTML = '<p class="text-slate-500 dark:text-slate-400">Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.</p>';
+      return;
+    }
+    box.innerHTML = items
+      .map(function (t) {
+        var unread = t.gmail_unread ? "font-bold" : "";
+        var badge =
+          '<span class="ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200">' +
+          esc(t.route_tag) +
+          "</span>";
+        var flags = "";
+        if (t.gmail_unread) flags += '<span class="ml-1 text-rose-600 dark:text-rose-400">●</span>';
+        if (t.answered_flag) flags += '<span class="ml-1 text-emerald-600 dark:text-emerald-400">✓</span>';
+        return (
+          '<button type="button" data-tid="' +
+          t.id +
+          '" class="inbox-row w-full rounded-lg border border-slate-200 px-3 py-2 text-left hover:bg-slate-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ' +
+          unread +
+          '">' +
+          '<div class="flex items-start justify-between gap-2">' +
+          '<span class="line-clamp-2">' +
+          esc(t.subject || "(konu yok)") +
+          badge +
+          flags +
+          "</span>" +
+          '<span class="shrink-0 text-[10px] text-slate-400">' +
+          fmtMs(t.last_internal_ms) +
+          "</span>" +
+          "</div>" +
+          '<p class="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">' +
+          esc(t.snippet || "") +
+          "</p>" +
+          "</button>"
+        );
+      })
+      .join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".inbox-row"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = parseInt(btn.getAttribute("data-tid"), 10);
+        openDetail(id);
+      });
+    });
+  }
+
+  async function openDetail(id) {
+    selectedId = id;
+    var data = await jfetch("/api/inbox/threads/" + id);
+    var t = data.thread;
+    var messages = data.messages || [];
+    document.getElementById("inbox-detail-empty").classList.add("hidden");
+    document.getElementById("inbox-detail").classList.remove("hidden");
+    document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
+    document.getElementById("inbox-detail-meta").textContent =
+      "Rota: " + t.route_tag + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
+    var sum = document.getElementById("inbox-ai-summary");
+    if (t.ai_summary && t.ai_summary.trim()) {
+      sum.textContent = t.ai_summary;
+      sum.classList.remove("hidden");
+    } else {
+      sum.textContent = "";
+      sum.classList.add("hidden");
+    }
+    document.getElementById("inbox-send-to").value = lastInboundFrom(messages);
+    document.getElementById("inbox-send-subject").value = t.subject && t.subject.indexOf("Re:") === 0 ? t.subject : "Re: " + (t.subject || "");
+    document.getElementById("inbox-send-body").value = t.ai_draft_reply || "";
+    var mb = document.getElementById("inbox-messages");
+    mb.innerHTML = messages
+      .map(function (m) {
+        var cls = m.is_outbound ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-950/50";
+        return (
+          '<div class="rounded-lg border px-3 py-2 ' +
+          cls +
+          '"><div class="text-[11px] text-slate-500 dark:text-slate-400">' +
+          esc(fmtMs(m.internal_ms)) +
+          " · " +
+          (m.is_outbound ? "Giden" : "Gelen") +
+          '</div><div class="mt-1 text-xs font-semibold">' +
+          esc(m.from) +
+          "</div>" +
+          '<pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed">' +
+          esc(m.body_text || "") +
+          "</pre></div>"
+        );
+      })
+      .join("");
+  }
+
+  document.getElementById("inbox-sync-btn").addEventListener("click", async function () {
+    try {
+      await jfetch("/api/inbox/sync", { method: "POST" });
+      await loadThreads();
+      if (selectedId) await openDetail(selectedId);
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  });
+  document.getElementById("inbox-disconnect-btn").addEventListener("click", async function () {
+    if (!confirm("Gmail gelen kutusu bağlantısını kesmek istiyor musunuz?")) return;
+    await jfetch("/api/inbox/oauth", { method: "DELETE" });
+    selectedId = null;
+    document.getElementById("inbox-detail").classList.add("hidden");
+    document.getElementById("inbox-detail-empty").classList.remove("hidden");
+    await loadStatus();
+    await loadThreads();
+  });
+  document.getElementById("inbox-route-filter").addEventListener("change", loadThreads);
+
+  async function postRead(read) {
+    if (!selectedId) return;
+    await jfetch("/api/inbox/threads/" + selectedId + "/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ read: read }),
+    });
+    await loadThreads();
+    await openDetail(selectedId);
+  }
+  document.getElementById("btn-read").addEventListener("click", function () {
+    postRead(true);
+  });
+  document.getElementById("btn-unread").addEventListener("click", function () {
+    postRead(false);
+  });
+
+  async function patchAnswered(v) {
+    if (!selectedId) return;
+    await jfetch("/api/inbox/threads/" + selectedId + "/answered", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answered: v }),
+    });
+    await loadThreads();
+    await openDetail(selectedId);
+  }
+  document.getElementById("btn-answered").addEventListener("click", function () {
+    patchAnswered(true);
+  });
+  document.getElementById("btn-unanswered").addEventListener("click", function () {
+    patchAnswered(false);
+  });
+
+  document.getElementById("btn-summarize").addEventListener("click", async function () {
+    if (!selectedId) return;
+    try {
+      var out = await jfetch("/api/inbox/threads/" + selectedId + "/summarize", { method: "POST" });
+      var sum = document.getElementById("inbox-ai-summary");
+      sum.textContent = out.summary || "";
+      sum.classList.remove("hidden");
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  });
+  document.getElementById("btn-draft").addEventListener("click", async function () {
+    if (!selectedId) return;
+    try {
+      var out = await jfetch("/api/inbox/threads/" + selectedId + "/draft", { method: "POST" });
+      document.getElementById("inbox-send-body").value = out.draft || "";
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  });
+  document.getElementById("btn-send").addEventListener("click", async function () {
+    if (!selectedId) return;
+    if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
+    var to = document.getElementById("inbox-send-to").value.trim();
+    var subj = document.getElementById("inbox-send-subject").value.trim();
+    var text = document.getElementById("inbox-send-body").value;
+    try {
+      await jfetch("/api/inbox/threads/" + selectedId + "/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: to, subject: subj, text: text }),
+      });
+      await loadThreads();
+      await openDetail(selectedId);
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  });
+
+  loadStatus()
+    .then(loadThreads)
+    .catch(function (e) {
+      showBanner(String(e.message || e));
+    });
+})();
+</script>
+{% endblock %}
