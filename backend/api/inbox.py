@@ -67,17 +67,20 @@ def inbox_oauth_start(request: Request, next: str = "/inbox"):
     safe_next = next if next.startswith("/") else "/inbox"
     state = inbox_gmail_auth.encode_inbox_oauth_state(safe_next)
     flow = inbox_gmail_auth.build_inbox_oauth_flow(state=state)
+    # include_granted_scopes=True incremental modda önceki izinleri (ör. Search Console
+    # webmasters.readonly) yanıta ekler; Flow yalnızca Gmail kapsamları beklediği için
+    # "Scope has changed ..." hatasına yol açar. Inbox bu istemciyle aynı Client ID kullanıyor.
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
         prompt="consent",
-        include_granted_scopes="true",
+        include_granted_scopes="false",
     )
     return RedirectResponse(authorization_url, status_code=302)
 
 
 @router.get("/oauth/callback")
 def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
-    from googleapiclient.discovery import build
+    import httpx as _httpx
 
     err = request.query_params.get("error")
     if err:
@@ -85,17 +88,25 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
     state = request.query_params.get("state")
     if not state:
         return HTMLResponse("OAuth state eksik.", status_code=400)
+    code = request.query_params.get("code")
+    if not code:
+        return HTMLResponse("OAuth kodu eksik.", status_code=400)
     try:
         payload = inbox_gmail_auth.decode_inbox_oauth_state(state)
     except ValueError as exc:
         return HTMLResponse(str(exc), status_code=400)
     try:
-        flow = inbox_gmail_auth.build_inbox_oauth_flow(state=state)
-        flow.fetch_token(authorization_response=str(request.url))
-        creds = flow.credentials
-        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
-        prof = svc.users().getProfile(userId="me").execute()
-        email = str(prof.get("emailAddress") or "").strip()
+        creds = inbox_gmail_auth.exchange_inbox_authorization_code(code)
+        # googleapiclient.build() + execute() google-auth scope validasyonu tetikler.
+        # Bunun yerine doğrudan httpx ile Gmail profile endpoint'ini çağırıyoruz.
+        prof_resp = _httpx.get(
+            "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+            headers={"Authorization": f"Bearer {creds.token}"},
+            timeout=15.0,
+        )
+        if prof_resp.status_code != 200:
+            raise RuntimeError(f"Gmail profile alınamadı: {prof_resp.status_code} {prof_resp.text[:200]}")
+        email = str(prof_resp.json().get("emailAddress") or "").strip()
         inbox_gmail_auth.save_inbox_credentials(db, creds, email)
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox oauth callback failed")
