@@ -106,9 +106,9 @@
           </div>
         </div>
 
-        {# Trend Chart #}
-        <div class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-600/60 dark:bg-slate-900" data-rt-chart-wrap>
-          <div class="h-32 w-full" data-rt-chart></div>
+        {# Aktif kullanıcı sparkline (DB snapshot; arka plan job ile güncellenir) #}
+        <div class="mt-2 overflow-hidden rounded-md border border-slate-100 bg-slate-50 dark:border-slate-600/60 dark:bg-slate-900" data-rt-chart-wrap>
+          <div class="h-12 w-full min-h-[48px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
         </div>
 
         {# Top Pages — tabbed #}
@@ -208,6 +208,8 @@
   var WINDOW = {{ window_minutes }};
   var _timers = {};
   var _pageTimers = {};
+  var _trendTimers = {};
+  var TREND_POLL_MS = 45000;
   var _alarmExpanded = false;
 
   function _fmt(n) {
@@ -253,6 +255,24 @@
   }
   window.rtFetchProfile = rtFetchProfile;
 
+  function rtFetchTrend(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    fetch('/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&limit=96', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || d.error || !d.trend) return;
+        _renderChart(box, siteId, profile, d.trend || []);
+      })
+      .catch(function () {});
+  }
+  window.rtFetchTrend = rtFetchTrend;
+
   function _renderKpis(box, data) {
     var comp = data.comparison || {};
     var total = data.total || {};
@@ -297,67 +317,71 @@
   }
 
   function _renderChart(box, siteId, profile, trend) {
-    if (!window.Plotly || !trend.length) return;
+    if (!window.Plotly) return;
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
     if (!el.id) el.id = _chartId(siteId, profile);
+    var sparkH = 48;
+    el.style.height = sparkH + 'px';
+    if (!trend || !trend.length) {
+      try {
+        Plotly.purge(el);
+      } catch (ePurge) {}
+      return;
+    }
     var xDates = trend.map(function (t) {
       return t.collected_at ? t.collected_at : null;
     });
-    var users = trend.map(function (t) { return t.active_users || 0; });
-    var th = (typeof window.seoPlotlyTheme === 'function') ? window.seoPlotlyTheme() : {};
+    var users = trend.map(function (t) {
+      return Number(t.active_users) || 0;
+    });
+    if (xDates.length === 1 && users.length === 1) {
+      xDates = [xDates[0], xDates[0]];
+      users = [users[0], users[0]];
+    }
     var root = document.documentElement;
     var isDark = root.classList.contains('dark');
-    var lineColor = isDark ? '#94a3b8' : '#52525b';
-    var fillColor = isDark ? 'rgba(148,163,184,0.14)' : 'rgba(82,82,91,0.12)';
-    var gridColor = isDark ? (th.grid || '#334155') : (th.grid || '#e2e8f0');
-    var tickColor = isDark ? (th.tick || '#94a3b8') : (th.tick || '#64748b');
-    var times = xDates.map(function (d) {
-      return d ? new Date(d).getTime() : NaN;
-    }).filter(function (t) { return !isNaN(t); });
-    var xaxisCfg = {
-      type: 'date',
-      showgrid: false,
-      automargin: true,
-      tickformat: '%H:%M',
-      tickangle: -32,
-      tickfont: {size: 10, color: tickColor}
-    };
-    if (times.length >= 2) {
-      var tMin = Math.min.apply(null, times);
-      var tMax = Math.max.apply(null, times);
-      var span = Math.max(60000, tMax - tMin);
-      var targetTicks = 7;
-      var minute = 60000;
-      var rawStep = span / targetTicks;
-      var stepMs = Math.max(minute, Math.ceil(rawStep / minute) * minute);
-      xaxisCfg.dtick = stepMs;
-    } else {
-      xaxisCfg.nticks = 6;
-    }
-    Plotly.react(el, [
+    var lineColor = isDark ? '#818cf8' : '#4f46e5';
+    var fillColor = isDark ? 'rgba(129,140,248,0.18)' : 'rgba(79,70,229,0.12)';
+    Plotly.react(
+      el,
+      [
+        {
+          x: xDates,
+          y: users,
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Aktif',
+          line: {color: lineColor, width: 1.75, shape: 'linear'},
+          fill: 'tozeroy',
+          fillcolor: fillColor,
+          hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
+        },
+      ],
       {
-        x: xDates, y: users, type: 'scatter', mode: 'lines+markers',
-        name: 'Aktif Kullanıcı', line: {color: lineColor, width: 2.5, shape: 'spline'},
-        marker: {size: 4, color: lineColor},
-        fill: 'tozeroy', fillcolor: fillColor,
-        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y} kullanıcı<extra></extra>'
-      }
-    ], {
-      margin: {t: 8, r: 12, b: 52, l: 40},
-      height: el.offsetHeight || 128,
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
-      showlegend: false,
-      xaxis: xaxisCfg,
-      yaxis: {
-        showgrid: true,
-        gridcolor: gridColor,
-        gridwidth: 1,
-        tickfont: {size: 10, color: tickColor},
-        zeroline: false
-      }
-    }, {displayModeBar: false, responsive: true});
+        margin: {t: 0, r: 0, b: 0, l: 0},
+        height: sparkH,
+        autosize: true,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        showlegend: false,
+        hovermode: 'x',
+        xaxis: {
+          type: 'date',
+          visible: false,
+          showgrid: false,
+          fixedrange: true,
+          showspikes: false,
+        },
+        yaxis: {
+          visible: false,
+          showgrid: false,
+          fixedrange: true,
+          zeroline: false,
+        },
+      },
+      {displayModeBar: false, responsive: true, staticPlot: false}
+    );
   }
 
   function _fetchTopData(siteId, profile, type) {
@@ -616,6 +640,7 @@
       var prof = box.getAttribute('data-rt-profile');
       rtFetchTopPages(sidInt, prof);
       rtFetchTopEvents(sidInt, prof);
+      rtFetchTrend(sidInt, prof);
     });
     _fetchGlobalAlarms();
   }
@@ -764,8 +789,28 @@
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
+
+      if (_trendTimers[key]) clearInterval(_trendTimers[key]);
+      _trendTimers[key] = setInterval(function () {
+        rtFetchTrend(sidInt, prof);
+      }, TREND_POLL_MS);
+      setTimeout(function () {
+        rtFetchTrend(sidInt, prof);
+      }, 1200 + idx * 150);
     });
     setTimeout(_fetchGlobalAlarms, 1000);
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
+        var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
+        var prof = box.getAttribute('data-rt-profile');
+        if (!isNaN(sid) && prof) rtFetchTrend(sid, prof);
+      });
+      try {
+        _fetchGlobalAlarms();
+      } catch (eVis) {}
+    });
   }
 
   document.addEventListener('DOMContentLoaded', _startPolling);

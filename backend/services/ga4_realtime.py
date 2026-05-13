@@ -1014,23 +1014,44 @@ def get_recent_alarms(
 
 
 def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_WINDOW_MINUTES) -> list[dict[str, Any]]:
-    """Tüm aktif siteleri kontrol eder — scheduler job'ından çağrılır."""
+    """Tüm aktif siteleri kontrol eder — scheduler job'ından çağrılır.
+
+    Her site için web ve (GA4 ayarlarında ayrı property ID ile tanımlıysa) mweb, ios,
+    android profilleri ayrı ayrı kaydedilir; arka plan job'ı Realtime trendine yansır.
+    """
     from backend.models import Site as SiteModel
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
     sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
-    results = []
+    results: list[dict[str, Any]] = []
+    profile_order = ("web", "mweb", "ios", "android")
     for site in sites:
-        try:
-            r = check_site_realtime(db, site, window_minutes=window_minutes)
-            results.append(r)
-        except Exception as exc:
-            logger.exception("Realtime check başarısız [%s]: %s", site.domain, exc)
-            results.append({
-                "site_id": site.id,
-                "domain": site.domain,
-                "error": "check_failed",
-                "message": str(exc),
-            })
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        base_web = (properties.get("web") or "").strip()
+        if not base_web and not any((properties.get(p) or "").strip() for p in profile_order):
+            continue
+        for profile in profile_order:
+            explicit = (properties.get(profile) or "").strip()
+            # Realtime sayfası yalnızca GA'da ayrı property ID'si olan profilleri gösterir;
+            # web dışında yalnızca web'e düşerek aynı veriyi iki kez çekmeyi atla.
+            pid = explicit or base_web
+            if not pid:
+                continue
+            if profile != "web" and not explicit:
+                continue
+            try:
+                r = check_site_realtime(db, site, window_minutes=window_minutes, profile=profile)
+                results.append(r)
+            except Exception as exc:
+                logger.exception("Realtime check başarısız [%s / %s]: %s", site.domain, profile, exc)
+                results.append({
+                    "site_id": site.id,
+                    "domain": site.domain,
+                    "profile": profile,
+                    "error": "check_failed",
+                    "message": str(exc),
+                })
     return results
 
 

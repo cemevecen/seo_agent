@@ -7987,13 +7987,13 @@ def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
         result = check_site_realtime(db, site, window_minutes=window, profile=profile)
-        result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=30)
+        result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=72)
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
     return JSONResponse(result)
 
 
 @app.get("/api/ga4/realtime/{site_id}/trend")
-def api_ga4_realtime_trend(site_id: int, profile: str = "web", limit: int = 30):
+def api_ga4_realtime_trend(site_id: int, profile: str = "web", limit: int = 72):
     """Son N snapshot — mini trend grafiği için (API çağırmadan sadece DB okur)."""
     from backend.services.ga4_realtime import get_recent_snapshots
 
@@ -8001,7 +8001,7 @@ def api_ga4_realtime_trend(site_id: int, profile: str = "web", limit: int = 30):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-        snapshots = get_recent_snapshots(db, site_id, profile=profile, limit=min(limit, 100))
+        snapshots = get_recent_snapshots(db, site_id, profile=profile, limit=min(limit, 120))
     return JSONResponse({"site_id": site_id, "profile": profile, "trend": snapshots})
 
 
@@ -8890,9 +8890,9 @@ def _run_ga4_realtime_check_job() -> None:
             )
         alarm_total = sum(r.get("alarm_count", 0) for r in results if isinstance(r, dict))
         if alarm_total:
-            LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d site kontrol edildi).", alarm_total, len(results))
+            LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d profil kontrolü).", alarm_total, len(results))
         else:
-            LOGGER.info("GA4 Realtime: %d site kontrol edildi, alarm yok.", len(results))
+            LOGGER.info("GA4 Realtime: %d profil kontrolü tamamlandı, alarm yok.", len(results))
 
         if settings.ga4_realtime_page_alerts_enabled:
             with SessionLocal() as db:
