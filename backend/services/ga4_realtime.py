@@ -234,6 +234,15 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
     for alarm in alarms:
         page = alarm.get("page", "")
         page_e = html.escape(page)
+        row_url = _alarm_row_public_url(domain, "page:" + str(page))
+        link_block = ""
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            link_block = (
+                f'<p style="margin:8px 0 0;font-size:13px;">'
+                f'<a href="{ru}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:600;">Sayfayı aç</a>'
+                f"</p>"
+            )
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = float(alarm.get("change_pct", 0.0))
@@ -259,6 +268,7 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
                     {label} · {prof_e}
                 </div>
                 <p style="margin:10px 0 6px;font-size:13px;color:#475569;word-break:break-all;line-height:1.45;">{page_e}</p>
+                {link_block}
                 <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
                     <span style="font-size:13px;color:#64748b;">Önce</span>
                     <span style="font-size:24px;font-weight:800;color:#0f172a;">{prev:.0f}</span>
@@ -296,6 +306,15 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
     for alarm in alarms:
         page = alarm.get("page", "")
         page_e = html.escape(page)
+        row_url = _alarm_row_public_url(domain, "news:" + str(page))
+        link_block = ""
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            link_block = (
+                f'<p style="margin:8px 0 0;font-size:13px;">'
+                f'<a href="{ru}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:600;">Sayfayı aç</a>'
+                f"</p>"
+            )
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = float(alarm.get("change_pct", 0.0))
@@ -321,6 +340,7 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
                     {label} · {prof_e}
                 </div>
                 <p style="margin:10px 0 6px;font-size:14px;font-weight:600;color:#0f172a;line-height:1.4;">{page_e}</p>
+                {link_block}
                 <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
                     <span style="font-size:13px;color:#64748b;">Önce</span>
                     <span style="font-size:24px;font-weight:800;color:#0f172a;">{prev:.0f}</span>
@@ -1534,6 +1554,32 @@ def get_recent_snapshots(
     return result
 
 
+def _alarm_row_public_url(domain: str, metric: str) -> str:
+    """Sayfa/haber alarm satırı için tarayıcıda açılabilir mutlak URL (yalnız path tabanlı satırlar)."""
+    from urllib.parse import urlparse
+
+    host = (domain or "").strip()
+    if host.lower().startswith(("http://", "https://")):
+        host = (urlparse(host).netloc or host).strip()
+    host = host.split("/")[0].strip()
+    if not host:
+        return ""
+
+    m = (metric or "").strip()
+    raw = ""
+    if m.startswith("page:"):
+        raw = m[5:].strip()
+    elif m.startswith("news:"):
+        raw = m[5:].strip()
+    if not raw:
+        return ""
+    if raw.lower().startswith(("http://", "https://")):
+        return raw[:2048]
+    if raw.startswith("/"):
+        return f"https://{host}{raw}"[:2048]
+    return ""
+
+
 def get_recent_alarms(
     db: Session,
     site_id: int,
@@ -1541,7 +1587,10 @@ def get_recent_alarms(
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     """Son N alarm kaydını döner."""
-    from backend.models import RealtimeAlarmLog
+    from backend.models import RealtimeAlarmLog, Site
+
+    site = db.query(Site).filter(Site.id == site_id).first()
+    domain = (site.domain or "").strip() if site else ""
 
     rows = (
         db.query(RealtimeAlarmLog)
@@ -1550,20 +1599,26 @@ def get_recent_alarms(
         .limit(limit)
         .all()
     )
-    return [
-        {
-            "id": row.id,
-            "rule_id": row.rule_id,
-            "metric": row.metric,
-            "severity": row.severity,
-            "current_value": row.current_value,
-            "previous_value": row.previous_value,
-            "change_pct": row.change_pct,
-            "message": row.message,
-            "triggered_at": _utc_db_datetime_iso_z(row.triggered_at),
-        }
-        for row in rows
-    ]
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        metric = row.metric
+        row_url = _alarm_row_public_url(domain, metric)
+        out.append(
+            {
+                "id": row.id,
+                "rule_id": row.rule_id,
+                "metric": metric,
+                "severity": row.severity,
+                "current_value": row.current_value,
+                "previous_value": row.previous_value,
+                "change_pct": row.change_pct,
+                "message": row.message,
+                "triggered_at": _utc_db_datetime_iso_z(row.triggered_at),
+                "domain": domain,
+                "row_url": row_url or None,
+            }
+        )
+    return out
 
 
 def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_WINDOW_MINUTES) -> list[dict[str, Any]]:

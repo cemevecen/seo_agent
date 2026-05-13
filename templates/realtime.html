@@ -695,7 +695,7 @@
       </button>
       <button type="button" onclick="rtSwitchAlarmTab('page')" id="rt-alarm-tab-page"
         class="rt-alarm-tab-inactive">
-        Sayfa Alarmları
+        Sayfa &amp; haber
       </button>
     </div>
     <div class="space-y-2" id="rt-alarm-list-site">
@@ -1530,7 +1530,7 @@
     var pageAlarms = [];
     alarms.forEach(function (a) {
       var metric = a.metric || '';
-      if (metric.indexOf('page:') === 0) {
+      if (metric.indexOf('page:') === 0 || metric.indexOf('news:') === 0) {
         pageAlarms.push(a);
       } else {
         siteAlarms.push(a);
@@ -1546,6 +1546,32 @@
     var showCount = _alarmExpanded ? 50 : 10;
     _renderAlarmList(siteList, siteAlarms, showCount, 'Henüz site alarmı yok.');
     _renderAlarmList(pageList, pageAlarms, showCount, 'Henüz sayfa alarmı yok.');
+  }
+
+  function _rtAlarmRawFromMetric(metric) {
+    var m = String(metric || "");
+    if (m.indexOf("page:") === 0) return m.slice(5).trim();
+    if (m.indexOf("news:") === 0) return m.slice(5).trim();
+    return "";
+  }
+
+  function _rtAlarmHrefFromDomain(domain, metric) {
+    var raw = _rtAlarmRawFromMetric(metric);
+    if (!raw || !domain) return "";
+    var host = String(domain)
+      .replace(/^https?:\/\//i, "")
+      .split("/")[0]
+      .trim();
+    if (!host) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.charAt(0) === "/") {
+      try {
+        return new URL(raw, "https://" + host).href;
+      } catch (eH) {
+        return "https://" + host + raw;
+      }
+    }
+    return "";
   }
 
   function _renderAlarmList(listEl, alarms, showCount, emptyMsg) {
@@ -1575,9 +1601,27 @@
         icon = '🟡';
       }
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
-      return '<div class="' + sev + '">'
-        + '<span class="font-semibold">' + icon + '</span> '
-        + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>';
+      var mStr = String(a.metric || '');
+      var href = a.row_url || _rtAlarmHrefFromDomain(a.domain || '', mStr);
+      var raw = _rtAlarmRawFromMetric(mStr);
+      var sub = '';
+      if (raw && (mStr.indexOf('page:') === 0 || mStr.indexOf('news:') === 0)) {
+        if (href) {
+          sub =
+            '<div class="mt-1.5 block pl-6 text-xs leading-snug"><a class="font-medium text-sky-600 underline dark:text-sky-400" href="' +
+            _esc(href) +
+            '" target="_blank" rel="noopener noreferrer">Sayfayı aç</a><span class="text-slate-500 dark:text-slate-500"> · </span><span class="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">' +
+            _esc(raw) +
+            '</span></div>';
+        } else {
+          sub =
+            '<div class="mt-1.5 block pl-6 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Tam URL yok (GA ekran adı / etkinlik): <span class="break-all font-mono">' +
+            _esc(raw) +
+            '</span></div>';
+        }
+      }
+      return '<div class="' + sev + '"><div><span class="font-semibold">' + icon + '</span> '
+        + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>' + sub + '</div>';
     }).join('');
   }
 
