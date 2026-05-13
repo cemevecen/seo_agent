@@ -91,6 +91,13 @@
           <p id="inbox-templates-hint" class="text-[11px] text-slate-500 dark:text-slate-400">
             Bir şablonu seçin; metin alanına aktarılır, gönderen adresi ve konu doldurulur. Metni düzenleyip «Gmail ile gönder» ile iletebilirsiniz.
           </p>
+          <div id="inbox-templates-provider-btns" class="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
+            <span class="text-slate-500 dark:text-slate-400">Şablonları üret:</span>
+            <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="groq">Groq</button>
+            <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="gemini">Gemini</button>
+            <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="openai">OpenAI</button>
+            <span class="text-slate-400 dark:text-slate-500">(boş = otomatik sıra)</span>
+          </div>
           <p id="inbox-templates-provider" class="text-[10px] text-slate-400 dark:text-slate-500"></p>
           <div id="inbox-templates-list" class="grid gap-2 sm:grid-cols-3"></div>
         </div>
@@ -205,7 +212,27 @@
     if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  async function loadReplyTemplates(focusGmid) {
+  async function sendInboxMailFromComposer() {
+    if (!selectedId) throw new Error("Konuşma seçili değil.");
+    var to = document.getElementById("inbox-send-to").value.trim();
+    var subj = document.getElementById("inbox-send-subject").value.trim();
+    var bodyEl = document.getElementById("inbox-send-body");
+    var textRaw = bodyEl && bodyEl.value != null ? bodyEl.value : "";
+    var text = String(textRaw);
+    var payload = {
+      to: String(to),
+      subject: String(subj),
+      text: text,
+    };
+    if (replyToGmailId) payload.reply_to_gmail_message_id = replyToGmailId;
+    await jfetch("/api/inbox/threads/" + selectedId + "/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function loadReplyTemplates(focusGmid, forcedProvider) {
     var list = document.getElementById("inbox-templates-list");
     var prov = document.getElementById("inbox-templates-provider");
     if (!list) return;
@@ -223,6 +250,11 @@
     if (prov) prov.textContent = "";
     try {
       var url = "/api/inbox/threads/" + selectedId + "/reply-templates";
+      var qParts = [];
+      if (forcedProvider && /^(groq|gemini|openai)$/i.test(String(forcedProvider))) {
+        qParts.push("provider=" + encodeURIComponent(String(forcedProvider).toLowerCase()));
+      }
+      if (qParts.length) url += "?" + qParts.join("&");
       var payload = focusGmid ? { focus_gmail_message_id: focusGmid } : {};
       var out = await jfetch(url, {
         method: "POST",
@@ -246,7 +278,10 @@
             "</pre>" +
             '<button type="button" class="inbox-use-template-btn mt-auto rounded-md bg-indigo-600 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-500" data-idx="' +
             idx +
-            '">Bu şablonu kullan</button></div>'
+            '">Bu şablonu kullan</button>' +
+            '<button type="button" class="inbox-send-template-btn mt-1 w-full rounded-md border border-rose-400 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-100 dark:hover:bg-rose-900/50" data-idx="' +
+            idx +
+            '">Gmail ile gönder</button></div>'
           );
         })
         .join("");
@@ -256,12 +291,41 @@
           applyReplyTemplate(templatesCache[idx]);
         });
       });
+      Array.prototype.forEach.call(list.querySelectorAll(".inbox-send-template-btn"), function (btn) {
+        btn.addEventListener("click", async function () {
+          var idx = parseInt(btn.getAttribute("data-idx"), 10);
+          if (!templatesCache[idx] || !selectedId) return;
+          applyReplyTemplate(templatesCache[idx]);
+          if (!confirm("Bu şablon metni Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
+          try {
+            await sendInboxMailFromComposer();
+            replyToGmailId = null;
+            await loadThreads();
+            await openDetail(selectedId);
+          } catch (e) {
+            showBanner(String(e.message || e));
+          }
+        });
+      });
     } catch (e) {
       templatesCache = [];
       templateFocus = null;
       list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">' + esc(String(e.message || e)) + "</p>";
     }
   }
+
+  (function bindTemplateProviderButtons() {
+    var root = document.getElementById("inbox-templates-provider-btns");
+    if (!root || root.getAttribute("data-bound") === "1") return;
+    root.setAttribute("data-bound", "1");
+    root.addEventListener("click", function (ev) {
+      var b = ev.target.closest(".inbox-templates-provider-btn");
+      if (!b || !selectedId) return;
+      var p = (b.getAttribute("data-provider") || "").toLowerCase();
+      if (p !== "groq" && p !== "gemini" && p !== "openai") return;
+      loadReplyTemplates(currentTemplateFocusGmid || undefined, p);
+    });
+  })();
 
   async function jfetch(url, opts) {
     var o = opts || {};
@@ -697,23 +761,8 @@
   document.getElementById("btn-send").addEventListener("click", async function () {
     if (!selectedId) return;
     if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
-    var to = document.getElementById("inbox-send-to").value.trim();
-    var subj = document.getElementById("inbox-send-subject").value.trim();
-    var bodyEl = document.getElementById("inbox-send-body");
-    var textRaw = bodyEl && bodyEl.value != null ? bodyEl.value : "";
-    var text = String(textRaw);
     try {
-      var payload = {
-        to: String(to),
-        subject: String(subj),
-        text: text,
-      };
-      if (replyToGmailId) payload.reply_to_gmail_message_id = replyToGmailId;
-      await jfetch("/api/inbox/threads/" + selectedId + "/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      await sendInboxMailFromComposer();
       replyToGmailId = null;
       await loadThreads();
       await openDetail(selectedId);

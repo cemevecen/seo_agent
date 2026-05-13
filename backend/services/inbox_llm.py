@@ -248,16 +248,23 @@ def _coerce_three_templates(data: dict[str, Any]) -> list[dict[str, str]]:
     return out[:3]
 
 
-def reply_templates_three_tr_tr(thread_blob: str) -> tuple[list[dict[str, str]], str]:
+def reply_templates_three_tr_tr(
+    thread_blob: str, *, preferred_provider: str | None = None
+) -> tuple[list[dict[str, str]], str]:
     """Üç yanıt şablonu döndürür; (şablonlar, kullanılan_sağlayıcı)."""
     chain = _inbox_llm_chain()
+    if preferred_provider:
+        p = preferred_provider.strip().lower()
+        if p in ("groq", "gemini", "openai"):
+            chain = [c for c in chain if c[0] == p]
     if not chain:
         raise RuntimeError(
-            "Yanıt şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY tanımlanmalı."
+            "Yanıt şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY tanımlanmalı "
+            "(veya seçilen sağlayıcı yapılandırılmamış)."
         )
     prompt = _reply_templates_user_prompt(thread_blob)
     last_err: Exception | None = None
-    from backend.services.ai_daily_brief import _llm_json
+    from backend.services.llm_json_providers import _llm_json
 
     for provider, model_name in chain:
         try:

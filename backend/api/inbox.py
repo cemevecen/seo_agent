@@ -152,7 +152,7 @@ def inbox_status(request: Request, db: Session = Depends(get_db)) -> dict[str, A
         "oauth_client_configured": inbox_gmail_auth.inbox_oauth_is_configured(),
         "connected": row is not None,
         "account_email": row.account_email if row else "",
-        "query": settings.inbox_gmail_query,
+        "gmail_inbox_query": settings.inbox_gmail_query,
         "openai_ready": bool((settings.openai_api_key or "").strip()),
         "inbox_llm_ready": inbox_llm.inbox_llm_any_configured(),
         "redirect_uri": inbox_gmail_auth.get_inbox_oauth_redirect_uri(),
@@ -353,12 +353,12 @@ def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = 
 def inbox_thread_set_read(
     request: Request,
     thread_id: int,
-    body: ReadBody = Body(default_factory=ReadBody),
+    read_payload: ReadBody = Body(default_factory=ReadBody),
     db: Session = Depends(get_db),
 ):
     t = _thread_or_404(db, thread_id)
     try:
-        inbox_sync.set_thread_gmail_read(db, gmail_thread_id=t.gmail_thread_id, read=body.read)
+        inbox_sync.set_thread_gmail_read(db, gmail_thread_id=t.gmail_thread_id, read=read_payload.read)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.refresh(t)
@@ -370,13 +370,13 @@ def inbox_thread_set_read(
 def inbox_thread_set_answered(
     request: Request,
     thread_id: int,
-    body: AnsweredBody,
+    payload: AnsweredBody,
     db: Session = Depends(get_db),
 ):
     t = _thread_or_404(db, thread_id)
     try:
         inbox_sync.set_thread_gmail_answered(
-            db, gmail_thread_id=t.gmail_thread_id, answered=bool(body.answered)
+            db, gmail_thread_id=t.gmail_thread_id, answered=bool(payload.answered)
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -448,7 +448,8 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
 def inbox_thread_reply_templates(
     request: Request,
     thread_id: int,
-    payload: ReplyTemplatesBody | None = Body(default=None),
+    provider: str | None = Query(default=None, max_length=12, description="groq|gemini|openai"),
+    payload: ReplyTemplatesBody = Body(default_factory=ReplyTemplatesBody),
     db: Session = Depends(get_db),
 ):
     """Bağlı LLM (Groq / Gemini / OpenAI) ile 3 Türkçe yanıt şablonu üretir."""
@@ -459,11 +460,17 @@ def inbox_thread_reply_templates(
         .order_by(SupportInboxMessage.internal_ms.asc())
         .all()
     )
-    fid = payload.focus_gmail_message_id if payload else None
+    pref = (provider or "").strip().lower() or None
+    if pref and pref not in ("groq", "gemini", "openai"):
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz provider. Kullanın: groq, gemini veya openai.",
+        )
+    fid = payload.focus_gmail_message_id
     focus = _resolve_inbound_focus(msgs, (fid or "").strip() or None)
     blob = _thread_blob_for_reply_templates(msgs, focus)
     try:
-        templates, provider = inbox_llm.reply_templates_three_tr_tr(blob)
+        templates, used = inbox_llm.reply_templates_three_tr_tr(blob, preferred_provider=pref)
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox reply-templates failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -474,23 +481,23 @@ def inbox_thread_reply_templates(
             "from": focus.from_addr,
             "subject": (focus.subject or t.subject or "").strip(),
         }
-    return {"templates": templates, "provider": provider, "focus": focus_payload}
+    return {"templates": templates, "provider": used, "focus": focus_payload}
 
 
 @router.post("/threads/{thread_id}/send")
 @limiter.limit("15/minute")
-def inbox_thread_send(request: Request, thread_id: int, body: SendBody, db: Session = Depends(get_db)):
+def inbox_thread_send(request: Request, thread_id: int, payload: SendBody, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
-    to_email = body.to.strip()
+    to_email = payload.to.strip()
     if len(to_email) < 3 or "@" not in to_email:
         raise HTTPException(status_code=400, detail="Alıcı e-posta adresi geçersiz veya boş.")
-    body_text = (body.text or "").strip()
+    body_text = (payload.text or "").strip()
     if not body_text:
         raise HTTPException(
             status_code=400,
             detail="Gövde (metin) boş. Göndermeden önce ileti metnini doldurun veya `text` / `body` alanını JSON’da gönderin.",
         )
-    subj = body.subject.strip() or (f"Re: {t.subject}" if t.subject else "Re:")
+    subj = payload.subject.strip() or (f"Re: {t.subject}" if t.subject else "Re:")
     try:
         mid = inbox_sync.send_reply_plain(
             db,
@@ -498,7 +505,7 @@ def inbox_thread_send(request: Request, thread_id: int, body: SendBody, db: Sess
             to_email=to_email,
             subject=subj,
             text=body_text,
-            reply_to_gmail_message_id=(body.reply_to_gmail_message_id or "").strip() or None,
+            reply_to_gmail_message_id=(payload.reply_to_gmail_message_id or "").strip() or None,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
