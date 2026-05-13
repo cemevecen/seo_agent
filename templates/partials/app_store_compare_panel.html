@@ -319,9 +319,9 @@
       Mağaza keşif &amp; uygulama karşılaştırma
     </h2>
     <p class="text-[11px] text-slate-500 dark:text-slate-400">
-      Play + App Store katalog araması;
-      <a href="https://github.com/cemevecen/vivindis" class="text-indigo-600 underline dark:text-indigo-300" target="_blank" rel="noopener noreferrer">Vivindis</a>
-      ile tam yorum analizi
+      Play + App Store katalog araması. Android sonuçlarında yorum sayısı her uygulama için mağaza sayfasından çekilir (birkaç saniye sürebilir).
+      Metin yorum analizi üstteki ürün grafiklerinde; harici derinlemesine analiz için
+      <a href="https://github.com/cemevecen/vivindis" class="text-indigo-600 underline dark:text-indigo-300" target="_blank" rel="noopener noreferrer">Vivindis</a>.
     </p>
   </div>
   <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
@@ -495,7 +495,7 @@
     var platform = pl ? pl.value : 'both';
     var langV = lang ? lang.value : 'tr';
     var cc = country ? country.value : 'tr';
-    if (msg) msg.textContent = 'Aranıyor…';
+    if (msg) msg.textContent = 'Aranıyor… (Play sonuçları: yorum sayıları mağazadan çekiliyor, ~15–45 sn sürebilir)';
     if (btn) btn.disabled = true;
     var u =
       '/api/store/search?' +
@@ -564,7 +564,7 @@
     }
     var pl = document.getElementById('rt-viv-pl-' + side);
     var platform = pl ? pl.value : 'google_play';
-    if (msg) msg.textContent = 'Aranıyor…';
+    if (msg) msg.textContent = 'Aranıyor… (Android seçiliyse yorum sayıları mağazadan çekiliyor)';
     var u =
       '/api/store/search?' +
       new URLSearchParams({

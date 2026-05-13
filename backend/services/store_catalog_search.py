@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 _ITUNES_SEARCH = "https://itunes.apple.com/search"
 
+_BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+)
+
 _PLAY_SEARCH_APP_ID_ALIASES: dict[tuple[str, str], str] = {
     ("sofascore: canlı skor", "sofascore"): "com.sofascore.results",
     ("sofascore: live sports scores", "sofascore"): "com.sofascore.results",
@@ -37,8 +42,12 @@ def _resolve_play_app_id_from_web_search(title: str, developer: str, lang: str, 
         resp = httpx.get(
             "https://play.google.com/store/search",
             params={"q": query, "c": "apps", "hl": lang.lower(), "gl": country.upper()},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=8.0,
+            headers={
+                "User-Agent": _BROWSER_UA,
+                "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": f"{lang}-{country},en;q=0.9",
+            },
+            timeout=12.0,
         )
         resp.raise_for_status()
     except Exception as exc:
@@ -159,7 +168,10 @@ async def app_store_search_async(
         "offset": str(off),
         "country": country.lower(),
     }
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(
+        timeout=25.0,
+        headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
+    ) as client:
         res = await client.get(_ITUNES_SEARCH, params=params)
         res.raise_for_status()
         data = res.json()
@@ -191,6 +203,73 @@ async def app_store_search_async(
     return out
 
 
+def _play_review_count_from_meta(meta: dict[str, Any]) -> int | None:
+    """Play `app()` meta: yazılı yorum sayısı öncelikli, yoksa toplam oylama (ratings)."""
+    wr = meta.get("reviews")
+    rr = meta.get("ratings")
+    if isinstance(wr, int) and wr > 0:
+        return wr
+    if isinstance(wr, float) and wr > 0:
+        return int(wr)
+    if isinstance(rr, int) and rr > 0:
+        return rr
+    if isinstance(rr, float) and rr > 0:
+        return int(rr)
+    return None
+
+
+async def _enrich_google_play_review_counts(
+    rows: list[dict[str, Any]],
+    *,
+    lang: str,
+    country: str,
+    max_enrich: int = 12,
+    concurrency: int = 4,
+    per_app_timeout: float = 9.0,
+) -> None:
+    """Arama sonucu Play satırlarına mağaza sayfasından yorum/oylama sayısı ekler (search() bunu vermez)."""
+    try:
+        from google_play_scraper import app as gp_app
+    except ImportError:
+        return
+
+    targets = [
+        r
+        for r in rows
+        if isinstance(r, dict)
+        and r.get("platform") == "google_play"
+        and r.get("review_count") is None
+        and str(r.get("id") or "").strip()
+    ][:max_enrich]
+    if not targets:
+        return
+
+    sem = asyncio.Semaphore(max(1, concurrency))
+
+    def _one(row: dict[str, Any]) -> None:
+        aid = str(row.get("id") or "").strip()
+        if not aid:
+            return
+        try:
+            meta = gp_app(aid, lang=lang, country=country)
+            if not isinstance(meta, dict):
+                return
+            n = _play_review_count_from_meta(meta)
+            if n is not None:
+                row["review_count"] = n
+        except Exception as exc:
+            logger.debug("play_catalog_enrich_failed pkg=%s err=%s", aid, exc)
+
+    async def _guarded(row: dict[str, Any]) -> None:
+        async with sem:
+            try:
+                await asyncio.wait_for(asyncio.to_thread(_one, row), timeout=per_app_timeout)
+            except TimeoutError:
+                logger.debug("play_catalog_enrich_timeout pkg=%s", row.get("id"))
+
+    await asyncio.gather(*(_guarded(r) for r in targets))
+
+
 async def search_catalog(
     query: str,
     platform: str,
@@ -203,6 +282,7 @@ async def search_catalog(
     query = query.strip()
     if platform == "google_play":
         rows = await asyncio.to_thread(google_play_search_sync, query, lang, country, num)
+        await _enrich_google_play_review_counts(rows, lang=lang, country=country, max_enrich=min(15, num))
         return rows, len(rows) >= num, 0
 
     if platform == "app_store":
@@ -212,5 +292,6 @@ async def search_catalog(
     gp_task = asyncio.to_thread(google_play_search_sync, query, lang, country, num)
     as_task = app_store_search_async(query, lang, country, num, offset=0)
     gp_rows, as_rows = await asyncio.gather(gp_task, as_task)
+    await _enrich_google_play_review_counts(gp_rows, lang=lang, country=country, max_enrich=min(12, num))
     merged = list(gp_rows) + list(as_rows)
     return merged, False, 0

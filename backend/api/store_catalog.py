@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Annotated, Literal
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from backend.services import store_catalog_search
 
 router = APIRouter(prefix="/store", tags=["store-catalog"])
+logger = logging.getLogger(__name__)
 
 
 class StoreSearchResultItem(BaseModel):
@@ -56,6 +58,7 @@ async def search_stores(
             query, platform, lang, country, num, offset,
         )
     except Exception as exc:
+        logger.warning("store_catalog_search failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Mağaza araması başarısız.",
