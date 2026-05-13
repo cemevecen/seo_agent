@@ -449,7 +449,7 @@ def inbox_thread_reply_templates(
     request: Request,
     thread_id: int,
     provider: str | None = Query(default=None, max_length=12, description="groq|gemini|openai"),
-    payload: ReplyTemplatesBody = Body(default_factory=ReplyTemplatesBody),
+    payload: ReplyTemplatesBody | None = Body(default=None),
     db: Session = Depends(get_db),
 ):
     """Bağlı LLM (Groq / Gemini / OpenAI) ile 3 Türkçe yanıt şablonu üretir."""
@@ -466,7 +466,7 @@ def inbox_thread_reply_templates(
             status_code=400,
             detail="Geçersiz provider. Kullanın: groq, gemini veya openai.",
         )
-    fid = payload.focus_gmail_message_id
+    fid = payload.focus_gmail_message_id if payload is not None else None
     focus = _resolve_inbound_focus(msgs, (fid or "").strip() or None)
     blob = _thread_blob_for_reply_templates(msgs, focus)
     try:
