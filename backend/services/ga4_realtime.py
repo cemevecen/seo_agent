@@ -467,8 +467,8 @@ NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
     },
 }
 
-# sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 60
-_SINEMALAR_REALTIME_ALARM_PCT = 60
+# sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 50
+_SINEMALAR_REALTIME_ALARM_PCT = 50
 
 
 def _is_sinemalar_site_domain(domain: str | None) -> bool:
@@ -484,7 +484,7 @@ def _realtime_rules_threshold_pct_for_domain(
     base_rules: dict[str, dict[str, Any]],
     site_domain: str | None,
 ) -> dict[str, dict[str, Any]]:
-    """sinemalar için tüm ``threshold_pct`` = 60; mutlak tabanlar (min_*) de %60 ölçeklenir."""
+    """sinemalar için tüm ``threshold_pct`` = 50; mutlak tabanlar (min_*) de %50 ölçeklenir."""
     if not _is_sinemalar_site_domain(site_domain):
         return base_rules
     out = copy.deepcopy(base_rules)
