@@ -265,8 +265,22 @@
       display: flex;
       min-width: 0;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 0.5rem;
+    }
+    #header-site-title {
+      flex: 1 1 0%;
+      min-width: 0;
+    }
+    #theme-switcher {
+      flex: 0 0 auto;
+      width: fit-content;
+      max-width: fit-content;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    #theme-pill {
+      pointer-events: none;
     }
     .header-main-nav {
       display: flex;
@@ -332,7 +346,7 @@
         align-items: center;
         column-gap: 0.65rem;
         row-gap: 0;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
         grid-template-areas: "headline nav theme";
       }
       .header-top-row {
@@ -340,6 +354,11 @@
       }
       .header-main-nav {
         justify-content: flex-end;
+      }
+      #theme-switcher {
+        justify-self: end;
+        width: fit-content;
+        max-width: 100%;
       }
     }
     @media (max-width: 380px) {
@@ -368,24 +387,24 @@
             <div class="header-top-row">
               <h2
                 id="header-site-title"
-                class="min-w-0 flex-1 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
+                class="min-w-0 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
               >
                 {{ site_name or "SEO Agent" }}
               </h2>
               <div
                 id="theme-switcher"
-                class="relative inline-flex h-7 shrink-0 items-center rounded-full bg-slate-200/70 p-0.5 [grid-area:theme] dark:bg-zinc-800/55"
+                class="relative isolate ml-auto inline-flex h-7 shrink-0 items-center rounded-full border border-transparent bg-slate-200/70 p-0.5 [grid-area:theme] dark:border-transparent dark:bg-zinc-800/55"
                 role="radiogroup"
                 aria-label="Tema seçimi"
               >
                 <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90" style="left:2px;width:28px"></span>
-                <button type="button" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-700 transition-colors dark:text-slate-400" title="Açık" aria-label="Açık tema">
+                <button type="button" role="radio" aria-checked="false" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-700 transition-colors dark:text-slate-400" title="Açık" aria-label="Açık tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
                 </button>
-                <button type="button" data-theme-value="dim" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dim" aria-label="Dim tema">
+                <button type="button" role="radio" aria-checked="false" data-theme-value="dim" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dim" aria-label="Dim tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 15a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm-7-7a1 1 0 011-1h1a1 1 0 110 2H4a1 1 0 01-1-1zm14 0a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1z"/><circle cx="10" cy="10" r="4" opacity=".5"/></svg>
                 </button>
-                <button type="button" data-theme-value="dark" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dark" aria-label="Dark tema">
+                <button type="button" role="radio" aria-checked="false" data-theme-value="dark" class="theme-btn relative z-10 flex h-6 w-7 items-center justify-center rounded-full text-slate-500 transition-colors dark:text-slate-400" title="Dark" aria-label="Dark tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
                 </button>
               </div>
@@ -535,9 +554,8 @@
       var THEME_KEY = 'seo-theme';
       var THEMES = ['light', 'dim', 'dark'];
       var root = document.documentElement;
-      var switcher = document.getElementById('theme-switcher');
-      var pill = document.getElementById('theme-pill');
-      var btns = switcher ? switcher.querySelectorAll('.theme-btn') : [];
+      var pill = null;
+      var switcher = null;
 
       function getTheme() {
         if (root.classList.contains('midnight')) return 'dark';
@@ -545,22 +563,33 @@
         return 'light';
       }
 
+      function readStoredTheme() {
+        try {
+          var v = localStorage.getItem(THEME_KEY);
+          if (v && THEMES.indexOf(v) >= 0) return v;
+        } catch (e) {}
+        return null;
+      }
+
       function movePill(theme) {
+        pill = document.getElementById('theme-pill');
         if (!pill) return;
         var idx = THEMES.indexOf(theme);
         if (idx < 0) idx = 0;
         var offset = 2 + idx * 28;
         pill.style.left = offset + 'px';
+        pill.style.width = '28px';
         if (theme === 'dark') {
           pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else if (theme === 'dim') {
           pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else {
-          pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out';
+          pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90';
         }
       }
 
       function applyTheme(theme) {
+        if (!theme || THEMES.indexOf(theme) < 0) theme = 'light';
         root.classList.remove('dark', 'midnight');
         if (theme === 'dim') {
           root.classList.add('dark');
@@ -568,32 +597,55 @@
           root.classList.add('dark', 'midnight');
         }
         movePill(theme);
+        var btns = document.querySelectorAll('#theme-switcher .theme-btn');
         btns.forEach(function (b) {
           var v = b.getAttribute('data-theme-value');
-          if (v === theme) {
-            b.classList.add('text-current', 'font-bold');
-            b.classList.remove('text-slate-500');
-            b.setAttribute('aria-checked', 'true');
+          var on = v === theme;
+          b.setAttribute('aria-checked', on ? 'true' : 'false');
+          b.setAttribute('tabindex', on ? '0' : '-1');
+          if (on) {
+            b.classList.add('font-semibold', 'text-slate-900', 'dark:text-zinc-100');
+            b.classList.remove('text-slate-500', 'text-slate-700', 'dark:text-slate-400');
           } else {
-            b.classList.remove('text-current', 'font-bold');
-            b.classList.add('text-slate-500');
-            b.setAttribute('aria-checked', 'false');
+            b.classList.remove('font-semibold', 'text-slate-900', 'dark:text-zinc-100');
+            b.classList.add('text-slate-500', 'dark:text-slate-400');
+            b.classList.remove('text-slate-700');
           }
         });
-        try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
         try {
-          document.dispatchEvent(new CustomEvent('seo-theme-change', { detail: { dark: theme !== 'light', theme: theme } }));
+          localStorage.setItem(THEME_KEY, theme);
+        } catch (e) {}
+        try {
+          document.dispatchEvent(
+            new CustomEvent('seo-theme-change', { detail: { dark: theme !== 'light', theme: theme } }),
+          );
         } catch (e) {}
       }
 
-      btns.forEach(function (b) {
-        b.addEventListener('click', function () {
-          applyTheme(b.getAttribute('data-theme-value'));
+      function initThemeUi() {
+        switcher = document.getElementById('theme-switcher');
+        pill = document.getElementById('theme-pill');
+        if (!switcher) return;
+        var stored = readStoredTheme();
+        if (stored) {
+          applyTheme(stored);
+        } else {
+          applyTheme(getTheme());
+        }
+        switcher.addEventListener('click', function (ev) {
+          var btn = ev.target && ev.target.closest ? ev.target.closest('.theme-btn[data-theme-value]') : null;
+          if (!btn || !switcher.contains(btn)) return;
+          ev.preventDefault();
+          var t = btn.getAttribute('data-theme-value');
+          if (t && THEMES.indexOf(t) >= 0) applyTheme(t);
         });
-      });
+      }
 
-      var initial = getTheme();
-      movePill(initial);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initThemeUi);
+      } else {
+        initThemeUi();
+      }
     })();
 
     window.seoPlotlyTheme = function () {
