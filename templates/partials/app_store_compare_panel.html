@@ -162,6 +162,55 @@
   html.dark .rt-viv-card p {
     color: rgb(161 161 170);
   }
+  .rt-viv-store-result-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.35rem;
+    border-bottom: 1px solid rgb(241 245 249);
+    padding: 0 0.35rem 0 0;
+  }
+  html.dark .rt-viv-store-result-row {
+    border-bottom-color: rgb(63 63 70);
+  }
+  .rt-viv-store-result-row:last-child {
+    border-bottom: none;
+  }
+  .rt-viv-store-result-row:hover .rt-viv-card-fill {
+    background: rgb(248 250 252);
+  }
+  html.dark .rt-viv-store-result-row:hover .rt-viv-card-fill {
+    background: rgb(39 39 42);
+  }
+  .rt-viv-card.rt-viv-card-fill {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    border-bottom: none;
+    text-align: left;
+  }
+  .rt-viv-card-storelink {
+    flex: 0 0 auto;
+    align-self: center;
+    margin: 0.35rem 0;
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: rgb(79 70 229);
+    border: 1px solid rgb(199 210 254);
+    background: rgb(255 255 255);
+    white-space: nowrap;
+  }
+  html.dark .rt-viv-card-storelink {
+    color: rgb(165 180 252);
+    border-color: rgb(82 82 91);
+    background: rgb(24 24 27);
+  }
+  .rt-viv-card-storelink:hover {
+    text-decoration: underline;
+  }
   .rt-viv-sel {
     margin-top: 0.5rem;
     border-radius: 0.5rem;
@@ -281,7 +330,7 @@
   </div>
 
   <div data-rt-viv-panel="store">
-    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Uygulama adı, paket veya mağaza bağlantısı ile arayın (Google Play ve/veya App Store).</p>
+    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Uygulama adı, paket veya mağaza bağlantısı ile arayın (Google Play ve/veya App Store). Sonuç satırına tıklayınca paket veya App Store kimliği arama kutusuna yazılır; mağazayı yeni sekmede açmak için satırdaki küçük bağlantıyı kullanın.</p>
     <div class="rt-viv-row">
       <input id="rt-viv-q-store" type="search" class="rt-viv-input" placeholder="Örn. sofascore, com.spotify.music" autocomplete="off" />
       <select id="rt-viv-pl-store" class="rt-viv-select" title="Platform">
@@ -362,6 +411,7 @@
 
   var _rtVivLast = { a: [], b: [] };
   var _rtVivSel = { a: null, b: null };
+  var _rtVivStoreLast = [];
 
   function _rtVivFmtRating(v) {
     if (v == null || v === '') return '—';
@@ -408,6 +458,26 @@
   }
   window.rtVivSwitchTab = rtVivSwitchTab;
 
+  function rtVivApplyStorePick(idx) {
+    var items = _rtVivStoreLast;
+    var qEl = document.getElementById('rt-viv-q-store');
+    var msg = document.getElementById('rt-viv-store-msg');
+    if (!qEl || !items || !items[idx]) return;
+    var it = items[idx];
+    var v = String(it.id || '').trim();
+    if (!v) v = String(it.store_url || '').trim();
+    qEl.value = v;
+    try {
+      qEl.focus();
+      qEl.select();
+    } catch (ePick) {}
+    if (msg) {
+      msg.textContent =
+        'Seçildi: ' + (it.name || v) + ' — gerekirse «Ara» ile tekrar arayın veya kutudaki metni düzenleyin.';
+    }
+  }
+  window.rtVivApplyStorePick = rtVivApplyStorePick;
+
   function rtVivSearchStore() {
     var qEl = document.getElementById('rt-viv-q-store');
     var msg = document.getElementById('rt-viv-store-msg');
@@ -446,7 +516,8 @@
         if (d.detail)
           throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
         var items = d.results || [];
-        if (msg) msg.textContent = items.length ? items.length + ' sonuç' : 'Sonuç yok';
+        _rtVivStoreLast = items;
+        if (msg) msg.textContent = items.length ? items.length + ' sonuç — satıra tıklayınca paket/id kutuya yazılır' : 'Sonuç yok';
         if (!items.length) {
           box.innerHTML =
             '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">Eşleşme bulunamadı.</p>';
@@ -454,13 +525,18 @@
           return;
         }
         box.innerHTML = items
-          .map(function (it) {
+          .map(function (it, i) {
             return (
-              '<a class="rt-viv-card" href="' +
-              _esc(it.store_url) +
-              '" target="_blank" rel="noopener noreferrer">' +
+              '<div class="rt-viv-store-result-row">' +
+              '<button type="button" class="rt-viv-card rt-viv-card-fill" onclick="rtVivApplyStorePick(' +
+              i +
+              ')">' +
               _rtVivCardInner(it) +
-              '</a>'
+              '</button>' +
+              '<a class="rt-viv-card-storelink" href="' +
+              _esc(it.store_url) +
+              '" target="_blank" rel="noopener noreferrer" title="Mağaza sayfası">Mağaza</a>' +
+              '</div>'
             );
           })
           .join('');
