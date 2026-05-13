@@ -1519,13 +1519,12 @@ def get_recent_snapshots(
     limit: int = 30,
 ) -> list[dict[str, Any]]:
     """Son N snapshot kaydını döner (mini trend grafiği için)."""
-    import json as _json
-
     from backend.models import RealtimeSnapshot
 
+    prof = (profile or "web").strip()
     rows = (
         db.query(RealtimeSnapshot)
-        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
+        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof)
         .order_by(RealtimeSnapshot.collected_at.desc())
         .limit(limit)
         .all()

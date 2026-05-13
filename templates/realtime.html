@@ -934,8 +934,9 @@
       var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
       if (isNaN(sid) || !prof) return;
+      /* Yalnızca rtFetchProfile: sunucu yeni snapshot kaydedip aynı yanıtta trend döner.
+         rtFetchTrend ile yarış (hangisi son biterse) grafikleri yanlış/aynı gösterebilir. */
       rtFetchProfile(sid, prof);
-      rtFetchTrend(sid, prof);
     });
   }
 
@@ -991,7 +992,7 @@
     if (tsEl) tsEl.textContent = '…';
     if (refreshIcon) refreshIcon.classList.add('rt-spin');
 
-    fetch('/api/ga4/realtime/' + siteId + '?window=' + WINDOW + '&profile=' + profile, {
+    fetch('/api/ga4/realtime/' + siteId + '?window=' + WINDOW + '&profile=' + encodeURIComponent(profile), {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -1130,7 +1131,13 @@
     if (!window.Plotly) return;
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
-    if (!el.id) el.id = _chartId(siteId, profile);
+    var wantId = _chartId(siteId, profile);
+    if (el.id && el.id !== wantId) {
+      try {
+        Plotly.purge(el);
+      } catch (ePurgeId) {}
+    }
+    el.id = wantId;
     var sparkH = 56;
     el.style.height = sparkH + 'px';
     if (!trend || !trend.length) {
@@ -1157,6 +1164,20 @@
       xDates = [xDates[0], xDates[0]];
       users = [users[0], users[0]];
     }
+    var lastTs =
+      trend.length && trend[trend.length - 1] && trend[trend.length - 1].collected_at
+        ? String(trend[trend.length - 1].collected_at)
+        : '';
+    var dataRevision =
+      String(siteId) +
+      '-' +
+      String(profile) +
+      '-' +
+      String(xDates.length) +
+      '-' +
+      lastTs +
+      '-' +
+      String(users[users.length - 1] || 0);
     var root = document.documentElement;
     var isDark = root.classList.contains('dark');
     var uMin = Infinity;
@@ -1180,6 +1201,10 @@
     var fillTop = isDark ? 'rgba(165, 180, 252, 0.55)' : 'rgba(79, 70, 229, 0.45)';
     var fillArea = isDark ? 'rgba(67, 56, 202, 0.28)' : 'rgba(99, 102, 241, 0.14)';
     var spline = {shape: 'spline', smoothing: 1.22};
+
+    try {
+      Plotly.purge(el);
+    } catch (ePurgeBefore) {}
 
     var traces = [
       {
@@ -1253,12 +1278,13 @@
         showlegend: false,
         dragmode: false,
         hovermode: 'x',
+        uirevision: wantId,
+        datarevision: dataRevision,
         hoverlabel: {
           bgcolor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
           bordercolor: isDark ? 'rgba(129, 140, 248, 0.55)' : 'rgba(79, 70, 229, 0.35)',
           font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#e2e8f0' : '#0f172a' },
         },
-        transition: {duration: 520, easing: 'cubic-in-out'},
         xaxis: {
           type: 'date',
           visible: false,
@@ -1594,7 +1620,10 @@
     boxes.forEach(function (box) {
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
-      fetch('/api/ga4/realtime/' + sid + '?window=' + WINDOW + '&profile=' + prof)
+      fetch('/api/ga4/realtime/' + sid + '?window=' + WINDOW + '&profile=' + encodeURIComponent(prof), {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (!d.error) {
@@ -1630,7 +1659,6 @@
       var prof = box.getAttribute('data-rt-profile');
       rtFetchTopPages(sidInt, prof);
       rtFetchTopEvents(sidInt, prof);
-      rtFetchTrend(sidInt, prof);
     });
     _fetchGlobalAlarms();
   }
@@ -2069,9 +2097,6 @@
         rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
 
-      setTimeout(function () {
-        rtFetchTrend(sidInt, prof);
-      }, 1200 + idx * 150);
     });
     setTimeout(_fetchGlobalAlarms, 1000);
     _startLiveCountdown();
@@ -2085,7 +2110,6 @@
         if (isNaN(sid) || !prof) return;
         setTimeout(function () {
           rtFetchProfile(sid, prof);
-          rtFetchTrend(sid, prof);
         }, vidx * 200);
       });
       try {
