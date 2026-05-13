@@ -341,14 +341,14 @@
 
 <details class="rt-viv-panel mb-4 sm:mb-5 group" aria-labelledby="rt-viv-heading" data-rt-viv-root>
   <summary class="cursor-pointer list-none flex items-center justify-between outline-none">
-    <h2 id="rt-viv-heading" class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-zinc-100">
+    <h2 id="rt-viv-heading" class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">
       Mağaza keşif &amp; uygulama karşılaştırma
     </h2>
     <svg class="h-5 w-5 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor">
       <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
     </svg>
   </summary>
-  <div class="mt-4 border-t border-slate-200/60 pt-4 dark:border-zinc-700/50">
+  <div class="mt-4 border-t border-slate-200/60 pt-4 dark:border-slate-700/50">
     <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
       <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Mağaza analiz</button>
       <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">Uygulama karşılaştırma</button>
@@ -374,15 +374,15 @@
       </select>
       <button type="button" class="rt-viv-btn" id="rt-viv-btn-store" onclick="rtVivSearchStore()">Ara</button>
     </div>
-    <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500" id="rt-viv-store-msg"></p>
+    <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-store-msg"></p>
     <div class="rt-viv-results hidden" id="rt-viv-store-results"></div>
   </div>
 
   <div class="hidden" data-rt-viv-panel="compare">
-    <p class="mb-2 text-xs text-slate-600 dark:text-zinc-400">Her sütunda ayrı arama; sonuç satırına tıklayarak seçim yapın.</p>
+    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Her sütunda ayrı arama; sonuç satırına tıklayarak seçim yapın.</p>
     <div class="rt-viv-cmp-grid">
       <div>
-        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-zinc-300">Uygulama 1</h3>
+        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Uygulama 1</h3>
         <div class="rt-viv-row">
           <input id="rt-viv-q-a" type="search" class="rt-viv-input" placeholder="Ara…" autocomplete="off" />
           <select id="rt-viv-pl-a" class="rt-viv-select">
@@ -392,7 +392,7 @@
           </select>
           <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('a')">Ara</button>
         </div>
-        <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500" id="rt-viv-msg-a"></p>
+        <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-a"></p>
         <div class="rt-viv-sel" id="rt-viv-sel-a">Henüz seçim yok — sonuç satırına tıklayın.</div>
         <div class="rt-viv-results mt-2 hidden" id="rt-viv-list-a"></div>
       </div>
@@ -407,14 +407,14 @@
           </select>
           <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('b')">Ara</button>
         </div>
-        <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500" id="rt-viv-msg-b"></p>
+        <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-b"></p>
         <div class="rt-viv-sel" id="rt-viv-sel-b">Henüz seçim yok — sonuç satırına tıklayın.</div>
         <div class="rt-viv-results mt-2 hidden" id="rt-viv-list-b"></div>
       </div>
     </div>
     <div id="rt-viv-compare-wrap" class="rt-viv-compare-wrap hidden" aria-live="polite">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-800 dark:text-zinc-100">Katalog karşılaştırması</h4>
+        <h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">Katalog karşılaştırması</h4>
         <button type="button" class="rt-viv-ghost-btn" onclick="rtVivClearCompare()">Seçimleri sıfırla</button>
       </div>
       <p id="rt-viv-compare-hint" class="rt-viv-cmp-muted mb-2"></p>
@@ -545,7 +545,7 @@
         if (msg) msg.textContent = items.length ? items.length + ' sonuç — satıra tıklayınca paket/id kutuya yazılır' : 'Sonuç yok';
         if (!items.length) {
           box.innerHTML =
-            '<p class="p-3 text-sm text-slate-500 dark:text-zinc-400">Eşleşme bulunamadı.</p>';
+            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">Eşleşme bulunamadı.</p>';
           box.classList.remove('hidden');
           return;
         }
@@ -620,7 +620,7 @@
           msg.textContent = items.length ? items.length + ' sonuç — seçmek için tıklayın' : 'Sonuç yok';
         if (!items.length) {
           list.innerHTML =
-            '<p class="p-3 text-sm text-slate-500 dark:text-zinc-400">Eşleşme yok.</p>';
+            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">Eşleşme yok.</p>';
           list.classList.remove('hidden');
           return;
         }
@@ -675,7 +675,7 @@
       ' · id: <code>' +
       _esc(it.id) +
       '</code></span><br/>' +
-      '<a class="mt-1 inline-block text-indigo-600 underline dark:text-zinc-300" href="' +
+      '<a class="mt-1 inline-block text-indigo-600 underline dark:text-indigo-300" href="' +
       _esc(it.store_url) +
       '" target="_blank" rel="noopener noreferrer">Mağaza sayfası</a>';
     _rtVivRenderCompareTable();
@@ -763,10 +763,10 @@
       row('Yorum sayısı (varsa)', revA, revB, revClsA, revClsB) +
       row(
         'Mağaza linki',
-        '<a class="text-indigo-600 underline dark:text-zinc-300" href="' +
+        '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
           _esc(a.store_url) +
           '" target="_blank" rel="noopener noreferrer">Aç</a>',
-        '<a class="text-indigo-600 underline dark:text-zinc-300" href="' +
+        '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
           _esc(b.store_url) +
           '" target="_blank" rel="noopener noreferrer">Aç</a>',
         '',
