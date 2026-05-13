@@ -285,85 +285,125 @@ def fetch_realtime_top_pages(
     }
 
 
+_DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES: tuple[str, ...] = (
+    "(other)",
+    "(not set)",
+    "canlı döviz",
+    "canlı gram",
+    "canlı euro",
+    "canlı usd",
+    "canlı sterlin",
+    "güncel euro",
+    "güncel altın fiyatları",
+    "güncel altın",
+    "anlık altın",
+    "altın fiyatları",
+    "serbest piyasa",
+    "hisse senedi",
+    "harem ",
+    "döviz çevirici",
+    "canlı dolar",
+    "canlı borsa",
+    "çerez politikası",
+    "vizyondaki filmler",
+    "türkiye'nin sinema",
+    "en iyi animasyon",
+    "en iyi türk",
+    "en iyi korku",
+    "en iyi romantik",
+    "en iyi aksiyon",
+    "tüm filmler",
+    "tüm zamanların",
+    "gündem haberleri",
+)
+
+
+def _news_screen_exclude_prefixes_loaded() -> tuple[str, ...]:
+    from backend.config import settings
+
+    raw = (getattr(settings, "ga4_realtime_news_screen_exclude_prefixes", None) or "").strip()
+    if raw:
+        return tuple(x.strip().lower() for x in raw.split(",") if x.strip())
+    return _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
+
+
+def _screen_unified_news_candidate(name: str) -> bool:
+    """Realtime'ta yalnızca unifiedScreenName (≈ başlık) olduğundan sezgisel haber adayı."""
+    from backend.collectors.ga4 import _is_news_article_path
+
+    n = (name or "").strip()
+    if len(n) < 10:
+        return False
+    low = n.lower()
+    if low.startswith("/") and _is_news_article_path(n):
+        return True
+    for pre in _news_screen_exclude_prefixes_loaded():
+        if low.startswith(pre):
+            return False
+    return True
+
+
+def _news_row_link(site_domain: str, unified: str) -> str:
+    """Path görünüyorsa doğrudan URL; değilse Google site: araması (Realtime path boyutu yok)."""
+    from urllib.parse import quote
+
+    from backend.collectors.ga4 import _is_news_article_path
+
+    d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
+    u = (unified or "").strip()
+    if u.startswith("/") and d and _is_news_article_path(u):
+        return "https://" + d + u
+    q = f"site:{d} {u}" if d else u
+    return "https://www.google.com/search?q=" + quote(q, safe="")
+
+
 def fetch_realtime_top_news_pages(
     property_id: str,
     *,
+    site_domain: str = "",
     window_minutes: int = 30,
     limit: int = 12,
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime: haber makalesi path'leri (GA4 kolektörüyle aynı haber tespiti) + tıklanabilir path.
+    """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
 
-    ``pagePath`` + ``pageTitle`` boyutları kullanılır; yalnızca web/mweb stream için anlamlıdır.
+    Tam URL çoğu satırda yok; ``link_url`` alanı ya doğrudan path (nadiren) ya da ``site:`` arama linkidir.
     """
-    from backend.collectors.ga4 import _is_news_article_path
-
-    if client is None:
-        client = _build_client()
-    w = max(1, min(window_minutes, 30))
-    fetch_cap = min(250, max(80, int(limit) * 25))
-    sort_metric = "screenPageViews" if sort_by == "screenPageViews" else "activeUsers"
-
-    request = RunRealtimeReportRequest(
-        property=f"properties/{property_id}",
-        dimensions=[
-            Dimension(name="pagePath"),
-            Dimension(name="pageTitle"),
-        ],
-        metrics=[
-            Metric(name="activeUsers"),
-            Metric(name="screenPageViews"),
-        ],
-        minute_ranges=[
-            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-        ],
-        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name=sort_metric), desc=True)],
-        limit=fetch_cap,
+    fetch_n = min(250, max(80, int(limit) * 25))
+    base = fetch_realtime_top_pages(
+        property_id,
+        window_minutes=window_minutes,
+        limit=fetch_n,
+        sort_by=sort_by,
+        dimension="unifiedScreenName",
+        client=client,
     )
-    t0 = time.monotonic()
-    response = client.run_realtime_report(request)
-    elapsed_ms = int((time.monotonic() - t0) * 1000)
-
-    metric_names = [m.name for m in response.metric_headers]
-    dim_headers = [h.name for h in response.dimension_headers]
-    by_path: dict[str, dict[str, Any]] = {}
-
-    for row in response.rows:
-        dm = _realtime_row_dimensions(row, dim_headers)
-        path = str(dm.get("pagePath", "") or "").strip()
-        if not path or path in ("/", "(not set)"):
+    out: list[dict[str, Any]] = []
+    for p in base.get("pages") or []:
+        title = str(p.get("page") or "").strip()
+        if not _screen_unified_news_candidate(title):
             continue
-        if not _is_news_article_path(path):
-            continue
-        title = str(dm.get("pageTitle", "") or "").strip() or path
-        metrics_dict: dict[str, float] = {}
-        for i, mv in enumerate(row.metric_values):
-            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
-            try:
-                metrics_dict[mname] = float(mv.value)
-            except (ValueError, TypeError):
-                metrics_dict[mname] = 0.0
-        cur = by_path.get(path)
-        if cur is not None and cur.get(sort_metric, 0) >= metrics_dict.get(sort_metric, 0):
-            continue
-        by_path[path] = {
-            "page": title,
-            "page_path": path,
-            "activeUsers": metrics_dict.get("activeUsers", 0.0),
-            "screenPageViews": metrics_dict.get("screenPageViews", 0.0),
-        }
-
-    pages = sorted(by_path.values(), key=lambda p: p.get(sort_metric, 0), reverse=True)[: max(1, min(limit, 25))]
+        out.append(
+            {
+                "page": title,
+                "page_path": title if title.startswith("/") else "",
+                "activeUsers": float(p.get("activeUsers") or 0),
+                "screenPageViews": float(p.get("screenPageViews") or 0),
+                "link_url": _news_row_link(site_domain, title),
+            }
+        )
+        if len(out) >= max(1, min(int(limit), 25)):
+            break
 
     return {
         "property_id": property_id,
-        "window_minutes": w,
-        "pages": pages,
-        "total_pages": len(pages),
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "api_ms": elapsed_ms,
-        "breakdown": "pagePath+pageTitle+news_filter",
+        "window_minutes": base.get("window_minutes", window_minutes),
+        "pages": out,
+        "total_pages": len(out),
+        "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
+        "api_ms": base.get("api_ms", 0),
+        "breakdown": "unifiedScreenName+news_heuristic",
     }
 
 

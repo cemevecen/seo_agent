@@ -194,6 +194,8 @@ class Settings(BaseSettings):
     # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
     ga4_realtime_email_enabled: bool = True
     ga4_realtime_page_alert_email: bool = True
+    # Realtime «Haberler» sekmesi: unifiedScreenName bu öneklerle başlıyorsa elenir (virgülle). Boş = yerleşik liste.
+    ga4_realtime_news_screen_exclude_prefixes: str = ""
 
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
     live_refresh_enabled: bool = True

@@ -63,7 +63,6 @@
         class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
-        data-rt-domain="{{ site.domain }}"
       >
         {# Profile header #}
         <div class="mb-4 flex items-center justify-between">
@@ -143,7 +142,7 @@
           </div>
           {% if profile in ('web', 'mweb') %}
           <div data-rt-top-panel="news" class="hidden">
-            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4’te haber path’i veya URL sonunda sayısal makale ID’si olan sayfalar (landing raporundaki haber kurallarıyla uyumlu).</p>
+            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4 Realtime’da tam URL yok; başlık (unifiedScreenName) filtrelenir. Çoğu satırda link, Google <span class="whitespace-nowrap">site:alanadı</span> aramasıdır. Path görünürse doğrudan site linki kullanılır.</p>
             <div class="space-y-1" data-rt-news-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
@@ -240,17 +239,6 @@
     return String(Math.round(n));
   }
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
-  function _siteOrigin(domain) {
-    if (!domain) return '';
-    var d = String(domain).trim().replace(/^https?:\/\//i, '').replace(/\/$/, '');
-    return d ? ('https://' + d) : '';
-  }
-  function _newsHref(origin, pagePath) {
-    if (!pagePath) return '';
-    var p = pagePath.charAt(0) === '/' ? pagePath : ('/' + pagePath);
-    return origin ? (origin + p) : '';
-  }
 
   function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
 
@@ -458,7 +446,7 @@
           return;
         }
         var rows = Array.isArray(d.pages) ? d.pages : [];
-        _renderNewsList(listEl, rows, box.getAttribute('data-rt-domain'));
+        _renderNewsList(listEl, rows);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
@@ -469,36 +457,35 @@
       });
   }
 
-  function _renderNewsList(listEl, pages, domain) {
+  function _renderNewsList(listEl, pages) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">Bu pencerede haber trafiği yok veya eşleşen path bulunamadı.</p>';
+      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">Bu pencerede haber adayı başlık yok. İstersen .env içinde GA4_REALTIME_NEWS_SCREEN_EXCLUDE_PREFIXES ile filtreleri güncelle.</p>';
       return;
     }
-    var origin = _siteOrigin(domain || '');
     var sortKey = 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
-      var titleRaw = p.page || p.page_path || '(başlıksız)';
+      var titleRaw = p.page || '(başlıksız)';
       var titleShort = _esc(titleRaw);
       if (titleShort.length > 56) titleShort = titleShort.substring(0, 54) + '…';
-      var pathRaw = p.page_path || '';
-      var pathEsc = _esc(pathRaw);
-      var pathOneLine = pathRaw.length > 64 ? pathEsc.substring(0, 62) + '…' : pathEsc;
-      var href = _newsHref(origin, pathRaw);
-      var hrefAttr = href ? encodeURI(href) : '';
+      var subRaw = (p.page_path || '').trim() || (p.link_url || '');
+      var subEsc = _esc(subRaw);
+      var subOne = subRaw.length > 76 ? subEsc.substring(0, 74) + '…' : subEsc;
+      var primaryHref = (p.link_url || '').trim();
+      var hrefAttr = primaryHref ? encodeURI(primaryHref) : '';
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
       var linkHtml = hrefAttr
-        ? '<a class="truncate text-sm font-semibold text-indigo-700 hover:underline dark:text-indigo-300" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + pathEsc + '">' + titleShort + '</a>'
-        : '<span class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + pathEsc + '">' + titleShort + '</span>';
+        ? '<a class="truncate text-sm font-semibold text-indigo-700 hover:underline dark:text-indigo-300" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + subEsc + '">' + titleShort + '</a>'
+        : '<span class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + subEsc + '">' + titleShort + '</span>';
       return '<div class="flex items-start gap-2 rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="w-5 shrink-0 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
         + linkHtml
-        + '<div class="mt-0.5 truncate font-mono text-[10px] text-slate-500 dark:text-slate-400" title="' + pathEsc + '">' + pathOneLine + '</div>'
+        + '<div class="mt-0.5 truncate font-mono text-[10px] text-slate-500 dark:text-slate-400" title="' + subEsc + '">' + subOne + '</div>'
         + '<div class="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded-full bg-amber-500/70" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="flex shrink-0 flex-col items-end gap-0.5">'

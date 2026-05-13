@@ -8089,6 +8089,7 @@ def api_ga4_realtime_top_news(
     try:
         result = fetch_realtime_top_news_pages(
             property_id,
+            site_domain=(site.domain or "").strip(),
             window_minutes=min(window, 30),
             limit=min(limit, 25),
             sort_by=sort_by,
