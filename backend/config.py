@@ -188,6 +188,8 @@ class Settings(BaseSettings):
     ga4_realtime_enabled: bool = False
     ga4_realtime_interval_minutes: int = 10
     ga4_realtime_window_minutes: int = 30
+    # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız; çok düşük = kota.
+    ga4_realtime_ui_poll_seconds: int = Field(default=45, ge=15, le=600)
     ga4_realtime_page_alerts_enabled: bool = True
     # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
     ga4_realtime_email_enabled: bool = True

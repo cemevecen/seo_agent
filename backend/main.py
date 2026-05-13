@@ -7973,6 +7973,7 @@ def realtime_page(request: Request):
             "sites": site_list,
             "window_minutes": settings.ga4_realtime_window_minutes,
             "interval_minutes": settings.ga4_realtime_interval_minutes,
+            "ui_poll_seconds": settings.ga4_realtime_ui_poll_seconds,
         },
     )
 

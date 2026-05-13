@@ -37,7 +37,9 @@
         <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500"></span>
       </span>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{{ interval_minutes }} dk aralık</span>
+      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" title="Sayfa açıkken GA4 yenilemesi ve arka plan job aralığı">
+        ~{{ ui_poll_seconds }} sn canlı · {{ interval_minutes }} dk job
+      </span>
     </div>
     <button
       type="button"
@@ -203,14 +205,17 @@
 
 <script>
 (function () {
-  var INTERVAL_MS = {{ (interval_minutes * 60000)|int }};
+  /* APScheduler job aralığı (ms) — yalnızca trend poll tavanı için referans */
+  var JOB_INTERVAL_MS = {{ (interval_minutes * 60000)|int }};
+  /* Sayfa açıkken KPI + GA trend (rtFetchProfile); job’dan bağımsız */
+  var PROFILE_POLL_MS = {{ (ui_poll_seconds * 1000)|int }};
   var PAGES_INTERVAL_MS = 30 * 60000;
   var WINDOW = {{ window_minutes }};
   var _timers = {};
   var _pageTimers = {};
   var _trendTimers = {};
-  /* Sekme görünürken DB trendini çek; aralık scheduler'a yakın ama en fazla 60 sn */
-  var TREND_POLL_MS = Math.min(60000, Math.max(15000, Math.floor(INTERVAL_MS / 4)));
+  /* DB sparkline; GA’dan daha sık, job süresine göre tavan */
+  var TREND_POLL_MS = Math.min(45000, Math.max(12000, Math.floor(Math.min(JOB_INTERVAL_MS, PROFILE_POLL_MS * 4) / 5)));
   var _alarmExpanded = false;
 
   function _fmt(n) {
@@ -809,7 +814,7 @@
       _timers[key] = setInterval(function () {
         if (document.hidden) return;
         rtFetchProfile(sidInt, prof);
-      }, INTERVAL_MS);
+      }, PROFILE_POLL_MS);
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
       _pageTimers[key] = setInterval(function () {
         rtFetchTopPages(sidInt, prof);
