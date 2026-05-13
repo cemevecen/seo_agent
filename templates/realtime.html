@@ -731,7 +731,7 @@
         {# Aktif kullanıcı sparkline (DB snapshot) — aurora çerçeve + Plotly katmanlı çizim #}
         <div class="rt-spark-wrap mt-3" data-rt-chart-wrap>
           <div class="rt-spark-inner">
-            <div class="rt-spark-plot h-14 w-full min-h-[56px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
+            <div class="rt-spark-plot h-28 w-full min-h-[110px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
           </div>
         </div>
 
@@ -1150,7 +1150,7 @@
       } catch (ePurgeId) {}
     }
     el.id = wantId;
-    var sparkH = 56;
+    var sparkH = 110;
     el.style.height = sparkH + 'px';
     if (!trend || !trend.length) {
       try {
