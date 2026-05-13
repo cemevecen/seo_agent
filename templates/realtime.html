@@ -281,6 +281,103 @@
   html.dark .rt-alarm-tab-inactive:hover {
     color: rgb(226 232 240);
   }
+  /* Site alarmları: site filtresi + tablo */
+  .rt-alarm-site-pill {
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgb(71 85 105);
+    background: rgb(255 255 255);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  html.dark .rt-alarm-site-pill {
+    border-color: rgb(71 85 105);
+    color: rgb(203 213 225);
+    background: rgb(30 41 59);
+  }
+  .rt-alarm-site-pill--on {
+    border-color: rgb(129 140 248);
+    background: rgb(224 231 255);
+    color: rgb(55 48 163);
+  }
+  html.dark .rt-alarm-site-pill--on {
+    border-color: rgb(129 140 248);
+    background: rgba(49, 46, 129, 0.55);
+    color: rgb(196 181 253);
+  }
+  .rt-alarm-site-table-wrap {
+    overflow-x: auto;
+    border-radius: 0.5rem;
+  }
+  .rt-alarm-site-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .rt-alarm-site-table thead th {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    font-weight: 800;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgb(100 116 139);
+    border-bottom: 1px solid rgb(226 232 240);
+    white-space: nowrap;
+  }
+  html.dark .rt-alarm-site-table thead th {
+    color: rgb(148 163 184);
+    border-bottom-color: rgb(71 85 105);
+  }
+  .rt-alarm-site-table tbody td {
+    padding: 0.45rem 0.5rem;
+    vertical-align: middle;
+    border-bottom: 1px solid rgb(241 245 249);
+  }
+  html.dark .rt-alarm-site-table tbody td {
+    border-bottom-color: rgba(51, 65, 85, 0.6);
+  }
+  .rt-alarm-site-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--up td {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+  html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--down td {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  html.dark .rt-alarm-site-table tbody tr.rt-alarm--up td {
+    background: rgba(6, 78, 59, 0.55);
+    color: #d1fae5;
+  }
+  html.dark .rt-alarm-site-table tbody tr.rt-alarm--down td {
+    background: rgba(88, 28, 28, 0.55);
+    color: #fecaca;
+  }
+  html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--warn td,
+  html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--info td,
+  html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--crit td {
+    background: #fffbeb;
+    color: #92400e;
+  }
+  html.dark .rt-alarm-site-table tbody tr.rt-alarm--warn td,
+  html.dark .rt-alarm-site-table tbody tr.rt-alarm--info td,
+  html.dark .rt-alarm-site-table tbody tr.rt-alarm--crit td {
+    background: rgba(120, 53, 15, 0.35);
+    color: #fef3c7;
+  }
+  .rt-alarm-site-dir {
+    font-size: 1rem;
+    font-weight: 800;
+    text-align: center;
+    width: 2.25rem;
+  }
   /* Etkinlik listesi kaydırma çubuğu */
   .rt-scroll-area {
     scrollbar-width: thin;
@@ -698,11 +795,16 @@
         Sayfa &amp; haber
       </button>
     </div>
-    <div class="space-y-2" id="rt-alarm-list-site">
-      <p class="text-sm text-slate-400 dark:text-slate-500">Henüz alarm yok.</p>
+    <div id="rt-alarm-panel-site">
+      <div id="rt-alarm-site-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Site filtresi"></div>
+      <div class="rt-alarm-site-table-wrap" id="rt-alarm-list-site">
+        <p class="text-sm text-slate-400 dark:text-slate-500">Henüz site alarmı yok.</p>
+      </div>
     </div>
-    <div class="space-y-2 hidden" id="rt-alarm-list-page">
-      <p class="text-sm text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
+    <div id="rt-alarm-panel-page" class="hidden">
+      <div class="space-y-2" id="rt-alarm-list-page">
+        <p class="text-sm text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -721,6 +823,9 @@
   var RT_VIEW_LS_KEY = 'rt_view_mode';
   var _liveCountdownSec = LIVE_POLL_SEC;
   var _liveTickTimer = null;
+  var RT_ALARM_SITES = {{ sites | tojson }};
+  var _alarmSiteFilter = 'all';
+  var _lastMergedAlarms = [];
 
   function _updateLiveBadge() {
     var el = document.querySelector('[data-rt-live-countdown]');
@@ -1483,7 +1588,10 @@
         .catch(function () {})
         .finally(function () {
           pending--;
-          if (pending <= 0) _renderGlobalAlarms(allAlarms);
+          if (pending <= 0) {
+            _lastMergedAlarms = allAlarms;
+            _renderGlobalAlarms(allAlarms);
+          }
         });
     });
   }
@@ -1499,25 +1607,169 @@
   var _currentAlarmTab = 'site';
   function rtSwitchAlarmTab(tab) {
     _currentAlarmTab = tab;
-    var siteList = document.getElementById('rt-alarm-list-site');
-    var pageList = document.getElementById('rt-alarm-list-page');
+    var sitePanel = document.getElementById('rt-alarm-panel-site');
+    var pagePanel = document.getElementById('rt-alarm-panel-page');
     var siteTab = document.getElementById('rt-alarm-tab-site');
     var pageTab = document.getElementById('rt-alarm-tab-page');
     var activeClass = 'rt-alarm-tab-active';
     var inactiveClass = 'rt-alarm-tab-inactive';
     if (tab === 'site') {
-      if (siteList) siteList.classList.remove('hidden');
-      if (pageList) pageList.classList.add('hidden');
+      if (sitePanel) sitePanel.classList.remove('hidden');
+      if (pagePanel) pagePanel.classList.add('hidden');
       if (siteTab) siteTab.className = activeClass;
       if (pageTab) pageTab.className = inactiveClass;
     } else {
-      if (siteList) siteList.classList.add('hidden');
-      if (pageList) pageList.classList.remove('hidden');
+      if (sitePanel) sitePanel.classList.add('hidden');
+      if (pagePanel) pagePanel.classList.remove('hidden');
       if (siteTab) siteTab.className = inactiveClass;
       if (pageTab) pageTab.className = activeClass;
     }
   }
   window.rtSwitchAlarmTab = rtSwitchAlarmTab;
+
+  function rtSetAlarmSiteFilter(siteId) {
+    _alarmSiteFilter = siteId;
+    _syncAlarmSitePills();
+    _renderGlobalAlarms(_lastMergedAlarms || []);
+  }
+  window.rtSetAlarmSiteFilter = rtSetAlarmSiteFilter;
+
+  function _syncAlarmSitePills() {
+    var wrap = document.getElementById('rt-alarm-site-pills');
+    if (!wrap) return;
+    wrap.querySelectorAll('[data-rt-alarm-site-filter]').forEach(function (btn) {
+      var id = btn.getAttribute('data-rt-alarm-site-filter');
+      var on = id === 'all' ? _alarmSiteFilter === 'all' : String(id) === String(_alarmSiteFilter);
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.classList.toggle('rt-alarm-site-pill--on', on);
+      btn.classList.toggle('rt-alarm-site-pill', true);
+    });
+  }
+
+  function _initRtAlarmSitePills() {
+    var wrap = document.getElementById('rt-alarm-site-pills');
+    if (!wrap || !RT_ALARM_SITES || RT_ALARM_SITES.length < 2) {
+      if (wrap) wrap.classList.add('hidden');
+      _alarmSiteFilter = 'all';
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = '';
+    function addPill(id, label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('data-rt-alarm-site-filter', id);
+      b.textContent = label;
+      b.className = 'rt-alarm-site-pill';
+      b.addEventListener('click', function () {
+        rtSetAlarmSiteFilter(id);
+      });
+      wrap.appendChild(b);
+    }
+    addPill('all', 'Tümü');
+    RT_ALARM_SITES.forEach(function (s) {
+      addPill(String(s.id), s.display_name || s.domain || String(s.id));
+    });
+    _syncAlarmSitePills();
+  }
+
+  function _parseSiteAlarmMessage(msg) {
+    var s = String(msg || '');
+    var m = s.match(/^(.+?)\s+(Desktop|Mobile Web|Android|iOS)\s+—\s+(\S+)\s+([\d.]+)\s+→\s+([\d.]+)\s+\(([+-]?\d+\.?\d*)%\)\s*$/);
+    if (m) {
+      return { domain: m[1].trim(), profile: m[2], metricKey: m[3] };
+    }
+    m = s.match(/^[^:]+:\s*(.+?)\s+(Desktop|Mobile Web|Android|iOS)\s+—\s+(\S+)\s+/);
+    if (m) {
+      return { domain: m[1].trim(), profile: m[2], metricKey: m[3] };
+    }
+    return null;
+  }
+
+  function _rtMetricTr(key) {
+    if (key === 'activeUsers') return 'Aktif kullanıcı';
+    if (key === 'screenPageViews') return 'Sayfa görüntüleme';
+    return key || '—';
+  }
+
+  function _siteShortLabel(siteId) {
+    if (!RT_ALARM_SITES || !siteId) return '';
+    var sid = String(siteId);
+    for (var i = 0; i < RT_ALARM_SITES.length; i++) {
+      if (String(RT_ALARM_SITES[i].id) === sid) {
+        return RT_ALARM_SITES[i].display_name || RT_ALARM_SITES[i].domain || sid;
+      }
+    }
+    return '';
+  }
+
+  function _renderSiteAlarmTable(listEl, alarms, showCount, emptyMsg) {
+    if (!listEl) return;
+    if (!alarms.length) {
+      listEl.innerHTML = '<p class="rt-empty text-sm">' + _esc(emptyMsg) + '</p>';
+      return;
+    }
+    var slice = alarms.slice(0, showCount);
+    var rows = slice.map(function (a) {
+      var rid = String(a.rule_id || '');
+      var pct = parseFloat(a.change_pct);
+      var sev;
+      if (rid === 'traffic_drop' || rid === 'pageview_drop') {
+        sev = 'rt-alarm--down';
+      } else if (rid === 'traffic_spike') {
+        sev = 'rt-alarm--up';
+      } else if (pct < 0) {
+        sev = 'rt-alarm--down';
+      } else if (pct > 0) {
+        sev = 'rt-alarm--up';
+      } else if (a.severity === 'critical') {
+        sev = 'rt-alarm--crit';
+      } else if (a.severity === 'info') {
+        sev = 'rt-alarm--info';
+      } else {
+        sev = 'rt-alarm--warn';
+      }
+      var dir = pct < 0 ? '↓' : pct > 0 ? '↑' : '·';
+      var dirTitle = pct < 0 ? 'Düşüş' : pct > 0 ? 'Artış' : 'Değişim';
+      var parsed = _parseSiteAlarmMessage(a.message);
+      var dom = (a.domain || (parsed && parsed.domain) || '').trim();
+      var prof = parsed && parsed.profile ? parsed.profile : '—';
+      var metricKey = a.metric || (parsed && parsed.metricKey) || '';
+      var prev = a.previous_value;
+      var cur = a.current_value;
+      var pctStr = (typeof a.change_pct === 'number' ? a.change_pct : parseFloat(a.change_pct));
+      if (isNaN(pctStr)) pctStr = 0;
+      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+      var shortLab = _siteShortLabel(a.site_id) || dom;
+      return (
+        '<tr class="' + sev + '">' +
+        '<td class="rt-alarm-site-dir" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
+        '<td><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
+        '<td>' + _esc(prof) + '</td>' +
+        '<td>' + _esc(_rtMetricTr(metricKey)) + '</td>' +
+        '<td class="tabular-nums">' + _esc(String(Math.round(prev))) + '</td>' +
+        '<td class="tabular-nums">' + _esc(String(Math.round(cur))) + '</td>' +
+        '<td class="tabular-nums font-semibold">' + _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') + '</td>' +
+        '<td class="tabular-nums text-xs opacity-80">' + _esc(dt) + '</td>' +
+        '</tr>'
+      );
+    }).join('');
+    listEl.innerHTML =
+      '<table class="rt-alarm-site-table" role="grid">' +
+      '<thead><tr>' +
+      '<th scope="col">Yön</th>' +
+      '<th scope="col">Site</th>' +
+      '<th scope="col">Profil</th>' +
+      '<th scope="col">Metrik</th>' +
+      '<th scope="col">Önceki</th>' +
+      '<th scope="col">Şimdi</th>' +
+      '<th scope="col">%</th>' +
+      '<th scope="col">Saat</th>' +
+      '</tr></thead><tbody>' +
+      rows +
+      '</tbody></table>';
+  }
 
   function _renderGlobalAlarms(alarms) {
     var siteList = document.getElementById('rt-alarm-list-site');
@@ -1546,7 +1798,15 @@
     }
 
     var showCount = _alarmExpanded ? 50 : 10;
-    _renderAlarmList(siteList, siteAlarms, showCount, 'Henüz site alarmı yok.');
+    var siteFiltered = siteAlarms.filter(function (a) {
+      if (_alarmSiteFilter === 'all') return true;
+      return String(a.site_id || '') === String(_alarmSiteFilter);
+    });
+    var siteEmpty =
+      siteAlarms.length && !siteFiltered.length
+        ? 'Seçilen site için bu aralıkta alarm yok.'
+        : 'Henüz site alarmı yok.';
+    _renderSiteAlarmTable(siteList, siteFiltered, showCount, siteEmpty);
     _renderAlarmList(pageList, pageAlarms, showCount, 'Henüz sayfa alarmı yok.');
   }
 
@@ -1710,6 +1970,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     rtInitViewMode();
+    _initRtAlarmSitePills();
     _startPolling();
   });
 })();

@@ -174,7 +174,6 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         cur = alarm.get("current_value", 0)
         prev = alarm.get("previous_value", 0)
         pct = float(alarm.get("change_pct", 0.0))
-        label = html.escape(str(alarm.get("label", "Alarm")))
         is_drop = pct < 0 or str(alarm.get("rule_id", "")) in ("page_disappeared", "news_disappeared")
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
@@ -195,7 +194,7 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
                         background:{bg};max-width:600px;">
                 <div style="font-size:11px;letter-spacing:0.06em;font-weight:700;color:{title_c};text-transform:uppercase;">
-                    {label} · {prof_e}
+                    {metric_tr} · {prof_e}
                 </div>
                 <div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
                     <span style="font-size:13px;color:#64748b;">Önceki yarı</span>
@@ -383,7 +382,7 @@ def _realtime_row_dimensions(row: Any, dim_headers: list[str]) -> dict[str, str]
 # Yüzdesel düşüş/artış eşikleri (ayarlar sayfasından override edilebilir)
 ALARM_RULES: dict[str, dict[str, Any]] = {
     "traffic_drop": {
-        "label": "Traffic düşüşü",
+        "label": "Aktif kullanıcılar",
         "metric": "activeUsers",
         "direction": "drop",
         "threshold_pct": 40,
@@ -391,7 +390,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "critical",
     },
     "traffic_spike": {
-        "label": "Traffic artışı",
+        "label": "Aktif kullanıcılar",
         "metric": "activeUsers",
         "direction": "spike",
         "threshold_pct": 80,
@@ -399,7 +398,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "warning",
     },
     "pageview_drop": {
-        "label": "Sayfa görüntüleme düşüşü",
+        "label": "Sayfa görüntülemeleri",
         "metric": "screenPageViews",
         "direction": "drop",
         "threshold_pct": 50,
@@ -1361,8 +1360,7 @@ def evaluate_alarms(
                 "change_pct": change_pct,
                 "threshold_pct": threshold,
                 "message": (
-                    f"{rule['label']}: {metric_name} "
-                    f"{prev_val:.0f} → {cur_val:.0f} ({change_pct:+.1f}%)"
+                    f"{metric_name} {prev_val:.0f} → {cur_val:.0f} ({change_pct:+.1f}%)"
                 ),
             })
 
@@ -1417,7 +1415,7 @@ def check_site_realtime(
         a["profile"] = profile
         a["profile_label"] = profile_label
         a["message"] = (
-            f"{a['label']}: {site.domain} {profile_label} — "
+            f"{site.domain} {profile_label} — "
             f"{a['metric']} {a['previous_value']:.0f} → {a['current_value']:.0f} ({a['change_pct']:+.1f}%)"
         )
 
@@ -1598,6 +1596,7 @@ def get_recent_alarms(
         out.append(
             {
                 "id": row.id,
+                "site_id": site_id,
                 "rule_id": row.rule_id,
                 "metric": metric,
                 "severity": row.severity,
