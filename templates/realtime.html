@@ -1583,47 +1583,83 @@
       return;
     }
     listEl.innerHTML = alarms.slice(0, showCount).map(function (a) {
-      var isDown = (a.message || '').indexOf('düşüş') !== -1 || (a.message || '').indexOf('kaybol') !== -1;
-      var isUp = (a.message || '').indexOf('artış') !== -1 || (a.message || '').indexOf('yeni') !== -1;
-      var sev, icon;
-      if (isDown) {
-        sev = 'rt-alarm-row rt-alarm--down';
-        icon = '🔴';
-      } else if (isUp) {
-        sev = 'rt-alarm-row rt-alarm--up';
-        icon = '🟢';
-      } else if (a.severity === 'critical') {
-        sev = 'rt-alarm-row rt-alarm--crit';
-        icon = '🔴';
-      } else if (a.severity === 'info') {
-        sev = 'rt-alarm-row rt-alarm--info';
-        icon = '🔵';
+      var mStr = String(a.metric || '');
+      var isPageNews = mStr.indexOf('page:') === 0 || mStr.indexOf('news:') === 0;
+      var rid = String(a.rule_id || '');
+      var msg = a.message || '';
+      var sev;
+      var icon = '';
+      if (isPageNews) {
+        if (
+          rid === 'page_traffic_drop' ||
+          rid === 'page_disappeared' ||
+          rid === 'news_traffic_drop' ||
+          rid === 'news_disappeared'
+        ) {
+          sev = 'rt-alarm-row rt-alarm--down';
+        } else if (
+          rid === 'page_traffic_spike' ||
+          rid === 'page_new_entry' ||
+          rid === 'news_traffic_spike' ||
+          rid === 'news_new_entry'
+        ) {
+          sev = 'rt-alarm-row rt-alarm--up';
+        } else if (msg.indexOf('düştü') !== -1 || msg.indexOf('çıktı') !== -1 || msg.indexOf('düşüş') !== -1 || msg.indexOf('kaybol') !== -1) {
+          sev = 'rt-alarm-row rt-alarm--down';
+        } else if (msg.indexOf('arttı') !== -1 || msg.indexOf('girdi') !== -1 || msg.indexOf('artış') !== -1 || msg.indexOf('yeni') !== -1) {
+          sev = 'rt-alarm-row rt-alarm--up';
+        } else if (a.severity === 'critical') {
+          sev = 'rt-alarm-row rt-alarm--crit';
+        } else if (a.severity === 'info') {
+          sev = 'rt-alarm-row rt-alarm--info';
+        } else {
+          sev = 'rt-alarm-row rt-alarm--warn';
+        }
       } else {
-        sev = 'rt-alarm-row rt-alarm--warn';
-        icon = '🟡';
+        var isDown =
+          msg.indexOf('düşüş') !== -1 ||
+          msg.indexOf('kaybol') !== -1 ||
+          msg.indexOf('düştü') !== -1 ||
+          msg.indexOf('çıktı') !== -1;
+        var isUp =
+          msg.indexOf('artış') !== -1 ||
+          msg.indexOf('yeni') !== -1 ||
+          msg.indexOf('arttı') !== -1 ||
+          msg.indexOf('girdi') !== -1;
+        if (isDown) {
+          sev = 'rt-alarm-row rt-alarm--down';
+          icon = '🔴';
+        } else if (isUp) {
+          sev = 'rt-alarm-row rt-alarm--up';
+          icon = '🟢';
+        } else if (a.severity === 'critical') {
+          sev = 'rt-alarm-row rt-alarm--crit';
+          icon = '🔴';
+        } else if (a.severity === 'info') {
+          sev = 'rt-alarm-row rt-alarm--info';
+          icon = '🔵';
+        } else {
+          sev = 'rt-alarm-row rt-alarm--warn';
+          icon = '🟡';
+        }
       }
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
-      var mStr = String(a.metric || '');
       var href = a.row_url || _rtAlarmHrefFromDomain(a.domain || '', mStr);
       var raw = _rtAlarmRawFromMetric(mStr);
       var sub = '';
-      if (raw && (mStr.indexOf('page:') === 0 || mStr.indexOf('news:') === 0)) {
+      if (raw && isPageNews) {
         if (href) {
           sub =
-            '<div class="mt-1.5 block pl-6 text-xs leading-snug"><a class="font-medium text-sky-600 underline dark:text-sky-400" href="' +
+            '<div class="mt-1.5 text-xs leading-snug"><a class="font-medium text-sky-600 underline dark:text-sky-400" href="' +
             _esc(href) +
-            '" target="_blank" rel="noopener noreferrer">Sayfayı aç</a><span class="text-slate-500 dark:text-slate-500"> · </span><span class="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">' +
-            _esc(raw) +
-            '</span></div>';
+            '" target="_blank" rel="noopener noreferrer">Sayfayı aç</a></div>';
         } else {
           sub =
-            '<div class="mt-1.5 block pl-6 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Tam URL yok (GA ekran adı / etkinlik): <span class="break-all font-mono">' +
-            _esc(raw) +
-            '</span></div>';
+            '<div class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Bu satır için tam URL üretilemedi (GA ekran adı veya yol).</div>';
         }
       }
-      return '<div class="' + sev + '"><div><span class="font-semibold">' + icon + '</span> '
-        + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>' + sub + '</div>';
+      var lead = icon ? '<span class="font-semibold">' + icon + '</span> ' : '';
+      return '<div class="' + sev + '"><div>' + lead + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>' + sub + '</div>';
     }).join('');
   }
 

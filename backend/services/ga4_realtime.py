@@ -246,12 +246,10 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = float(alarm.get("change_pct", 0.0))
-        label = html.escape(str(alarm.get("label", "Alarm")))
         rid = str(alarm.get("rule_id", ""))
         is_drop = pct < 0 or rid == "page_disappeared"
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
-        title_c = "#991b1b" if is_drop else "#166534"
         pct_c = "#dc2626" if is_drop else "#16a34a"
         if rid == "page_disappeared":
             explain = "Bu başlık/URL bir önceki ölçümde listedeydi; şimdi eşik altında veya listeden çıktı."
@@ -264,10 +262,8 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f"""
             <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
                         background:{bg};max-width:600px;">
-                <div style="font-size:11px;letter-spacing:0.06em;font-weight:700;color:{title_c};text-transform:uppercase;">
-                    {label} · {prof_e}
-                </div>
-                <p style="margin:10px 0 6px;font-size:13px;color:#475569;word-break:break-all;line-height:1.45;">{page_e}</p>
+                <div style="font-size:11px;color:#64748b;margin-bottom:6px;">{html.escape(profile_label)}</div>
+                <p style="margin:0 0 8px;font-size:17px;font-weight:800;color:#0f172a;word-break:break-word;line-height:1.35;">{page_e}</p>
                 {link_block}
                 <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
                     <span style="font-size:13px;color:#64748b;">Önce</span>
@@ -318,12 +314,10 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = float(alarm.get("change_pct", 0.0))
-        label = html.escape(str(alarm.get("label", "Alarm")))
         rid = str(alarm.get("rule_id", ""))
         is_drop = pct < 0 or rid == "news_disappeared"
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
-        title_c = "#991b1b" if is_drop else "#166534"
         pct_c = "#dc2626" if is_drop else "#16a34a"
         if rid == "news_disappeared":
             explain = "Bu başlık listeden düştü veya trafik eşiğin altına indi."
@@ -336,10 +330,8 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f"""
             <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
                         background:{bg};max-width:600px;">
-                <div style="font-size:11px;letter-spacing:0.06em;font-weight:700;color:{title_c};text-transform:uppercase;">
-                    {label} · {prof_e}
-                </div>
-                <p style="margin:10px 0 6px;font-size:14px;font-weight:600;color:#0f172a;line-height:1.4;">{page_e}</p>
+                <div style="font-size:11px;color:#64748b;margin-bottom:6px;">{prof_e}</div>
+                <p style="margin:0 0 8px;font-size:17px;font-weight:800;color:#0f172a;word-break:break-word;line-height:1.35;">{page_e}</p>
                 {link_block}
                 <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
                     <span style="font-size:13px;color:#64748b;">Önce</span>
@@ -1665,6 +1657,15 @@ def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_W
 
 # ── Sayfa bazlı alarm sistemi ────────────────────────────────────────────────
 
+
+def _rt_alarm_screen_title_one_line(key: str, *, max_len: int = 100) -> str:
+    """GA4 satır kimliği (path veya unifiedScreenName) — UI ve log için kısaltılmış tek başlık."""
+    s = str(key or "").strip()
+    if not s:
+        return "—"
+    return s if len(s) <= max_len else s[: max_len - 1] + "…"
+
+
 def save_page_snapshots(
     db: Session,
     site_id: int,
@@ -1753,8 +1754,6 @@ def evaluate_page_alarms(
     page_rules = _realtime_rules_threshold_pct_for_domain(PAGE_ALARM_RULES, site_domain)
 
     triggered: list[dict[str, Any]] = []
-    plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-    tag = f"{site_domain} {plabel}" if site_domain else plabel
 
     prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
@@ -1762,6 +1761,7 @@ def evaluate_page_alarms(
     for page_path, curr in curr_map.items():
         curr_users = curr.get("activeUsers", 0)
         prev = prev_map.get(page_path)
+        title = _rt_alarm_screen_title_one_line(page_path)
 
         if prev:
             prev_users = prev.get("activeUsers", 0)
@@ -1779,7 +1779,7 @@ def evaluate_page_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": f"📉 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
+                        "message": f"{title} — trafik düştü: {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
 
             rule = page_rules["page_traffic_spike"]
@@ -1795,7 +1795,7 @@ def evaluate_page_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": f"📈 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
+                        "message": f"{title} — trafik arttı: {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
         else:
             rule = page_rules["page_new_entry"]
@@ -1809,7 +1809,7 @@ def evaluate_page_alarms(
                     "current_users": curr_users,
                     "previous_users": 0,
                     "change_pct": 100.0,
-                    "message": f"🆕 [{tag}] {page_path[:60]} — top listeye girdi ({curr_users:.0f} kullanıcı)",
+                    "message": f"{title} — listeye girdi ({curr_users:.0f} kullanıcı)",
                 })
 
     rule = page_rules["page_disappeared"]
@@ -1817,6 +1817,7 @@ def evaluate_page_alarms(
         if page_path not in curr_map:
             prev_users = prev.get("activeUsers", 0)
             if prev_users >= rule["min_prev_users"]:
+                title = _rt_alarm_screen_title_one_line(page_path)
                 triggered.append({
                     "rule_id": "page_disappeared",
                     "severity": rule["severity"],
@@ -1826,7 +1827,7 @@ def evaluate_page_alarms(
                     "current_users": 0,
                     "previous_users": prev_users,
                     "change_pct": -100.0,
-                    "message": f"⚠️ [{tag}] {page_path[:60]} — listeden düştü (önceki: {prev_users:.0f})",
+                    "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
                 })
 
     return triggered
@@ -2061,8 +2062,6 @@ def evaluate_news_alarms(
     news_rules = _realtime_rules_threshold_pct_for_domain(NEWS_ALARM_RULES, site_domain)
 
     triggered: list[dict[str, Any]] = []
-    plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-    tag = f"{site_domain} {plabel}" if site_domain else plabel
 
     prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
@@ -2070,6 +2069,7 @@ def evaluate_news_alarms(
     for page_path, curr in curr_map.items():
         curr_users = curr.get("activeUsers", 0)
         prev = prev_map.get(page_path)
+        title = _rt_alarm_screen_title_one_line(page_path)
 
         if prev:
             prev_users = prev.get("activeUsers", 0)
@@ -2087,10 +2087,7 @@ def evaluate_news_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": (
-                            f"📉 Haberler [{tag}] {page_path[:60]} — "
-                            f"{prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)"
-                        ),
+                        "message": f"{title} — trafik düştü: {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
 
             rule = news_rules["news_traffic_spike"]
@@ -2106,10 +2103,7 @@ def evaluate_news_alarms(
                         "current_users": curr_users,
                         "previous_users": prev_users,
                         "change_pct": round(pct, 1),
-                        "message": (
-                            f"📈 Haberler [{tag}] {page_path[:60]} — "
-                            f"{prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)"
-                        ),
+                        "message": f"{title} — trafik arttı: {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
         else:
             rule = news_rules["news_new_entry"]
@@ -2123,10 +2117,7 @@ def evaluate_news_alarms(
                     "current_users": curr_users,
                     "previous_users": 0,
                     "change_pct": 100.0,
-                    "message": (
-                        f"🆕 Haberler [{tag}] {page_path[:60]} — "
-                        f"listeye girdi ({curr_users:.0f} kullanıcı)"
-                    ),
+                    "message": f"{title} — listeye girdi ({curr_users:.0f} kullanıcı)",
                 })
 
     rule = news_rules["news_disappeared"]
@@ -2134,6 +2125,7 @@ def evaluate_news_alarms(
         if page_path not in curr_map:
             prev_users = prev.get("activeUsers", 0)
             if prev_users >= rule["min_prev_users"]:
+                title = _rt_alarm_screen_title_one_line(page_path)
                 triggered.append({
                     "rule_id": "news_disappeared",
                     "severity": rule["severity"],
@@ -2143,10 +2135,7 @@ def evaluate_news_alarms(
                     "current_users": 0,
                     "previous_users": prev_users,
                     "change_pct": -100.0,
-                    "message": (
-                        f"⚠️ Haberler [{tag}] {page_path[:60]} — "
-                        f"listeden düştü (önceki: {prev_users:.0f})"
-                    ),
+                    "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
                 })
 
     return triggered
