@@ -239,8 +239,14 @@
     background: rgb(238 242 255);
   }
   html.dark .rt-viv-card.rt-viv-card--selected {
-    background: rgba(67 56 202 0.25);
-    outline-color: rgb(165 180 252);
+    background: rgba(67, 56, 202, 0.28);
+    outline-color: rgb(165, 180, 252);
+  }
+  html.dark .rt-viv-card.rt-viv-card--selected h4 {
+    color: rgb(244, 244, 245);
+  }
+  html.dark .rt-viv-card.rt-viv-card--selected p {
+    color: rgb(212, 212, 216);
   }
   .rt-viv-compare-wrap {
     border-radius: 0.75rem;
@@ -249,8 +255,9 @@
     background: rgb(248 250 252);
   }
   html.dark .rt-viv-compare-wrap {
-    border-color: rgba(129 140 248, 0.45);
-    background: rgba(24 24 27 0.85);
+    border-color: rgba(129, 140, 248, 0.45);
+    background: rgba(24, 24, 27, 0.96);
+    color: rgb(228, 228, 231);
   }
   .rt-viv-cmp-table {
     width: 100%;
@@ -266,7 +273,7 @@
   }
   html.dark .rt-viv-cmp-table th,
   html.dark .rt-viv-cmp-table td {
-    border-bottom-color: rgb(63 63 70);
+    border-bottom-color: rgb(63, 63, 70);
   }
   .rt-viv-cmp-table th {
     font-weight: 700;
@@ -274,7 +281,17 @@
     width: 28%;
   }
   html.dark .rt-viv-cmp-table th {
-    color: rgb(203 213 225);
+    color: rgb(226, 232, 240);
+  }
+  html.dark .rt-viv-cmp-table td {
+    color: rgb(228, 228, 231);
+  }
+  html.dark .rt-viv-cmp-table code {
+    background: rgb(39, 39, 42);
+    color: rgb(212, 212, 216);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.78em;
   }
   .rt-viv-cmp-better {
     font-weight: 800;
@@ -310,6 +327,15 @@
   }
   html.dark .rt-viv-ghost-btn:hover {
     background: rgb(39 39 42);
+  }
+  .rt-viv-compare-wrap .rt-viv-ghost-btn {
+    margin-top: 0;
+  }
+  html.dark .rt-viv-compare-wrap .rt-viv-ghost-btn {
+    background: rgb(39, 39, 42);
+  }
+  html.dark .rt-viv-compare-wrap .rt-viv-ghost-btn:hover {
+    background: rgb(63, 63, 70);
   }
 </style>
 
