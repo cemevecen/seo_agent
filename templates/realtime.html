@@ -356,7 +356,8 @@
   }
   .rt-alarm-site-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0 0.35rem;
     font-size: 0.8125rem;
     font-weight: 500;
   }
@@ -378,13 +379,24 @@
   .rt-alarm-site-table tbody td {
     padding: 0.45rem 0.5rem;
     vertical-align: middle;
-    border-bottom: 1px solid rgb(241 245 249);
-  }
-  html.dark .rt-alarm-site-table tbody td {
-    border-bottom-color: rgba(51, 65, 85, 0.6);
-  }
-  .rt-alarm-site-table tbody tr:last-child td {
     border-bottom: none;
+  }
+  /* Satır highlight’ları arasında boşluk + hafif kart köşesi (tek blok görünümünü kırar) */
+  .rt-alarm-site-table tbody tr.rt-alarm--up td:first-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--down td:first-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--warn td:first-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--info td:first-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--crit td:first-child {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+  }
+  .rt-alarm-site-table tbody tr.rt-alarm--up td:last-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--down td:last-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--warn td:last-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--info td:last-child,
+  .rt-alarm-site-table tbody tr.rt-alarm--crit td:last-child {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
   }
   html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--up td {
     background: #ecfdf5;
