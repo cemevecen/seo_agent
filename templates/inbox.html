@@ -225,7 +225,7 @@
         subjh.indexOf("Re:") === 0 ? subjh : "Re: " + (subjh || threadSubj || "");
     }
     var anchor = document.getElementById("inbox-compose-anchor");
-    if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "auto", block: "nearest" });
   }
 
   async function sendInboxMailFromComposer() {
@@ -302,25 +302,32 @@
         })
         .join("");
       Array.prototype.forEach.call(list.querySelectorAll(".inbox-use-template-btn"), function (btn) {
-        btn.addEventListener("click", function () {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
           var idx = parseInt(btn.getAttribute("data-idx"), 10);
           applyReplyTemplate(templatesCache[idx]);
         });
       });
       Array.prototype.forEach.call(list.querySelectorAll(".inbox-send-template-btn"), function (btn) {
-        btn.addEventListener("click", async function () {
+        btn.addEventListener("click", async function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
           var idx = parseInt(btn.getAttribute("data-idx"), 10);
           if (!templatesCache[idx] || !selectedId) return;
           applyReplyTemplate(templatesCache[idx]);
-          if (!confirm("Bu şablon metni Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
-          try {
-            await sendInboxMailFromComposer();
-            replyToGmailId = null;
-            await loadThreads();
-            await openDetail(selectedId);
-          } catch (e) {
-            showBanner(String(e.message || e));
-          }
+          // Minik bir gecikme: scroll bitmeden confirm açılırsa bazı tarayıcılarda sorun çıkabiliyor
+          setTimeout(async function() {
+            if (!confirm("Bu şablon Gmail üzerinden gönderilecek. Onaylıyor musunuz?")) return;
+            try {
+              await sendInboxMailFromComposer();
+              replyToGmailId = null;
+              await loadThreads();
+              await openDetail(selectedId);
+            } catch (e) {
+              showBanner(String(e.message || e));
+            }
+          }, 50);
         });
       });
     } catch (e) {
@@ -649,7 +656,7 @@
         document.getElementById("inbox-send-body").value = "";
         loadReplyTemplates(gmid);
         var anchor = document.getElementById("inbox-compose-anchor");
-        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "auto", block: "nearest" });
       });
     });
     var focusG = lastInboundGmailId(messages);
@@ -773,7 +780,9 @@
       showBanner(String(e.message || e));
     }
   });
-  document.getElementById("btn-send").addEventListener("click", async function () {
+  document.getElementById("btn-send").addEventListener("click", async function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
     if (!selectedId) return;
     if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
     try {
