@@ -32,6 +32,13 @@ from backend.services.ga4_auth import (
 
 logger = logging.getLogger(__name__)
 
+
+def _realtime_row_dimensions(row: Any, dim_headers: list[str]) -> dict[str, str]:
+    """GA4 Realtime satırındaki boyutları isim → değer haritasına çevirir (sıra/API ek boyutları için)."""
+    vals = [dv.value for dv in row.dimension_values]
+    return {name: (vals[i] if i < len(vals) else "") for i, name in enumerate(dim_headers)}
+
+
 # ── Alarm eşikleri ────────────────────────────────────────────────────────────
 # Yüzdesel düşüş/artış eşikleri (ayarlar sayfasından override edilebilir)
 ALARM_RULES: dict[str, dict[str, Any]] = {
@@ -231,14 +238,18 @@ def fetch_realtime_top_pages(
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     metric_names = [m.name for m in response.metric_headers]
+    dim_headers = [h.name for h in response.dimension_headers]
     pages: list[dict[str, Any]] = []
 
     for row in response.rows:
-        page_path = ""
-        for dv in row.dimension_values:
-            if dv.value not in ("current", "previous"):
-                page_path = dv.value
-                break
+        dm = _realtime_row_dimensions(row, dim_headers)
+        page_path = str(dm.get(dimension, "") or "").strip()
+        if not page_path or page_path.lower() in ("current", "previous"):
+            for _k, v in dm.items():
+                vs = (v or "").strip()
+                if vs and vs.lower() not in ("current", "previous"):
+                    page_path = vs
+                    break
         metrics_dict: dict[str, float] = {}
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
@@ -269,6 +280,7 @@ def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, in
             "(other)",
             "not set",
             "(data not available)",
+            "(blank)",
         },
     )
     total = len(pages)
@@ -279,6 +291,72 @@ def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, in
 
     labeled = sum(1 for p in pages if _ok(p.get("page")))
     return labeled, total
+
+
+# Firebase / Android stream bazen unifiedScreenName boş kalır; Realtime şemasında denenecek sıra.
+_REALTIME_APP_SCREEN_DIMENSIONS: tuple[str, ...] = (
+    "unifiedScreenName",
+    "screenName",
+    "unifiedScreenClass",
+    "pageTitle",
+)
+
+
+def fetch_realtime_top_pages_pick_best_screen_dimension(
+    property_id: str,
+    *,
+    window_minutes: int,
+    limit: int,
+    sort_by: str,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Mobil stream için en anlamlı ekran boyutunu seçer (tek boyutta takılı kalmayı önler)."""
+    if client is None:
+        client = _build_client()
+    best: dict[str, Any] | None = None
+    best_key: tuple[int, int] = (-1, -1)
+    last_exc: Exception | None = None
+    for dim in _REALTIME_APP_SCREEN_DIMENSIONS:
+        try:
+            res = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=limit,
+                sort_by=sort_by,
+                dimension=dim,
+                client=client,
+            )
+        except Exception as exc:
+            last_exc = exc
+            logger.debug(
+                "Realtime top pages dimension=%s property=%s: %s",
+                dim,
+                property_id,
+                exc,
+            )
+            continue
+        pages = res.get("pages") or []
+        labeled, total = _realtime_screen_label_quality(pages)
+        key = (labeled, total)
+        if key > best_key:
+            best_key = key
+            best = res
+            best["breakdown"] = dim
+        if total > 0 and labeled >= 3 and labeled / total >= 0.45:
+            res["breakdown"] = dim
+            return res
+    if best is not None:
+        return best
+    if last_exc is not None:
+        raise last_exc
+    return fetch_realtime_top_pages(
+        property_id,
+        window_minutes=window_minutes,
+        limit=limit,
+        sort_by=sort_by,
+        dimension="unifiedScreenName",
+        client=client,
+    )
 
 
 def fetch_realtime_top_event_names(
@@ -318,14 +396,18 @@ def fetch_realtime_top_event_names(
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     metric_names = [m.name for m in response.metric_headers]
+    dim_headers = [h.name for h in response.dimension_headers]
     pages: list[dict[str, Any]] = []
 
     for row in response.rows:
-        name = ""
-        for dv in row.dimension_values:
-            if dv.value not in ("current", "previous"):
-                name = (dv.value or "").strip()
-                break
+        dm = _realtime_row_dimensions(row, dim_headers)
+        name = str(dm.get("eventName", "") or "").strip()
+        if not name:
+            for _k, v in dm.items():
+                vs = (v or "").strip()
+                if vs and vs.lower() not in ("current", "previous"):
+                    name = vs
+                    break
         if not name:
             continue
         metrics_dict: dict[str, float] = {}
@@ -362,8 +444,19 @@ def fetch_realtime_top_pages_with_app_fallback(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Önce unifiedScreenName; Android/iOS’ta etiket zayıfsa eventName listesine düşer."""
-    base = fetch_realtime_top_pages(
+    """Mobil: önce en iyi ekran boyutu; etiketler zayıfsa eventName kırılımına düşer."""
+    if profile not in ("android", "ios"):
+        base = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=limit,
+            sort_by=sort_by,
+            client=client,
+        )
+        base["breakdown"] = "unifiedScreenName"
+        return base
+
+    base = fetch_realtime_top_pages_pick_best_screen_dimension(
         property_id,
         window_minutes=window_minutes,
         limit=limit,
@@ -371,10 +464,6 @@ def fetch_realtime_top_pages_with_app_fallback(
         client=client,
     )
     pages = base.get("pages") or []
-    base["breakdown"] = "unifiedScreenName"
-
-    if profile not in ("android", "ios"):
-        return base
 
     labeled, total = _realtime_screen_label_quality(pages)
     weak = labeled < 2 or (total > 0 and labeled / total < 0.35)
@@ -406,6 +495,71 @@ def fetch_realtime_top_pages_with_app_fallback(
     alt["unified_screen_labeled_rows"] = labeled
     alt["unified_screen_total_rows"] = total
     return alt
+
+
+def fetch_realtime_top_events_fallback_active_users(
+    property_id: str,
+    window_minutes: int = 30,
+    *,
+    limit: int = 200,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any] | None:
+    """Bazı Android stream'lerde eventCount kırılımı boş döner; activeUsers ile etkinlik sırası dene."""
+    if client is None:
+        client = _build_client()
+    w = max(1, min(window_minutes, 30))
+    fetch_limit = max(1, min(limit, 250))
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="eventName")],
+        metrics=[Metric(name="activeUsers")],
+        minute_ranges=[
+            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        ],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="activeUsers", desc=True))],
+        limit=fetch_limit,
+    )
+    t0 = time.monotonic()
+    response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+    dim_headers = [h.name for h in response.dimension_headers]
+    metric_names = [m.name for m in response.metric_headers]
+    events: list[dict[str, Any]] = []
+    for row in response.rows:
+        dm = _realtime_row_dimensions(row, dim_headers)
+        en = str(dm.get("eventName", "") or "").strip()
+        if not en:
+            for _k, v in dm.items():
+                vs = (v or "").strip()
+                if vs and vs.lower() not in ("current", "previous"):
+                    en = vs
+                    break
+        if not en:
+            continue
+        au = 0.0
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            if mname == "activeUsers":
+                try:
+                    au = float(mv.value)
+                except (ValueError, TypeError):
+                    au = 0.0
+                break
+        events.append({"eventName": en, "eventCount": au})
+    events.sort(key=lambda e: e["eventCount"], reverse=True)
+    if not events:
+        return None
+    tot = sum(e["eventCount"] for e in events)
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "events": events,
+        "total_event_count": tot,
+        "truncated": len(response.rows) >= fetch_limit,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+        "count_basis": "active_users",
+    }
 
 
 def fetch_realtime_top_events(
@@ -472,14 +626,18 @@ def fetch_realtime_top_events(
         response = client.run_realtime_report(request)
     elapsed_ms = int((time.monotonic() - t0) * 1000)
     metric_names = [m.name for m in response.metric_headers]
+    dim_headers = [h.name for h in response.dimension_headers]
     events: list[dict[str, Any]] = []
 
     for row in response.rows:
-        event_name = ""
-        for dv in row.dimension_values:
-            if dv.value not in ("current", "previous"):
-                event_name = dv.value or ""
-                break
+        dm = _realtime_row_dimensions(row, dim_headers)
+        event_name = str(dm.get("eventName", "") or "").strip()
+        if not event_name:
+            for _k, v in dm.items():
+                vs = (v or "").strip()
+                if vs and vs.lower() not in ("current", "previous"):
+                    event_name = vs
+                    break
         metrics_dict: dict[str, float] = {}
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
@@ -491,6 +649,25 @@ def fetch_realtime_top_events(
         events.append({"eventName": event_name, "eventCount": ec})
 
     events.sort(key=lambda e: e["eventCount"], reverse=True)
+
+    needs_ev_fallback = (
+        not events
+        or not any((e.get("eventName") or "").strip() for e in events)
+        or not any((e.get("eventCount") or 0) > 0 for e in events)
+    )
+    if needs_ev_fallback:
+        try:
+            alt_ev = fetch_realtime_top_events_fallback_active_users(
+                property_id, window_minutes=w, limit=limit, client=client
+            )
+            if alt_ev and alt_ev.get("events"):
+                return alt_ev
+        except Exception as exc:
+            logger.debug(
+                "Realtime top-events activeUsers fallback [%s]: %s",
+                property_id,
+                exc,
+            )
 
     if total_event_count <= 0:
         total_event_count = sum(e["eventCount"] for e in events)
@@ -505,6 +682,7 @@ def fetch_realtime_top_events(
         "truncated": truncated,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "api_ms": elapsed_ms,
+        "count_basis": "event_count",
     }
 
 
