@@ -6,6 +6,8 @@ activeUsers/screenPageViews değişimini izleyerek alarm tetikler.
 
 from __future__ import annotations
 
+import hashlib
+import html
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -31,6 +33,13 @@ from backend.services.ga4_auth import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _realtime_email_thread_key(domain: str, profile: str) -> str:
+    """Gmail iş parçacığı / References için site+profil anahtarı (ASCII, kısa)."""
+    d = (domain or "").strip().lower()
+    p = (profile or "").strip().lower()
+    return hashlib.sha256(f"{d}|{p}".encode()).hexdigest()[:24]
 
 
 def _utc_db_datetime_iso_z(dt: datetime | None) -> str | None:
@@ -1053,7 +1062,7 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
 
 
 def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
-    """Genel site alarmları (trafik düşüşü/artışı) için e-posta gönderir."""
+    """Genel site alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
     from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
 
     if not alarms:
@@ -1067,51 +1076,45 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-
+    dom_e = html.escape(domain)
+    prof_e = html.escape(profile_label)
+    thread_key = _realtime_email_thread_key(domain, profile)
+    rows: list[str] = []
     for alarm in alarms:
-        metric = alarm.get("metric", "activeUsers")
+        metric = html.escape(str(alarm.get("metric", "activeUsers")))
         cur = alarm.get("current_value", 0)
         prev = alarm.get("previous_value", 0)
         pct = alarm.get("change_pct", 0)
-        label = alarm.get("label", "Alarm")
-
-        if pct < 0:
-            subject = f"📉 {label}: {domain} {profile_label} — {metric} {prev:.0f} → {cur:.0f} ({pct:+.1f}%)"
-        else:
-            subject = f"📈 {label}: {domain} {profile_label} — {metric} {prev:.0f} → {cur:.0f} ({pct:+.1f}%)"
-
+        label = html.escape(str(alarm.get("label", "Alarm")))
+        msg = html.escape(alarm.get("message", ""))
         color = "#dc2626" if pct < 0 else "#16a34a"
-        html_body = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
-            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
-            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
-                    <td style="padding: 8px 12px;">{domain}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
-                    <td style="padding: 8px 12px;">{profile_label}</td>
-                </tr>
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Metrik</td>
-                    <td style="padding: 8px 12px;">{metric}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Değer</td>
-                    <td style="padding: 8px 12px;">
-                        <strong>{cur:.0f}</strong>
-                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
-                        <span style="color: {color}; font-weight: 700;"> {pct:+.1f}%</span>
-                    </td>
-                </tr>
-            </table>
-            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
-                SEO Agent Realtime Site Alarmı — otomatik gönderilmiştir.
-            </p>
+        rows.append(
+            "<tr><td colspan=\"2\" style=\"padding:10px 12px;border-bottom:1px solid #e2e8f0;\">"
+            f"<div style=\"font-weight:700;color:#0f172a;\">{label}</div>"
+            f"<div style=\"font-size:13px;color:#334155;margin-top:4px;\">{msg}</div>"
+            "<div style=\"margin-top:8px;font-size:13px;\">"
+            f"Metrik: <span style=\"font-family:monospace;\">{metric}</span> — "
+            f"<strong>{cur:.0f}</strong> "
+            f"<span style=\"color:#64748b;\">(önceki {prev:.0f})</span> "
+            f"<span style=\"color:{color};font-weight:700;\">{pct:+.1f}%</span>"
+            "</div></td></tr>"
+        )
+
+    n = len(alarms)
+    summary = f"{n} site metrik alarmı" if n > 1 else "Site metrik alarmı"
+    summary_e = html.escape(summary)
+    html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+            <p style="color:#64748b;font-size:14px;">{summary_e} — {dom_e} ({prof_e})</p>
+            <table style="border-collapse:collapse;width:100%;margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <tbody>
+            {''.join(rows)}
+            </tbody></table>
+            <p style="color:#94a3b8;font-size:12px;margin-top:24px;">SEO Agent Realtime — aynı konu altında gruplanır (Gmail).</p>
         </div>
         """
-        send_realtime_email(subject, html_body)
+    subject = f"Site metrikleri — {domain} ({profile_label})"
+    send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
 
 
 def get_recent_snapshots(
@@ -1465,7 +1468,7 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
 
 
 def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
-    """Sayfa bazlı alarmlar için e-posta gönderir."""
+    """Sayfa bazlı alarmlar — tek e-postada özet + Gmail iş parçacığı."""
     from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
 
     if not alarms:
@@ -1479,59 +1482,44 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-
+    dom_e = html.escape(domain)
+    prof_e = html.escape(profile_label)
+    thread_key = _realtime_email_thread_key(domain, profile)
+    rows: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "bilinmiyor")
-        page_short = page[:80] if len(page) > 80 else page
+        page_e = html.escape(page)
+        msg_e = html.escape(alarm.get("message", ""))
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = alarm.get("change_pct", 0)
-        rule_id = alarm.get("rule_id", "")
+        color = "#dc2626" if pct < 0 else "#16a34a"
+        rows.append(
+            "<tr><td colspan=\"2\" style=\"padding:10px 12px;border-bottom:1px solid #e2e8f0;\">"
+            f"<div style=\"font-weight:700;color:#0f172a;\">{msg_e}</div>"
+            f"<div style=\"font-size:12px;color:#475569;margin-top:4px;word-break:break-all;\">{page_e}</div>"
+            "<div style=\"margin-top:6px;font-size:13px;\">"
+            f"<strong>{curr:.0f}</strong> "
+            f"<span style=\"color:#64748b;\">(önceki: {prev:.0f})</span> "
+            f"<span style=\"color:{color};font-weight:700;\">{pct:+.1f}%</span>"
+            "</div></td></tr>"
+        )
 
-        if rule_id == "page_traffic_drop":
-            subject = f"📉 Trafik düşüşü: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
-        elif rule_id == "page_traffic_spike":
-            subject = f"📈 Trafik artışı: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
-        elif rule_id == "page_disappeared":
-            subject = f"⚠️ Sayfa düştü: {page_short} ({domain} {profile_label}) — önceki {prev:.0f} kullanıcı"
-        elif rule_id == "page_new_entry":
-            subject = f"🆕 Yeni sayfa: {page_short} ({domain} {profile_label}) — {curr:.0f} kullanıcı"
-        else:
-            subject = f"Realtime sayfa alarmı: {page_short} ({domain})"
-
-        html_body = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
-            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
-            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
-                    <td style="padding: 8px 12px;">{domain}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
-                    <td style="padding: 8px 12px;">{profile_label}</td>
-                </tr>
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Sayfa</td>
-                    <td style="padding: 8px 12px; word-break: break-all;">{page}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Aktif Kullanıcı</td>
-                    <td style="padding: 8px 12px;">
-                        <strong>{curr:.0f}</strong>
-                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
-                        <span style="color: {'#dc2626' if pct < 0 else '#16a34a'}; font-weight: 700;">
-                            {pct:+.1f}%
-                        </span>
-                    </td>
-                </tr>
-            </table>
-            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
-                SEO Agent Realtime Sayfa Alarmı — otomatik gönderilmiştir.
-            </p>
+    n = len(alarms)
+    summary = f"{n} sayfa alarmı" if n > 1 else "Sayfa alarmı"
+    summary_e = html.escape(summary)
+    html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+            <p style="color:#64748b;font-size:14px;">{summary_e} — {dom_e} ({prof_e})</p>
+            <table style="border-collapse:collapse;width:100%;margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <tbody>
+            {''.join(rows)}
+            </tbody></table>
+            <p style="color:#94a3b8;font-size:12px;margin-top:24px;">SEO Agent Realtime — aynı konu altında gruplanır (Gmail).</p>
         </div>
         """
-        send_realtime_email(subject, html_body)
+    subject = f"Sayfa alarmları — {domain} ({profile_label})"
+    send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key)
 
 
 def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> list[dict[str, Any]]:
@@ -1778,6 +1766,7 @@ def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
 
 
 def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
+    """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
     from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
 
     if not alarms:
@@ -1791,60 +1780,45 @@ def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-
+    dom_e = html.escape(domain)
+    prof_e = html.escape(profile_label)
+    thread_key = _realtime_email_thread_key(domain, profile)
+    rows: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "bilinmiyor")
-        page_short = page[:80] if len(page) > 80 else page
+        page_e = html.escape(page)
+        msg_e = html.escape(alarm.get("message", ""))
         curr = alarm.get("current_users", 0)
         prev = alarm.get("previous_users", 0)
         pct = alarm.get("change_pct", 0)
-        rule_id = alarm.get("rule_id", "")
+        color = "#dc2626" if pct < 0 else "#16a34a"
+        rows.append(
+            "<tr><td colspan=\"2\" style=\"padding:10px 12px;border-bottom:1px solid #e2e8f0;\">"
+            f"<div style=\"font-weight:700;color:#0f172a;\">{msg_e}</div>"
+            f"<div style=\"font-size:12px;color:#475569;margin-top:4px;word-break:break-all;\">{page_e}</div>"
+            "<div style=\"margin-top:6px;font-size:13px;\">"
+            f"<strong>{curr:.0f}</strong> "
+            f"<span style=\"color:#64748b;\">(önceki: {prev:.0f})</span> "
+            f"<span style=\"color:{color};font-weight:700;\">{pct:+.1f}%</span>"
+            "</div></td></tr>"
+        )
 
-        if rule_id == "news_traffic_drop":
-            subject = f"Haberler — düşüş: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
-        elif rule_id == "news_traffic_spike":
-            subject = f"Haberler — artış: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
-        elif rule_id == "news_disappeared":
-            subject = f"Haberler — listeden düştü: {page_short} ({domain} {profile_label}) — önceki {prev:.0f}"
-        elif rule_id == "news_new_entry":
-            subject = f"Haberler — yeni başlık: {page_short} ({domain} {profile_label}) — {curr:.0f} kullanıcı"
-        else:
-            subject = f"Haberler alarmı: {page_short} ({domain})"
-
-        html_body = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
-            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
-            <p style="color: #64748b; font-size: 13px;">GA4 Realtime «Haberler» (unifiedScreenName, sezgisel filtre).</p>
-            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
-                    <td style="padding: 8px 12px;">{domain}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
-                    <td style="padding: 8px 12px;">{profile_label}</td>
-                </tr>
-                <tr style="background: #f1f5f9;">
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Başlık</td>
-                    <td style="padding: 8px 12px; word-break: break-all;">{page}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Aktif kullanıcı</td>
-                    <td style="padding: 8px 12px;">
-                        <strong>{curr:.0f}</strong>
-                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
-                        <span style="color: {'#dc2626' if pct < 0 else '#16a34a'}; font-weight: 700;">
-                            {pct:+.1f}%
-                        </span>
-                    </td>
-                </tr>
-            </table>
-            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
-                SEO Agent Realtime Haberler Alarmı — otomatik gönderilmiştir.
-            </p>
+    n = len(alarms)
+    summary = f"{n} haber trafiği alarmı" if n > 1 else "Haber trafiği alarmı"
+    summary_e = html.escape(summary)
+    html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px;">
+            <p style="color:#64748b;font-size:14px;">{summary_e} — {dom_e} ({prof_e})</p>
+            <p style="color:#64748b;font-size:13px;margin-top:0;">GA4 Realtime «Haberler» (unifiedScreenName, sezgisel filtre).</p>
+            <table style="border-collapse:collapse;width:100%;margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <tbody>
+            {''.join(rows)}
+            </tbody></table>
+            <p style="color:#94a3b8;font-size:12px;margin-top:24px;">SEO Agent Realtime — aynı konu altında gruplanır (Gmail).</p>
         </div>
         """
-        send_realtime_news_email(subject, html_body)
+    subject = f"Haberler — {domain} ({profile_label})"
+    send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
 
 
 def check_news_alarms_for_site(

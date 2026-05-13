@@ -2,13 +2,47 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import random
+import re
+import secrets
 import smtplib
 import time
 from email.message import EmailMessage
+from email.utils import parseaddr
 
 from backend.config import settings
+
+
+def _smtp_message_id_host() -> str:
+    """Message-ID @ sağ tarafı (mail_from içindeki alan adı)."""
+    _, addr = parseaddr(settings.mail_from or "")
+    addr = (addr or "").strip()
+    if "@" in addr:
+        return addr.rsplit("@", 1)[-1].lower()
+    return "seo-agent.local"
+
+
+def _realtime_thread_root_message_id(thread_kind: str, thread_key: str) -> str:
+    """Aynı iş parçacığında kalması için sabit sanal kök Message-ID (Gmail References)."""
+    host = _smtp_message_id_host()
+    kind = re.sub(r"[^a-z0-9-]", "", (thread_kind or "rt").lower())[:24] or "rt"
+    key = re.sub(r"[^a-z0-9.]", "", (thread_key or "x").lower())[:48]
+    if not key:
+        key = hashlib.sha256((thread_kind + thread_key).encode()).hexdigest()[:20]
+    return f"<ga4rt.{kind}.{key}@{host}>"
+
+
+def _apply_realtime_thread_headers(message: EmailMessage, thread_kind: str, thread_key: str) -> None:
+    root = _realtime_thread_root_message_id(thread_kind, thread_key)
+    host = _smtp_message_id_host()
+    kind = re.sub(r"[^a-z0-9-]", "", (thread_kind or "rt").lower())[:24] or "rt"
+    key = re.sub(r"[^a-z0-9.]", "", (thread_key or "x").lower())[:48] or "x"
+    token = secrets.token_hex(6)
+    message["Message-ID"] = f"<ga4rt.{kind}.{key}.{token}@{host}>"
+    message["In-Reply-To"] = root
+    message["References"] = root
 
 
 def _smtp_configured() -> bool:
@@ -101,7 +135,14 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     return False
 
 
-def send_realtime_email(subject: str, html_body: str, recipients: list[str] | None = None) -> bool:
+def send_realtime_email(
+    subject: str,
+    html_body: str,
+    recipients: list[str] | None = None,
+    *,
+    thread_kind: str | None = None,
+    thread_key: str | None = None,
+) -> bool:
     """
     GA4 Realtime alarm e-postası (site metrikleri ve sayfa listesi alarmları).
 
@@ -148,6 +189,8 @@ def send_realtime_email(subject: str, html_body: str, recipients: list[str] | No
     message["To"] = ", ".join(recipient_list)
     message.set_content("GA4 Realtime alarm — düz metin özet.")
     message.add_alternative(html_body, subtype="html")
+    if thread_kind and thread_key:
+        _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
     MAX_RETRIES = 3
     INITIAL_BACKOFF_S = 15
@@ -191,7 +234,14 @@ def send_realtime_email(subject: str, html_body: str, recipients: list[str] | No
     return False
 
 
-def send_realtime_news_email(subject: str, html_body: str, recipients: list[str] | None = None) -> bool:
+def send_realtime_news_email(
+    subject: str,
+    html_body: str,
+    recipients: list[str] | None = None,
+    *,
+    thread_kind: str | None = None,
+    thread_key: str | None = None,
+) -> bool:
     """GA4 Realtime «Haberler» alarm e-postası (sayfa postasından bağımsız bayrak)."""
     if not settings.ga4_realtime_email_enabled:
         logging.debug(
@@ -230,6 +280,8 @@ def send_realtime_news_email(subject: str, html_body: str, recipients: list[str]
     message["To"] = ", ".join(recipient_list)
     message.set_content("GA4 Realtime haber alarmı — düz metin özet.")
     message.add_alternative(html_body, subtype="html")
+    if thread_kind and thread_key:
+        _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
     MAX_RETRIES = 3
     INITIAL_BACKOFF_S = 15
