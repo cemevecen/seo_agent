@@ -78,6 +78,11 @@
           <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI taslak cevap</button>
         </div>
         <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"></div>
+        <div class="my-6">
+          <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
+          <div id="inbox-messages" class="max-h-[50vh] space-y-3 overflow-y-auto text-sm"></div>
+        </div>
+
         <div id="inbox-templates-wrap" class="space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">AI yanıt şablonları (3)</h3>
@@ -109,11 +114,8 @@
           <textarea id="inbox-send-body" rows="10" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"></textarea>
           <button type="button" id="btn-send" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700">Gmail ile gönder</button>
         </div>
-        <div>
-          <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
-          <div id="inbox-messages" class="max-h-[40vh] space-y-3 overflow-y-auto text-sm"></div>
-        </div>
       </div>
+
     </div>
   </div>
 </div>
