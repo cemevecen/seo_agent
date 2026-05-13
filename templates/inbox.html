@@ -129,6 +129,7 @@
   var templatesCache = [];
   var currentTemplateFocusGmid = null;
   var currentMessages = [];
+  var _aiTemplatesMemo = {};
 
   function showBanner(msg) {
     var el = document.getElementById("inbox-banner");
@@ -249,7 +250,7 @@
     });
   }
 
-  async function loadReplyTemplates(focusGmid, forcedProvider) {
+  async function loadReplyTemplates(focusGmid, forcedProvider, forceRefresh) {
     var list = document.getElementById("inbox-templates-list");
     var prov = document.getElementById("inbox-templates-provider");
     if (!list) return;
@@ -263,23 +264,34 @@
       templateFocus = null;
       return;
     }
-    list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Şablonlar üretiliyor…</p>';
-    if (prov) prov.textContent = "";
-    try {
-      var url = "/api/inbox/threads/" + selectedId + "/reply-templates";
-      var qParts = [];
-      if (forcedProvider && /^(groq|gemini|openai)$/i.test(String(forcedProvider))) {
-        qParts.push("provider=" + encodeURIComponent(String(forcedProvider).toLowerCase()));
+    var cacheKey = selectedId + "_" + (focusGmid || "") + (forcedProvider ? "_" + forcedProvider : "");
+    var out;
+    if (!forceRefresh && _aiTemplatesMemo[cacheKey]) {
+      out = _aiTemplatesMemo[cacheKey];
+    } else {
+      list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Şablonlar üretiliyor…</p>';
+      if (prov) prov.textContent = "";
+      try {
+        var url = "/api/inbox/threads/" + selectedId + "/reply-templates";
+        var qParts = [];
+        if (forcedProvider && /^(groq|gemini|openai)$/i.test(String(forcedProvider))) {
+          qParts.push("provider=" + encodeURIComponent(String(forcedProvider).toLowerCase()));
+        }
+        if (qParts.length) url += "?" + qParts.join("&");
+        var payload = focusGmid ? { focus_gmail_message_id: focusGmid } : {};
+        out = await jfetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        _aiTemplatesMemo[cacheKey] = out;
+      } catch (e) {
+        list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">Hata: ' + esc(e.message || e) + "</p>";
+        return;
       }
-      if (qParts.length) url += "?" + qParts.join("&");
-      var payload = focusGmid ? { focus_gmail_message_id: focusGmid } : {};
-      var out = await jfetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      templateFocus = out.focus || null;
-      templatesCache = out.templates || [];
+    }
+    templateFocus = out.focus || null;
+    templatesCache = out.templates || [];
       var humanProv =
         { openai: "OpenAI", gemini: "Google Gemini", groq: "Groq" }[out.provider] || out.provider || "";
       if (prov) prov.textContent = humanProv ? "Üretim: " + humanProv : "";
@@ -702,7 +714,7 @@
   document.getElementById("inbox-route-filter").addEventListener("change", loadThreads);
   document.getElementById("inbox-templates-refresh").addEventListener("click", function () {
     if (!selectedId) return;
-    loadReplyTemplates(currentTemplateFocusGmid || undefined);
+    loadReplyTemplates(currentTemplateFocusGmid || undefined, undefined, true);
   });
 
   async function postRead(read) {
