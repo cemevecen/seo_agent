@@ -771,17 +771,14 @@ def _screen_unified_news_candidate(name: str) -> bool:
 
 
 def _news_row_link(site_domain: str, unified: str) -> str:
-    """Path görünüyorsa doğrudan URL; değilse Google site: araması (Realtime path boyutu yok)."""
-    from urllib.parse import quote
-
+    """Yalnızca makale path'i görünürse doğrudan site URL'si; aksi halde boş (harici arama yönlendirmesi yok)."""
     from backend.collectors.ga4 import _is_news_article_path
 
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
     u = (unified or "").strip()
     if u.startswith("/") and d and _is_news_article_path(u):
         return "https://" + d + u
-    q = f"site:{d} {u}" if d else u
-    return "https://www.google.com/search?q=" + quote(q, safe="")
+    return ""
 
 
 def fetch_realtime_top_news_pages(
@@ -795,7 +792,7 @@ def fetch_realtime_top_news_pages(
 ) -> dict[str, Any]:
     """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
 
-    Tam URL çoğu satırda yok; ``link_url`` alanı ya doğrudan path (nadiren) ya da ``site:`` arama linkidir.
+    ``link_url`` yalnızca başlık site içi makale path'i ise doldurulur; aksi halde boştur.
     """
     fetch_n = min(250, max(80, int(limit) * 25))
     base = fetch_realtime_top_pages(
