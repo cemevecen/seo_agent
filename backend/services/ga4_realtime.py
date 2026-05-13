@@ -1757,9 +1757,11 @@ def evaluate_page_alarms(
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
 
     for page_path, curr in curr_map.items():
+        title = _rt_alarm_screen_title_one_line(page_path)
+        if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
+            continue
         curr_users = curr.get("activeUsers", 0)
         prev = prev_map.get(page_path)
-        title = _rt_alarm_screen_title_one_line(page_path)
 
         if prev:
             prev_users = prev.get("activeUsers", 0)
@@ -1813,9 +1815,11 @@ def evaluate_page_alarms(
     rule = page_rules["page_disappeared"]
     for page_path, prev in prev_map.items():
         if page_path not in curr_map:
+            title = _rt_alarm_screen_title_one_line(page_path)
+            if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
+                continue
             prev_users = prev.get("activeUsers", 0)
             if prev_users >= rule["min_prev_users"]:
-                title = _rt_alarm_screen_title_one_line(page_path)
                 triggered.append({
                     "rule_id": "page_disappeared",
                     "severity": rule["severity"],
@@ -2065,9 +2069,11 @@ def evaluate_news_alarms(
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
 
     for page_path, curr in curr_map.items():
+        title = _rt_alarm_screen_title_one_line(page_path)
+        if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
+            continue
         curr_users = curr.get("activeUsers", 0)
         prev = prev_map.get(page_path)
-        title = _rt_alarm_screen_title_one_line(page_path)
 
         if prev:
             prev_users = prev.get("activeUsers", 0)
@@ -2121,9 +2127,11 @@ def evaluate_news_alarms(
     rule = news_rules["news_disappeared"]
     for page_path, prev in prev_map.items():
         if page_path not in curr_map:
+            title = _rt_alarm_screen_title_one_line(page_path)
+            if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
+                continue
             prev_users = prev.get("activeUsers", 0)
             if prev_users >= rule["min_prev_users"]:
-                title = _rt_alarm_screen_title_one_line(page_path)
                 triggered.append({
                     "rule_id": "news_disappeared",
                     "severity": rule["severity"],

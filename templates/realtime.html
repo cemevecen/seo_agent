@@ -1158,22 +1158,29 @@
       } catch (ePurge) {}
       return;
     }
-    var xDates = [];
+    var xLabels = [];
+    var hoverTexts = [];
     var users = [];
-    trend.forEach(function (t) {
+    trend.forEach(function (t, i) {
       var d = _parseSnapshotTs(t.collected_at);
       if (!d) return;
-      xDates.push(d);
+      xLabels.push(String(i));
+      var DD = String(d.getDate()).padStart(2, '0');
+      var MM = String(d.getMonth() + 1).padStart(2, '0');
+      var hh = String(d.getHours()).padStart(2, '0');
+      var mm = String(d.getMinutes()).padStart(2, '0');
+      hoverTexts.push(DD + '.' + MM + ' ' + hh + ':' + mm);
       users.push(Number(t.active_users) || 0);
     });
-    if (!xDates.length) {
+    if (!xLabels.length) {
       try {
         Plotly.purge(el);
       } catch (ePurge2) {}
       return;
     }
-    if (xDates.length === 1 && users.length === 1) {
-      xDates = [xDates[0], xDates[0]];
+    if (xLabels.length === 1 && users.length === 1) {
+      xLabels = [xLabels[0] + '_1', xLabels[0] + '_2'];
+      hoverTexts = [hoverTexts[0], hoverTexts[0]];
       users = [users[0], users[0]];
     }
     var lastTs =
@@ -1203,10 +1210,11 @@
     /* Sütun grafik renkleri: dark modda cyan-400, light modda slate-600 */
     var barColor = isDark ? '#22d3ee' : '#475569';
     var barOpacity = isDark ? 0.85 : 0.75;
-    var n = xDates.length;
+    var n = xLabels.length;
     var mainTrace = {
-      x: xDates,
+      x: xLabels,
       y: users,
+      text: hoverTexts,
       type: 'bar',
       name: 'Aktif kullanıcı',
       marker: {
@@ -1214,7 +1222,7 @@
         opacity: barOpacity,
         line: { width: 0 },
       },
-      hovertemplate: '%{x|%d.%m %H:%M}<br>%{y:.0f} kullanıcı<extra></extra>',
+      hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
       showlegend: false,
     };
     var traces = [mainTrace];
@@ -1244,7 +1252,7 @@
           font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#f4f4f5' : '#0f172a' },
         },
         xaxis: {
-          type: 'date',
+          type: 'category',
           visible: false,
           showgrid: false,
           fixedrange: true,
@@ -1888,6 +1896,10 @@
     var siteAlarms = [];
     var pageAlarms = [];
     alarms.forEach(function (a) {
+      var msg = String(a.message || '');
+      if (msg.indexOf('— —') === 0 || msg.indexOf('(other) —') === 0 || msg.indexOf('(not set) —') === 0) {
+        return; // Eski/hatalı DB kayıtlarını gizle
+      }
       var metric = a.metric || '';
       if (metric.indexOf('page:') === 0 || metric.indexOf('news:') === 0) {
         pageAlarms.push(a);
