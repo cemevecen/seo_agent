@@ -118,6 +118,33 @@
             <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
           </div>
         </div>
+
+        {% if profile in ('android', 'ios') %}
+        <div class="mt-4 rounded-lg border border-slate-200 bg-white/90 p-4 dark:border-zinc-700 dark:bg-zinc-900/60" data-rt-events-section>
+          <p class="border-b border-dashed border-slate-300 pb-1 text-sm font-semibold text-slate-800 dark:border-zinc-600 dark:text-zinc-100">Etkinlik sayısı (etkinlik adı)</p>
+          <div class="mt-3 flex gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs text-slate-500 dark:text-zinc-400"><span class="font-bold text-slate-600 dark:text-zinc-300">#1</span> <span class="break-all font-mono text-[11px] text-slate-700 dark:text-zinc-200" data-rt-events-top-name>—</span></p>
+              <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-zinc-50" data-rt-events-top-count>—</p>
+              <p class="text-xs tabular-nums text-slate-500 dark:text-zinc-500" data-rt-events-top-pct>—</p>
+            </div>
+            <div class="flex h-[4.5rem] shrink-0 items-end gap-px rounded-sm bg-slate-50 px-1 dark:bg-zinc-950/80" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
+          </div>
+          <div class="mt-4 grid grid-cols-[1fr_auto] gap-x-3 border-b border-dashed border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:border-zinc-600 dark:text-zinc-500">
+            <span>Etkinlik adı</span>
+            <span class="text-right">Sayı</span>
+          </div>
+          <div class="mt-1 space-y-0" data-rt-events-list>
+            <p class="text-sm text-slate-400 dark:text-zinc-500 italic">yükleniyor…</p>
+          </div>
+          <div class="mt-2 flex items-center justify-end gap-2">
+            <span class="text-[11px] tabular-nums text-slate-400 dark:text-zinc-500" data-rt-events-range></span>
+            <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Önceki">‹</button>
+            <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Sonraki">›</button>
+          </div>
+          <p class="mt-1 text-[10px] tabular-nums text-slate-300 dark:text-zinc-600" data-rt-events-ts></p>
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -198,6 +225,9 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
         }
+        if (profile === 'android' || profile === 'ios') {
+          rtFetchTopEvents(siteId, profile);
+        }
       })
       .catch(function (e) {
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
@@ -254,29 +284,51 @@
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
     if (!el.id) el.id = _chartId(siteId, profile);
-    var labels = trend.map(function (t) {
-      return t.collected_at ? new Date(t.collected_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+    var xDates = trend.map(function (t) {
+      return t.collected_at ? t.collected_at : null;
     });
     var users = trend.map(function (t) { return t.active_users || 0; });
     var th = (typeof window.seoPlotlyTheme === 'function') ? window.seoPlotlyTheme() : {};
+    var lineColor = '#52525b';
+    var fillColor = 'rgba(82,82,91,0.12)';
+    var times = xDates.map(function (d) {
+      return d ? new Date(d).getTime() : NaN;
+    }).filter(function (t) { return !isNaN(t); });
+    var xaxisCfg = {
+      type: 'date',
+      showgrid: false,
+      automargin: true,
+      tickformat: '%H:%M',
+      tickangle: -32,
+      tickfont: {size: 10, color: th.tick || '#64748b'}
+    };
+    if (times.length >= 2) {
+      var tMin = Math.min.apply(null, times);
+      var tMax = Math.max.apply(null, times);
+      var span = Math.max(60000, tMax - tMin);
+      var targetTicks = 7;
+      var minute = 60000;
+      var rawStep = span / targetTicks;
+      var stepMs = Math.max(minute, Math.ceil(rawStep / minute) * minute);
+      xaxisCfg.dtick = stepMs;
+    } else {
+      xaxisCfg.nticks = 6;
+    }
     Plotly.react(el, [
       {
-        x: labels, y: users, type: 'scatter', mode: 'lines+markers',
-        name: 'Aktif Kullanıcı', line: {color: '#6366f1', width: 2.5, shape: 'spline'},
-        marker: {size: 4, color: '#6366f1'},
-        fill: 'tozeroy', fillcolor: 'rgba(99,102,241,0.06)'
+        x: xDates, y: users, type: 'scatter', mode: 'lines+markers',
+        name: 'Aktif Kullanıcı', line: {color: lineColor, width: 2.5, shape: 'spline'},
+        marker: {size: 4, color: lineColor},
+        fill: 'tozeroy', fillcolor: fillColor,
+        hovertemplate: '%{x|%d.%m %H:%M}<br>%{y} kullanıcı<extra></extra>'
       }
     ], {
-      margin: {t: 8, r: 12, b: 28, l: 40},
+      margin: {t: 8, r: 12, b: 52, l: 40},
       height: el.offsetHeight || 128,
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       showlegend: false,
-      xaxis: {
-        showgrid: false,
-        tickfont: {size: 10, color: th.tick || '#64748b'},
-        tickangle: -30
-      },
+      xaxis: xaxisCfg,
       yaxis: {
         showgrid: true,
         gridcolor: th.grid || '#e2e8f0',
@@ -311,6 +363,136 @@
         if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic">hata</p>';
       });
   }
+
+  function rtFetchTopEvents(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box || !box.querySelector('[data-rt-events-section]')) return;
+    var listEl = box.querySelector('[data-rt-events-list]');
+    var tsEl = box.querySelector('[data-rt-events-ts]');
+    var key = siteId + '|' + profile;
+    fetch('/api/ga4/realtime/' + siteId + '/top-events?profile=' + profile + '&window=' + WINDOW + '&limit=200')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.events) {
+          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">veri yok</p>';
+          return;
+        }
+        _rtEventState[key] = {
+          events: d.events,
+          total_event_count: d.total_event_count || 0,
+          truncated: !!d.truncated,
+          page: 0,
+          pageSize: 6
+        };
+        _renderEventsCard(box, siteId, profile);
+        if (tsEl) {
+          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+        }
+      })
+      .catch(function () {
+        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">hata</p>';
+      });
+  }
+  window.rtFetchTopEvents = rtFetchTopEvents;
+
+  var _rtEventState = {};
+
+  function _fmtEvInt(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Math.round(Number(n)).toLocaleString('tr-TR');
+  }
+
+  function _renderEventsCard(box, siteId, profile) {
+    var key = siteId + '|' + profile;
+    var st = _rtEventState[key];
+    var sec = box.querySelector('[data-rt-events-section]');
+    if (!st || !sec) return;
+
+    var evs = st.events || [];
+    var nameEl = box.querySelector('[data-rt-events-top-name]');
+    var countEl = box.querySelector('[data-rt-events-top-count]');
+    var pctEl = box.querySelector('[data-rt-events-top-pct]');
+    var sparkEl = box.querySelector('[data-rt-events-spark]');
+    var listEl = box.querySelector('[data-rt-events-list]');
+    var rangeEl = box.querySelector('[data-rt-events-range]');
+    var prevBtn = box.querySelector('[data-rt-events-prev]');
+    var nextBtn = box.querySelector('[data-rt-events-next]');
+
+    if (!evs.length) {
+      if (nameEl) nameEl.textContent = '—';
+      if (countEl) countEl.textContent = '—';
+      if (pctEl) pctEl.textContent = '';
+      if (sparkEl) sparkEl.innerHTML = '';
+      if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">veri yok</p>';
+      if (rangeEl) rangeEl.textContent = '';
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      return;
+    }
+
+    var top = evs[0];
+    if (nameEl) nameEl.textContent = top.eventName || '(adsız)';
+    if (countEl) countEl.textContent = _fmtEvInt(top.eventCount);
+    var tot = st.total_event_count > 0 ? st.total_event_count : evs.reduce(function (a, e) { return a + (e.eventCount || 0); }, 0);
+    var pct = tot > 0 ? ((top.eventCount || 0) / tot) * 100 : 0;
+    if (pctEl) pctEl.textContent = pct.toFixed(1).replace('.', ',') + '%';
+
+    if (sparkEl) {
+      var take = evs.slice(0, 24);
+      var mx = take.reduce(function (m, e) { return Math.max(m, e.eventCount || 0); }, 1);
+      sparkEl.innerHTML = take.map(function (e) {
+        var h = Math.round(((e.eventCount || 0) / mx) * 100);
+        h = Math.max(8, h);
+        return '<div class="w-1 rounded-t bg-sky-500 dark:bg-sky-400" style="height:' + h + '%;min-height:2px"></div>';
+      }).join('');
+    }
+
+    var ps = st.pageSize || 6;
+    var pg = st.page || 0;
+    var start = pg * ps;
+    var pageRows = evs.slice(start, start + ps);
+    var maxVal = pageRows.length ? pageRows[0].eventCount || 1 : 1;
+
+    if (listEl) {
+      listEl.innerHTML = pageRows.map(function (e, i) {
+        var globalIdx = start + i + 1;
+        var nm = _esc(e.eventName || '(adsız)');
+        var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
+        var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-zinc-800/40' : '';
+        return '<div class="border-b border-slate-100 py-2 last:border-0 dark:border-zinc-800' + zebra + '">'
+          + '<div class="flex items-start justify-between gap-2">'
+          + '<span class="w-5 shrink-0 text-right text-[10px] font-bold text-slate-400 dark:text-zinc-500">' + globalIdx + '</span>'
+          + '<div class="min-w-0 flex-1">'
+          + '<div class="truncate font-mono text-xs text-slate-700 dark:text-zinc-200" title="' + nm + '">' + nm + '</div>'
+          + '<div class="mt-1 h-1 rounded-full bg-slate-200 dark:bg-zinc-700"><div class="h-1 rounded-full bg-sky-500 dark:bg-sky-400" style="width:' + barW + '%"></div></div>'
+          + '</div>'
+          + '<span class="shrink-0 tabular-nums text-sm font-semibold text-slate-700 dark:text-zinc-200">' + _fmt(e.eventCount) + '</span>'
+          + '</div></div>';
+      }).join('');
+    }
+
+    var totalTypes = evs.length;
+    var totalLabel = st.truncated ? (totalTypes + '+') : String(totalTypes);
+    if (rangeEl) {
+      rangeEl.textContent = (totalTypes ? (start + 1) + ' – ' + (start + pageRows.length) + ' / ' + totalLabel : '');
+    }
+    var lastPage = Math.ceil(totalTypes / ps) - 1;
+    if (prevBtn) prevBtn.disabled = pg <= 0;
+    if (nextBtn) nextBtn.disabled = pg >= lastPage;
+  }
+
+  function rtEventsNav(siteId, profile, delta) {
+    var key = siteId + '|' + profile;
+    var st = _rtEventState[key];
+    if (!st || !st.events || !st.events.length) return;
+    var ps = st.pageSize || 6;
+    var lastPage = Math.ceil(st.events.length / ps) - 1;
+    st.page = Math.max(0, Math.min(lastPage, (st.page || 0) + delta));
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (box) _renderEventsCard(box, siteId, profile);
+  }
+  window.rtEventsNav = rtEventsNav;
 
   function rtFetchTopPages(siteId, profile) {
     _fetchTopData(siteId, profile, 'pages');
@@ -396,10 +578,10 @@
         });
     });
     document.querySelectorAll('[data-rt-site-id]').forEach(function (box) {
-      rtFetchTopPages(
-        parseInt(box.getAttribute('data-rt-site-id'), 10),
-        box.getAttribute('data-rt-profile')
-      );
+      var sidInt = parseInt(box.getAttribute('data-rt-site-id'), 10);
+      var prof = box.getAttribute('data-rt-profile');
+      rtFetchTopPages(sidInt, prof);
+      rtFetchTopEvents(sidInt, prof);
     });
     _fetchGlobalAlarms();
   }
@@ -534,7 +716,10 @@
       var sidInt = parseInt(sid, 10);
 
       setTimeout(function () { rtFetchProfile(sidInt, prof); }, idx * 400);
-      setTimeout(function () { rtFetchTopPages(sidInt, prof); }, 3000 + idx * 500);
+      setTimeout(function () {
+        rtFetchTopPages(sidInt, prof);
+        rtFetchTopEvents(sidInt, prof);
+      }, 3000 + idx * 500);
 
       if (_timers[key]) clearInterval(_timers[key]);
       _timers[key] = setInterval(function () {
@@ -543,6 +728,7 @@
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
       _pageTimers[key] = setInterval(function () {
         rtFetchTopPages(sidInt, prof);
+        rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
     });
     setTimeout(_fetchGlobalAlarms, 1000);

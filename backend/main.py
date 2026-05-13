@@ -427,7 +427,7 @@ def _ai_brief_nl2br(text: str):
     return Markup("<br />\n").join(parts)
 
 
-def _ai_brief_stacked_p(body: str, *, p_class: str):
+def _ai_brief_stacked_p(body: str, *, p_class: str, highlight: bool = False):
     """\\n\\n ile ayrılmış paragrafları <p> olarak döndür; tek paragraf içi \\n → <br />."""
     from markupsafe import Markup
 
@@ -437,8 +437,100 @@ def _ai_brief_stacked_p(body: str, *, p_class: str):
     out: list[str] = []
     for chunk in chunks:
         inner = _ai_brief_nl2br(chunk)
+        if highlight:
+            inner = Markup(_ai_brief_highlight_metrics_html(str(inner)))
         out.append(f'<p class="{p_class}">{inner}</p>')
     return Markup("".join(out))
+
+
+def _ai_brief_parse_metric_number(num_s: str) -> float | None:
+    try:
+        return float(num_s.replace(",", ".").strip())
+    except ValueError:
+        return None
+
+
+def _ai_brief_metric_direction_class(value: float) -> str:
+    if value > 0:
+        return "ai-metric ai-metric--up"
+    if value < 0:
+        return "ai-metric ai-metric--down"
+    return "ai-metric ai-metric--flat"
+
+
+def _ai_brief_highlight_metrics_html(escaped_html: str) -> str:
+    """escape + br sonrası güvenli HTML üzerinde değişim yüzdeleri ve trend sözcüklerini renklendir."""
+    import re
+
+    s = escaped_html
+
+    def _num_repl(m: re.Match[str]) -> str:
+        prefix, num_s = m.group(1), m.group(2)
+        val = _ai_brief_parse_metric_number(num_s)
+        if val is None:
+            return m.group(0)
+        cls = _ai_brief_metric_direction_class(val)
+        return f'{prefix}<span class="{cls}">{num_s}</span>'
+
+    # GA4 özetinde sık geçen kalıplar (İngilizce / varyasyon toleransı)
+    patterns = [
+        r"(?i)(değişim\s*%:\s*)(-?[\d.,]+)",
+        r"(?i)(change\s*%:\s*)(-?[\d.,]+)",
+        r"(?i)(%\s*değişim:\s*)(-?[\d.,]+)",
+    ]
+    for pat in patterns:
+        s = re.sub(pat, _num_repl, s)
+
+    s = re.sub(
+        r"(?i)\b(düşüş|azalma|düşen|kayıp|negatif|düşük)\b",
+        r'<span class="ai-kw ai-kw--down">\1</span>',
+        s,
+    )
+    s = re.sub(
+        r"(?i)\b(artış|yükseliş|yükselen|büyüme|pozitif)\b",
+        r'<span class="ai-kw ai-kw--up">\1</span>',
+        s,
+    )
+    return s
+
+
+def _ai_brief_line_is_kpi_bullet(line: str) -> bool:
+    t = line.lstrip()
+    if not t:
+        return False
+    if t[0] in ("•", "·", "▪", "\u2022"):
+        return True
+    return t.startswith(("- ", "– "))
+
+
+def _ai_brief_strip_kpi_bullet(line: str) -> str:
+    s = line.strip()
+    for pref in ("•", "·", "▪", "\u2022"):
+        if s.startswith(pref):
+            return s[len(pref):].strip()
+    if s.startswith("- "):
+        return s[2:].strip()
+    if s.startswith("– "):
+        return s[2:].strip()
+    return s
+
+
+def _ai_brief_rakamlar_body_markup(rest: str, *, body_cls: str):
+    """RAKAMLAR: madde işaretli satırları listeye çevir; metrikleri renklendir."""
+    from markupsafe import Markup
+
+    lines = [ln.rstrip() for ln in rest.splitlines() if ln.strip()]
+    if len(lines) >= 2 and all(_ai_brief_line_is_kpi_bullet(ln) for ln in lines):
+        lis: list[str] = []
+        for ln in lines:
+            raw = _ai_brief_strip_kpi_bullet(ln)
+            inner = _ai_brief_highlight_metrics_html(str(_ai_brief_nl2br(raw)))
+            lis.append(f'<li class="ai-brief-kpi-item">{inner}</li>')
+        return Markup(
+            f'<ul class="ai-brief-kpi-list" role="list" aria-label="Rakamlar">{"".join(lis)}</ul>'
+        )
+    inner = _ai_brief_highlight_metrics_html(str(_ai_brief_nl2br(rest.strip())))
+    return Markup(f'<div class="ai-brief-rakamlar-flow {body_cls}">{inner}</div>')
 
 
 def _ai_brief_html_paragraphs(value: str | None):
@@ -451,21 +543,24 @@ def _ai_brief_html_paragraphs(value: str | None):
     parts = [p.strip() for p in normalized.split("\n\n") if p.strip()]
     blocks: list[str] = []
     label_cls = (
-        "mb-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-800 dark:text-sky-200"
+        "mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-zinc-400"
     )
-    body_cls = "text-[13px] leading-relaxed text-slate-800 dark:text-slate-100"
+    label_rakamlar_cls = (
+        "mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300/95"
+    )
+    body_cls = "text-[13px] leading-relaxed text-slate-800 dark:text-zinc-100"
     stacked_p_cls = (
-        "mb-2.5 last:mb-0 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100"
+        "mb-2.5 last:mb-0 text-[13px] leading-relaxed text-slate-800 dark:text-zinc-100"
     )
     plain_cls = f"mb-3 {body_cls}"
     # Yarı saydam değil: dark modda metin/beyaz karışımı ve düşük kontrast önlenir.
     card_durum = (
-        "mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 "
-        "dark:border-slate-600 dark:bg-slate-800"
+        "mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 "
+        "dark:border-zinc-600 dark:bg-zinc-900/80"
     )
     card_neutral = (
-        "mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm shadow-slate-200/40 "
-        "dark:border-slate-600 dark:bg-slate-900 dark:shadow-none"
+        "mb-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm shadow-slate-200/40 "
+        "dark:border-zinc-600 dark:bg-zinc-900 dark:shadow-none"
     )
     for p in parts:
         head = p.lstrip()
@@ -474,17 +569,18 @@ def _ai_brief_html_paragraphs(value: str | None):
         if up.startswith("DURUM:") or up.startswith("RAKAMLAR:"):
             first_ln, _, rest = p.partition("\n")
             if rest.strip():
-                lbl = escape(first_ln.strip())
                 if up.startswith("RAKAMLAR:"):
-                    body = _ai_brief_nl2br(rest.strip())
+                    lbl = escape(first_ln.strip())
+                    body = _ai_brief_rakamlar_body_markup(rest.strip(), body_cls=body_cls)
                     blocks.append(
-                        f'<div class="{card_durum}">'
-                        f'<p class="{label_cls}">{lbl}</p><div class="{body_cls}">{body}</div></div>'
+                        f'<div class="{card_durum} ai-brief-card ai-brief-card--rakamlar">'
+                        f'<p class="{label_rakamlar_cls}">{lbl}</p><div class="{body_cls}">{body}</div></div>'
                     )
                 else:
-                    body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls)
+                    lbl = escape(first_ln.strip())
+                    body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls, highlight=True)
                     blocks.append(
-                        f'<div class="{card_durum}">'
+                        f'<div class="{card_durum} ai-brief-card ai-brief-card--durum">'
                         f'<p class="{label_cls}">{lbl}</p><div class="{body_cls} space-y-0">{body}</div></div>'
                     )
             else:
@@ -493,15 +589,16 @@ def _ai_brief_html_paragraphs(value: str | None):
             first_ln, _, rest = p.partition("\n")
             if rest.strip():
                 lbl = escape(first_ln.strip())
-                body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls)
+                body = _ai_brief_stacked_p(rest.strip(), p_class=stacked_p_cls, highlight=True)
                 blocks.append(
-                    f'<div class="{card_neutral}">'
+                    f'<div class="{card_neutral} ai-brief-card ai-brief-card--explain">'
                     f'<p class="{label_cls}">{lbl}</p><div class="{body_cls} space-y-0">{body}</div></div>'
                 )
             else:
                 blocks.append(f'<div class="{plain_cls}">{with_br}</div>')
         else:
-            blocks.append(f'<div class="{plain_cls}">{with_br}</div>')
+            inner = _ai_brief_highlight_metrics_html(str(with_br))
+            blocks.append(f'<div class="{plain_cls}">{inner}</div>')
     return Markup("".join(blocks))
 
 
@@ -7927,7 +8024,7 @@ def api_ga4_realtime_top_pages(
     type: str = "pages",
 ):
     """Realtime top sayfalar/linkler — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
-    from backend.services.ga4_realtime import fetch_realtime_top_pages
+    from backend.services.ga4_realtime import fetch_realtime_top_pages_with_app_fallback
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
     sort_by = "screenPageViews" if type == "views" else "activeUsers"
@@ -7943,9 +8040,12 @@ def api_ga4_realtime_top_pages(
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
     try:
-        result = fetch_realtime_top_pages(
-            property_id, window_minutes=min(window, 30),
-            limit=min(limit, 25), sort_by=sort_by,
+        result = fetch_realtime_top_pages_with_app_fallback(
+            property_id,
+            profile=profile,
+            window_minutes=min(window, 30),
+            limit=min(limit, 25),
+            sort_by=sort_by,
         )
         result["site_id"] = site_id
         result["profile"] = profile
@@ -7953,6 +8053,41 @@ def api_ga4_realtime_top_pages(
         return JSONResponse(result)
     except Exception as exc:
         LOGGER.exception("Top pages hatası [site=%s, profile=%s, type=%s]", site_id, profile, type)
+        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+
+
+@app.get("/api/ga4/realtime/{site_id}/top-events")
+def api_ga4_realtime_top_events(
+    site_id: int,
+    profile: str = "android",
+    window: int = 30,
+    limit: int = 200,
+):
+    """Realtime etkinlik adı + eventCount — Android/iOS kartı."""
+    from backend.services.ga4_realtime import fetch_realtime_top_events
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(profile) or properties.get("web")
+        if not property_id:
+            return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
+
+    try:
+        result = fetch_realtime_top_events(
+            property_id,
+            window_minutes=min(window, 30),
+            limit=min(limit, 250),
+        )
+        result["site_id"] = site_id
+        result["profile"] = profile
+        return JSONResponse(result)
+    except Exception as exc:
+        LOGGER.exception("Top events hatası [site=%s, profile=%s]", site_id, profile)
         return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
 
 

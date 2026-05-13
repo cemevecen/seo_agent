@@ -16,6 +16,7 @@ from google.analytics.data_v1beta.types import (
     Dimension,
     Metric,
     MinuteRange,
+    OrderBy,
     RunRealtimeReportRequest,
 )
 from google.oauth2 import service_account
@@ -259,6 +260,254 @@ def fetch_realtime_top_pages(
     }
 
 
+def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, int]:
+    """(anlamlı etiketli satır, toplam). GA bazen '(not set)' / '(other)' döner — bunlar zayıf sayılır."""
+    bare = frozenset(
+        {
+            "",
+            "(not set)",
+            "(other)",
+            "not set",
+            "(data not available)",
+        },
+    )
+    total = len(pages)
+
+    def _ok(page: str | None) -> bool:
+        p = (page or "").strip().lower()
+        return bool(p) and p not in bare
+
+    labeled = sum(1 for p in pages if _ok(p.get("page")))
+    return labeled, total
+
+
+def fetch_realtime_top_event_names(
+    property_id: str,
+    window_minutes: int = 30,
+    *,
+    limit: int = 10,
+    sort_by: str = "activeUsers",
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Android/iOS akışlarında unifiedScreenName boşsa: eventName kırılımı.
+
+    Dönüş şekli fetch_realtime_top_pages ile uyumlu: screenPageViews alanına eventCount yazılır
+    (şablondaki «görüntüleme» sekmesi event hacmine göre sıralanır).
+    """
+    if client is None:
+        client = _build_client()
+
+    w = max(1, min(window_minutes, 30))
+    fetch_cap = min(250, max(limit * 8, 40))
+
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="eventName")],
+        metrics=[
+            Metric(name="activeUsers"),
+            Metric(name="eventCount"),
+        ],
+        minute_ranges=[
+            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        ],
+        limit=fetch_cap,
+    )
+
+    t0 = time.monotonic()
+    response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    metric_names = [m.name for m in response.metric_headers]
+    pages: list[dict[str, Any]] = []
+
+    for row in response.rows:
+        name = ""
+        for dv in row.dimension_values:
+            if dv.value not in ("current", "previous"):
+                name = (dv.value or "").strip()
+                break
+        if not name:
+            continue
+        metrics_dict: dict[str, float] = {}
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                metrics_dict[mname] = float(mv.value)
+            except (ValueError, TypeError):
+                metrics_dict[mname] = 0.0
+        ec = metrics_dict.get("eventCount", 0.0)
+        au = metrics_dict.get("activeUsers", 0.0)
+        pages.append({"page": name, "activeUsers": au, "screenPageViews": ec})
+
+    sort_key = "eventCount" if sort_by == "screenPageViews" else "activeUsers"
+    pages.sort(key=lambda p: p.get(sort_key, 0), reverse=True)
+
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "pages": pages[:limit],
+        "total_pages": len(pages),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+        "breakdown": "eventName",
+    }
+
+
+def fetch_realtime_top_pages_with_app_fallback(
+    property_id: str,
+    *,
+    profile: str,
+    window_minutes: int = 30,
+    limit: int = 10,
+    sort_by: str = "activeUsers",
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Önce unifiedScreenName; Android/iOS’ta etiket zayıfsa eventName listesine düşer."""
+    base = fetch_realtime_top_pages(
+        property_id,
+        window_minutes=window_minutes,
+        limit=limit,
+        sort_by=sort_by,
+        client=client,
+    )
+    pages = base.get("pages") or []
+    base["breakdown"] = "unifiedScreenName"
+
+    if profile not in ("android", "ios"):
+        return base
+
+    labeled, total = _realtime_screen_label_quality(pages)
+    weak = labeled < 2 or (total > 0 and labeled / total < 0.35)
+    if not weak:
+        return base
+
+    try:
+        alt = fetch_realtime_top_event_names(
+            property_id,
+            window_minutes=window_minutes,
+            limit=limit,
+            sort_by=sort_by,
+            client=client,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Realtime app fallback (eventName) başarısız [%s / %s]: %s",
+            property_id,
+            profile,
+            exc,
+        )
+        return base
+
+    alt_pages = alt.get("pages") or []
+    if not alt_pages:
+        return base
+
+    alt["replaced_unified_screen"] = True
+    alt["unified_screen_labeled_rows"] = labeled
+    alt["unified_screen_total_rows"] = total
+    return alt
+
+
+def fetch_realtime_top_events(
+    property_id: str,
+    window_minutes: int = 30,
+    *,
+    limit: int = 200,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Realtime API: etkinlik adına göre eventCount — mobil uygulama kartları için."""
+    if client is None:
+        client = _build_client()
+
+    w = max(1, min(window_minutes, 30))
+    fetch_limit = max(1, min(limit, 250))
+
+    total_event_count = 0.0
+    try:
+        req_total = RunRealtimeReportRequest(
+            property=f"properties/{property_id}",
+            metrics=[Metric(name="eventCount")],
+            minute_ranges=[
+                MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+            ],
+        )
+        resp_total = client.run_realtime_report(req_total)
+        if resp_total.rows:
+            for mv in resp_total.rows[0].metric_values:
+                try:
+                    total_event_count += float(mv.value)
+                except (ValueError, TypeError):
+                    pass
+    except Exception as exc:
+        logger.debug(
+            "Realtime toplam eventCount (metrics-only) alınamadı [%s]: %s",
+            property_id,
+            exc,
+        )
+
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="eventName")],
+        metrics=[Metric(name="eventCount")],
+        minute_ranges=[
+            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        ],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount", desc=True))],
+        limit=fetch_limit,
+    )
+
+    t0 = time.monotonic()
+    try:
+        response = client.run_realtime_report(request)
+    except Exception:
+        request = RunRealtimeReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="eventName")],
+            metrics=[Metric(name="eventCount")],
+            minute_ranges=[
+                MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+            ],
+            limit=fetch_limit,
+        )
+        response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+    metric_names = [m.name for m in response.metric_headers]
+    events: list[dict[str, Any]] = []
+
+    for row in response.rows:
+        event_name = ""
+        for dv in row.dimension_values:
+            if dv.value not in ("current", "previous"):
+                event_name = dv.value or ""
+                break
+        metrics_dict: dict[str, float] = {}
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                metrics_dict[mname] = float(mv.value)
+            except (ValueError, TypeError):
+                metrics_dict[mname] = 0.0
+        ec = metrics_dict.get("eventCount", 0.0)
+        events.append({"eventName": event_name, "eventCount": ec})
+
+    events.sort(key=lambda e: e["eventCount"], reverse=True)
+
+    if total_event_count <= 0:
+        total_event_count = sum(e["eventCount"] for e in events)
+
+    truncated = len(response.rows) >= fetch_limit
+
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "events": events,
+        "total_event_count": total_event_count,
+        "truncated": truncated,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+    }
+
+
 def _build_comparison(current: dict[str, float], previous: dict[str, float]) -> dict[str, dict[str, Any]]:
     """Her metrik için yüzdesel değişim ve yön hesaplar."""
     result: dict[str, dict[str, Any]] = {}
@@ -459,43 +708,18 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
         logger.exception("RealtimeAlarmLog kayıt hatası (site_id=%s)", site_id)
 
 
-def _rt_send_email(subject: str, html_body: str) -> bool:
-    """Realtime alarmları için e-posta gönderir.
-    outbound_email_enabled'dan bağımsız çalışır — kendi flag'i ga4_realtime_page_alert_email."""
-    import smtplib as _smtplib
-    from email.message import EmailMessage as _EM
-
-    from backend.config import settings
-
-    required = [settings.smtp_host, settings.smtp_user, settings.smtp_password, settings.mail_from]
-    if not all(v and v.strip() and not v.startswith("local-") for v in required):
-        return False
-    recipients = [r.strip() for r in settings.mail_to.split(",") if r.strip()]
-    if not recipients:
-        return False
-
-    msg = _EM()
-    msg["Subject"] = subject
-    msg["From"] = settings.mail_from
-    msg["To"] = ", ".join(recipients)
-    msg.set_content("Realtime alarm — plain text fallback.")
-    msg.add_alternative(html_body, subtype="html")
-    try:
-        with _smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
-            smtp.starttls()
-            smtp.login(settings.smtp_user, settings.smtp_password)
-            smtp.send_message(msg)
-        logger.info("Realtime alarm e-posta gönderildi: %s", subject[:80])
-        return True
-    except Exception:
-        logger.exception("Realtime alarm e-posta gönderilemedi: %s", subject[:80])
-        return False
-
-
 def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
     """Genel site alarmları (trafik düşüşü/artışı) için e-posta gönderir."""
-    from backend.config import settings
-    if not settings.ga4_realtime_page_alert_email:
+    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
+
+    if not alarms:
+        return
+    if not is_realtime_mail_ready():
+        logger.warning(
+            "Realtime site alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
+            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
+            len(alarms),
+        )
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
@@ -543,7 +767,7 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
             </p>
         </div>
         """
-        _rt_send_email(subject, html_body)
+        send_realtime_email(subject, html_body)
 
 
 def get_recent_snapshots(
@@ -814,8 +1038,6 @@ def check_page_alarms_for_site(
     4. Yeni snapshot'ı DB'ye kaydet
     5. Alarmları DB'ye kaydet ve mail gönder
     """
-    from backend.config import settings
-
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
     property_id = properties.get(profile) or properties.get("web")
@@ -825,7 +1047,13 @@ def check_page_alarms_for_site(
     previous_pages = get_previous_page_snapshots(db, site.id, profile)
 
     try:
-        result = fetch_realtime_top_pages(property_id, window_minutes=window_minutes, limit=25)
+        result = fetch_realtime_top_pages_with_app_fallback(
+            property_id,
+            profile=profile,
+            window_minutes=window_minutes,
+            limit=25,
+            sort_by="activeUsers",
+        )
     except Exception as exc:
         logger.warning("Sayfa alarm: top pages API hatası [%s/%s]: %s", site.domain, profile, exc)
         return []
@@ -843,8 +1071,7 @@ def check_page_alarms_for_site(
 
     if alarms:
         _save_page_alarm_logs(db, site.id, alarms)
-        if settings.ga4_realtime_page_alert_email:
-            _send_page_alarm_email(site.domain, profile, alarms)
+        _send_page_alarm_email(site.domain, profile, alarms)
 
     return alarms
 
@@ -874,8 +1101,16 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
 
 def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
     """Sayfa bazlı alarmlar için e-posta gönderir."""
-    from backend.config import settings
-    if not settings.ga4_realtime_page_alert_email:
+    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
+
+    if not alarms:
+        return
+    if not is_realtime_mail_ready():
+        logger.warning(
+            "Realtime sayfa alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
+            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
+            len(alarms),
+        )
         return
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
@@ -931,7 +1166,7 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
             </p>
         </div>
         """
-        _rt_send_email(subject, html_body)
+        send_realtime_email(subject, html_body)
 
 
 def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> list[dict[str, Any]]:

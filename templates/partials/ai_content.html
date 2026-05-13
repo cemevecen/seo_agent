@@ -46,18 +46,18 @@
       transition: transform 0.5s cubic-bezier(0.34, 1.45, 0.64, 1), opacity 0.35s ease, box-shadow 0.5s ease,
         filter 0.45s ease, border-color 0.35s ease;
       border: 1px solid rgba(148, 163, 184, 0.22);
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(24, 24, 27, 0.45);
       color: #f8fafc;
       outline: none;
       overflow: visible;
     }
     html.dark #ai-brief-view .llm-chip {
-      background: rgba(15, 23, 42, 0.58);
-      border-color: rgba(148, 163, 184, 0.14);
+      background: rgba(24, 24, 27, 0.72);
+      border-color: rgba(63, 63, 70, 0.45);
     }
     html.dark #ai-brief-view .llm-chip.is-off {
-      border-color: rgba(148, 163, 184, 0.12);
-      background: rgba(30, 41, 59, 0.45);
+      border-color: rgba(63, 63, 70, 0.35);
+      background: rgba(9, 9, 11, 0.55);
     }
     #ai-brief-view .llm-chip:disabled {
       cursor: not-allowed;
@@ -123,6 +123,21 @@
         0 0 43px -6px rgba(52, 211, 153, 0.42),
         inset 0 1px 0 rgba(255, 255, 255, 0.14);
     }
+    html.dark #ai-brief-view .llm-chip[data-llm="groq"].is-on,
+    html.dark #ai-brief-view .llm-chip[data-llm="gemini"].is-on,
+    html.dark #ai-brief-view .llm-chip[data-llm="openai"].is-on {
+      border-color: rgba(161, 161, 170, 0.5);
+      background: linear-gradient(158deg, rgba(63, 63, 70, 0.5) 0%, rgba(39, 39, 42, 0.88) 45%, rgba(9, 9, 11, 0.96) 100%);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 8px 26px -10px rgba(0, 0, 0, 0.65),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    html.dark #ai-brief-view .llm-chip[data-llm="groq"] .llm-chip-halo,
+    html.dark #ai-brief-view .llm-chip[data-llm="gemini"] .llm-chip-halo,
+    html.dark #ai-brief-view .llm-chip[data-llm="openai"] .llm-chip-halo {
+      background: radial-gradient(ellipse 90% 70% at 50% -10%, rgba(255, 255, 255, 0.14), transparent 72%);
+    }
     html:not(.dark) #ai-brief-view .llm-chip[data-llm="openai"].is-on {
       background: linear-gradient(158deg, rgba(52, 211, 153, 0.3) 0%, rgba(209, 250, 229, 0.7) 45%, rgba(255, 255, 255, 0.98) 100%);
       box-shadow:
@@ -133,6 +148,9 @@
     #ai-brief-view .llm-chip:focus-visible {
       outline: 2px solid rgba(96, 165, 250, 0.95);
       outline-offset: 2px;
+    }
+    html.dark #ai-brief-view .llm-chip:focus-visible {
+      outline-color: rgba(161, 161, 170, 0.9);
     }
     #ai-brief-view .llm-chip .llm-chip-halo {
       position: absolute;
@@ -258,17 +276,18 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.32);
     }
     html.dark #ai-brief-view .ai-brief-submit-btn {
+      background: linear-gradient(135deg, #27272a 0%, #18181b 48%, #09090b 100%);
       box-shadow:
-        0 2px 12px -2px rgba(56, 189, 248, 0.38),
-        0 0 0 1px rgba(255, 255, 255, 0.09),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        0 2px 14px -4px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     html.dark #ai-brief-view .ai-brief-submit-btn:hover {
-      filter: brightness(1.08);
+      filter: brightness(1.06);
       box-shadow:
-        0 3px 18px -2px rgba(129, 140, 248, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.11),
-        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        0 3px 18px -4px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
     #ai-brief-view .ai-brief-submit-btn:active {
       transform: scale(0.992);
@@ -287,8 +306,8 @@
       padding: 0.85rem 1rem;
     }
     html.dark #ai-brief-view .ai-brief-action-card {
-      border-color: rgba(51, 65, 85, 0.65);
-      background: rgba(15, 23, 42, 0.55);
+      border-color: rgba(63, 63, 70, 0.55);
+      background: rgba(9, 9, 11, 0.55);
     }
     #ai-brief-view .ai-hero-grid {
       display: grid;
@@ -307,8 +326,8 @@
       padding: 0.9rem;
     }
     html.dark #ai-brief-view .ai-hero-card {
-      border-color: rgba(71, 85, 105, 0.58);
-      background: linear-gradient(130deg, rgba(15, 23, 42, 0.86), rgba(30, 41, 59, 0.8));
+      border-color: rgba(63, 63, 70, 0.5);
+      background: linear-gradient(130deg, rgba(24, 24, 27, 0.92), rgba(9, 9, 11, 0.82));
     }
     #ai-brief-view .ai-pillar-nav {
       display: flex;
@@ -329,17 +348,17 @@
       color: rgb(51 65 85);
     }
     #ai-brief-view .ai-pillar-chip:hover {
-      border-color: rgba(14, 165, 233, 0.55);
-      color: rgb(3 105 161);
+      border-color: rgba(82, 82, 91, 0.55);
+      color: rgb(24 24 27);
     }
     html.dark #ai-brief-view .ai-pillar-chip {
-      border-color: rgba(71, 85, 105, 0.65);
-      background: rgba(15, 23, 42, 0.65);
-      color: rgb(203 213 225);
+      border-color: rgba(63, 63, 70, 0.55);
+      background: rgba(24, 24, 27, 0.72);
+      color: rgb(212 212 216);
     }
     html.dark #ai-brief-view .ai-pillar-chip:hover {
-      border-color: rgba(56, 189, 248, 0.6);
-      color: rgb(125 211 252);
+      border-color: rgba(113, 113, 122, 0.55);
+      color: rgb(244 244 245);
     }
     #ai-brief-view .ai-pillar-header {
       display: flex;
@@ -351,8 +370,8 @@
       padding: 0.8rem 1rem;
     }
     html.dark #ai-brief-view .ai-pillar-header {
-      border-bottom-color: rgba(51, 65, 85, 0.8);
-      background: linear-gradient(118deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.75));
+      border-bottom-color: rgba(63, 63, 70, 0.65);
+      background: linear-gradient(118deg, rgba(39, 39, 42, 0.82), rgba(9, 9, 11, 0.78));
     }
     #ai-brief-view .ai-pillar-icon {
       display: inline-flex;
@@ -366,8 +385,8 @@
       font-size: 1.05rem;
     }
     html.dark #ai-brief-view .ai-pillar-icon {
-      background: linear-gradient(145deg, rgba(56, 189, 248, 0.28), rgba(129, 140, 248, 0.22));
-      border-color: rgba(56, 189, 248, 0.35);
+      background: linear-gradient(145deg, rgba(63, 63, 70, 0.35), rgba(24, 24, 27, 0.55));
+      border-color: rgba(82, 82, 91, 0.45);
     }
     #ai-brief-view .ai-site-row {
       position: relative;
@@ -375,8 +394,70 @@
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.7));
     }
     html.dark #ai-brief-view .ai-site-row {
-      border-left-color: rgba(56, 189, 248, 0.6);
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.45));
+      border-left-color: rgba(161, 161, 170, 0.45);
+      background: linear-gradient(180deg, rgba(24, 24, 27, 0.72), rgba(9, 9, 11, 0.5));
+    }
+    #ai-brief-view .ai-brief-metin .ai-metric {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    #ai-brief-view .ai-brief-metin .ai-metric--up {
+      color: #15803d;
+    }
+    #ai-brief-view .ai-brief-metin .ai-metric--down {
+      color: #b91c1c;
+    }
+    #ai-brief-view .ai-brief-metin .ai-metric--flat {
+      color: #64748b;
+    }
+    html.dark #ai-brief-view .ai-brief-metin .ai-metric--up {
+      color: #4ade80;
+    }
+    html.dark #ai-brief-view .ai-brief-metin .ai-metric--down {
+      color: #f87171;
+    }
+    html.dark #ai-brief-view .ai-brief-metin .ai-metric--flat {
+      color: #a1a1aa;
+    }
+    #ai-brief-view .ai-brief-metin .ai-kw {
+      font-weight: 600;
+    }
+    #ai-brief-view .ai-brief-metin .ai-kw--up {
+      color: #166534;
+    }
+    #ai-brief-view .ai-brief-metin .ai-kw--down {
+      color: #991b1b;
+    }
+    html.dark #ai-brief-view .ai-brief-metin .ai-kw--up {
+      color: #86efac;
+    }
+    html.dark #ai-brief-view .ai-brief-metin .ai-kw--down {
+      color: #fca5a5;
+    }
+    #ai-brief-view .ai-brief-kpi-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    #ai-brief-view .ai-brief-kpi-item {
+      margin: 0;
+      padding: 0.45rem 0.55rem 0.45rem 0.65rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(255, 255, 255, 0.55);
+      border-left: 3px solid rgba(16, 185, 129, 0.45);
+    }
+    html.dark #ai-brief-view .ai-brief-kpi-item {
+      border-color: rgba(63, 63, 70, 0.55);
+      background: rgba(9, 9, 11, 0.35);
+      border-left-color: rgba(74, 222, 128, 0.35);
+    }
+    #ai-brief-view .ai-brief-card--rakamlar .ai-brief-kpi-list {
+      margin-top: 0.15rem;
     }
     #ai-brief-view .ai-site-badge {
       display: inline-flex;
@@ -392,31 +473,99 @@
       border: 1px solid rgba(14, 165, 233, 0.28);
     }
     html.dark #ai-brief-view .ai-site-badge {
-      color: rgb(125 211 252);
-      background: rgba(56, 189, 248, 0.16);
-      border-color: rgba(56, 189, 248, 0.34);
+      color: rgb(212 212 216);
+      background: rgba(39, 39, 42, 0.65);
+      border-color: rgba(82, 82, 91, 0.45);
+    }
+    /* Koyu temada lacivertsiz: bölüm kabuğu, pill, başlık şeridi, AI rozeti (Tailwind slate mavi alt ton) */
+    html.dark #ai-brief-view .ai-pillar-shell {
+      background-color: #09090b !important;
+      background-image: none !important;
+      border-color: #27272a !important;
+      box-shadow: none !important;
+    }
+    html.midnight #ai-brief-view .ai-pillar-shell {
+      background-color: #000000 !important;
+      border-color: #1c1c1c !important;
+    }
+    html.dark #ai-brief-view .ai-pillar-header {
+      background: #09090b !important;
+      background-image: none !important;
+      border-bottom-color: #27272a !important;
+    }
+    html.midnight #ai-brief-view .ai-pillar-header {
+      background: #000000 !important;
+      border-bottom-color: #27272a !important;
+    }
+    html.dark #ai-brief-view .ai-pillar-chip {
+      background: #09090b !important;
+      border-color: #3f3f46 !important;
+      color: #e4e4e7 !important;
+    }
+    html.midnight #ai-brief-view .ai-pillar-chip {
+      background: #000000 !important;
+      border-color: #27272a !important;
+    }
+    html.dark #ai-brief-view .ai-pillar-chip:hover {
+      border-color: #52525b !important;
+      color: #fafafa !important;
+    }
+    html.dark #ai-brief-view .ai-pillar-ai-badge {
+      background: #18181b !important;
+      border-color: #3f3f46 !important;
+      color: #d4d4d8 !important;
+    }
+    html.midnight #ai-brief-view .ai-pillar-ai-badge {
+      background: #0a0a0a !important;
+      border-color: #27272a !important;
+      color: #e4e4e7 !important;
+    }
+    html.dark #ai-brief-view .ai-pillar-divider {
+      border-color: #27272a !important;
+    }
+    html.dark #ai-brief-view .ai-brief-visual-slot {
+      background: rgba(9, 9, 11, 0.92) !important;
+      border-color: #27272a !important;
+    }
+    html.midnight #ai-brief-view .ai-brief-visual-slot {
+      background: rgba(0, 0, 0, 0.88) !important;
+    }
+    html.dark #ai-brief-view .ai-brief-history {
+      background-color: #09090b !important;
+      border-color: #27272a !important;
+    }
+    html.midnight #ai-brief-view .ai-brief-history {
+      background-color: #000000 !important;
+      border-color: #1c1c1c !important;
+    }
+    html.dark #ai-brief-view .ai-brief-history-head {
+      background: #09090b !important;
+      border-bottom-color: #27272a !important;
+    }
+    html.midnight #ai-brief-view .ai-brief-history-head {
+      background: #000000 !important;
     }
   </style>
 
   <div class="ai-brief-action-card space-y-3">
   {% if ai_brief_last_run_at is defined and ai_brief_last_run_at %}
-  <p class="mb-0 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
+  <p class="mb-0 text-xs font-medium tabular-nums text-slate-600 dark:text-zinc-400">
     Son analiz: {{ ai_brief_last_run_at|e }}
   </p>
   {% endif %}
   {# ── Progress bar ── #}
   <div id="ai-brief-progress" class="mb-3 hidden" aria-live="polite">
     <div class="mb-2 flex items-center justify-between gap-2">
-      <p class="text-xs font-medium text-slate-600 dark:text-slate-300">Analiz oluşturuluyor…</p>
-      <span id="ai-brief-progress-pct" class="tabular-nums text-xs font-semibold text-sky-700 dark:text-sky-300">0%</span>
+      <p class="text-xs font-medium text-slate-600 dark:text-zinc-300">Analiz oluşturuluyor…</p>
+      <span id="ai-brief-progress-pct" class="tabular-nums text-xs font-semibold text-sky-700 dark:text-zinc-300">0%</span>
     </div>
     <div
-      class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+      class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800"
       role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
       id="ai-brief-progress-track"
     >
       <div id="ai-brief-progress-fill"
-        class="h-2.5 rounded-full bg-sky-600 transition-[width] duration-300 ease-out dark:bg-sky-400"
+        class="h-2.5 rounded-full bg-sky-600 transition-[width] duration-300 ease-out dark:bg-zinc-500"
         style="width: 0%"></div>
     </div>
   </div>
@@ -493,9 +642,9 @@
 
   <div class="space-y-4">
   {% if not ai_brief %}
-    <div class="rounded-xl border border-dashed border-slate-300 bg-white/80 p-6 text-center dark:border-slate-600 dark:bg-slate-800/60 sm:p-8">
-      <p class="text-sm font-medium text-slate-700 dark:text-slate-200">Henüz kayıtlı özet yok.</p>
-      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Groq, Gemini veya OpenAI seçip <span class="font-semibold text-sky-600 dark:text-sky-400">Analiz yap</span> ile oluşturabilirsiniz.</p>
+    <div class="rounded-xl border border-dashed border-slate-300 bg-white/80 p-6 text-center dark:border-zinc-700 dark:bg-zinc-950/80 sm:p-8">
+      <p class="text-sm font-medium text-slate-700 dark:text-zinc-200">Henüz kayıtlı özet yok.</p>
+      <p class="mt-2 text-xs text-slate-500 dark:text-zinc-400">Groq, Gemini veya OpenAI seçip <span class="font-semibold text-sky-600 dark:text-zinc-200">Analiz yap</span> ile oluşturabilirsiniz.</p>
     </div>
   {% else %}
     <div id="ai-brief-layout-root" class="space-y-4">
@@ -511,19 +660,19 @@
       {% macro pillar_block(title_key, icon, raw, pillar_key) -%}
         {% set p = raw|ai_brief_sites %}
         {% set section_id = 'ai-pillar-' ~ (title_key|lower|replace(' ', '-')|replace('ı', 'i')|replace('ğ', 'g')|replace('ş', 's')|replace('ç', 'c')|replace('ö', 'o')|replace('ü', 'u')) %}
-        <section id="{{ section_id }}" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section id="{{ section_id }}" class="ai-pillar-shell overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div class="ai-pillar-header">
             <div class="min-w-0 flex items-center gap-2.5">
               <span class="ai-pillar-icon" aria-hidden="true">{{ icon }}</span>
               <div class="min-w-0">
-                <h4 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">{{ title_key }}</h4>
+                <h4 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-zinc-200">{{ title_key }}</h4>
               </div>
             </div>
-            <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">AI</span>
+            <span class="ai-pillar-ai-badge rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">AI</span>
           </div>
 
           {% if p.mode == 'sites' and p['items'] %}
-            <div class="divide-y divide-slate-100 dark:divide-slate-800">
+            <div class="ai-pillar-divider divide-y divide-slate-100 dark:divide-zinc-800">
               {% for it in p['items'] %}
                 <div
                   class="ai-site-row px-5 py-4"
@@ -534,26 +683,26 @@
                     <span class="ai-site-badge" aria-hidden="true">{{ loop.index }}</span>
                     <div class="min-w-0">
                       <h5 class="text-sm font-bold text-slate-900 dark:text-white">{{ it.baslik|e }}</h5>
-                      <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ it.domain|e }}</span>
+                      <span class="font-mono text-[11px] text-slate-400 dark:text-zinc-500">{{ it.domain|e }}</span>
                     </div>
                   </div>
                   {% if pillar_key in ('ga4', 'pagespeed', 'search_console') %}
                   <div
-                    class="ai-brief-visual-slot ai-brief-visual--{{ pillar_key|e }} mb-3 hidden min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/60 p-2.5 dark:border-slate-600 dark:bg-slate-800/35"
+                    class="ai-brief-visual-slot ai-brief-visual--{{ pillar_key|e }} mb-3 hidden min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/60 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/70"
                     aria-label="Özet grafikler"
                   ></div>
                   {% endif %}
-                  <div class="ai-brief-metin text-slate-800 dark:text-slate-100">{{ it.metin|ai_brief_html_paragraphs }}</div>
+                  <div class="ai-brief-metin text-slate-800 dark:text-zinc-100">{{ it.metin|ai_brief_html_paragraphs }}</div>
                 </div>
               {% endfor %}
             </div>
           {% elif p.mode == 'legacy' and p.text %}
             <div class="px-5 py-4">
-              <div class="whitespace-pre-wrap text-[13px] leading-[1.7] text-slate-700 dark:text-slate-300">{{ p.text|e }}</div>
+              <div class="ai-brief-metin text-slate-800 dark:text-zinc-100">{{ p.text|ai_brief_html_paragraphs }}</div>
             </div>
           {% else %}
             <div class="px-5 py-4">
-              <p class="text-sm text-slate-500 dark:text-slate-400">Bu bölümde içerik yok.</p>
+              <p class="text-sm text-slate-500 dark:text-zinc-400">Bu bölümde içerik yok.</p>
             </div>
           {% endif %}
         </section>
@@ -593,40 +742,40 @@
 
   {% set st = ai_brief_run_stats if ai_brief_run_stats is defined else none %}
   {% if st %}
-  <section class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Analiz geçmişi">
-    <div class="border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/60 sm:px-5">
-      <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Analiz geçmişi</h3>
-      <p class="mt-0.5 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+  <section class="ai-brief-history rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950" aria-label="Analiz geçmişi">
+    <div class="ai-brief-history-head border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-950 sm:px-5">
+      <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Analiz geçmişi</h3>
+      <p class="mt-0.5 text-xs leading-relaxed text-slate-600 dark:text-zinc-400">
         Her satır, özetin başarıyla üretildiği bir çalıştırmayı gösterir. Tarihler İstanbul saatine göredir.
       </p>
       <p class="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{{ st.total_all }}</p>
-      <p class="text-xs text-slate-500 dark:text-slate-400">toplam analiz (tüm zamanlar)</p>
+      <p class="text-xs text-slate-500 dark:text-zinc-400">toplam analiz (tüm zamanlar)</p>
     </div>
     <div class="space-y-4 px-4 py-3 sm:px-5 sm:py-4">
       {% if st.models_all_time %}
         <div>
-          <h4 class="mb-2 text-xs font-semibold text-slate-800 dark:text-slate-200">Hangi yapay zeka kaç kez kullanıldı?</h4>
-          <ul class="divide-y divide-slate-100 dark:divide-slate-800" role="list">
+          <h4 class="mb-2 text-xs font-semibold text-slate-800 dark:text-zinc-200">Hangi yapay zeka kaç kez kullanıldı?</h4>
+          <ul class="divide-y divide-slate-100 dark:divide-zinc-800" role="list">
             {% for m in st.models_all_time %}
               <li class="flex flex-col gap-1 py-3 first:pt-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-slate-900 dark:text-white">{{ ai_hist_model_title(m.model) }}</p>
                   {% set _raw = m.model %}
                   {% if _raw and _raw|string|trim not in ('—', 'kayıtta yok') and ':' in (_raw|string) %}
-                    <span class="mt-0.5 block font-mono text-[10px] leading-tight text-slate-400 dark:text-slate-500">{{ _raw|e }}</span>
+                    <span class="mt-0.5 block font-mono text-[10px] leading-tight text-slate-400 dark:text-zinc-500">{{ _raw|e }}</span>
                   {% endif %}
-                  <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                    Otomatik (her gün planlanan): <span class="tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ m.scheduled }}</span>
-                    · Elle (&quot;Analiz yap&quot;): <span class="tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ m.manual }}</span>
+                  <p class="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-zinc-400">
+                    Otomatik (her gün planlanan): <span class="tabular-nums font-semibold text-slate-800 dark:text-zinc-200">{{ m.scheduled }}</span>
+                    · Elle (&quot;Analiz yap&quot;): <span class="tabular-nums font-semibold text-slate-800 dark:text-zinc-200">{{ m.manual }}</span>
                   </p>
-                  <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">
                     Bu model için tahmini (TRY, tüm zamanlar):
-                    <span class="font-mono tabular-nums text-slate-700 dark:text-slate-300">{{ (m.approx_try | default(0)) | round(2) }}</span>
+                    <span class="font-mono tabular-nums text-slate-700 dark:text-zinc-300">{{ (m.approx_try | default(0)) | round(2) }}</span>
                   </p>
                 </div>
                 <div class="shrink-0 text-left sm:text-right">
-                  <p class="text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ m.count }}</p>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400">kez</p>
+                  <p class="text-xl font-bold tabular-nums text-sky-700 dark:text-zinc-300">{{ m.count }}</p>
+                  <p class="text-[11px] text-slate-500 dark:text-zinc-400">kez</p>
                 </div>
               </li>
             {% endfor %}
@@ -637,12 +786,12 @@
       <div class="rounded-xl border border-amber-200/90 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-50">
         <h4 class="font-semibold text-amber-900 dark:text-amber-200">Maliyet (sadece kabaca tahmin)</h4>
         <dl class="mt-3 grid gap-2 sm:grid-cols-2">
-          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-slate-900/40">
+          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-zinc-950/50">
             <dt class="text-[11px] text-amber-800/90 dark:text-amber-200/80">Bu ay tahmini (TRY)</dt>
             <dd class="text-base font-semibold tabular-nums text-amber-950 dark:text-amber-100">{{ st.llm_spent_try_approx_month | round(2) }}</dd>
           </div>
           {% if st.llm_budget_try and st.llm_budget_try > 0 %}
-          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-slate-900/40">
+          <div class="rounded-md bg-white/70 px-3 py-2 dark:bg-zinc-950/50">
             <dt class="text-[11px] text-amber-800/90 dark:text-amber-200/80">Ay içi üst limit (TRY)</dt>
             <dd class="text-base font-semibold tabular-nums text-amber-950 dark:text-amber-100">{{ st.llm_budget_try | round(2) }}</dd>
           </div>
@@ -667,10 +816,10 @@
 
       {% if st.runs_ledger is defined and st.runs_ledger|length > 0 %}
         <div>
-          <h4 class="mb-2 text-xs font-semibold text-slate-800 dark:text-slate-200">Her tetikleme (defter)</h4>
-          <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700">
-            <table class="w-full min-w-[52rem] text-left text-[11px] text-slate-700 dark:text-slate-200">
-              <thead class="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
+          <h4 class="mb-2 text-xs font-semibold text-slate-800 dark:text-zinc-200">Her tetikleme (defter)</h4>
+          <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800">
+            <table class="w-full min-w-[52rem] text-left text-[11px] text-slate-700 dark:text-zinc-200">
+              <thead class="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-400">
                 <tr>
                   <th class="whitespace-nowrap px-3 py-2">Zaman (TR)</th>
                   <th class="whitespace-nowrap px-3 py-2">Gün</th>
@@ -681,16 +830,16 @@
                   <th class="min-w-[14rem] px-3 py-2">Açıklama</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody class="divide-y divide-slate-100 dark:divide-zinc-800">
                 {% for row in st.runs_ledger %}
                 <tr class="align-top">
-                  <td class="whitespace-nowrap px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{{ row.when_tr|e }}</td>
+                  <td class="whitespace-nowrap px-3 py-2 font-mono text-slate-600 dark:text-zinc-400">{{ row.when_tr|e }}</td>
                   <td class="whitespace-nowrap px-3 py-2 font-mono">{{ row.day_key|e }}</td>
                   <td class="whitespace-nowrap px-3 py-2">{{ row.source_label|e }}</td>
-                  <td class="max-w-[10rem] truncate px-3 py-2 font-mono text-[10px] text-slate-500 dark:text-slate-400" title="{{ row.model|e }}">{{ row.model|e }}</td>
+                  <td class="max-w-[10rem] truncate px-3 py-2 font-mono text-[10px] text-slate-500 dark:text-zinc-400" title="{{ row.model|e }}">{{ row.model|e }}</td>
                   <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">{{ row.approx_try | round(4) }}</td>
                   <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ row.llm_calls }}</td>
-                  <td class="px-3 py-2 text-[11px] leading-snug text-slate-600 dark:text-slate-300">{{ row.run_detail|e }}</td>
+                  <td class="px-3 py-2 text-[11px] leading-snug text-slate-600 dark:text-zinc-300">{{ row.run_detail|e }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -701,25 +850,25 @@
 
       {% if st.days %}
         <div>
-          <h4 class="mb-3 text-xs font-semibold text-slate-800 dark:text-slate-200">Gün gün (son {{ st.window_days }} gün)</h4>
+          <h4 class="mb-3 text-xs font-semibold text-slate-800 dark:text-zinc-200">Gün gün (son {{ st.window_days }} gün)</h4>
           <ul class="space-y-3" role="list">
             {% for d in st.days %}
-              <li class="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40">
+              <li class="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/45">
                 <p class="text-sm font-medium text-slate-900 dark:text-white">
-                  <time class="font-mono text-xs text-slate-600 dark:text-slate-400">{{ d.day_key|e }}</time>
-                  <span class="ml-2 text-slate-500 dark:text-slate-400">·</span>
+                  <time class="font-mono text-xs text-slate-600 dark:text-zinc-400">{{ d.day_key|e }}</time>
+                  <span class="ml-2 text-slate-500 dark:text-zinc-400">·</span>
                   <span class="ml-2 tabular-nums">{{ d.total }}</span> analiz
                 </p>
-                <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
+                <p class="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">
                   Bu gün tahmini toplam (TRY):
-                  <span class="font-mono tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ (d.try_sum | default(0)) | round(2) }}</span>
-                  <span class="text-slate-500 dark:text-slate-500">· Eski/içe aktarılan satırlarda 0 görünebilir.</span>
+                  <span class="font-mono tabular-nums font-semibold text-slate-800 dark:text-zinc-200">{{ (d.try_sum | default(0)) | round(2) }}</span>
+                  <span class="text-slate-500 dark:text-zinc-500">· Eski/içe aktarılan satırlarda 0 görünebilir.</span>
                 </p>
-                <ul class="mt-2 space-y-1.5 border-t border-slate-200/80 pt-2 dark:border-slate-700/80">
+                <ul class="mt-2 space-y-1.5 border-t border-slate-200/80 pt-2 dark:border-zinc-800/80">
                   {% for m in d.models %}
-                    <li class="text-[12px] text-slate-700 dark:text-slate-300">
-                      <span class="font-medium text-slate-800 dark:text-slate-200">{{ ai_hist_model_title(m.model) }}</span>
-                      <span class="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                    <li class="text-[12px] text-slate-700 dark:text-zinc-300">
+                      <span class="font-medium text-slate-800 dark:text-zinc-200">{{ ai_hist_model_title(m.model) }}</span>
+                      <span class="mt-0.5 block text-[11px] text-slate-500 dark:text-zinc-400">
                         <span class="tabular-nums">{{ m.count }}</span> kez
                         · otomatik <span class="tabular-nums">{{ m.scheduled }}</span>
                         · el <span class="tabular-nums">{{ m.manual }}</span>
@@ -733,7 +882,7 @@
           </ul>
         </div>
       {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">Son {{ st.window_days }} günde listelenecek gün yok.</p>
+        <p class="text-sm text-slate-500 dark:text-zinc-400">Son {{ st.window_days }} günde listelenecek gün yok.</p>
       {% endif %}
 
     </div>

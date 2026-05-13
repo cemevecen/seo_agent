@@ -36,27 +36,27 @@
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
   <style id="seo-dark-form-controls">
-    /* Native form controls stay light unless we force dark UI + explicit fields */
+    /* Native form controls — koyu temada lacivertsiz çinko */
     html.dark {
       color-scheme: dark;
     }
     html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
     html.dark textarea,
     html.dark select {
-      background-color: #1e293b;
-      color: #f1f5f9;
-      border-color: #475569;
+      background-color: #18181b;
+      color: #e4e4e7;
+      border-color: #3f3f46;
     }
     html.dark input::placeholder,
     html.dark textarea::placeholder {
-      color: #94a3b8;
+      color: #71717a;
     }
     html.dark input:focus,
     html.dark textarea:focus,
     html.dark select:focus {
       outline: none;
-      box-shadow: 0 0 0 2px #334155;
-      border-color: #64748b;
+      box-shadow: 0 0 0 2px #27272a;
+      border-color: #52525b;
     }
     html.dark input:disabled,
     html.dark textarea:disabled,
@@ -65,188 +65,164 @@
     }
     html.dark input[type="checkbox"],
     html.dark input[type="radio"] {
-      accent-color: #38bdf8;
-      border-color: #475569;
+      accent-color: #737373;
+      border-color: #3f3f46;
     }
     html.dark input[type="file"]::file-selector-button {
-      background-color: #334155;
-      color: #e2e8f0;
-      border: 1px solid #475569;
+      background-color: #27272a;
+      color: #d4d4d8;
+      border: 1px solid #3f3f46;
       border-radius: 0.375rem;
       padding: 0.25rem 0.5rem;
       margin-right: 0.5rem;
     }
   </style>
-  <style id="seo-midnight-overrides">
-    /* Midnight (true dark) — antrasit/siyah ağırlıklı */
-    html.midnight {
-      color-scheme: dark;
-    }
-    html.midnight body {
+  <style id="seo-dark-zinc-ui">
+    /* Dim + midnight: lacivertsiz antrasit / siyah (Tailwind slate/sky/indigo) */
+    html.dark body {
       background: radial-gradient(circle at top, #09090b, #111113 55%, #18181b) !important;
       color: #d4d4d8 !important;
     }
-    html.midnight input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
-    html.midnight textarea,
-    html.midnight select {
-      background-color: #18181b;
-      color: #e4e4e7;
-      border-color: #3f3f46;
-    }
-    html.midnight input::placeholder,
-    html.midnight textarea::placeholder {
-      color: #71717a;
-    }
-    html.midnight input:focus,
-    html.midnight textarea:focus,
-    html.midnight select:focus {
-      box-shadow: 0 0 0 2px #27272a;
-      border-color: #52525b;
-    }
-    html.midnight input[type="checkbox"],
-    html.midnight input[type="radio"] {
-      accent-color: #737373;
-      border-color: #3f3f46;
-    }
-    html.midnight input[type="file"]::file-selector-button {
-      background-color: #27272a;
-      color: #d4d4d8;
-      border-color: #3f3f46;
-    }
-    /* Midnight header bar */
-    html.midnight .header-card-midnight {
+    html.dark .header-card-midnight {
       border-color: rgba(63, 63, 70, 0.4) !important;
       background: linear-gradient(to bottom right, #18181b, #1c1c1f, #18181b) !important;
-      box-shadow: 0 10px 28px -16px rgba(0,0,0,0.7) !important;
+      box-shadow: 0 10px 28px -16px rgba(0, 0, 0, 0.7) !important;
       --tw-ring-shadow: 0 0 #0000 !important;
     }
-    /* Midnight nav pills */
-    html.midnight .header-nav-link {
-      border-color: rgba(63, 63, 70, 0.6);
-      color: #a1a1aa;
-      background: linear-gradient(118deg, rgba(24, 24, 27, 0.95), rgba(39, 39, 42, 0.72));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-    }
-    html.midnight .header-nav-link:hover {
-      background: linear-gradient(118deg, rgba(39, 39, 42, 0.98), rgba(63, 63, 70, 0.72));
-      color: #d4d4d8;
-    }
-    html.midnight .header-nav-link.nav-active {
-      background: #fafafa;
-      color: #09090b;
-      border-color: rgba(255, 255, 255, 0.18);
-      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.65);
-      text-shadow: none;
-    }
-    /* Midnight skeleton pulse */
-    html.midnight .animate-pulse [class*="bg-slate-200"] {
+    html.dark .animate-pulse [class*="bg-slate-200"] {
       background-color: rgb(39, 39, 42) !important;
     }
-    /* Midnight theme switcher */
-    html.midnight #theme-switcher {
-      border: none !important;
-      box-shadow: none !important;
-      background-color: rgba(9, 9, 11, 0.92);
-    }
-    /* Slate = mavi alt tonlu; midnight’da tamamen zinc/siyah palete çevir */
-    html.midnight [class*="dark:bg-slate"] {
+    html.dark [class*="dark:bg-slate"] {
       background-color: #18181b !important;
       background-image: none !important;
     }
-    html.midnight [class*="dark:bg-slate-950"],
-    html.midnight [class*="dark:bg-slate-900"] {
+    html.dark [class*="dark:bg-slate-950"],
+    html.dark [class*="dark:bg-slate-900"] {
       background-color: #09090b !important;
     }
-    html.midnight [class*="dark:bg-slate-600"] {
+    html.dark [class*="dark:bg-slate-600"] {
       background-color: #27272a !important;
     }
-    html.midnight [class*="dark:border-slate"] {
+    html.dark [class*="dark:border-slate"] {
       border-color: #27272a !important;
     }
-    html.midnight [class*="dark:ring-slate"],
-    html.midnight [class*="dark:ring-sky"] {
+    html.dark [class*="dark:ring-slate"],
+    html.dark [class*="dark:ring-sky"] {
       --tw-ring-color: rgba(39, 39, 42, 0.5) !important;
     }
-    html.midnight [class*="dark:text-slate-100"],
-    html.midnight [class*="dark:text-slate-200"] {
+    html.dark [class*="dark:text-slate-100"],
+    html.dark [class*="dark:text-slate-200"] {
       color: #e4e4e7 !important;
     }
-    html.midnight [class*="dark:text-slate-300"] {
+    html.dark [class*="dark:text-slate-300"] {
       color: #a1a1aa !important;
     }
-    html.midnight [class*="dark:text-slate-400"],
-    html.midnight [class*="dark:text-slate-500"],
-    html.midnight [class*="dark:text-slate-600"] {
+    html.dark [class*="dark:text-slate-400"],
+    html.dark [class*="dark:text-slate-500"],
+    html.dark [class*="dark:text-slate-600"] {
       color: #71717a !important;
     }
-    html.midnight [class*="dark:hover:bg-slate-600"]:hover,
-    html.midnight [class*="dark:hover:bg-slate-700"]:hover {
+    html.dark [class*="dark:hover:bg-slate-600"]:hover,
+    html.dark [class*="dark:hover:bg-slate-700"]:hover {
       background-color: #3f3f46 !important;
     }
-    html.midnight [class*="dark:hover:border-slate"]:hover {
+    html.dark [class*="dark:hover:border-slate"]:hover {
       border-color: #3f3f46 !important;
     }
-    /* Slate tabanlı koyu gradyanları düzleştir (lacivertsiz) */
-    html.midnight [class*="bg-gradient-to"][class*="dark:from-slate"] {
+    html.dark [class*="bg-gradient-to"][class*="dark:from-slate"] {
       background-image: linear-gradient(to bottom right, #18181b, #0f0f10, #18181b) !important;
     }
-    /* Yapısal mavi gökyüzü (Detay butonu vb.) — rozet chip’lere dokunma */
-    html.midnight button.toggle-details {
+    html.dark [class*="bg-gradient"][class*="dark:from-sky"] {
+      background-image: linear-gradient(to bottom, #18181b, #09090b) !important;
+    }
+    html.dark button.toggle-details {
       background-color: #27272a !important;
       color: #e4e4e7 !important;
       border: 1px solid #3f3f46 !important;
     }
-    html.midnight button.toggle-details:hover {
+    html.dark button.toggle-details:hover {
       background-color: #3f3f46 !important;
     }
-    html.midnight [class*="dark:focus:ring-sky"],
-    html.midnight [class*="dark:focus:ring-blue"] {
+    html.dark [class*="dark:focus:ring-sky"],
+    html.dark [class*="dark:focus:ring-blue"] {
       --tw-ring-color: #52525b !important;
     }
-    html.midnight [class*="dark:border-indigo"] {
+    html.dark [class*="dark:border-indigo"] {
       border-color: #3f3f46 !important;
     }
-    html.midnight [class*="dark:bg-indigo"]:not([class*="rounded-full"]) {
+    html.dark [class*="dark:bg-indigo"]:not([class*="rounded-full"]) {
       background-color: rgba(39, 39, 42, 0.55) !important;
     }
-    html.midnight [class*="dark:text-indigo"]:not([class*="rounded-full"]) {
+    html.dark [class*="dark:text-indigo"]:not([class*="rounded-full"]) {
       color: #d4d4d8 !important;
     }
-    html.midnight [class*="dark:hover:bg-indigo"]:not([class*="rounded-full"]):hover {
+    html.dark [class*="dark:hover:bg-indigo"]:not([class*="rounded-full"]):hover {
       background-color: rgba(63, 63, 70, 0.45) !important;
     }
-    html.midnight [class*="dark:border-violet"] {
+    html.dark [class*="dark:border-violet"] {
       border-color: #27272a !important;
     }
-    html.midnight [class*="dark:ring-violet"] {
+    html.dark [class*="dark:ring-violet"] {
       --tw-ring-color: rgba(63, 63, 70, 0.4) !important;
     }
-    /* İlerleme çubukları — mavi/cyan yerine gri ton */
-    html.midnight #alerts-progress-bar,
-    html.midnight #ga4-progress-bar,
-    html.midnight #search-console-progress-bar,
-    html.midnight #data-explorer-progress-bar,
-    html.midnight #external-onboarding-progress-bar,
-    html.midnight #app-intel-progress-bar {
+    html.dark #alerts-progress-bar,
+    html.dark #ga4-progress-bar,
+    html.dark #search-console-progress-bar,
+    html.dark #data-explorer-progress-bar,
+    html.dark #external-onboarding-progress-bar,
+    html.dark #app-intel-progress-bar {
       background: linear-gradient(90deg, #3f3f46 0%, #a1a1aa 45%, #71717a 100%) !important;
       box-shadow: none !important;
     }
-    html.midnight [id$="-progress-bar"] {
+    html.dark [id$="-progress-bar"] {
       box-shadow: none !important;
     }
-    /* dark: olmadan kalan slate-900 butonlar (lacivertsiz siyah) */
-    html.midnight button[class*="bg-slate-900"] {
+    html.dark button[class*="bg-slate-900"] {
       background-color: #09090b !important;
     }
-    html.midnight button[class*="bg-slate-900"]:hover {
+    html.dark button[class*="bg-slate-900"]:hover {
       background-color: #27272a !important;
     }
+    /* Sky / mavi vurgular */
+    html.dark [class*="dark:bg-sky"] {
+      background-color: #27272a !important;
+      background-image: none !important;
+    }
+    html.dark [class*="dark:text-sky"] {
+      color: #d4d4d8 !important;
+    }
+    html.dark [class*="dark:border-sky"] {
+      border-color: #3f3f46 !important;
+    }
+    html.dark [class*="dark:decoration-sky"] {
+      text-decoration-color: #52525b !important;
+    }
+    html.dark [class*="dark:hover:text-sky"]:hover {
+      color: #e4e4e7 !important;
+    }
+    html.dark [class*="dark:hover:bg-sky"]:hover {
+      background-color: #3f3f46 !important;
+    }
+    html.dark [class*="dark:bg-blue"] {
+      background-color: #27272a !important;
+      background-image: none !important;
+    }
+    html.dark [class*="dark:text-blue"] {
+      color: #d4d4d8 !important;
+    }
+    html.dark [class*="dark:border-blue"] {
+      border-color: #3f3f46 !important;
+    }
   </style>
-  <style id="seo-dark-skeleton-progress">
-    /* Skeleton (animate-pulse) açık gri — dark: için yedek (midnight hariç; orada zinc) */
-    html.dark:not(.midnight) .animate-pulse [class*="bg-slate-200"] {
-      background-color: rgb(51 65 85) !important;
+  <style id="seo-midnight-overrides">
+    html.midnight {
+      color-scheme: dark;
+    }
+    /* Sadece true-dark: tema anahtarı çerçevesi kalksın */
+    html.midnight #theme-switcher {
+      border: none !important;
+      box-shadow: none !important;
+      background-color: rgba(9, 9, 11, 0.92);
     }
   </style>
   <style id="seo-content-responsive-guards">
@@ -330,20 +306,21 @@
       box-shadow: 0 4px 14px -8px rgba(15, 23, 42, 0.22);
     }
     html.dark .header-nav-link {
-      border-color: rgba(148, 163, 184, 0.22);
-      color: #e2e8f0;
-      background: linear-gradient(118deg, rgba(51, 65, 85, 0.95), rgba(71, 85, 105, 0.72));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+      border-color: rgba(63, 63, 70, 0.6);
+      color: #a1a1aa;
+      background: linear-gradient(118deg, rgba(24, 24, 27, 0.95), rgba(39, 39, 42, 0.72));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
     html.dark .header-nav-link:hover {
-      background: linear-gradient(118deg, rgba(71, 85, 105, 0.98), rgba(100, 116, 139, 0.82));
+      background: linear-gradient(118deg, rgba(39, 39, 42, 0.98), rgba(63, 63, 70, 0.72));
+      color: #d4d4d8;
     }
     html.dark .header-nav-link.nav-active {
-      background: #f1f5f9;
-      color: #0f172a;
-      border-color: rgba(255, 255, 255, 0.22);
-      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.45);
+      background: #fafafa;
+      color: #09090b;
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.65);
       text-shadow: none;
     }
     .header-main-nav {
@@ -379,7 +356,7 @@
   <script src="/static/vendor/plotly-2.35.2.min.js" onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
 </head>
-<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#0f172a,_#1e293b_55%,_#334155)] dark:text-slate-100">
+<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#09090b,_#111113_55%,_#18181b)] dark:text-zinc-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
@@ -627,8 +604,8 @@
         muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
       if (d) return {
-        grid: '#334155', tick: '#cbd5e1', legend: '#cbd5e1',
-        muted: '#94a3b8', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
+        grid: '#27272a', tick: '#a1a1aa', legend: '#a1a1aa',
+        muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
       return {
         grid: '#e2e8f0', tick: '#64748b', legend: '#475569',

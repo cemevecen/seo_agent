@@ -125,8 +125,8 @@ class Settings(BaseSettings):
     scheduled_refresh_monitor_enabled: bool = True
     scheduled_refresh_monitor_interval_minutes: int = 15
     scheduled_refresh_monitor_grace_minutes: int = 45
-    # Tüm uygulama e-postaları: SEO Alert, operasyon özeti, günlük AI özet, GA4 özeti.
-    # False iken SMTP gönderilmez (iş mantığı ve loglar çalışmaya devam eder).
+    # Genel uygulama e-postaları: SEO Alert, operasyon özeti, günlük AI özet, GA4 haftalık özet vb.
+    # False iken bu kanallar SMTP kullanmaz. GA4 Realtime alarm postası ayrı bayrakla (ga4_realtime_email_enabled) gönderilir.
     outbound_email_enabled: bool = False
     # Tetik/operasyon özet mailleri (PageSpeed/CrUX günlük vb.); outbound açıkken anlam taşır.
     operations_trigger_email_enabled: bool = False
@@ -189,6 +189,8 @@ class Settings(BaseSettings):
     ga4_realtime_interval_minutes: int = 10
     ga4_realtime_window_minutes: int = 30
     ga4_realtime_page_alerts_enabled: bool = True
+    # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
+    ga4_realtime_email_enabled: bool = True
     ga4_realtime_page_alert_email: bool = True
 
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
