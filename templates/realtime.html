@@ -1192,7 +1192,7 @@
       '-' +
       String(profile) +
       '-' +
-      String(xDates.length) +
+      String(xLabels.length) +
       '-' +
       lastTs +
       '-' +
@@ -1207,21 +1207,23 @@
     });
     if (!isFinite(uMin) || !isFinite(uMax)) { uMin = 0; uMax = 1; }
     var y1 = uMax * 1.15 + 1;
-    /* Sütun grafik renkleri: dark modda cyan-400, light modda slate-600 */
-    var barColor = isDark ? '#22d3ee' : '#475569';
-    var barOpacity = isDark ? 0.85 : 0.75;
-    var n = xLabels.length;
+    /* Yahoo Finance style line/area chart */
+    var lineColor = isDark ? '#10b981' : '#059669'; // Emerald
+    var fillColor = isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(5, 150, 105, 0.15)';
     var mainTrace = {
       x: xLabels,
       y: users,
       text: hoverTexts,
-      type: 'bar',
-      name: 'Aktif kullanıcı',
-      marker: {
-        color: barColor,
-        opacity: barOpacity,
-        line: { width: 0 },
+      type: 'scatter',
+      mode: 'lines',
+      line: {
+        color: lineColor,
+        width: 2,
+        shape: 'linear'
       },
+      fill: 'tozeroy',
+      fillcolor: fillColor,
+      name: 'Aktif kullanıcı',
       hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
       showlegend: false,
     };
@@ -1242,7 +1244,6 @@
         plot_bgcolor: 'rgba(0,0,0,0)',
         showlegend: false,
         dragmode: false,
-        bargap: 0.15,
         hovermode: 'x',
         uirevision: wantId,
         datarevision: dataRevision,
