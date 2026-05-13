@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+<div class="inbox-page mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Gelen kutusu</h1>
-      <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-        Gmail üzerinden <code class="rounded bg-slate-100 px-1 dark:bg-zinc-800">info@doviz.com</code> ve
-        <code class="rounded bg-slate-100 px-1 dark:bg-zinc-800">feedback@doviz.com</code> adreslerine gelen iletileri
+      <p class="inbox-header-desc mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+        Gmail üzerinden <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">info@doviz.com</code> ve
+        <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">feedback@doviz.com</code> adreslerine gelen iletileri
         senkronize eder; okundu / cevaplandı işaretleri ve OpenAI ile özet + taslak üretir.
       </p>
     </div>
@@ -16,7 +16,7 @@
         href="/api/inbox/oauth/start?next=/inbox"
         class="hidden rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow hover:bg-indigo-700"
       >Google ile bağla</a>
-      <button type="button" id="inbox-sync-btn" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">Senkronize et</button>
+      <button type="button" id="inbox-sync-btn" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Senkronize et</button>
       <button type="button" id="inbox-disconnect-btn" class="hidden rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40">Bağlantıyı kes</button>
     </div>
   </div>
@@ -24,10 +24,10 @@
   <div id="inbox-banner" class="mb-4 hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
 
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-zinc-900/80">
-      <div class="mb-3 flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtre</span>
-        <select id="inbox-route-filter" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950">
+    <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
+      <div class="inbox-toolbar-strip mb-3 flex flex-wrap items-center gap-2">
+        <span class="inbox-filter-label text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtre</span>
+        <select id="inbox-route-filter" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
           <option value="">Tümü</option>
           <option value="info">info@</option>
           <option value="feedback">feedback@</option>
@@ -38,8 +38,8 @@
       <div id="inbox-list" class="max-h-[70vh] space-y-2 overflow-y-auto text-sm"></div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-zinc-900/80">
-      <div id="inbox-detail-empty" class="text-sm text-slate-500 dark:text-slate-400">Soldan bir konuşma seçin.</div>
+    <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
+      <div id="inbox-detail-empty" class="inbox-empty-hint text-sm text-slate-500 dark:text-slate-400">Soldan bir konuşma seçin.</div>
       <div id="inbox-detail" class="hidden space-y-4">
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -47,24 +47,39 @@
             <p id="inbox-detail-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button type="button" id="btn-read" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Okundu</button>
-            <button type="button" id="btn-unread" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Okunmadı</button>
+            <button type="button" id="btn-read" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Okundu</button>
+            <button type="button" id="btn-unread" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Okunmadı</button>
             <button type="button" id="btn-answered" class="rounded-md border border-emerald-600 px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-200">Cevaplandı işaretle</button>
-            <button type="button" id="btn-unanswered" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-bold dark:border-zinc-600">Cevaplandı kaldır</button>
+            <button type="button" id="btn-unanswered" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Cevaplandı kaldır</button>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
           <button type="button" id="btn-summarize" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI özet</button>
           <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI taslak cevap</button>
         </div>
-        <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-950"></div>
-        <div class="space-y-2">
+        <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"></div>
+        <div id="inbox-templates-wrap" class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">AI yanıt şablonları (3)</h3>
+            <button
+              type="button"
+              id="inbox-templates-refresh"
+              class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            >Yenile</button>
+          </div>
+          <p id="inbox-templates-hint" class="text-[11px] text-slate-500 dark:text-slate-400">
+            Bir şablonu seçin; metin alanına aktarılır, gönderen adresi ve konu doldurulur. Metni düzenleyip «Gmail ile gönder» ile iletebilirsiniz.
+          </p>
+          <p id="inbox-templates-provider" class="text-[10px] text-slate-400 dark:text-slate-500"></p>
+          <div id="inbox-templates-list" class="grid gap-2 sm:grid-cols-3"></div>
+        </div>
+        <div id="inbox-compose-anchor" class="space-y-2">
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Alıcı</label>
-          <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Konu</label>
-          <input id="inbox-send-subject" type="text" class="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          <input id="inbox-send-subject" type="text" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Gövde (düzenleyebilirsiniz)</label>
-          <textarea id="inbox-send-body" rows="10" class="w-full rounded-md border border-slate-300 px-2 py-1 font-mono text-sm dark:border-zinc-600 dark:bg-zinc-950"></textarea>
+          <textarea id="inbox-send-body" rows="10" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"></textarea>
           <button type="button" id="btn-send" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700">Gmail ile gönder</button>
         </div>
         <div>
@@ -80,6 +95,10 @@
 (function () {
   var selectedId = null;
   var status = {};
+  var replyToGmailId = null;
+  var templateFocus = null;
+  var templatesCache = [];
+  var currentTemplateFocusGmid = null;
 
   function showBanner(msg) {
     var el = document.getElementById("inbox-banner");
@@ -103,6 +122,18 @@
       .replace(/"/g, "&quot;");
   }
 
+  function extractEmail(fromHdr) {
+    var s = (fromHdr || "").trim();
+    if (!s) return "";
+    var m = s.match(/<([^>]+)>/);
+    if (m) return m[1].trim();
+    var parts = s.split(/\s+/);
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].indexOf("@") !== -1) return parts[i].replace(/^[<,]+|[>,]+$/g, "");
+    }
+    return s;
+  }
+
   function fmtMs(ms) {
     if (!ms) return "—";
     try {
@@ -117,6 +148,87 @@
       if (!messages[i].is_outbound) return messages[i].from || "";
     }
     return "";
+  }
+
+  function lastInboundGmailId(messages) {
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].is_outbound && messages[i].gmail_message_id) return messages[i].gmail_message_id;
+    }
+    return "";
+  }
+
+  function applyReplyTemplate(tpl) {
+    if (!tpl) return;
+    document.getElementById("inbox-send-body").value = tpl.body || "";
+    var f = templateFocus;
+    if (f && f.gmail_message_id) {
+      replyToGmailId = f.gmail_message_id;
+      document.getElementById("inbox-send-to").value = extractEmail(f.from || "");
+      var subjh = f.subject || "";
+      var threadSubj = document.getElementById("inbox-detail-subject").textContent || "";
+      document.getElementById("inbox-send-subject").value =
+        subjh.indexOf("Re:") === 0 ? subjh : "Re: " + (subjh || threadSubj || "");
+    }
+    var anchor = document.getElementById("inbox-compose-anchor");
+    if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async function loadReplyTemplates(focusGmid) {
+    var list = document.getElementById("inbox-templates-list");
+    var prov = document.getElementById("inbox-templates-provider");
+    if (!list) return;
+    if (!selectedId) return;
+    currentTemplateFocusGmid = focusGmid || null;
+    if (!status.inbox_llm_ready) {
+      list.innerHTML =
+        '<p class="text-xs text-amber-800 dark:text-amber-200">Üç şablon için .env içinde OPENAI_API_KEY, GEMINI_API_KEY veya GROQ_API_KEY tanımlayın.</p>';
+      if (prov) prov.textContent = "";
+      templatesCache = [];
+      templateFocus = null;
+      return;
+    }
+    list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Şablonlar üretiliyor…</p>';
+    if (prov) prov.textContent = "";
+    try {
+      var payload = {};
+      if (focusGmid) payload.focus_gmail_message_id = focusGmid;
+      var out = await jfetch("/api/inbox/threads/" + selectedId + "/reply-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      templateFocus = out.focus || null;
+      templatesCache = out.templates || [];
+      var humanProv =
+        { openai: "OpenAI", gemini: "Google Gemini", groq: "Groq" }[out.provider] || out.provider || "";
+      if (prov) prov.textContent = humanProv ? "Üretim: " + humanProv : "";
+      list.innerHTML = templatesCache
+        .map(function (tpl, idx) {
+          return (
+            '<div class="inbox-template-card flex flex-col rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/40">' +
+            '<div class="mb-1 text-xs font-bold text-indigo-700 dark:text-indigo-300">' +
+            esc(tpl.label) +
+            "</div>" +
+            '<pre class="inbox-template-preview mb-2 max-h-36 min-h-[4rem] flex-1 overflow-auto whitespace-pre-wrap font-sans text-[11px] leading-snug text-slate-700 dark:text-slate-300">' +
+            esc(tpl.body) +
+            "</pre>" +
+            '<button type="button" class="inbox-use-template-btn mt-auto rounded-md bg-indigo-600 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-500" data-idx="' +
+            idx +
+            '">Bu şablonu kullan</button></div>'
+          );
+        })
+        .join("");
+      Array.prototype.forEach.call(list.querySelectorAll(".inbox-use-template-btn"), function (btn) {
+        btn.addEventListener("click", function () {
+          var idx = parseInt(btn.getAttribute("data-idx"), 10);
+          applyReplyTemplate(templatesCache[idx]);
+        });
+      });
+    } catch (e) {
+      templatesCache = [];
+      templateFocus = null;
+      list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">' + esc(String(e.message || e)) + "</p>";
+    }
   }
 
   async function jfetch(url, opts) {
@@ -145,11 +257,11 @@
     if (connect) connect.classList.toggle("hidden", !status.oauth_client_configured || status.connected);
     if (sync) sync.classList.toggle("hidden", !status.connected);
     if (disc) disc.classList.toggle("hidden", !status.connected);
-    if (!status.openai_ready) {
-      showBanner("OPENAI_API_KEY yoksa AI özet ve taslak çalışmaz; Gmail senkron yine çalışır.");
-    } else {
-      hideBanner();
-    }
+    var parts = [];
+    if (!status.openai_ready) parts.push("AI özet ve «AI taslak cevap» için OPENAI_API_KEY gerekir.");
+    if (!status.inbox_llm_ready) parts.push("Üç yanıt şablonu için OpenAI, Gemini veya Groq anahtarından en az biri gerekir.");
+    if (parts.length) showBanner(parts.join(" "));
+    else hideBanner();
   }
 
   async function loadThreads() {
@@ -160,14 +272,14 @@
     if (!box) return;
     var items = data.items || [];
     if (!items.length) {
-      box.innerHTML = '<p class="text-slate-500 dark:text-slate-400">Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.</p>';
+      box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.</p>';
       return;
     }
     box.innerHTML = items
       .map(function (t) {
         var unread = t.gmail_unread ? "font-bold" : "";
         var badge =
-          '<span class="ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200">' +
+          '<span class="inbox-route-badge ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">' +
           esc(t.route_tag) +
           "</span>";
         var flags = "";
@@ -176,21 +288,21 @@
         return (
           '<button type="button" data-tid="' +
           t.id +
-          '" class="inbox-row w-full rounded-lg border border-slate-200 px-3 py-2 text-left hover:bg-slate-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ' +
+          '" class="inbox-row w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-800 ' +
           unread +
           '">' +
           '<div class="flex items-start justify-between gap-2">' +
-          '<span class="line-clamp-2">' +
+          '<span class="inbox-row-title line-clamp-2 text-slate-900 dark:text-slate-100">' +
           esc(t.subject || "(konu yok)") +
           badge +
           flags +
           "</span>" +
-          '<span class="shrink-0 text-[10px] text-slate-400">' +
+          '<span class="inbox-row-ts shrink-0 text-[10px] text-slate-400">' +
           fmtMs(t.last_internal_ms) +
           "</span>" +
           "</div>" +
-          '<p class="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">' +
-          esc(t.snippet || "") +
+          '<p class="inbox-row-preview mt-1 line-clamp-3 text-xs leading-snug text-slate-600 dark:text-slate-300">' +
+          esc((t.message_preview || t.snippet || "").trim() || "—") +
           "</p>" +
           "</button>"
         );
@@ -206,6 +318,12 @@
 
   async function openDetail(id) {
     selectedId = id;
+    replyToGmailId = null;
+    try {
+      await jfetch("/api/inbox/threads/" + id + "/refresh-bodies", { method: "POST" });
+    } catch (e) {
+      /* Gmail yenileme isteğe bağlı; başarısız olsa da detay gösterilir */
+    }
     var data = await jfetch("/api/inbox/threads/" + id);
     var t = data.thread;
     var messages = data.messages || [];
@@ -228,23 +346,65 @@
     var mb = document.getElementById("inbox-messages");
     mb.innerHTML = messages
       .map(function (m) {
-        var cls = m.is_outbound ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-950/50";
+        var cls = m.is_outbound
+          ? "inbox-msg inbox-msg--out border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/30"
+          : "inbox-msg border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-900/50";
+        var gmid = esc(m.gmail_message_id || "");
+        var prev = (m.body_preview || "").trim();
+        var previewHtml = prev
+          ? '<p class="inbox-msg-preview mt-1.5 line-clamp-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">' +
+            esc(prev) +
+            "</p>"
+          : "";
+        var replyBtn = m.is_outbound
+          ? ""
+          : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
         return (
           '<div class="rounded-lg border px-3 py-2 ' +
           cls +
+          '" data-gmid="' +
+          gmid +
+          '" data-from="' +
+          esc(m.from || "") +
+          '" data-subj="' +
+          esc(m.subject || "") +
           '"><div class="text-[11px] text-slate-500 dark:text-slate-400">' +
           esc(fmtMs(m.internal_ms)) +
           " · " +
           (m.is_outbound ? "Giden" : "Gelen") +
-          '</div><div class="mt-1 text-xs font-semibold">' +
+          '</div><div class="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">' +
           esc(m.from) +
           "</div>" +
-          '<pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed">' +
+          previewHtml +
+          '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
           esc(m.body_text || "") +
-          "</pre></div>"
+          "</pre>" +
+          replyBtn +
+          "</div>"
         );
       })
       .join("");
+    Array.prototype.forEach.call(mb.querySelectorAll(".inbox-reply-btn"), function (btn) {
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var wrap = btn.closest("[data-gmid]");
+        if (!wrap) return;
+        var gmid = wrap.getAttribute("data-gmid");
+        if (!gmid) return;
+        replyToGmailId = gmid;
+        document.getElementById("inbox-send-to").value = extractEmail(wrap.getAttribute("data-from") || "");
+        var subjh = wrap.getAttribute("data-subj") || "";
+        document.getElementById("inbox-send-subject").value =
+          subjh.indexOf("Re:") === 0 ? subjh : "Re: " + (subjh || t.subject || "");
+        document.getElementById("inbox-send-body").value = "";
+        loadReplyTemplates(gmid);
+        var anchor = document.getElementById("inbox-compose-anchor");
+        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+    var focusG = lastInboundGmailId(messages);
+    await loadReplyTemplates(focusG || undefined);
   }
 
   document.getElementById("inbox-sync-btn").addEventListener("click", async function () {
@@ -266,6 +426,10 @@
     await loadThreads();
   });
   document.getElementById("inbox-route-filter").addEventListener("change", loadThreads);
+  document.getElementById("inbox-templates-refresh").addEventListener("click", function () {
+    if (!selectedId) return;
+    loadReplyTemplates(currentTemplateFocusGmid || undefined);
+  });
 
   async function postRead(read) {
     if (!selectedId) return;
@@ -328,11 +492,14 @@
     var subj = document.getElementById("inbox-send-subject").value.trim();
     var text = document.getElementById("inbox-send-body").value;
     try {
+      var payload = { to: to, subject: subj, text: text };
+      if (replyToGmailId) payload.reply_to_gmail_message_id = replyToGmailId;
       await jfetch("/api/inbox/threads/" + selectedId + "/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: to, subject: subj, text: text }),
+        body: JSON.stringify(payload),
       });
+      replyToGmailId = null;
       await loadThreads();
       await openDetail(selectedId);
     } catch (e) {

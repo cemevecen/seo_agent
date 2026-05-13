@@ -7,7 +7,7 @@
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
   {% set favicon_v = "3" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
-  {% set app_css_v = "9" %}
+  {% set app_css_v = "11" %}
   <link rel="icon" href="/favicon.ico?v={{ favicon_v }}" sizes="any" />
   <link rel="shortcut icon" href="/favicon.ico?v={{ favicon_v }}" />
   <link rel="icon" href="/static/favicon.svg?v={{ favicon_v }}" type="image/svg+xml" />
@@ -223,6 +223,132 @@
       border: none !important;
       box-shadow: none !important;
       background-color: rgba(9, 9, 11, 0.92);
+    }
+  </style>
+  <style id="seo-inbox-dark">
+    /* /inbox — dim (html.dark) + midnight (html.dark.midnight): #content ile yüksek özgüllük; açık metin+beyaz zemin kaosu biter */
+    html.dark #content .inbox-page .inbox-card {
+      background-color: #09090b !important;
+      background-image: none !important;
+      border-color: rgb(39 39 42) !important;
+      color: #e4e4e7 !important;
+      --tw-ring-color: rgb(39 39 42) !important;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+    }
+    html.midnight #content .inbox-page .inbox-card {
+      background-color: #050506 !important;
+      border-color: rgb(24 24 27) !important;
+      color: #e4e4e7 !important;
+      --tw-ring-color: rgb(24 24 27) !important;
+    }
+    html.dark #content .inbox-page .inbox-header-desc {
+      color: #a1a1aa !important;
+    }
+    html.dark #content .inbox-page h1 {
+      color: #f4f4f5 !important;
+    }
+    html.dark #content .inbox-page .inbox-header-desc code {
+      background-color: #27272a !important;
+      color: #e4e4e7 !important;
+    }
+    html.dark #content .inbox-page .inbox-empty-hint {
+      color: #a1a1aa !important;
+    }
+    html.dark #content .inbox-page .inbox-toolbar-strip .inbox-filter-label,
+    html.dark #content .inbox-page .inbox-toolbar-strip #inbox-account {
+      color: #a1a1aa !important;
+    }
+    html.dark #content .inbox-page #inbox-list button.inbox-row {
+      background-color: #18181b !important;
+      border-color: #3f3f46 !important;
+      color: #e4e4e7 !important;
+    }
+    html.midnight #content .inbox-page #inbox-list button.inbox-row {
+      background-color: #0c0c0e !important;
+      border-color: #27272a !important;
+    }
+    html.dark #content .inbox-page #inbox-list button.inbox-row:hover {
+      background-color: #27272a !important;
+    }
+    html.midnight #content .inbox-page #inbox-list button.inbox-row:hover {
+      background-color: #18181b !important;
+    }
+    html.dark #content .inbox-page .inbox-row-title {
+      color: #f4f4f5 !important;
+    }
+    html.dark #content .inbox-page .inbox-row-ts {
+      color: #71717a !important;
+    }
+    html.dark #content .inbox-page .inbox-row-preview {
+      color: #d4d4d8 !important;
+    }
+    html.midnight #content .inbox-page .inbox-row-preview {
+      color: #d4d4d8 !important;
+    }
+    html.dark #content .inbox-page .inbox-msg-preview {
+      color: #d4d4d8 !important;
+    }
+    html.midnight #content .inbox-page .inbox-msg-preview {
+      color: #d4d4d8 !important;
+    }
+    html.dark #content .inbox-page .inbox-route-badge {
+      background-color: rgba(67, 56, 202, 0.38) !important;
+      color: #e0e7ff !important;
+    }
+    html.dark #content .inbox-page .inbox-msg {
+      border-color: #3f3f46 !important;
+      background-color: rgba(24, 24, 27, 0.92) !important;
+      color: #e4e4e7 !important;
+    }
+    html.dark #content .inbox-page .inbox-msg.inbox-msg--out {
+      border-color: rgb(6 95 70 / 0.65) !important;
+      background-color: rgba(6, 78, 59, 0.32) !important;
+    }
+    html.dark #content .inbox-page .inbox-btn-secondary {
+      background-color: #18181b !important;
+      border-color: #3f3f46 !important;
+      color: #e4e4e7 !important;
+    }
+    html.dark #content .inbox-page .inbox-btn-secondary:hover {
+      background-color: #27272a !important;
+    }
+    html.dark #content .inbox-page #btn-answered {
+      background-color: rgba(6, 78, 59, 0.28) !important;
+      border-color: #166534 !important;
+      color: #a7f3d0 !important;
+    }
+    html.dark #content .inbox-page #inbox-ai-summary:not(.hidden) {
+      background-color: #09090b !important;
+      border-color: #3f3f46 !important;
+      color: #d4d4d8 !important;
+    }
+    html.dark #content .inbox-page #inbox-detail-subject {
+      color: #f4f4f5 !important;
+    }
+    html.dark #content .inbox-page #inbox-detail-meta {
+      color: #a1a1aa !important;
+    }
+    #content .inbox-page .inbox-msg-body {
+      max-height: min(70vh, 36rem);
+    }
+    html.dark #content .inbox-page #inbox-toolbar #inbox-sync-btn {
+      background-color: #27272a !important;
+      border-color: #3f3f46 !important;
+      color: #f4f4f5 !important;
+    }
+    html.dark #content .inbox-page #inbox-toolbar #inbox-sync-btn:hover {
+      background-color: #3f3f46 !important;
+    }
+    html.dark #content .inbox-page #inbox-toolbar #inbox-disconnect-btn {
+      background-color: rgba(76, 5, 25, 0.35) !important;
+      border-color: #9f1239 !important;
+      color: #fda4af !important;
+    }
+    html.dark #content .inbox-page .inbox-card label {
+      color: #a1a1aa !important;
+    }
+    html.dark #content .inbox-page .inbox-card h3 {
+      color: #a1a1aa !important;
     }
   </style>
   <style id="seo-content-responsive-guards">

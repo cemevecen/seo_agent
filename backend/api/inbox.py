@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -32,6 +34,13 @@ class SendBody(BaseModel):
     to: str = Field(..., min_length=3, max_length=512)
     subject: str = Field("", max_length=998)
     text: str = Field(..., min_length=1, max_length=50_000)
+    reply_to_gmail_message_id: str | None = Field(None, max_length=128)
+
+
+class ReplyTemplatesBody(BaseModel):
+    """Hangi gelen iletiye yanıt şablonları üretileceği; boşsa son gelen ileti."""
+
+    focus_gmail_message_id: str | None = Field(None, max_length=128)
 
 
 def _thread_or_404(db: Session, thread_id: int) -> SupportInboxThread:
@@ -39,6 +48,87 @@ def _thread_or_404(db: Session, thread_id: int) -> SupportInboxThread:
     if row is None:
         raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
     return row
+
+
+def _resolve_inbound_focus(
+    msgs: list[SupportInboxMessage], focus_gmail_message_id: str | None
+) -> SupportInboxMessage | None:
+    fid = (focus_gmail_message_id or "").strip()
+    if fid:
+        for m in msgs:
+            if m.is_outbound:
+                continue
+            if (m.gmail_message_id or "").strip() == fid:
+                return m
+    for m in reversed(msgs):
+        if not m.is_outbound:
+            return m
+    return None
+
+
+def _thread_blob_for_reply_templates(msgs: list[SupportInboxMessage], focus: SupportInboxMessage | None) -> str:
+    parts: list[str] = []
+    for m in msgs:
+        direction = "giden" if m.is_outbound else "gelen"
+        parts.append(
+            f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\nYön: {direction}\n{(m.body_text or '').strip()}\n"
+        )
+    blob = "\n".join(parts)
+    if focus is not None:
+        direction = "giden" if focus.is_outbound else "gelen"
+        blob += (
+            "\n\n=== YANITLANACAK İLETİ (öncelik: buna yanıt ver) ===\n"
+            f"Kimden: {focus.from_addr}\nKonu: {focus.subject}\nYön: {direction}\n"
+            f"{(focus.body_text or '').strip()}\n=== BİTİŞ ===\n"
+        )
+    return blob
+
+
+def _body_preview(text: str | None, *, max_sentences: int = 2, max_chars: int = 320) -> str:
+    """İlk bir–iki cümle veya kısa kesit; liste / kart önizlemesi için."""
+    raw = (text or "").replace("\r\n", "\n").strip()
+    if not raw:
+        return ""
+    one_line = re.sub(r"\s+", " ", raw).strip()
+    chunks = re.split(r"(?<=[.!?…])\s+", one_line)
+    picked: list[str] = []
+    for ch in chunks:
+        c = ch.strip()
+        if not c:
+            continue
+        picked.append(c)
+        if len(picked) >= max_sentences:
+            break
+    s = " ".join(picked).strip() if picked else one_line
+    if len(s) > max_chars:
+        cut = s[: max_chars - 1]
+        s = cut.rsplit(" ", 1)[0] + "…" if " " in cut else cut + "…"
+    return s
+
+
+def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[int, str]:
+    """Her konuşma için zaman damgası en yeni iletinin düz metin gövdesi."""
+    if not thread_ids:
+        return {}
+    subq = (
+        db.query(
+            SupportInboxMessage.thread_id.label("tid"),
+            func.max(SupportInboxMessage.internal_ms).label("mx"),
+        )
+        .filter(SupportInboxMessage.thread_id.in_(thread_ids))
+        .group_by(SupportInboxMessage.thread_id)
+        .subquery()
+    )
+    rows = (
+        db.query(SupportInboxMessage.thread_id, SupportInboxMessage.body_text)
+        .join(
+            subq,
+            (SupportInboxMessage.thread_id == subq.c.tid)
+            & (SupportInboxMessage.internal_ms == subq.c.mx),
+        )
+        .all()
+    )
+    return {int(tid): (body or "") for tid, body in rows}
 
 
 @router.get("/status")
@@ -53,6 +143,7 @@ def inbox_status(request: Request, db: Session = Depends(get_db)) -> dict[str, A
         "account_email": row.account_email if row else "",
         "query": settings.inbox_gmail_query,
         "openai_ready": bool((settings.openai_api_key or "").strip()),
+        "inbox_llm_ready": inbox_llm.inbox_llm_any_configured(),
         "redirect_uri": inbox_gmail_auth.get_inbox_oauth_redirect_uri(),
     }
 
@@ -143,14 +234,19 @@ def inbox_threads_list(
     if route in ("info", "feedback", "mixed"):
         q = q.filter(SupportInboxThread.route_tag == route)
     rows = q.limit(limit).all()
+    tid_list = [t.id for t in rows]
+    latest_bodies = _latest_message_body_by_thread(db, tid_list)
     items = []
     for t in rows:
+        last_body = (latest_bodies.get(t.id) or "").strip()
+        preview_src = last_body or (t.snippet or "")
         items.append(
             {
                 "id": t.id,
                 "gmail_thread_id": t.gmail_thread_id,
                 "subject": t.subject,
                 "snippet": (t.snippet or "")[:240],
+                "message_preview": _body_preview(preview_src),
                 "route_tag": t.route_tag,
                 "gmail_unread": t.gmail_unread,
                 "answered_flag": t.answered_flag,
@@ -189,9 +285,11 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
         "messages": [
             {
                 "id": m.id,
+                "gmail_message_id": m.gmail_message_id,
                 "from": m.from_addr,
                 "to": m.to_addr,
                 "subject": m.subject,
+                "body_preview": _body_preview(m.body_text),
                 "body_text": m.body_text,
                 "internal_ms": m.internal_ms,
                 "is_outbound": m.is_outbound,
@@ -199,6 +297,17 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
             for m in msgs
         ],
     }
+
+
+@router.post("/threads/{thread_id}/refresh-bodies")
+@limiter.limit("30/minute")
+def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = Depends(get_db)):
+    """İleti gövdelerini Gmail'den tekrar çeker (attachmentId / büyük gövde)."""
+    try:
+        out = inbox_sync.refresh_thread_bodies_from_gmail(db, thread_id=thread_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(out)
 
 
 @router.post("/threads/{thread_id}/read")
@@ -280,6 +389,39 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
     return {"draft": draft}
 
 
+@router.post("/threads/{thread_id}/reply-templates")
+@limiter.limit("20/minute")
+def inbox_thread_reply_templates(
+    request: Request,
+    thread_id: int,
+    body: ReplyTemplatesBody,
+    db: Session = Depends(get_db),
+):
+    """Bağlı LLM (OpenAI / Gemini / Groq) ile 3 Türkçe yanıt şablonu üretir."""
+    t = _thread_or_404(db, thread_id)
+    msgs = (
+        db.query(SupportInboxMessage)
+        .filter(SupportInboxMessage.thread_id == t.id)
+        .order_by(SupportInboxMessage.internal_ms.asc())
+        .all()
+    )
+    focus = _resolve_inbound_focus(msgs, body.focus_gmail_message_id)
+    blob = _thread_blob_for_reply_templates(msgs, focus)
+    try:
+        templates, provider = inbox_llm.reply_templates_three_tr_tr(blob)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("inbox reply-templates failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    focus_payload: dict[str, Any] | None = None
+    if focus is not None:
+        focus_payload = {
+            "gmail_message_id": focus.gmail_message_id,
+            "from": focus.from_addr,
+            "subject": (focus.subject or t.subject or "").strip(),
+        }
+    return {"templates": templates, "provider": provider, "focus": focus_payload}
+
+
 @router.post("/threads/{thread_id}/send")
 @limiter.limit("15/minute")
 def inbox_thread_send(request: Request, thread_id: int, body: SendBody, db: Session = Depends(get_db)):
@@ -292,6 +434,7 @@ def inbox_thread_send(request: Request, thread_id: int, body: SendBody, db: Sess
             to_email=body.to.strip(),
             subject=subj,
             text=body.text,
+            reply_to_gmail_message_id=(body.reply_to_gmail_message_id or "").strip() or None,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

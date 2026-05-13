@@ -43,8 +43,30 @@ def _decode_b64url(data: str) -> str:
         return ""
 
 
-def _extract_body_text(payload: dict[str, Any]) -> str:
-    """text/plain tercih; yoksa HTML’den kaba düşüm."""
+def _attachment_text(service: Any, *, user_id: str, gmail_message_id: str, attachment_id: str) -> str:
+    try:
+        att = (
+            service.users()
+            .messages()
+            .attachments()
+            .get(userId=user_id, messageId=gmail_message_id, id=attachment_id)
+            .execute()
+        )
+        raw = att.get("data")
+        return _decode_b64url(raw) if raw else ""
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("gmail attachment fetch failed mid=%s aid=%s: %s", gmail_message_id, attachment_id, exc)
+        return ""
+
+
+def _extract_body_text(
+    payload: dict[str, Any],
+    *,
+    service: Any | None = None,
+    gmail_message_id: str | None = None,
+    user_id: str = "me",
+) -> str:
+    """text/plain tercih; yoksa HTML. ``attachmentId`` ile gelen parçalar için Gmail attachments API kullanılır."""
     plain: list[str] = []
     html: list[str] = []
 
@@ -52,10 +74,17 @@ def _extract_body_text(payload: dict[str, Any]) -> str:
         mime = (p.get("mimeType") or "").lower()
         body = p.get("body") or {}
         data = body.get("data")
-        if data and mime == "text/plain":
-            plain.append(_decode_b64url(data))
-        elif data and mime == "text/html":
-            html.append(_decode_b64url(data))
+        aid = body.get("attachmentId")
+        chunk = ""
+        if data:
+            chunk = _decode_b64url(data)
+        elif aid and service and gmail_message_id and mime in ("text/plain", "text/html"):
+            chunk = _attachment_text(service, user_id=user_id, gmail_message_id=gmail_message_id, attachment_id=aid)
+        if chunk:
+            if mime == "text/plain":
+                plain.append(chunk)
+            elif mime == "text/html":
+                html.append(chunk)
         for child in p.get("parts") or []:
             walk(child)
 
@@ -63,7 +92,7 @@ def _extract_body_text(payload: dict[str, Any]) -> str:
     if plain:
         return "\n\n".join(plain).strip()
     if html:
-        text = re.sub(r"(?is)<script.*?>.*?</script>", " ", html[0])
+        text = re.sub(r"(?is)<script.*?>.*?</script>", " ", "\n\n".join(html))
         text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
         text = re.sub(r"<[^>]+>", " ", text)
         return re.sub(r"\s+", " ", text).strip()
@@ -195,7 +224,12 @@ def _upsert_thread_from_gmail(db: Session, full: dict[str, Any], account_lower: 
         if not mid:
             continue
         h = _header_map(m)
-        body = _extract_body_text(m.get("payload") or {})
+        body = _extract_body_text(
+            m.get("payload") or {},
+            service=service,
+            gmail_message_id=mid,
+            user_id="me",
+        )
         try:
             ims = int(m.get("internalDate") or 0)
         except (TypeError, ValueError):
@@ -214,6 +248,59 @@ def _upsert_thread_from_gmail(db: Session, full: dict[str, Any], account_lower: 
             )
         )
     return row
+
+
+def refresh_thread_bodies_from_gmail(db: Session, *, thread_id: int) -> dict[str, Any]:
+    """Veritabanındaki iletilerin gövdesini Gmail ``messages.get`` ile yeniden çeker (büyük/HTML gövdeler)."""
+    row = db.query(SupportInboxThread).filter(SupportInboxThread.id == thread_id).first()
+    if row is None:
+        raise RuntimeError("Konuşma bulunamadı.")
+    creds = inbox_gmail_auth.load_inbox_credentials(db)
+    if creds is None:
+        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+    creds = _ensure_fresh_creds(db, creds)
+    service = _gmail_service(creds)
+    msgs = (
+        db.query(SupportInboxMessage)
+        .filter(SupportInboxMessage.thread_id == row.id)
+        .order_by(SupportInboxMessage.internal_ms.asc())
+        .all()
+    )
+    updated = 0
+    for mrow in msgs:
+        gid = (mrow.gmail_message_id or "").strip()
+        if not gid:
+            continue
+        try:
+            full = service.users().messages().get(userId="me", id=gid, format="full").execute()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("gmail message get failed %s: %s", gid, exc)
+            continue
+        body = _extract_body_text(
+            full.get("payload") or {},
+            service=service,
+            gmail_message_id=gid,
+            user_id="me",
+        )
+        prev = (mrow.body_text or "").strip()
+        new = body.strip()
+        if new and new != prev:
+            mrow.body_text = body
+            updated += 1
+    row.last_synced_at = datetime.utcnow()
+    db.commit()
+    return {"refreshed_messages": updated, "gmail_thread_id": row.gmail_thread_id}
+
+
+def _rfc_message_id_header(service: Any, *, gmail_message_id: str) -> str | None:
+    try:
+        fullm = service.users().messages().get(userId="me", id=gmail_message_id, format="full").execute()
+        h = _header_map(fullm)
+        mid = (h.get("message-id") or "").strip()
+        return mid or None
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("message-id fetch failed %s: %s", gmail_message_id, exc)
+        return None
 
 
 def set_thread_gmail_read(db: Session, *, gmail_thread_id: str, read: bool) -> None:
@@ -242,6 +329,7 @@ def send_reply_plain(
     to_email: str,
     subject: str,
     body: str,
+    reply_to_gmail_message_id: str | None = None,
 ) -> str:
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
@@ -252,6 +340,15 @@ def send_reply_plain(
     msg = MIMEText(body, "plain", "utf-8")
     msg["to"] = to_email.strip()
     msg["subject"] = subject.strip() or "Re:"
+    if reply_to_gmail_message_id:
+        rfc_mid = _rfc_message_id_header(service, gmail_message_id=reply_to_gmail_message_id.strip())
+        if rfc_mid:
+            # Başlık değeri çoğu zaman <...@...> biçiminde gelir
+            clean = rfc_mid.strip()
+            if not clean.startswith("<"):
+                clean = f"<{clean}>" if "@" in clean else clean
+            msg["In-Reply-To"] = clean
+            msg["References"] = clean
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     send_body = {"raw": raw, "threadId": gmail_thread_id}
     sent = service.users().messages().send(userId="me", body=send_body).execute()
