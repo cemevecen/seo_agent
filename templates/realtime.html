@@ -80,6 +80,48 @@
   html.dark .rt-list-meta {
     color: rgb(148 163 184);
   }
+  /* Top Sayfalar / Haberler: dar ekranda başlık sağdaki rakamların üstüne taşmasın */
+  .rt-top-list-row {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .rt-top-list-mid {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .rt-top-list-mid .rt-news-link,
+  .rt-top-list-mid .rt-list-title {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rt-top-list-mid .rt-list-sub {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rt-top-list-mid .rt-bar-track {
+    max-width: 100%;
+  }
+  .rt-top-list-nums-col {
+    justify-self: end;
+    text-align: right;
+    white-space: nowrap;
+  }
   .rt-rank {
     color: rgb(100 116 139);
   }
@@ -644,10 +686,10 @@
       {{ site.display_name or site.domain }}
       <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
     </h2>
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
+    <div class="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
-        class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80"
+        class="rt-profile-box rt-surface-muted flex min-h-0 min-w-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80"
         data-rt-profile-box
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
@@ -677,8 +719,8 @@
         </div>
 
         {# KPI cards — side by side #}
-        <div class="grid grid-cols-2 gap-4 mb-4">
-          <div class="rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="activeUsers">
+        <div class="grid min-w-0 grid-cols-2 gap-4 mb-4">
+          <div class="min-w-0 rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="activeUsers">
             <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
             <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
             <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
@@ -686,7 +728,7 @@
               <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
             </div>
           </div>
-          <div class="rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="screenPageViews">
+          <div class="min-w-0 rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="screenPageViews">
             <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
             <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
             <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
@@ -733,7 +775,7 @@
         </div>
         {% else %}
         {# Web / mweb: Top sayfalar — tabbed #}
-        <div class="mt-4 flex min-h-[200px] flex-1 flex-col" data-rt-top-section>
+        <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
           <div class="mb-2 flex flex-wrap items-center gap-1">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
@@ -745,20 +787,20 @@
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
           </div>
-          <div data-rt-top-panel="pages">
-            <div class="space-y-1" data-rt-pages-list>
+          <div data-rt-top-panel="pages" class="min-w-0">
+            <div class="min-w-0 space-y-1" data-rt-pages-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
-          <div data-rt-top-panel="views" class="hidden">
-            <div class="space-y-1" data-rt-views-list>
+          <div data-rt-top-panel="views" class="hidden min-w-0">
+            <div class="min-w-0 space-y-1" data-rt-views-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-views-ts></p>
           </div>
-          <div data-rt-top-panel="news" class="hidden">
-            <div class="space-y-1" data-rt-news-list>
+          <div data-rt-top-panel="news" class="hidden min-w-0">
+            <div class="min-w-0 space-y-1" data-rt-news-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-news-ts></p>
@@ -918,6 +960,14 @@
     return String(Math.round(n));
   }
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  /** HTML attribute (title=…) için güvenli kaçış */
+  function _attr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
 
   function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
 
@@ -1269,11 +1319,12 @@
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var titleRaw = p.page || '(başlıksız)';
-      var titleShort = _esc(titleRaw);
-      if (titleShort.length > 56) titleShort = titleShort.substring(0, 54) + '…';
+      var titleDisp = _esc(titleRaw);
       var subRaw = (p.page_path || '').trim() || (p.link_url || '');
       var subEsc = _esc(subRaw);
-      var subOne = subRaw.length > 76 ? subEsc.substring(0, 74) + '…' : subEsc;
+      var tipParts = [titleRaw];
+      if (subRaw) tipParts.push(subRaw);
+      var tipAttr = _attr(tipParts.join(' — '));
       var primaryHref = (p.link_url || '').trim();
       var hrefAttr = primaryHref ? encodeURI(primaryHref) : '';
       var users = _fmt(p.activeUsers);
@@ -1281,17 +1332,17 @@
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
       var linkHtml = hrefAttr
-        ? '<a class="rt-news-link truncate text-sm hover:underline" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + subEsc + '">' + titleShort + '</a>'
-        : '<span class="rt-list-title truncate text-sm" title="' + subEsc + '">' + titleShort + '</span>';
-      return '<div class="flex items-start gap-2 rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="rt-rank w-5 shrink-0 text-right text-xs font-bold">' + (i + 1) + '</span>'
-        + '<div class="min-w-0 flex-1">'
+        ? '<a class="rt-news-link text-sm hover:underline" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + tipAttr + '">' + titleDisp + '</a>'
+        : '<span class="rt-list-title text-sm" title="' + tipAttr + '">' + titleDisp + '</span>';
+      return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
+        + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
+        + '<div class="rt-top-list-mid">'
         + linkHtml
-        + '<div class="rt-list-sub mt-0.5 truncate" title="' + subEsc + '">' + subOne + '</div>'
+        + '<div class="rt-list-sub mt-0.5" title="' + _attr(subRaw) + '">' + subEsc + '</div>'
         + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<div class="flex shrink-0 flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums whitespace-nowrap tabular-nums"><strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span></span>'
+        + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span></span>'
         + '<span class="rt-list-meta">' + views + ' gör.</span>'
         + '</div>'
         + '</div>';
@@ -1430,17 +1481,18 @@
     if (listEl) {
       listEl.innerHTML = pageRows.map(function (e, i) {
         var globalIdx = start + i + 1;
-        var nm = _esc(e.eventName || '(adsız)');
+        var rawNm = e.eventName || '(adsız)';
+        var nm = _esc(rawNm);
         var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
         var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
         return '<div class="rt-event-row border-b border-slate-100 py-2 last:border-0 dark:border-slate-700' + zebra + '">'
-          + '<div class="flex items-start justify-between gap-2">'
-          + '<span class="rt-rank w-5 shrink-0 text-right text-[10px] font-bold">' + globalIdx + '</span>'
-          + '<div class="min-w-0 flex-1">'
-          + '<div class="rt-list-title truncate font-mono text-xs" title="' + nm + '">' + nm + '</div>'
+          + '<div class="rt-top-list-row">'
+          + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-[10px] font-bold">' + globalIdx + '</span>'
+          + '<div class="rt-top-list-mid">'
+          + '<div class="rt-list-title font-mono text-xs" title="' + _attr(rawNm) + '">' + nm + '</div>'
           + '<div class="rt-bar-track"><div class="rt-bar-fill-sky" style="width:' + barW + '%"></div></div>'
           + '</div>'
-          + '<span class="rt-list-nums shrink-0 tabular-nums text-sm font-semibold">' + _fmt(e.eventCount) + '</span>'
+          + '<span class="rt-top-list-nums-col rt-list-nums tabular-nums text-sm font-semibold">' + _fmt(e.eventCount) + '</span>'
           + '</div></div>';
       }).join('');
     }
@@ -1506,8 +1558,8 @@
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
-      var path = _esc(p.page || '(bilinmiyor)');
-      if (path.length > 45) path = path.substring(0, 43) + '…';
+      var pathRaw = p.page || '(bilinmiyor)';
+      var path = _esc(pathRaw);
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
@@ -1519,14 +1571,14 @@
         ? '<span class="rt-list-meta">' + users + ' kul.</span>'
         : '<span class="rt-list-meta">' + views + ' gör.</span>';
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
-      return '<div class="flex items-center gap-2 rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="rt-rank w-5 text-right text-xs font-bold">' + (i + 1) + '</span>'
-        + '<div class="min-w-0 flex-1">'
-        + '<div class="rt-list-title truncate text-sm" title="' + _esc(p.page || '') + '">' + path + '</div>'
+      return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
+        + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
+        + '<div class="rt-top-list-mid">'
+        + '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>'
         + '<div class="rt-bar-track"><div class="' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<div class="flex flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums whitespace-nowrap tabular-nums">' + primary + '</span>'
+        + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
+        + '<span class="rt-list-nums tabular-nums">' + primary + '</span>'
         + secondary
         + '</div>'
         + '</div>';
