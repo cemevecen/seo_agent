@@ -339,16 +339,20 @@
   }
 </style>
 
-<section class="rt-viv-panel mb-4 sm:mb-5" aria-labelledby="rt-viv-heading" data-rt-viv-root>
-  <div class="mb-3">
+<details class="rt-viv-panel mb-4 sm:mb-5 group" aria-labelledby="rt-viv-heading" data-rt-viv-root>
+  <summary class="cursor-pointer list-none flex items-center justify-between outline-none">
     <h2 id="rt-viv-heading" class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">
       Mağaza keşif &amp; uygulama karşılaştırma
     </h2>
-  </div>
-  <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
-    <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Mağaza analiz</button>
-    <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">Uygulama karşılaştırma</button>
-  </div>
+    <svg class="h-5 w-5 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+    </svg>
+  </summary>
+  <div class="mt-4 border-t border-slate-200/60 pt-4 dark:border-slate-700/50">
+    <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
+      <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Mağaza analiz</button>
+      <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">Uygulama karşılaştırma</button>
+    </div>
 
   <div data-rt-viv-panel="store">
     <div class="rt-viv-row">
@@ -418,8 +422,9 @@
         <table class="rt-viv-cmp-table" id="rt-viv-compare-table" aria-label="İki uygulama katalog özeti"></table>
       </div>
     </div>
+    </div>
   </div>
-</section>
+</details>
 
 <script>
 (function () {
