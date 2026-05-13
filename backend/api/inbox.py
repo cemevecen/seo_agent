@@ -32,13 +32,14 @@ class AnsweredBody(BaseModel):
 
 
 class SendBody(BaseModel):
+    """Gmail gönder; ``text`` veya ``body`` anahtarı kabul edilir (boşluklar uçta temizlenir)."""
+
     model_config = ConfigDict(extra="ignore")
 
-    to: str = Field(..., min_length=3, max_length=512)
-    subject: str = Field("", max_length=998)
+    to: str = Field(default="", max_length=512)
+    subject: str = Field(default="", max_length=998)
     text: str = Field(
-        ...,
-        min_length=1,
+        default="",
         max_length=50_000,
         validation_alias=AliasChoices("text", "body"),
     )
@@ -46,7 +47,7 @@ class SendBody(BaseModel):
 
 
 class ReplyTemplatesBody(BaseModel):
-    """Hangi gelen iletiye yanıt şablonları üretileceği; boşsa son gelen ileti."""
+    """İsteğe bağlı JSON gövde; ``focus_gmail_message_id`` hangi gelen iletiye şablon üretileceğini seçer."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -352,7 +353,7 @@ def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = 
 def inbox_thread_set_read(
     request: Request,
     thread_id: int,
-    body: ReadBody,
+    body: ReadBody = Body(default_factory=ReadBody),
     db: Session = Depends(get_db),
 ):
     t = _thread_or_404(db, thread_id)
@@ -373,9 +374,25 @@ def inbox_thread_set_answered(
     db: Session = Depends(get_db),
 ):
     t = _thread_or_404(db, thread_id)
-    t.answered_flag = bool(body.answered)
-    db.commit()
+    try:
+        inbox_sync.set_thread_gmail_answered(
+            db, gmail_thread_id=t.gmail_thread_id, answered=bool(body.answered)
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.refresh(t)
     return {"ok": True, "answered_flag": t.answered_flag}
+
+
+@router.delete("/threads/{thread_id}")
+@limiter.limit("30/minute")
+def inbox_thread_delete(request: Request, thread_id: int, db: Session = Depends(get_db)):
+    _thread_or_404(db, thread_id)
+    try:
+        inbox_sync.trash_thread_gmail_and_delete_local(db, thread_id=thread_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.post("/threads/{thread_id}/summarize")
@@ -431,10 +448,10 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
 def inbox_thread_reply_templates(
     request: Request,
     thread_id: int,
-    body: ReplyTemplatesBody = Body(default_factory=ReplyTemplatesBody),
+    payload: ReplyTemplatesBody | None = Body(default=None),
     db: Session = Depends(get_db),
 ):
-    """Bağlı LLM (OpenAI / Gemini / Groq) ile 3 Türkçe yanıt şablonu üretir."""
+    """Bağlı LLM (Groq / Gemini / OpenAI) ile 3 Türkçe yanıt şablonu üretir."""
     t = _thread_or_404(db, thread_id)
     msgs = (
         db.query(SupportInboxMessage)
@@ -442,12 +459,13 @@ def inbox_thread_reply_templates(
         .order_by(SupportInboxMessage.internal_ms.asc())
         .all()
     )
-    focus = _resolve_inbound_focus(msgs, body.focus_gmail_message_id)
+    fid = payload.focus_gmail_message_id if payload else None
+    focus = _resolve_inbound_focus(msgs, (fid or "").strip() or None)
     blob = _thread_blob_for_reply_templates(msgs, focus)
     try:
         templates, provider = inbox_llm.reply_templates_three_tr_tr(blob)
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("inbox reply-templates failed: %s", exc)
+        LOGGER.exception("inbox reply-templates failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     focus_payload: dict[str, Any] | None = None
     if focus is not None:
@@ -463,14 +481,23 @@ def inbox_thread_reply_templates(
 @limiter.limit("15/minute")
 def inbox_thread_send(request: Request, thread_id: int, body: SendBody, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
+    to_email = body.to.strip()
+    if len(to_email) < 3 or "@" not in to_email:
+        raise HTTPException(status_code=400, detail="Alıcı e-posta adresi geçersiz veya boş.")
+    body_text = (body.text or "").strip()
+    if not body_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Gövde (metin) boş. Göndermeden önce ileti metnini doldurun veya `text` / `body` alanını JSON’da gönderin.",
+        )
     subj = body.subject.strip() or (f"Re: {t.subject}" if t.subject else "Re:")
     try:
         mid = inbox_sync.send_reply_plain(
             db,
             gmail_thread_id=t.gmail_thread_id,
-            to_email=body.to.strip(),
+            to_email=to_email,
             subject=subj,
-            text=body.text,
+            text=body_text,
             reply_to_gmail_message_id=(body.reply_to_gmail_message_id or "").strip() or None,
         )
     except RuntimeError as exc:

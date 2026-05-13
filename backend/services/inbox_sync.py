@@ -22,6 +22,10 @@ from backend.services import inbox_gmail_auth
 
 LOGGER = logging.getLogger(__name__)
 
+# Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
+ANSWERED_LABEL_NAME = "SEO-Agent · Cevaplandı"
+_answered_label_id_cache: str | None = None
+
 _INFO_RE = re.compile(r"info@doviz\.com", re.I)
 _FB_RE = re.compile(r"feedback@doviz\.com", re.I)
 
@@ -153,6 +157,41 @@ def _ensure_fresh_creds(db: Session, creds):
         creds.refresh(Request())
         inbox_gmail_auth.persist_credentials_if_refreshed(db, creds, row)
     return creds
+
+
+def _ensure_answered_label_id(service: Any) -> str:
+    """Gmail’de «cevaplandı» etiketinin id’si; yoksa oluşturur."""
+    global _answered_label_id_cache
+    if _answered_label_id_cache:
+        return _answered_label_id_cache
+    try:
+        resp = service.users().labels().list(userId="me").execute()
+    except HttpError as exc:
+        detail = _gmail_http_error_message(exc)
+        st = getattr(getattr(exc, "resp", None), "status", "") or ""
+        raise RuntimeError(f"Gmail etiket listesi alınamadı (HTTP {st}): {detail}") from exc
+    for lab in resp.get("labels") or []:
+        if (lab.get("name") or "") == ANSWERED_LABEL_NAME:
+            _answered_label_id_cache = str(lab.get("id") or "").strip()
+            if _answered_label_id_cache:
+                return _answered_label_id_cache
+    try:
+        created = service.users().labels().create(
+            userId="me",
+            body={
+                "name": ANSWERED_LABEL_NAME,
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+            },
+        ).execute()
+    except HttpError as exc:
+        detail = _gmail_http_error_message(exc)
+        st = getattr(getattr(exc, "resp", None), "status", "") or ""
+        raise RuntimeError(f"Gmail etiketi oluşturulamadı (HTTP {st}): {detail}") from exc
+    _answered_label_id_cache = str(created.get("id") or "").strip()
+    if not _answered_label_id_cache:
+        raise RuntimeError("Gmail etiketi oluşturuldu ancak kimlik dönmedi.")
+    return _answered_label_id_cache
 
 
 def _thread_subject_snippet_preview(full: dict[str, Any]) -> tuple[str, str]:
@@ -330,6 +369,16 @@ def _upsert_thread_from_gmail(
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()
+    answered_from_gmail = False
+    try:
+        answered_lid = _ensure_answered_label_id(service)
+        answered_from_gmail = any(
+            answered_lid in (m.get("labelIds") or []) for m in msgs_raw
+        )
+    except (HttpError, RuntimeError) as exc:
+        LOGGER.warning("gmail cevaplandı etiketi okunamadı: %s", exc)
+        answered_from_gmail = bool(row.answered_flag) if row is not None else False
+
     if row is None:
         row = SupportInboxThread(
             gmail_thread_id=tid,
@@ -337,6 +386,7 @@ def _upsert_thread_from_gmail(
             snippet=snippet,
             route_tag=route_tag,
             gmail_unread=gmail_unread,
+            answered_flag=answered_from_gmail,
             last_internal_ms=last_ms,
             last_synced_at=now,
         )
@@ -347,6 +397,7 @@ def _upsert_thread_from_gmail(
         row.snippet = snippet or row.snippet
         row.route_tag = route_tag
         row.gmail_unread = gmail_unread
+        row.answered_flag = answered_from_gmail
         row.last_internal_ms = last_ms
         row.last_synced_at = now
 
@@ -454,6 +505,60 @@ def set_thread_gmail_read(db: Session, *, gmail_thread_id: str, read: bool) -> N
         db.commit()
 
 
+def set_thread_gmail_answered(db: Session, *, gmail_thread_id: str, answered: bool) -> None:
+    """Gmail thread’e «cevaplandı» özel etiketini ekler veya kaldırır; yerel ``answered_flag`` güncellenir."""
+    creds = inbox_gmail_auth.load_inbox_credentials(db)
+    if creds is None:
+        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+    creds = _ensure_fresh_creds(db, creds)
+    service = _gmail_service(creds)
+    label_id = _ensure_answered_label_id(service)
+    body: dict[str, Any] = {}
+    if answered:
+        body["addLabelIds"] = [label_id]
+    else:
+        body["removeLabelIds"] = [label_id]
+    try:
+        service.users().threads().modify(userId="me", id=gmail_thread_id, body=body).execute()
+    except HttpError as exc:
+        detail = _gmail_http_error_message(exc)
+        st = getattr(getattr(exc, "resp", None), "status", "") or ""
+        raise RuntimeError(f"Gmail cevaplandı güncellenemedi (HTTP {st}): {detail}") from exc
+    row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == gmail_thread_id).first()
+    if row:
+        row.answered_flag = answered
+        row.last_synced_at = datetime.utcnow()
+        db.commit()
+
+
+def trash_thread_gmail_and_delete_local(db: Session, *, thread_id: int) -> None:
+    """Gmail’de thread’i çöpe taşır; yerel konuşmayı ve iletileri siler."""
+    row = db.query(SupportInboxThread).filter(SupportInboxThread.id == thread_id).first()
+    if row is None:
+        raise RuntimeError("Konuşma bulunamadı.")
+    gid = (row.gmail_thread_id or "").strip()
+    if not gid:
+        raise RuntimeError("Geçersiz Gmail thread kimliği.")
+    creds = inbox_gmail_auth.load_inbox_credentials(db)
+    if creds is None:
+        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+    creds = _ensure_fresh_creds(db, creds)
+    service = _gmail_service(creds)
+    try:
+        service.users().threads().trash(userId="me", id=gid).execute()
+    except HttpError as exc:
+        st_raw = getattr(getattr(exc, "resp", None), "status", None)
+        try:
+            st = int(st_raw) if st_raw is not None else 0
+        except (TypeError, ValueError):
+            st = 0
+        if st != 404:
+            detail = _gmail_http_error_message(exc)
+            raise RuntimeError(f"Gmail çöpe taşınamadı (HTTP {st}): {detail}") from exc
+    db.delete(row)
+    db.commit()
+
+
 def send_reply_plain(
     db: Session,
     *,
@@ -493,5 +598,8 @@ def send_reply_plain(
         detail = _gmail_http_error_message(exc)
         st = getattr(getattr(exc, "resp", None), "status", "") or ""
         raise RuntimeError(f"Gmail gönderilemedi (HTTP {st}): {detail}") from exc
-    sync_inbox_threads(db, max_threads=5)
+    try:
+        sync_inbox_threads(db, max_threads=5)
+    except Exception as sync_exc:  # noqa: BLE001
+        LOGGER.warning("Gmail gönderimi başarılı; gelen kutu senkronu atlandı: %s", sync_exc)
     return str(sent.get("id") or "")

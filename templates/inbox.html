@@ -7,7 +7,7 @@
       <p class="inbox-header-desc mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
         Gmail üzerinden <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">info@doviz.com</code> ve
         <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">feedback@doviz.com</code> adreslerine gelen iletileri
-        senkronize eder; okundu / cevaplandı işaretleri ve OpenAI ile özet + taslak üretir.
+        senkronize eder; okundu, cevaplandı etiketi, çöpe taşıma ve gönderme işlemleri Gmail ile aynı hareket eder; özet ve taslak için önce Groq, sonra Gemini, en son OpenAI kullanılır (hangi API anahtarları tanımlıysa).
       </p>
     </div>
     <div class="flex flex-wrap gap-2" id="inbox-toolbar">
@@ -71,6 +71,7 @@
             <button type="button" id="btn-unread" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Okunmadı</button>
             <button type="button" id="btn-answered" class="rounded-md border border-emerald-600 px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-200">Cevaplandı işaretle</button>
             <button type="button" id="btn-unanswered" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Cevaplandı kaldır</button>
+            <button type="button" id="btn-delete" class="rounded-md border border-rose-600 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-500 dark:bg-rose-950/50 dark:text-rose-100 dark:hover:bg-rose-900/60">Sil</button>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -212,7 +213,7 @@
     currentTemplateFocusGmid = focusGmid || null;
     if (!status.inbox_llm_ready) {
       list.innerHTML =
-        '<p class="text-xs text-amber-800 dark:text-amber-200">Üç şablon için .env içinde OPENAI_API_KEY, GEMINI_API_KEY veya GROQ_API_KEY tanımlayın.</p>';
+        '<p class="text-xs text-amber-800 dark:text-amber-200">AI şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY — en az birini tanımlayın (öncelik: Groq → Gemini → OpenAI).</p>';
       if (prov) prov.textContent = "";
       templatesCache = [];
       templateFocus = null;
@@ -221,9 +222,9 @@
     list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Şablonlar üretiliyor…</p>';
     if (prov) prov.textContent = "";
     try {
-      var payload = {};
-      if (focusGmid) payload.focus_gmail_message_id = focusGmid;
-      var out = await jfetch("/api/inbox/threads/" + selectedId + "/reply-templates", {
+      var url = "/api/inbox/threads/" + selectedId + "/reply-templates";
+      var payload = focusGmid ? { focus_gmail_message_id: focusGmid } : {};
+      var out = await jfetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -263,7 +264,12 @@
   }
 
   async function jfetch(url, opts) {
-    var r = await fetch(url, Object.assign({ credentials: "same-origin", headers: { Accept: "application/json" } }, opts || {}));
+    var o = opts || {};
+    var mergedHeaders = Object.assign({ Accept: "application/json" }, o.headers || {});
+    var merged = Object.assign({ credentials: "same-origin", headers: mergedHeaders }, o, {
+      headers: mergedHeaders,
+    });
+    var r = await fetch(url, merged);
     var ct = (r.headers.get("content-type") || "").toLowerCase();
     var text = await r.text();
     var data = null;
@@ -416,8 +422,11 @@
     if (sync) sync.classList.toggle("hidden", !status.connected);
     if (disc) disc.classList.toggle("hidden", !status.connected);
     var parts = [];
-    if (!status.openai_ready) parts.push("AI özet ve «AI taslak cevap» için OPENAI_API_KEY gerekir.");
-    if (!status.inbox_llm_ready) parts.push("Üç yanıt şablonu için OpenAI, Gemini veya Groq anahtarından en az biri gerekir.");
+    if (!status.inbox_llm_ready) {
+      parts.push(
+        "AI özet, taslak ve üç şablon için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY — en az birini tanımlayın (öncelik: Groq → Gemini → OpenAI)."
+      );
+    }
     if (parts.length) showBanner(parts.join(" "));
     else hideBanner();
   }
@@ -643,6 +652,28 @@
     patchAnswered(false);
   });
 
+  document.getElementById("btn-delete").addEventListener("click", async function () {
+    if (!selectedId) return;
+    if (
+      !confirm(
+        "Bu konuşma Gmail’de çöp kutusuna taşınacak ve panelden kaldırılacak. Emin misiniz?"
+      )
+    ) {
+      return;
+    }
+    var id = selectedId;
+    try {
+      await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
+      selectedId = null;
+      replyToGmailId = null;
+      document.getElementById("inbox-detail").classList.add("hidden");
+      document.getElementById("inbox-detail-empty").classList.remove("hidden");
+      await loadThreads();
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  });
+
   document.getElementById("btn-summarize").addEventListener("click", async function () {
     if (!selectedId) return;
     try {
@@ -668,12 +699,14 @@
     if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
     var to = document.getElementById("inbox-send-to").value.trim();
     var subj = document.getElementById("inbox-send-subject").value.trim();
-    var text = document.getElementById("inbox-send-body").value;
+    var bodyEl = document.getElementById("inbox-send-body");
+    var textRaw = bodyEl && bodyEl.value != null ? bodyEl.value : "";
+    var text = String(textRaw);
     try {
       var payload = {
         to: String(to),
         subject: String(subj),
-        text: String(text != null ? text : ""),
+        text: text,
       };
       if (replyToGmailId) payload.reply_to_gmail_message_id = replyToGmailId;
       await jfetch("/api/inbox/threads/" + selectedId + "/send", {

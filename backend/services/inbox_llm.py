@@ -36,8 +36,9 @@ def _truncate(s: str, n: int = _MAX_CHARS) -> str:
 
 def _openai_rate_limit_exceeded(r: httpx.Response) -> RuntimeError:
     return RuntimeError(
-        "OpenAI hız sınırına takıldı (429). Birkaç dakika sonra tekrar deneyin; "
-        "üç yanıt şablonu için .env içinde GEMINI_API_KEY veya GROQ_API_KEY de tanımlanabilir."
+        "OpenAI hız sınırına takıldı (429). Gelen kutusunda öncelik Groq ve Gemini’dir; "
+        "Railway/.env’de GROQ_API_KEY ve GEMINI_API_KEY tanımlıysa çoğu istek OpenAI’ya hiç gitmez. "
+        "Yine de OpenAI kullanıldıysa birkaç dakika sonra tekrar deneyin."
     )
 
 
@@ -92,12 +93,55 @@ def openai_plain_text(system: str, user: str, *, model: str | None = None) -> st
     return str(content).strip()
 
 
+def _gemini_plain_text(system: str, user: str, *, model_name: str) -> str:
+    import google.generativeai as genai
+
+    key = (settings.gemini_api_key or "").strip()
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY tanımlı değil.")
+    user_t = _truncate(user, 180_000)
+    genai.configure(api_key=key)
+    model = genai.GenerativeModel(model_name, generation_config={"temperature": 0.35})
+    prompt = f"{system.strip()}\n\n{user_t}"
+    resp = model.generate_content(prompt)
+    return str(resp.text or "").strip()
+
+
+def _groq_plain_text(system: str, user: str, *, model: str) -> str:
+    key = (settings.groq_api_key or "").strip()
+    if not key:
+        raise RuntimeError("GROQ_API_KEY tanımlı değil.")
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    user_t = _truncate(user, 180_000)
+    body = {
+        "model": (model or "llama-3.3-70b-versatile").strip(),
+        "temperature": 0.35,
+        "messages": [
+            {"role": "system", "content": system.strip()},
+            {"role": "user", "content": user_t},
+        ],
+    }
+    with httpx.Client(timeout=120.0) as client:
+        r = client.post(url, headers=headers, json=body)
+        if r.status_code == 429:
+            raise RuntimeError("Groq hız sınırına takıldı (429). Birkaç dakika sonra tekrar deneyin.")
+        r.raise_for_status()
+        data = r.json()
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    out = str(content).strip()
+    if not out:
+        raise RuntimeError("Groq boş yanıt verdi.")
+    return out
+
+
 def summarize_thread_tr_tr(messages_plain: str) -> str:
     system = (
         "Sen bir müşteri e-postası özetleyicisisin. Çıktıyı Türkçe yaz; madde işaretli kısa özet; "
         "talep, ton ve varsa teknik detayları belirt. Markdown başlık kullanma, düz metin."
     )
-    return openai_plain_text(system, _truncate(messages_plain))
+    text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
+    return text
 
 
 def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
@@ -106,7 +150,8 @@ def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
         "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz. Selamlama ve kapanış ekle. "
         "Yalnızca e-posta gövdesini yaz; konu satırı yazma."
     )
-    return openai_plain_text(system, _truncate(messages_plain))
+    text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
+    return text
 
 
 def inbox_llm_any_configured() -> bool:
@@ -119,15 +164,47 @@ def inbox_llm_any_configured() -> bool:
 
 
 def _inbox_llm_chain() -> list[tuple[str, str]]:
-    """Öncelik: OpenAI (gelen kutusu modeli) → Gemini → Groq."""
+    """Öncelik: Groq → Gemini → OpenAI (Railway’de anahtarlar varsa önce ucuz/hızlı sağlayıcılar)."""
     out: list[tuple[str, str]] = []
-    if (settings.openai_api_key or "").strip():
-        out.append(("openai", (settings.inbox_openai_model or "gpt-4.1-mini").strip()))
-    if (settings.gemini_api_key or "").strip():
-        out.append(("gemini", (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()))
     if (settings.groq_api_key or "").strip():
         out.append(("groq", (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()))
+    if (settings.gemini_api_key or "").strip():
+        out.append(("gemini", (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()))
+    if (settings.openai_api_key or "").strip():
+        out.append(("openai", (settings.inbox_openai_model or "gpt-4.1-mini").strip()))
     return out
+
+
+def inbox_plain_text_with_failover(system: str, user: str) -> tuple[str, str]:
+    """Groq → Gemini → OpenAI sırasıyla düz metin üretir; (metin, sağlayıcı)."""
+    chain = _inbox_llm_chain()
+    if not chain:
+        raise RuntimeError(
+            "GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY tanımlanmalı."
+        )
+    last_err: Exception | None = None
+    for provider, model_name in chain:
+        try:
+            if provider == "openai":
+                text = openai_plain_text(system, user, model=model_name)
+            elif provider == "gemini":
+                text = _gemini_plain_text(system, user, model_name=model_name)
+            elif provider == "groq":
+                text = _groq_plain_text(system, user, model=model_name)
+            else:
+                continue
+            if text.strip():
+                return text, provider
+            LOGGER.warning("inbox plain LLM provider=%s returned empty", provider)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("inbox plain LLM provider=%s failed: %s", provider, exc)
+            last_err = exc
+            continue
+    raise RuntimeError(
+        str(last_err)
+        if last_err
+        else "LLM çağrısı başarısız (yapılandırma veya boş yanıt)."
+    )
 
 
 def _reply_templates_user_prompt(thread_blob: str) -> str:
@@ -176,7 +253,7 @@ def reply_templates_three_tr_tr(thread_blob: str) -> tuple[list[dict[str, str]],
     chain = _inbox_llm_chain()
     if not chain:
         raise RuntimeError(
-            "Yanıt şablonları için OPENAI_API_KEY, GEMINI_API_KEY veya GROQ_API_KEY tanımlanmalı."
+            "Yanıt şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY tanımlanmalı."
         )
     prompt = _reply_templates_user_prompt(thread_blob)
     last_err: Exception | None = None
