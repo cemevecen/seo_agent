@@ -147,7 +147,9 @@ def summarize_thread_tr_tr(messages_plain: str) -> str:
 def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
     system = (
         f"Sen {brand} müşteri iletişim temsilcisisin. Aşağıdaki e-posta zincirine profesyonel, "
-        "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz. Selamlama ve kapanış ekle. "
+        "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz. Selamlama ve kapanış ekle.\n"
+        "ÖNEMLİ KURAL: KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
+        "Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan.\n"
         "Yalnızca e-posta gövdesini yaz; konu satırı yazma."
     )
     text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
@@ -214,9 +216,9 @@ def _reply_templates_user_prompt(thread_blob: str) -> str:
         "Kurallar:\n"
         "- Yalnızca tek bir geçerli JSON nesnesi döndür; kod bloğu veya açıklama yazma.\n"
         '- Şekil: {"templates":[{"label":"kısa etiket","body":"..."},{"label":"...","body":"..."},{"label":"...","body":"..."}]}\n'
-        "- Tam 3 öğe; her body yalnızca e-posta gövdesi (konu satırı yok), selamlama ve imza/kapanış dahil.\n"
-        "- Stiller belirgin şekilde farklı olsun: (1) resmî ve ayrıntılı (2) kısa ve net (3) empatik ve çözüm odaklı.\n"
-        "- döviz.com müşteri desteği tonu; gereksiz vaat verme.\n\n"
+        "- döviz.com müşteri desteği tonu; gereksiz vaat verme.\n"
+        "- KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
+        "- Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan.\n\n"
         "E-posta bağlamı:\n"
         + _truncate(thread_blob)
     )

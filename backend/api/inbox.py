@@ -367,15 +367,24 @@ def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = 
 
 @router.post("/threads/{thread_id}/read")
 @limiter.limit("60/minute")
-def inbox_thread_set_read(
+async def inbox_thread_set_read(
     request: Request,
     thread_id: int,
-    read_payload: ReadBody = Body(default_factory=ReadBody),
     db: Session = Depends(get_db),
 ):
+    # Manual parse to avoid Pydantic forward ref issues
+    read_val: bool = True
+    try:
+        raw = await request.body()
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                read_val = bool(parsed.get("read", True))
+    except Exception:  # noqa: BLE001
+        pass
     t = _thread_or_404(db, thread_id)
     try:
-        inbox_sync.set_thread_gmail_read(db, gmail_thread_id=t.gmail_thread_id, read=read_payload.read)
+        inbox_sync.set_thread_gmail_read(db, gmail_thread_id=t.gmail_thread_id, read=read_val)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.refresh(t)
@@ -384,16 +393,25 @@ def inbox_thread_set_read(
 
 @router.patch("/threads/{thread_id}/answered")
 @limiter.limit("60/minute")
-def inbox_thread_set_answered(
+async def inbox_thread_set_answered(
     request: Request,
     thread_id: int,
-    payload: AnsweredBody,
     db: Session = Depends(get_db),
 ):
+    # Manual parse to avoid Pydantic forward ref issues
+    ans_val: bool = True
+    try:
+        raw = await request.body()
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                ans_val = bool(parsed.get("answered", True))
+    except Exception:  # noqa: BLE001
+        pass
     t = _thread_or_404(db, thread_id)
     try:
         inbox_sync.set_thread_gmail_answered(
-            db, gmail_thread_id=t.gmail_thread_id, answered=bool(payload.answered)
+            db, gmail_thread_id=t.gmail_thread_id, answered=ans_val
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -521,18 +539,35 @@ async def inbox_thread_reply_templates(
 
 @router.post("/threads/{thread_id}/send")
 @limiter.limit("15/minute")
-def inbox_thread_send(request: Request, thread_id: int, payload: SendBody, db: Session = Depends(get_db)):
+async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depends(get_db)):
+    # Manual parse to avoid Pydantic forward ref issues
+    to_email: str = ""
+    subject: str = ""
+    body_text: str = ""
+    reply_to_gmail_message_id: str | None = None
+    try:
+        raw = await request.body()
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                to_email = str(parsed.get("to") or "").strip()
+                subject = str(parsed.get("subject") or "").strip()
+                body_text = str(parsed.get("text") or parsed.get("body") or "").strip()
+                rgmid = parsed.get("reply_to_gmail_message_id")
+                if rgmid and isinstance(rgmid, str):
+                    reply_to_gmail_message_id = rgmid.strip() or None
+    except Exception:  # noqa: BLE001
+        pass
+
     t = _thread_or_404(db, thread_id)
-    to_email = payload.to.strip()
-    if len(to_email) < 3 or "@" not in to_email:
+    if not to_email or "@" not in to_email:
         raise HTTPException(status_code=400, detail="Alıcı e-posta adresi geçersiz veya boş.")
-    body_text = (payload.text or "").strip()
     if not body_text:
         raise HTTPException(
             status_code=400,
-            detail="Gövde (metin) boş. Göndermeden önce ileti metnini doldurun veya `text` / `body` alanını JSON’da gönderin.",
+            detail="Gövde (metin) boş. Göndermeden önce ileti metnini doldurun.",
         )
-    subj = payload.subject.strip() or (f"Re: {t.subject}" if t.subject else "Re:")
+    subj = subject or (f"Re: {t.subject}" if t.subject else "Re:")
     try:
         mid = inbox_sync.send_reply_plain(
             db,
@@ -540,7 +575,7 @@ def inbox_thread_send(request: Request, thread_id: int, payload: SendBody, db: S
             to_email=to_email,
             subject=subj,
             text=body_text,
-            reply_to_gmail_message_id=(payload.reply_to_gmail_message_id or "").strip() or None,
+            reply_to_gmail_message_id=reply_to_gmail_message_id,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
