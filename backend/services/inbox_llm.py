@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import random
+import time
 from typing import Any
 
 import httpx
@@ -12,6 +14,17 @@ from backend.config import settings
 LOGGER = logging.getLogger(__name__)
 
 _MAX_CHARS = 14_000
+_OPENAI_MAX_ATTEMPTS = 7
+
+
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    raw = (response.headers.get("retry-after") or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
 
 
 def _truncate(s: str, n: int = _MAX_CHARS) -> str:
@@ -19,6 +32,13 @@ def _truncate(s: str, n: int = _MAX_CHARS) -> str:
     if len(s) <= n:
         return s
     return s[: n - 20] + "\n… [kesildi]"
+
+
+def _openai_rate_limit_exceeded(r: httpx.Response) -> RuntimeError:
+    return RuntimeError(
+        "OpenAI hız sınırına takıldı (429). Birkaç dakika sonra tekrar deneyin; "
+        "üç yanıt şablonu için .env içinde GEMINI_API_KEY veya GROQ_API_KEY de tanımlanabilir."
+    )
 
 
 def openai_plain_text(system: str, user: str, *, model: str | None = None) -> str:
@@ -36,10 +56,38 @@ def openai_plain_text(system: str, user: str, *, model: str | None = None) -> st
             {"role": "user", "content": user},
         ],
     }
+    data: dict[str, Any] | None = None
     with httpx.Client(timeout=120.0) as client:
-        r = client.post(url, headers=headers, json=body)
-        r.raise_for_status()
-        data = r.json()
+        for attempt in range(_OPENAI_MAX_ATTEMPTS):
+            r = client.post(url, headers=headers, json=body)
+            if r.status_code == 429:
+                header_wait = _retry_after_seconds(r)
+                if header_wait is not None:
+                    wait_s = min(120.0, max(1.0, header_wait))
+                else:
+                    wait_s = min(90.0, (2**attempt) + random.uniform(0.0, 2.5))
+                LOGGER.warning(
+                    "OpenAI 429 (gelen kutusu LLM); %.1fs bekleniyor, deneme %s/%s",
+                    wait_s,
+                    attempt + 1,
+                    _OPENAI_MAX_ATTEMPTS,
+                )
+                if attempt >= _OPENAI_MAX_ATTEMPTS - 1:
+                    raise _openai_rate_limit_exceeded(r) from None
+                time.sleep(wait_s)
+                continue
+            if r.status_code in (500, 502, 503):
+                wait_s = min(45.0, (2**attempt) + random.uniform(0.0, 1.5))
+                LOGGER.warning("OpenAI HTTP %s; %.1fs sonra tekrar", r.status_code, wait_s)
+                if attempt >= _OPENAI_MAX_ATTEMPTS - 1:
+                    r.raise_for_status()
+                time.sleep(wait_s)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            break
+    if data is None:
+        raise RuntimeError("OpenAI: yanıt alınamadı.")
     content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
     return str(content).strip()
 
