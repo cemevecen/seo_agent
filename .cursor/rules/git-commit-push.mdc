@@ -1,17 +1,18 @@
 ---
-description: After substantive edits, commit locally and push to GitHub without waiting for user approval.
+description: İş bitince onay beklemeden her zaman git commit + GitHub push (main); Railway deploy.
 alwaysApply: true
 ---
 
-# Git: commit ve push
+# Git: commit ve push — onay bekleme yok
 
-Bu repoda kod veya şablon değişikliği yaptıktan sonra, kullanıcı ayrıca söylemese bile:
+Bu repoda anlamlı kod, şablon veya yapılandırma değişikliği yaptıktan sonra:
 
-1. Anlamlı bir İngilizce veya Türkçe commit mesajı ile `git add` + `git commit` yap.
-2. `git push` ile `origin` üzerindeki varsayılan branch’e (genelde `main`) gönder.
-3. Onay veya “commit at” komutu beklemeden bunu otomatik uygula; sadece push gerçekten mümkün değilse (auth, ağ) kullanıcıyı bilgilendir.
+1. **Kullanıcıdan onay isteme** — “commit atayım mı?”, “pushlayım mı?” diye sorma; görev bittiğinde **doğrudan** uygula.
+2. `git status` ile neyin stage edileceğini kontrol et; `.env`, anahtarlar ve `.gitignore` ile hariç dosyaları **asla** commit etme.
+3. Anlamlı bir commit mesajı ile `git add` + `git commit` yap (Türkçe veya İngilizce, ne değiştiyse onu yaz).
+4. `git push origin main` (veya mevcut varsayılan dal) ile GitHub’a gönder; push mümkün değilse (kimlik doğrulama, ağ, çakışma) özeti yaz ve gerekirse `git pull --rebase origin main` sonra tekrar dene. **Force push kullanma.**
 
-## Railway
+## Railway / yayın
 
-- Bu projede canlı dağıtım, GitHub `main` dalına **push** ile tetiklenir; anlamlı kod/şablon işi bittiğinde commit + push mutlaka tamamlanmalıdır.
-- Push sonrası deploy’un bitmesi birkaç dakika sürebilir; gerekirse `/health` `rev` alanı veya Railway paneli ile doğrula.
+- Canlı dağıtım GitHub **`main`** push’una bağlıdır; iş tamamlandıysa commit + push **mutlaka** tamamlanmalıdır.
+- Deploy süresi birkaç dakika olabilir; doğrulama için Railway paneli veya uygulama health/rev kullanılabilir.
