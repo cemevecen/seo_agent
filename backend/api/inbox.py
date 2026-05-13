@@ -574,7 +574,7 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
             gmail_thread_id=t.gmail_thread_id,
             to_email=to_email,
             subject=subj,
-            text=body_text,
+            body=body_text,
             reply_to_gmail_message_id=reply_to_gmail_message_id,
         )
     except RuntimeError as exc:
