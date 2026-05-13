@@ -8057,6 +8057,51 @@ def api_ga4_realtime_top_pages(
         return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
 
 
+@app.get("/api/ga4/realtime/{site_id}/top-news")
+def api_ga4_realtime_top_news(
+    site_id: int,
+    profile: str = "web",
+    window: int = 30,
+    limit: int = 12,
+    type: str = "pages",
+):
+    """Realtime haber sayfaları — pagePath+pageTitle; yalnızca web/mweb (GA4 haber path kuralları)."""
+    from backend.services.ga4_realtime import fetch_realtime_top_news_pages
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+
+    if profile not in ("web", "mweb"):
+        return JSONResponse(
+            {"site_id": site_id, "profile": profile, "pages": [], "unsupported_profile": True},
+        )
+
+    sort_by = "screenPageViews" if type == "views" else "activeUsers"
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(profile) or properties.get("web")
+        if not property_id:
+            return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
+
+    try:
+        result = fetch_realtime_top_news_pages(
+            property_id,
+            window_minutes=min(window, 30),
+            limit=min(limit, 25),
+            sort_by=sort_by,
+        )
+        result["site_id"] = site_id
+        result["profile"] = profile
+        result["type"] = type
+        return JSONResponse(result)
+    except Exception as exc:
+        LOGGER.exception("Top news hatası [site=%s, profile=%s]", site_id, profile)
+        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+
+
 @app.get("/api/ga4/realtime/{site_id}/top-events")
 def api_ga4_realtime_top_events(
     site_id: int,

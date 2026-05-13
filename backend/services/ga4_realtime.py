@@ -285,6 +285,88 @@ def fetch_realtime_top_pages(
     }
 
 
+def fetch_realtime_top_news_pages(
+    property_id: str,
+    *,
+    window_minutes: int = 30,
+    limit: int = 12,
+    sort_by: str = "activeUsers",
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Realtime: haber makalesi path'leri (GA4 kolektörüyle aynı haber tespiti) + tıklanabilir path.
+
+    ``pagePath`` + ``pageTitle`` boyutları kullanılır; yalnızca web/mweb stream için anlamlıdır.
+    """
+    from backend.collectors.ga4 import _is_news_article_path
+
+    if client is None:
+        client = _build_client()
+    w = max(1, min(window_minutes, 30))
+    fetch_cap = min(250, max(80, int(limit) * 25))
+    sort_metric = "screenPageViews" if sort_by == "screenPageViews" else "activeUsers"
+
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[
+            Dimension(name="pagePath"),
+            Dimension(name="pageTitle"),
+        ],
+        metrics=[
+            Metric(name="activeUsers"),
+            Metric(name="screenPageViews"),
+        ],
+        minute_ranges=[
+            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        ],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name=sort_metric, desc=True))],
+        limit=fetch_cap,
+    )
+    t0 = time.monotonic()
+    response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    metric_names = [m.name for m in response.metric_headers]
+    dim_headers = [h.name for h in response.dimension_headers]
+    by_path: dict[str, dict[str, Any]] = {}
+
+    for row in response.rows:
+        dm = _realtime_row_dimensions(row, dim_headers)
+        path = str(dm.get("pagePath", "") or "").strip()
+        if not path or path in ("/", "(not set)"):
+            continue
+        if not _is_news_article_path(path):
+            continue
+        title = str(dm.get("pageTitle", "") or "").strip() or path
+        metrics_dict: dict[str, float] = {}
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                metrics_dict[mname] = float(mv.value)
+            except (ValueError, TypeError):
+                metrics_dict[mname] = 0.0
+        cur = by_path.get(path)
+        if cur is not None and cur.get(sort_metric, 0) >= metrics_dict.get(sort_metric, 0):
+            continue
+        by_path[path] = {
+            "page": title,
+            "page_path": path,
+            "activeUsers": metrics_dict.get("activeUsers", 0.0),
+            "screenPageViews": metrics_dict.get("screenPageViews", 0.0),
+        }
+
+    pages = sorted(by_path.values(), key=lambda p: p.get(sort_metric, 0), reverse=True)[: max(1, min(limit, 25))]
+
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "pages": pages,
+        "total_pages": len(pages),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+        "breakdown": "pagePath+pageTitle+news_filter",
+    }
+
+
 def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, int]:
     """(anlamlı etiketli satır, toplam). GA bazen '(not set)' / '(other)' döner — bunlar zayıf sayılır."""
     bare = frozenset(

@@ -63,6 +63,7 @@
         class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
+        data-rt-domain="{{ site.domain }}"
       >
         {# Profile header #}
         <div class="mb-4 flex items-center justify-between">
@@ -115,13 +116,18 @@
 
         {# Top Pages — tabbed #}
         <div class="mt-4 flex min-h-[200px] flex-1 flex-col" data-rt-top-section>
-          <div class="mb-2 flex items-center gap-1">
+          <div class="mb-2 flex flex-wrap items-center gap-1">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
               data-rt-top-tab="pages">{% if profile in ('ios','android') %}Top Ekranlar{% else %}Top Sayfalar{% endif %}</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
               class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               data-rt-top-tab="views">Top Görüntüleme</button>
+            {% if profile in ('web', 'mweb') %}
+            <button type="button" onclick="rtSwitchTopTab(this,'news')"
+              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              data-rt-top-tab="news">Haberler</button>
+            {% endif %}
           </div>
           <div data-rt-top-panel="pages">
             <div class="space-y-1" data-rt-pages-list>
@@ -135,6 +141,15 @@
             </div>
             <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
           </div>
+          {% if profile in ('web', 'mweb') %}
+          <div data-rt-top-panel="news" class="hidden">
+            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4’te haber path’i veya URL sonunda sayısal makale ID’si olan sayfalar (landing raporundaki haber kurallarıyla uyumlu).</p>
+            <div class="space-y-1" data-rt-news-list>
+              <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+            </div>
+            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-news-ts></p>
+          </div>
+          {% endif %}
         </div>
 
         {% if profile in ('android', 'ios') %}
@@ -225,6 +240,17 @@
     return String(Math.round(n));
   }
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function _siteOrigin(domain) {
+    if (!domain) return '';
+    var d = String(domain).trim().replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    return d ? ('https://' + d) : '';
+  }
+  function _newsHref(origin, pagePath) {
+    if (!pagePath) return '';
+    var p = pagePath.charAt(0) === '/' ? pagePath : ('/' + pagePath);
+    return origin ? (origin + p) : '';
+  }
 
   function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
 
@@ -414,6 +440,74 @@
     );
   }
 
+  function _fetchTopNews(siteId, profile) {
+    if (profile !== 'web' && profile !== 'mweb') return;
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    var listEl = box.querySelector('[data-rt-news-list]');
+    var tsEl = box.querySelector('[data-rt-news-ts]');
+    if (!listEl) return;
+    fetch('/api/ga4/realtime/' + siteId + '/top-news?profile=' + encodeURIComponent(profile) + '&window=' + WINDOW + '&limit=12&type=pages', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.pages) {
+          listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
+          return;
+        }
+        _renderNewsList(listEl, d.pages, box.getAttribute('data-rt-domain'));
+        if (tsEl) {
+          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+        }
+      })
+      .catch(function () {
+        listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">hata</p>';
+      });
+  }
+
+  function _renderNewsList(listEl, pages, domain) {
+    if (!listEl) return;
+    if (!pages.length) {
+      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">Bu pencerede haber trafiği yok veya eşleşen path bulunamadı.</p>';
+      return;
+    }
+    var origin = _siteOrigin(domain || '');
+    var sortKey = 'activeUsers';
+    var maxVal = pages[0][sortKey] || 1;
+    listEl.innerHTML = pages.map(function (p, i) {
+      var titleRaw = p.page || p.page_path || '(başlıksız)';
+      var titleShort = _esc(titleRaw);
+      if (titleShort.length > 56) titleShort = titleShort.substring(0, 54) + '…';
+      var pathRaw = p.page_path || '';
+      var pathEsc = _esc(pathRaw);
+      var pathOneLine = pathRaw.length > 64 ? pathEsc.substring(0, 62) + '…' : pathEsc;
+      var href = _newsHref(origin, pathRaw);
+      var hrefAttr = href ? encodeURI(href) : '';
+      var users = _fmt(p.activeUsers);
+      var views = _fmt(p.screenPageViews);
+      var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
+      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
+      var linkHtml = hrefAttr
+        ? '<a class="truncate text-sm font-semibold text-indigo-700 hover:underline dark:text-indigo-300" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + pathEsc + '">' + titleShort + '</a>'
+        : '<span class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + pathEsc + '">' + titleShort + '</span>';
+      return '<div class="flex items-start gap-2 rounded-md px-2 py-1.5' + zebra + '">'
+        + '<span class="w-5 shrink-0 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
+        + '<div class="min-w-0 flex-1">'
+        + linkHtml
+        + '<div class="mt-0.5 truncate font-mono text-[10px] text-slate-500 dark:text-slate-400" title="' + pathEsc + '">' + pathOneLine + '</div>'
+        + '<div class="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded-full bg-amber-500/70" style="width:' + barW + '%"></div></div>'
+        + '</div>'
+        + '<div class="flex shrink-0 flex-col items-end gap-0.5">'
+        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300"><strong class="text-sm">' + users + '</strong> <span class="text-xs text-slate-400">kul.</span></span>'
+        + '<span class="text-xs text-slate-400">' + views + ' gör.</span>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
   function _fetchTopData(siteId, profile, type) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
@@ -585,6 +679,7 @@
   function rtFetchTopPages(siteId, profile) {
     _fetchTopData(siteId, profile, 'pages');
     _fetchTopData(siteId, profile, 'views');
+    _fetchTopNews(siteId, profile);
   }
   window.rtFetchTopPages = rtFetchTopPages;
 
@@ -599,6 +694,14 @@
     section.querySelectorAll('[data-rt-top-tab]').forEach(function (t) {
       t.className = (t.getAttribute('data-rt-top-tab') === tab) ? activeClass : inactiveClass;
     });
+    if (tab === 'news' && section.querySelector('[data-rt-news-list]')) {
+      var profileBox = btn.closest('[data-rt-site-id]');
+      if (profileBox) {
+        var sid = parseInt(profileBox.getAttribute('data-rt-site-id'), 10);
+        var prof = profileBox.getAttribute('data-rt-profile');
+        if (!isNaN(sid) && prof) _fetchTopNews(sid, prof);
+      }
+    }
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
 
