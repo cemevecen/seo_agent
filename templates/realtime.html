@@ -478,39 +478,22 @@
   /* Spark: kart opaklığından ayrı; aurora / cam çerçeve (gradient için chart-wrap ayrı) */
   .rt-spark-wrap {
     position: relative;
-    border-radius: 0.875rem;
-    padding: 3px;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(238, 242, 255, 0.98) 42%,
-      rgba(224, 242, 254, 0.92) 100%
-    );
+    border-radius: 0.75rem;
+    padding: 2px;
+    background: rgb(241 245 249);
     box-shadow:
-      0 0 0 1px rgba(99, 102, 241, 0.12),
-      0 4px 24px -6px rgba(79, 70, 229, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      0 0 0 1px rgba(100, 116, 139, 0.12),
+      0 2px 8px -2px rgba(0, 0, 0, 0.08);
   }
   html.dark .rt-spark-wrap {
-    background: linear-gradient(
-      145deg,
-      rgba(24, 24, 27, 0.98) 0%,
-      rgba(9, 9, 11, 0.99) 48%,
-      rgba(39, 39, 42, 0.60) 100%
-    );
+    background: rgb(24 24 27);
     box-shadow:
-      0 0 0 1px rgba(82, 82, 91, 0.30),
-      0 0 24px -8px rgba(0, 0, 0, 0.60),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
-  .rt-spark-inner {
-    position: relative;
-    overflow: hidden;
-    border-radius: 0.625rem;
-    background: rgba(248, 250, 252, 0.65);
+      0 0 0 1px rgba(63, 63, 70, 0.55),
+      0 1px 4px rgba(0, 0, 0, 0.5);
   }
   html.dark .rt-spark-inner {
-    background: rgba(9, 9, 11, 0.50);
+    background: rgba(9, 9, 11, 0.70);
+    border-radius: 0.5rem;
   }
   .rt-spark-aurora {
     position: absolute;
@@ -746,9 +729,8 @@
         </div>
 
         {# Aktif kullanıcı sparkline (DB snapshot) — aurora çerçeve + Plotly katmanlı çizim #}
-        <div class="rt-spark-wrap mt-2" data-rt-chart-wrap>
+        <div class="rt-spark-wrap mt-3" data-rt-chart-wrap>
           <div class="rt-spark-inner">
-            <div class="rt-spark-aurora" aria-hidden="true"></div>
             <div class="rt-spark-plot h-14 w-full min-h-[56px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
           </div>
         </div>
@@ -1227,9 +1209,10 @@
 
     /* Önceki: spline + glow katmanları + dolu alan — tarayıcıda hep aynı “yumuşak şerit”.
      * Şimdi: tek trace, hv (basamak) = diskret snapshot okuması; ince alan + nokta vurgusu. */
-    var lineMain = isDark ? '#7dd3fc' : '#0369a1';
-    var lineEdge = isDark ? '#0c4a6e' : '#bae6fd';
-    var fillSoft = isDark ? 'rgba(14, 165, 233, 0.11)' : 'rgba(14, 165, 233, 0.09)';
+    /* Çizgi rengi: dark modda ince, sade beyaz/gri ton; light modda slate-600 */
+    var lineMain = isDark ? '#e4e4e7' : '#475569';
+    var lineEdge = isDark ? '#52525b' : '#cbd5e1';
+    var fillSoft = isDark ? 'rgba(228, 228, 231, 0.08)' : 'rgba(71, 85, 105, 0.07)';
     var n = xDates.length;
     var dense = n > 24;
     var mainTrace = {
@@ -1240,7 +1223,7 @@
       name: 'Aktif kullanıcı',
       line: {
         color: lineMain,
-        width: 2,
+        width: isDark ? 1.5 : 2,
         shape: 'hv',
       },
       fill: 'tozeroy',
@@ -1296,9 +1279,9 @@
         uirevision: wantId,
         datarevision: dataRevision,
         hoverlabel: {
-          bgcolor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
-          bordercolor: isDark ? 'rgba(56, 189, 248, 0.55)' : 'rgba(14, 165, 233, 0.4)',
-          font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#e2e8f0' : '#0f172a' },
+          bgcolor: isDark ? 'rgba(39, 39, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+          bordercolor: isDark ? 'rgba(113, 113, 122, 0.6)' : 'rgba(71, 85, 105, 0.4)',
+          font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#f4f4f5' : '#0f172a' },
         },
         xaxis: {
           type: 'date',
