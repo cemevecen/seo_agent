@@ -2867,6 +2867,7 @@ def _refresh_site_detail_measurements(
     include_search_console: bool = False,
     force: bool = False,
     send_notifications: bool = False,
+    bypass_pagespeed_quota: bool = False,
 ) -> dict[str, dict]:
     # LIVE_REFRESH yalnızca otomatik tetikleri kapatır; manuel/API `force=True` ile PSI vb. yine çalışır (Railway).
     if not settings.live_refresh_enabled and not force:
@@ -2892,7 +2893,12 @@ def _refresh_site_detail_measurements(
             }
         else:
             try:
-                results["pagespeed"] = collect_pagespeed_metrics(db, site, send_notifications=send_notifications)
+                results["pagespeed"] = collect_pagespeed_metrics(
+                    db,
+                    site,
+                    send_notifications=send_notifications,
+                    bypass_quota=bypass_pagespeed_quota,
+                )
             except Exception as exc:  # noqa: BLE001
                 results["pagespeed"] = {"errors": {"exception": str(exc)}}
     if include_crawler:
@@ -5660,6 +5666,7 @@ def dashboard_measure_site(request: Request, site_id: int):
                 include_search_console=search_console_connected,
                 force=True,
                 send_notifications=True,
+                bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
             )
             if not search_console_connected:
                 try:
@@ -6282,7 +6289,19 @@ def api_refresh_data_explorer(request: Request, domain: str):
             include_search_console=False,
             force=True,
             send_notifications=True,
+            bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
         )
+        ps = results.get("pagespeed")
+        if isinstance(ps, dict) and ps.get("blocked"):
+            return JSONResponse(
+                {
+                    "site": site.domain,
+                    "refreshed": False,
+                    "error": ps.get("reason") or "PageSpeed kota sınırı; yenileme yapılmadı.",
+                    "results": results,
+                },
+                status_code=429,
+            )
         try:
             results["crux_history"] = collect_crux_history(db, site)
         except Exception as exc:  # noqa: BLE001
@@ -6326,6 +6345,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
             include_search_console=search_console_connected,
             force=True,
             send_notifications=True,
+            bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
         )
         try:
             results["crux_history"] = collect_crux_history(db, site)

@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     pagespeed_max_retries: int = 2
     pagespeed_retry_backoff_seconds: float = 2.0
     pagespeed_refresh_cooldown_seconds: int = 1800
+    # POST /api/site/.../data-explorer/refresh (ve tam site manuel yenileme): günlük/aylık kota sayacını atla.
+    # False iken kota dolunca PageSpeed çağrısı yapılmaz; arayüzde açık hata gösterilir.
+    pagespeed_manual_refresh_bypass_quota: bool = True
     lighthouse_live_score_cache_seconds: int = 1800
     pagespeed_live_sync_on_page_load: bool = False
     pagespeed_auto_collect_on_page_load: bool = False
@@ -126,7 +129,7 @@ class Settings(BaseSettings):
     url_inspection_refresh_cooldown_seconds: int = 21600
     crux_refresh_cooldown_seconds: int = 21600
     scheduled_refresh_enabled: bool = True
-    scheduled_refresh_hour: int = 5
+    scheduled_refresh_hour: int = 7
     scheduled_refresh_minute: int = 0
     scheduled_refresh_timezone: str = "Europe/Istanbul"
     scheduled_refresh_site_spacing_seconds: int = 10
@@ -141,7 +144,7 @@ class Settings(BaseSettings):
     # True iken operasyon/GA4 özet e-postaları yalnızca trigger_source=manual ile gider (zamanlayıcı ve monitör dahil).
     email_manual_triggers_only: bool = True
 
-    # GA4 günlük toplama (Ankara saati; Search Console 04:00, tam yenileme 05:00 ile sıralı)
+    # GA4 günlük toplama (Ankara saati; Search Console 04:00, PageSpeed+Crawler+CrUX tam yenileme 07:00 ile sıralı)
     ga4_scheduled_refresh_enabled: bool = True
     ga4_scheduled_refresh_hour: int = 4
     ga4_scheduled_refresh_minute: int = 30

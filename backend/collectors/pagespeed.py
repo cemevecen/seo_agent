@@ -1193,21 +1193,23 @@ def collect_pagespeed_metrics(
     max_retries: int | None = None,
     retry_backoff_seconds: float | None = None,
     send_notifications: bool = False,
+    bypass_quota: bool = False,
 ) -> dict:
     """Mobile ve desktop performans verilerini toplayıp Metric tablosuna kaydeder."""
-    decision = consume_api_quota(
-        db,
-        site,
-        provider="pagespeed",
-        units=2,
-        send_alert_emails=send_notifications,
-    )
-    if not decision.allowed:
-        return {
-            "site_id": site.id,
-            "blocked": True,
-            "reason": decision.reason,
-        }
+    if not bypass_quota:
+        decision = consume_api_quota(
+            db,
+            site,
+            provider="pagespeed",
+            units=2,
+            send_alert_emails=send_notifications,
+        )
+        if not decision.allowed:
+            return {
+                "site_id": site.id,
+                "blocked": True,
+                "reason": decision.reason,
+            }
 
     collected_at = datetime.utcnow()
     metrics: dict[str, float] = {}

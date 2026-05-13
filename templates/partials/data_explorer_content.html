@@ -1125,17 +1125,20 @@ text-slate-500 dark:text-slate-400
         }, 900);
         try {
           const response = await fetch(url, { method: 'POST', credentials: 'same-origin' });
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (eJson) {
+            /* ignore */
+          }
           if (!response.ok) {
-            let detail = 'refresh failed';
-            try {
-              const errBody = await response.json();
-              if (errBody && errBody.error) {
-                detail = String(errBody.error);
-              }
-            } catch (e) {
-              /* ignore */
-            }
+            const detail =
+              (data && (data.error || data.detail)) ? String(data.error || data.detail) : 'refresh failed';
             throw new Error(detail);
+          }
+          var psRes = data && data.results && data.results.pagespeed;
+          if (psRes && psRes.blocked) {
+            throw new Error(psRes.reason ? String(psRes.reason) : 'PageSpeed kotası nedeniyle ölçüm atlandı.');
           }
           if (progressTimer) {
             window.clearInterval(progressTimer);
