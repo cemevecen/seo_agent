@@ -432,6 +432,17 @@ class NotificationDeliveryLog(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class SmtpDailySendLedger(Base):
+    """SMTP ile başarılı gönderim sayısı — takvim günü (smtp_quota_calendar_timezone) başına tavan."""
+
+    __tablename__ = "smtp_daily_send_ledgers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day_key: Mapped[str] = mapped_column(String(12), nullable=False, unique=True, index=True)
+    send_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiDailyBriefReport(Base):
     """Günlük AI strateji özeti (sabah job); arayüz ve e-posta kaynağı."""
 

@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     mail_from: str = ""
     mail_to: str = ""
     operations_mail_to: str = ""
+    # SMTP günlük kota: Gmail tüketici ~500 mesaj/gün; Workspace ücretli kullanıcı ~2000/gün (Google duyurusu, değişebilir).
+    # Workspace’te POP/IMAP/SMTP ile mesaj başına en fazla 100 alıcı (RCPT) sınırı yaygındır.
+    # Referans: https://support.google.com/mail/answer/22839 — https://support.google.com/a/answer/166852
+    # 0 = günlük sayaç kapalı (yalnızca smtp_daily_quota_enabled=false ile de kapatılır).
+    smtp_daily_quota_enabled: bool = True
+    smtp_daily_send_limit: int = Field(default=450, ge=0, le=100000)
+    smtp_quota_calendar_timezone: str = "Europe/Istanbul"
+    smtp_max_recipients_per_message: int = Field(default=100, ge=1, le=500)
 
     quota_guard_enabled: bool = True
     quota_warning_ratio: float = 0.8
@@ -186,7 +194,7 @@ class Settings(BaseSettings):
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
     ga4_realtime_enabled: bool = False
-    ga4_realtime_interval_minutes: int = 10
+    ga4_realtime_interval_minutes: int = 15
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız; çok düşük = kota.
     ga4_realtime_ui_poll_seconds: int = Field(default=45, ge=15, le=600)

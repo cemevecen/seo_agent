@@ -13,6 +13,11 @@ from email.message import EmailMessage
 from email.utils import parseaddr
 
 from backend.config import settings
+from backend.services.smtp_quota import (
+    smtp_quota_release_one_send,
+    smtp_quota_try_reserve_one_send,
+    smtp_recipients_allowed,
+)
 
 
 def _smtp_message_id_host() -> str:
@@ -78,6 +83,59 @@ def is_mail_configured() -> bool:
     return _smtp_configured() and bool(default_recipient_list)
 
 
+def _smtp_send_message_with_retries(message: EmailMessage) -> bool:
+    """SMTP gönderimi (kota rezervasyonu çağıran tarafında yapılmalıdır)."""
+    MAX_RETRIES = 3
+    INITIAL_BACKOFF_S = 15
+    subj = str(message.get("Subject", ""))[:120]
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
+                smtp.starttls()
+                smtp.login(settings.smtp_user, settings.smtp_password)
+                smtp.send_message(message)
+            return True
+        except smtplib.SMTPException as e:
+            is_temporary_error = isinstance(e, smtplib.SMTPResponseException) and 400 <= e.smtp_code < 500
+
+            if is_temporary_error and (attempt < MAX_RETRIES - 1):
+                backoff_time = INITIAL_BACKOFF_S * (2**attempt) + random.uniform(0, 5)
+                logging.warning(
+                    "Temporary SMTP error (Code: %s). Retrying in %.2f seconds... (Attempt %d/%d)",
+                    getattr(e, "smtp_code", "?"),
+                    backoff_time,
+                    attempt + 1,
+                    MAX_RETRIES,
+                )
+                time.sleep(backoff_time)
+            else:
+                logging.error(
+                    "Failed to send email with subject '%s' after %d attempts. Final error: %s",
+                    subj,
+                    attempt + 1,
+                    e,
+                )
+                return False
+        except OSError as e:
+            logging.error("SMTP bağlantı hatası (host: %s): %s", settings.smtp_host, e)
+            return False
+    return False
+
+
+def _smtp_dispatch_with_daily_quota(message: EmailMessage) -> bool:
+    """Günlük kota rezervasyonu + gönderim; tam başarısızlıkta rezervi geri alır."""
+    if not smtp_quota_try_reserve_one_send():
+        return False
+    success = False
+    try:
+        success = _smtp_send_message_with_retries(message)
+        return success
+    finally:
+        if not success:
+            smtp_quota_release_one_send()
+
+
 def send_email(subject: str, html_body: str, recipients: list[str] | None = None) -> bool:
     """
     SMTP ile HTML e-posta gönderir.
@@ -91,6 +149,8 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
         if not _smtp_configured():
             logging.warning("SMTP is not configured. Skipping email sending.")
         return False
+    if not smtp_recipients_allowed(len(recipient_list)):
+        return False
 
     message = EmailMessage()
     message["Subject"] = subject
@@ -99,40 +159,14 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     message.set_content("This is a plain-text fallback for the HTML email.")
     message.add_alternative(html_body, subtype="html")
 
-    MAX_RETRIES = 3
-    INITIAL_BACKOFF_S = 15  # 15 saniye ile başla
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
-                smtp.starttls()
-                smtp.login(settings.smtp_user, settings.smtp_password)
-                smtp.send_message(message)
-            logging.info(f"Email with subject '{subject}' sent successfully to {', '.join(recipient_list)}.")
-            return True
-        except smtplib.SMTPException as e:
-            # Hatanın geçici (4xx) olup olmadığını kontrol et
-            is_temporary_error = isinstance(e, smtplib.SMTPResponseException) and 400 <= e.smtp_code < 500
-
-            if is_temporary_error and (attempt < MAX_RETRIES - 1):
-                # Exponential backoff + jitter
-                backoff_time = INITIAL_BACKOFF_S * (2**attempt) + random.uniform(0, 5)
-                logging.warning(
-                    f"Temporary SMTP error (Code: {e.smtp_code}). "
-                    f"Retrying in {backoff_time:.2f} seconds... (Attempt {attempt + 1}/{MAX_RETRIES})"
-                )
-                time.sleep(backoff_time)
-            else:
-                # Ya kalıcı hata ya da son deneme de başarısız oldu
-                logging.error(
-                    f"Failed to send email with subject '{subject}' after {attempt + 1} attempts. "
-                    f"Final error: {e}"
-                )
-                return False
-        except OSError as e:
-            logging.error(f"SMTP bağlantı hatası (host: {settings.smtp_host}): {e}")
-            return False
-    return False
+    ok = _smtp_dispatch_with_daily_quota(message)
+    if ok:
+        logging.info(
+            "Email with subject '%s' sent successfully to %s.",
+            subject[:200],
+            ", ".join(recipient_list),
+        )
+    return ok
 
 
 def send_realtime_email(
@@ -178,6 +212,8 @@ def send_realtime_email(
                 subject[:120],
             )
         return False
+    if not smtp_recipients_allowed(len(recipient_list)):
+        return False
 
     subj = subject.strip()
     if not subj.startswith("[GA4 Realtime]"):
@@ -192,46 +228,14 @@ def send_realtime_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
-    MAX_RETRIES = 3
-    INITIAL_BACKOFF_S = 15
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
-                smtp.starttls()
-                smtp.login(settings.smtp_user, settings.smtp_password)
-                smtp.send_message(message)
-            logging.info(
-                "GA4 Realtime e-postası gönderildi: %s → %s",
-                subj[:100],
-                ", ".join(recipient_list),
-            )
-            return True
-        except smtplib.SMTPException as e:
-            is_temporary_error = isinstance(e, smtplib.SMTPResponseException) and 400 <= e.smtp_code < 500
-
-            if is_temporary_error and (attempt < MAX_RETRIES - 1):
-                backoff_time = INITIAL_BACKOFF_S * (2**attempt) + random.uniform(0, 5)
-                logging.warning(
-                    "GA4 Realtime SMTP geçici hata (kod %s). %.1f sn sonra yeniden denenecek (%d/%d).",
-                    getattr(e, "smtp_code", "?"),
-                    backoff_time,
-                    attempt + 1,
-                    MAX_RETRIES,
-                )
-                time.sleep(backoff_time)
-            else:
-                logging.error(
-                    "GA4 Realtime e-postası başarısız (%d deneme). Son hata: %s — Konu: %s",
-                    attempt + 1,
-                    e,
-                    subj[:120],
-                )
-                return False
-        except OSError as e:
-            logging.error("GA4 Realtime SMTP bağlantı hatası (%s): %s", settings.smtp_host, e)
-            return False
-    return False
+    ok = _smtp_dispatch_with_daily_quota(message)
+    if ok:
+        logging.info(
+            "GA4 Realtime e-postası gönderildi: %s → %s",
+            subj[:100],
+            ", ".join(recipient_list),
+        )
+    return ok
 
 
 def send_realtime_news_email(
@@ -269,6 +273,8 @@ def send_realtime_news_email(
                 subject[:120],
             )
         return False
+    if not smtp_recipients_allowed(len(recipient_list)):
+        return False
 
     subj = subject.strip()
     if not subj.startswith("[GA4 Realtime]"):
@@ -283,43 +289,11 @@ def send_realtime_news_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
-    MAX_RETRIES = 3
-    INITIAL_BACKOFF_S = 15
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
-                smtp.starttls()
-                smtp.login(settings.smtp_user, settings.smtp_password)
-                smtp.send_message(message)
-            logging.info(
-                "GA4 Realtime haber e-postası gönderildi: %s → %s",
-                subj[:100],
-                ", ".join(recipient_list),
-            )
-            return True
-        except smtplib.SMTPException as e:
-            is_temporary_error = isinstance(e, smtplib.SMTPResponseException) and 400 <= e.smtp_code < 500
-
-            if is_temporary_error and (attempt < MAX_RETRIES - 1):
-                backoff_time = INITIAL_BACKOFF_S * (2**attempt) + random.uniform(0, 5)
-                logging.warning(
-                    "GA4 Realtime haber SMTP geçici hata (kod %s). %.1f sn sonra yeniden denenecek (%d/%d).",
-                    getattr(e, "smtp_code", "?"),
-                    backoff_time,
-                    attempt + 1,
-                    MAX_RETRIES,
-                )
-                time.sleep(backoff_time)
-            else:
-                logging.error(
-                    "GA4 Realtime haber e-postası başarısız (%d deneme). Son hata: %s — Konu: %s",
-                    attempt + 1,
-                    e,
-                    subj[:120],
-                )
-                return False
-        except OSError as e:
-            logging.error("GA4 Realtime haber SMTP bağlantı hatası (%s): %s", settings.smtp_host, e)
-            return False
-    return False
+    ok = _smtp_dispatch_with_daily_quota(message)
+    if ok:
+        logging.info(
+            "GA4 Realtime haber e-postası gönderildi: %s → %s",
+            subj[:100],
+            ", ".join(recipient_list),
+        )
+    return ok
