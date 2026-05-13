@@ -61,6 +61,23 @@ def _thread_or_404(db: Session, thread_id: int) -> SupportInboxThread:
     return row
 
 
+def _extract_sender_email_from_any_body(msgs: list[SupportInboxMessage]) -> str | None:
+    """Feedback formları gibi gövde içinde 'Email: ...' geçen iletilerde gerçek adresi bulur."""
+    # Pattern: Email: veya E-posta: veya Mail:
+    pattern = re.compile(
+        r"(?:Email|E-posta|Mail)\s*[:：]\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+        re.IGNORECASE,
+    )
+    for m in reversed(msgs):
+        if m.is_outbound:
+            continue
+        text = m.body_text or ""
+        match = pattern.search(text)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
 def _resolve_inbound_focus(
     msgs: list[SupportInboxMessage], focus_gmail_message_id: str | None
 ) -> SupportInboxMessage | None:
@@ -487,9 +504,16 @@ async def inbox_thread_reply_templates(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     focus_payload: dict[str, Any] | None = None
     if focus is not None:
+        sender = focus.from_addr
+        # Eğer gönderen sistem adresi (noreply vb) ise gövdeden gerçek kişiyi bulmaya çalış
+        if any(x in (sender or "").lower() for x in ["noreply", "feedback", "info", "doviz.com"]):
+            body_email = _extract_sender_email_from_any_body(msgs)
+            if body_email:
+                sender = body_email
+
         focus_payload = {
             "gmail_message_id": focus.gmail_message_id,
-            "from": focus.from_addr,
+            "from": sender,
             "subject": (focus.subject or t.subject or "").strip(),
         }
     return {"templates": templates, "provider": used, "focus": focus_payload}

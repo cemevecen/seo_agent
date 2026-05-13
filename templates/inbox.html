@@ -127,6 +127,7 @@
   var templateFocus = null;
   var templatesCache = [];
   var currentTemplateFocusGmid = null;
+  var currentMessages = [];
 
   function showBanner(msg) {
     var el = document.getElementById("inbox-banner");
@@ -179,14 +180,28 @@
   }
 
   function extractSenderEmailFromBody(messages) {
-    // Mail gövdesinde "Email: kullanici@ornek.com" satırını ara (Doviz.com feedback formu)
+    if (!messages || !messages.length) return "";
+    // Mail gövdesinde "Email: kullanici@ornek.com" satırını ara (Doviz.com feedback formu vb.)
+    // Pattern: Email, E-posta veya Mail kelimelerini destekler
+    var re = /(?:Email|E-posta|Mail)\s*[:：]\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i;
     for (var i = messages.length - 1; i >= 0; i--) {
       if (messages[i].is_outbound) continue;
       var body = messages[i].body_text || "";
-      var m = body.match(/Email\s*:\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+      var m = body.match(re);
       if (m && m[1]) return m[1].trim();
     }
     return "";
+  }
+
+  function getReplyRecipient(messages, fallbackFrom) {
+    var sender = (fallbackFrom || "").toLowerCase();
+    // Eğer gönderen sistem adresi ise gövdeden gerçek kişiyi bulmaya çalış
+    if (sender.indexOf("noreply") !== -1 || sender.indexOf("feedback") !== -1 || 
+        sender.indexOf("info") !== -1 || sender.indexOf("doviz.com") !== -1) {
+      var bodyEmail = extractSenderEmailFromBody(messages);
+      if (bodyEmail) return bodyEmail;
+    }
+    return extractEmail(fallbackFrom);
   }
 
   function lastInboundGmailId(messages) {
@@ -202,7 +217,8 @@
     var f = templateFocus;
     if (f && f.gmail_message_id) {
       replyToGmailId = f.gmail_message_id;
-      document.getElementById("inbox-send-to").value = extractEmail(f.from || "");
+      // focus payload backendden 'from' alanını zaten düzeltilmiş olarak gönderebilir ama frontendde de garanti edelim
+      document.getElementById("inbox-send-to").value = getReplyRecipient(currentMessages, f.from || "");
       var subjh = f.subject || "";
       var threadSubj = document.getElementById("inbox-detail-subject").textContent || "";
       document.getElementById("inbox-send-subject").value =
@@ -558,6 +574,7 @@
     var data = await jfetch("/api/inbox/threads/" + id);
     var t = data.thread;
     var messages = data.messages || [];
+    currentMessages = messages;
     document.getElementById("inbox-detail-empty").classList.add("hidden");
     document.getElementById("inbox-detail").classList.remove("hidden");
     document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
@@ -572,9 +589,7 @@
       sum.classList.add("hidden");
     }
     // ALICI: önce gövdeden gerçek e-postayı bul, yoksa from_addr headerını kullan
-    var bodyEmail = extractSenderEmailFromBody(messages);
-    var fromHdr = lastInboundFrom(messages);
-    document.getElementById("inbox-send-to").value = bodyEmail || extractEmail(fromHdr);
+    document.getElementById("inbox-send-to").value = getReplyRecipient(messages, lastInboundFrom(messages));
     document.getElementById("inbox-send-subject").value = t.subject && t.subject.indexOf("Re:") === 0 ? t.subject : "Re: " + (t.subject || "");
     document.getElementById("inbox-send-body").value = t.ai_draft_reply || "";
     var mb = document.getElementById("inbox-messages");
@@ -627,7 +642,7 @@
         var gmid = wrap.getAttribute("data-gmid");
         if (!gmid) return;
         replyToGmailId = gmid;
-        document.getElementById("inbox-send-to").value = extractEmail(wrap.getAttribute("data-from") || "");
+        document.getElementById("inbox-send-to").value = getReplyRecipient(currentMessages, wrap.getAttribute("data-from") || "");
         var subjh = wrap.getAttribute("data-subj") || "";
         document.getElementById("inbox-send-subject").value =
           subjh.indexOf("Re:") === 0 ? subjh : "Re: " + (subjh || t.subject || "");
