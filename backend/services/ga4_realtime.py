@@ -128,12 +128,12 @@ def fetch_realtime_comparison(
     *,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """İki minuteRange penceresi ile Realtime API çağrısı yapar.
+    """İki minuteRange ile Realtime API karşılaştırması + tek aralık toplamı.
 
-    Pencere A (current): son `window_minutes` dakika (0 → window-1)
-    Pencere B (previous): onun önceki `window_minutes` dakikası
-
-    Returns dict: {current: {...}, previous: {...}, comparison: {...}, fetched_at: ...}
+    GA Realtime en fazla ~29 dk geriye gider; karşılaştırma için sabit iki **15 dk**
+    aralığı kullanılır: ``current`` (son 15 dk) ve ``previous`` (önceki 15 dk).
+    ``window_minutes`` yalnızca ikinci istekteki **toplam** (tek minuteRange)
+    uzunluğunu ``min(max(1, window_minutes), 30)`` ile sınırlar.
     """
     if client is None:
         client = _build_client()
