@@ -33,6 +33,20 @@ from backend.services.ga4_auth import (
 logger = logging.getLogger(__name__)
 
 
+def _utc_db_datetime_iso_z(dt: datetime | None) -> str | None:
+    """UTC olarak saklanan (çoğunlukla naive) DB zamanını `...Z` ile JSON'a yazar.
+
+    Aksi halde `2026-05-13T07:10:00` tarayıcıda *yerel* saat sanılıp Plotly ekseni kayar.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        u = dt.replace(tzinfo=timezone.utc)
+    else:
+        u = dt.astimezone(timezone.utc)
+    return u.isoformat().replace("+00:00", "Z")
+
+
 def _realtime_row_dimensions(row: Any, dim_headers: list[str]) -> dict[str, str]:
     """GA4 Realtime satırındaki boyutları isim → değer haritasına çevirir (sıra/API ek boyutları için)."""
     vals = [dv.value for dv in row.dimension_values]
@@ -970,7 +984,7 @@ def get_recent_snapshots(
     result = []
     for row in reversed(rows):
         result.append({
-            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+            "collected_at": _utc_db_datetime_iso_z(row.collected_at),
             "active_users": row.active_users_current,
             "active_users_prev": row.active_users_previous,
             "pageviews": row.pageviews_current,
@@ -1007,7 +1021,7 @@ def get_recent_alarms(
             "previous_value": row.previous_value,
             "change_pct": row.change_pct,
             "message": row.message,
-            "triggered_at": row.triggered_at.isoformat() if row.triggered_at else None,
+            "triggered_at": _utc_db_datetime_iso_z(row.triggered_at),
         }
         for row in rows
     ]

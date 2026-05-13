@@ -209,7 +209,8 @@
   var _timers = {};
   var _pageTimers = {};
   var _trendTimers = {};
-  var TREND_POLL_MS = 45000;
+  /* Sekme görünürken DB trendini çek; aralık scheduler'a yakın ama en fazla 60 sn */
+  var TREND_POLL_MS = Math.min(60000, Math.max(15000, Math.floor(INTERVAL_MS / 4)));
   var _alarmExpanded = false;
 
   function _fmt(n) {
@@ -222,6 +223,18 @@
 
   function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
 
+  /** Sunucu UTC gönderir (`...Z`); eski kayıtlar için sonek yoksa Z eklenir (eksene TZ kayması olmasın). */
+  function _parseSnapshotTs(iso) {
+    if (!iso) return null;
+    if (typeof iso !== 'string') return new Date(iso);
+    var s = iso.trim();
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !/[zZ]$/.test(s) && !/[+-]\d{2}:\d{2}/.test(s)) {
+      s = s + 'Z';
+    }
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
   function rtFetchProfile(siteId, profile) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
@@ -230,7 +243,10 @@
     if (tsEl) tsEl.textContent = '…';
     if (refreshIcon) refreshIcon.classList.add('rt-spin');
 
-    fetch('/api/ga4/realtime/' + siteId + '?window=' + WINDOW + '&profile=' + profile)
+    fetch('/api/ga4/realtime/' + siteId + '?window=' + WINDOW + '&profile=' + profile, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
@@ -329,12 +345,20 @@
       } catch (ePurge) {}
       return;
     }
-    var xDates = trend.map(function (t) {
-      return t.collected_at ? t.collected_at : null;
+    var xDates = [];
+    var users = [];
+    trend.forEach(function (t) {
+      var d = _parseSnapshotTs(t.collected_at);
+      if (!d) return;
+      xDates.push(d);
+      users.push(Number(t.active_users) || 0);
     });
-    var users = trend.map(function (t) {
-      return Number(t.active_users) || 0;
-    });
+    if (!xDates.length) {
+      try {
+        Plotly.purge(el);
+      } catch (ePurge2) {}
+      return;
+    }
     if (xDates.length === 1 && users.length === 1) {
       xDates = [xDates[0], xDates[0]];
       users = [users[0], users[0]];
@@ -366,6 +390,7 @@
         plot_bgcolor: 'rgba(0,0,0,0)',
         showlegend: false,
         hovermode: 'x',
+        transition: {duration: 420, easing: 'cubic-in-out'},
         xaxis: {
           type: 'date',
           visible: false,
@@ -782,6 +807,7 @@
 
       if (_timers[key]) clearInterval(_timers[key]);
       _timers[key] = setInterval(function () {
+        if (document.hidden) return;
         rtFetchProfile(sidInt, prof);
       }, INTERVAL_MS);
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
@@ -792,6 +818,7 @@
 
       if (_trendTimers[key]) clearInterval(_trendTimers[key]);
       _trendTimers[key] = setInterval(function () {
+        if (document.hidden) return;
         rtFetchTrend(sidInt, prof);
       }, TREND_POLL_MS);
       setTimeout(function () {
@@ -802,10 +829,13 @@
 
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
-      Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
+      Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');
-        if (!isNaN(sid) && prof) rtFetchTrend(sid, prof);
+        if (isNaN(sid) || !prof) return;
+        setTimeout(function () {
+          rtFetchProfile(sid, prof);
+        }, vidx * 200);
       });
       try {
         _fetchGlobalAlarms();
