@@ -76,8 +76,8 @@
         <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500"></span>
       </span>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" title="Sayfa açıkken GA4 yenilemesi ve arka plan job aralığı">
-        ~{{ ui_poll_seconds }} sn canlı · {{ interval_minutes }} dk job
+      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.">
+        <span data-rt-live-countdown class="tabular-nums" aria-live="polite">{{ ui_poll_seconds }}</span> sn canlı · {{ interval_minutes }} dk job
       </span>
     </div>
     <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -286,21 +286,50 @@
 
 <script>
 (function () {
-  /* APScheduler job aralığı (ms) — yalnızca trend poll tavanı için referans */
-  var JOB_INTERVAL_MS = {{ (interval_minutes * 60000)|int }};
-  /* Sayfa açıkken KPI + GA trend (rtFetchProfile); job’dan bağımsız */
-  var PROFILE_POLL_MS = {{ (ui_poll_seconds * 1000)|int }};
+  var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
   var PAGES_INTERVAL_MS = 15 * 60000;
   var WINDOW = {{ window_minutes }};
   /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi: aynı aralık; KPI poll bunları tetiklemez */
   var LIST_WINDOW = 15;
-  var _timers = {};
   var _pageTimers = {};
-  var _trendTimers = {};
-  /* DB sparkline; GA’dan daha sık, job süresine göre tavan */
-  var TREND_POLL_MS = Math.min(45000, Math.max(12000, Math.floor(Math.min(JOB_INTERVAL_MS, PROFILE_POLL_MS * 4) / 5)));
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
+  var _liveCountdownSec = LIVE_POLL_SEC;
+  var _liveTickTimer = null;
+
+  function _updateLiveBadge() {
+    var el = document.querySelector('[data-rt-live-countdown]');
+    if (el) el.textContent = String(Math.max(0, _liveCountdownSec));
+  }
+
+  function _resetLiveCountdown() {
+    _liveCountdownSec = LIVE_POLL_SEC;
+    _updateLiveBadge();
+  }
+
+  function _refreshLiveCycle() {
+    Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
+      var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
+      var prof = box.getAttribute('data-rt-profile');
+      if (isNaN(sid) || !prof) return;
+      rtFetchProfile(sid, prof);
+      rtFetchTrend(sid, prof);
+    });
+  }
+
+  function _startLiveCountdown() {
+    _resetLiveCountdown();
+    if (_liveTickTimer) clearInterval(_liveTickTimer);
+    _liveTickTimer = setInterval(function () {
+      if (document.hidden) return;
+      _liveCountdownSec -= 1;
+      if (_liveCountdownSec <= 0) {
+        _refreshLiveCycle();
+        _liveCountdownSec = LIVE_POLL_SEC;
+      }
+      _updateLiveBadge();
+    }, 1000);
+  }
 
   function _fmt(n) {
     if (n == null) return '—';
@@ -799,6 +828,7 @@
   }
 
   function rtCheckAll() {
+    _resetLiveCountdown();
     var icon = document.getElementById('rt-global-refresh-icon');
     if (icon) icon.classList.add('rt-spin');
     var boxes = document.querySelectorAll('[data-rt-site-id]');
@@ -1004,36 +1034,29 @@
         rtFetchTopEvents(sidInt, prof);
       }, 3000 + idx * 500);
 
-      if (_timers[key]) clearInterval(_timers[key]);
-      _timers[key] = setInterval(function () {
-        if (document.hidden) return;
-        rtFetchProfile(sidInt, prof);
-      }, PROFILE_POLL_MS);
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
       _pageTimers[key] = setInterval(function () {
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
 
-      if (_trendTimers[key]) clearInterval(_trendTimers[key]);
-      _trendTimers[key] = setInterval(function () {
-        if (document.hidden) return;
-        rtFetchTrend(sidInt, prof);
-      }, TREND_POLL_MS);
       setTimeout(function () {
         rtFetchTrend(sidInt, prof);
       }, 1200 + idx * 150);
     });
     setTimeout(_fetchGlobalAlarms, 1000);
+    _startLiveCountdown();
 
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
+      _resetLiveCountdown();
       Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');
         if (isNaN(sid) || !prof) return;
         setTimeout(function () {
           rtFetchProfile(sid, prof);
+          rtFetchTrend(sid, prof);
         }, vidx * 200);
       });
       try {
