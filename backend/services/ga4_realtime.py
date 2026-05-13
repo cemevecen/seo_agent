@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
@@ -108,6 +108,36 @@ PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
         "label": "Yeni sayfa top listeye girdi",
         "direction": "new_entry",
         "min_users": 50,
+        "severity": "info",
+    },
+}
+
+# Haberler (unifiedScreenName) — sayfa alarmlarından biraz daha sıkı eşikler (gürültü azaltma)
+NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
+    "news_traffic_drop": {
+        "label": "Haber trafiği düşüşü",
+        "direction": "drop",
+        "threshold_pct": 55,
+        "min_users": 40,
+        "severity": "warning",
+    },
+    "news_traffic_spike": {
+        "label": "Haber trafiği artışı",
+        "direction": "spike",
+        "threshold_pct": 90,
+        "min_users": 40,
+        "severity": "warning",
+    },
+    "news_disappeared": {
+        "label": "Haber top listeden düştü",
+        "direction": "disappeared",
+        "min_prev_users": 50,
+        "severity": "warning",
+    },
+    "news_new_entry": {
+        "label": "Yeni haber başlığı top listeye girdi",
+        "direction": "new_entry",
+        "min_users": 75,
         "severity": "info",
     },
 }
@@ -1525,5 +1555,380 @@ def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> 
                 all_alarms.extend(alarms)
             except Exception as exc:
                 logger.exception("Sayfa alarm check hatası [%s/%s]: %s", site.domain, profile, exc)
+
+    return all_alarms
+
+
+# ── Haberler (Realtime «Haberler» sekmesi) alarm + snapshot ─────────────────
+
+
+def _news_snapshot_due(
+    db: Session,
+    site_id: int,
+    profile: str,
+    *,
+    interval_minutes: int,
+) -> bool:
+    """Son haber snapshot'ından bu yana yeterli süre geçtiyse True."""
+    from backend.models import RealtimeNewsSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    latest_time = (
+        db.query(sqlfunc.max(RealtimeNewsSnapshot.collected_at))
+        .filter(
+            RealtimeNewsSnapshot.site_id == site_id,
+            RealtimeNewsSnapshot.profile == profile,
+        )
+        .scalar()
+    )
+    if latest_time is None:
+        return True
+    delta = datetime.utcnow() - latest_time
+    return delta >= timedelta(minutes=interval_minutes)
+
+
+def save_news_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+    pages: list[dict[str, Any]],
+) -> None:
+    from backend.models import RealtimeNewsSnapshot
+
+    for i, page in enumerate(pages[:25]):
+        title = str(page.get("page") or "")[:500]
+        snap = RealtimeNewsSnapshot(
+            site_id=site_id,
+            profile=profile,
+            screen_title=title,
+            active_users=float(page.get("activeUsers") or 0),
+            pageviews=float(page.get("screenPageViews") or 0),
+            rank=i + 1,
+        )
+        db.add(snap)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("RealtimeNewsSnapshot kayıt hatası (site_id=%s)", site_id)
+
+
+def get_previous_news_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+) -> list[dict[str, Any]]:
+    from backend.models import RealtimeNewsSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    latest_time = (
+        db.query(sqlfunc.max(RealtimeNewsSnapshot.collected_at))
+        .filter(
+            RealtimeNewsSnapshot.site_id == site_id,
+            RealtimeNewsSnapshot.profile == profile,
+        )
+        .scalar()
+    )
+    if not latest_time:
+        return []
+
+    rows = (
+        db.query(RealtimeNewsSnapshot)
+        .filter(
+            RealtimeNewsSnapshot.site_id == site_id,
+            RealtimeNewsSnapshot.profile == profile,
+            RealtimeNewsSnapshot.collected_at == latest_time,
+        )
+        .order_by(RealtimeNewsSnapshot.rank)
+        .all()
+    )
+    return [
+        {
+            "page": row.screen_title,
+            "activeUsers": row.active_users,
+            "screenPageViews": row.pageviews,
+            "rank": row.rank,
+        }
+        for row in rows
+    ]
+
+
+def evaluate_news_alarms(
+    current_pages: list[dict[str, Any]],
+    previous_pages: list[dict[str, Any]],
+    *,
+    site_domain: str = "",
+    profile: str = "web",
+) -> list[dict[str, Any]]:
+    if not previous_pages:
+        return []
+
+    triggered: list[dict[str, Any]] = []
+    plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+    tag = f"{site_domain} {plabel}" if site_domain else plabel
+
+    prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
+    curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
+
+    for page_path, curr in curr_map.items():
+        curr_users = curr.get("activeUsers", 0)
+        prev = prev_map.get(page_path)
+
+        if prev:
+            prev_users = prev.get("activeUsers", 0)
+
+            rule = NEWS_ALARM_RULES["news_traffic_drop"]
+            if prev_users >= rule["min_users"] and prev_users > 0:
+                pct = ((curr_users - prev_users) / prev_users) * 100
+                if pct <= -rule["threshold_pct"]:
+                    triggered.append({
+                        "rule_id": "news_traffic_drop",
+                        "severity": rule["severity"],
+                        "page": page_path,
+                        "profile": profile,
+                        "domain": site_domain,
+                        "current_users": curr_users,
+                        "previous_users": prev_users,
+                        "change_pct": round(pct, 1),
+                        "message": (
+                            f"📉 Haberler [{tag}] {page_path[:60]} — "
+                            f"{prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)"
+                        ),
+                    })
+
+            rule = NEWS_ALARM_RULES["news_traffic_spike"]
+            if prev_users >= rule["min_users"] and prev_users > 0:
+                pct = ((curr_users - prev_users) / prev_users) * 100
+                if pct >= rule["threshold_pct"]:
+                    triggered.append({
+                        "rule_id": "news_traffic_spike",
+                        "severity": rule["severity"],
+                        "page": page_path,
+                        "profile": profile,
+                        "domain": site_domain,
+                        "current_users": curr_users,
+                        "previous_users": prev_users,
+                        "change_pct": round(pct, 1),
+                        "message": (
+                            f"📈 Haberler [{tag}] {page_path[:60]} — "
+                            f"{prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)"
+                        ),
+                    })
+        else:
+            rule = NEWS_ALARM_RULES["news_new_entry"]
+            if curr_users >= rule["min_users"]:
+                triggered.append({
+                    "rule_id": "news_new_entry",
+                    "severity": rule["severity"],
+                    "page": page_path,
+                    "profile": profile,
+                    "domain": site_domain,
+                    "current_users": curr_users,
+                    "previous_users": 0,
+                    "change_pct": 100.0,
+                    "message": (
+                        f"🆕 Haberler [{tag}] {page_path[:60]} — "
+                        f"listeye girdi ({curr_users:.0f} kullanıcı)"
+                    ),
+                })
+
+    rule = NEWS_ALARM_RULES["news_disappeared"]
+    for page_path, prev in prev_map.items():
+        if page_path not in curr_map:
+            prev_users = prev.get("activeUsers", 0)
+            if prev_users >= rule["min_prev_users"]:
+                triggered.append({
+                    "rule_id": "news_disappeared",
+                    "severity": rule["severity"],
+                    "page": page_path,
+                    "profile": profile,
+                    "domain": site_domain,
+                    "current_users": 0,
+                    "previous_users": prev_users,
+                    "change_pct": -100.0,
+                    "message": (
+                        f"⚠️ Haberler [{tag}] {page_path[:60]} — "
+                        f"listeden düştü (önceki: {prev_users:.0f})"
+                    ),
+                })
+
+    return triggered
+
+
+def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) -> None:
+    from backend.models import RealtimeAlarmLog
+
+    for a in alarms:
+        log = RealtimeAlarmLog(
+            site_id=site_id,
+            rule_id=a["rule_id"],
+            metric="news:" + a.get("page", "")[:200],
+            severity=a.get("severity", "warning"),
+            current_value=a.get("current_users", 0),
+            previous_value=a.get("previous_users", 0),
+            change_pct=a.get("change_pct", 0),
+            message=a["message"],
+        )
+        db.add(log)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Haber alarm log kayıt hatası (site_id=%s)", site_id)
+
+
+def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
+    from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
+
+    if not alarms:
+        return
+    if not is_news_realtime_mail_ready():
+        logger.warning(
+            "Realtime haber alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
+            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_NEWS_ALERT_EMAIL, SMTP ve MAIL_TO.",
+            len(alarms),
+        )
+        return
+
+    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+
+    for alarm in alarms:
+        page = alarm.get("page", "bilinmiyor")
+        page_short = page[:80] if len(page) > 80 else page
+        curr = alarm.get("current_users", 0)
+        prev = alarm.get("previous_users", 0)
+        pct = alarm.get("change_pct", 0)
+        rule_id = alarm.get("rule_id", "")
+
+        if rule_id == "news_traffic_drop":
+            subject = f"Haberler — düşüş: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
+        elif rule_id == "news_traffic_spike":
+            subject = f"Haberler — artış: {page_short} ({domain} {profile_label}) — {prev:.0f} → {curr:.0f}"
+        elif rule_id == "news_disappeared":
+            subject = f"Haberler — listeden düştü: {page_short} ({domain} {profile_label}) — önceki {prev:.0f}"
+        elif rule_id == "news_new_entry":
+            subject = f"Haberler — yeni başlık: {page_short} ({domain} {profile_label}) — {curr:.0f} kullanıcı"
+        else:
+            subject = f"Haberler alarmı: {page_short} ({domain})"
+
+        html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px;">
+            <h2 style="color: #1e293b; margin-bottom: 8px;">{alarm['message']}</h2>
+            <p style="color: #64748b; font-size: 13px;">GA4 Realtime «Haberler» (unifiedScreenName, sezgisel filtre).</p>
+            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Site</td>
+                    <td style="padding: 8px 12px;">{domain}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Profil</td>
+                    <td style="padding: 8px 12px;">{profile_label}</td>
+                </tr>
+                <tr style="background: #f1f5f9;">
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Başlık</td>
+                    <td style="padding: 8px 12px; word-break: break-all;">{page}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; font-weight: 600; color: #475569;">Aktif kullanıcı</td>
+                    <td style="padding: 8px 12px;">
+                        <strong>{curr:.0f}</strong>
+                        <span style="color: #64748b;">(önceki: {prev:.0f})</span>
+                        <span style="color: {'#dc2626' if pct < 0 else '#16a34a'}; font-weight: 700;">
+                            {pct:+.1f}%
+                        </span>
+                    </td>
+                </tr>
+            </table>
+            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
+                SEO Agent Realtime Haberler Alarmı — otomatik gönderilmiştir.
+            </p>
+        </div>
+        """
+        send_realtime_news_email(subject, html_body)
+
+
+def check_news_alarms_for_site(
+    db: Session,
+    site: Site,
+    *,
+    profile: str = "web",
+    window_minutes: int = 15,
+    interval_minutes: int = 15,
+) -> list[dict[str, Any]]:
+    if profile not in ("web", "mweb"):
+        return []
+
+    if not _news_snapshot_due(db, site.id, profile, interval_minutes=interval_minutes):
+        return []
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    property_id = properties.get(profile) or properties.get("web")
+    if not property_id:
+        return []
+
+    previous_pages = get_previous_news_snapshots(db, site.id, profile)
+
+    try:
+        result = fetch_realtime_top_news_pages(
+            property_id,
+            site_domain=(site.domain or "").strip(),
+            window_minutes=window_minutes,
+            limit=20,
+            sort_by="activeUsers",
+        )
+    except Exception as exc:
+        logger.warning("Haber alarm: top-news API hatası [%s/%s]: %s", site.domain, profile, exc)
+        return []
+
+    current_pages = result.get("pages", [])
+    save_news_snapshots(db, site.id, profile, current_pages)
+
+    if not previous_pages:
+        return []
+
+    alarms = evaluate_news_alarms(
+        current_pages, previous_pages,
+        site_domain=site.domain, profile=profile,
+    )
+
+    if alarms:
+        _save_news_alarm_logs(db, site.id, alarms)
+        _send_news_alarm_email(site.domain, profile, alarms)
+
+    return alarms
+
+
+def run_news_alarm_check_all_sites(db: Session) -> list[dict[str, Any]]:
+    """Tüm siteler için Haberler (web/mweb) alarm kontrolü — aralık ayarı config'ten."""
+    from backend.config import settings
+    from backend.models import Site as SiteModel
+
+    all_alarms: list[dict[str, Any]] = []
+    if not settings.ga4_realtime_news_alerts_enabled:
+        return all_alarms
+
+    interval = int(settings.ga4_realtime_news_alert_interval_minutes)
+    window = int(settings.ga4_realtime_news_alert_window_minutes)
+    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+
+    for site in sites:
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        for profile in ("web", "mweb"):
+            prop_id = str(properties.get(profile, "")).strip()
+            if not prop_id:
+                continue
+            try:
+                alarms = check_news_alarms_for_site(
+                    db,
+                    site,
+                    profile=profile,
+                    window_minutes=window,
+                    interval_minutes=interval,
+                )
+                all_alarms.extend(alarms)
+            except Exception as exc:
+                logger.exception("Haber alarm check hatası [%s/%s]: %s", site.domain, profile, exc)
 
     return all_alarms

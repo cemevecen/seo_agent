@@ -542,3 +542,20 @@ class RealtimePageSnapshot(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     site: Mapped["Site"] = relationship("Site")
+
+
+class RealtimeNewsSnapshot(Base):
+    """Haberler (unifiedScreenName) Realtime anlık görüntüsü — haber trafik alarmı karşılaştırması."""
+
+    __tablename__ = "realtime_news_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile: Mapped[str] = mapped_column(String(20), nullable=False, default="web")
+    screen_title: Mapped[str] = mapped_column(String(500), nullable=False)
+    active_users: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    pageviews: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
