@@ -8,22 +8,327 @@
   html.dark .rt-profile-box:hover{box-shadow:0 6px 28px rgba(0,0,0,.35)}
   .rt-spin{animation:rt-spin-kf .8s linear infinite}
   @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
-  .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#4ade80}
-  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#f87171}
+  .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#86efac}
+  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#fca5a5}
   .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#94a3b8}
-  /* Tailwind dark: bazen yarı saydam üst üste binince açık görünür; kartları opak koyu yap */
+  /* Dark: tek palet — yüzey / kabartma / çerçeve */
+  html.dark {
+    --rt-d-void: #020617;
+    --rt-d-surface: #0f172a;
+    --rt-d-raised: #1e293b;
+    --rt-d-border: rgba(148, 163, 184, 0.22);
+    --rt-d-muted: #94a3b8;
+  }
   html.dark .rt-surface-solid {
-    background-color: rgb(2 6 23) !important;
+    background-color: var(--rt-d-void) !important;
+    border-color: rgba(51, 65, 85, 0.65) !important;
   }
-  html.dark .rt-surface-muted {
-    background-color: rgb(15 23 42) !important;
+  html.dark .rt-surface-muted,
+  html.dark .rt-profile-box {
+    background-color: var(--rt-d-surface) !important;
+    background-image: none !important;
+    border-color: var(--rt-d-border) !important;
   }
-  html.dark [data-rt-kpi],
+  html.dark [data-rt-kpi] {
+    background-color: var(--rt-d-raised) !important;
+    border-color: var(--rt-d-border) !important;
+  }
   html.dark [data-rt-events-section] {
-    background-color: rgb(15 23 42) !important;
+    background-color: var(--rt-d-surface) !important;
+    border-color: var(--rt-d-border) !important;
+  }
+  .rt-news-hint {
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-news-hint {
+    color: #cbd5e1 !important;
+  }
+  html.dark .rt-empty {
+    color: var(--rt-d-muted) !important;
+  }
+  .rt-news-link {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: rgb(67 56 202);
+  }
+  html.dark .rt-news-link {
+    color: rgb(165 180 252);
+  }
+  .rt-news-link:hover {
+    text-decoration: underline;
+  }
+  .rt-list-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgb(51 65 85);
+  }
+  html.dark .rt-list-title {
+    color: rgb(226 232 240);
+  }
+  .rt-list-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-list-sub {
+    color: rgb(148 163 184);
+  }
+  .rt-list-nums {
+    color: rgb(71 85 105);
+  }
+  html.dark .rt-list-nums {
+    color: rgb(203 213 225);
+  }
+  .rt-list-meta {
+    font-size: 0.75rem;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-list-meta {
+    color: rgb(148 163 184);
+  }
+  .rt-rank {
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-rank {
+    color: rgb(100 116 139);
+  }
+  .rt-bar-track {
+    margin-top: 0.25rem;
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: rgb(226 232 240);
+  }
+  html.dark .rt-bar-track {
+    background: rgb(51 65 85);
+  }
+  .rt-bar-fill-sky {
+    border-radius: 9999px;
+    height: 0.25rem;
+    background: rgb(14 165 233);
+  }
+  html.dark .rt-bar-fill-sky {
+    background: rgb(56 189 248);
+  }
+  .rt-bar-fill-indigo {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: rgba(79, 70, 229, 0.88);
+  }
+  html.dark .rt-bar-fill-indigo {
+    background: rgba(129, 140, 248, 0.9);
+  }
+  .rt-bar-fill-violet {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: rgba(139, 92, 246, 0.88);
+  }
+  html.dark .rt-bar-fill-violet {
+    background: rgba(167, 139, 250, 0.9);
+  }
+  .rt-bar-fill-amber {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: rgba(245, 158, 11, 0.85);
+  }
+  html.dark .rt-bar-fill-amber {
+    background: rgba(251, 191, 36, 0.88);
+  }
+  .rt-mini-spark-bar {
+    width: 0.25rem;
+    border-radius: 0.125rem 0.125rem 0 0;
+    background: rgb(14 165 233);
+  }
+  html.dark .rt-mini-spark-bar {
+    background: rgb(56 189 248);
+  }
+  .rt-ts-foot {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: rgb(148 163 184);
+  }
+  html.dark .rt-ts-foot {
+    color: rgb(100 116 139);
+  }
+  /* JS listeleri: Tailwind `dark:` string içinde purge’lenebilir — zebra burada */
+  .rt-list-row--even {
+    background-color: rgba(241, 245, 249, 0.72);
+  }
+  html.dark .rt-list-row--even {
+    background-color: rgba(30, 41, 59, 0.65);
+  }
+  html.dark .rt-event-row {
+    border-bottom-color: rgba(51, 65, 85, 0.85) !important;
+  }
+  /* Son alarmlar: tam kontrast (purge’a bağlı değil) */
+  .rt-alarm-row {
+    border-radius: 0.5rem;
+    border-width: 1px;
+    border-style: solid;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  html:not(.dark) .rt-alarm--up {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+    color: #065f46;
+  }
+  html.dark .rt-alarm--up {
+    background: rgba(6, 78, 59, 0.78);
+    border-color: rgba(52, 211, 153, 0.45);
+    color: #d1fae5;
+  }
+  html:not(.dark) .rt-alarm--down {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+  html.dark .rt-alarm--down {
+    background: rgba(88, 28, 28, 0.72);
+    border-color: rgba(248, 113, 113, 0.42);
+    color: #fecaca;
+  }
+  html:not(.dark) .rt-alarm--info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e3a8a;
+  }
+  html.dark .rt-alarm--info {
+    background: rgba(30, 58, 138, 0.65);
+    border-color: rgba(96, 165, 250, 0.45);
+    color: #dbeafe;
+  }
+  html:not(.dark) .rt-alarm--warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+  html.dark .rt-alarm--warn {
+    background: rgba(120, 53, 15, 0.55);
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fef3c7;
+  }
+  html:not(.dark) .rt-alarm--crit {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #7f1d1d;
+  }
+  html.dark .rt-alarm--crit {
+    background: rgba(127, 29, 29, 0.72);
+    border-color: rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+  }
+  .rt-alarm-time {
+    margin-left: 0.25rem;
+    font-size: 0.75rem;
+    opacity: 0.72;
+  }
+  html.dark .rt-alarm-time {
+    color: inherit;
+    opacity: 0.65;
+  }
+  /* Top sekmeler (purge güvenli) */
+  .rt-tab-active {
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background-color: rgb(224 231 255);
+    color: rgb(67 56 202);
+  }
+  html.dark .rt-tab-active {
+    background-color: rgba(49, 46, 129, 0.55);
+    color: rgb(196 181 253);
+  }
+  .rt-tab-inactive {
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgb(100 116 139);
+    background: transparent;
+  }
+  html.dark .rt-tab-inactive {
+    color: rgb(203 213 225);
+  }
+  .rt-tab-inactive:hover {
+    color: rgb(71 85 105);
+  }
+  html.dark .rt-tab-inactive:hover {
+    color: rgb(241 245 249);
+  }
+  /* Alarm alt sekmeler */
+  .rt-alarm-tab-active {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border-bottom: 2px solid rgb(99 102 241);
+    color: rgb(79 70 229);
+  }
+  html.dark .rt-alarm-tab-active {
+    color: rgb(196 181 253);
+    border-bottom-color: rgb(129 140 248);
+  }
+  .rt-alarm-tab-inactive {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border-bottom: 2px solid transparent;
+    color: rgb(100 116 139);
+    background: transparent;
+  }
+  html.dark .rt-alarm-tab-inactive {
+    color: rgb(148 163 184);
+  }
+  html.dark .rt-alarm-tab-inactive:hover {
+    color: rgb(226 232 240);
+  }
+  /* Etkinlik listesi kaydırma çubuğu */
+  .rt-scroll-area {
+    scrollbar-width: thin;
+  }
+  html.dark .rt-scroll-area {
+    scrollbar-color: rgb(71 85 105) rgb(15 23 42);
+  }
+  .rt-scroll-area::-webkit-scrollbar {
+    width: 8px;
+  }
+  html.dark .rt-scroll-area::-webkit-scrollbar-track {
+    background: rgb(15 23 42);
+    border-radius: 6px;
+  }
+  html.dark .rt-scroll-area::-webkit-scrollbar-thumb {
+    background: rgb(71 85 105);
+    border-radius: 6px;
+  }
+  .rt-live-badge {
+    border-radius: 9999px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: rgb(224 231 255);
+    color: rgb(55 48 163);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+  }
+  html.dark .rt-live-badge {
+    background: rgba(30, 27, 75, 0.85);
+    color: rgb(224 231 255);
+    border-color: rgba(129, 140, 248, 0.35);
+    box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.5);
+  }
+  html.dark .rt-events-spark-bg {
+    background-color: rgba(15, 23, 42, 0.92) !important;
+    border: 1px solid rgba(51, 65, 85, 0.5);
   }
   html.dark [data-rt-chart] {
     background-color: transparent !important;
+  }
+  html.dark .rt-spark-inner {
+    background: rgba(15, 23, 42, 0.55);
   }
   /* Spark: kart opaklığından ayrı; aurora / cam çerçeve (gradient için chart-wrap ayrı) */
   .rt-spark-wrap {
@@ -141,6 +446,11 @@
   html.dark #rt-view-pills button[data-rt-view-pill]:not(.rt-pill-on):hover {
     background-color: rgba(51, 65, 85, 0.55);
   }
+  .rt-top-tab {
+    border: none;
+    cursor: pointer;
+    font: inherit;
+  }
 </style>
 
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -152,7 +462,7 @@
         <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500"></span>
       </span>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.">
+      <span class="rt-live-badge" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.">
         <span data-rt-live-countdown class="tabular-nums" aria-live="polite">{{ ui_poll_seconds }}</span> sn canlı · {{ interval_minutes }} dk job
       </span>
     </div>
@@ -205,7 +515,7 @@
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
-        class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+        class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80"
         data-rt-profile-box
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
@@ -217,7 +527,7 @@
               <span class="rt-dot absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
               <span class="rt-dot relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
             </span>
-            <span class="text-sm font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+            <span class="text-sm font-extrabold tracking-wide text-indigo-700 dark:text-indigo-300">
               {% if profile == 'web' %}Desktop{% elif profile == 'mweb' %}Mobile Web{% elif profile == 'android' %}Android{% elif profile == 'ios' %}iOS{% else %}{{ profile }}{% endif %}
             </span>
           </div>
@@ -273,54 +583,54 @@
               <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-slate-50" data-rt-events-top-count>—</p>
               <p class="text-xs tabular-nums text-slate-500 dark:text-slate-400" data-rt-events-top-pct>—</p>
             </div>
-            <div class="flex h-[4.5rem] shrink-0 items-end gap-px rounded-sm bg-slate-100 px-1 dark:bg-slate-950" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
+            <div class="rt-events-spark-bg flex h-[4.5rem] shrink-0 items-end gap-px rounded-md bg-slate-100 px-1 dark:border dark:border-slate-700/80" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
           </div>
           <div class="mt-4 grid grid-cols-[1fr_auto] gap-x-3 border-b border-dashed border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-600 dark:text-slate-500">
             <span>Etkinlik adı</span>
             <span class="text-right">Sayı</span>
           </div>
-          <div class="mt-1 space-y-0" data-rt-events-list>
-            <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
+          <div class="rt-scroll-area mt-1 max-h-56 space-y-0 overflow-y-auto" data-rt-events-list>
+            <p class="text-sm italic text-slate-400 dark:text-slate-400">yükleniyor…</p>
           </div>
           <div class="mt-2 flex items-center justify-end gap-2">
             <span class="text-[11px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-events-range></span>
             <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Önceki">‹</button>
             <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Sonraki">›</button>
           </div>
-          <p class="mt-1 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-events-ts></p>
+          <p class="mt-1 rt-ts-foot" data-rt-events-ts></p>
         </div>
         {% else %}
         {# Web / mweb: Top sayfalar — tabbed #}
         <div class="mt-4 flex min-h-[200px] flex-1 flex-col" data-rt-top-section>
           <div class="mb-2 flex flex-wrap items-center gap-1">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+              class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="pages">Top Sayfalar</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="views">Top Görüntüleme</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
-              class="rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
           </div>
           <div data-rt-top-panel="pages">
             <div class="space-y-1" data-rt-pages-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-pages-ts></p>
+            <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
           <div data-rt-top-panel="views" class="hidden">
             <div class="space-y-1" data-rt-views-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-views-ts></p>
+            <p class="mt-2 rt-ts-foot" data-rt-views-ts></p>
           </div>
           <div data-rt-top-panel="news" class="hidden">
-            <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">GA4 Realtime’da tam URL yok; başlık (unifiedScreenName) filtrelenir. Çoğu satırda link, Google <span class="whitespace-nowrap">site:alanadı</span> aramasıdır. Path görünürse doğrudan site linki kullanılır.</p>
+            <p class="rt-news-hint mb-2 text-[11px] leading-snug">GA4 Realtime’da tam URL yok; başlık (unifiedScreenName) filtrelenir. Çoğu satırda link, Google <span class="whitespace-nowrap">site:alanadı</span> aramasıdır. Path görünürse doğrudan site linki kullanılır.</p>
             <div class="space-y-1" data-rt-news-list>
               <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
             </div>
-            <p class="mt-2 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-news-ts></p>
+            <p class="mt-2 rt-ts-foot" data-rt-news-ts></p>
           </div>
         </div>
         {% endif %}
@@ -346,11 +656,11 @@
     </div>
     <div class="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-700">
       <button type="button" onclick="rtSwitchAlarmTab('site')" id="rt-alarm-tab-site"
-        class="px-3 py-2 text-sm font-bold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300">
+        class="rt-alarm-tab-active">
         Site Alarmları
       </button>
       <button type="button" onclick="rtSwitchAlarmTab('page')" id="rt-alarm-tab-page"
-        class="px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+        class="rt-alarm-tab-inactive">
         Sayfa Alarmları
       </button>
     </div>
@@ -653,6 +963,11 @@
         showlegend: false,
         dragmode: false,
         hovermode: 'x',
+        hoverlabel: {
+          bgcolor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
+          bordercolor: isDark ? 'rgba(129, 140, 248, 0.55)' : 'rgba(79, 70, 229, 0.35)',
+          font: { family: 'system-ui, sans-serif', size: 12, color: isDark ? '#e2e8f0' : '#0f172a' },
+        },
         transition: {duration: 520, easing: 'cubic-in-out'},
         xaxis: {
           type: 'date',
@@ -689,7 +1004,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error) {
-          listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
+          listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
         var rows = Array.isArray(d.pages) ? d.pages : [];
@@ -700,14 +1015,14 @@
         }
       })
       .catch(function () {
-        listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">hata</p>';
+        listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
       });
   }
 
   function _renderNewsList(listEl, pages) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">Bu pencerede haber adayı başlık yok. İstersen .env içinde GA4_REALTIME_NEWS_SCREEN_EXCLUDE_PREFIXES ile filtreleri güncelle.</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber adayı başlık yok. İstersen .env içinde GA4_REALTIME_NEWS_SCREEN_EXCLUDE_PREFIXES ile filtreleri güncelle.</p>';
       return;
     }
     var sortKey = 'activeUsers';
@@ -724,20 +1039,20 @@
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
-      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
+      var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
       var linkHtml = hrefAttr
-        ? '<a class="truncate text-sm font-semibold text-indigo-700 hover:underline dark:text-indigo-300" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + subEsc + '">' + titleShort + '</a>'
-        : '<span class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + subEsc + '">' + titleShort + '</span>';
+        ? '<a class="rt-news-link truncate text-sm hover:underline" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + subEsc + '">' + titleShort + '</a>'
+        : '<span class="rt-list-title truncate text-sm" title="' + subEsc + '">' + titleShort + '</span>';
       return '<div class="flex items-start gap-2 rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="w-5 shrink-0 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
+        + '<span class="rt-rank w-5 shrink-0 text-right text-xs font-bold">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
         + linkHtml
-        + '<div class="mt-0.5 truncate font-mono text-[10px] text-slate-500 dark:text-slate-400" title="' + subEsc + '">' + subOne + '</div>'
-        + '<div class="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded-full bg-amber-500/70" style="width:' + barW + '%"></div></div>'
+        + '<div class="rt-list-sub mt-0.5 truncate" title="' + subEsc + '">' + subOne + '</div>'
+        + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="flex shrink-0 flex-col items-end gap-0.5">'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300"><strong class="text-sm">' + users + '</strong> <span class="text-xs text-slate-400">kul.</span></span>'
-        + '<span class="text-xs text-slate-400">' + views + ' gör.</span>'
+        + '<span class="rt-list-nums whitespace-nowrap tabular-nums"><strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span></span>'
+        + '<span class="rt-list-meta">' + views + ' gör.</span>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -755,7 +1070,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages) {
-          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
         _renderTopPages(listEl, d.pages, isViews);
@@ -765,7 +1080,7 @@
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
       });
   }
 
@@ -779,7 +1094,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.events) {
-          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
         _rtEventState[key] = {
@@ -797,7 +1112,7 @@
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
       });
   }
   window.rtFetchTopEvents = rtFetchTopEvents;
@@ -842,7 +1157,7 @@
       if (countEl) countEl.textContent = '—';
       if (pctEl) pctEl.textContent = '';
       if (sparkEl) sparkEl.innerHTML = '';
-      if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">veri yok</p>';
+      if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
       if (rangeEl) rangeEl.textContent = '';
       if (prevBtn) prevBtn.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
@@ -862,7 +1177,7 @@
       sparkEl.innerHTML = take.map(function (e) {
         var h = Math.round(((e.eventCount || 0) / mx) * 100);
         h = Math.max(8, h);
-        return '<div class="w-1 rounded-t bg-sky-500 dark:bg-sky-400" style="height:' + h + '%;min-height:2px"></div>';
+        return '<div class="rt-mini-spark-bar rounded-t" style="height:' + h + '%;min-height:2px"></div>';
       }).join('');
     }
 
@@ -877,15 +1192,15 @@
         var globalIdx = start + i + 1;
         var nm = _esc(e.eventName || '(adsız)');
         var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
-        var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
-        return '<div class="border-b border-slate-100 py-2 last:border-0 dark:border-slate-700' + zebra + '">'
+        var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
+        return '<div class="rt-event-row border-b border-slate-100 py-2 last:border-0 dark:border-slate-700' + zebra + '">'
           + '<div class="flex items-start justify-between gap-2">'
-          + '<span class="w-5 shrink-0 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500">' + globalIdx + '</span>'
+          + '<span class="rt-rank w-5 shrink-0 text-right text-[10px] font-bold">' + globalIdx + '</span>'
           + '<div class="min-w-0 flex-1">'
-          + '<div class="truncate font-mono text-xs text-slate-700 dark:text-slate-200" title="' + nm + '">' + nm + '</div>'
-          + '<div class="mt-1 h-1 rounded-full bg-slate-200 dark:bg-slate-600"><div class="h-1 rounded-full bg-sky-500 dark:bg-sky-400" style="width:' + barW + '%"></div></div>'
+          + '<div class="rt-list-title truncate font-mono text-xs" title="' + nm + '">' + nm + '</div>'
+          + '<div class="rt-bar-track"><div class="rt-bar-fill-sky" style="width:' + barW + '%"></div></div>'
           + '</div>'
-          + '<span class="shrink-0 tabular-nums text-sm font-semibold text-slate-700 dark:text-slate-200">' + _fmt(e.eventCount) + '</span>'
+          + '<span class="rt-list-nums shrink-0 tabular-nums text-sm font-semibold">' + _fmt(e.eventCount) + '</span>'
           + '</div></div>';
       }).join('');
     }
@@ -926,8 +1241,8 @@
     section.querySelectorAll('[data-rt-top-panel]').forEach(function (p) {
       p.classList.toggle('hidden', p.getAttribute('data-rt-top-panel') !== tab);
     });
-    var activeClass = 'rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
-    var inactiveClass = 'rt-top-tab rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300';
+    var activeClass = 'rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
+    var inactiveClass = 'rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
     section.querySelectorAll('[data-rt-top-tab]').forEach(function (t) {
       t.className = (t.getAttribute('data-rt-top-tab') === tab) ? activeClass : inactiveClass;
     });
@@ -945,7 +1260,7 @@
   function _renderTopPages(listEl, pages, viewsMode) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
       return;
     }
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
@@ -956,22 +1271,22 @@
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
-      var barColor = viewsMode ? 'bg-violet-500/70' : 'bg-indigo-500/70';
+      var barColor = viewsMode ? 'rt-bar-fill-violet' : 'rt-bar-fill-indigo';
       var primary = viewsMode
-        ? '<strong class="text-sm">' + views + '</strong> <span class="text-xs text-slate-400">gör.</span>'
-        : '<strong class="text-sm">' + users + '</strong> <span class="text-xs text-slate-400">kul.</span>';
+        ? '<strong class="text-sm">' + views + '</strong> <span class="rt-list-meta">gör.</span>'
+        : '<strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span>';
       var secondary = viewsMode
-        ? '<span class="text-xs text-slate-400">' + users + ' kul.</span>'
-        : '<span class="text-xs text-slate-400">' + views + ' gör.</span>';
-      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
+        ? '<span class="rt-list-meta">' + users + ' kul.</span>'
+        : '<span class="rt-list-meta">' + views + ' gör.</span>';
+      var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
       return '<div class="flex items-center gap-2 rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="w-5 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
+        + '<span class="rt-rank w-5 text-right text-xs font-bold">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
-        + '<div class="truncate text-sm font-medium text-slate-700 dark:text-slate-300" title="' + _esc(p.page || '') + '">' + path + '</div>'
-        + '<div class="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded-full ' + barColor + '" style="width:' + barW + '%"></div></div>'
+        + '<div class="rt-list-title truncate text-sm" title="' + _esc(p.page || '') + '">' + path + '</div>'
+        + '<div class="rt-bar-track"><div class="' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="flex flex-col items-end gap-0.5">'
-        + '<span class="whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">' + primary + '</span>'
+        + '<span class="rt-list-nums whitespace-nowrap tabular-nums">' + primary + '</span>'
         + secondary
         + '</div>'
         + '</div>';
@@ -1091,8 +1406,8 @@
     var pageList = document.getElementById('rt-alarm-list-page');
     var siteTab = document.getElementById('rt-alarm-tab-site');
     var pageTab = document.getElementById('rt-alarm-tab-page');
-    var activeClass = 'px-3 py-2 text-sm font-bold border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-300';
-    var inactiveClass = 'px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300';
+    var activeClass = 'rt-alarm-tab-active';
+    var inactiveClass = 'rt-alarm-tab-inactive';
     if (tab === 'site') {
       if (siteList) siteList.classList.remove('hidden');
       if (pageList) pageList.classList.add('hidden');
@@ -1141,7 +1456,7 @@
   function _renderAlarmList(listEl, alarms, showCount, emptyMsg) {
     if (!listEl) return;
     if (!alarms.length) {
-      listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm">' + _esc(emptyMsg) + '</p>';
       return;
     }
     listEl.innerHTML = alarms.slice(0, showCount).map(function (a) {
@@ -1149,25 +1464,25 @@
       var isUp = (a.message || '').indexOf('artış') !== -1 || (a.message || '').indexOf('yeni') !== -1;
       var sev, icon;
       if (isDown) {
-        sev = 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+        sev = 'rt-alarm-row rt-alarm--down';
         icon = '🔴';
       } else if (isUp) {
-        sev = 'border-green-200 bg-green-50 text-green-800 dark:border-green-800/60 dark:bg-green-950/40 dark:text-green-200';
+        sev = 'rt-alarm-row rt-alarm--up';
         icon = '🟢';
       } else if (a.severity === 'critical') {
-        sev = 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+        sev = 'rt-alarm-row rt-alarm--crit';
         icon = '🔴';
       } else if (a.severity === 'info') {
-        sev = 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200';
+        sev = 'rt-alarm-row rt-alarm--info';
         icon = '🔵';
       } else {
-        sev = 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200';
+        sev = 'rt-alarm-row rt-alarm--warn';
         icon = '🟡';
       }
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
-      return '<div class="rounded-lg border px-3 py-2 text-sm font-medium ' + sev + '">'
+      return '<div class="' + sev + '">'
         + '<span class="font-semibold">' + icon + '</span> '
-        + _esc(a.message) + ' <span class="ml-1 opacity-50 text-xs">' + dt + '</span></div>';
+        + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>';
     }).join('');
   }
 
