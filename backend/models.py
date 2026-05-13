@@ -570,3 +570,13 @@ class RealtimeNewsSnapshot(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     site: Mapped["Site"] = relationship("Site")
+
+
+class AppIntelRawCache(Base):
+    """App mağaza ham yorum payload'ı — Railway gibi ephemeral disk + çoklu dyno için Postgres önbellek."""
+
+    __tablename__ = "app_intel_raw_cache"
+
+    product_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)

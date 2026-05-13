@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import logging
+import calendar
 import os
 import re
 import threading
@@ -17,9 +18,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from sqlalchemy import delete
 
 from backend.database import SessionLocal
-from backend.models import AppStoreRankSnapshot
+from backend.models import AppIntelRawCache, AppStoreRankSnapshot
 from backend.services.timezone_utils import (
     inclusive_local_period_start_utc,
     report_calendar_today,
@@ -159,7 +161,7 @@ def _load_disk_raw(product_id: str) -> dict[str, Any] | None:
         return None
 
 
-def _write_disk_raw(product_id: str, payload: dict[str, Any]) -> None:
+def _serialize_raw_payload(payload: dict[str, Any]) -> str:
     def _safe(o: Any) -> Any:
         if isinstance(o, datetime):
             return o.isoformat()
@@ -171,14 +173,67 @@ def _write_disk_raw(product_id: str, payload: dict[str, Any]) -> None:
             return float(o) if o == o else None
         return o
 
+    return json.dumps(_safe(payload), ensure_ascii=False)
+
+
+def _write_db_raw(product_id: str, json_text: str) -> None:
+    """Postgres'te ham payload; Railway çoklu dyno / ephemeral disk için."""
+    try:
+        db = SessionLocal()
+        try:
+            row = db.get(AppIntelRawCache, product_id)
+            now = datetime.utcnow()
+            if row:
+                row.payload_json = json_text
+                row.updated_at = now
+            else:
+                db.add(AppIntelRawCache(product_id=product_id, payload_json=json_text, updated_at=now))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("app_intel db önbellek yazılamadı (%s): %s", product_id, exc)
+
+
+def _load_db_raw_with_age(product_id: str, now: float) -> tuple[dict[str, Any] | None, float | None]:
+    """Disk yoksa veya okunamıyorsa Postgres'ten dön; (payload, age_seconds) veya (None, None)."""
+    try:
+        db = SessionLocal()
+        try:
+            row = db.get(AppIntelRawCache, product_id)
+            if not row or not row.payload_json:
+                return (None, None)
+            raw = json.loads(row.payload_json)
+            if not isinstance(raw, dict) or raw.get("product_id") != product_id:
+                return (None, None)
+            ut = row.updated_at
+            if ut is None:
+                return (None, None)
+            if ut.tzinfo is None:
+                written = float(calendar.timegm(ut.timetuple()))
+            else:
+                written = ut.timestamp()
+            age = max(0.0, now - written)
+            return (_hydrate_raw_payload(raw), age)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.debug("app_intel db önbellek okunamadı (%s): %s", product_id, exc)
+        return (None, None)
+
+
+def _write_disk_raw(product_id: str, payload: dict[str, Any]) -> None:
+    text = _serialize_raw_payload(payload)
     try:
         _DISK_RAW_DIR.mkdir(parents=True, exist_ok=True)
         p = _disk_raw_path(product_id)
         tmp = p.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(_safe(payload), ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(text, encoding="utf-8")
         tmp.replace(p)
     except Exception as exc:
         logger.warning("app_intel disk yazılamadı (%s): %s", product_id, exc)
+        return
+    _write_db_raw(product_id, text)
 
 
 def prewarm_app_intel_cache_background() -> None:
@@ -1773,6 +1828,20 @@ def invalidate_raw_cache(product_id: str | None = None) -> None:
                 child.unlink(missing_ok=True)
     except OSError as exc:
         logger.warning("app_intel disk cache silinemedi: %s", exc)
+    try:
+        db = SessionLocal()
+        try:
+            if product_id:
+                row = db.get(AppIntelRawCache, product_id)
+                if row:
+                    db.delete(row)
+            else:
+                db.execute(delete(AppIntelRawCache))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("app_intel db önbellek silinemedi: %s", exc)
 
 
 def get_cached_raw_product_data(product_id: str) -> dict[str, Any] | None:
@@ -1960,19 +2029,27 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
 
     if not force_refresh:
         disk_payload = _load_disk_raw(product_id)
+        age: float = float("inf")
         if disk_payload is not None:
             try:
                 age = now - _disk_raw_path(product_id).stat().st_mtime
             except OSError:
                 age = float("inf")
-            if age < _CACHE_TTL_SEC or cache_only:
-                pl = copy.deepcopy(disk_payload)
-                _refresh_obsolete_android_rank_in_payload(product_id, spec, pl)
-                _apply_android_rank_env_to_payload(product_id, pl)
-                with _CACHE_LOCK:
-                    _RAW_CACHE[cache_key] = (now, pl)
-                logger.info("app_intel disk cache hit: %s (%.1f h)", product_id, age / 3600.0)
-                return pl
+        else:
+            db_pl, db_age = _load_db_raw_with_age(product_id, now)
+            if db_pl is not None and db_age is not None:
+                disk_payload = db_pl
+                age = db_age
+
+        if disk_payload is not None and (age < _CACHE_TTL_SEC or cache_only):
+            pl = copy.deepcopy(disk_payload)
+            _refresh_obsolete_android_rank_in_payload(product_id, spec, pl)
+            _apply_android_rank_env_to_payload(product_id, pl)
+            with _CACHE_LOCK:
+                _RAW_CACHE[cache_key] = (now, pl)
+            src = "disk" if _disk_raw_path(product_id).is_file() else "db"
+            logger.info("app_intel %s cache hit: %s (%.1f h)", src, product_id, age / 3600.0)
+            return pl
 
     if cache_only:
         return {"error": "no_cached_data", "message": "Henüz mağaza verisi yok. Yorum çekmek için 'Verileri yenile' butonunu kullanın."}

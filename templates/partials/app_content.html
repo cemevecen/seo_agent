@@ -379,6 +379,8 @@
     progressTimer: null,
     progressValue: 0,
     requestSeq: 0,
+    /** product:period → true: bu seçim için cache_only miss sonrası otomatik tam çekim denendi */
+    intelAutoFullFetched: {},
     latestPage: { play: 1, ios: 1 },
     compLabel: "",
     compAndroid: "",
@@ -2749,6 +2751,21 @@
           window.clearTimeout(to);
           clearTimeout(slowHintTimer);
           if (cacheOnly && x.j && x.j.error === "no_cached_data") {
+            var selKey = state.product + ":" + state.period;
+            if (!state.intelAutoFullFetched[selKey]) {
+              state.intelAutoFullFetched[selKey] = true;
+              finishProgress();
+              if (status) {
+                status.textContent =
+                  "Önbellekte veri yok; Google Play ve App Store’dan çekiliyor (birkaç dakika sürebilir)…";
+              }
+              if (errEl) {
+                errEl.classList.add("hidden");
+                errEl.textContent = "";
+              }
+              loadIntel({ cacheOnly: false });
+              return Promise.resolve();
+            }
             finishProgress();
             if (status) status.textContent = "";
             flagIntelPanelsFailed("Henüz mağaza verisi yok. Yorumları çekmek için \"Verileri yenile\" butonuna tıklayın.");
