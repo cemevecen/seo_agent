@@ -9,7 +9,7 @@
   .rt-spin{animation:rt-spin-kf .8s linear infinite}
   @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
   .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#86efac}
-  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#fca5a5}
+  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#f87171}
   .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#94a3b8}
   /* Dark: tek palet — yüzey / kabartma / çerçeve */
   html.dark {
@@ -90,7 +90,7 @@
     color: rgb(100 116 139);
   }
   html.dark .rt-rank {
-    color: rgb(100 116 139);
+    color: rgb(148 163 184);
   }
   .rt-bar-track {
     margin-top: 0.25rem;
@@ -147,17 +147,17 @@
     color: rgb(148 163 184);
   }
   html.dark .rt-ts-foot {
-    color: rgb(100 116 139);
+    color: rgb(163 174 190);
   }
   /* JS listeleri: Tailwind `dark:` string içinde purge’lenebilir — zebra burada */
   .rt-list-row--even {
     background-color: rgba(241, 245, 249, 0.72);
   }
   html.dark .rt-list-row--even {
-    background-color: rgba(30, 41, 59, 0.65);
+    background-color: rgba(51, 65, 85, 0.38);
   }
   html.dark .rt-event-row {
-    border-bottom-color: rgba(51, 65, 85, 0.85) !important;
+    border-bottom-color: rgba(100, 116, 139, 0.55) !important;
   }
   /* Son alarmlar: tam kontrast (purge’a bağlı değil) */
   .rt-alarm-row {
@@ -451,9 +451,50 @@
     cursor: pointer;
     font: inherit;
   }
+  /*
+   * base.html (seo-dark-zinc-ui) tüm dark:text-slate-400/500/600 → #71717a yapıyor;
+   * Realtime kartlarında etiket / meta okunmuyor. Bu kök altında daha açık slate-zinc karışımı.
+   */
+  html.dark .realtime-root [class*="dark:text-slate-400"],
+  html.dark .realtime-root [class*="dark:text-slate-500"],
+  html.dark .realtime-root [class*="dark:text-slate-600"] {
+    color: #aeb8c6 !important;
+  }
+  html.dark .realtime-root [data-rt-profile-box] [class*="dark:text-indigo-300"],
+  html.dark .realtime-root [data-rt-profile-box] [class*="dark:text-indigo-400"] {
+    color: #a5b4fc !important;
+  }
+  html.dark .realtime-root [data-rt-site] > h2 .text-slate-400 {
+    color: #a1a1aa !important;
+  }
+  html.dark .realtime-root [data-rt-kpi] {
+    border-color: rgba(100, 116, 139, 0.38) !important;
+  }
+  html.dark .realtime-root [data-rt-events-section] {
+    border-color: rgba(100, 116, 139, 0.42) !important;
+  }
+  /* Son Alarmlar: gövde / zinc override altında metin rengi kaybolmasın */
+  html.dark .realtime-root #rt-alarms-global .rt-alarm--down {
+    color: #fecaca !important;
+  }
+  html.dark .realtime-root #rt-alarms-global .rt-alarm--up {
+    color: #d1fae5 !important;
+  }
+  html.dark .realtime-root #rt-alarms-global .rt-alarm--info {
+    color: #dbeafe !important;
+  }
+  html.dark .realtime-root #rt-alarms-global .rt-alarm--warn {
+    color: #fef3c7 !important;
+  }
+  html.dark .realtime-root #rt-alarms-global .rt-alarm--crit {
+    color: #fecaca !important;
+  }
+  html.dark .realtime-root #rt-alarms-global .rt-alarm-row .rt-alarm-time {
+    color: inherit !important;
+  }
 </style>
 
-<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+<div class="realtime-root mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
   {# Page header #}
   <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-3">
