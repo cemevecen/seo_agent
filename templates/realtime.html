@@ -624,7 +624,7 @@
             <span>Etkinlik adı</span>
             <span class="text-right">Sayı</span>
           </div>
-          <div class="rt-scroll-area mt-1 max-h-56 space-y-0 overflow-y-auto" data-rt-events-list>
+          <div class="rt-scroll-area mt-1 max-h-80 space-y-0 overflow-y-auto" data-rt-events-list>
             <p class="text-sm italic text-slate-400 dark:text-slate-400">yükleniyor…</p>
           </div>
           <div class="mt-2 flex items-center justify-end gap-2">
@@ -714,6 +714,8 @@
   var WINDOW = {{ window_minutes }};
   /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi: aynı aralık; KPI poll bunları tetiklemez */
   var LIST_WINDOW = 15;
+  /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
+  var RT_EVENTS_PAGE_SIZE = 10;
   var _pageTimers = {};
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
@@ -1185,7 +1187,7 @@
           total_event_count: d.total_event_count || 0,
           truncated: !!d.truncated,
           page: 0,
-          pageSize: 6,
+          pageSize: RT_EVENTS_PAGE_SIZE,
           count_basis: d.count_basis || "event_count"
         };
         _renderEventsCard(box, siteId, profile);
@@ -1264,7 +1266,7 @@
       }).join('');
     }
 
-    var ps = st.pageSize || 6;
+    var ps = st.pageSize || RT_EVENTS_PAGE_SIZE;
     var pg = st.page || 0;
     var start = pg * ps;
     var pageRows = evs.slice(start, start + ps);
@@ -1302,7 +1304,7 @@
     var key = siteId + '|' + profile;
     var st = _rtEventState[key];
     if (!st || !st.events || !st.events.length) return;
-    var ps = st.pageSize || 6;
+    var ps = st.pageSize || RT_EVENTS_PAGE_SIZE;
     var lastPage = Math.ceil(st.events.length / ps) - 1;
     st.page = Math.max(0, Math.min(lastPage, (st.page || 0) + delta));
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
