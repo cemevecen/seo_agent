@@ -26,7 +26,8 @@ LOGGER = logging.getLogger(__name__)
 ANSWERED_LABEL_NAME = "SEO-Agent · Cevaplandı"
 _answered_label_id_cache: str | None = None
 
-_INFO_RE = re.compile(r"info@doviz\.com", re.I)
+_INFO_DOVIZ_RE = re.compile(r"info@doviz\.com", re.I)
+_INFO_SINEMALAR_RE = re.compile(r"info@sinemalar\.com", re.I)
 _FB_RE = re.compile(r"feedback@doviz\.com", re.I)
 
 
@@ -108,14 +109,19 @@ def _extract_body_text(
 
 def _route_tag_from_addrs(text: str) -> str:
     t = text or ""
-    has_i = bool(_INFO_RE.search(t))
+    has_id = bool(_INFO_DOVIZ_RE.search(t))
+    has_is = bool(_INFO_SINEMALAR_RE.search(t))
     has_f = bool(_FB_RE.search(t))
-    if has_i and has_f:
+
+    found = []
+    if has_id: found.append("info")
+    if has_is: found.append("sinemalar")
+    if has_f: found.append("feedback")
+
+    if len(found) > 1:
         return "mixed"
-    if has_i:
-        return "info"
-    if has_f:
-        return "feedback"
+    if len(found) == 1:
+        return found[0]
     return "mixed"
 
 
@@ -233,7 +239,7 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
         "pct": 5,
     }
     service = _gmail_service(creds)
-    q = (settings.inbox_gmail_query or "").strip() or "(to:info@doviz.com OR to:feedback@doviz.com)"
+    q = (settings.inbox_gmail_query or "").strip() or "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com)"
     yield {
         "type": "phase",
         "phase": "listing",

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     )
     # Gmail arama sözdizimi: https://support.google.com/mail/answer/7190
     inbox_gmail_query: str = Field(
-        default="(to:info@doviz.com OR to:feedback@doviz.com)",
+        default="(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com)",
         validation_alias=AliasChoices("INBOX_GMAIL_QUERY", "inbox_gmail_query"),
     )
     inbox_openai_model: str = Field(
@@ -210,7 +210,7 @@ class Settings(BaseSettings):
     llm_openai_completion_usd_per_mtok: float = 0.60
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
-    ga4_realtime_enabled: bool = False
+    ga4_realtime_enabled: bool = True
     ga4_realtime_interval_minutes: int = 15
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız; çok düşük = kota.

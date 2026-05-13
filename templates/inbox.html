@@ -5,9 +5,7 @@
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Gelen kutusu</h1>
       <p class="inbox-header-desc mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-        Gmail üzerinden <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">info@doviz.com</code> ve
-        <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">feedback@doviz.com</code> adreslerine gelen iletileri
-        senkronize eder; okundu, cevaplandı etiketi, çöpe taşıma ve gönderme işlemleri Gmail ile aynı hareket eder; özet ve taslak için önce Groq, sonra Gemini, en son OpenAI kullanılır (hangi API anahtarları tanımlıysa).
+        Gmail üzerinden bağlı hesaplardaki mailleri senkronize eder; özet ve taslak için AI (Groq/Gemini/OpenAI) desteği sağlar.
       </p>
     </div>
     <div class="flex flex-wrap gap-2" id="inbox-toolbar">
@@ -49,8 +47,9 @@
         <span class="inbox-filter-label text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtre</span>
         <select id="inbox-route-filter" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
           <option value="">Tümü</option>
-          <option value="info">info@</option>
+          <option value="info">info@doviz</option>
           <option value="feedback">feedback@</option>
+          <option value="sinemalar">sinemalar@</option>
           <option value="mixed">Karışık</option>
         </select>
         <span id="inbox-account" class="ml-auto text-xs text-slate-500 dark:text-slate-400"></span>
