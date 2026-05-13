@@ -6,6 +6,7 @@ activeUsers/screenPageViews değişimini izleyerek alarm tetikler.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import html
 import logging
@@ -453,6 +454,37 @@ NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "info",
     },
 }
+
+# sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 60
+_SINEMALAR_REALTIME_ALARM_PCT = 60
+
+
+def _is_sinemalar_site_domain(domain: str | None) -> bool:
+    d = (domain or "").strip().lower()
+    if not d:
+        return False
+    if d.startswith("www."):
+        d = d[4:]
+    return d == "sinemalar.com" or d.endswith(".sinemalar.com")
+
+
+def _realtime_rules_threshold_pct_for_domain(
+    base_rules: dict[str, dict[str, Any]],
+    site_domain: str | None,
+) -> dict[str, dict[str, Any]]:
+    """sinemalar için tüm ``threshold_pct`` = 60; mutlak tabanlar (min_*) de %60 ölçeklenir."""
+    if not _is_sinemalar_site_domain(site_domain):
+        return base_rules
+    out = copy.deepcopy(base_rules)
+    scale = _SINEMALAR_REALTIME_ALARM_PCT / 100.0
+    for _rid, rule in out.items():
+        if "threshold_pct" in rule:
+            rule["threshold_pct"] = _SINEMALAR_REALTIME_ALARM_PCT
+        for key in ("min_users", "min_prev_users", "min_baseline"):
+            if key in rule and isinstance(rule[key], (int, float)):
+                rule[key] = max(1, int(round(float(rule[key]) * scale)))
+    return out
+
 
 # Varsayılan pencere boyutu (dakika)
 DEFAULT_WINDOW_MINUTES = 10
@@ -1246,17 +1278,18 @@ def evaluate_alarms(
     comparison: dict[str, dict[str, Any]],
     *,
     rules: dict[str, dict[str, Any]] | None = None,
+    site_domain: str | None = None,
 ) -> list[dict[str, Any]]:
     """Karşılaştırma sonuçlarına alarm kurallarını uygular.
 
     Returns list of triggered alarms: [{rule_id, label, metric, ...}, ...]
     """
-    if rules is None:
-        rules = ALARM_RULES
+    base = rules if rules is not None else ALARM_RULES
+    rules_eff = _realtime_rules_threshold_pct_for_domain(base, site_domain)
 
     triggered: list[dict[str, Any]] = []
 
-    for rule_id, rule in rules.items():
+    for rule_id, rule in rules_eff.items():
         metric_name = rule["metric"]
         comp = comparison.get(metric_name)
         if comp is None:
@@ -1337,7 +1370,7 @@ def check_site_realtime(
             "message": str(exc),
         }
 
-    alarms = evaluate_alarms(result["comparison"])
+    alarms = evaluate_alarms(result["comparison"], site_domain=site.domain)
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     for a in alarms:
@@ -1635,6 +1668,8 @@ def evaluate_page_alarms(
     if not previous_pages:
         return []
 
+    page_rules = _realtime_rules_threshold_pct_for_domain(PAGE_ALARM_RULES, site_domain)
+
     triggered: list[dict[str, Any]] = []
     plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     tag = f"{site_domain} {plabel}" if site_domain else plabel
@@ -1649,7 +1684,7 @@ def evaluate_page_alarms(
         if prev:
             prev_users = prev.get("activeUsers", 0)
 
-            rule = PAGE_ALARM_RULES["page_traffic_drop"]
+            rule = page_rules["page_traffic_drop"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
                 if pct <= -rule["threshold_pct"]:
@@ -1665,7 +1700,7 @@ def evaluate_page_alarms(
                         "message": f"📉 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
 
-            rule = PAGE_ALARM_RULES["page_traffic_spike"]
+            rule = page_rules["page_traffic_spike"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
                 if pct >= rule["threshold_pct"]:
@@ -1681,7 +1716,7 @@ def evaluate_page_alarms(
                         "message": f"📈 [{tag}] {page_path[:60]} — {prev_users:.0f} → {curr_users:.0f} ({pct:+.1f}%)",
                     })
         else:
-            rule = PAGE_ALARM_RULES["page_new_entry"]
+            rule = page_rules["page_new_entry"]
             if curr_users >= rule["min_users"]:
                 triggered.append({
                     "rule_id": "page_new_entry",
@@ -1695,7 +1730,7 @@ def evaluate_page_alarms(
                     "message": f"🆕 [{tag}] {page_path[:60]} — top listeye girdi ({curr_users:.0f} kullanıcı)",
                 })
 
-    rule = PAGE_ALARM_RULES["page_disappeared"]
+    rule = page_rules["page_disappeared"]
     for page_path, prev in prev_map.items():
         if page_path not in curr_map:
             prev_users = prev.get("activeUsers", 0)
@@ -1941,6 +1976,8 @@ def evaluate_news_alarms(
     if not previous_pages:
         return []
 
+    news_rules = _realtime_rules_threshold_pct_for_domain(NEWS_ALARM_RULES, site_domain)
+
     triggered: list[dict[str, Any]] = []
     plabel = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     tag = f"{site_domain} {plabel}" if site_domain else plabel
@@ -1955,7 +1992,7 @@ def evaluate_news_alarms(
         if prev:
             prev_users = prev.get("activeUsers", 0)
 
-            rule = NEWS_ALARM_RULES["news_traffic_drop"]
+            rule = news_rules["news_traffic_drop"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
                 if pct <= -rule["threshold_pct"]:
@@ -1974,7 +2011,7 @@ def evaluate_news_alarms(
                         ),
                     })
 
-            rule = NEWS_ALARM_RULES["news_traffic_spike"]
+            rule = news_rules["news_traffic_spike"]
             if prev_users >= rule["min_users"] and prev_users > 0:
                 pct = ((curr_users - prev_users) / prev_users) * 100
                 if pct >= rule["threshold_pct"]:
@@ -1993,7 +2030,7 @@ def evaluate_news_alarms(
                         ),
                     })
         else:
-            rule = NEWS_ALARM_RULES["news_new_entry"]
+            rule = news_rules["news_new_entry"]
             if curr_users >= rule["min_users"]:
                 triggered.append({
                     "rule_id": "news_new_entry",
@@ -2010,7 +2047,7 @@ def evaluate_news_alarms(
                     ),
                 })
 
-    rule = NEWS_ALARM_RULES["news_disappeared"]
+    rule = news_rules["news_disappeared"]
     for page_path, prev in prev_map.items():
         if page_path not in curr_map:
             prev_users = prev.get("activeUsers", 0)
