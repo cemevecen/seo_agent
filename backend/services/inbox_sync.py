@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import re
+from collections.abc import Iterator
 from datetime import datetime
 from email.mime.text import MIMEText
 from typing import Any
@@ -154,7 +155,31 @@ def _ensure_fresh_creds(db: Session, creds):
     return creds
 
 
-def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
+def _thread_subject_snippet_preview(full: dict[str, Any]) -> tuple[str, str]:
+    snippet = (str(full.get("snippet") or ""))[:200]
+    subject0 = ""
+    for m in full.get("messages") or []:
+        h = _header_map(m)
+        subj = (h.get("subject") or "").strip()
+        if subj:
+            subject0 = subj[:998]
+            break
+    return (subject0 or "(konu yok)", snippet)
+
+
+def _sync_pct_saved(i_saved: int, n_total: int) -> int:
+    if n_total <= 0:
+        return 100
+    return min(99, int(12 + (i_saved / n_total) * 88))
+
+
+def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[dict[str, Any]]:
+    yield {
+        "type": "phase",
+        "phase": "auth",
+        "message": "Gmail oturumu doğrulanıyor…",
+        "pct": 2,
+    }
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
         raise RuntimeError("Gmail gelen kutusu bağlı değil.")
@@ -162,8 +187,21 @@ def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
     row = inbox_gmail_auth.get_inbox_credential_row(db)
     account_lower = (row.account_email if row else "").strip().lower()
 
+    yield {
+        "type": "phase",
+        "phase": "connect",
+        "message": "Gmail API bağlantısı kuruluyor…",
+        "pct": 5,
+    }
     service = _gmail_service(creds)
     q = (settings.inbox_gmail_query or "").strip() or "(to:info@doviz.com OR to:feedback@doviz.com)"
+    yield {
+        "type": "phase",
+        "phase": "listing",
+        "message": "Konuşma listesi Gmail’den isteniyor…",
+        "query": q,
+        "pct": 8,
+    }
     try:
         lst = (
             service.users()
@@ -190,20 +228,79 @@ def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
             ) from exc
         raise RuntimeError(f"Gmail ileti listesi alınamadı (HTTP {st}): {msg}") from exc
     thread_list = lst.get("threads") or []
+    n = len(thread_list)
+    yield {
+        "type": "listed",
+        "total": n,
+        "query": q,
+        "message": f"{n} konuşma bulundu; tek tek çekiliyor…",
+        "pct": 12,
+    }
     synced = 0
-    for tref in thread_list:
+    for i, tref in enumerate(thread_list):
         tid = tref.get("id")
         if not tid:
             continue
+        yield {
+            "type": "thread",
+            "step": "fetch",
+            "current": i + 1,
+            "total": n,
+            "gmail_thread_id": tid,
+            "message": f"{i + 1}/{n} — konuşma Gmail’den indiriliyor…",
+            "pct": max(12, _sync_pct_saved(synced, n)),
+        }
         try:
             full = service.users().threads().get(userId="me", id=tid, format="full").execute()
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("gmail thread get failed %s: %s", tid, exc)
+            yield {
+                "type": "thread",
+                "step": "skip",
+                "current": i + 1,
+                "total": n,
+                "gmail_thread_id": tid,
+                "message": f"{i + 1}/{n} — atlandı (Gmail hatası)",
+                "error": str(exc)[:200],
+                "pct": max(12, _sync_pct_saved(synced, n)),
+            }
             continue
+        nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
+        subj, snip = _thread_subject_snippet_preview(full)
         _upsert_thread_from_gmail(db, full, account_lower, service)
         synced += 1
+        yield {
+            "type": "thread",
+            "step": "save",
+            "current": i + 1,
+            "total": n,
+            "gmail_thread_id": tid,
+            "subject": subj,
+            "snippet": snip,
+            "messages_written": nmsg,
+            "synced_so_far": synced,
+            "message": f"{i + 1}/{n} kaydedildi: {subj[:80]}{'…' if len(subj) > 80 else ''}",
+            "pct": _sync_pct_saved(synced, n),
+        }
     db.commit()
-    return {"synced_threads": synced, "query": q}
+    yield {
+        "type": "complete",
+        "synced_threads": synced,
+        "query": q,
+        "message": f"Tamamlandı — {synced} konuşma veritabanına yazıldı.",
+        "pct": 100,
+    }
+
+
+def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
+    """Tek JSON yanıtı (eski API); içeride akışlı senkron kullanılır."""
+    out: dict[str, Any] | None = None
+    for evt in iter_sync_inbox_threads(db, max_threads=max_threads):
+        if evt.get("type") == "complete":
+            out = {"synced_threads": evt.get("synced_threads", 0), "query": evt.get("query", "")}
+    if out is None:
+        raise RuntimeError("Senkron tamamlanamadı.")
+    return out
 
 
 def _upsert_thread_from_gmail(

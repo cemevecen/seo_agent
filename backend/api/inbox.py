@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -223,6 +224,30 @@ def inbox_sync_post(request: Request, db: Session = Depends(get_db)):
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox sync beklenmeyen hata")
         raise HTTPException(status_code=502, detail=f"Senkron hatası: {exc}") from exc
+
+
+@router.post("/sync-stream")
+@limiter.limit("30/minute")
+def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
+    """NDJSON satırları: senkron ilerlemesi (gerçek zamanlı progress için)."""
+
+    def ndjson_iter():
+        try:
+            for evt in inbox_sync.iter_sync_inbox_threads(db, max_threads=35):
+                yield (json.dumps(evt, ensure_ascii=False) + "\n").encode("utf-8")
+        except RuntimeError as exc:
+            err = {"type": "error", "message": str(exc), "pct": 0}
+            yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("inbox sync-stream")
+            err = {"type": "error", "message": f"Senkron hatası: {exc}", "pct": 0}
+            yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
+
+    headers = {
+        "Cache-Control": "no-store, no-transform",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(ndjson_iter(), media_type="application/x-ndjson", headers=headers)
 
 
 @router.get("/threads")

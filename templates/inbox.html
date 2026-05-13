@@ -23,6 +23,26 @@
 
   <div id="inbox-banner" class="mb-4 hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
 
+  <div
+    id="inbox-sync-progress"
+    class="mb-4 hidden rounded-lg border border-indigo-200 bg-indigo-50/95 p-3 shadow-sm dark:border-indigo-900 dark:bg-indigo-950/50"
+    aria-live="polite"
+  >
+    <div class="mb-1.5 flex items-center justify-between gap-2">
+      <span class="text-xs font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-100">Senkronizasyon</span>
+      <span id="inbox-sync-progress-pct" class="text-xs font-mono font-bold text-indigo-800 dark:text-indigo-200">0%</span>
+    </div>
+    <div class="h-3 w-full overflow-hidden rounded-full bg-white/90 ring-1 ring-indigo-200/80 dark:bg-slate-900 dark:ring-indigo-900">
+      <div
+        id="inbox-sync-progress-fill"
+        class="h-full rounded-full bg-indigo-600 transition-[width] duration-300 ease-out dark:bg-indigo-500"
+        style="width: 0%"
+      ></div>
+    </div>
+    <p id="inbox-sync-progress-msg" class="mt-2 text-sm font-medium text-indigo-950 dark:text-indigo-50"></p>
+    <p id="inbox-sync-progress-sub" class="mt-1 text-[11px] leading-snug text-indigo-900/85 dark:text-indigo-200/90"></p>
+  </div>
+
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
     <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
       <div class="inbox-toolbar-strip mb-3 flex flex-wrap items-center gap-2">
@@ -291,6 +311,95 @@
     return data !== null ? data : {};
   }
 
+  function setSyncProgress(ev) {
+    var wrap = document.getElementById("inbox-sync-progress");
+    var fill = document.getElementById("inbox-sync-progress-fill");
+    var pctEl = document.getElementById("inbox-sync-progress-pct");
+    var msgEl = document.getElementById("inbox-sync-progress-msg");
+    var subEl = document.getElementById("inbox-sync-progress-sub");
+    if (!wrap || !fill) return;
+    var p = typeof ev.pct === "number" ? ev.pct : parseFloat(ev.pct);
+    if (isNaN(p)) p = 0;
+    p = Math.max(0, Math.min(100, p));
+    fill.style.width = p + "%";
+    if (pctEl) pctEl.textContent = Math.round(p) + "%";
+    if (msgEl) msgEl.textContent = ev.message || "";
+    var parts = [];
+    if (ev.current != null && ev.total != null) parts.push(String(ev.current) + " / " + String(ev.total));
+    if ((ev.subject || "").trim()) parts.push(ev.subject);
+    else if ((ev.gmail_thread_id || "").trim()) parts.push("ID: " + String(ev.gmail_thread_id).slice(0, 24));
+    if (ev.messages_written != null) parts.push(String(ev.messages_written) + " ileti");
+    if ((ev.snippet || "").trim()) {
+      var sn = String(ev.snippet);
+      parts.push(sn.length > 160 ? sn.slice(0, 160) + "…" : sn);
+    }
+    if (subEl) subEl.textContent = parts.join(" · ");
+  }
+
+  function hideSyncProgressSoon() {
+    setTimeout(function () {
+      var w = document.getElementById("inbox-sync-progress");
+      if (w) w.classList.add("hidden");
+    }, 900);
+  }
+
+  async function consumeInboxSyncStream() {
+    var wrap = document.getElementById("inbox-sync-progress");
+    var btn = document.getElementById("inbox-sync-btn");
+    if (wrap) wrap.classList.remove("hidden");
+    setSyncProgress({ pct: 0, message: "Başlatılıyor…" });
+    if (btn) btn.disabled = true;
+    try {
+      var r = await fetch("/api/inbox/sync-stream", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/x-ndjson" },
+      });
+      if (!r.ok) {
+        var errText = await r.text();
+        throw new Error(errText.slice(0, 500) || r.statusText || "HTTP " + r.status);
+      }
+      var reader = r.body && r.body.getReader ? r.body.getReader() : null;
+      if (!reader) throw new Error("Tarayıcı akış okumasını desteklemiyor.");
+      var dec = new TextDecoder();
+      var buf = "";
+      var lastComplete = null;
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, { stream: true });
+        var lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (var li = 0; li < lines.length; li++) {
+          var line = lines[li].trim();
+          if (!line) continue;
+          var ev;
+          try {
+            ev = JSON.parse(line);
+          } catch (x) {
+            continue;
+          }
+          if (ev.type === "error") throw new Error(ev.message || "Senkron hatası");
+          setSyncProgress(ev);
+          if (ev.type === "complete") lastComplete = ev;
+        }
+      }
+      if (buf.trim()) {
+        try {
+          var evLast = JSON.parse(buf.trim());
+          if (evLast.type === "error") throw new Error(evLast.message || "Senkron hatası");
+          setSyncProgress(evLast);
+          if (evLast.type === "complete") lastComplete = evLast;
+        } catch (x2) {
+          if (x2 instanceof Error && x2.message && !(x2 instanceof SyntaxError)) throw x2;
+        }
+      }
+      return lastComplete;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   async function loadStatus() {
     status = await jfetch("/api/inbox/status");
     var acc = document.getElementById("inbox-account");
@@ -457,11 +566,15 @@
   }
 
   document.getElementById("inbox-sync-btn").addEventListener("click", async function () {
+    hideBanner();
     try {
-      await jfetch("/api/inbox/sync", { method: "POST" });
+      await consumeInboxSyncStream();
       hideBanner();
+      hideSyncProgressSoon();
     } catch (e) {
       showBanner("Senkronizasyon: " + String(e.message || e));
+      var wp = document.getElementById("inbox-sync-progress");
+      if (wp) wp.classList.add("hidden");
       return;
     }
     try {
