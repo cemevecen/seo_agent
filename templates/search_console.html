@@ -56,46 +56,6 @@
     padding: 0;
     background: transparent;
   }
-  /* Search Console özet: dört metrik aynı satırlarda hizalı; sayı kırılmaz */
-  .sc-metric-summary {
-    table-layout: fixed;
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.5rem 0.5rem;
-  }
-  @media (min-width: 640px) {
-    .sc-metric-summary {
-      border-spacing: 0.75rem 0.75rem;
-    }
-  }
-  .sc-metric-summary th,
-  .sc-metric-summary td {
-    width: 25%;
-    vertical-align: top;
-  }
-  .sc-metric-summary .sc-metric-cell {
-    border-radius: 1.25rem;
-    border-width: 1px;
-    border-style: solid;
-    padding: 0.75rem 0.65rem;
-  }
-  @media (min-width: 640px) {
-    .sc-metric-summary .sc-metric-cell {
-      padding: 1rem 0.85rem;
-    }
-  }
-  .sc-metric-summary .sc-metric-nowrap {
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .sc-metric-summary .sc-metric-lbl {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
-    min-height: 3.15rem;
-    line-height: 1.35;
-  }
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
