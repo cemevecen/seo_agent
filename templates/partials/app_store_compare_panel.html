@@ -184,6 +184,84 @@
       grid-template-columns: 1fr 1fr;
     }
   }
+  .rt-viv-card.rt-viv-card--selected {
+    outline: 2px solid rgb(99 102 241);
+    outline-offset: -1px;
+    background: rgb(238 242 255);
+  }
+  html.dark .rt-viv-card.rt-viv-card--selected {
+    background: rgba(67 56 202 0.25);
+    outline-color: rgb(165 180 252);
+  }
+  .rt-viv-compare-wrap {
+    border-radius: 0.75rem;
+    border: 1px solid rgb(199 210 254);
+    padding: 0.75rem 1rem;
+    background: rgb(248 250 252);
+  }
+  html.dark .rt-viv-compare-wrap {
+    border-color: rgba(129 140 248, 0.45);
+    background: rgba(24 24 27 0.85);
+  }
+  .rt-viv-cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .rt-viv-cmp-table th,
+  .rt-viv-cmp-table td {
+    border-bottom: 1px solid rgb(226 232 240);
+    padding: 0.45rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  html.dark .rt-viv-cmp-table th,
+  html.dark .rt-viv-cmp-table td {
+    border-bottom-color: rgb(63 63 70);
+  }
+  .rt-viv-cmp-table th {
+    font-weight: 700;
+    color: rgb(71 85 105);
+    width: 28%;
+  }
+  html.dark .rt-viv-cmp-table th {
+    color: rgb(203 213 225);
+  }
+  .rt-viv-cmp-better {
+    font-weight: 800;
+    color: rgb(21 128 61);
+  }
+  html.dark .rt-viv-cmp-better {
+    color: rgb(134 239 172);
+  }
+  .rt-viv-cmp-muted {
+    color: rgb(100 116 139);
+    font-size: 0.72rem;
+  }
+  html.dark .rt-viv-cmp-muted {
+    color: rgb(161 161 170);
+  }
+  .rt-viv-ghost-btn {
+    margin-top: 0.65rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(203 213 225);
+    background: transparent;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(71 85 105);
+    cursor: pointer;
+  }
+  html.dark .rt-viv-ghost-btn {
+    border-color: rgb(82 82 91);
+    color: rgb(212 212 216);
+  }
+  .rt-viv-ghost-btn:hover {
+    background: rgb(241 245 249);
+  }
+  html.dark .rt-viv-ghost-btn:hover {
+    background: rgb(39 39 42);
+  }
 </style>
 
 <section class="rt-viv-panel mb-4 sm:mb-5" aria-labelledby="rt-viv-heading" data-rt-viv-root>
@@ -261,6 +339,16 @@
         <div class="rt-viv-results mt-2 hidden" id="rt-viv-list-b"></div>
       </div>
     </div>
+    <div id="rt-viv-compare-wrap" class="rt-viv-compare-wrap hidden" aria-live="polite">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">Katalog karşılaştırması</h4>
+        <button type="button" class="rt-viv-ghost-btn" onclick="rtVivClearCompare()">Seçimleri sıfırla</button>
+      </div>
+      <p id="rt-viv-compare-hint" class="rt-viv-cmp-muted mb-2"></p>
+      <div class="overflow-x-auto">
+        <table class="rt-viv-cmp-table" id="rt-viv-compare-table" aria-label="İki uygulama katalog özeti"></table>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -275,9 +363,16 @@
   var _rtVivLast = { a: [], b: [] };
   var _rtVivSel = { a: null, b: null };
 
+  function _rtVivFmtRating(v) {
+    if (v == null || v === '') return '—';
+    var n = Number(v);
+    if (isNaN(n)) return _esc(String(v));
+    return n.toFixed(2);
+  }
+
   function _rtVivCardInner(it) {
     var dev = it.developer ? _esc(it.developer) : '—';
-    var rat = it.rating != null ? String(it.rating) : '—';
+    var rat = _rtVivFmtRating(it.rating);
     var rev = it.review_count != null ? String(it.review_count) : '—';
     var plat = it.platform === 'google_play' ? 'Play' : 'App Store';
     var img = it.icon
@@ -414,6 +509,12 @@
           throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
         var items = d.results || [];
         _rtVivLast[side] = items;
+        _rtVivSel[side] = null;
+        _rtVivRenderCompareTable();
+        var selEl = document.getElementById('rt-viv-sel-' + side);
+        if (selEl) {
+          selEl.textContent = 'Henüz seçim yok — sonuç satırına tıklayın.';
+        }
         if (msg)
           msg.textContent = items.length ? items.length + ' sonuç — seçmek için tıklayın' : 'Sonuç yok';
         if (!items.length) {
@@ -447,10 +548,18 @@
     if (!items || !items[idx]) return;
     var it = items[idx];
     _rtVivSel[side] = it;
+    var list = document.getElementById('rt-viv-list-' + side);
+    if (list) {
+      list.querySelectorAll('.rt-viv-card').forEach(function (c, j) {
+        c.classList.toggle('rt-viv-card--selected', j === idx);
+      });
+    }
     var el = document.getElementById('rt-viv-sel-' + side);
     if (!el) return;
     var dev = it.developer ? _esc(it.developer) : '—';
     var plat = it.platform === 'google_play' ? 'Google Play' : 'App Store';
+    var rat = _rtVivFmtRating(it.rating);
+    var rev = it.review_count != null ? String(it.review_count) : '—';
     el.innerHTML =
       '<strong>' +
       _esc(it.name) +
@@ -458,14 +567,131 @@
       dev +
       ' · ' +
       plat +
+      ' · ★ ' +
+      rat +
+      ' · yorum: ' +
+      rev +
       ' · id: <code>' +
       _esc(it.id) +
       '</code></span><br/>' +
       '<a class="mt-1 inline-block text-indigo-600 underline dark:text-indigo-300" href="' +
       _esc(it.store_url) +
       '" target="_blank" rel="noopener noreferrer">Mağaza sayfası</a>';
+    _rtVivRenderCompareTable();
   }
   window.rtVivSelectCompare = rtVivSelectCompare;
+
+  function _rtVivNumRating(it) {
+    if (!it || it.rating == null) return null;
+    var n = Number(it.rating);
+    return isNaN(n) ? null : n;
+  }
+
+  function _rtVivRenderCompareTable() {
+    var wrap = document.getElementById('rt-viv-compare-wrap');
+    var hint = document.getElementById('rt-viv-compare-hint');
+    var tbl = document.getElementById('rt-viv-compare-table');
+    if (!wrap || !hint || !tbl) return;
+    var a = _rtVivSel.a;
+    var b = _rtVivSel.b;
+    if (!a && !b) {
+      wrap.classList.add('hidden');
+      hint.textContent = '';
+      tbl.innerHTML = '';
+      return;
+    }
+    wrap.classList.remove('hidden');
+    if (!a || !b) {
+      hint.textContent = !a && !b ? '' : 'Karşılaştırma için her iki sütundan da bir uygulama seçin.';
+      tbl.innerHTML = '';
+      return;
+    }
+    hint.textContent =
+      'Aşağıdaki tablo yalnızca mağaza katalog verisidir (yorum analizi App bölümündeki grafiklerde).';
+    var ra = _rtVivNumRating(a);
+    var rb = _rtVivNumRating(b);
+    var rClsA = '';
+    var rClsB = '';
+    if (ra != null && rb != null && ra !== rb) {
+      rClsA = ra > rb ? ' rt-viv-cmp-better' : '';
+      rClsB = rb > ra ? ' rt-viv-cmp-better' : '';
+    }
+    var revA = a.review_count != null ? String(a.review_count) : '—';
+    var revB = b.review_count != null ? String(b.review_count) : '—';
+    var revClsA = '';
+    var revClsB = '';
+    var na = a.review_count != null ? Number(a.review_count) : null;
+    var nb = b.review_count != null ? Number(b.review_count) : null;
+    if (na != null && nb != null && !isNaN(na) && !isNaN(nb) && na !== nb) {
+      revClsA = na > nb ? ' rt-viv-cmp-better' : '';
+      revClsB = nb > na ? ' rt-viv-cmp-better' : '';
+    }
+    var plat = function (it) {
+      return it.platform === 'google_play' ? 'Google Play' : 'App Store';
+    };
+    var row = function (label, va, vb, clsA, clsB) {
+      clsA = clsA || '';
+      clsB = clsB || '';
+      return (
+        '<tr><th scope="row">' +
+        _esc(label) +
+        '</th><td class="' +
+        clsA +
+        '">' +
+        va +
+        '</td><td class="' +
+        clsB +
+        '">' +
+        vb +
+        '</td></tr>'
+      );
+    };
+    tbl.innerHTML =
+      '<thead><tr><th scope="col">Özellik</th><th scope="col">Uygulama 1</th><th scope="col">Uygulama 2</th></tr></thead><tbody>' +
+      row('Uygulama adı', _esc(a.name), _esc(b.name), '', '') +
+      row('Geliştirici', a.developer ? _esc(a.developer) : '—', b.developer ? _esc(b.developer) : '—', '', '') +
+      row('Platform', _esc(plat(a)), _esc(plat(b)), '', '') +
+      row('Paket / track id', '<code>' + _esc(a.id) + '</code>', '<code>' + _esc(b.id) + '</code>', '', '') +
+      row(
+        'Katalog puanı (★)',
+        _rtVivFmtRating(a.rating),
+        _rtVivFmtRating(b.rating),
+        rClsA,
+        rClsB,
+      ) +
+      row('Yorum sayısı (varsa)', revA, revB, revClsA, revClsB) +
+      row(
+        'Mağaza linki',
+        '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
+          _esc(a.store_url) +
+          '" target="_blank" rel="noopener noreferrer">Aç</a>',
+        '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
+          _esc(b.store_url) +
+          '" target="_blank" rel="noopener noreferrer">Aç</a>',
+        '',
+        '',
+      ) +
+      '</tbody>';
+  }
+
+  function rtVivClearCompare() {
+    _rtVivSel.a = null;
+    _rtVivSel.b = null;
+    ['a', 'b'].forEach(function (side) {
+      var el = document.getElementById('rt-viv-sel-' + side);
+      if (el) {
+        el.textContent = 'Henüz seçim yok — sonuç satırına tıklayın.';
+      }
+      var list = document.getElementById('rt-viv-list-' + side);
+      if (list) {
+        list.querySelectorAll('.rt-viv-card').forEach(function (c) {
+          c.classList.remove('rt-viv-card--selected');
+        });
+      }
+    });
+    _rtVivRenderCompareTable();
+  }
+  window.rtVivClearCompare = rtVivClearCompare;
 
   function _rtVivBindCompareClicks() {
     ['a', 'b'].forEach(function (side) {
