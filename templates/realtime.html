@@ -5,11 +5,27 @@
 <style>
   .rt-profile-box{transition:box-shadow .2s,border-color .2s}
   .rt-profile-box:hover{box-shadow:0 6px 32px rgba(99,102,241,.14)}
+  html.dark .rt-profile-box:hover{box-shadow:0 6px 28px rgba(0,0,0,.35)}
   .rt-spin{animation:rt-spin-kf .8s linear infinite}
   @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
   .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#4ade80}
   .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#f87171}
   .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#94a3b8}
+  /* Tailwind dark: bazen yarı saydam üst üste binince açık görünür; kartları opak koyu yap */
+  html.dark .rt-surface-solid {
+    background-color: rgb(2 6 23) !important;
+  }
+  html.dark .rt-surface-muted {
+    background-color: rgb(15 23 42) !important;
+  }
+  html.dark [data-rt-kpi],
+  html.dark [data-rt-chart-wrap],
+  html.dark [data-rt-events-section] {
+    background-color: rgb(15 23 42) !important;
+  }
+  html.dark [data-rt-chart] {
+    background-color: transparent !important;
+  }
 </style>
 
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -34,7 +50,7 @@
   </div>
 
   {% for site in sites %}
-  <div class="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-rt-site="{{ site.id }}">
+  <div class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" data-rt-site="{{ site.id }}">
     <h2 class="mb-5 flex items-baseline gap-2 text-lg font-extrabold text-slate-800 dark:text-slate-200">
       {{ site.display_name or site.domain }}
       <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
@@ -42,7 +58,7 @@
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
-        class="rt-profile-box flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 p-5 dark:border-slate-700/60 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-800/40"
+        class="rt-profile-box rt-surface-muted flex min-h-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/40 p-5 dark:border-slate-600/80 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
       >
@@ -72,7 +88,7 @@
 
         {# KPI cards — side by side #}
         <div class="grid grid-cols-2 gap-4 mb-4">
-          <div class="rounded-lg border border-slate-100 bg-white/80 p-3 dark:border-slate-700/50 dark:bg-slate-800/50" data-rt-kpi="activeUsers">
+          <div class="rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="activeUsers">
             <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
             <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
             <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
@@ -80,7 +96,7 @@
               <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
             </div>
           </div>
-          <div class="rounded-lg border border-slate-100 bg-white/80 p-3 dark:border-slate-700/50 dark:bg-slate-800/50" data-rt-kpi="screenPageViews">
+          <div class="rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="screenPageViews">
             <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
             <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
             <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
@@ -91,7 +107,7 @@
         </div>
 
         {# Trend Chart #}
-        <div class="overflow-hidden rounded-lg border border-slate-100 bg-white/60 dark:border-slate-700/40 dark:bg-slate-800/30">
+        <div class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-600/60 dark:bg-slate-900" data-rt-chart-wrap>
           <div class="h-32 w-full" data-rt-chart></div>
         </div>
 
@@ -120,30 +136,30 @@
         </div>
 
         {% if profile in ('android', 'ios') %}
-        <div class="mt-4 flex min-h-[140px] flex-col rounded-lg border border-slate-200/90 bg-slate-50/90 p-4 dark:border-slate-600/80 dark:bg-slate-900/50" data-rt-events-section>
+        <div class="mt-4 flex min-h-[140px] flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-4 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
           <p class="border-b border-dashed border-slate-300 pb-1 text-sm font-semibold text-slate-800 dark:border-slate-600 dark:text-slate-100">Etkinlik sayısı (etkinlik adı)</p>
           <p class="mt-1 min-h-[2.25rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-events-basis></p>
           <div class="mt-3 flex gap-3">
             <div class="min-w-0 flex-1">
-              <p class="text-xs text-slate-500 dark:text-zinc-400"><span class="font-bold text-slate-600 dark:text-zinc-300">#1</span> <span class="break-all font-mono text-[11px] text-slate-700 dark:text-zinc-200" data-rt-events-top-name>—</span></p>
-              <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-zinc-50" data-rt-events-top-count>—</p>
-              <p class="text-xs tabular-nums text-slate-500 dark:text-zinc-500" data-rt-events-top-pct>—</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400"><span class="font-bold text-slate-600 dark:text-slate-300">#1</span> <span class="break-all font-mono text-[11px] text-slate-700 dark:text-slate-200" data-rt-events-top-name>—</span></p>
+              <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-slate-50" data-rt-events-top-count>—</p>
+              <p class="text-xs tabular-nums text-slate-500 dark:text-slate-400" data-rt-events-top-pct>—</p>
             </div>
-            <div class="flex h-[4.5rem] shrink-0 items-end gap-px rounded-sm bg-slate-50 px-1 dark:bg-zinc-950/80" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
+            <div class="flex h-[4.5rem] shrink-0 items-end gap-px rounded-sm bg-slate-100 px-1 dark:bg-slate-950" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
           </div>
-          <div class="mt-4 grid grid-cols-[1fr_auto] gap-x-3 border-b border-dashed border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:border-zinc-600 dark:text-zinc-500">
+          <div class="mt-4 grid grid-cols-[1fr_auto] gap-x-3 border-b border-dashed border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-600 dark:text-slate-500">
             <span>Etkinlik adı</span>
             <span class="text-right">Sayı</span>
           </div>
           <div class="mt-1 space-y-0" data-rt-events-list>
-            <p class="text-sm text-slate-400 dark:text-zinc-500 italic">yükleniyor…</p>
+            <p class="text-sm text-slate-400 dark:text-slate-500 italic">yükleniyor…</p>
           </div>
           <div class="mt-2 flex items-center justify-end gap-2">
-            <span class="text-[11px] tabular-nums text-slate-400 dark:text-zinc-500" data-rt-events-range></span>
-            <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Önceki">‹</button>
-            <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Sonraki">›</button>
+            <span class="text-[11px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-events-range></span>
+            <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Önceki">‹</button>
+            <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Sonraki">›</button>
           </div>
-          <p class="mt-1 text-[10px] tabular-nums text-slate-300 dark:text-zinc-600" data-rt-events-ts></p>
+          <p class="mt-1 text-[10px] tabular-nums text-slate-300 dark:text-slate-600" data-rt-events-ts></p>
         </div>
         {% endif %}
       </div>
@@ -153,7 +169,7 @@
   {% endfor %}
 
   {# Global alarms #}
-  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="rt-alarms-global">
+  <div class="rt-surface-solid rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" id="rt-alarms-global">
     <div class="mb-4 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <h3 class="text-base font-extrabold text-slate-800 dark:text-slate-200">Son Alarmlar</h3>
@@ -290,8 +306,12 @@
     });
     var users = trend.map(function (t) { return t.active_users || 0; });
     var th = (typeof window.seoPlotlyTheme === 'function') ? window.seoPlotlyTheme() : {};
-    var lineColor = '#52525b';
-    var fillColor = 'rgba(82,82,91,0.12)';
+    var root = document.documentElement;
+    var isDark = root.classList.contains('dark');
+    var lineColor = isDark ? '#94a3b8' : '#52525b';
+    var fillColor = isDark ? 'rgba(148,163,184,0.14)' : 'rgba(82,82,91,0.12)';
+    var gridColor = isDark ? (th.grid || '#334155') : (th.grid || '#e2e8f0');
+    var tickColor = isDark ? (th.tick || '#94a3b8') : (th.tick || '#64748b');
     var times = xDates.map(function (d) {
       return d ? new Date(d).getTime() : NaN;
     }).filter(function (t) { return !isNaN(t); });
@@ -301,7 +321,7 @@
       automargin: true,
       tickformat: '%H:%M',
       tickangle: -32,
-      tickfont: {size: 10, color: th.tick || '#64748b'}
+      tickfont: {size: 10, color: tickColor}
     };
     if (times.length >= 2) {
       var tMin = Math.min.apply(null, times);
@@ -332,9 +352,9 @@
       xaxis: xaxisCfg,
       yaxis: {
         showgrid: true,
-        gridcolor: th.grid || '#e2e8f0',
+        gridcolor: gridColor,
         gridwidth: 1,
-        tickfont: {size: 10, color: th.tick || '#64748b'},
+        tickfont: {size: 10, color: tickColor},
         zeroline: false
       }
     }, {displayModeBar: false, responsive: true});
@@ -351,7 +371,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages) {
-          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
           return;
         }
         _renderTopPages(listEl, d.pages, isViews);
@@ -361,7 +381,7 @@
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">hata</p>';
       });
   }
 
@@ -375,7 +395,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.events) {
-          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">veri yok</p>';
           return;
         }
         _rtEventState[key] = {
@@ -393,7 +413,7 @@
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">hata</p>';
       });
   }
   window.rtFetchTopEvents = rtFetchTopEvents;
@@ -438,7 +458,7 @@
       if (countEl) countEl.textContent = '—';
       if (pctEl) pctEl.textContent = '';
       if (sparkEl) sparkEl.innerHTML = '';
-      if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-zinc-500 italic">veri yok</p>';
+      if (listEl) listEl.innerHTML = '<p class="text-sm text-slate-400 dark:text-slate-500 italic">veri yok</p>';
       if (rangeEl) rangeEl.textContent = '';
       if (prevBtn) prevBtn.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
@@ -473,15 +493,15 @@
         var globalIdx = start + i + 1;
         var nm = _esc(e.eventName || '(adsız)');
         var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
-        var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-zinc-800/40' : '';
-        return '<div class="border-b border-slate-100 py-2 last:border-0 dark:border-zinc-800' + zebra + '">'
+        var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
+        return '<div class="border-b border-slate-100 py-2 last:border-0 dark:border-slate-700' + zebra + '">'
           + '<div class="flex items-start justify-between gap-2">'
-          + '<span class="w-5 shrink-0 text-right text-[10px] font-bold text-slate-400 dark:text-zinc-500">' + globalIdx + '</span>'
+          + '<span class="w-5 shrink-0 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500">' + globalIdx + '</span>'
           + '<div class="min-w-0 flex-1">'
-          + '<div class="truncate font-mono text-xs text-slate-700 dark:text-zinc-200" title="' + nm + '">' + nm + '</div>'
-          + '<div class="mt-1 h-1 rounded-full bg-slate-200 dark:bg-zinc-700"><div class="h-1 rounded-full bg-sky-500 dark:bg-sky-400" style="width:' + barW + '%"></div></div>'
+          + '<div class="truncate font-mono text-xs text-slate-700 dark:text-slate-200" title="' + nm + '">' + nm + '</div>'
+          + '<div class="mt-1 h-1 rounded-full bg-slate-200 dark:bg-slate-600"><div class="h-1 rounded-full bg-sky-500 dark:bg-sky-400" style="width:' + barW + '%"></div></div>'
           + '</div>'
-          + '<span class="shrink-0 tabular-nums text-sm font-semibold text-slate-700 dark:text-zinc-200">' + _fmt(e.eventCount) + '</span>'
+          + '<span class="shrink-0 tabular-nums text-sm font-semibold text-slate-700 dark:text-slate-200">' + _fmt(e.eventCount) + '</span>'
           + '</div></div>';
       }).join('');
     }
@@ -531,7 +551,7 @@
   function _renderTopPages(listEl, pages, viewsMode) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="text-sm text-slate-400 italic">veri yok</p>';
+      listEl.innerHTML = '<p class="text-sm text-slate-400 italic dark:text-slate-500">veri yok</p>';
       return;
     }
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
@@ -549,7 +569,7 @@
       var secondary = viewsMode
         ? '<span class="text-xs text-slate-400">' + users + ' kul.</span>'
         : '<span class="text-xs text-slate-400">' + views + ' gör.</span>';
-      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800/30' : '';
+      var zebra = i % 2 === 0 ? ' bg-slate-50/80 dark:bg-slate-800' : '';
       return '<div class="flex items-center gap-2 rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="w-5 text-right text-xs font-bold text-slate-400">' + (i + 1) + '</span>'
         + '<div class="min-w-0 flex-1">'
