@@ -42,26 +42,36 @@ def _truncate_prompt(prompt: str, max_chars: int) -> str:
 
 
 def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]]:
-    import google.generativeai as genai
-
     prompt = _truncate_prompt(prompt, _GEMINI_MAX_PROMPT_CHARS)
-    genai.configure(api_key=(settings.gemini_api_key or "").strip())
-    model = genai.GenerativeModel(
-        model_name,
-        generation_config={
-            "temperature": 0.35,
-            "response_mime_type": "application/json",
-        },
-    )
-    resp = model.generate_content(prompt)
-    um = getattr(resp, "usage_metadata", None)
-    pt = int(getattr(um, "prompt_token_count", None) or 0) if um is not None else 0
-    ct = int(getattr(um, "candidates_token_count", None) or 0) if um is not None else 0
-    if um is not None and ct <= 0:
-        tot = getattr(um, "total_token_count", None)
-        if tot is not None:
-            ct = max(0, int(tot) - pt)
-    return _parse_json_object(resp.text or ""), (pt, ct)
+    key = (settings.gemini_api_key or "").strip()
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY tanımlı değil.")
+    try:
+        import google.genai as genai  # yeni SDK: google-genai
+        client = genai.Client(api_key=key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config={"response_mime_type": "application/json", "temperature": 0.35},
+        )
+        text = response.text or ""
+        um = getattr(response, "usage_metadata", None)
+        pt = int(getattr(um, "prompt_token_count", None) or 0) if um else 0
+        ct = int(getattr(um, "candidates_token_count", None) or 0) if um else 0
+    except ImportError:
+        # Eski SDK: google-generativeai
+        import google.generativeai as genai_old  # type: ignore
+        genai_old.configure(api_key=key)
+        model_obj = genai_old.GenerativeModel(
+            model_name,
+            generation_config={"temperature": 0.35, "response_mime_type": "application/json"},
+        )
+        resp = model_obj.generate_content(prompt)
+        text = resp.text or ""
+        um = getattr(resp, "usage_metadata", None)
+        pt = int(getattr(um, "prompt_token_count", None) or 0) if um else 0
+        ct = int(getattr(um, "candidates_token_count", None) or 0) if um else 0
+    return _parse_json_object(text), (pt, ct)
 
 
 def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
@@ -75,13 +85,13 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
     for cand in (
         str(model or "").strip(),
         "llama-3.3-70b-versatile",
-        "openai/gpt-oss-120b",
-        "mixtral-8x7b-32768",
+        "llama3-70b-8192",
+        "llama3-8b-8192",
     ):
         if cand and cand not in model_candidates:
             model_candidates.append(cand)
     last_err: Exception | None = None
-    with httpx.Client(timeout=420.0) as client:
+    with httpx.Client(timeout=55.0) as client:
         for model_name in model_candidates:
             for json_mode in (True, False):
                 req_body: dict[str, Any] = {
