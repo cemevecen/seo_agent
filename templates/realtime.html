@@ -802,6 +802,7 @@
       </div>
     </div>
     <div id="rt-alarm-panel-page" class="hidden">
+      <div id="rt-alarm-page-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sayfa ve haber — site filtresi"></div>
       <div class="space-y-2" id="rt-alarm-list-page">
         <p class="text-sm text-slate-400 dark:text-slate-500">Henüz sayfa alarmı yok.</p>
       </div>
@@ -1684,9 +1685,9 @@
   window.rtSetAlarmSiteFilter = rtSetAlarmSiteFilter;
 
   function _syncAlarmSitePills() {
-    var wrap = document.getElementById('rt-alarm-site-pills');
-    if (!wrap) return;
-    wrap.querySelectorAll('[data-rt-alarm-site-filter]').forEach(function (btn) {
+    var root = document.getElementById('rt-alarms-global');
+    if (!root) return;
+    root.querySelectorAll('[data-rt-alarm-site-filter]').forEach(function (btn) {
       var id = btn.getAttribute('data-rt-alarm-site-filter');
       var on = id === 'all' ? _alarmSiteFilter === 'all' : String(id) === String(_alarmSiteFilter);
       btn.setAttribute('aria-checked', on ? 'true' : 'false');
@@ -1696,30 +1697,46 @@
   }
 
   function _initRtAlarmSitePills() {
-    var wrap = document.getElementById('rt-alarm-site-pills');
-    if (!wrap || !RT_ALARM_SITES || RT_ALARM_SITES.length < 2) {
-      if (wrap) wrap.classList.add('hidden');
+    var wrapSite = document.getElementById('rt-alarm-site-pills');
+    var wrapPage = document.getElementById('rt-alarm-page-pills');
+    function hidePillBars() {
+      if (wrapSite) {
+        wrapSite.classList.add('hidden');
+        wrapSite.innerHTML = '';
+      }
+      if (wrapPage) {
+        wrapPage.classList.add('hidden');
+        wrapPage.innerHTML = '';
+      }
       _alarmSiteFilter = 'all';
+    }
+    if (!RT_ALARM_SITES || RT_ALARM_SITES.length < 2) {
+      hidePillBars();
       return;
     }
-    wrap.classList.remove('hidden');
-    wrap.innerHTML = '';
-    function addPill(id, label) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.setAttribute('role', 'radio');
-      b.setAttribute('data-rt-alarm-site-filter', id);
-      b.textContent = label;
-      b.className = 'rt-alarm-site-pill';
-      b.addEventListener('click', function () {
-        rtSetAlarmSiteFilter(id);
+    function fillWrap(wrap) {
+      if (!wrap) return;
+      wrap.classList.remove('hidden');
+      wrap.innerHTML = '';
+      function addPill(id, label) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.setAttribute('data-rt-alarm-site-filter', id);
+        b.textContent = label;
+        b.className = 'rt-alarm-site-pill';
+        b.addEventListener('click', function () {
+          rtSetAlarmSiteFilter(id);
+        });
+        wrap.appendChild(b);
+      }
+      addPill('all', 'Tümü');
+      RT_ALARM_SITES.forEach(function (s) {
+        addPill(String(s.id), s.display_name || s.domain || String(s.id));
       });
-      wrap.appendChild(b);
     }
-    addPill('all', 'Tümü');
-    RT_ALARM_SITES.forEach(function (s) {
-      addPill(String(s.id), s.display_name || s.domain || String(s.id));
-    });
+    fillWrap(wrapSite);
+    fillWrap(wrapPage);
     _syncAlarmSitePills();
   }
 
@@ -1856,7 +1873,15 @@
         ? 'Seçilen site için bu aralıkta alarm yok.'
         : 'Henüz site alarmı yok.';
     _renderSiteAlarmTable(siteList, siteFiltered, showCount, siteEmpty);
-    _renderAlarmList(pageList, pageAlarms, showCount, 'Henüz sayfa alarmı yok.');
+    var pageFiltered = pageAlarms.filter(function (a) {
+      if (_alarmSiteFilter === 'all') return true;
+      return String(a.site_id || '') === String(_alarmSiteFilter);
+    });
+    var pageEmpty =
+      pageAlarms.length && !pageFiltered.length
+        ? 'Seçilen site için bu aralıkta sayfa/haber alarmı yok.'
+        : 'Henüz sayfa alarmı yok.';
+    _renderAlarmList(pageList, pageFiltered, showCount, pageEmpty);
   }
 
   function _rtAlarmRawFromMetric(metric) {
