@@ -244,16 +244,51 @@
 
   async function jfetch(url, opts) {
     var r = await fetch(url, Object.assign({ credentials: "same-origin", headers: { Accept: "application/json" } }, opts || {}));
-    var ct = r.headers.get("content-type") || "";
+    var ct = (r.headers.get("content-type") || "").toLowerCase();
+    var text = await r.text();
     var data = null;
-    if (ct.indexOf("application/json") !== -1) {
-      data = await r.json();
+    var t0 = text.trim();
+    if (
+      t0.length &&
+      (ct.indexOf("application/json") !== -1 || t0.charAt(0) === "{" || t0.charAt(0) === "[")
+    ) {
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        if (!r.ok) {
+          throw new Error(
+            "Sunucu yanıtı JSON değil (" +
+              r.status +
+              "): " +
+              t0.slice(0, 400) +
+              (t0.length > 400 ? "…" : "")
+          );
+        }
+        throw parseErr;
+      }
     }
     if (!r.ok) {
-      var msg = (data && (data.detail || data.message)) || r.statusText;
-      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      var msg = "";
+      if (data) {
+        if (typeof data.detail === "string") msg = data.detail;
+        else if (Array.isArray(data.detail)) {
+          msg = data.detail
+            .map(function (d) {
+              if (!d) return "";
+              return String(d.msg || d.message || d.loc || "").trim();
+            })
+            .filter(Boolean)
+            .join("; ");
+        } else if (data.detail != null) msg = JSON.stringify(data.detail);
+        if (!msg && typeof data.error === "string") msg = data.error;
+        if (!msg && data.error && typeof data.error === "object" && data.error.message)
+          msg = String(data.error.message);
+        if (!msg && data.message != null) msg = String(data.message);
+      }
+      if (!msg) msg = t0.slice(0, 600) || r.statusText || "HTTP " + r.status;
+      throw new Error(msg);
     }
-    return data;
+    return data !== null ? data : {};
   }
 
   async function loadStatus() {
@@ -424,10 +459,23 @@
   document.getElementById("inbox-sync-btn").addEventListener("click", async function () {
     try {
       await jfetch("/api/inbox/sync", { method: "POST" });
-      await loadThreads();
-      if (selectedId) await openDetail(selectedId);
+      hideBanner();
     } catch (e) {
-      showBanner(String(e.message || e));
+      showBanner("Senkronizasyon: " + String(e.message || e));
+      return;
+    }
+    try {
+      await loadThreads();
+    } catch (e) {
+      showBanner("Liste yenilenemedi (Gmail senkronu tamam): " + String(e.message || e));
+      return;
+    }
+    if (selectedId) {
+      try {
+        await openDetail(selectedId);
+      } catch (e) {
+        showBanner("Detay yenilenemedi: " + String(e.message || e));
+      }
     }
   });
   document.getElementById("inbox-disconnect-btn").addEventListener("click", async function () {

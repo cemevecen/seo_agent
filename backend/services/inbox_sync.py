@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import re
 from datetime import datetime
@@ -11,6 +12,7 @@ from typing import Any
 
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -132,6 +134,18 @@ def _gmail_service(creds):
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
 
+def _gmail_http_error_message(exc: HttpError) -> str:
+    try:
+        raw = exc.content.decode("utf-8", errors="replace") if exc.content else ""
+        payload = json.loads(raw) if raw else {}
+        err = payload.get("error") or {}
+        if isinstance(err, dict):
+            return str(err.get("message") or err.get("status") or raw[:240])
+        return str(err)[:300]
+    except Exception:  # noqa: BLE001
+        return str(exc)[:300]
+
+
 def _ensure_fresh_creds(db: Session, creds):
     row = inbox_gmail_auth.get_inbox_credential_row(db)
     if creds.expired and creds.refresh_token:
@@ -150,12 +164,31 @@ def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
 
     service = _gmail_service(creds)
     q = (settings.inbox_gmail_query or "").strip() or "(to:info@doviz.com OR to:feedback@doviz.com)"
-    lst = (
-        service.users()
-        .threads()
-        .list(userId="me", q=q, maxResults=max_threads)
-        .execute()
-    )
+    try:
+        lst = (
+            service.users()
+            .threads()
+            .list(userId="me", q=q, maxResults=max_threads)
+            .execute()
+        )
+    except HttpError as exc:
+        msg = _gmail_http_error_message(exc)
+        st_raw = getattr(getattr(exc, "resp", None), "status", None)
+        try:
+            st = int(st_raw) if st_raw is not None else 0
+        except (TypeError, ValueError):
+            st = 0
+        if st == 401:
+            raise RuntimeError(
+                "Gmail oturumu geçersiz veya süresi doldu. «Bağlantıyı kes» deyip yeniden Google ile bağlanın."
+            ) from exc
+        if st == 403:
+            raise RuntimeError(f"Gmail erişim reddedildi: {msg}") from exc
+        if st == 429:
+            raise RuntimeError(
+                f"Gmail API hız sınırı; birkaç dakika sonra tekrar deneyin. ({msg})"
+            ) from exc
+        raise RuntimeError(f"Gmail ileti listesi alınamadı (HTTP {st}): {msg}") from exc
     thread_list = lst.get("threads") or []
     synced = 0
     for tref in thread_list:

@@ -213,13 +213,16 @@ def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/sync")
-@limiter.limit("12/minute")
+@limiter.limit("30/minute")
 def inbox_sync_post(request: Request, db: Session = Depends(get_db)):
     try:
         out = inbox_sync.sync_inbox_threads(db, max_threads=35)
         return JSONResponse(out)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("inbox sync beklenmeyen hata")
+        raise HTTPException(status_code=502, detail=f"Senkron hatası: {exc}") from exc
 
 
 @router.get("/threads")
