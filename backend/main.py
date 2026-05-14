@@ -9075,6 +9075,8 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
             "ga4_realtime_email_enabled": settings.ga4_realtime_email_enabled,
             "ga4_realtime_page_alert_email": settings.ga4_realtime_page_alert_email,
             "smtp_configured": _smtp_configured(),
+            "smtp_host": settings.smtp_host,
+            "smtp_port": settings.smtp_port,
             "mail_to": settings.mail_to,
             "mail_to_list": recipient_list,
             "is_ready": is_realtime_mail_ready(),
