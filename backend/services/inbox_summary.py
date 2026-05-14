@@ -22,8 +22,8 @@ def run_inbox_summary_job(db: Session):
         logger.warning("Inbox summary sync failed (continuing with local data): %s", exc)
 
     # 2. Okunmamış mesajları sorgula
-    # Hedef etiketler: info (doviz), sinemalar, feedback
-    target_tags = ["info", "sinemalar", "feedback"]
+    # Hedef etiketler: info (doviz), sinemalar, feedback ve mixed (birden fazla hesaba gelenler)
+    target_tags = ["info", "sinemalar", "feedback", "mixed"]
     unread_threads = (
         db.query(SupportInboxThread)
         .filter(SupportInboxThread.gmail_unread == True)
@@ -32,12 +32,14 @@ def run_inbox_summary_job(db: Session):
         .all()
     )
 
+    logger.info("Unread threads found: %d (tags: %s)", len(unread_threads), target_tags)
+
     if not unread_threads:
         logger.info("No unread threads found for summary. Skipping email.")
         return
 
     # 3. İstatistikleri ve Raporu Hazırla
-    counts = {"info": 0, "sinemalar": 0, "feedback": 0}
+    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "mixed": 0}
     for t in unread_threads:
         if t.route_tag in counts:
             counts[t.route_tag] += 1
@@ -51,6 +53,8 @@ def run_inbox_summary_job(db: Session):
     lines.append(f"<b>info@doviz.com:</b> {counts['info']} mesaj<br/>")
     lines.append(f"<b>info@sinemalar.com:</b> {counts['sinemalar']} mesaj<br/>")
     lines.append(f"<b>feedback@doviz.com:</b> {counts['feedback']} mesaj<br/>")
+    if counts["mixed"] > 0:
+        lines.append(f"<b>Birden Fazla / Karma:</b> {counts['mixed']} mesaj<br/>")
     lines.append(f"<p><b>Toplam: {len(unread_threads)} okunmamış konuşma.</b></p>")
     lines.append("</div>")
 
@@ -79,7 +83,8 @@ def run_inbox_summary_job(db: Session):
         tag_label = {
             "info": "info@doviz.com",
             "sinemalar": "info@sinemalar.com",
-            "feedback": "feedback@doviz.com"
+            "feedback": "feedback@doviz.com",
+            "mixed": "Çoklu Hesap"
         }.get(t.route_tag, t.route_tag)
         
         lines.append(
