@@ -24,7 +24,12 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Rakip": [
-        "https://news.google.com/rss/search?q=(site:ekonomim.com OR site:dunya.com OR site:bloomberght.com OR site:cnbce.com OR site:ntv.com.tr OR site:cnnturk.com OR site:foreks.com OR site:gazeteoksijen.com) (finans OR ekonomi OR politika) when:12h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=site:ekonomim.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:dunya.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:bloomberght.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:cnbce.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:foreks.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:gazeteoksijen.com+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Yahoo Finance": [
         "https://finance.yahoo.com/news/rssindex",
@@ -110,10 +115,21 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     display_topic = matched_topic.capitalize() if matched_topic else category
                     
                     # Tarih dönüşümü
-                    try:
-                        # Thu, 14 May 2026 17:00:00 GMT
-                        published_at = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %Z")
-                    except:
+                    published_at = None
+                    date_formats = [
+                        "%a, %d %b %Y %H:%M:%S %Z",
+                        "%a, %d %b %Y %H:%M:%S %z",
+                        "%Y-%m-%dT%H:%M:%S%z",
+                        "%Y-%m-%d %H:%M:%S"
+                    ]
+                    for fmt in date_formats:
+                        try:
+                            published_at = datetime.strptime(pub_date_str, fmt)
+                            break
+                        except:
+                            continue
+                    
+                    if not published_at:
                         published_at = datetime.utcnow()
 
                     # DB'de var mı kontrol et (ÖNCE KONTROL: Varsa çeviriye girme, vakit kazan)
