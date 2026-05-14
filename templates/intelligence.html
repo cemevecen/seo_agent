@@ -12,7 +12,7 @@
     </button>
   </div>
 
-  <div class="mt-4 rounded-[2rem] border border-slate-100 bg-slate-50 p-6 shadow-sm dark:border-white/5 dark:bg-[#0c0c0e]">
+  <div class="mt-4 rt-intel-container rounded-[2rem] border p-6 shadow-sm">
     <div class="mb-6 flex gap-1 border-b border-slate-200/60 dark:border-white/5">
       <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive">Dünya</button>
@@ -27,6 +27,13 @@
 </div>
 
 <style>
+  /* Global Container ve Kart Renkleri */
+  .rt-intel-container { background-color: #ffffff; border-color: #f1f5f9; }
+  html.dark .rt-intel-container { background-color: #09090b !important; border-color: rgba(255,255,255,0.03) !important; }
+
+  .rt-intel-card { background-color: #ffffff; border-color: #f1f5f9; }
+  html.dark .rt-intel-card { background-color: #121214 !important; border-color: rgba(255,255,255,0.03) !important; }
+
   .rt-alarm-tab-active {
     padding: 0.75rem 1.25rem;
     font-size: 0.875rem;
@@ -49,11 +56,6 @@
   html.dark .rt-alarm-tab-inactive {
     color: #52525b;
   }
-  /* Dark Mode için zorunlu renk düzeltmeleri */
-  html.dark .bg-white { background-color: #121214 !important; }
-  html.dark .border-slate-100 { border-color: rgba(255, 255, 255, 0.03) !important; }
-  html.dark .text-slate-900 { color: #e4e4e7 !important; }
-  html.dark .text-slate-500 { color: #71717a !important; }
 </style>
 
 <script>
@@ -133,7 +135,7 @@
             } catch(e) { faviconUrl = '/static/favicon.png'; }
 
             return `
-              <div class="group flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-100/80 bg-white p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:border-white/5 dark:bg-[#121214] dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
+              <div class="group rt-intel-card flex items-start gap-4 overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
                 <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1.5 dark:bg-zinc-800/40">
                   <img src="${faviconUrl}" 
                        class="h-full w-full object-contain" 
