@@ -112,8 +112,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         if title.endswith(suffix):
                             title = title[:-len(suffix)].strip()
                     
-                    # 50 karakter sınırı ve temel filtreler
-                    if len(title) < 50:
+                    # 40 karakter sınırı ve temel filtreler
+                    if len(title) < 40:
                         continue
                     
                     # Eğer başlık sadece site adından oluşuyorsa veya çok jenerikse atla
