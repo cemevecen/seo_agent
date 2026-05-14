@@ -18,6 +18,8 @@ from typing import Any
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     Dimension,
+    Filter,
+    FilterExpression,
     Metric,
     MinuteRange,
     OrderBy,
@@ -513,6 +515,8 @@ def _fetch_realtime_comparison_with_metrics(
     property_id: str,
     window_minutes: int,
     metrics: list[Metric],
+    *,
+    dimension_filter: FilterExpression | None = None,
 ) -> dict[str, Any]:
     """İki minuteRange + tek toplam aralık; metrik listesi dışarıdan (yeniden deneme için)."""
     half = 15
@@ -525,6 +529,7 @@ def _fetch_realtime_comparison_with_metrics(
             MinuteRange(name="current", start_minutes_ago=half - 1, end_minutes_ago=0),
             MinuteRange(name="previous", start_minutes_ago=2 * half - 1, end_minutes_ago=half),
         ],
+        dimension_filter=dimension_filter,
     )
 
     total_start = min(max(1, window_minutes), 30) - 1
@@ -534,6 +539,7 @@ def _fetch_realtime_comparison_with_metrics(
         minute_ranges=[
             MinuteRange(name="total", start_minutes_ago=total_start, end_minutes_ago=0),
         ],
+        dimension_filter=dimension_filter,
     )
 
     t0 = time.monotonic()
@@ -617,6 +623,7 @@ def fetch_realtime_comparison(
     window_minutes: int = DEFAULT_WINDOW_MINUTES,
     *,
     client: BetaAnalyticsDataClient | None = None,
+    dimension_filter: FilterExpression | None = None,
 ) -> dict[str, Any]:
     """İki minuteRange ile Realtime API karşılaştırması + tek aralık toplamı.
 
@@ -663,7 +670,9 @@ def fetch_realtime_comparison(
     last_exc: Exception | None = None
     for label, mset in metric_sets:
         try:
-            out = _fetch_realtime_comparison_with_metrics(client, pid, window_minutes, mset)
+            out = _fetch_realtime_comparison_with_metrics(
+                client, pid, window_minutes, mset, dimension_filter=dimension_filter
+            )
             if label != metric_sets[0][0]:
                 logger.warning(
                     "GA4 Realtime karşılaştırma — uygulama/web uyumu için metrik kümesi düşürüldü (%s, property=%s).",
@@ -1395,8 +1404,40 @@ def check_site_realtime(
             "message": f"Site {site.domain} için GA4 property ({profile}) tanımlı değil.",
         }
 
+    # Profil bazlı dimension filter oluştur
+    dim_filter = None
+    if profile == "web":
+        dim_filter = FilterExpression(
+            filter=Filter(
+                field_name="deviceCategory",
+                string_filter=Filter.StringFilter(value="desktop"),
+            )
+        )
+    elif profile == "mweb":
+        dim_filter = FilterExpression(
+            filter=Filter(
+                field_name="deviceCategory",
+                string_filter=Filter.StringFilter(value="mobile"),
+            )
+        )
+    elif profile == "android":
+        dim_filter = FilterExpression(
+            filter=Filter(
+                field_name="platform",
+                string_filter=Filter.StringFilter(value="Android"),
+            )
+        )
+    elif profile == "ios":
+        dim_filter = FilterExpression(
+            filter=Filter(
+                field_name="platform",
+                string_filter=Filter.StringFilter(value="iOS"),
+            )
+        )
+
     try:
-        result = fetch_realtime_comparison(property_id, window_minutes)
+        logger.info("GA4 Realtime Fetch: site=%s profile=%s property=%s", site.domain, profile, property_id)
+        result = fetch_realtime_comparison(property_id, window_minutes, dimension_filter=dim_filter)
     except Exception as exc:
         logger.warning("GA4 Realtime API hatası [%s / %s]: %s", site.domain, property_id, exc)
         return {
@@ -1630,14 +1671,12 @@ def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_W
         if not base_web and not any((properties.get(p) or "").strip() for p in profile_order):
             continue
         for profile in profile_order:
-            explicit = (properties.get(profile) or "").strip()
-            # Realtime sayfası yalnızca GA'da ayrı property ID'si olan profilleri gösterir;
-            # web dışında yalnızca web'e düşerek aynı veriyi iki kez çekmeyi atla.
-            pid = explicit or base_web
+            pid = (properties.get(profile) or "").strip() or base_web
             if not pid:
                 continue
-            if profile != "web" and not explicit:
-                continue
+            # Artık dimension filter kullandığımız için web fallback olsa dahi 
+            # her profil için ayrı snapshot kaydediyoruz. 
+            # API kota limitlerini izlemek gerekebilir.
             try:
                 r = check_site_realtime(db, site, window_minutes=window_minutes, profile=profile)
                 results.append(r)
