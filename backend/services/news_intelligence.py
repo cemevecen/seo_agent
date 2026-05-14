@@ -66,19 +66,16 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 if media_content is not None:
                     image_url = media_content.get("url")
                 
-                # img tagı kontrolü (daha sağlam regex + piksel filtresi)
+                # img tagı kontrolü (regex iyileştirildi)
                 if not image_url and description:
-                    # Tüm src'leri bul
-                    all_imgs = re.findall(r'src=["\']([^"\']+)["\']', description)
-                    for img in all_imgs:
-                        # 1x1 piksel veya tracking parametreleri içerenleri atla
-                        if any(x in img.lower() for x in ["1x1", "pixel", "ads", "analytics"]):
-                            continue
-                        
-                        image_url = img
-                        if image_url.startswith("//"):
+                    # Headlines RSS içinde genelde <img src="..."> şeklinde olur
+                    img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', description)
+                    if img_match:
+                        image_url = img_match.group(1)
+                        if any(x in image_url.lower() for x in ["/pixel/", "1x1", "tracking", "google-analytics"]):
+                            image_url = None
+                        elif image_url.startswith("//"):
                             image_url = "https:" + image_url
-                        break
                 
                 # Google News spesifik thumbnail kontrolü (enclosure & media:thumbnail)
                 if not image_url:
