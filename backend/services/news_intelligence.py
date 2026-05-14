@@ -116,6 +116,11 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     except:
                         published_at = datetime.utcnow()
 
+                    # DB'de var mı kontrol et (ÖNCE KONTROL: Varsa çeviriye girme, vakit kazan)
+                    exists = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first()
+                    if exists:
+                        continue
+
                     # Yahoo Finance haberlerini otomatik Türkçeye çevir (Ücretsiz)
                     if category == "Yahoo Finance":
                         # Personal Finance içeriklerini ele
@@ -129,24 +134,22 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         except Exception as te:
                             logger.error(f"Auto-translation failed for Yahoo item: {te}")
 
-                    # DB'de var mı kontrol et
-                    exists = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first()
-                    if not exists:
-                        new_item = NewsIntelligenceItem(
-                            url=link,
-                            headline=title,
-                            content=description,
-                            source_name=source_name,
-                            source_url=source_url,
-                            image_url=image_url,
-                            category=category,
-                            topic=display_topic,
-                            published_at=published_at,
-                            is_in_our_site=False,
-                            ai_note=None
-                        )
-                        db.add(new_item)
-                        new_count += 1
+                    # Yeni haberi kaydet
+                    new_item = NewsIntelligenceItem(
+                        url=link,
+                        headline=title,
+                        content=description,
+                        source_name=source_name,
+                        source_url=source_url,
+                        image_url=image_url,
+                        category=category,
+                        topic=display_topic,
+                        published_at=published_at,
+                        is_in_our_site=False,
+                        ai_note=None
+                    )
+                    db.add(new_item)
+                    new_count += 1
                 
                 db.commit()
                 if new_count > 0:
