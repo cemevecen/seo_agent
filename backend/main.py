@@ -9015,6 +9015,7 @@ def _run_ga4_realtime_check_job() -> None:
                 all_summary_alarms.extend(news_alarms)
 
         # ÖZET MAİLİ GÖNDER (En önemli 10 alarmı içerecek şekilde)
+        LOGGER.info("GA4 Realtime Check Bitti. Toplam Alarm Sayısı: %d", len(all_summary_alarms))
         if all_summary_alarms:
             from backend.services.ga4_realtime import send_realtime_summary_email
             send_realtime_summary_email(all_summary_alarms)
