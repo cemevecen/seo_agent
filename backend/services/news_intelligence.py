@@ -4,11 +4,45 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import requests
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session
 from backend.models import NewsIntelligenceItem
 from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+def extract_image_from_url(url: str) -> str:
+    """Haber sayfasını ziyaret edip og:image veya twitter:image meta etiketlerini arar."""
+    if not url:
+        return None
+    try:
+        # User-agent önemli
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        # Timeout'u kısa tutalım ki sync kilitlenmesin
+        resp = requests.get(url, headers=headers, timeout=5, allow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        
+        html = resp.text
+        # og:image kontrolü
+        og_match = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
+        if not og_match:
+            og_match = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
+        
+        if og_match:
+            return og_match.group(1)
+            
+        # twitter:image kontrolü
+        tw_match = re.search(r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', html)
+        if tw_match:
+            return tw_match.group(1)
+            
+        return None
+    except Exception as e:
+        logger.debug(f"Failed to extract image from {url}: {e}")
+        return None
 
 # Kategori bazlı resmi Google News Headlines RSS linkleri
 CATEGORY_URLS = {
@@ -87,6 +121,14 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         media_thumb = item.find("{http://search.yahoo.com/mrss/}thumbnail")
                         if media_thumb is not None:
                             image_url = media_thumb.get("url")
+                
+                # Hiç görsel bulunamadıysa DERİN TARAMA (Deep Fetch) yap
+                if not image_url and link:
+                    # Sadece yeni eklenecekse derin tarama yapalım (DB yükünü azaltmak için)
+                    exists = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first()
+                    if not exists:
+                        logger.info("RSS lacks image for %s, attempting deep fetch...", title[:50])
+                        image_url = extract_image_from_url(link)
                 
                 # Etiketleme için anahtar kelime kontrolü
                 combined_text = (title + " " + description).lower()
