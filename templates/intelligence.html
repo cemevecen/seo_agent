@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <div class="mt-4 rt-intel-container rounded-[2rem] border p-6 shadow-sm">
+  <div class="mt-4 rt-intel-container rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#09090b]">
     <div class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200/60 pb-1 scrollbar-hide dark:border-white/5">
       <button type="button" onclick="rtSwitchIntelTab('Genel')" id="rt-intel-tab-genel" class="rt-alarm-tab-active whitespace-nowrap flex-shrink-0">Genel</button>
       <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Finans & Borsa</button>
@@ -176,7 +176,7 @@
             } catch(e) { faviconUrl = '/static/favicon.png'; }
 
             return `
-              <div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
+              <div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:border-slate-800/50 dark:bg-[#111113] dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-2 min-w-0">
                     <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/40">
