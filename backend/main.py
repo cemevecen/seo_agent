@@ -627,6 +627,17 @@ def admin_run_inbox_summary_now():
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/admin/run-news-intelligence-now")
+def admin_run_news_intelligence_now():
+    """Haber istihbarat taramasını MANUEL olarak tetikler."""
+    from backend.services.news_intelligence import run_news_intelligence_job
+    try:
+        run_news_intelligence_job()
+        return {"status": "ok", "message": "Haber istihbarat taraması başarıyla tetiklendi."}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon_ico() -> RedirectResponse:
     return RedirectResponse(url="/static/favicon.png", status_code=307)
@@ -2752,6 +2763,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=1800,
+    )
+    job_count += 1
+
+    # Haber İstihbaratı (Her 15 dakikada bir sektörel tarama)
+    from apscheduler.triggers.interval import IntervalTrigger as _IntervalTrigger
+    scheduler.add_job(
+        _run_news_intelligence_job,
+        trigger=_IntervalTrigger(minutes=15, timezone=timezone),
+        id="news-intelligence-sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
     )
     job_count += 1
 
@@ -9084,6 +9108,15 @@ def _run_inbox_summary_job() -> None:
             run_inbox_summary_job(db)
     except Exception:
         LOGGER.exception("Inbox summary job failed")
+
+
+def _run_news_intelligence_job() -> None:
+    """APScheduler: Google News istihbarat taraması."""
+    try:
+        from backend.services.news_intelligence import run_news_intelligence_job
+        run_news_intelligence_job()
+    except Exception:
+        LOGGER.exception("News intelligence job failed")
 
 
 def _run_scheduled_db_cleanup_job() -> None:
