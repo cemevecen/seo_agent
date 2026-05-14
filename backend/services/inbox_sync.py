@@ -254,6 +254,7 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
             .list(userId="me", q=q, maxResults=max_threads)
             .execute()
         )
+        LOGGER.info("Inbox Sync: Gmail listeleme başarılı (query=%s, max=%d)", q, max_threads)
     except HttpError as exc:
         msg = _gmail_http_error_message(exc)
         st_raw = getattr(getattr(exc, "resp", None), "status", None)
@@ -271,6 +272,7 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
             raise RuntimeError(
                 f"Gmail API hız sınırı; birkaç dakika sonra tekrar deneyin. ({msg})"
             ) from exc
+        LOGGER.error("Inbox Sync: Gmail listeleme hatası (HTTP %s): %s (query=%s)", st, msg, q)
         raise RuntimeError(f"Gmail ileti listesi alınamadı (HTTP {st}): {msg}") from exc
     thread_list = lst.get("threads") or []
     n = len(thread_list)
