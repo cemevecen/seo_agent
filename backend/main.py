@@ -615,13 +615,12 @@ app = FastAPI(title="SEO Agent Dashboard")
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon_ico() -> RedirectResponse:
-    # Tarayıcılar çoğunlukla kökte /favicon.ico ister; repoda yalnızca static/favicon.svg var.
-    return RedirectResponse(url="/static/favicon.svg", status_code=307)
+    return RedirectResponse(url="/static/favicon.png", status_code=307)
 
 
 @app.get("/apple-touch-icon.png", include_in_schema=False)
 def apple_touch_icon() -> RedirectResponse:
-    return RedirectResponse(url="/static/favicon.svg", status_code=307)
+    return RedirectResponse(url="/static/apple-touch-icon.png", status_code=307)
 
 
 # Static mount dosya sonunda (Starlette: Mount genelde en sonda; aksi halde bazı rotalar 404 dönebilir).
@@ -8963,7 +8962,7 @@ def _run_db_retention_cleanup() -> dict:
     return stats
 
 
-def _run_ga4_realtime_check_job() -> None:
+def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
     """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü.
     00:00–07:00 arası çalışmaz (kota tasarrufu); bu saatler dışında çalışır."""
     from datetime import datetime as _dt
@@ -8972,9 +8971,12 @@ def _run_ga4_realtime_check_job() -> None:
     now_local = _dt.now(_ZoneInfo(tz_name))
     hour = now_local.hour
     is_night = (0 <= hour < 7)
-    LOGGER.info("GA4 Realtime Job Check: local_time=%s, hour=%d, is_night=%s", now_local.isoformat(), hour, is_night)
+    
+    if is_night and not force_run:
+        LOGGER.info("GA4 Realtime Job: Gece modu aktif (saat %d), kontrol atlanıyor.", hour)
+        return {"status": "skipped", "reason": "night_mode"}
 
-    try:
+    LOGGER.info(">>> GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BAŞLADI (local_time=%s, force=%s)", now_local.isoformat(), force_run)
         from backend.services.ga4_realtime import (
             run_all_sites_realtime_check,
             run_news_alarm_check_all_sites,
@@ -9162,7 +9164,7 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
 def admin_run_realtime_job_now():
     """Realtime alarm kontrol işini manuel, senkron ve detaylı hata raporuyla çalıştırır."""
     try:
-        results = _run_ga4_realtime_check_job()
+        results = _run_ga4_realtime_check_job(force_run=True)
         return {
             "status": "ok", 
             "message": "GA4 Realtime kontrol işi SENKRON olarak tamamlandı.",
