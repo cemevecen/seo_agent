@@ -343,11 +343,6 @@
           }, 50);
         });
       });
-    } catch (e) {
-      templatesCache = [];
-      templateFocus = null;
-      list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">' + esc(String(e.message || e)) + "</p>";
-    }
   }
 
   (function bindTemplateProviderButtons() {
