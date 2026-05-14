@@ -87,12 +87,20 @@ def run_inbox_summary_job(db: Session):
             "mixed": "Çoklu Hesap"
         }.get(t.route_tag, t.route_tag)
         
+        content_html = latest_inbound.body_text if latest_inbound and latest_inbound.body_text else t.snippet
+        # Basit bir temizlik: HTML taglarını metne çevirmek gerekebilir ama mailer zaten HTML destekliyor.
+        # Yine de çok uzunsa veya satır sonları varsa düzenleyelim.
+        content_display = content_html.replace("\n", "<br/>")
+        
         lines.append(
-            f"<li style='border-bottom: 1px solid #e2e8f0; padding: 10px 0;'>"
-            f"<span style='background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold;'>{tag_label}</span> "
-            f"<b style='font-size: 15px;'>{t.subject}</b><br/>"
-            f"<span style='color: #64748b; font-size: 13px;'>Kimden: {sender} | Tarih: {date_str}</span><br/>"
-            f"<div style='color: #475569; font-size: 14px; margin-top: 5px; padding-left: 10px; border-left: 3px solid #cbd5e1;'>{t.snippet}</div>"
+            f"<li style='border-bottom: 1px solid #e2e8f0; padding: 15px 0;'>"
+            f"<div style='margin-bottom: 8px;'>"
+            f"<span style='background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;'>{tag_label}</span> "
+            f"<span style='color: #64748b; font-size: 12px; margin-left: 10px;'>{date_str}</span>"
+            f"</div>"
+            f"<div style='font-size: 16px; font-weight: 800; color: #1e293b; mb-2;'>{t.subject}</div>"
+            f"<div style='color: #475569; font-size: 13px; margin-bottom: 10px;'><b>Kimden:</b> {sender}</div>"
+            f"<div style='color: #334155; font-size: 14px; line-height: 1.6; padding: 12px; background: #f1f5f9; border-radius: 6px; border-left: 4px solid #94a3b8;'>{content_display}</div>"
             f"</li>"
         )
     
