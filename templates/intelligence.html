@@ -6,10 +6,18 @@
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">NEWS</h1>
     </div>
-    <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
-      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-      Güncelle
-    </button>
+    <div class="flex items-center gap-2">
+      <!-- Google Translate Element (Hidden) -->
+      <div id="google_translate_element" style="display:none;"></div>
+      <button type="button" onclick="triggerGoogleTranslate()" class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5a18.022 18.022 0 01-3.827-5.802M10.5 5a9.052 9.052 0 00-2.862 5.5m3.362 5.5l-1.5-3.5m0 0l-1.5 3.5m1.5-3.5h-3m-1.5 8.5h3.5m1.5-1.5h1.5m1.5-1.5h1.5"/></svg>
+        Sayfayı Çevir
+      </button>
+      <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+        Güncelle
+      </button>
+    </div>
   </div>
 
   <div class="mt-4 rt-intel-container rounded-[2rem] border p-6 shadow-sm">
@@ -225,5 +233,26 @@
     });
 
     document.addEventListener('DOMContentLoaded', rtFetchNewsIntelligence);
+    // Google Translate Widget Integration
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'tr',
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+
+    function triggerGoogleTranslate() {
+      const select = document.querySelector('.goog-te-combo');
+      if (select) {
+        select.value = 'tr';
+        select.dispatchEvent(new Event('change'));
+      } else {
+        const widget = document.getElementById('google_translate_element');
+        if (widget) widget.style.display = 'block';
+      }
+    }
 </script>
+<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 {% endblock %}
