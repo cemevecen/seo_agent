@@ -646,15 +646,15 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence")
-def get_news_intelligence(category: str = None, limit: int = 50):
-    """Veritabanındaki haber istihbaratı verilerini döner."""
+def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0):
+    """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon destekli)."""
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from sqlalchemy import desc
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
-        items = query.limit(limit).all()
+        items = query.offset(offset).limit(limit).all()
         # JSON'a uygun hale getirmek için dict listesine çevirelim
         return [
             {

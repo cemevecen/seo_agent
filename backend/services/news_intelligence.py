@@ -10,12 +10,12 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Kategori bazlı arama sorguları
-SEARCH_QUERIES = {
-    "İş Dünyası": "ekonomi finans borsa piyasalar şirket haberleri",
-    "Dünya": "dünya gündemi uluslararası haberler dış haberler",
-    "Türkiye": "türkiye gündemi son dakika haberleri güncel",
-    "Bilim ve Teknoloji": "teknoloji bilim yapay zeka dijital dönüşüm"
+# Kategori bazlı resmi Google News Headlines RSS linkleri
+CATEGORY_URLS = {
+    "İş Dünyası": "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
+    "Dünya": "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
+    "Türkiye": "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
+    "Bilim ve Teknoloji": "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr"
 }
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
@@ -30,36 +30,18 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         db.commit()
         logger.info("Database cleared for news intelligence reset.")
 
-    # Zaman bazlı 'when' parametresi belirleme
-    now = datetime.now()
-    if now.hour == 7 and now.minute <= 10:
-        freshness = "2h"
-    else:
-        freshness = "1h"
-    
-    # Reset durumunda daha geniş bir zaman aralığı tarayalım
-    if reset:
-        freshness = "12h"
-
-    logger.info(f"Using freshness: when:{freshness}")
-
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    # Her kategori için aramayı yap
-    for category, base_query in SEARCH_QUERIES.items():
-        # Query'deki eski when:9h kısmını temizleyip dinamik olanı ekleyelim
-        clean_query = base_query.split(" when:")[0]
-        final_query = f"{clean_query} when:{freshness}"
-        
-        encoded_query = urllib.parse.quote(final_query)
-        rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=tr&gl=TR&ceid=TR:tr"
+    # Her kategori için ana akışı tara
+    for category, rss_url in CATEGORY_URLS.items():
+        logger.info("Fetching curated RSS for %s", category)
         
         try:
             response = requests.get(rss_url, headers=headers, timeout=15)
             if response.status_code != 200:
-                logger.error("Failed to fetch search RSS for %s: HTTP %d", category, response.status_code)
+                logger.error("Failed to fetch RSS for %s: HTTP %d", category, response.status_code)
                 continue
             
             root = ET.fromstring(response.content)
@@ -144,18 +126,18 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
             
             db.commit()
             logger.info("Synced %d new items for category: %s", new_count, category)
-            
         except Exception as e:
-            logger.exception("Error syncing news intelligence search for %s", category)
+            logger.error("Error syncing news for category %s: %s", category, e)
+            db.rollback()
 
-    # 24 Saatlik Temizlik: 24 saatten eski tüm kayıtları sil
+    # 7 Günlük Temizlik: Geçmişe dönük tarama için süreyi uzatıyoruz
     try:
         from datetime import timedelta
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = datetime.utcnow() - timedelta(hours=168)
         deleted_count = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.published_at < cutoff).delete()
         db.commit()
         if deleted_count > 0:
-            logger.info("Cleaned up %d news items older than 24 hours.", deleted_count)
+            logger.info("Cleaned up %d old news items.", deleted_count)
     except Exception as e:
         logger.error("Error during news intelligence cleanup: %s", e)
         db.rollback()

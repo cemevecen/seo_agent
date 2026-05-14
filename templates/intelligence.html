@@ -57,7 +57,10 @@
 
 <script>
     var _activeIntelCategory = "İş Dünyası";
-
+    var _intelOffset = 0;
+    var _intelLoading = false;
+    var _intelFinished = false;
+    
     async function rtSyncNews() {
       const btn = document.getElementById('rt-news-sync-btn');
       if(btn) {
@@ -65,18 +68,25 @@
         btn.innerHTML = '<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> Temizleniyor ve Taranıyor...';
       }
       try {
-        // Geçmişe yönelik temizlik ve yeniden tarama için reset=true gönderiyoruz
         await fetch('/api/admin/news-intelligence/sync?reset=true', { method: 'POST' });
       } catch(e) { console.error('Sync failed', e); }
       if(btn) {
         btn.disabled = false;
         btn.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg> Güncelle';
       }
+      // Reset state and reload
+      _intelOffset = 0;
+      _intelFinished = false;
+      document.getElementById('rt-intel-list').innerHTML = '';
       rtFetchNewsIntelligence();
     }
     
     function rtSwitchIntelTab(cat) {
+      if(_activeIntelCategory === cat) return;
       _activeIntelCategory = cat;
+      _intelOffset = 0;
+      _intelFinished = false;
+      
       document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
           btn.className = 'rt-alarm-tab-inactive';
       });
@@ -84,28 +94,38 @@
       else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active';
       else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active';
       else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active';
+      
+      document.getElementById('rt-intel-list').innerHTML = '';
       rtFetchNewsIntelligence();
     }
 
     function rtFetchNewsIntelligence() {
+      if(_intelLoading || _intelFinished) return;
+      
       const listEl = document.getElementById('rt-intel-list');
       if(!listEl) return;
       
-      fetch('/api/admin/news-intelligence?category=' + encodeURIComponent(_activeIntelCategory))
+      _intelLoading = true;
+      const limit = 20;
+      
+      fetch(`/api/admin/news-intelligence?category=${encodeURIComponent(_activeIntelCategory)}&limit=${limit}&offset=${_intelOffset}`)
         .then(r => r.json())
         .then(items => {
+          _intelLoading = false;
           if(!items.length) {
-            listEl.innerHTML = '<p class="text-sm text-slate-500 py-4 col-span-full">Bu kategoride henüz haber bulunamadı.</p>';
+            if(_intelOffset === 0) {
+              listEl.innerHTML = '<p class="text-sm text-slate-500 py-4 col-span-full text-center">Bu kategoride henüz haber bulunamadı.</p>';
+            }
+            _intelFinished = true;
             return;
           }
-          listEl.innerHTML = items.map(item => {
+          
+          const html = items.map(item => {
             const d = new Date(item.published_at);
             const dateStr = d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
             
-            // Domainden favicon alma
             let faviconUrl = '';
             try {
-              // Eğer bot source_url çekmişse onu kullan (en garantisi), yoksa habere git
               const targetUrl = item.source_url || item.url;
               const url = new URL(targetUrl);
               faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
@@ -140,8 +160,18 @@
               </div>
             `;
           }).join('');
+          
+          listEl.insertAdjacentHTML('beforeend', html);
+          _intelOffset += items.length;
         });
     }
+
+    // Infinite Scroll detection
+    window.addEventListener('scroll', () => {
+      if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+        rtFetchNewsIntelligence();
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', rtFetchNewsIntelligence);
 </script>
