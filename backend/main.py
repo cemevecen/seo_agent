@@ -614,6 +614,18 @@ templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
 
+@app.get("/admin/run-inbox-summary-now")
+def admin_run_inbox_summary_now():
+    """Saatlik inbox özetini MANUEL olarak tetikler."""
+    from backend.services.inbox_summary import run_inbox_summary_job
+    try:
+        with SessionLocal() as db:
+            run_inbox_summary_job(db)
+        return {"status": "ok", "message": "Inbox özeti gönderimi başarıyla tetiklendi."}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon_ico() -> RedirectResponse:
     return RedirectResponse(url="/static/favicon.png", status_code=307)
@@ -2727,6 +2739,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=3600,
+    )
+    job_count += 1
+
+    # Saatlik Inbox Özeti (Hangi hesaba kaç kullanıcı maili geldiği ve detayları)
+    scheduler.add_job(
+        _run_inbox_summary_job,
+        trigger=CronTrigger(minute=0, timezone=timezone),
+        id="hourly-inbox-summary",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
     )
     job_count += 1
 
@@ -9040,17 +9064,25 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         LOGGER.info("<<< GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BİTTİ. Kritik: %d, Özet: %d", len(individual_alarms), len(summary_candidates))
         return {
             "total_alarms": len(all_summary_alarms),
-            "site_check_count": len(results) if 'results' in locals() else 0,
-            "status": "completed"
+            "site_check_count": len(results) if "results" in locals() else 0,
+            "status": "completed",
         }
     except Exception as exc:
         import traceback
+
         logging.exception("GA4 Realtime check hatası")
-        return {
-            "status": "error",
-            "message": str(exc),
-            "traceback": traceback.format_exc()
-        }
+        return {"status": "error", "message": str(exc), "traceback": traceback.format_exc()}
+
+
+def _run_inbox_summary_job() -> None:
+    """APScheduler: Saatlik inbox özet raporu (info/sinemalar/feedback)."""
+    try:
+        from backend.services.inbox_summary import run_inbox_summary_job
+
+        with SessionLocal() as db:
+            run_inbox_summary_job(db)
+    except Exception:
+        LOGGER.exception("Inbox summary job failed")
 
 
 def _run_scheduled_db_cleanup_job() -> None:
