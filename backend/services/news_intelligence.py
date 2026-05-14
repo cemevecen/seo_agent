@@ -10,12 +10,12 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Kategori bazlı arama sorguları (when:12h ile sadece son 12 saatin haberleri)
+# Kategori bazlı arama sorguları (when:9h ile sadece son 9 saatin en taze haberleri)
 SEARCH_QUERIES = {
-    "İş Dünyası": "finans ekonomi borsa son dakika haber when:12h",
-    "Dünya": "dünya gündemi manşet haberler when:12h",
-    "Türkiye": "türkiye gündemi son dakika haberler when:12h",
-    "Bilim ve Teknoloji": "teknoloji bilim yapay zeka yeni gelişmeler when:12h"
+    "İş Dünyası": "finans ekonomi borsa son dakika haber when:9h",
+    "Dünya": "dünya gündemi manşet haberler when:9h",
+    "Türkiye": "türkiye gündemi son dakika haberler when:9h",
+    "Bilim ve Teknoloji": "teknoloji bilim yapay zeka yeni gelişmeler when:9h"
 }
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)

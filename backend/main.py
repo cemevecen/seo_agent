@@ -629,11 +629,18 @@ def admin_run_inbox_summary_now():
 
 @app.get("/api/admin/run-news-intelligence-now")
 def admin_run_news_intelligence_now():
-    """Haber istihbarat taramasını MANUEL olarak tetikler."""
+    """Haber istihbarat taramasını MANUEL olarak tetikler (Sıfırlayarak)."""
     from backend.services.news_intelligence import run_news_intelligence_job
+    from backend.database import SessionLocal
+    from backend.models import NewsIntelligenceItem
     try:
+        # Önce mevcut içeriği tamamen sil
+        with SessionLocal() as db:
+            db.query(NewsIntelligenceItem).delete()
+            db.commit()
+        # Sonra yeni taramayı başlat
         run_news_intelligence_job()
-        return {"status": "ok", "message": "Haber istihbarat taraması başarıyla tetiklendi."}
+        return {"status": "ok", "message": "Haberler sıfırlandı ve son 9 saat için tarama başarıyla tetiklendi."}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
