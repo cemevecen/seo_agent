@@ -8354,8 +8354,64 @@ def api_ga4_realtime_top_pages(
         result["type"] = type
         return JSONResponse(result)
     except Exception as exc:
-        LOGGER.exception("Top pages hatası [site=%s, profile=%s, type=%s]", site_id, profile, type)
-        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+        LOGGER.warning("Top pages canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
+
+    # DB snapshot fallback
+    from backend.models import RealtimePageSnapshot
+    from sqlalchemy import desc as _desc
+
+    with SessionLocal() as db:
+        distinct_times = (
+            db.query(RealtimePageSnapshot.collected_at)
+            .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == profile)
+            .order_by(_desc(RealtimePageSnapshot.collected_at))
+            .distinct()
+            .limit(2)
+            .all()
+        )
+        if not distinct_times:
+            return JSONResponse({"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile})
+
+        curr_time = distinct_times[0][0]
+        prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
+
+        curr_rows = (
+            db.query(RealtimePageSnapshot)
+            .filter(RealtimePageSnapshot.site_id == site_id,
+                    RealtimePageSnapshot.profile == profile,
+                    RealtimePageSnapshot.collected_at == curr_time)
+            .order_by(RealtimePageSnapshot.rank)
+            .all()
+        )
+        prev_map: dict[str, RealtimePageSnapshot] = {}
+        if prev_time:
+            prev_map = {r.page_path: r for r in db.query(RealtimePageSnapshot)
+                        .filter(RealtimePageSnapshot.site_id == site_id,
+                                RealtimePageSnapshot.profile == profile,
+                                RealtimePageSnapshot.collected_at == prev_time)
+                        .all()}
+
+        pages = []
+        for row in curr_rows:
+            prev = prev_map.get(row.page_path)
+            pages.append({
+                "page": row.page_path,
+                "activeUsers": row.active_users,
+                "screenPageViews": row.pageviews,
+                "activeUsers_previous": prev.active_users if prev else None,
+                "screenPageViews_previous": prev.pageviews if prev else None,
+                "rank": row.rank,
+            })
+
+        pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
+        return JSONResponse({
+            "site_id": site_id,
+            "profile": profile,
+            "type": type,
+            "pages": pages[:min(limit, 25)],
+            "source": "db_snapshot",
+            "fetched_at": curr_time.isoformat() if curr_time else None,
+        })
 
 
 @app.get("/api/ga4/realtime/{site_id}/top-news")
@@ -8400,8 +8456,68 @@ def api_ga4_realtime_top_news(
         result["type"] = type
         return JSONResponse(result)
     except Exception as exc:
-        LOGGER.exception("Top news hatası [site=%s, profile=%s]", site_id, profile)
-        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+        LOGGER.warning("Top news canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
+
+    # DB snapshot fallback
+    from backend.models import RealtimeNewsSnapshot
+    from backend.services.ga4_realtime import _news_row_link
+    from sqlalchemy import desc as _desc2
+
+    with SessionLocal() as db:
+        distinct_times = (
+            db.query(RealtimeNewsSnapshot.collected_at)
+            .filter(RealtimeNewsSnapshot.site_id == site_id, RealtimeNewsSnapshot.profile == profile)
+            .order_by(_desc2(RealtimeNewsSnapshot.collected_at))
+            .distinct()
+            .limit(2)
+            .all()
+        )
+        if not distinct_times:
+            return JSONResponse({"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile})
+
+        curr_time = distinct_times[0][0]
+        prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
+
+        curr_rows = (
+            db.query(RealtimeNewsSnapshot)
+            .filter(RealtimeNewsSnapshot.site_id == site_id,
+                    RealtimeNewsSnapshot.profile == profile,
+                    RealtimeNewsSnapshot.collected_at == curr_time)
+            .order_by(RealtimeNewsSnapshot.rank)
+            .all()
+        )
+        prev_map_news: dict[str, RealtimeNewsSnapshot] = {}
+        if prev_time:
+            prev_map_news = {r.screen_title: r for r in db.query(RealtimeNewsSnapshot)
+                             .filter(RealtimeNewsSnapshot.site_id == site_id,
+                                     RealtimeNewsSnapshot.profile == profile,
+                                     RealtimeNewsSnapshot.collected_at == prev_time)
+                             .all()}
+
+        site_domain_str = (site.domain or "").strip()
+        pages = []
+        for row in curr_rows:
+            prev = prev_map_news.get(row.screen_title)
+            pages.append({
+                "page": row.screen_title,
+                "page_path": row.screen_title if row.screen_title.startswith("/") else "",
+                "activeUsers": row.active_users,
+                "screenPageViews": row.pageviews,
+                "activeUsers_previous": prev.active_users if prev else None,
+                "screenPageViews_previous": prev.pageviews if prev else None,
+                "link_url": _news_row_link(site_domain_str, row.screen_title),
+                "rank": row.rank,
+            })
+
+        pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
+        return JSONResponse({
+            "site_id": site_id,
+            "profile": profile,
+            "type": type,
+            "pages": pages[:min(limit, 25)],
+            "source": "db_snapshot",
+            "fetched_at": curr_time.isoformat() if curr_time else None,
+        })
 
 
 @app.get("/api/ga4/realtime/{site_id}/top-events")

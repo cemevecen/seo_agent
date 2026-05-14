@@ -1326,7 +1326,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.error) {
+        if (d.error && (!d.pages || !d.pages.length)) {
           listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
@@ -1334,7 +1334,9 @@
         _renderNewsList(listEl, rows);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          if (d.source === 'db_snapshot') label += ' · önbellek';
+          tsEl.textContent = label;
         }
       })
       .catch(function () {
@@ -1398,14 +1400,16 @@
     fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + LIST_WINDOW + '&limit=10&type=' + type)
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.error || !d.pages) {
+        if (d.error || !d.pages || !d.pages.length) {
           if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
         _renderTopPages(listEl, d.pages, isViews);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          if (d.source === 'db_snapshot') label += ' · önbellek';
+          tsEl.textContent = label;
         }
       })
       .catch(function () {
