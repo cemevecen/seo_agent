@@ -158,7 +158,8 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
         service = googleapiclient.discovery.build('gmail', 'v1', credentials=creds, cache_discovery=False)
         raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
         
-        service.users().messages().send(userId='me', body={'raw': raw_msg}).execute()
+        sent_msg = service.users().messages().send(userId='me', body={'raw': raw_msg}).execute()
+        logging.info("Gmail API ile e-posta gönderildi. Mesaj ID: %s", sent_msg.get('id'))
         return True
     except Exception as e:
         logging.error("Gmail API ile e-posta gönderimi başarısız: %s", e)

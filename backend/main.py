@@ -9015,7 +9015,7 @@ def _run_ga4_realtime_check_job() -> None:
                 all_summary_alarms.extend(news_alarms)
 
         # ÖZET MAİLİ GÖNDER (En önemli 10 alarmı içerecek şekilde)
-        LOGGER.info("GA4 Realtime Check Bitti. Toplam Alarm Sayısı: %d", len(all_summary_alarms))
+        LOGGER.info("<<< GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BİTTİ. Toplam Alarm: %d", len(all_summary_alarms))
         if all_summary_alarms:
             from backend.services.ga4_realtime import send_realtime_summary_email
             send_realtime_summary_email(all_summary_alarms)
@@ -9136,6 +9136,13 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
             "message": str(exc),
             "traceback": traceback.format_exc()
         }, status_code=500)
+
+
+@app.get("/api/admin/run-realtime-job-now")
+def admin_run_realtime_job_now(background_tasks: BackgroundTasks):
+    """Realtime alarm kontrol işini manuel olarak ve hemen tetikler."""
+    background_tasks.add_task(_run_ga4_realtime_check_job)
+    return {"status": "ok", "message": "GA4 Realtime kontrol işi arka planda başlatıldı."}
 
 
 @app.post("/admin/truncate-sc-snapshots")
