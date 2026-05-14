@@ -176,43 +176,33 @@ def send_realtime_email(
     *,
     thread_kind: str | None = None,
     thread_key: str | None = None,
+    is_summary: bool = False,
 ) -> bool:
     """
     GA4 Realtime alarm e-postası (site metrikleri ve sayfa listesi alarmları).
 
     - ``outbound_email_enabled`` ile koşullanmaz (günlük özet / genel dış posta kapalı olsa da çalışır).
-    - ``ga4_realtime_email_enabled`` ve ``ga4_realtime_page_alert_email`` açık olmalı.
+    - ``ga4_realtime_email_enabled`` açık olmalı.
+    - ``ga4_realtime_page_alert_email`` ise sadece bireysel (is_summary=False) maillerde zorunludur.
     - Haber başlığı alarmları: ``send_realtime_news_email`` ve ``ga4_realtime_news_alert_email``.
     - Geçici SMTP hatalarında ``send_email`` ile aynı yeniden deneme mantığı kullanılır.
     """
     if not settings.ga4_realtime_email_enabled:
-        logging.debug(
-            "GA4 Realtime e-postası atlandı (ga4_realtime_email_enabled=false): %s",
-            subject[:120],
-        )
+        logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
         return False
-    if not settings.ga4_realtime_page_alert_email:
-        logging.debug(
-            "GA4 Realtime e-postası atlandı (ga4_realtime_page_alert_email=false): %s",
-            subject[:120],
-        )
+    if not is_summary and not settings.ga4_realtime_page_alert_email:
+        logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_page_alert_email=False")
         return False
 
     recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
-    if not _smtp_configured() or not recipient_list:
-        if not _smtp_configured():
-            logging.warning(
-                "GA4 Realtime e-postası gönderilemedi: SMTP alanları eksik veya yerel placeholder şifre (local-). "
-                "Konu: %s",
-                subject[:120],
-            )
-        else:
-            logging.warning(
-                "GA4 Realtime e-postası gönderilemedi: MAIL_TO boş. Konu: %s",
-                subject[:120],
-            )
+    if not _smtp_configured():
+        logging.warning("GA4 Realtime e-postası gönderilemedi: SMTP yapılandırması eksik (Host/User/Pass/From kontrol edin)")
+        return False
+    if not recipient_list:
+        logging.warning("GA4 Realtime e-postası gönderilemedi: Alıcı listesi (MAIL_TO) boş")
         return False
     if not smtp_recipients_allowed(len(recipient_list)):
+        logging.warning("GA4 Realtime e-postası gönderilemedi: Alıcı sayısı sınırı aşıldı")
         return False
 
     subj = subject.strip()
@@ -246,30 +236,18 @@ def send_realtime_news_email(
 ) -> bool:
     """GA4 Realtime «Haberler» alarm e-postası (sayfa postasından bağımsız bayrak)."""
     if not settings.ga4_realtime_email_enabled:
-        logging.debug(
-            "GA4 Realtime haber e-postası atlandı (ga4_realtime_email_enabled=false): %s",
-            subject[:120],
-        )
+        logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_email_enabled=False")
         return False
     if not settings.ga4_realtime_news_alert_email:
-        logging.debug(
-            "GA4 Realtime haber e-postası atlandı (ga4_realtime_news_alert_email=false): %s",
-            subject[:120],
-        )
+        logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_news_alert_email=False")
         return False
 
     recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
-    if not _smtp_configured() or not recipient_list:
-        if not _smtp_configured():
-            logging.warning(
-                "GA4 Realtime haber e-postası gönderilemedi: SMTP eksik. Konu: %s",
-                subject[:120],
-            )
-        else:
-            logging.warning(
-                "GA4 Realtime haber e-postası gönderilemedi: MAIL_TO boş. Konu: %s",
-                subject[:120],
-            )
+    if not _smtp_configured():
+        logging.warning("GA4 Realtime haber e-postası gönderilemedi: SMTP yapılandırması eksik")
+        return False
+    if not recipient_list:
+        logging.warning("GA4 Realtime haber e-postası gönderilemedi: Alıcı listesi boş")
         return False
     if not smtp_recipients_allowed(len(recipient_list)):
         return False

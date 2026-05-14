@@ -1019,6 +1019,14 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
     )
     if ctr_match:
         clicks = _safe_float(ctr_match.group(2).replace(",", ""))
+        delta_val = _safe_float(str(ctr_match.group(5)).replace("%", ""))
+        delta_text = "-"
+        if delta_val is not None:
+            # CTR: Artış (+) iyidir (emerald), azalış (-) kötüdür (rose).
+            delta_tone = "emerald" if delta_val > 0 else "rose"
+            delta_formatted = _format_percent(delta_val, decimals=1)
+            delta_text = f'<span style="font-weight:800;color:{"#047857" if delta_tone == "emerald" else "#be123c"};">{delta_formatted}</span>'
+
         return {
             "tone": "rose",
             "status_label": "Negatif",
@@ -1030,13 +1038,13 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "delta": _format_percent(str(ctr_match.group(5)).replace("%", ""), decimals=1),
             "extra": f"{_format_number(clicks)} click",
             "extra_numeric": clicks,
-            "delta_numeric": _safe_float(str(ctr_match.group(5)).replace("%", "")),
+            "delta_numeric": delta_val,
             "display_title": "CTR düşüşü",
             "display_query": ctr_match.group(1),
             "display_metric": (
                 f"CTR {_format_percent(ctr_match.group(3), decimals=3)} -> "
                 f"{_format_percent(ctr_match.group(4), decimals=3)} | "
-                f"Click {_format_number(clicks)} | Fark {_format_percent(str(ctr_match.group(5)).replace('%', ''), decimals=1)}"
+                f"Click {_format_number(clicks)} | Fark {delta_text}"
             ),
         }
 
@@ -1046,6 +1054,14 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
     )
     if impression_match:
         clicks = _safe_float(impression_match.group(2).replace(",", ""))
+        delta_val = _safe_float(str(impression_match.group(5)).replace("%", ""))
+        delta_text = "-"
+        if delta_val is not None:
+            # Impression: Artış (+) iyidir (emerald), azalış (-) kötüdür (rose).
+            delta_tone = "emerald" if delta_val > 0 else "rose"
+            delta_formatted = _format_percent(delta_val, decimals=1)
+            delta_text = f'<span style="font-weight:800;color:{"#047857" if delta_tone == "emerald" else "#be123c"};">{delta_formatted}</span>'
+
         return {
             "tone": "amber",
             "status_label": "Uyari",
@@ -1057,13 +1073,13 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "delta": _format_percent(str(impression_match.group(5)).replace("%", ""), decimals=1),
             "extra": f"{_format_number(clicks)} click",
             "extra_numeric": clicks,
-            "delta_numeric": _safe_float(str(impression_match.group(5)).replace("%", "")),
+            "delta_numeric": delta_val,
             "display_title": "Impression düşüşü",
             "display_query": impression_match.group(1),
             "display_metric": (
                 f"Impression {_format_number(impression_match.group(3))} -> "
                 f"{_format_number(impression_match.group(4))} | "
-                f"Click {_format_number(clicks)} | Fark {_format_percent(str(impression_match.group(5)).replace('%', ''), decimals=1)}"
+                f"Click {_format_number(clicks)} | Fark {delta_text}"
             ),
         }
 
@@ -1084,6 +1100,18 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             title = "Pozisyon düşüşü"
         elif before_value is not None and after_value is not None and after_value < before_value:
             title = "Pozisyon iyileşmesi"
+        # Fark hesapla (after - before)
+        diff_val = None
+        if before_value is not None and after_value is not None:
+            diff_val = after_value - before_value
+        
+        diff_text = "-"
+        if diff_val is not None:
+            # SEO: Pozisyon düşüşü (artış) kötüdür, azalış (negatif fark) iyidir.
+            diff_tone = "rose" if diff_val > 0 else "emerald"
+            diff_formatted = _format_delta(diff_val, decimals=1)
+            diff_text = f'<span style="font-weight:800;color:{"#be123c" if diff_tone == "rose" else "#047857"};">{diff_formatted}</span>'
+        
         return {
             "tone": "rose" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "emerald",
             "status_label": "Negatif" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "Pozitif",
@@ -1095,10 +1123,10 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "delta": delta_text,
             "extra": _device_label(device_code),
             "extra_numeric": None,
-            "delta_numeric": (after_value - before_value) if before_value is not None and after_value is not None else None,
+            "delta_numeric": diff_val,
             "display_title": title,
             "display_query": position_match.group(1),
-            "display_metric": f"Pozisyon {position_match.group(2)} -> {position_match.group(3)} | {_device_label(device_code)}",
+            "display_metric": f"Pozisyon {position_match.group(2)} -> {position_match.group(3)} | Fark {diff_text}",
         }
 
     threshold_match = re.search(

@@ -1342,6 +1342,11 @@
       var tipAttr = _attr(tipParts.join(' — '));
       var primaryHref = (p.link_url || '').trim();
       var hrefAttr = primaryHref ? encodeURI(primaryHref) : '';
+      var usersPrev = p.activeUsers_previous;
+      var viewsPrev = p.screenPageViews_previous;
+      var usersComp = _renderComparison(p.activeUsers, usersPrev);
+      var viewsComp = _renderComparison(p.screenPageViews, viewsPrev);
+
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
@@ -1357,8 +1362,8 @@
         + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span></span>'
-        + '<span class="rt-list-meta">' + views + ' gör.</span>'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + users + '</strong>' + usersComp + ' <span class="rt-list-meta">kul.</span></span>'
+        + '<span class="rt-list-meta">' + views + viewsComp + ' gör.</span>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -1428,6 +1433,16 @@
   function _fmtEvInt(n) {
     if (n == null || isNaN(n)) return '—';
     return Math.round(Number(n)).toLocaleString('tr-TR');
+  }
+
+  function _renderComparison(cur, prev) {
+    if (prev == null || isNaN(prev)) return '';
+    var diff = cur - prev;
+    if (diff === 0) return '';
+    var arrow = diff > 0 ? '↑' : '↓';
+    var color = diff > 0 ? 'rt-change-up' : 'rt-change-down';
+    var title = _fmt(prev) + ' \u2192 ' + _fmt(cur);
+    return ' <span class="text-[10px] font-bold ' + color + '" title="' + title + '">' + arrow + _fmt(Math.abs(diff)) + '</span>';
   }
 
   function _renderEventsCard(box, siteId, profile) {
@@ -1575,16 +1590,23 @@
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';
       var path = _esc(pathRaw);
+      var usersPrev = p.activeUsers_previous;
+      var viewsPrev = p.screenPageViews_previous;
+      var usersComp = _renderComparison(p.activeUsers, usersPrev);
+      var viewsComp = _renderComparison(p.screenPageViews, viewsPrev);
+
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var barColor = viewsMode ? 'rt-bar-fill-violet' : 'rt-bar-fill-indigo';
+      
       var primary = viewsMode
-        ? '<strong class="text-sm">' + views + '</strong> <span class="rt-list-meta">gör.</span>'
-        : '<strong class="text-sm">' + users + '</strong> <span class="rt-list-meta">kul.</span>';
+        ? '<strong class="text-sm">' + views + '</strong>' + viewsComp + ' <span class="rt-list-meta">gör.</span>'
+        : '<strong class="text-sm">' + users + '</strong>' + usersComp + ' <span class="rt-list-meta">kul.</span>';
       var secondary = viewsMode
-        ? '<span class="rt-list-meta">' + users + ' kul.</span>'
-        : '<span class="rt-list-meta">' + views + ' gör.</span>';
+        ? '<span class="rt-list-meta">' + users + usersComp + ' kul.</span>'
+        : '<span class="rt-list-meta">' + views + viewsComp + ' gör.</span>';
+
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
       return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'

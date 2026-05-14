@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile, Depends
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
@@ -62,7 +62,7 @@ from backend.collectors.search_console import (
 )
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import is_railway_runtime, settings
-from backend.database import SessionLocal, _IS_SQLITE, init_db
+from backend.database import SessionLocal, _IS_SQLITE, init_db, get_db
 from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
@@ -8023,7 +8023,7 @@ def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-        result = check_site_realtime(db, site, window_minutes=window, profile=profile)
+        result = check_site_realtime(db, site, window_minutes=window, profile=profile, skip_alarms=True)
         result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=72)
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
     return JSONResponse(result)
@@ -8083,6 +8083,7 @@ def api_ga4_realtime_top_pages(
             window_minutes=min(window, 30),
             limit=min(limit, 25),
             sort_by=sort_by,
+            compare_previous=True,
         )
         result["site_id"] = site_id
         result["profile"] = profile
@@ -8964,9 +8965,12 @@ def _run_db_retention_cleanup() -> dict:
 def _run_ga4_realtime_check_job() -> None:
     """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü.
     00:00–07:00 arası çalışmaz (kota tasarrufu); bu saatler dışında çalışır."""
-    from datetime import datetime as _dt
-    hour = _dt.now().hour
+    from zoneinfo import ZoneInfo as _ZoneInfo
+    tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+    now_local = _dt.now(_ZoneInfo(tz_name))
+    hour = now_local.hour
     is_night = (0 <= hour < 7)
+    LOGGER.info("GA4 Realtime Job Check: local_time=%s, hour=%d, is_night=%s", now_local.isoformat(), hour, is_night)
 
     try:
         from backend.services.ga4_realtime import (
@@ -8975,36 +8979,47 @@ def _run_ga4_realtime_check_job() -> None:
             run_page_alarm_check_all_sites,
         )
 
+        all_summary_alarms: list[dict[str, Any]] = []
+
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
                 db,
                 window_minutes=settings.ga4_realtime_window_minutes,
                 skip_alarms=is_night,
+                skip_emails=True,
             )
         
+        # KPI alarmlarını topla
+        for res in results:
+            if isinstance(res, dict) and res.get("alarms"):
+                all_summary_alarms.extend(res["alarms"])
+
         if is_night:
             LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
             return
-
-        alarm_total = sum(r.get("alarm_count", 0) for r in results if isinstance(r, dict))
-        if alarm_total:
-            LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d profil kontrolü).", alarm_total, len(results))
-        else:
-            LOGGER.info("GA4 Realtime: %d profil kontrolü tamamlandı, alarm yok.", len(results))
 
         if settings.ga4_realtime_page_alerts_enabled:
             with SessionLocal() as db:
                 page_alarms = run_page_alarm_check_all_sites(
                     db, window_minutes=settings.ga4_realtime_window_minutes,
+                    skip_emails=True,
                 )
             if page_alarms:
-                LOGGER.warning("GA4 Realtime sayfa alarmları: %d alarm tetiklendi.", len(page_alarms))
+                all_summary_alarms.extend(page_alarms)
 
         if settings.ga4_realtime_news_alerts_enabled:
             with SessionLocal() as db:
-                news_alarms = run_news_alarm_check_all_sites(db)
+                news_alarms = run_news_alarm_check_all_sites(db, skip_emails=True)
             if news_alarms:
-                LOGGER.warning("GA4 Realtime haber alarmları: %d alarm tetiklendi.", len(news_alarms))
+                all_summary_alarms.extend(news_alarms)
+
+        # ÖZET MAİLİ GÖNDER (En önemli 10 alarmı içerecek şekilde)
+        if all_summary_alarms:
+            from backend.services.ga4_realtime import send_realtime_summary_email
+            send_realtime_summary_email(all_summary_alarms)
+            LOGGER.info("GA4 Realtime: %d alarm için toplu özet e-postası gönderildi.", len(all_summary_alarms))
+        else:
+            LOGGER.info("GA4 Realtime: %d profil kontrolü tamamlandı, yeni alarm yok.", len(results))
     except Exception:
         logging.exception("GA4 Realtime check hatası")
 
@@ -9038,6 +9053,64 @@ def admin_vacuum():
     except Exception as exc:
         logging.exception("VACUUM hatası")
         return JSONResponse({"status": "error", "detail": str(exc)})
+
+
+@app.get("/api/admin/test-realtime-mail")
+def admin_test_realtime_mail(db: Session = Depends(get_db)):
+    """Realtime e-posta sistemini teşhis eder ve test mailleri gönderir."""
+    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email, _smtp_configured
+    from backend.services import inbox_gmail_auth
+    from backend.services.ga4_realtime import send_realtime_summary_email, get_recent_alarms
+    from backend.models import Site as SiteModel
+
+    recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+
+    inbox_creds = inbox_gmail_auth.load_inbox_credentials(db)
+    inbox_row = inbox_gmail_auth.get_inbox_credential_row(db)
+
+    results = {
+        "ga4_realtime_email_enabled": settings.ga4_realtime_email_enabled,
+        "ga4_realtime_page_alert_email": settings.ga4_realtime_page_alert_email,
+        "smtp_configured": _smtp_configured(),
+        "mail_to": settings.mail_to,
+        "mail_to_list": recipient_list,
+        "is_ready": is_realtime_mail_ready(),
+        "inbox": {
+            "is_connected": inbox_creds is not None,
+            "account_email": inbox_row.account_email if inbox_row else None,
+            "has_refresh_token": bool(inbox_row.refresh_token) if inbox_row else False,
+        }
+    }
+
+    try:
+        # 1. Bireysel test
+        subject = "SEO Agent TEST: Bireysel Alarm"
+        body = "<h3>Bireysel Mail Testi</h3><p>Sistem bireysel alarm gönderebiliyor.</p>"
+        ok = send_realtime_email(subject, body, thread_kind="test", thread_key="test-key-indiv")
+        results["individual_send_success"] = ok
+        
+        # 2. Özet test (son 15 dk alarmları varsa)
+        recent_alarms = []
+        sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+        for s in sites:
+            alarms = get_recent_alarms(db, s.id, limit=5)
+            recent_alarms.extend(alarms)
+        
+        results["found_recent_alarms"] = len(recent_alarms)
+        if recent_alarms:
+            results["summary_send_success"] = send_realtime_summary_email(recent_alarms)
+        else:
+            # Yapay bir alarm listesi ile dene
+            fake_alarms = [{
+                "domain": "test.com", "metric": "activeUsers", "profile": "web",
+                "current_value": 100, "previous_value": 200, "change_pct": -50.0
+            }]
+            results["summary_fake_send_success"] = send_realtime_summary_email(fake_alarms)
+            
+    except Exception as exc:
+        results["error"] = str(exc)
+
+    return JSONResponse(results)
 
 
 @app.post("/admin/truncate-sc-snapshots")

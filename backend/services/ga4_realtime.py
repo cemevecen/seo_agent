@@ -700,10 +700,12 @@ def fetch_realtime_top_pages(
     limit: int = 10,
     dimension: str = "unifiedScreenName",
     sort_by: str = "activeUsers",
+    compare_previous: bool = False,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Realtime API ile son N dakikadaki top sayfaları çeker.
 
+    compare_previous: True ise önceki pencereyle (window_minutes kadar öncesi) karşılaştırma metriklerini de döner.
     sort_by: "activeUsers" veya "screenPageViews" — sıralama kriteri.
     """
     if client is None:
@@ -712,6 +714,14 @@ def fetch_realtime_top_pages(
     property_id = _normalize_ga4_property_id(property_id)
     w = max(1, min(window_minutes, 30))
 
+    minute_ranges = [
+        MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+    ]
+    if compare_previous:
+        minute_ranges.append(
+            MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w)
+        )
+
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         dimensions=[Dimension(name=dimension)],
@@ -719,9 +729,7 @@ def fetch_realtime_top_pages(
             Metric(name="activeUsers"),
             Metric(name="screenPageViews"),
         ],
-        minute_ranges=[
-            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-        ],
+        minute_ranges=minute_ranges,
     )
 
     t0 = time.monotonic()
@@ -730,26 +738,53 @@ def fetch_realtime_top_pages(
 
     metric_names = [m.name for m in response.metric_headers]
     dim_headers = [h.name for h in response.dimension_headers]
-    pages: list[dict[str, Any]] = []
+
+    # Merging logic for comparison
+    temp_map: dict[str, dict[str, Any]] = {}
 
     for row in response.rows:
         dm = _realtime_row_dimensions(row, dim_headers)
-        page_path = str(dm.get(dimension, "") or "").strip()
-        if not page_path or page_path.lower() in ("current", "previous"):
-            for _k, v in dm.items():
+        page_val = str(dm.get(dimension, "") or "").strip()
+
+        # MinuteRange adını bul (GA4 bunu bazen boyuta bazen meta veriye koyar)
+        range_name = "current"
+        for k, v in dm.items():
+            if str(v).lower() in ("current", "previous"):
+                range_name = str(v).lower()
+                break
+
+        if not page_val or page_val.lower() in ("current", "previous"):
+            # Sayfa adı/path'i başka bir kolona kaymış olabilir (GA4 Realtime quirk)
+            for k, v in dm.items():
                 vs = (v or "").strip()
                 if vs and vs.lower() not in ("current", "previous"):
-                    page_path = vs
+                    page_val = vs
                     break
-        metrics_dict: dict[str, float] = {}
+
+        if not page_val:
+            continue
+
+        if page_val not in temp_map:
+            temp_map[page_val] = {
+                "page": page_val,
+                "activeUsers": 0.0,
+                "screenPageViews": 0.0,
+                "activeUsers_previous": 0.0,
+                "screenPageViews_previous": 0.0,
+            }
+
+        entry = temp_map[page_val]
+        suffix = "_previous" if range_name == "previous" else ""
+
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
-                metrics_dict[mname] = float(mv.value)
+                val = float(mv.value)
+                entry[mname + suffix] = entry.get(mname + suffix, 0.0) + val
             except (ValueError, TypeError):
-                metrics_dict[mname] = 0.0
-        pages.append({"page": page_path, **metrics_dict})
+                pass
 
+    pages = list(temp_map.values())
     pages.sort(key=lambda p: p.get(sort_by, 0), reverse=True)
 
     return {
@@ -759,6 +794,7 @@ def fetch_realtime_top_pages(
         "total_pages": len(pages),
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "api_ms": elapsed_ms,
+        "comparison_enabled": compare_previous,
     }
 
 
@@ -851,6 +887,7 @@ def fetch_realtime_top_news_pages(
         limit=fetch_n,
         sort_by=sort_by,
         dimension="unifiedScreenName",
+        compare_previous=True,
         client=client,
     )
     out: list[dict[str, Any]] = []
@@ -864,6 +901,8 @@ def fetch_realtime_top_news_pages(
                 "page_path": title if title.startswith("/") else "",
                 "activeUsers": float(p.get("activeUsers") or 0),
                 "screenPageViews": float(p.get("screenPageViews") or 0),
+                "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
+                "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
                 "link_url": _news_row_link(site_domain, title),
             }
         )
@@ -878,6 +917,7 @@ def fetch_realtime_top_news_pages(
         "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
         "api_ms": base.get("api_ms", 0),
         "breakdown": "unifiedScreenName+news_heuristic",
+        "comparison_enabled": True,
     }
 
 
@@ -975,12 +1015,12 @@ def fetch_realtime_top_event_names(
     *,
     limit: int = 10,
     sort_by: str = "activeUsers",
+    compare_previous: bool = False,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Android/iOS akışlarında unifiedScreenName boşsa: eventName kırılımı.
 
-    Dönüş şekli fetch_realtime_top_pages ile uyumlu: screenPageViews alanına eventCount yazılır
-    (şablondaki «görüntüleme» sekmesi event hacmine göre sıralanır).
+    Dönüş şekli fetch_realtime_top_pages ile uyumlu: screenPageViews alanına eventCount yazılır.
     """
     if client is None:
         client = _build_client()
@@ -989,6 +1029,14 @@ def fetch_realtime_top_event_names(
     w = max(1, min(window_minutes, 30))
     fetch_cap = min(250, max(limit * 8, 40))
 
+    minute_ranges = [
+        MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+    ]
+    if compare_previous:
+        minute_ranges.append(
+            MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w)
+        )
+
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         dimensions=[Dimension(name="eventName")],
@@ -996,9 +1044,7 @@ def fetch_realtime_top_event_names(
             Metric(name="activeUsers"),
             Metric(name="eventCount"),
         ],
-        minute_ranges=[
-            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-        ],
+        minute_ranges=minute_ranges,
         limit=fetch_cap,
     )
 
@@ -1008,31 +1054,51 @@ def fetch_realtime_top_event_names(
 
     metric_names = [m.name for m in response.metric_headers]
     dim_headers = [h.name for h in response.dimension_headers]
-    pages: list[dict[str, Any]] = []
+
+    temp_map: dict[str, dict[str, Any]] = {}
 
     for row in response.rows:
         dm = _realtime_row_dimensions(row, dim_headers)
         name = str(dm.get("eventName", "") or "").strip()
-        if not name:
-            for _k, v in dm.items():
+        
+        range_name = "current"
+        for k, v in dm.items():
+            if str(v).lower() in ("current", "previous"):
+                range_name = str(v).lower()
+                break
+
+        if not name or name.lower() in ("current", "previous"):
+            for k, v in dm.items():
                 vs = (v or "").strip()
                 if vs and vs.lower() not in ("current", "previous"):
                     name = vs
                     break
         if not name:
             continue
-        metrics_dict: dict[str, float] = {}
+
+        if name not in temp_map:
+            temp_map[name] = {
+                "page": name,
+                "activeUsers": 0.0,
+                "screenPageViews": 0.0,
+                "activeUsers_previous": 0.0,
+                "screenPageViews_previous": 0.0,
+            }
+        
+        entry = temp_map[name]
+        suffix = "_previous" if range_name == "previous" else ""
+
         for i, mv in enumerate(row.metric_values):
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            mapped_name = "screenPageViews" if mname == "eventCount" else mname
             try:
-                metrics_dict[mname] = float(mv.value)
+                val = float(mv.value)
+                entry[mapped_name + suffix] = entry.get(mapped_name + suffix, 0.0) + val
             except (ValueError, TypeError):
-                metrics_dict[mname] = 0.0
-        ec = metrics_dict.get("eventCount", 0.0)
-        au = metrics_dict.get("activeUsers", 0.0)
-        pages.append({"page": name, "activeUsers": au, "screenPageViews": ec})
+                pass
 
-    sort_key = "eventCount" if sort_by == "screenPageViews" else "activeUsers"
+    pages = list(temp_map.values())
+    sort_key = "screenPageViews" if sort_by == "screenPageViews" else "activeUsers"
     pages.sort(key=lambda p: p.get(sort_key, 0), reverse=True)
 
     return {
@@ -1043,6 +1109,7 @@ def fetch_realtime_top_event_names(
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "api_ms": elapsed_ms,
         "breakdown": "eventName",
+        "comparison_enabled": compare_previous,
     }
 
 
@@ -1053,6 +1120,7 @@ def fetch_realtime_top_pages_with_app_fallback(
     window_minutes: int = 30,
     limit: int = 10,
     sort_by: str = "activeUsers",
+    compare_previous: bool = False,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Mobil: önce en iyi ekran boyutu; etiketler zayıfsa eventName kırılımına düşer."""
@@ -1062,20 +1130,36 @@ def fetch_realtime_top_pages_with_app_fallback(
             window_minutes=window_minutes,
             limit=limit,
             sort_by=sort_by,
+            compare_previous=compare_previous,
             client=client,
         )
         base["breakdown"] = "unifiedScreenName"
         return base
 
+    # Mobil için comparison desteği şu an pick_best içinde yoksa bile 
+    # varsayılan unifiedScreenName üzerinden yürütüyoruz.
     base = fetch_realtime_top_pages_pick_best_screen_dimension(
         property_id,
         window_minutes=window_minutes,
         limit=limit,
         sort_by=sort_by,
+        # pick_best şu an comparison desteklemiyorsa standarda dönecek
         client=client,
     )
-    pages = base.get("pages") or []
+    # Eğer comparison istendiyse ve base'de yoksa, zorla fetch et
+    if compare_previous and not base.get("comparison_enabled"):
+        dim = base.get("breakdown") or "unifiedScreenName"
+        base = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=limit,
+            sort_by=sort_by,
+            dimension=dim,
+            compare_previous=True,
+            client=client,
+        )
 
+    pages = base.get("pages") or []
     labeled, total = _realtime_screen_label_quality(pages)
     weak = labeled < 2 or (total > 0 and labeled / total < 0.35)
     if not weak:
@@ -1087,8 +1171,10 @@ def fetch_realtime_top_pages_with_app_fallback(
             window_minutes=window_minutes,
             limit=limit,
             sort_by=sort_by,
+            compare_previous=compare_previous,
             client=client,
         )
+        return alt
     except Exception as exc:
         logger.warning(
             "Realtime app fallback (eventName) başarısız [%s / %s]: %s",
@@ -1383,6 +1469,7 @@ def check_site_realtime(
     window_minutes: int = DEFAULT_WINDOW_MINUTES,
     profile: str = "web",
     skip_alarms: bool = False,
+    skip_emails: bool = False,
 ) -> dict[str, Any]:
     """Tek bir site+profil için realtime kontrol çalıştırır.
 
@@ -1470,8 +1557,9 @@ def check_site_realtime(
 
     if alarms:
         _save_alarm_logs(db, site.id, alarms)
-        logger.info("GA4 Realtime: %d alarm bulundu, e-posta gönderimi tetikleniyor (site=%s, profile=%s).", len(alarms), site.domain, profile)
-        _send_site_alarm_emails(site.domain, profile, alarms)
+        logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
+        if not skip_emails:
+            _send_site_alarm_emails(site.domain, profile, alarms)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -1666,6 +1754,7 @@ def run_all_sites_realtime_check(
     *,
     window_minutes: int = DEFAULT_WINDOW_MINUTES,
     skip_alarms: bool = False,
+    skip_emails: bool = False,
 ) -> list[dict[str, Any]]:
     """Tüm aktif siteleri kontrol eder — scheduler job'ından çağrılır.
 
@@ -1692,7 +1781,14 @@ def run_all_sites_realtime_check(
             # her profil için ayrı snapshot kaydediyoruz. 
             # API kota limitlerini izlemek gerekebilir.
             try:
-                r = check_site_realtime(db, site, window_minutes=window_minutes, profile=profile, skip_alarms=skip_alarms)
+                r = check_site_realtime(
+                    db,
+                    site,
+                    window_minutes=window_minutes,
+                    profile=profile,
+                    skip_alarms=skip_alarms,
+                    skip_emails=skip_emails,
+                )
                 results.append(r)
             except Exception as exc:
                 logger.exception("Realtime check başarısız [%s / %s]: %s", site.domain, profile, exc)
@@ -1894,6 +1990,7 @@ def check_page_alarms_for_site(
     *,
     profile: str = "web",
     window_minutes: int = 30,
+    skip_emails: bool = False,
 ) -> list[dict[str, Any]]:
     """Tek site+profil için sayfa bazlı alarm kontrolü yapar.
 
@@ -1936,7 +2033,8 @@ def check_page_alarms_for_site(
 
     if alarms:
         _save_page_alarm_logs(db, site.id, alarms)
-        _send_page_alarm_email(site.domain, profile, alarms)
+        if not skip_emails:
+            _send_page_alarm_email(site.domain, profile, alarms)
 
     return alarms
 
@@ -1985,7 +2083,12 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
     send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key)
 
 
-def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> list[dict[str, Any]]:
+def run_page_alarm_check_all_sites(
+    db: Session,
+    *,
+    window_minutes: int = 30,
+    skip_emails: bool = False,
+) -> list[dict[str, Any]]:
     """Tüm aktif siteler ve profilleri için sayfa bazlı alarm kontrolü."""
     from backend.models import Site as SiteModel
 
@@ -2002,6 +2105,7 @@ def run_page_alarm_check_all_sites(db: Session, *, window_minutes: int = 30) -> 
             try:
                 alarms = check_page_alarms_for_site(
                     db, site, profile=profile, window_minutes=window_minutes,
+                    skip_emails=skip_emails,
                 )
                 all_alarms.extend(alarms)
             except Exception as exc:
@@ -2250,6 +2354,7 @@ def check_news_alarms_for_site(
     profile: str = "web",
     window_minutes: int = 15,
     interval_minutes: int = 15,
+    skip_emails: bool = False,
 ) -> list[dict[str, Any]]:
     if profile not in ("web", "mweb"):
         return []
@@ -2290,12 +2395,13 @@ def check_news_alarms_for_site(
 
     if alarms:
         _save_news_alarm_logs(db, site.id, alarms)
-        _send_news_alarm_email(site.domain, profile, alarms)
+        if not skip_emails:
+            _send_news_alarm_email(site.domain, profile, alarms)
 
     return alarms
 
 
-def run_news_alarm_check_all_sites(db: Session) -> list[dict[str, Any]]:
+def run_news_alarm_check_all_sites(db: Session, *, skip_emails: bool = False) -> list[dict[str, Any]]:
     """Tüm siteler için Haberler (web/mweb) alarm kontrolü — aralık ayarı config'ten."""
     from backend.config import settings
     from backend.models import Site as SiteModel
@@ -2322,9 +2428,112 @@ def run_news_alarm_check_all_sites(db: Session) -> list[dict[str, Any]]:
                     profile=profile,
                     window_minutes=window,
                     interval_minutes=interval,
+                    skip_emails=skip_emails,
                 )
                 all_alarms.extend(alarms)
             except Exception as exc:
                 logger.exception("Haber alarm check hatası [%s/%s]: %s", site.domain, profile, exc)
 
     return all_alarms
+
+
+# ── Özet Raporlama (Consolidated Summary) ──────────────────────────────────
+
+def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
+    """Tüm alarmları içeren toplu özet HTML gövdesi."""
+    import html
+
+    # Alarmları site bazında grupla
+    by_site: dict[str, list[dict[str, Any]]] = {}
+    for a in alarms:
+        dom = a.get("domain") or a.get("site_domain") or "Bilinmeyen Site"
+        by_site.setdefault(dom, []).append(a)
+
+    intro = (
+        f"Bu e-posta son kontrol periyodundaki <strong>toplam {len(alarms)} adet</strong> "
+        "Realtime alarmının özetidir. En yüksek değişim oranına sahip ilk 10 kayıt aşağıdadır."
+    )
+
+    sections: list[str] = []
+    # Siteleri alfabetik, içindeki alarmları ise önem sırasına göre diz
+    for dom in sorted(by_site.keys()):
+        site_alarms = sorted(by_site[dom], key=lambda x: abs(float(x.get("change_pct", 0))), reverse=True)
+        rows: list[str] = []
+        for a in site_alarms[:10]: # Her site için de bir sınır koyalım ki çok uzamasın
+            profile = a.get("profile", "web")
+            profile_abbr = {"web": "DK", "mweb": "MW", "android": "AN", "ios": "IOS"}.get(profile, profile.upper()[:3])
+            
+            pct = float(a.get("change_pct", 0))
+            color = "#dc2626" if pct < 0 else "#16a34a"
+            arrow = "↓" if pct < 0 else "↑"
+            
+            # KPI alarmları için 'metric', Sayfa/Haber alarmları için 'page' alanını kullan
+            metric_label = a.get("metric") or a.get("page") or "Metrik"
+            if len(str(metric_label)) > 45:
+                metric_label = str(metric_label)[:42] + "..."
+            
+            cur = a.get("current_value") or a.get("current_users") or 0
+            prev = a.get("previous_value") or a.get("previous_users") or 0
+            
+            rows.append(f"""
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:10px 8px;font-size:13px;color:#475569;width:40px;">{profile_abbr}</td>
+                    <td style="padding:10px 8px;font-size:13px;color:#0f172a;font-weight:500;">{html.escape(str(metric_label))}</td>
+                    <td style="padding:10px 8px;font-size:13px;color:#64748b;text-align:right;">{prev:,.0f} → {cur:,.0f}</td>
+                    <td style="padding:10px 8px;font-size:14px;font-weight:700;color:{color};text-align:right;width:80px;">
+                        {arrow} {abs(pct):.1f}%
+                    </td>
+                </tr>
+            """)
+
+        sections.append(f"""
+            <div style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                <div style="background:#f8fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#334155;">
+                    {html.escape(dom)}
+                </div>
+                <table style="width:100%;border-collapse:collapse;background:white;">
+                    {''.join(rows)}
+                </table>
+            </div>
+        """)
+
+    return f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:640px;color:#0f172a;margin:0 auto;padding:20px;">
+        <h2 style="font-size:18px;margin-bottom:12px;color:#1e293b;">Realtime Alarm Özeti</h2>
+        <p style="font-size:14px;line-height:1.5;color:#64748b;margin-bottom:24px;">{intro}</p>
+        {''.join(sections)}
+        <div style="margin-top:30px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;text-align:center;">
+            SEO Agent · Realtime Monitoring System
+        </div>
+    </div>
+    """
+
+def send_realtime_summary_email(all_alarms: list[dict[str, Any]]) -> bool:
+    """Tüm alarmları tek bir özet maili olarak gönderir."""
+    from backend.services.mailer import send_realtime_email
+    
+    if not all_alarms:
+        logger.info("send_realtime_summary_email: Gönderilecek alarm yok.")
+        return False
+    
+    logger.info("send_realtime_summary_email: %d alarm için özet maili hazırlanıyor...", len(all_alarms))
+    
+    # Önem sırasına göre diz (en yüksek değişimler en üstte)
+    sorted_alarms = sorted(all_alarms, key=lambda x: abs(float(x.get("change_pct", 0))), reverse=True)
+    top_10 = sorted_alarms[:10]
+    
+    # Konu başlığını en önemli alarma göre seç
+    primary = top_10[0]
+    dom = primary.get("domain") or primary.get("site_domain") or "SEO"
+    pct = abs(float(primary.get("change_pct", 0)))
+    verb = "Düşüş" if float(primary.get("change_pct", 0)) < 0 else "Artış"
+    
+    subject = f"Realtime Özet: {dom} %{pct:.0f} {verb} ve {len(all_alarms)} Alarm"
+    html_body = _html_realtime_summary_body(sorted_alarms)
+    
+    success = send_realtime_email(subject, html_body, thread_kind="summary", thread_key="daily_rt_summary", is_summary=True)
+    if success:
+        logger.info("send_realtime_summary_email: Özet maili başarıyla gönderildi.")
+    else:
+        logger.warning("send_realtime_summary_email: Özet maili gönderilemedi (mailer başarısız).")
+    return success

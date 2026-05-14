@@ -80,8 +80,8 @@ class Settings(BaseSettings):
     # Workspace’te POP/IMAP/SMTP ile mesaj başına en fazla 100 alıcı (RCPT) sınırı yaygındır.
     # Referans: https://support.google.com/mail/answer/22839 — https://support.google.com/a/answer/166852
     # 0 = günlük sayaç kapalı (yalnızca smtp_daily_quota_enabled=false ile de kapatılır).
-    smtp_daily_quota_enabled: bool = True
-    smtp_daily_send_limit: int = Field(default=450, ge=0, le=100000)
+    smtp_daily_quota_enabled: bool = False
+    smtp_daily_send_limit: int = Field(default=5000, ge=0, le=100000)
     smtp_quota_calendar_timezone: str = "Europe/Istanbul"
     smtp_max_recipients_per_message: int = Field(default=100, ge=1, le=500)
 

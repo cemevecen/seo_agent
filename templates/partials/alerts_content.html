@@ -156,7 +156,7 @@
                 <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">'{{ alert.display_query }}'</p>
               {% endif %}
               <p class="mt-0.5 truncate text-xs {% if cat in ('ctr', 'position', 'broken_links', 'redirect', 'robots', 'schema', 'sitemap', 'ps_mobile', 'ps_desktop', 'canonical') %}text-slate-600 dark:text-slate-400{% elif cat == 'impression' %}text-amber-700 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">
-                {{ alert.display_metric }}
+                {{ alert.display_metric | safe }}
               </p>
             </div>
 

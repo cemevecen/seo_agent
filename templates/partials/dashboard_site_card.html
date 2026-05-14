@@ -390,7 +390,7 @@
               <span class="h-2 w-2 shrink-0 rounded-full {% if alert.display_tone == 'rose' %}bg-rose-500{% elif alert.display_tone == 'amber' %}bg-amber-500{% elif alert.display_tone == 'sky' %}bg-sky-500{% else %}bg-slate-400{% endif %}" aria-hidden="true"></span>
               <span class="dash-fl-alert-title min-w-0 font-medium text-slate-700 dark:text-slate-200">{% if alert.display_query %}'{{ alert.display_query }}'{% else %}{{ alert.display_title }}{% endif %}</span>
             </div>
-            <span class="dash-fl-alert-metric shrink-0 pl-4 text-slate-500 dark:text-slate-400 sm:pl-0 sm:text-right">{{ alert.display_metric | truncate(24, true, '…') }}</span>
+            <span class="dash-fl-alert-metric shrink-0 pl-4 text-slate-500 dark:text-slate-400 sm:pl-0 sm:text-right">{{ alert.display_metric | safe }}</span>
           </a>
         {% else %}
           <p class="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/50 px-3 py-3 text-center text-xs text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">Aktif uyarı yok</p>
