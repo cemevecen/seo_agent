@@ -25,6 +25,10 @@ CATEGORY_SOURCES = {
     "Rakip": [
         "https://news.google.com/rss/search?q=(site:ekonomim.com OR site:dunya.com OR site:bloomberght.com OR site:cnbce.com OR site:ntv.com.tr OR site:cnnturk.com OR site:foreks.com OR site:gazeteoksijen.com) (finans OR ekonomi OR politika) when:1h&hl=tr&gl=TR&ceid=TR:tr"
     ],
+    "Yahoo Finance": [
+        "https://finance.yahoo.com/news/rssindex",
+        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:1h&hl=en-US&gl=US&ceid=US:en"
+    ],
     "Dünya": [
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:1h&hl=tr&gl=TR&ceid=TR:tr"
