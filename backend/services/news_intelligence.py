@@ -81,6 +81,11 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 for item in items:
                     title = item.find("title").text if item.find("title") is not None else ""
                     link = item.find("link").text if item.find("link") is not None else ""
+                    
+                    # Yahoo Finance haberlerini filtrele
+                    if category == "Yahoo Finance" and "/personal-finance/" in link.lower():
+                        continue
+
                     pub_date_str = item.find("pubDate").text if item.find("pubDate") is not None else ""
                     
                     source_el = item.find("source")
@@ -113,10 +118,14 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
 
                     # Yahoo Finance haberlerini otomatik Türkçeye çevir (Ücretsiz)
                     if category == "Yahoo Finance":
+                        # Personal Finance içeriklerini ele
+                        if "/personal-finance/" in link.lower():
+                            continue
+                            
                         try:
                             translator = GoogleTranslator(source='en', target='tr')
                             title = translator.translate(title)
-                            description = translator.translate(description)
+                            # İçeriği (description) çevirme, sadece başlığı çevir
                         except Exception as te:
                             logger.error(f"Auto-translation failed for Yahoo item: {te}")
 

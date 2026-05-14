@@ -189,8 +189,8 @@
                     <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
                     <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
                   </div>
-                  <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-2">
-                    <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline.split(' - ')[0]}</a>
+                  <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-3">
+                    <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline}</a>
                   </h3>
                   <p class="text-[11px] text-slate-500 dark:text-zinc-500 line-clamp-2 leading-relaxed">${item.content.replace(/<[^>]*>?/gm, '').split('...')[0]}...</p>
                 </div>
