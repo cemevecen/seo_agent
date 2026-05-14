@@ -17,6 +17,11 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=ekonomi+finans+borsa+piyasalar+when:12h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
+    "Finans & Borsa": [
+        "https://www.bloomberght.com/rss",
+        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+    ],
     "Dünya": [
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"
@@ -28,7 +33,7 @@ CATEGORY_SOURCES = {
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ]
 }
 
