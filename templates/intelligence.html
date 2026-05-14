@@ -16,12 +16,11 @@
 
   <div class="mt-4 rt-intel-container rounded-[2rem] border p-6 shadow-sm">
     <div class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200/60 pb-1 scrollbar-hide dark:border-white/5">
-      <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active whitespace-nowrap flex-shrink-0">İş Dünyası</button>
+      <button type="button" onclick="rtSwitchIntelTab('Genel')" id="rt-intel-tab-genel" class="rt-alarm-tab-active whitespace-nowrap flex-shrink-0">Genel</button>
       <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Finans & Borsa</button>
-      <button type="button" onclick="rtSwitchIntelTab('Rakip')" id="rt-intel-tab-rakip" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Rakip</button>
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Dünya</button>
+      <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Türkiye</button>
-      <button type="button" onclick="rtSwitchIntelTab('Bilim ve Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Bilim ve Teknoloji</button>
       <button type="button" onclick="rtSwitchIntelTab('Yahoo Finance')" id="rt-intel-tab-yahoo" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Yahoo</button>
     </div>
 
@@ -134,13 +133,12 @@
       document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
           btn.className = 'rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0';
       });
-      if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      if(cat === 'Genel') document.getElementById('rt-intel-tab-genel').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Rakip') document.getElementById('rt-intel-tab-rakip').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       
       document.getElementById('rt-intel-list').innerHTML = '';
       rtFetchNewsIntelligence();
@@ -178,21 +176,22 @@
             } catch(e) { faviconUrl = '/static/favicon.png'; }
 
             return `
-              <div class="group rt-intel-card flex items-start gap-4 overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
-                <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1.5 dark:bg-zinc-800/40">
-                  <img src="${faviconUrl}" 
-                       class="h-full w-full object-contain" 
-                       onerror="this.src='/static/favicon.png'">
-                </div>
-                <div class="flex flex-1 flex-col min-w-0">
-                  <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
-                    <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
+              <div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/40">
+                      <img src="${faviconUrl}" 
+                           class="h-full w-full object-contain" 
+                           onerror="this.src='/static/favicon.png'">
+                    </div>
+                    <span class="text-[11px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
                   </div>
-                  <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-3">
+                  <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
+                </div>
+                <div class="flex flex-col min-w-0">
+                  <h3 class="text-[14px] font-bold text-slate-900 dark:text-zinc-200 leading-snug line-clamp-6">
                     <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline}</a>
                   </h3>
-                  <p class="text-[11px] text-slate-500 dark:text-zinc-500 line-clamp-2 leading-relaxed">${item.content.replace(/<[^>]*>?/gm, '').split('...')[0]}...</p>
                 </div>
               </div>
             `;
