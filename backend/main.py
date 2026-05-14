@@ -8977,6 +8977,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         return {"status": "skipped", "reason": "night_mode"}
 
     LOGGER.info(">>> GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BAŞLADI (local_time=%s, force=%s)", now_local.isoformat(), force_run)
+    try:
         from backend.services.ga4_realtime import (
             run_all_sites_realtime_check,
             run_news_alarm_check_all_sites,
@@ -8998,9 +8999,12 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             if isinstance(res, dict) and res.get("alarms"):
                 all_summary_alarms.extend(res["alarms"])
 
-        if is_night:
+        if is_night and not force_run:
             LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
-            return
+            return {
+                "total_alarms": 0,
+                "status": "night_mode_passive"
+            }
 
         if settings.ga4_realtime_page_alerts_enabled:
             with SessionLocal() as db:
