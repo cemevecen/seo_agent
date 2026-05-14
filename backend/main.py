@@ -8966,6 +8966,7 @@ def _run_db_retention_cleanup() -> dict:
 def _run_ga4_realtime_check_job() -> None:
     """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü.
     00:00–07:00 arası çalışmaz (kota tasarrufu); bu saatler dışında çalışır."""
+    from datetime import datetime as _dt
     from zoneinfo import ZoneInfo as _ZoneInfo
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
     now_local = _dt.now(_ZoneInfo(tz_name))
