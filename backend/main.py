@@ -8966,9 +8966,8 @@ def _run_ga4_realtime_check_job() -> None:
     00:00–07:00 arası çalışmaz (kota tasarrufu); bu saatler dışında çalışır."""
     from datetime import datetime as _dt
     hour = _dt.now().hour
-    if 0 <= hour < 7:
-        LOGGER.debug("GA4 Realtime: saat %02d — gece aralığı (00–07), atlanıyor.", hour)
-        return
+    is_night = (0 <= hour < 7)
+
     try:
         from backend.services.ga4_realtime import (
             run_all_sites_realtime_check,
@@ -8980,7 +8979,13 @@ def _run_ga4_realtime_check_job() -> None:
             results = run_all_sites_realtime_check(
                 db,
                 window_minutes=settings.ga4_realtime_window_minutes,
+                skip_alarms=is_night,
             )
+        
+        if is_night:
+            LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
+            return
+
         alarm_total = sum(r.get("alarm_count", 0) for r in results if isinstance(r, dict))
         if alarm_total:
             LOGGER.warning("GA4 Realtime: %d alarm tetiklendi (%d profil kontrolü).", alarm_total, len(results))

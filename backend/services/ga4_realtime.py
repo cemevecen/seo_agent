@@ -470,7 +470,7 @@ NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
 }
 
 # sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 50
-_SINEMALAR_REALTIME_ALARM_PCT = 50
+_SINEMALAR_REALTIME_ALARM_PCT = 35
 
 
 def _is_sinemalar_site_domain(domain: str | None) -> bool:
@@ -1382,6 +1382,7 @@ def check_site_realtime(
     *,
     window_minutes: int = DEFAULT_WINDOW_MINUTES,
     profile: str = "web",
+    skip_alarms: bool = False,
 ) -> dict[str, Any]:
     """Tek bir site+profil için realtime kontrol çalıştırır.
 
@@ -1407,12 +1408,8 @@ def check_site_realtime(
     # Profil bazlı dimension filter oluştur
     dim_filter = None
     if profile == "web":
-        dim_filter = FilterExpression(
-            filter=Filter(
-                field_name="deviceCategory",
-                string_filter=Filter.StringFilter(value="desktop"),
-            )
-        )
+        # 'web' profili için filtreleme yapmıyoruz; varsayılan (tüm trafik) kalsın.
+        dim_filter = None
     elif profile == "mweb":
         dim_filter = FilterExpression(
             filter=Filter(
@@ -1448,17 +1445,20 @@ def check_site_realtime(
             "message": str(exc),
         }
 
-    alarms = evaluate_alarms(result["comparison"], site_domain=site.domain)
+    if skip_alarms:
+        alarms = []
+    else:
+        alarms = evaluate_alarms(result["comparison"], site_domain=site.domain)
 
-    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-    for a in alarms:
-        a["domain"] = site.domain
-        a["profile"] = profile
-        a["profile_label"] = profile_label
-        a["message"] = (
-            f"{site.domain} {profile_label} — "
-            f"{a['metric']} {a['previous_value']:.0f} → {a['current_value']:.0f} ({a['change_pct']:+.1f}%)"
-        )
+        profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+        for a in alarms:
+            a["domain"] = site.domain
+            a["profile"] = profile
+            a["profile_label"] = profile_label
+            a["message"] = (
+                f"{site.domain} {profile_label} — "
+                f"{a['metric']} {a['previous_value']:.0f} → {a['current_value']:.0f} ({a['change_pct']:+.1f}%)"
+            )
 
     result["site_id"] = site.id
     result["domain"] = site.domain
@@ -1470,6 +1470,7 @@ def check_site_realtime(
 
     if alarms:
         _save_alarm_logs(db, site.id, alarms)
+        logger.info("GA4 Realtime: %d alarm bulundu, e-posta gönderimi tetikleniyor (site=%s, profile=%s).", len(alarms), site.domain, profile)
         _send_site_alarm_emails(site.domain, profile, alarms)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
@@ -1477,6 +1478,8 @@ def check_site_realtime(
             len(alarms),
             "; ".join(a["message"] for a in alarms),
         )
+    else:
+        logger.debug("GA4 Realtime: Alarm tetiklenmedi (site=%s, profile=%s).", site.domain, profile)
 
     return result
 
@@ -1539,17 +1542,23 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
         return
     if not is_realtime_mail_ready():
         logger.warning(
-            "Realtime site alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
-            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
+            "Realtime site alarmı tetiklendi (site=%s, alarm_count=%d) ancak e-posta gönderilemedi. "
+            "Lütfen şu ayarları kontrol edin: GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP_HOST, MAIL_TO.",
+            domain,
             len(alarms),
         )
         return
 
+    logger.info("GA4 Realtime: E-posta hazırlanıyor (site=%s, profile=%s)...", domain, profile)
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_site_alarm_body(domain, profile_label, alarms)
     subject = _email_site_alarm_subject(domain, profile, alarms)
-    send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
+    ok = send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
+    if ok:
+        logger.info("GA4 Realtime: E-posta başarıyla gönderildi (site=%s, profile=%s).", domain, profile)
+    else:
+        logger.error("GA4 Realtime: E-posta gönderimi başarısız (site=%s, profile=%s).", domain, profile)
 
 
 def get_recent_snapshots(
@@ -1652,7 +1661,12 @@ def get_recent_alarms(
     return out
 
 
-def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_WINDOW_MINUTES) -> list[dict[str, Any]]:
+def run_all_sites_realtime_check(
+    db: Session,
+    *,
+    window_minutes: int = DEFAULT_WINDOW_MINUTES,
+    skip_alarms: bool = False,
+) -> list[dict[str, Any]]:
     """Tüm aktif siteleri kontrol eder — scheduler job'ından çağrılır.
 
     Her site için web ve (GA4 ayarlarında ayrı property ID ile tanımlıysa) mweb, ios,
@@ -1678,7 +1692,7 @@ def run_all_sites_realtime_check(db: Session, *, window_minutes: int = DEFAULT_W
             # her profil için ayrı snapshot kaydediyoruz. 
             # API kota limitlerini izlemek gerekebilir.
             try:
-                r = check_site_realtime(db, site, window_minutes=window_minutes, profile=profile)
+                r = check_site_realtime(db, site, window_minutes=window_minutes, profile=profile, skip_alarms=skip_alarms)
                 results.append(r)
             except Exception as exc:
                 logger.exception("Realtime check başarısız [%s / %s]: %s", site.domain, profile, exc)
