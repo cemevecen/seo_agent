@@ -9,8 +9,14 @@ import re
 import secrets
 import smtplib
 import time
+import base64
+import googleapiclient.discovery
 from email.message import EmailMessage
 from email.utils import parseaddr
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.services.smtp_quota import (
@@ -136,6 +142,32 @@ def _smtp_dispatch_with_daily_quota(message: EmailMessage) -> bool:
             smtp_quota_release_one_send()
 
 
+def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> bool:
+    """Gmail API (OAuth) üzerinden e-posta gönderir — SMTP port kısıtlamalarını aşmak için idealdir."""
+    from backend.services.inbox_gmail_auth import load_inbox_credentials
+    from backend.database import SessionLocal
+    
+    # Session yönetimi: dışarıdan db gelmediyse yeni session aç/kapat
+    session = db if db is not None else SessionLocal()
+    try:
+        creds = load_inbox_credentials(session)
+        if not creds:
+            return False
+        
+        # API discovery'yi cache_discovery=False ile yapıyoruz (bazı ortamlarda dosya izni hatası vermemesi için)
+        service = googleapiclient.discovery.build('gmail', 'v1', credentials=creds, cache_discovery=False)
+        raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
+        service.users().messages().send(userId='me', body={'raw': raw_msg}).execute()
+        return True
+    except Exception as e:
+        logging.error("Gmail API ile e-posta gönderimi başarısız: %s", e)
+        return False
+    finally:
+        if db is None:
+            session.close()
+
+
 def send_email(subject: str, html_body: str, recipients: list[str] | None = None) -> bool:
     """
     SMTP ile HTML e-posta gönderir.
@@ -159,11 +191,17 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     message.set_content("This is a plain-text fallback for the HTML email.")
     message.add_alternative(html_body, subtype="html")
 
+    # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
+    if _gmail_api_dispatch(message):
+        logging.info("E-posta GMAIL API (OAuth) ile gönderildi: %s", subject[:100])
+        return True
+
+    # FALLBACK: SMTP (Eğer Gmail API bağlı değilse veya hata verdiyse)
     ok = _smtp_dispatch_with_daily_quota(message)
     if ok:
         logging.info(
             "Email with subject '%s' sent successfully to %s.",
-            subject[:200],
+            subject[:100],
             ", ".join(recipient_list),
         )
     return ok
@@ -216,10 +254,16 @@ def send_realtime_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
+    # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
+    if _gmail_api_dispatch(message):
+        logging.info("GA4 Realtime e-postası GMAIL API (OAuth) ile gönderildi: %s", subj[:100])
+        return True
+
+    # FALLBACK: SMTP (Eğer Gmail API bağlı değilse veya hata verdiyse)
     ok = _smtp_dispatch_with_daily_quota(message)
     if ok:
         logging.info(
-            "GA4 Realtime e-postası gönderildi: %s → %s",
+            "GA4 Realtime e-postası SMTP ile gönderildi: %s → %s",
             subj[:100],
             ", ".join(recipient_list),
         )
@@ -263,10 +307,16 @@ def send_realtime_news_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
+    # ÖNCE GMAIL API (OAuth) DENE
+    if _gmail_api_dispatch(message):
+        logging.info("GA4 Realtime haber e-postası GMAIL API (OAuth) ile gönderildi: %s", subj[:100])
+        return True
+
+    # FALLBACK: SMTP
     ok = _smtp_dispatch_with_daily_quota(message)
     if ok:
         logging.info(
-            "GA4 Realtime haber e-postası gönderildi: %s → %s",
+            "GA4 Realtime haber e-postası SMTP ile gönderildi: %s → %s",
             subj[:100],
             ", ".join(recipient_list),
         )
