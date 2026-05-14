@@ -133,6 +133,10 @@
             const d = new Date(item.published_at);
             const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
             
+            const translateBtn = _activeIntelCategory === "Yahoo Finance" 
+              ? `<button onclick="rtTranslateCard(this)" class="text-[9px] font-bold text-indigo-500 hover:text-indigo-400 ml-2 transition-all">TR ÇEVİR</button>` 
+              : '';
+            
             let faviconUrl = '';
             try {
               const targetUrl = item.source_url || item.url;
@@ -149,7 +153,10 @@
                 </div>
                 <div class="flex flex-1 flex-col min-w-0">
                   <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
+                    <div class="flex items-center min-w-0">
+                      <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
+                      ${translateBtn}
+                    </div>
                     <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
                   </div>
                   <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-2">
@@ -164,6 +171,50 @@
           listEl.insertAdjacentHTML('beforeend', html);
           _intelOffset += items.length;
         });
+    }
+
+    async function rtTranslateCard(btn) {
+      const card = btn.closest('.rt-intel-card');
+      const headlineEl = card.querySelector('h3 a');
+      const contentEl = card.querySelector('p');
+      
+      const originalText = headlineEl.innerText + " | " + contentEl.innerText;
+      
+      btn.disabled = true;
+      const oldText = btn.innerText;
+      btn.innerText = "ÇEVİRİLİYOR...";
+      btn.classList.add('animate-pulse');
+      
+      const formData = new FormData();
+      formData.append('text', originalText);
+      
+      try {
+        const r = await fetch('/api/admin/news-intelligence/translate', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await r.json();
+        if(data.ok) {
+            const parts = data.translated.split(' | ');
+            if(parts.length >= 2) {
+                headlineEl.innerText = parts[0];
+                contentEl.innerText = parts[1];
+            } else {
+                headlineEl.innerText = data.translated;
+            }
+            btn.innerText = "ÇEVRİLDİ ✓";
+            btn.classList.remove('text-indigo-500');
+            btn.classList.add('text-green-500');
+        } else {
+            btn.innerText = "HATA!";
+            console.error('Translation error:', data.error);
+        }
+      } catch(e) {
+        btn.innerText = "HATA!";
+        console.error('Translation fetch error:', e);
+      } finally {
+        btn.classList.remove('animate-pulse');
+      }
     }
 
     // Infinite Scroll detection
