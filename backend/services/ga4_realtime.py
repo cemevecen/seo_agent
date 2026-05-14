@@ -214,16 +214,13 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
     n = len(alarms)
     head = html.escape("Birden fazla kural aynı anda tetiklendi." if n > 1 else "Realtime alarmı.")
     
-    # Sürücü Analizi (Eğer varsa)
+    # Sürücü Analizi (Eğer varsa) — drivers, check_site_realtime tarafından alarms[0]'a eklenir
     driver_html = ""
-    site_delta = 0
-    if alarms:
-        # En büyük değişime sahip alarmı baz alalım
-        primary = sorted(alarms, key=lambda x: abs(x.get("current_value",0) - x.get("previous_value",0)), reverse=True)[0]
-        site_delta = primary.get("current_value",0) - primary.get("previous_value",0)
-        drivers = alarm.get("drivers", []) if (alarm := alarms[0]) else []
-        if drivers:
-            driver_html = _html_driver_analysis_section(drivers, site_delta)
+    first_alarm = alarms[0] if alarms else {}
+    drivers = first_alarm.get("drivers", [])
+    if drivers:
+        site_delta = first_alarm.get("current_value", 0) - first_alarm.get("previous_value", 0)
+        driver_html = _html_driver_analysis_section(drivers, site_delta)
 
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;color:#0f172a;">
@@ -1474,98 +1471,120 @@ def evaluate_alarms(
 
 def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta: float) -> list[dict[str, Any]]:
     """Site genelindeki trafik değişimine hangi sayfaların ne kadar katkıda bulunduğunu analiz eder."""
-    if abs(site_delta) < 5: # Çok küçük değişimleri analiz etme
+    try:
+        if abs(site_delta) < 5:
+            return []
+
+        from backend.models import RealtimePageSnapshot
+        from sqlalchemy import desc
+
+        # En son 2 farklı collected_at zaman damgasını bul
+        distinct_times = (
+            db.query(RealtimePageSnapshot.collected_at)
+            .filter(
+                RealtimePageSnapshot.site_id == site_id,
+                RealtimePageSnapshot.profile == profile,
+            )
+            .order_by(desc(RealtimePageSnapshot.collected_at))
+            .distinct()
+            .limit(2)
+            .all()
+        )
+
+        if len(distinct_times) < 2:
+            return []
+
+        curr_time, prev_time = distinct_times[0][0], distinct_times[1][0]
+
+        def _rows_to_map(ts: Any) -> dict[str, float]:
+            rows = (
+                db.query(RealtimePageSnapshot)
+                .filter(
+                    RealtimePageSnapshot.site_id == site_id,
+                    RealtimePageSnapshot.profile == profile,
+                    RealtimePageSnapshot.collected_at == ts,
+                )
+                .all()
+            )
+            return {row.page_path: row.active_users for row in rows}
+
+        curr_map = _rows_to_map(curr_time)
+        prev_map = _rows_to_map(prev_time)
+
+        if not curr_map or not prev_map:
+            return []
+
+        drivers = []
+        for path in set(curr_map) | set(prev_map):
+            c = curr_map.get(path, 0)
+            p = prev_map.get(path, 0)
+            diff = c - p
+            if diff != 0:
+                contribution = (diff / site_delta * 100) if site_delta else 0
+                drivers.append({
+                    "page": path,
+                    "delta": diff,
+                    "contribution_pct": contribution,
+                    "current": c,
+                    "previous": p,
+                })
+
+        # Düşüşte en çok düşenler, artışta en çok artanlar önce
+        drivers.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
+        return drivers[:5]
+
+    except Exception:
+        logger.exception("_analyze_traffic_drivers hatası (site_id=%s)", site_id)
         return []
-        
-    prev_pages = get_previous_page_snapshots(db, site_id, profile)
-    if not prev_pages:
-        return []
-        
-    from backend.models import RealtimePageSnapshot
-    from sqlalchemy import desc
-    
-    # Son 2 ölçümü al
-    last_two = (
-        db.query(RealtimePageSnapshot.payload_json)
-        .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == profile)
-        .order_by(desc(RealtimePageSnapshot.collected_at))
-        .limit(2)
-        .all()
-    )
-    
-    if len(last_two) < 2:
-        return []
-        
-    import json as _json
-    curr_data = _json.loads(last_two[0][0])
-    prev_data = _json.loads(last_two[1][0])
-    
-    curr_map = {p["pagePath"]: p["activeUsers"] for p in curr_data}
-    prev_map = {p["pagePath"]: p["activeUsers"] for p in prev_data}
-    
-    drivers = []
-    all_paths = set(list(curr_map.keys()) + list(prev_map.keys()))
-    
-    for path in all_paths:
-        c = curr_map.get(path, 0)
-        p = prev_map.get(path, 0)
-        diff = c - p
-        if abs(diff) > 0:
-            # Katkı oranı (site genelindeki değişime göre)
-            contribution = (diff / site_delta * 100) if abs(site_delta) > 0 else 0
-            drivers.append({
-                "page": path,
-                "delta": diff,
-                "contribution_pct": contribution,
-                "current": c,
-                "previous": p
-            })
-            
-    # Değişim yönüne göre sırala (eğer site_delta negatifse en çok düşenler en üstte)
-    is_drop = site_delta < 0
-    drivers.sort(key=lambda x: x["delta"], reverse=not is_drop)
-    
-    return drivers[:5] # En etkili 5 sayfayı döndür
 
 def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: float) -> str:
     """Trafik değişim analizi için HTML bölümü üretir."""
     if not drivers:
         return ""
-        
+
     is_drop = site_delta < 0
-    title = "Düşüşün Kaynağı (Analiz)" if is_drop else "Artışın Kaynağı (Analiz)"
-    color = "#991b1b" if is_drop else "#166534"
-    
+    title = "Düşüşün Kaynağı" if is_drop else "Artışın Kaynağı"
+    header_color = "#7f1d1d" if is_drop else "#14532d"
+    header_bg = "#fef2f2" if is_drop else "#f0fdf4"
+    row_color = "#b91c1c" if is_drop else "#15803d"
+
     rows = []
     for d in drivers:
-        # Başlığı sadeleştir
         path = d["page"]
-        clean_title = _rt_alarm_screen_title_one_line(path, max_len=60)
+        clean_title = _rt_alarm_screen_title_one_line(path, max_len=55)
         pct = d["contribution_pct"]
-        # Eğer katkı %100'den büyükse (bazı sayfalar artarken toplam düşmüş olabilir), 
-        # veya tam tersi, mantıklı bir sınır koyalım.
-        pct_display = f"%{abs(pct):.0f}"
-        
+        # %100 üzerini gösterme (karşı yönde hareket eden sayfalar nedeniyle olabilir)
+        pct_display = f"%{min(abs(pct), 999):.0f}"
+        bar_width = min(abs(pct), 100)
+        bar_color = "#fca5a5" if is_drop else "#86efac"
+
         rows.append(f"""
-            <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:8px 0;font-size:13px;color:#334155;">{html.escape(clean_title)}</td>
-                <td style="padding:8px 0;text-align:right;font-size:13px;font-weight:700;color:{color};">
-                    {d['delta']:+.0f} ({pct_display} etki)
+            <tr>
+                <td style="padding:9px 0 5px;font-size:13px;color:#1e293b;vertical-align:top;">
+                    {html.escape(clean_title)}
+                    <div style="margin-top:3px;height:4px;border-radius:2px;background:#e2e8f0;width:100%;">
+                        <div style="height:4px;border-radius:2px;background:{bar_color};width:{bar_width:.0f}%;"></div>
+                    </div>
+                </td>
+                <td style="padding:9px 0 5px;text-align:right;font-size:13px;font-weight:700;color:{row_color};white-space:nowrap;vertical-align:top;padding-left:12px;">
+                    {d['delta']:+.0f} <span style="font-weight:400;font-size:11px;color:#64748b;">({pct_display})</span>
                 </td>
             </tr>
         """)
-        
+
     return f"""
-        <div style="margin-top:24px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
-            <div style="font-size:13px;font-weight:700;color:{color};margin-bottom:12px;text-transform:uppercase;">
-                {title}
+        <div style="margin-top:20px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+            <div style="padding:10px 14px;background:{header_bg};border-bottom:1px solid #e2e8f0;">
+                <span style="font-size:12px;font-weight:700;color:{header_color};text-transform:uppercase;letter-spacing:.04em;">
+                    📊 {title}
+                </span>
+                <span style="font-size:11px;color:#64748b;margin-left:8px;">Toplam değişim: {site_delta:+.0f} kullanıcı</span>
             </div>
-            <table style="width:100%;border-collapse:collapse;">
-                {''.join(rows)}
-            </table>
-            <p style="margin-top:12px;font-size:12px;color:#64748b;font-style:italic;">
-                * Bu analiz, site genelindeki toplam {site_delta:+.0f} değişimin hangi içeriklerden kaynaklandığını gösterir.
-            </p>
+            <div style="padding:4px 14px 10px;background:#fff;">
+                <table style="width:100%;border-collapse:collapse;">
+                    {''.join(rows)}
+                </table>
+            </div>
         </div>
     """
 
