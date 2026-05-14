@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ site_name or "SEO Agent Dashboard" }}</title>
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
-  {% set favicon_v = "4" %}
+  {% set favicon_v = "5" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
   {% set app_css_v = "11" %}
   <link rel="icon" href="/favicon.ico?v={{ favicon_v }}" sizes="any" />
@@ -516,9 +516,10 @@
             <div class="header-top-row">
               <h2
                 id="header-site-title"
-                class="min-w-0 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
+                class="flex min-w-0 items-center gap-2 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
               >
-                {{ site_name or "SEO Agent" }}
+                <img src="/static/favicon.png?v={{ favicon_v }}" class="h-6 w-6 shrink-0 rounded-md shadow-sm" alt="Logo" />
+                <span class="truncate">{{ site_name or "SEO Agent" }}</span>
               </h2>
               <div
                 id="theme-switcher"
