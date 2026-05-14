@@ -1906,28 +1906,31 @@
       var shortLab = _siteShortLabel(a.site_id) || dom;
       return (
         '<tr class="' + sev + '">' +
-        '<td class="rt-alarm-site-dir" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
-        '<td><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
-        '<td>' + _esc(prof) + '</td>' +
-        '<td>' + _esc(_rtMetricTr(metricKey)) + '</td>' +
-        '<td class="tabular-nums">' + _esc(String(Math.round(prev))) + '</td>' +
-        '<td class="tabular-nums">' + _esc(String(Math.round(cur))) + '</td>' +
-        '<td class="tabular-nums font-semibold">' + _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') + '</td>' +
-        '<td class="tabular-nums text-xs opacity-80">' + _esc(dt) + '</td>' +
+        '<td class="rt-alarm-site-dir" style="width:35px" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
+        '<td style="min-width:80px"><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
+        '<td style="width:60px">' + _esc(prof) + '</td>' +
+        '<td style="min-width:120px" class="font-bold">' + _esc(_rtMetricTr(metricKey)) + '</td>' +
+        '<td class="tabular-nums" style="width:60px">' + _esc(String(Math.round(prev))) + '</td>' +
+        '<td class="tabular-nums" style="width:60px">' + _esc(String(Math.round(cur))) + '</td>' +
+        '<td class="tabular-nums font-extrabold" style="width:70px">' + 
+           _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') + 
+           '<div class="text-[9px] opacity-70 font-normal">Fark: ' + (cur - prev).toFixed(0) + '</div>' +
+        '</td>' +
+        '<td class="tabular-nums text-[10px] opacity-80" style="width:50px">' + _esc(dt) + '</td>' +
         '</tr>'
       );
     }).join('');
     listEl.innerHTML =
-      '<table class="rt-alarm-site-table" role="grid">' +
+      '<table class="rt-alarm-site-table" role="grid" style="table-layout:fixed">' +
       '<thead><tr>' +
-      '<th scope="col">Yön</th>' +
-      '<th scope="col">Site</th>' +
-      '<th scope="col">Profil</th>' +
-      '<th scope="col">Metrik</th>' +
-      '<th scope="col">Önceki</th>' +
-      '<th scope="col">Şimdi</th>' +
-      '<th scope="col">%</th>' +
-      '<th scope="col">Saat</th>' +
+      '<th scope="col" style="width:35px">Yön</th>' +
+      '<th scope="col" style="min-width:80px">Site</th>' +
+      '<th scope="col" style="width:60px">Profil</th>' +
+      '<th scope="col" style="min-width:120px">Metrik</th>' +
+      '<th scope="col" style="width:60px">Önceki</th>' +
+      '<th scope="col" style="width:60px">Şimdi</th>' +
+      '<th scope="col" style="width:70px">% / Fark</th>' +
+      '<th scope="col" style="width:50px">Saat</th>' +
       '</tr></thead><tbody>' +
       rows +
       '</tbody></table>';
@@ -2104,7 +2107,10 @@
         }
       }
       var lead = icon ? '<span class="font-semibold">' + icon + '</span> ' : '';
-      return '<div class="' + sev + '"><div>' + lead + _esc(a.message) + ' <span class="rt-alarm-time">' + dt + '</span></div>' + sub + '</div>';
+      return '<div class="' + sev + '" style="padding: 0.4rem 0.6rem; margin-bottom: 0.25rem;">' +
+             '<div class="text-[12px] leading-snug">' + lead + _esc(a.message) + ' <span class="rt-alarm-time text-[10px]">' + dt + '</span></div>' + 
+             sub + 
+             '</div>';
     }).join('');
   }
 

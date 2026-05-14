@@ -2534,3 +2534,30 @@ def send_realtime_summary_email(all_alarms: list[dict[str, Any]]) -> bool:
     else:
         logger.warning("send_realtime_summary_email: Özet maili gönderilemedi (mailer başarısız).")
     return success
+
+
+def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
+    """Tekil bir alarm için e-posta gönderir (hibrit gönderim mantığı için)."""
+    from backend.services.mailer import send_realtime_email
+    
+    domain = alarm.get("domain") or alarm.get("site_domain") or "Site"
+    profile = alarm.get("profile") or "web"
+    profile_label = alarm.get("profile_label") or profile
+    
+    # Konu başlığı üret
+    rule_id = alarm.get("rule_id", "")
+    if rule_id.startswith("news_"):
+        subject = _email_news_alarm_subject(domain, profile, [alarm])
+        html_body = _html_news_alarm_body(domain, profile_label, [alarm])
+        thread_kind = "news"
+    elif rule_id.startswith("page_"):
+        subject = _email_page_alarm_subject(domain, profile, [alarm])
+        html_body = _html_page_alarm_body(domain, profile_label, [alarm])
+        thread_kind = "page"
+    else:
+        subject = _email_site_alarm_subject(domain, profile, [alarm])
+        html_body = _html_site_alarm_body(domain, profile_label, [alarm])
+        thread_kind = "site"
+        
+    thread_key = _realtime_email_thread_key(domain, profile)
+    return send_realtime_email(subject, html_body, thread_kind=thread_kind, thread_key=thread_key)

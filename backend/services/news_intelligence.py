@@ -57,7 +57,10 @@ FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "fai
 EXCLUDE_KEYWORDS = [
     "canlı grafik", "hisse senedi canlı", "fiyatı canlı", "bist:", 
     "teknik analiz", "günlük bülten", "sabah bülteni", "akşam bülteni", 
-    "varant bülteni", "foreks haber", "cnbc-e haber", "piyasa ekranı"
+    "varant bülteni", "foreks haber", "cnbc-e haber", "piyasa ekranı",
+    "reklam", "sponsorlu", "yol durumu", "hava durumu", "namaz vakitleri",
+    "astroloji", "burç", "gün sonu bülteni", "piyasa özeti", "piyasa bülteni",
+    "ekonomi takvimi", "ajanda", "şifreli kanal", "yayın akışı", "izle", "canlı izle"
 ]
 
 def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
@@ -112,8 +115,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         if title.endswith(suffix):
                             title = title[:-len(suffix)].strip()
                     
-                    # 40 karakter sınırı ve temel filtreler
-                    if len(title) < 40:
+                    # 50 karakter sınırı ve temel filtreler
+                    if len(title) < 50:
                         continue
                     
                     # Eğer başlık sadece site adından oluşuyorsa veya çok jenerikse atla
