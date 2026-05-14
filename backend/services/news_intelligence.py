@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 SEARCH_QUERIES = {
     "İş Dünyası": "şirket haberleri ekonomi finans borsa",
     "Dünya": "global ekonomi dünya piyasaları fed faiz",
-    "Türkiye": "türkiye ekonomisi döviz dolar borsa faiz"
+    "Türkiye": "türkiye ekonomisi döviz dolar borsa faiz",
+    "Bilim ve Teknoloji": "yapay zeka teknoloji bilim yazılım uzay teknoloji haberleri"
 }
 
 # Filtreleme Anahtar Kelimeleri (Hala ekonomi odaklı kalması için)
-FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa"]
+FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon"]
 
 def fetch_and_sync_news_intelligence(db: Session):
     """Google News Arama RSS üzerinden haberleri çeker ve DB ile senkronize eder."""

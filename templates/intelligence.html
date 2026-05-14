@@ -18,6 +18,7 @@
       <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive">Dünya</button>
       <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive">Türkiye</button>
+      <button type="button" onclick="rtSwitchIntelTab('Bilim ve Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive">Bilim ve Teknoloji</button>
     </div>
 
     <div id="rt-intel-list" class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -66,6 +67,7 @@
       if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active';
       else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active';
       else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active';
+      else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active';
       rtFetchNewsIntelligence();
     }
 
