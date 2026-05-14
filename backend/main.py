@@ -9060,31 +9060,31 @@ def admin_vacuum():
 @app.get("/api/admin/test-realtime-mail")
 def admin_test_realtime_mail(db: Session = Depends(get_db)):
     """Realtime e-posta sistemini teşhis eder ve test mailleri gönderir."""
-    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email, _smtp_configured
-    from backend.services import inbox_gmail_auth
-    from backend.services.ga4_realtime import send_realtime_summary_email, get_recent_alarms
-    from backend.models import Site as SiteModel
-
-    recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
-
-    inbox_creds = inbox_gmail_auth.load_inbox_credentials(db)
-    inbox_row = inbox_gmail_auth.get_inbox_credential_row(db)
-
-    results = {
-        "ga4_realtime_email_enabled": settings.ga4_realtime_email_enabled,
-        "ga4_realtime_page_alert_email": settings.ga4_realtime_page_alert_email,
-        "smtp_configured": _smtp_configured(),
-        "mail_to": settings.mail_to,
-        "mail_to_list": recipient_list,
-        "is_ready": is_realtime_mail_ready(),
-        "inbox": {
-            "is_connected": inbox_creds is not None,
-            "account_email": inbox_row.account_email if inbox_row else None,
-            "has_refresh_token": bool(inbox_row.refresh_token) if inbox_row else False,
-        }
-    }
-
     try:
+        from backend.services.mailer import is_realtime_mail_ready, send_realtime_email, _smtp_configured
+        from backend.services import inbox_gmail_auth
+        from backend.services.ga4_realtime import send_realtime_summary_email, get_recent_alarms
+        from backend.models import Site as SiteModel
+
+        recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+
+        inbox_creds = inbox_gmail_auth.load_inbox_credentials(db)
+        inbox_row = inbox_gmail_auth.get_inbox_credential_row(db)
+
+        results = {
+            "ga4_realtime_email_enabled": settings.ga4_realtime_email_enabled,
+            "ga4_realtime_page_alert_email": settings.ga4_realtime_page_alert_email,
+            "smtp_configured": _smtp_configured(),
+            "mail_to": settings.mail_to,
+            "mail_to_list": recipient_list,
+            "is_ready": is_realtime_mail_ready(),
+            "inbox": {
+                "is_connected": inbox_creds is not None,
+                "account_email": inbox_row.account_email if inbox_row else None,
+                "has_refresh_token": bool(inbox_row.refresh_token) if inbox_row else False,
+            }
+        }
+
         # 1. Bireysel test
         subject = "SEO Agent TEST: Bireysel Alarm"
         body = "<h3>Bireysel Mail Testi</h3><p>Sistem bireysel alarm gönderebiliyor.</p>"
@@ -9109,10 +9109,16 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
             }]
             results["summary_fake_send_success"] = send_realtime_summary_email(fake_alarms)
             
-    except Exception as exc:
-        results["error"] = str(exc)
+        return JSONResponse(results)
 
-    return JSONResponse(results)
+    except Exception as exc:
+        import traceback
+        return JSONResponse({
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "traceback": traceback.format_exc()
+        }, status_code=500)
 
 
 @app.post("/admin/truncate-sc-snapshots")
