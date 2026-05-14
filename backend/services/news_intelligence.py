@@ -43,6 +43,9 @@ CATEGORY_SOURCES = {
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
 FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon", "gündem", "haber"]
 
+# Negatif Filtre: Bu kelimeleri içeren başlıklar "haber" sayılmaz ve elenir
+EXCLUDE_KEYWORDS = ["canlı grafik", "hisse senedi canlı", "fiyatı canlı", "bist:"]
+
 def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     """Çok kanallı RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
     logger.info("Starting Multi-Channel News Intelligence sync (reset=%s)...", reset)
@@ -84,6 +87,11 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     # Görsel (Thumbnail) Çekme - Kaldırıldı (Artık logo kullanılacak)
                     image_url = None
                     
+                    # Negatif Filtre Kontrolü
+                    lower_title = title.lower()
+                    if any(ex in lower_title for ex in EXCLUDE_KEYWORDS):
+                        continue
+
                     # Etiketleme için anahtar kelime kontrolü
                     combined_text = (title + " " + description).lower()
                     matched_topic = next((kw for kw in FILTER_KEYWORDS if kw in combined_text), None)
