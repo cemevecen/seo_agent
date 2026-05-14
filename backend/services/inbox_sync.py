@@ -108,15 +108,17 @@ def _extract_body_text(
 
 
 def _route_tag_from_addrs(text: str) -> str:
-    t = text or ""
-    has_id = bool(_INFO_DOVIZ_RE.search(t))
-    has_is = bool(_INFO_SINEMALAR_RE.search(t))
-    has_f = bool(_FB_RE.search(t))
-
+    t = (text or "").lower()
+    
+    # Adres bazlı eşleşmeler (Regex yerine daha hızlı string kontrolü)
+    is_info = "info@doviz.com" in t or "info@sinemalar.com" in t
+    is_feedback = "feedback@doviz.com" in t or "feedback@sinemalar.com" in t
+    is_sinemalar = "sinemalar.com" in t and "info" in t
+    
     found = []
-    if has_id: found.append("info")
-    if has_is: found.append("sinemalar")
-    if has_f: found.append("feedback")
+    if is_info: found.append("info")
+    if is_feedback: found.append("feedback")
+    if is_sinemalar and "info" not in found: found.append("sinemalar")
 
     if len(found) > 1:
         return "mixed"
@@ -239,7 +241,14 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
         "pct": 5,
     }
     service = _gmail_service(creds)
-    q = (settings.inbox_gmail_query or "").strip() or "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com)"
+    # is:unread ekleyerek tam güncelliği sağlıyoruz
+    q = (settings.inbox_gmail_query or "").strip()
+    if not q:
+        q = "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com)"
+    
+    if "is:unread" not in q.lower():
+        q = f"is:unread {q}"
+        
     yield {
         "type": "phase",
         "phase": "listing",

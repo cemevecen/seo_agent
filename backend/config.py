@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     )
     # Gmail arama sözdizimi: https://support.google.com/mail/answer/7190
     inbox_gmail_query: str = Field(
-        default="(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com)",
+        default="is:unread (to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com)",
         validation_alias=AliasChoices("INBOX_GMAIL_QUERY", "inbox_gmail_query"),
     )
     inbox_openai_model: str = Field(

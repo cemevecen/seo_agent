@@ -16,18 +16,15 @@ def run_inbox_summary_job(db: Session):
     
     # 1. Sync inbox (DB'nin güncel olduğundan emin olalım)
     try:
-        # Senkronizasyon yaparken max_threads'i biraz yüksek tutalım ki yeni gelenleri kaçırmasın
-        inbox_sync.sync_inbox_threads(db, max_threads=60)
+        # Senkronizasyon yaparken max_threads'i yüksek tutalım (100) ki güncelliği kaçırmasın
+        inbox_sync.sync_inbox_threads(db, max_threads=100)
     except Exception as exc:
         logger.warning("Inbox summary sync failed (continuing with local data): %s", exc)
 
     # 2. Okunmamış mesajları sorgula
-    # Hedef etiketler: info (doviz), sinemalar, feedback ve mixed (birden fazla hesaba gelenler)
-    target_tags = ["info", "sinemalar", "feedback", "mixed"]
     unread_threads = (
         db.query(SupportInboxThread)
         .filter(SupportInboxThread.gmail_unread == True)
-        .filter(SupportInboxThread.route_tag.in_(target_tags))
         .order_by(SupportInboxThread.last_internal_ms.desc())
         .all()
     )
