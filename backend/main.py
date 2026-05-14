@@ -638,6 +638,33 @@ def admin_run_news_intelligence_now():
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/admin/news-intelligence")
+def get_news_intelligence(category: str = None, limit: int = 50):
+    """Veritabanındaki haber istihbaratı verilerini döner."""
+    with SessionLocal() as db:
+        from backend.models import NewsIntelligenceItem
+        from sqlalchemy import desc
+        query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
+        if category:
+            query = query.filter(NewsIntelligenceItem.category == category)
+        items = query.limit(limit).all()
+        # JSON'a uygun hale getirmek için dict listesine çevirelim
+        return [
+            {
+                "id": item.id,
+                "headline": item.headline,
+                "url": item.url,
+                "content": item.content,
+                "source_name": item.source_name,
+                "category": item.category,
+                "topic": item.topic,
+                "is_in_our_site": item.is_in_our_site,
+                "ai_note": item.ai_note,
+                "published_at": item.published_at.isoformat() if item.published_at else None
+            } for item in items
+        ]
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon_ico() -> RedirectResponse:
     return RedirectResponse(url="/static/favicon.png", status_code=307)

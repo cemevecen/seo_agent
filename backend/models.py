@@ -617,6 +617,24 @@ class SupportInboxThread(Base):
     )
 
 
+class NewsIntelligenceItem(Base):
+    """Haber istihbaratı için toplanan veri öğeleri."""
+
+    __tablename__ = "news_intelligence_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False, index=True)
+    headline: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=True, index=True)  # İş, Dünya, Türkiye
+    topic: Mapped[str] = mapped_column(String(100), nullable=True, index=True)     # Döviz, Finans, Ekonomi
+    is_in_our_site: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_note: Mapped[str] = mapped_column(Text, nullable=True)
+    published_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class SupportInboxMessage(Base):
     """Konuşma içindeki tek Gmail mesajı."""
 
