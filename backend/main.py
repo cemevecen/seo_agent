@@ -9015,14 +9015,22 @@ def _run_ga4_realtime_check_job() -> None:
             if news_alarms:
                 all_summary_alarms.extend(news_alarms)
 
-        # ÖZET MAİLİ GÖNDER (En önemli 10 alarmı içerecek şekilde)
-        LOGGER.info("<<< GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BİTTİ. Toplam Alarm: %d", len(all_summary_alarms))
-        if all_summary_alarms:
-            from backend.services.ga4_realtime import send_realtime_summary_email
-            send_realtime_summary_email(all_summary_alarms)
-            LOGGER.info("GA4 Realtime: %d alarm için toplu özet e-postası gönderildi.", len(all_summary_alarms))
-        else:
-            LOGGER.info("GA4 Realtime: %d profil kontrolü tamamlandı, yeni alarm yok.", len(results))
+        # HİBRİT GÖNDERİM MANTIĞI
+        from backend.services.ga4_realtime import send_realtime_email_for_alarm, send_realtime_summary_email
+
+        # 1. KRİTİK ALARMLAR (%60+): Tekil mail gönder
+        individual_alarms = [a for a in all_summary_alarms if abs(float(a.get("change_pct", 0))) >= 60]
+        for alarm in individual_alarms:
+            send_realtime_email_for_alarm(alarm)
+        
+        # 2. ÖZET ALARMLAR (%40 - %60): Toplu mail gönder (Düşüş sırasına göre)
+        summary_candidates = [a for a in all_summary_alarms if abs(float(a.get("change_pct", 0))) < 60]
+        if summary_candidates:
+            # En büyük düşüşten (en küçük yüzde değerinden) en büyük artışa doğru sırala
+            summary_candidates.sort(key=lambda x: float(x.get("change_pct", 0)))
+            send_realtime_summary_email(summary_candidates)
+
+        LOGGER.info("<<< GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BİTTİ. Kritik: %d, Özet: %d", len(individual_alarms), len(summary_candidates))
         return {
             "total_alarms": len(all_summary_alarms),
             "site_check_count": len(results) if 'results' in locals() else 0,

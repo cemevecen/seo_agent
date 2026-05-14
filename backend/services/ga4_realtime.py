@@ -387,7 +387,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "label": "Aktif kullanıcılar",
         "metric": "activeUsers",
         "direction": "drop",
-        "threshold_pct": 5.0,
+        "threshold_pct": 40,
         "min_baseline": 3,
         "severity": "critical",
     },
@@ -395,7 +395,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "label": "Aktif kullanıcılar",
         "metric": "activeUsers",
         "direction": "spike",
-        "threshold_pct": 5.0,
+        "threshold_pct": 40,
         "min_baseline": 3,
         "severity": "warning",
     },
@@ -403,39 +403,36 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "label": "Sayfa görüntülemeleri",
         "metric": "screenPageViews",
         "direction": "drop",
-        "threshold_pct": 5.0,
+        "threshold_pct": 40,
         "min_baseline": 5,
         "severity": "warning",
     },
 }
 
-# Sayfa bazlı alarm eşikleri
 PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
     "page_traffic_drop": {
-        "label": "Sayfa trafik düşüşü",
+        "label": "Sayfa Aktif Kullanıcı",
+        "metric": "activeUsers",
         "direction": "drop",
-        "threshold_pct": 35,
-        "min_users": 10,
-        "severity": "warning",
+        "threshold_pct": 40,
+        "min_users": 5,
     },
-    "page_traffic_spike": {
-        "label": "Sayfa trafik artışı",
+}
+
+NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
+    "news_traffic_drop": {
+        "label": "Haber Aktif Kullanıcı",
+        "metric": "activeUsers",
+        "direction": "drop",
+        "threshold_pct": 40,
+        "min_users": 5,
+    },
+    "news_traffic_spike": {
+        "label": "Haber Aktif Kullanıcı",
+        "metric": "activeUsers",
         "direction": "spike",
-        "threshold_pct": 60,
-        "min_users": 10,
-        "severity": "warning",
-    },
-    "page_disappeared": {
-        "label": "Sayfa top listeden düştü",
-        "direction": "disappeared",
-        "min_prev_users": 15,
-        "severity": "critical",
-    },
-    "page_new_entry": {
-        "label": "Yeni sayfa top listeye girdi",
-        "direction": "new_entry",
-        "min_users": 25,
-        "severity": "info",
+        "threshold_pct": 40,
+        "min_users": 5,
     },
 }
 
