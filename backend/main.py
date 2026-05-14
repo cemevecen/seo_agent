@@ -7384,7 +7384,7 @@ def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "sites": sites,
-            "site_name": "Market İstihbaratı",
+            "site_name": "Haber İstihbaratı",
             "domain": "intelligence"
         }
     )
