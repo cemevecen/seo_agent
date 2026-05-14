@@ -54,7 +54,11 @@ CATEGORY_SOURCES = {
 FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon", "gündem", "haber"]
 
 # Negatif Filtre: Bu kelimeleri içeren başlıklar "haber" sayılmaz ve elenir
-EXCLUDE_KEYWORDS = ["canlı grafik", "hisse senedi canlı", "fiyatı canlı", "bist:"]
+EXCLUDE_KEYWORDS = [
+    "canlı grafik", "hisse senedi canlı", "fiyatı canlı", "bist:", 
+    "teknik analiz", "günlük bülten", "sabah bülteni", "akşam bülteni", 
+    "varant bülteni", "foreks haber", "cnbc-e haber", "piyasa ekranı"
+]
 
 def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     """Çok kanallı RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
@@ -102,8 +106,20 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     # Görsel (Thumbnail) Çekme - Kaldırıldı (Artık logo kullanılacak)
                     image_url = None
                     
-                    # Negatif Filtre Kontrolü
+                    # Temizlik: Başlığın sonundaki site isimlerini ve gereksiz ekleri temizle
+                    title = title.strip()
+                    for suffix in [f" - {source_name}", f" | {source_name}", f" - {source_name.upper()}", f" | {source_name.upper()}"]:
+                        if title.endswith(suffix):
+                            title = title[:-len(suffix)].strip()
+                    
+                    # 50 karakter sınırı ve temel filtreler
+                    if len(title) < 50:
+                        continue
+                    
+                    # Eğer başlık sadece site adından oluşuyorsa veya çok jenerikse atla
                     lower_title = title.lower()
+                    if lower_title == source_name.lower() or lower_title == category.lower():
+                        continue
                     if any(ex in lower_title for ex in EXCLUDE_KEYWORDS):
                         continue
 
@@ -139,10 +155,6 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
 
                     # Yahoo Finance haberlerini otomatik Türkçeye çevir (Ücretsiz)
                     if category == "Yahoo Finance":
-                        # Personal Finance içeriklerini ele
-                        if "/personal-finance/" in link.lower():
-                            continue
-                            
                         try:
                             # Sadece başlığı çevir, hata alırsa orijinali bırak
                             translator = GoogleTranslator(source='en', target='tr')
