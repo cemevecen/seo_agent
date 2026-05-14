@@ -901,6 +901,20 @@ def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
 
 
 _ADMIN_AUTH_COOKIE = "seo_admin_auth"
+_SETTINGS_AUTH_COOKIE = "seo_settings_auth"
+
+
+def _is_settings_authenticated(request: Request) -> bool:
+    """Settings sayfasına özel ikinci katman doğrulaması."""
+    raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
+    if not raw_pwd:
+        return True  # İkinci şifre tanımlanmamışsa admin şifresi yeterli
+    token = str(request.cookies.get(_SETTINGS_AUTH_COOKIE) or "")
+    if not token:
+        return False
+    secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
+    expected = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    return hmac.compare_digest(token, expected)
 
 
 def _admin_auth_row(db) -> AdminAuthSetting | None:
@@ -1018,6 +1032,9 @@ async def ip_allowlist_middleware(request: Request, call_next):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
     if password_ready and _is_admin_authenticated(request):
+        # Admin girişi okeyse, şimdi Settings için ikinci katmanı kontrol et
+        if path.startswith("/settings") and not _is_settings_authenticated(request):
+            return RedirectResponse(url="/admin/settings-login", status_code=303)
         return await call_next(request)
 
     wants_json = request.headers.get("hx-request") == "true" or "application/json" in (
@@ -6679,6 +6696,82 @@ def _admin_password_login_submit(request: Request, password: str):
 def admin_login_submit(request: Request, password: str = Form(default="")):
     """Form doğrudan `/admin/login` adresine POST edebilsin (tek sayfa, 405 yok)."""
     return _admin_password_login_submit(request, password)
+
+
+@app.get("/admin/settings-login")
+def settings_login_page(request: Request):
+    if not _is_admin_authenticated(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+    if _is_settings_authenticated(request):
+        return RedirectResponse(url="/settings", status_code=303)
+    
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="tr" class="dark">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Settings Login</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            body { background: radial-gradient(circle at top, #09090b, #111113 55%, #18181b); color: #d4d4d8; }
+        </style>
+    </head>
+    <body class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md p-8 rounded-3xl border border-zinc-800 bg-zinc-900/50 shadow-2xl backdrop-blur-xl">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 mb-4 border border-indigo-500/20">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h1 class="text-2xl font-bold text-white">Güvenli Ayar Erişimi</h1>
+                <p class="text-zinc-500 text-sm mt-2">Hassas ayarlar için ikinci şifrenizi girin.</p>
+            </div>
+            <form action="/admin/settings-login" method="POST" class="space-y-4">
+                <div>
+                    <input type="password" name="password" required autofocus
+                        placeholder="Settings şifresi"
+                        class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition">
+                </div>
+                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-95">
+                    Giriş Yap
+                </button>
+            </form>
+            <div class="mt-6 text-center">
+                <a href="/" class="text-xs text-zinc-600 hover:text-zinc-400">Ana Sayfaya Dön</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@app.post("/admin/settings-login")
+def settings_login_submit(request: Request, password: str = Form(default="")):
+    if not _is_admin_authenticated(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+    
+    raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
+    input_pwd = str(password or "").strip()
+    
+    if not raw_pwd or hmac.compare_digest(input_pwd, raw_pwd):
+        # Başarılı: çerezi set et
+        secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
+        token = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+        
+        response = RedirectResponse(url="/settings", status_code=303)
+        response.set_cookie(
+            key=_SETTINGS_AUTH_COOKIE,
+            value=token,
+            httponly=True,
+            secure=_admin_auth_cookie_secure(request),
+            samesite="lax",
+            max_age=60 * 60 * 2, # 2 saat yeterli
+            path="/",
+        )
+        return response
+    
+    return RedirectResponse(url="/admin/settings-login?error=1", status_code=303)
 
 
 @app.post("/admin/auth/login")
