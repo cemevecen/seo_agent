@@ -614,10 +614,11 @@ templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
 
-@app.get("/admin/run-inbox-summary-now")
+@app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
     """Saatlik inbox özetini MANUEL olarak tetikler."""
     from backend.services.inbox_summary import run_inbox_summary_job
+
     try:
         with SessionLocal() as db:
             run_inbox_summary_job(db)
