@@ -89,7 +89,9 @@
             // Domainden favicon alma
             let faviconUrl = '';
             try {
-              const url = new URL(item.url);
+              // Eğer bot source_url çekmişse onu kullan (en garantisi), yoksa habere git
+              const targetUrl = item.source_url || item.url;
+              const url = new URL(targetUrl);
               faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
             } catch(e) { faviconUrl = '/static/favicon.png'; }
 

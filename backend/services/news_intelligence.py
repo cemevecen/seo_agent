@@ -47,7 +47,11 @@ def fetch_and_sync_news_intelligence(db: Session):
                 title = item.find("title").text if item.find("title") is not None else ""
                 link = item.find("link").text if item.find("link") is not None else ""
                 pub_date_str = item.find("pubDate").text if item.find("pubDate") is not None else ""
-                source = item.find("source").text if item.find("source") is not None else "Unknown"
+                
+                source_el = item.find("source")
+                source_name = source_el.text if source_el is not None else "Unknown"
+                source_url = source_el.get("url") if source_el is not None else None
+                
                 description = item.find("description").text if item.find("description") is not None else ""
                 
                 # Başlıkta veya açıklamada anahtar kelime kontrolü
@@ -71,12 +75,13 @@ def fetch_and_sync_news_intelligence(db: Session):
                         url=link,
                         headline=title,
                         content=description,
-                        source_name=source,
+                        source_name=source_name,
+                        source_url=source_url,
                         category=category,
                         topic=display_topic,
                         published_at=published_at,
                         is_in_our_site=False,
-                        ai_note=f"'{category}' odaklı piyasa haberi algılandı. Kaynak: {source}"
+                        ai_note=f"'{category}' odaklı piyasa haberi algılandı. Kaynak: {source_name}"
                     )
                     db.add(new_item)
                     new_count += 1
