@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-  <div class="mb-4 flex items-center justify-between">
+  <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">NEWS</h1>
     </div>
@@ -21,14 +21,14 @@
   </div>
 
   <div class="mt-4 rt-intel-container rounded-[2rem] border p-6 shadow-sm">
-    <div class="mb-6 flex gap-1 border-b border-slate-200/60 dark:border-white/5">
-      <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active">İş Dünyası</button>
-      <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive">Finans & Borsa</button>
-      <button type="button" onclick="rtSwitchIntelTab('Rakip')" id="rt-intel-tab-rakip" class="rt-alarm-tab-inactive">Rakip</button>
-      <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive">Dünya</button>
-      <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive">Türkiye</button>
-      <button type="button" onclick="rtSwitchIntelTab('Bilim ve Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive">Bilim ve Teknoloji</button>
-      <button type="button" onclick="rtSwitchIntelTab('Yahoo Finance')" id="rt-intel-tab-yahoo" class="rt-alarm-tab-inactive">Yahoo</button>
+    <div class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200/60 pb-1 scrollbar-hide dark:border-white/5">
+      <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active whitespace-nowrap">İş Dünyası</button>
+      <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive whitespace-nowrap">Finans & Borsa</button>
+      <button type="button" onclick="rtSwitchIntelTab('Rakip')" id="rt-intel-tab-rakip" class="rt-alarm-tab-inactive whitespace-nowrap">Rakip</button>
+      <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive whitespace-nowrap">Dünya</button>
+      <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive whitespace-nowrap">Türkiye</button>
+      <button type="button" onclick="rtSwitchIntelTab('Bilim ve Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive whitespace-nowrap">Bilim ve Teknoloji</button>
+      <button type="button" onclick="rtSwitchIntelTab('Yahoo Finance')" id="rt-intel-tab-yahoo" class="rt-alarm-tab-inactive whitespace-nowrap">Yahoo</button>
     </div>
 
     <div id="rt-intel-list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -42,8 +42,26 @@
   .rt-intel-container { background-color: #ffffff; border-color: #f1f5f9; }
   html.dark .rt-intel-container { background-color: #09090b !important; border-color: rgba(255,255,255,0.03) !important; }
 
-  .rt-intel-card { background-color: #ffffff; border-color: #f1f5f9; }
-  html.dark .rt-intel-card { background-color: #121214 !important; border-color: rgba(255,255,255,0.03) !important; }
+  .rt-intel-container {
+    background-color: #09090b !important;
+  }
+  @media (max-width: 640px) {
+    .rt-intel-container {
+      padding: 1rem !important;
+      border-radius: 1.5rem !important;
+    }
+  }
+  .rt-intel-card {
+    background-color: #121214 !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 
   .rt-alarm-tab-active {
     padding: 0.75rem 1.25rem;
