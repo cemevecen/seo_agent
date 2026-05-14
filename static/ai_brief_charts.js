@@ -97,7 +97,7 @@
         slot.classList.remove("hidden");
         if (hasBars) {
           var barDiv = document.createElement("div");
-          barDiv.className = "ai-brief-plot mb-2 min-h-[220px] w-full min-w-0";
+          barDiv.className = "ai-brief-plot min-h-[220px] w-full min-w-0";
           barDiv.id = "ai-brief-ga4-bar-" + uid + "-" + rid;
           slot.appendChild(barDiv);
           var traces = bars.map(function (t) {
@@ -134,7 +134,7 @@
           );
 
           var lineDiv = document.createElement("div");
-          lineDiv.className = "ai-brief-plot mb-2 min-h-[200px] w-full min-w-0";
+          lineDiv.className = "ai-brief-plot min-h-[200px] w-full min-w-0";
           lineDiv.id = "ai-brief-ga4-line-" + uid + "-" + rid;
           slot.appendChild(lineDiv);
           var lineTraces = bars.map(function (t) {
@@ -173,8 +173,7 @@
         }
         if (hasPie) {
           var pieDiv = document.createElement("div");
-          pieDiv.className =
-            "ai-brief-plot min-h-[200px] w-full min-w-0 max-w-[20rem] justify-self-center sm:max-w-none";
+          pieDiv.className = "ai-brief-plot min-h-[200px] w-full min-w-0 justify-self-center";
           pieDiv.id = "ai-brief-ga4-pie-" + uid + "-" + rid;
           slot.appendChild(pieDiv);
           window.Plotly.newPlot(
