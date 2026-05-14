@@ -876,7 +876,7 @@ def _may_set_or_update_admin_password(request: Request) -> bool:
     """Allowlist / oturum VEYA (şifre hiç yokken yalnızca yerel ilk kurulum)."""
     if not _admin_auth_active():
         return True
-    if _request_is_allowlisted(request) or _is_admin_authenticated(request):
+    if _is_admin_authenticated(request):
         return True
     with SessionLocal() as db:
         if _admin_password_configured(db):
@@ -6602,7 +6602,7 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "admin_allowlisted_ip": _request_is_allowlisted(request),
+            "admin_allowlisted_ip": False,
         }
     flash_key = (request.query_params.get("admin_pw") or "").strip()
     _admin_pw_flash_messages = {
@@ -6642,7 +6642,7 @@ def settings_site_list(request: Request):
 def admin_login_page(request: Request):
     if not _admin_auth_active():
         return RedirectResponse(url="/", status_code=303)
-    if _request_is_allowlisted(request) or _is_admin_authenticated(request):
+    if _is_admin_authenticated(request):
         return RedirectResponse(url="/", status_code=303)
     with SessionLocal() as db:
         configured = _admin_password_configured(db)
