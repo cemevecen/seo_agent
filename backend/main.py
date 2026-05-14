@@ -9022,8 +9022,19 @@ def _run_ga4_realtime_check_job() -> None:
             LOGGER.info("GA4 Realtime: %d alarm için toplu özet e-postası gönderildi.", len(all_summary_alarms))
         else:
             LOGGER.info("GA4 Realtime: %d profil kontrolü tamamlandı, yeni alarm yok.", len(results))
-    except Exception:
+        return {
+            "total_alarms": len(all_summary_alarms),
+            "site_check_count": len(results) if 'results' in locals() else 0,
+            "status": "completed"
+        }
+    except Exception as exc:
+        import traceback
         logging.exception("GA4 Realtime check hatası")
+        return {
+            "status": "error",
+            "message": str(exc),
+            "traceback": traceback.format_exc()
+        }
 
 
 def _run_scheduled_db_cleanup_job() -> None:
@@ -9139,10 +9150,22 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
 
 
 @app.get("/api/admin/run-realtime-job-now")
-def admin_run_realtime_job_now(background_tasks: BackgroundTasks):
-    """Realtime alarm kontrol işini manuel olarak ve hemen tetikler."""
-    background_tasks.add_task(_run_ga4_realtime_check_job)
-    return {"status": "ok", "message": "GA4 Realtime kontrol işi arka planda başlatıldı."}
+def admin_run_realtime_job_now():
+    """Realtime alarm kontrol işini manuel, senkron ve detaylı hata raporuyla çalıştırır."""
+    try:
+        results = _run_ga4_realtime_check_job()
+        return {
+            "status": "ok", 
+            "message": "GA4 Realtime kontrol işi SENKRON olarak tamamlandı.",
+            "details": results
+        }
+    except Exception as exc:
+        import traceback
+        return JSONResponse({
+            "status": "error",
+            "message": str(exc),
+            "traceback": traceback.format_exc()
+        }, status_code=500)
 
 
 @app.post("/admin/truncate-sc-snapshots")
