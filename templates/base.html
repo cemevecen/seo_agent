@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ site_name or "SEO Agent Dashboard" }}</title>
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
-  {% set favicon_v = "6" %}
+  {% set favicon_v = "10" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
   {% set app_css_v = "11" %}
-  <link rel="icon" href="/favicon.ico?v={{ favicon_v }}" sizes="any" />
-  <link rel="shortcut icon" href="/favicon.ico?v={{ favicon_v }}" />
+  <link rel="icon" href="/static/favicon.ico?v={{ favicon_v }}" sizes="any" />
+  <link rel="shortcut icon" href="/static/favicon.ico?v={{ favicon_v }}" />
   <link rel="icon" href="/static/favicon.svg?v={{ favicon_v }}" type="image/svg+xml" />
   <link rel="icon" href="/static/favicon-32.png?v={{ favicon_v }}" sizes="32x32" type="image/png" />
   <link rel="icon" href="/static/favicon-16.png?v={{ favicon_v }}" sizes="16x16" type="image/png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ favicon_v }}" sizes="180x180" />
-  <meta name="msapplication-TileImage" content="/apple-touch-icon.png?v={{ favicon_v }}" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ favicon_v }}" sizes="180x180" />
+  <meta name="msapplication-TileImage" content="/static/apple-touch-icon.png?v={{ favicon_v }}" />
   <script>
     (function () {
       try {
@@ -519,7 +519,7 @@
                 class="flex min-w-0 items-center gap-2 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
               >
                 <img src="/static/favicon.png?v={{ favicon_v }}" class="h-6 w-6 shrink-0 rounded-md shadow-sm" alt="Logo" />
-                <span class="truncate">{{ site_name or "SEO Agent" }}</span>
+                <span id="header-site-title-text" class="truncate">{{ site_name or "SEO Agent" }}</span>
               </h2>
               <div
                 id="theme-switcher"
@@ -580,11 +580,11 @@
         const pageRoot = content.querySelector('[data-header-title], [data-site-title], [data-site-domain]');
         const pageHeaderTitle = pageRoot ? (pageRoot.getAttribute('data-header-title') || pageRoot.getAttribute('data-site-title') || '') : '';
         const pageExplorerHref = pageRoot ? (pageRoot.getAttribute('data-header-explorer-href') || '') : '';
-        const headerTitle = document.getElementById('header-site-title');
+        const headerTitleText = document.getElementById('header-site-title-text');
         const explorerLink = document.getElementById('header-data-explorer-link');
 
-        if (headerTitle && pageHeaderTitle) {
-          headerTitle.textContent = pageHeaderTitle;
+        if (headerTitleText && pageHeaderTitle) {
+          headerTitleText.textContent = pageHeaderTitle;
           document.title = pageHeaderTitle;
         }
 
