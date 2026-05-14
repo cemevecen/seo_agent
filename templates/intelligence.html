@@ -125,7 +125,7 @@
           
           const html = items.map(item => {
             const d = new Date(item.published_at);
-            const dateStr = d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+            const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
             
             let faviconUrl = '';
             try {
@@ -144,7 +144,7 @@
                 <div class="flex flex-1 flex-col min-w-0">
                   <div class="flex items-center justify-between mb-1.5">
                     <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
-                    <span class="text-[9px] font-medium text-slate-400 dark:text-zinc-600 shrink-0">${dateStr}</span>
+                    <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
                   </div>
                   <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-2">
                     <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline.split(' - ')[0]}</a>
