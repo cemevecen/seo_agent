@@ -69,6 +69,8 @@ from backend.models import (
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
     RealtimeAlarmLog, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
+    AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache,
+    SupportInboxThread, SupportInboxMessage,
 )
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
@@ -8919,10 +8921,15 @@ def _run_db_retention_cleanup() -> dict:
                 settings.db_retention_notification_delivery_days,
                 "notification_delivery_logs",
             ),
-            (RealtimeSnapshot, RealtimeSnapshot.collected_at, 7, "realtime_snapshots"),
-            (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, 30, "realtime_alarm_logs"),
+            (RealtimeSnapshot, RealtimeSnapshot.collected_at, settings.db_retention_realtime_snapshot_days, "realtime_snapshots"),
+            (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, settings.db_retention_realtime_alarm_log_days, "realtime_alarm_logs"),
             (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, 3, "realtime_page_snapshots"),
             (RealtimeNewsSnapshot, RealtimeNewsSnapshot.collected_at, 3, "realtime_news_snapshots"),
+            (AppStoreRankSnapshot, AppStoreRankSnapshot.collected_at, 30, "app_store_rank_snapshots"),
+            (AiDailyBriefReport, AiDailyBriefReport.created_at, settings.db_retention_ai_report_days, "ai_daily_brief_reports"),
+            (AiBriefRunLog, AiBriefRunLog.created_at, settings.db_retention_ai_report_days, "ai_brief_run_logs"),
+            (AppIntelRawCache, AppIntelRawCache.updated_at, settings.db_retention_app_intel_cache_days, "app_intel_raw_cache"),
+            (SupportInboxThread, SupportInboxThread.last_synced_at, 90, "support_inbox_threads"),
         ]
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:

@@ -233,13 +233,18 @@ class Settings(BaseSettings):
     live_refresh_timeout: int = 8
     live_refresh_urls: str = ""
 
-    # Zaman serisi temizliği (gecelik job). Railway disk sıkışırsa süreleri kısaltın — volume GB yalnızca Railway panelinden artırılır.
+    # Zaman serisi temizliği (gecelik job). Railway disk sıkışırsa süreleri kısaltın.
     db_retention_collector_run_days: int = Field(default=30, ge=1, le=3650)
     db_retention_alert_log_days: int = Field(default=60, ge=1, le=3650)
     db_retention_metric_days: int = Field(default=90, ge=1, le=3650)
     db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
-    # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı: Railway'de gereksiz I/O / kısa süreli yük;
-    # autovacuum çoğu kurulumda yeterlidir. Disk geri kazanımı için: true veya POST /admin/vacuum
+    # Realtime ve Uygulama verileri (Hızlı büyüyen tablolar)
+    db_retention_realtime_snapshot_days: int = Field(default=8, ge=1, le=365) # Kullanıcı talebi: 8 gün
+    db_retention_realtime_alarm_log_days: int = Field(default=30, ge=1, le=365)
+    db_retention_app_intel_cache_days: int = Field(default=7, ge=1, le=365)
+    db_retention_ai_report_days: int = Field(default=30, ge=1, le=365)
+
+    # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı.
     db_retention_run_vacuum: bool = False
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
