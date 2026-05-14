@@ -22,6 +22,9 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:12h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
+    "Rakip": [
+        "https://news.google.com/rss/search?q=(site:ekonomim.com OR site:dunya.com OR site:bloomberght.com OR site:cnbce.com OR site:ntv.com.tr OR site:cnnturk.com OR site:foreks.com OR site:gazeteoksijen.com) (finans OR ekonomi OR politika) when:12h&hl=tr&gl=TR&ceid=TR:tr"
+    ],
     "Dünya": [
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"

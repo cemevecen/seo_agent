@@ -16,6 +16,7 @@
     <div class="mb-6 flex gap-1 border-b border-slate-200/60 dark:border-white/5">
       <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive">Finans & Borsa</button>
+      <button type="button" onclick="rtSwitchIntelTab('Rakip')" id="rt-intel-tab-rakip" class="rt-alarm-tab-inactive">Rakip</button>
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive">Dünya</button>
       <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive">Türkiye</button>
       <button type="button" onclick="rtSwitchIntelTab('Bilim ve Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive">Bilim ve Teknoloji</button>
@@ -96,6 +97,7 @@
       });
       if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active';
       else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active';
+      else if(cat === 'Rakip') document.getElementById('rt-intel-tab-rakip').className = 'rt-alarm-tab-active';
       else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active';
       else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active';
       else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active';
