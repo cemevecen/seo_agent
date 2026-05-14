@@ -105,10 +105,16 @@ def _smtp_send_message_with_retries(message: EmailMessage) -> bool:
 
     for attempt in range(MAX_RETRIES):
         try:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=45) as smtp:
-                smtp.starttls()
-                smtp.login(settings.smtp_user, settings.smtp_password)
-                smtp.send_message(message)
+            port = settings.smtp_port or 587
+            if port == 465:
+                ctx = __import__("ssl").create_default_context()
+                conn = smtplib.SMTP_SSL(settings.smtp_host, port, timeout=45, context=ctx)
+            else:
+                conn = smtplib.SMTP(settings.smtp_host, port, timeout=45)
+                conn.starttls()
+            with conn:
+                conn.login(settings.smtp_user, settings.smtp_password)
+                conn.send_message(message)
             return True
         except smtplib.SMTPException as e:
             is_temporary_error = isinstance(e, smtplib.SMTPResponseException) and 400 <= e.smtp_code < 500
@@ -152,22 +158,39 @@ def _smtp_dispatch_with_daily_quota(message: EmailMessage) -> bool:
 
 def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> bool:
     """Gmail API (OAuth) üzerinden e-posta gönderir — SMTP port kısıtlamalarını aşmak için idealdir."""
-    from backend.services.inbox_gmail_auth import load_inbox_credentials
+    from backend.services.inbox_gmail_auth import (
+        load_inbox_credentials,
+        get_inbox_credential_row,
+        persist_credentials_if_refreshed,
+    )
     from backend.database import SessionLocal
-    
-    # Session yönetimi: dışarıdan db gelmediyse yeni session aç/kapat
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+
     session = db if db is not None else SessionLocal()
     try:
         creds = load_inbox_credentials(session)
-        if not creds:
+        if not creds or not creds.refresh_token:
             return False
-        
-        # API discovery'yi cache_discovery=False ile yapıyoruz (bazı ortamlarda dosya izni hatası vermemesi için)
-        service = googleapiclient.discovery.build('gmail', 'v1', credentials=creds, cache_discovery=False)
+
+        # Token süresi dolmuşsa yenile ve DB'ye kaydet
+        if creds.expired:
+            try:
+                creds.refresh(GoogleAuthRequest())
+                row = get_inbox_credential_row(session)
+                persist_credentials_if_refreshed(session, creds, row)
+                logging.info("Gmail OAuth token yenilendi ve DB'ye kaydedildi.")
+            except Exception as ref_err:
+                logging.error("Gmail OAuth token yenileme başarısız: %s", ref_err)
+                return False
+
+        if not creds.valid:
+            logging.warning("Gmail OAuth token geçersiz, Gmail API atlanıyor.")
+            return False
+
+        service = googleapiclient.discovery.build("gmail", "v1", credentials=creds, cache_discovery=False)
         raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        
-        sent_msg = service.users().messages().send(userId='me', body={'raw': raw_msg}).execute()
-        logging.info("Gmail API ile e-posta gönderildi. Mesaj ID: %s", sent_msg.get('id'))
+        sent_msg = service.users().messages().send(userId="me", body={"raw": raw_msg}).execute()
+        logging.info("Gmail API ile e-posta gönderildi. Mesaj ID: %s", sent_msg.get("id"))
         return True
     except Exception as e:
         logging.error("Gmail API ile e-posta gönderimi başarısız: %s", e)
