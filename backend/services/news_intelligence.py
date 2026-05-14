@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 import urllib.parse
 from sqlalchemy.orm import Session
+from deep_translator import GoogleTranslator
 from backend.models import NewsIntelligenceItem
 from backend.database import SessionLocal
 
@@ -109,6 +110,15 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         published_at = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %Z")
                     except:
                         published_at = datetime.utcnow()
+
+                    # Yahoo Finance haberlerini otomatik Türkçeye çevir (Ücretsiz)
+                    if category == "Yahoo Finance":
+                        try:
+                            translator = GoogleTranslator(source='en', target='tr')
+                            title = translator.translate(title)
+                            description = translator.translate(description)
+                        except Exception as te:
+                            logger.error(f"Auto-translation failed for Yahoo item: {te}")
 
                     # DB'de var mı kontrol et
                     exists = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first()

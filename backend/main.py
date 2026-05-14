@@ -6699,39 +6699,6 @@ def admin_login_submit(request: Request, password: str = Form(default="")):
     return _admin_password_login_submit(request, password)
 
 
-@app.post("/api/admin/news-intelligence/translate")
-async def translate_news_item(request: Request, text: str = Form(...)):
-    if not _is_admin_authenticated(request):
-        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
-    
-    prompt = (
-        "Translate the following financial news title and content to Turkish. "
-        "Format the output exactly as 'TITLE | CONTENT'. Only provide the translation, no extra text:\n\n"
-        f"{text}"
-    )
-    
-    try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {(settings.groq_api_key or '').strip()}",
-            "Content-Type": "application/json",
-        }
-        req_body = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-        }
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(url, headers=headers, json=req_body)
-            r.raise_for_status()
-            data = r.json()
-            translated = data["choices"][0]["message"]["content"].strip()
-            return {"ok": True, "translated": translated}
-    except Exception as e:
-        logging.error(f"Translation failed: {e}")
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
-
-
 @app.get("/admin/settings-login")
 def settings_login_page(request: Request):
     if not _is_admin_authenticated(request):

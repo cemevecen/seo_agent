@@ -7,12 +7,6 @@
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">NEWS</h1>
     </div>
     <div class="flex items-center gap-2">
-      <!-- Google Translate Element (Hidden) -->
-      <div id="google_translate_element" style="display:none;"></div>
-      <button type="button" onclick="triggerGoogleTranslate()" class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5a18.022 18.022 0 01-3.827-5.802M10.5 5a9.052 9.052 0 00-2.862 5.5m3.362 5.5l-1.5-3.5m0 0l-1.5 3.5m1.5-3.5h-3m-1.5 8.5h3.5m1.5-1.5h1.5m1.5-1.5h1.5"/></svg>
-        Sayfayı Çevir
-      </button>
       <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
         Güncelle
@@ -32,7 +26,12 @@
     </div>
 
     <div id="rt-intel-list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <!-- Veriler yüklendiğinde buraya dolacak -->
+      <!-- Dynamic list items -->
+    </div>
+    
+    <!-- Loading state -->
+    <div id="rt-intel-loading" class="hidden mt-8 flex justify-center py-8">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
     </div>
   </div>
 </div>
@@ -65,52 +64,65 @@
 
   .rt-alarm-tab-active {
     padding: 0.75rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 800;
-    border-bottom: 2px solid #2563eb;
-    color: #1e3a8a;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #4f46e5;
+    border-bottom: 2px solid #4f46e5;
+    background: transparent;
+    transition: all 0.2s;
   }
   html.dark .rt-alarm-tab-active {
-    color: #e4e4e7;
-    border-bottom-color: #3f3f46;
+    color: #818cf8;
+    border-bottom: 2px solid #818cf8;
   }
   .rt-alarm-tab-inactive {
     padding: 0.75rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    border-bottom: 2px solid transparent;
-    color: rgb(100 116 139);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #64748b;
     background: transparent;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
   }
   html.dark .rt-alarm-tab-inactive {
-    color: #52525b;
+    color: #94a3b8;
+  }
+  .rt-alarm-tab-inactive:hover {
+    color: #475569;
+    background: #f8fafc;
+  }
+  html.dark .rt-alarm-tab-inactive:hover {
+    color: #cbd5e1;
+    background: rgba(255,255,255,0.03);
   }
 </style>
 
 <script>
-    var _activeIntelCategory = "İş Dünyası";
-    var _intelOffset = 0;
-    var _intelLoading = false;
-    var _intelFinished = false;
-    
+    let _activeIntelCategory = 'İş Dünyası';
+    let _intelOffset = 0;
+    const _intelLimit = 30;
+    let _intelLoading = false;
+    let _intelFinished = false;
+
     async function rtSyncNews() {
       const btn = document.getElementById('rt-news-sync-btn');
-      if(btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> Temizleniyor ve Taranıyor...';
-      }
+      btn.disabled = true;
+      btn.innerHTML = 'Güncelleniyor...';
+      
       try {
-        await fetch('/api/admin/news-intelligence/sync?reset=true', { method: 'POST' });
-      } catch(e) { console.error('Sync failed', e); }
-      if(btn) {
+        const r = await fetch('/api/admin/news-intelligence/sync', { method: 'POST' });
+        const d = await r.json();
+        if(d.ok) {
+          _intelOffset = 0;
+          _intelFinished = false;
+          document.getElementById('rt-intel-list').innerHTML = '';
+          rtFetchNewsIntelligence();
+        }
+      } catch(e) { console.error(e); }
+      finally {
         btn.disabled = false;
         btn.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg> Güncelle';
       }
-      // Reset state and reload
-      _intelOffset = 0;
-      _intelFinished = false;
-      document.getElementById('rt-intel-list').innerHTML = '';
-      rtFetchNewsIntelligence();
     }
     
     function rtSwitchIntelTab(cat) {
@@ -120,48 +132,43 @@
       _intelFinished = false;
       
       document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
-          btn.className = 'rt-alarm-tab-inactive';
+          btn.className = 'rt-alarm-tab-inactive whitespace-nowrap';
       });
-      if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active';
-      else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active';
-      else if(cat === 'Rakip') document.getElementById('rt-intel-tab-rakip').className = 'rt-alarm-tab-active';
-      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active';
-      else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active';
-      else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active';
-      else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active';
+      if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Rakip') document.getElementById('rt-intel-tab-rakip').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap';
+      else if(cat === 'Bilim ve Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active whitespace-nowrap';
       
       document.getElementById('rt-intel-list').innerHTML = '';
       rtFetchNewsIntelligence();
     }
 
     function rtFetchNewsIntelligence() {
-      if(_intelLoading || _intelFinished) return;
-      
-      const listEl = document.getElementById('rt-intel-list');
-      if(!listEl) return;
-      
-      _intelLoading = true;
-      const limit = 20;
-      
-      fetch(`/api/admin/news-intelligence?category=${encodeURIComponent(_activeIntelCategory)}&limit=${limit}&offset=${_intelOffset}`)
+        if(_intelLoading || _intelFinished) return;
+        _intelLoading = true;
+        document.getElementById('rt-intel-loading').classList.remove('hidden');
+
+        fetch(`/api/admin/news-intelligence/list?category=${encodeURIComponent(_activeIntelCategory)}&offset=${_intelOffset}&limit=${_intelLimit}`)
         .then(r => r.json())
-        .then(items => {
+        .then(data => {
           _intelLoading = false;
-          if(!items.length) {
-            if(_intelOffset === 0) {
-              listEl.innerHTML = '<p class="text-sm text-slate-500 py-4 col-span-full text-center">Bu kategoride henüz haber bulunamadı.</p>';
-            }
-            _intelFinished = true;
+          document.getElementById('rt-intel-loading').classList.add('hidden');
+          
+          const items = data.items || [];
+          if(items.length < _intelLimit) _intelFinished = true;
+          if(items.length === 0 && _intelOffset === 0) {
+            document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Henüz haber bulunamadı.</div>';
             return;
           }
+          
+          const listEl = document.getElementById('rt-intel-list');
           
           const html = items.map(item => {
             const d = new Date(item.published_at);
             const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
-            
-            const translateBtn = _activeIntelCategory === "Yahoo Finance" 
-              ? `<button onclick="rtTranslateCard(this)" class="text-[9px] font-bold text-indigo-500 hover:text-indigo-400 ml-2 transition-all">TR ÇEVİR</button>` 
-              : '';
             
             let faviconUrl = '';
             try {
@@ -179,10 +186,7 @@
                 </div>
                 <div class="flex flex-1 flex-col min-w-0">
                   <div class="flex items-center justify-between mb-1.5">
-                    <div class="flex items-center min-w-0">
-                      <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
-                      ${translateBtn}
-                    </div>
+                    <span class="text-[10px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
                     <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
                   </div>
                   <h3 class="text-[13px] font-bold text-slate-900 dark:text-zinc-200 mb-1 leading-snug line-clamp-2">
@@ -199,50 +203,6 @@
         });
     }
 
-    async function rtTranslateCard(btn) {
-      const card = btn.closest('.rt-intel-card');
-      const headlineEl = card.querySelector('h3 a');
-      const contentEl = card.querySelector('p');
-      
-      const originalText = headlineEl.innerText + " | " + contentEl.innerText;
-      
-      btn.disabled = true;
-      const oldText = btn.innerText;
-      btn.innerText = "ÇEVİRİLİYOR...";
-      btn.classList.add('animate-pulse');
-      
-      const formData = new FormData();
-      formData.append('text', originalText);
-      
-      try {
-        const r = await fetch('/api/admin/news-intelligence/translate', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await r.json();
-        if(data.ok) {
-            const parts = data.translated.split(' | ');
-            if(parts.length >= 2) {
-                headlineEl.innerText = parts[0];
-                contentEl.innerText = parts[1];
-            } else {
-                headlineEl.innerText = data.translated;
-            }
-            btn.innerText = "ÇEVRİLDİ ✓";
-            btn.classList.remove('text-indigo-500');
-            btn.classList.add('text-green-500');
-        } else {
-            btn.innerText = "HATA!";
-            console.error('Translation error:', data.error);
-        }
-      } catch(e) {
-        btn.innerText = "HATA!";
-        console.error('Translation fetch error:', e);
-      } finally {
-        btn.classList.remove('animate-pulse');
-      }
-    }
-
     // Infinite Scroll detection
     window.addEventListener('scroll', () => {
       if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
@@ -251,26 +211,5 @@
     });
 
     document.addEventListener('DOMContentLoaded', rtFetchNewsIntelligence);
-    // Google Translate Widget Integration
-    function googleTranslateElementInit() {
-      new google.translate.TranslateElement({
-        pageLanguage: 'en',
-        includedLanguages: 'tr',
-        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-        autoDisplay: false
-      }, 'google_translate_element');
-    }
-
-    function triggerGoogleTranslate() {
-      const select = document.querySelector('.goog-te-combo');
-      if (select) {
-        select.value = 'tr';
-        select.dispatchEvent(new Event('change'));
-      } else {
-        const widget = document.getElementById('google_translate_element');
-        if (widget) widget.style.display = 'block';
-      }
-    }
 </script>
-<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 {% endblock %}
