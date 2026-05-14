@@ -10,30 +10,38 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Kategori bazlı arama sorguları (when:9h ile sadece son 9 saatin en taze haberleri)
+# Kategori bazlı arama sorguları
 SEARCH_QUERIES = {
-    "İş Dünyası": "finans ekonomi borsa son dakika haber when:9h",
-    "Dünya": "dünya gündemi manşet haberler when:9h",
-    "Türkiye": "türkiye gündemi son dakika haberler when:9h",
-    "Bilim ve Teknoloji": "teknoloji bilim yapay zeka yeni gelişmeler when:9h"
+    "İş Dünyası": "ekonomi finans borsa piyasalar şirket haberleri",
+    "Dünya": "dünya gündemi uluslararası haberler dış haberler",
+    "Türkiye": "türkiye gündemi son dakika haberleri güncel",
+    "Bilim ve Teknoloji": "teknoloji bilim yapay zeka dijital dönüşüm"
 }
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
 FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon", "gündem", "haber"]
 
-def fetch_and_sync_news_intelligence(db: Session):
+def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     """Google News Arama RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
-    logger.info("Starting Google News Search Intelligence sync...")
+    logger.info("Starting Google News Search Intelligence sync (reset=%s)...", reset)
     
+    if reset:
+        db.query(NewsIntelligenceItem).delete()
+        db.commit()
+        logger.info("Database cleared for news intelligence reset.")
+
     # Zaman bazlı 'when' parametresi belirleme
-    # Eğer saat 07:01 civarıysa (ilk çalışma) 2 saat, değilse 1 saat
     now = datetime.now()
     if now.hour == 7 and now.minute <= 10:
         freshness = "2h"
-        logger.info("First run of the day (07:01), using when:2h")
     else:
         freshness = "1h"
-        logger.info(f"Routine run, using when:{freshness}")
+    
+    # Reset durumunda daha geniş bir zaman aralığı tarayalım
+    if reset:
+        freshness = "12h"
+
+    logger.info(f"Using freshness: when:{freshness}")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -76,11 +84,19 @@ def fetch_and_sync_news_intelligence(db: Session):
                 if media_content is not None:
                     image_url = media_content.get("url")
                 
-                # img tagı kontrolü
-                if not image_url and "<img" in description:
-                    img_match = re.search(r'src="([^"]+)"', description)
+                # img tagı kontrolü (daha sağlam regex)
+                if not image_url and description:
+                    img_match = re.search(r'src=["\']([^"\']+)["\']', description)
                     if img_match:
                         image_url = img_match.group(1)
+                        if image_url.startswith("//"):
+                            image_url = "https:" + image_url
+                
+                # Google News spesifik thumbnail kontrolü (enclosure)
+                if not image_url:
+                    enclosure = item.find("enclosure")
+                    if enclosure is not None:
+                        image_url = enclosure.get("url")
                 
                 # Etiketleme için anahtar kelime kontrolü
                 combined_text = (title + " " + description).lower()
@@ -133,7 +149,7 @@ def fetch_and_sync_news_intelligence(db: Session):
         logger.error("Error during news intelligence cleanup: %s", e)
         db.rollback()
 
-def run_news_intelligence_job():
+def run_news_intelligence_job(reset: bool = False):
     """APScheduler wrapper."""
     with SessionLocal() as db:
-        fetch_and_sync_news_intelligence(db)
+        fetch_and_sync_news_intelligence(db, reset=reset)

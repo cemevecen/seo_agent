@@ -670,8 +670,21 @@ def get_news_intelligence(category: str = None, limit: int = 50):
                 "is_in_our_site": item.is_in_our_site,
                 "ai_note": item.ai_note,
                 "published_at": item.published_at.isoformat() if item.published_at else None
-            } for item in items
+            }
+            for item in items
         ]
+
+
+@app.post("/api/admin/news-intelligence/sync")
+def sync_news_intelligence(reset: bool = False):
+    """Haberleri manuel olarak tarar ve veritabanına kaydeder."""
+    from backend.services.news_intelligence import run_news_intelligence_job
+    try:
+        run_news_intelligence_job(reset=reset)
+        return {"status": "ok", "message": "News intelligence sync completed successfully."}
+    except Exception as e:
+        logger.exception("Manual news sync failed")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -2822,10 +2835,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Haber İstihbaratı (07:01 - 23:59 arası her 30 dakikada bir: 07:01, 07:31, ...)
+    # NEWS (07:01 - 23:59 arası her 10 dakikada bir: 07:01, 07:11, ...)
     scheduler.add_job(
         _run_news_intelligence_job,
-        trigger=CronTrigger(hour='7-23', minute='1,31', timezone=timezone),
+        trigger=CronTrigger(hour='7-23', minute='1,11,21,31,41,51', timezone=timezone),
         id="news-intelligence-sync",
         replace_existing=True,
         max_instances=1,
@@ -7410,7 +7423,7 @@ def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "sites": sites,
-            "site_name": "Haber İstihbaratı",
+            "site_name": "NEWS",
             "domain": "intelligence"
         }
     )
