@@ -9085,6 +9085,21 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
             }
         }
 
+        # 0. Doğrudan SMTP Bağlantı Testi
+        import smtplib
+        smtp_debug = {}
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
+                smtp_debug["connect"] = "ok"
+                smtp.starttls()
+                smtp_debug["starttls"] = "ok"
+                smtp.login(settings.smtp_user, settings.smtp_password)
+                smtp_debug["login"] = "ok"
+        except Exception as e:
+            smtp_debug["error"] = str(e)
+            smtp_debug["type"] = type(e).__name__
+        results["smtp_debug"] = smtp_debug
+
         # 1. Bireysel test
         subject = "SEO Agent TEST: Bireysel Alarm"
         body = "<h3>Bireysel Mail Testi</h3><p>Sistem bireysel alarm gönderebiliyor.</p>"
