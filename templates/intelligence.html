@@ -12,7 +12,7 @@
     </button>
   </div>
 
-  <div class="mt-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+  <div class="mt-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm dark:border-zinc-800/50 dark:bg-zinc-900/90">
     <div class="mb-6 flex gap-1 border-b border-slate-200 dark:border-slate-700">
       <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-active">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive">Dünya</button>
@@ -128,7 +128,7 @@
             } catch(e) { faviconUrl = '/static/favicon.png'; }
 
             return `
-              <div class="group flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 transition hover:border-indigo-200 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-900/50">
+              <div class="group flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 transition hover:border-indigo-200 hover:shadow-md dark:border-zinc-800/50 dark:bg-zinc-900 dark:hover:border-indigo-900/50">
                 <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 p-1.5 dark:bg-zinc-950">
                   <img src="${faviconUrl}" 
                        class="h-full w-full object-contain" 
