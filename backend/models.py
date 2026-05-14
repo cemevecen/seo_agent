@@ -628,6 +628,7 @@ class NewsIntelligenceItem(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     source_name: Mapped[str] = mapped_column(String(255), nullable=False)
     source_url: Mapped[str] = mapped_column(String(512), nullable=True) # Gerçek kaynak URL (favicon için)
+    image_url: Mapped[str] = mapped_column(String(1024), nullable=True) # Haber görseli
     category: Mapped[str] = mapped_column(String(100), nullable=True, index=True)  # İş, Dünya, Türkiye
     topic: Mapped[str] = mapped_column(String(100), nullable=True, index=True)     # Döviz, Finans, Ekonomi
     is_in_our_site: Mapped[bool] = mapped_column(Boolean, default=False)

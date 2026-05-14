@@ -54,6 +54,19 @@ def fetch_and_sync_news_intelligence(db: Session):
                 
                 description = item.find("description").text if item.find("description") is not None else ""
                 
+                # Görsel (Thumbnail) Çekme
+                image_url = None
+                # 1. media:content kontrolü (Namespace ile)
+                media_content = item.find("{http://search.yahoo.com/mrss/}content")
+                if media_content is not None:
+                    image_url = media_content.get("url")
+                
+                # 2. Description içinde img tagı kontrolü (Eğer media:content yoksa)
+                if not image_url and "<img" in description:
+                    img_match = re.search(r'src="([^"]+)"', description)
+                    if img_match:
+                        image_url = img_match.group(1)
+                
                 # Başlıkta veya açıklamada anahtar kelime kontrolü
                 combined_text = (title + " " + description).lower()
                 matched_topic = next((kw for kw in FILTER_KEYWORDS if kw in combined_text), None)
@@ -77,11 +90,12 @@ def fetch_and_sync_news_intelligence(db: Session):
                         content=description,
                         source_name=source_name,
                         source_url=source_url,
+                        image_url=image_url,
                         category=category,
                         topic=display_topic,
                         published_at=published_at,
                         is_in_our_site=False,
-                        ai_note=f"'{category}' odaklı piyasa haberi algılandı. Kaynak: {source_name}"
+                        ai_note=None # SEO Notu ibaresi kaldırılacağı için None yapıyoruz
                     )
                     db.add(new_item)
                     new_count += 1

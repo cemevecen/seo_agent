@@ -657,6 +657,7 @@ def get_news_intelligence(category: str = None, limit: int = 50):
                 "content": item.content,
                 "source_name": item.source_name,
                 "source_url": item.source_url,
+                "image_url": item.image_url,
                 "category": item.category,
                 "topic": item.topic,
                 "is_in_our_site": item.is_in_our_site,
