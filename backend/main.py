@@ -1011,9 +1011,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
 
-    if _request_is_allowlisted(request):
-        return await call_next(request)
-
     with SessionLocal() as db:
         password_ready = _admin_password_configured(db)
     # İlk admin şifresi yokken: yerel tarayıcı (Host: 127.0.0.1 veya loopback TCP) /settings ve şifre formuna gidebilsin.
