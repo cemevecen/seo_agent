@@ -39,6 +39,7 @@ from sqlalchemy.exc import OperationalError, PendingRollbackError
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
+from sqlalchemy.orm import Session
 
 from backend.api.alerts import router as alerts_router
 from backend.api.ga4 import router as ga4_router
