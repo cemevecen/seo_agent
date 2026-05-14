@@ -62,7 +62,15 @@ def _smtp_configured() -> bool:
 
 
 def is_realtime_mail_ready() -> bool:
-    """GA4 Realtime alarm postası gönderilebilir mi (SMTP + alıcı + realtime posta bayrakları)."""
+    """GA4 Realtime site/KPI alarm postası gönderilebilir mi (SMTP + alıcı + email bayrağı)."""
+    if not settings.ga4_realtime_email_enabled:
+        return False
+    default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    return _smtp_configured() and bool(default_recipient_list)
+
+
+def is_page_alarm_mail_ready() -> bool:
+    """Sayfa bazlı alarm postası gönderilebilir mi."""
     if not settings.ga4_realtime_email_enabled:
         return False
     if not settings.ga4_realtime_page_alert_email:
@@ -228,9 +236,6 @@ def send_realtime_email(
     """
     if not settings.ga4_realtime_email_enabled:
         logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
-        return False
-    if not is_summary and not settings.ga4_realtime_page_alert_email:
-        logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_page_alert_email=False")
         return False
 
     recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]

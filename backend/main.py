@@ -9364,67 +9364,57 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             run_page_alarm_check_all_sites,
         )
 
-        all_summary_alarms: list[dict[str, Any]] = []
+        total_site_alarms = 0
+        total_page_alarms = 0
+        total_news_alarms = 0
 
+        # 1. Site-level KPI alarmları — her fonksiyon kendi domain/profile bağlamıyla email gönderir
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
                 db,
                 window_minutes=settings.ga4_realtime_window_minutes,
                 skip_alarms=is_night,
-                skip_emails=True,
+                skip_emails=is_night,   # gece modunda email gönderme, alarm kayıt yok
             )
-        
-        # KPI alarmlarını topla
+
         for res in results:
             if isinstance(res, dict) and res.get("alarms"):
-                all_summary_alarms.extend(res["alarms"])
+                total_site_alarms += len(res["alarms"])
 
         if is_night and not force_run:
             LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
-            return {
-                "total_alarms": 0,
-                "status": "night_mode_passive"
-            }
+            return {"total_alarms": 0, "status": "night_mode_passive"}
 
+        # 2. Sayfa bazlı alarmlar
         if settings.ga4_realtime_page_alerts_enabled:
             with SessionLocal() as db:
                 page_alarms = run_page_alarm_check_all_sites(
                     db, window_minutes=settings.ga4_realtime_window_minutes,
-                    skip_emails=True,
+                    skip_emails=False,   # fonksiyon kendi email'ini gönderir
                 )
-            if page_alarms:
-                all_summary_alarms.extend(page_alarms)
+            total_page_alarms = len(page_alarms) if page_alarms else 0
 
+        # 3. Haber alarmları
         if settings.ga4_realtime_news_alerts_enabled:
             with SessionLocal() as db:
-                news_alarms = run_news_alarm_check_all_sites(db, skip_emails=True)
-            if news_alarms:
-                all_summary_alarms.extend(news_alarms)
+                news_alarms = run_news_alarm_check_all_sites(db, skip_emails=False)
+            total_news_alarms = len(news_alarms) if news_alarms else 0
 
-        # HİBRİT GÖNDERİM MANTIĞI
-        from backend.services.ga4_realtime import send_realtime_email_for_alarm, send_realtime_summary_email
-
-        # 1. KRİTİK ALARMLAR (%60+): Tekil mail gönder
-        individual_alarms = [a for a in all_summary_alarms if abs(float(a.get("change_pct", 0))) >= 60]
-        for alarm in individual_alarms:
-            send_realtime_email_for_alarm(alarm)
-        
-        # 2. ÖZET ALARMLAR (%40 - %60): Toplu mail gönder (Düşüş sırasına göre)
-        summary_candidates = [a for a in all_summary_alarms if abs(float(a.get("change_pct", 0))) < 60]
-        if summary_candidates:
-            # En büyük düşüşten (en küçük yüzde değerinden) en büyük artışa doğru sırala
-            summary_candidates.sort(key=lambda x: float(x.get("change_pct", 0)))
-            send_realtime_summary_email(summary_candidates)
-
-        LOGGER.info("<<< GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BİTTİ. Kritik: %d, Özet: %d", len(individual_alarms), len(summary_candidates))
+        total = total_site_alarms + total_page_alarms + total_news_alarms
+        LOGGER.info(
+            "<<< GA4 Realtime Job BİTTİ. Site: %d, Sayfa: %d, Haber: %d alarm",
+            total_site_alarms, total_page_alarms, total_news_alarms,
+        )
         return {
-            "total_alarms": len(all_summary_alarms),
-            "site_check_count": len(results) if "results" in locals() else 0,
+            "total_alarms": total,
+            "site_alarms": total_site_alarms,
+            "page_alarms": total_page_alarms,
+            "news_alarms": total_news_alarms,
+            "site_check_count": len(results),
             "status": "completed",
         }
     except Exception as exc:
         import traceback
-
         logging.exception("GA4 Realtime check hatası")
         return {"status": "error", "message": str(exc), "traceback": traceback.format_exc()}
 

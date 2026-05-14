@@ -2202,11 +2202,11 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
 
 def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
     """Sayfa bazlı alarmlar — tek e-postada özet + Gmail iş parçacığı."""
-    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
+    from backend.services.mailer import is_page_alarm_mail_ready, send_realtime_email
 
     if not alarms:
         return
-    if not is_realtime_mail_ready():
+    if not is_page_alarm_mail_ready():
         logger.warning(
             "Realtime sayfa alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
             "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
