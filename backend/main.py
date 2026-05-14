@@ -9081,7 +9081,7 @@ def admin_test_realtime_mail(db: Session = Depends(get_db)):
             "inbox": {
                 "is_connected": inbox_creds is not None,
                 "account_email": inbox_row.account_email if inbox_row else None,
-                "has_refresh_token": bool(inbox_row.refresh_token) if inbox_row else False,
+                "has_refresh_token": bool(inbox_creds.refresh_token) if inbox_creds else False,
             }
         }
 
