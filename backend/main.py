@@ -640,7 +640,7 @@ def admin_run_news_intelligence_now():
             db.commit()
         # Sonra yeni taramayı başlat
         run_news_intelligence_job()
-        return {"status": "ok", "message": "Haberler sıfırlandı ve son 9 saat için tarama başarıyla tetiklendi."}
+        return {"status": "ok", "message": "RESET_SUCCESS_9H"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
