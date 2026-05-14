@@ -106,6 +106,18 @@ def fetch_and_sync_news_intelligence(db: Session):
         except Exception as e:
             logger.exception("Error syncing news intelligence search for %s", category)
 
+    # 24 Saatlik Temizlik: 24 saatten eski tüm kayıtları sil
+    try:
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        deleted_count = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.published_at < cutoff).delete()
+        db.commit()
+        if deleted_count > 0:
+            logger.info("Cleaned up %d news items older than 24 hours.", deleted_count)
+    except Exception as e:
+        logger.error("Error during news intelligence cleanup: %s", e)
+        db.rollback()
+
 def run_news_intelligence_job():
     """APScheduler wrapper."""
     with SessionLocal() as db:
