@@ -2822,11 +2822,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Haber İstihbaratı (Her 15 dakikada bir sektörel tarama)
-    from apscheduler.triggers.interval import IntervalTrigger as _IntervalTrigger
+    # Haber İstihbaratı (07:01 - 23:59 arası her 30 dakikada bir: 07:01, 07:31, ...)
     scheduler.add_job(
         _run_news_intelligence_job,
-        trigger=_IntervalTrigger(minutes=15, timezone=timezone),
+        trigger=CronTrigger(hour='7-23', minute='1,31', timezone=timezone),
         id="news-intelligence-sync",
         replace_existing=True,
         max_instances=1,

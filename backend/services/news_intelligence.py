@@ -25,13 +25,27 @@ def fetch_and_sync_news_intelligence(db: Session):
     """Google News Arama RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
     logger.info("Starting Google News Search Intelligence sync...")
     
+    # Zaman bazlı 'when' parametresi belirleme
+    # Eğer saat 07:01 civarıysa (ilk çalışma) 2 saat, değilse 1 saat
+    now = datetime.now()
+    if now.hour == 7 and now.minute <= 10:
+        freshness = "2h"
+        logger.info("First run of the day (07:01), using when:2h")
+    else:
+        freshness = "1h"
+        logger.info(f"Routine run, using when:{freshness}")
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    for category, query in SEARCH_QUERIES.items():
-        encoded_query = urllib.parse.quote(query)
-        # Daha fazla sonuç için hl=tr ve gl=TR kullanıyoruz
+    # Her kategori için aramayı yap
+    for category, base_query in SEARCH_QUERIES.items():
+        # Query'deki eski when:9h kısmını temizleyip dinamik olanı ekleyelim
+        clean_query = base_query.split(" when:")[0]
+        final_query = f"{clean_query} when:{freshness}"
+        
+        encoded_query = urllib.parse.quote(final_query)
         rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=tr&gl=TR&ceid=TR:tr"
         
         try:
