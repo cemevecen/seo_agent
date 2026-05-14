@@ -1025,6 +1025,7 @@ def on_startup() -> None:
     # NewsIntelligenceItem tablosu için kolon yaması
     try:
         from sqlalchemy import text
+        from backend.database import engine
         with engine.connect() as conn:
             # source_url
             try:
