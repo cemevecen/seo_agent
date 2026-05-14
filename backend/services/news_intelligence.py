@@ -128,11 +128,13 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                             continue
                             
                         try:
+                            # Sadece başlığı çevir, hata alırsa orijinali bırak
                             translator = GoogleTranslator(source='en', target='tr')
-                            title = translator.translate(title)
-                            # İçeriği (description) çevirme, sadece başlığı çevir
+                            translated = translator.translate(title)
+                            if translated:
+                                title = translated
                         except Exception as te:
-                            logger.error(f"Auto-translation failed for Yahoo item: {te}")
+                            logger.error(f"Auto-translation failed: {te}")
 
                     # Yeni haberi kaydet
                     new_item = NewsIntelligenceItem(
