@@ -213,12 +213,25 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
 
     n = len(alarms)
     head = html.escape("Birden fazla kural aynı anda tetiklendi." if n > 1 else "Realtime alarmı.")
+    
+    # Sürücü Analizi (Eğer varsa)
+    driver_html = ""
+    site_delta = 0
+    if alarms:
+        # En büyük değişime sahip alarmı baz alalım
+        primary = sorted(alarms, key=lambda x: abs(x.get("current_value",0) - x.get("previous_value",0)), reverse=True)[0]
+        site_delta = primary.get("current_value",0) - primary.get("previous_value",0)
+        drivers = alarm.get("drivers", []) if (alarm := alarms[0]) else []
+        if drivers:
+            driver_html = _html_driver_analysis_section(drivers, site_delta)
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;color:#0f172a;">
             <p style="font-size:15px;font-weight:600;margin:0 0 8px;">{dom_e}</p>
             <p style="font-size:14px;line-height:1.55;color:#475569;margin:0 0 16px;">{intro}</p>
             <p style="font-size:13px;color:#64748b;margin:0 0 8px;">{head}</p>
             {''.join(cards)}
+            {driver_html}
             <p style="color:#94a3b8;font-size:12px;margin-top:22px;">SEO Agent · GA4 Realtime (otomatik)</p>
         </div>
         """
@@ -1459,6 +1472,104 @@ def evaluate_alarms(
     return triggered
 
 
+def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta: float) -> list[dict[str, Any]]:
+    """Site genelindeki trafik değişimine hangi sayfaların ne kadar katkıda bulunduğunu analiz eder."""
+    if abs(site_delta) < 5: # Çok küçük değişimleri analiz etme
+        return []
+        
+    prev_pages = get_previous_page_snapshots(db, site_id, profile)
+    if not prev_pages:
+        return []
+        
+    from backend.models import RealtimePageSnapshot
+    from sqlalchemy import desc
+    
+    # Son 2 ölçümü al
+    last_two = (
+        db.query(RealtimePageSnapshot.payload_json)
+        .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == profile)
+        .order_by(desc(RealtimePageSnapshot.collected_at))
+        .limit(2)
+        .all()
+    )
+    
+    if len(last_two) < 2:
+        return []
+        
+    import json as _json
+    curr_data = _json.loads(last_two[0][0])
+    prev_data = _json.loads(last_two[1][0])
+    
+    curr_map = {p["pagePath"]: p["activeUsers"] for p in curr_data}
+    prev_map = {p["pagePath"]: p["activeUsers"] for p in prev_data}
+    
+    drivers = []
+    all_paths = set(list(curr_map.keys()) + list(prev_map.keys()))
+    
+    for path in all_paths:
+        c = curr_map.get(path, 0)
+        p = prev_map.get(path, 0)
+        diff = c - p
+        if abs(diff) > 0:
+            # Katkı oranı (site genelindeki değişime göre)
+            contribution = (diff / site_delta * 100) if abs(site_delta) > 0 else 0
+            drivers.append({
+                "page": path,
+                "delta": diff,
+                "contribution_pct": contribution,
+                "current": c,
+                "previous": p
+            })
+            
+    # Değişim yönüne göre sırala (eğer site_delta negatifse en çok düşenler en üstte)
+    is_drop = site_delta < 0
+    drivers.sort(key=lambda x: x["delta"], reverse=not is_drop)
+    
+    return drivers[:5] # En etkili 5 sayfayı döndür
+
+def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: float) -> str:
+    """Trafik değişim analizi için HTML bölümü üretir."""
+    if not drivers:
+        return ""
+        
+    is_drop = site_delta < 0
+    title = "Düşüşün Kaynağı (Analiz)" if is_drop else "Artışın Kaynağı (Analiz)"
+    color = "#991b1b" if is_drop else "#166534"
+    
+    rows = []
+    for d in drivers:
+        # Başlığı sadeleştir
+        path = d["page"]
+        clean_title = _rt_alarm_screen_title_one_line(path, max_len=60)
+        pct = d["contribution_pct"]
+        # Eğer katkı %100'den büyükse (bazı sayfalar artarken toplam düşmüş olabilir), 
+        # veya tam tersi, mantıklı bir sınır koyalım.
+        pct_display = f"%{abs(pct):.0f}"
+        
+        rows.append(f"""
+            <tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:8px 0;font-size:13px;color:#334155;">{html.escape(clean_title)}</td>
+                <td style="padding:8px 0;text-align:right;font-size:13px;font-weight:700;color:{color};">
+                    {d['delta']:+.0f} ({pct_display} etki)
+                </td>
+            </tr>
+        """)
+        
+    return f"""
+        <div style="margin-top:24px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+            <div style="font-size:13px;font-weight:700;color:{color};margin-bottom:12px;text-transform:uppercase;">
+                {title}
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+                {''.join(rows)}
+            </table>
+            <p style="margin-top:12px;font-size:12px;color:#64748b;font-style:italic;">
+                * Bu analiz, site genelindeki toplam {site_delta:+.0f} değişimin hangi içeriklerden kaynaklandığını gösterir.
+            </p>
+        </div>
+    """
+
+
 def check_site_realtime(
     db: Session,
     site: Site,
@@ -1554,6 +1665,17 @@ def check_site_realtime(
 
     if alarms:
         _save_alarm_logs(db, site.id, alarms)
+        
+        # Sürücü Analizi (Korelasyon)
+        # Sadece activeUsers alarmı varsa veya en büyük alarm oysa analiz yap
+        active_users_alarm = next((a for a in alarms if a["metric"] == "activeUsers"), None)
+        if active_users_alarm:
+            delta = active_users_alarm["current_value"] - active_users_alarm["previous_value"]
+            drivers = _analyze_traffic_drivers(db, site.id, profile, delta)
+            if drivers:
+                # İlk alarma sürücüleri ekle (mail body'de kullanmak için)
+                alarms[0]["drivers"] = drivers
+                
         logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
         if not skip_emails:
             _send_site_alarm_emails(site.domain, profile, alarms)
