@@ -8319,6 +8319,136 @@ def api_ga4_realtime_drivers(site_id: int, profile: str = "web"):
         })
 
 
+@app.get("/api/ga4/realtime/{site_id}/insights")
+def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 32):
+    """Trend'deki ani iniş/çıkışları tespit et, hangi sayfaların katkıda bulunduğunu bul."""
+    from backend.models import RealtimeSnapshot, RealtimePageSnapshot
+    from sqlalchemy import desc as _desc_ins
+    from zoneinfo import ZoneInfo
+    import statistics
+
+    tz = ZoneInfo(getattr(settings, "report_calendar_timezone", "Europe/Istanbul"))
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+
+        # Son N snapshot
+        rows = (
+            db.query(RealtimeSnapshot)
+            .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
+            .order_by(_desc_ins(RealtimeSnapshot.collected_at))
+            .limit(min(limit, 96))
+            .all()
+        )
+        rows = list(reversed(rows))  # eskiden yeniye
+
+        if len(rows) < 3:
+            return JSONResponse({"insights": [], "has_data": False})
+
+        # Her noktadaki değişimi hesapla
+        deltas = []
+        for r in rows:
+            prev = r.active_users_previous or 0
+            curr = r.active_users_current or 0
+            delta = curr - prev
+            pct = (delta / max(prev, 1)) * 100
+            deltas.append({"delta": delta, "pct": pct, "row": r})
+
+        # Anomali eşiği: mutlak delta'nın standart sapmasının 1.5 katı VEYA %30 değişim
+        abs_deltas = [abs(d["delta"]) for d in deltas]
+        try:
+            stdev = statistics.stdev(abs_deltas) if len(abs_deltas) >= 2 else 0
+        except Exception:
+            stdev = 0
+        median_users = statistics.median([d["row"].active_users_current or 0 for d in deltas]) or 1
+        anomaly_threshold_abs = max(stdev * 1.5, median_users * 0.2, 10)
+
+        insights = []
+        for d in deltas:
+            if abs(d["delta"]) < anomaly_threshold_abs and abs(d["pct"]) < 30:
+                continue
+
+            r = d["row"]
+            window_min = r.window_minutes or 15
+            ts_end = r.collected_at
+            ts_start = ts_end - __import__("datetime").timedelta(minutes=window_min)
+
+            end_local = ts_end.replace(tzinfo=__import__("datetime").timezone.utc).astimezone(tz)
+            start_local = ts_start.replace(tzinfo=__import__("datetime").timezone.utc).astimezone(tz)
+
+            # Bu zaman damgasına en yakın sayfa snapshot'larını bul
+            # Önceki ve şimdiki page snapshot'larını karşılaştır
+            page_rows_curr = (
+                db.query(RealtimePageSnapshot)
+                .filter(
+                    RealtimePageSnapshot.site_id == site_id,
+                    RealtimePageSnapshot.profile == profile,
+                    RealtimePageSnapshot.collected_at <= ts_end,
+                )
+                .order_by(_desc_ins(RealtimePageSnapshot.collected_at))
+                .limit(25)
+                .all()
+            )
+
+            # Bir önceki sayfa snapshot zamanı
+            prev_page_time = None
+            if page_rows_curr:
+                curr_page_time = page_rows_curr[0].collected_at
+                prev_page_rows_q = (
+                    db.query(RealtimePageSnapshot)
+                    .filter(
+                        RealtimePageSnapshot.site_id == site_id,
+                        RealtimePageSnapshot.profile == profile,
+                        RealtimePageSnapshot.collected_at < curr_page_time,
+                    )
+                    .order_by(_desc_ins(RealtimePageSnapshot.collected_at))
+                    .limit(25)
+                    .all()
+                )
+                prev_map = {p.page_path: p.active_users for p in prev_page_rows_q}
+                prev_page_time = prev_page_rows_q[0].collected_at if prev_page_rows_q else None
+            else:
+                prev_map = {}
+
+            # Her sayfanın katkısını hesapla
+            page_contribs = []
+            site_delta = d["delta"]
+            for p in page_rows_curr:
+                prev_au = prev_map.get(p.page_path, 0)
+                page_delta = p.active_users - prev_au
+                if abs(page_delta) < 1:
+                    continue
+                contrib_pct = (page_delta / site_delta * 100) if site_delta else 0
+                page_contribs.append({
+                    "page": p.page_path,
+                    "delta": round(page_delta),
+                    "current": round(p.active_users),
+                    "contribution_pct": round(contrib_pct),
+                })
+
+            # Yön ile uyumlu katkıları öne al
+            page_contribs.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
+            top_pages = page_contribs[:3]
+
+            insights.append({
+                "period_start": start_local.strftime("%H:%M"),
+                "period_end": end_local.strftime("%H:%M"),
+                "direction": "drop" if d["delta"] < 0 else "spike",
+                "site_delta": round(d["delta"]),
+                "change_pct": round(d["pct"], 1),
+                "current_total": round(r.active_users_current or 0),
+                "previous_total": round(r.active_users_previous or 0),
+                "top_pages": top_pages,
+                "collected_at": r.collected_at.isoformat() if r.collected_at else None,
+            })
+
+        # En güçlü değişimden en zayıfa doğru sırala, son 10
+        insights.sort(key=lambda x: abs(x["site_delta"]), reverse=True)
+        return JSONResponse({"insights": insights[:10], "has_data": True})
+
+
 @app.get("/api/ga4/realtime/{site_id}/top-pages")
 def api_ga4_realtime_top_pages(
     site_id: int, profile: str = "web", window: int = 30, limit: int = 10,

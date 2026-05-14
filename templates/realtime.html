@@ -266,11 +266,15 @@
   /* Top sekmeler (purge güvenli) */
   .rt-tab-active {
     border-radius: 0.375rem;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.2rem 0.25rem;
+    font-size: 0.68rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     background-color: rgb(224 231 255);
     color: rgb(67 56 202);
   }
@@ -280,11 +284,15 @@
   }
   .rt-tab-inactive {
     border-radius: 0.375rem;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.2rem 0.25rem;
+    font-size: 0.68rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: rgb(100 116 139);
     background: transparent;
   }
@@ -293,9 +301,11 @@
   }
   .rt-tab-inactive:hover {
     color: rgb(71 85 105);
+    background-color: rgb(241 245 249);
   }
   html.dark .rt-tab-inactive:hover {
     color: rgb(244 244 245);
+    background-color: rgb(39 39 42 / 0.5);
   }
   /* Alarm alt sekmeler */
   .rt-alarm-tab-active {
@@ -770,13 +780,13 @@
         {% else %}
         {# Web / mweb: Top sayfalar — tabbed #}
         <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
-          <div class="mb-2 flex flex-wrap items-center gap-1">
+          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(4,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="pages">Top Sayfalar</button>
+              data-rt-top-tab="pages">Sayfalar</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="views">Top Görüntüleme</button>
+              data-rt-top-tab="views">Görüntüleme</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
@@ -814,7 +824,8 @@
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-news-ts></p>
           </div>
-          <div data-rt-top-panel="drivers" class="hidden min-w-0">
+          <div data-rt-top-panel="drivers" class="hidden min-w-0 space-y-3">
+            {# Anlık değişim — kim düşürüyor/çıkarıyor (drivers) #}
             <div data-rt-drivers-list>
               <div class="animate-pulse space-y-2 py-2">
                 <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
@@ -822,7 +833,14 @@
                 <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
               </div>
             </div>
-            <p class="mt-2 rt-ts-foot" data-rt-drivers-ts></p>
+            <p class="rt-ts-foot" data-rt-drivers-ts></p>
+            {# Geçmiş anomaliler — grafikteki olaylar #}
+            <div class="border-t border-slate-100 dark:border-slate-700/50 pt-3" data-rt-insights-list>
+              <div class="animate-pulse space-y-2 py-2">
+                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              </div>
+            </div>
           </div>
         </div>
         {% endif %}
@@ -1577,6 +1595,7 @@
     _fetchTopData(siteId, profile, 'views');
     _fetchTopNews(siteId, profile);
     _fetchDrivers(siteId, profile);
+    _fetchInsights(siteId, profile);
   }
   window.rtFetchTopPages = rtFetchTopPages;
 
@@ -1651,6 +1670,77 @@
       + '<div class="space-y-0">' + rows + '</div>';
   }
 
+  function _fetchInsights(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    var el = box.querySelector('[data-rt-insights-list]');
+    if (!el) return;
+    fetch('/api/ga4/realtime/' + siteId + '/insights?profile=' + encodeURIComponent(profile), {
+      credentials: 'same-origin', cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { _renderInsights(el, d); })
+      .catch(function () { if (el) el.innerHTML = '<p class="rt-empty text-sm italic">hata</p>'; });
+  }
+
+  function _renderInsights(el, d) {
+    if (!el) return;
+    if (!d.has_data || !d.insights || !d.insights.length) {
+      el.innerHTML = '<div class="py-4 text-center text-[12px] text-slate-400 dark:text-slate-500">'
+        + '<div class="mb-1 text-2xl">📊</div>'
+        + '<div>Grafik verisi birikince ani iniş/çıkışlar burada görünecek.</div>'
+        + '</div>';
+      return;
+    }
+
+    var items = d.insights.map(function(ins) {
+      var isDrop = ins.direction === 'drop';
+      var icon = isDrop ? '↓' : '↑';
+      var iconBg = isDrop ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+      var borderColor = isDrop ? 'border-rose-100 dark:border-rose-900/30' : 'border-emerald-100 dark:border-emerald-900/30';
+      var pctAbs = Math.abs(ins.change_pct || 0);
+      var deltaAbs = Math.abs(ins.site_delta || 0);
+      var sign = ins.site_delta >= 0 ? '+' : '';
+      var deltaStr = sign + Math.round(ins.site_delta || 0).toLocaleString('tr-TR');
+
+      // Ana özet satırı
+      var headline = ins.period_start + '–' + ins.period_end + ' · '
+        + (isDrop ? 'düşüş' : 'artış') + ' · '
+        + '%' + pctAbs.toFixed(0) + ' (' + deltaStr + ' kul.)';
+
+      // Sayfa katkıları
+      var pageLines = '';
+      if (ins.top_pages && ins.top_pages.length) {
+        pageLines = ins.top_pages.map(function(p) {
+          var path = p.page || '';
+          var short = path.length > 48 ? path.substring(0, 48) + '…' : path;
+          var pSign = p.delta >= 0 ? '+' : '';
+          var pct = Math.abs(p.contribution_pct || 0);
+          var pColor = p.delta < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+          return '<div class="flex items-baseline justify-between gap-2 mt-1">'
+            + '<span class="min-w-0 text-[11px] text-slate-500 dark:text-slate-400 truncate" title="' + _attr(path) + '">' + _esc(short) + '</span>'
+            + '<span class="shrink-0 tabular-nums text-[11px] font-bold ' + pColor + '">'
+            + pSign + Math.round(p.delta).toLocaleString('tr-TR')
+            + ' <span class="font-normal text-slate-400">%' + Math.round(pct) + '</span>'
+            + '</span>'
+            + '</div>';
+        }).join('');
+      }
+
+      return '<div class="rounded-lg border ' + borderColor + ' bg-white dark:bg-slate-800/50 p-2.5 mb-2">'
+        + '<div class="flex items-start gap-2">'
+        + '<span class="shrink-0 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black ' + iconBg + '">' + icon + '</span>'
+        + '<div class="min-w-0 flex-1">'
+        + '<p class="text-[12px] font-semibold text-slate-700 dark:text-slate-200 leading-snug">' + _esc(headline) + '</p>'
+        + (pageLines ? '<div class="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/40">' + pageLines + '</div>' : '')
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    el.innerHTML = '<div class="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Son olaylar (en büyükten küçüğe)</div>' + items;
+  }
+
   function rtSwitchTopTab(btn, tab) {
     var section = btn.closest('[data-rt-top-section]');
     if (!section) return;
@@ -1662,21 +1752,12 @@
     section.querySelectorAll('[data-rt-top-tab]').forEach(function (t) {
       t.className = (t.getAttribute('data-rt-top-tab') === tab) ? activeClass : inactiveClass;
     });
-    if (tab === 'news' && section.querySelector('[data-rt-news-list]')) {
-      var profileBox = btn.closest('[data-rt-site-id]');
-      if (profileBox) {
-        var sid = parseInt(profileBox.getAttribute('data-rt-site-id'), 10);
-        var prof = profileBox.getAttribute('data-rt-profile');
-        if (!isNaN(sid) && prof) _fetchTopNews(sid, prof);
-      }
-    }
-    if (tab === 'drivers') {
-      var profileBox = btn.closest('[data-rt-site-id]');
-      if (profileBox) {
-        var sid = parseInt(profileBox.getAttribute('data-rt-site-id'), 10);
-        var prof = profileBox.getAttribute('data-rt-profile');
-        if (!isNaN(sid) && prof) _fetchDrivers(sid, prof);
-      }
+    var profileBox = btn.closest('[data-rt-site-id]');
+    var sid = profileBox ? parseInt(profileBox.getAttribute('data-rt-site-id'), 10) : NaN;
+    var prof = profileBox ? profileBox.getAttribute('data-rt-profile') : null;
+    if (!isNaN(sid) && prof) {
+      if (tab === 'news') _fetchTopNews(sid, prof);
+      if (tab === 'drivers') { _fetchDrivers(sid, prof); _fetchInsights(sid, prof); }
     }
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
