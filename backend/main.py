@@ -7373,6 +7373,21 @@ def _ga4_sites_payload(db) -> list[dict]:
     return rows
 
 
+@app.get("/intelligence", response_class=HTMLResponse)
+def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
+    """Market İstihbaratı sayfası."""
+    sites = db.query(Site).all()
+    return templates.TemplateResponse(
+        "intelligence.html",
+        {
+            "request": request,
+            "sites": sites,
+            "site_name": "Market İstihbaratı",
+            "domain": "intelligence"
+        }
+    )
+
+
 @app.get("/ga4")
 def ga4_page(request: Request):
     payload = {
