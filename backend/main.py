@@ -1021,6 +1021,25 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
 @app.on_event("startup")
 def on_startup() -> None:
+    """Uygulama başlarken gerekli kontrolleri yapar."""
+    # NewsIntelligenceItem tablosu için kolon yaması
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # source_url
+            try:
+                conn.execute(text("ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)"))
+                conn.commit()
+            except: pass
+            # image_url
+            try:
+                conn.execute(text("ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)"))
+                conn.commit()
+            except: pass
+    except Exception as e:
+        print(f"Migration error: {e}")
+
+    # Startup logic continued
     # Uygulama açılışında tablolar create_all ile hazırlanır.
     global SCHEDULER
     init_db()
