@@ -9,11 +9,11 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Google News Topic IDs (Türkiye için özelleştirilmiş)
+# Google News Topic IDs (Türkiye/Global için gerçek ID'ler)
 TOPICS = {
     "İş Dünyası": "CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FuUnlHZ0pVVWlnQVAB",
-    "Dünya": "CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FuUnlHZ0pVVWlnQVAB", # Bu ID'ler çalışma anında doğrulanacak/güncellenecek
-    "Türkiye": "CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FuUnlHZ0pVVWlnQVAB"
+    "Dünya": "CAAqJggKIiBDQkFTRWdvSUwyMHZNR3B4WmpVdU5EbHphR1p0Y0hKRE9BUnVfQW9G",
+    "Türkiye": "CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FuUnlHZ0pVVWlnQVAB" # Türkiye için Business bazlı ekonomi süzgeci devam ediyor
 }
 
 # Filtreleme Anahtar Kelimeleri
