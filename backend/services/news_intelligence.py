@@ -84,19 +84,30 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 if media_content is not None:
                     image_url = media_content.get("url")
                 
-                # img tagı kontrolü (daha sağlam regex)
+                # img tagı kontrolü (daha sağlam regex + piksel filtresi)
                 if not image_url and description:
-                    img_match = re.search(r'src=["\']([^"\']+)["\']', description)
-                    if img_match:
-                        image_url = img_match.group(1)
+                    # Tüm src'leri bul
+                    all_imgs = re.findall(r'src=["\']([^"\']+)["\']', description)
+                    for img in all_imgs:
+                        # 1x1 piksel veya tracking parametreleri içerenleri atla
+                        if any(x in img.lower() for x in ["1x1", "pixel", "ads", "analytics"]):
+                            continue
+                        
+                        image_url = img
                         if image_url.startswith("//"):
                             image_url = "https:" + image_url
+                        break
                 
-                # Google News spesifik thumbnail kontrolü (enclosure)
+                # Google News spesifik thumbnail kontrolü (enclosure & media:thumbnail)
                 if not image_url:
                     enclosure = item.find("enclosure")
                     if enclosure is not None:
                         image_url = enclosure.get("url")
+                    else:
+                        # Namespace ile media:thumbnail araması
+                        media_thumb = item.find("{http://search.yahoo.com/mrss/}thumbnail")
+                        if media_thumb is not None:
+                            image_url = media_thumb.get("url")
                 
                 # Etiketleme için anahtar kelime kontrolü
                 combined_text = (title + " " + description).lower()
