@@ -933,7 +933,15 @@
 
   function _updateLiveBadge() {
     var el = document.querySelector('[data-rt-live-countdown]');
-    if (el) el.textContent = String(Math.max(0, _liveCountdownSec));
+    if (!el) return;
+    var night = _isNightMode();
+    if (night) {
+      el.textContent = '🌙 ' + Math.max(0, _liveCountdownSec);
+      el.parentElement.title = 'Gece Modu: Sadece Spark grafikleri yenileniyor (00:00-07:00).';
+    } else {
+      el.textContent = String(Math.max(0, _liveCountdownSec));
+      el.parentElement.title = 'Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.';
+    }
   }
 
   function _resetLiveCountdown() {
@@ -941,14 +949,25 @@
     _updateLiveBadge();
   }
 
+  function _isNightMode() {
+    var h = new Date().getHours();
+    return h >= 0 && h < 7;
+  }
+
   function _refreshLiveCycle() {
+    var night = _isNightMode();
     Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
       var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
       if (isNaN(sid) || !prof) return;
-      /* Yalnızca rtFetchProfile: sunucu yeni snapshot kaydedip aynı yanıtta trend döner.
-         rtFetchTrend ile yarış (hangisi son biterse) grafikleri yanlış/aynı gösterebilir. */
-      rtFetchProfile(sid, prof);
+
+      if (night) {
+        /* Gece modu: Sadece spark (trend) yenile. GA4 API çağrısı yapılmaz, DB'den son trend çekilir. */
+        rtFetchTrend(sid, prof);
+      } else {
+        /* Gündüz modu: Tam yenileme (KPI + Alarm + Trend). */
+        rtFetchProfile(sid, prof);
+      }
     });
   }
 
@@ -2078,12 +2097,15 @@
 
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
       _pageTimers[key] = setInterval(function () {
+        if (_isNightMode()) return; // Gece listeleri yenileme
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
 
     });
-    setTimeout(_fetchGlobalAlarms, 1000);
+    setTimeout(function() {
+      if (!_isNightMode()) _fetchGlobalAlarms();
+    }, 1000);
     _startLiveCountdown();
 
     document.addEventListener('visibilitychange', function () {
