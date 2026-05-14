@@ -646,7 +646,7 @@ def admin_run_news_intelligence_now():
         return {"status": "error", "message": str(exc)}
 
 
-@app.get("/api/admin/news-intelligence")
+@app.get("/api/admin/news-intelligence/list")
 def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0):
     """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon destekli)."""
     with SessionLocal() as db:
@@ -656,24 +656,25 @@ def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
         items = query.offset(offset).limit(limit).all()
-        # JSON'a uygun hale getirmek için dict listesine çevirelim
-        return [
-            {
-                "id": item.id,
-                "headline": item.headline,
-                "url": item.url,
-                "content": item.content,
-                "source_name": item.source_name,
-                "source_url": item.source_url,
-                "image_url": item.image_url,
-                "category": item.category,
-                "topic": item.topic,
-                "is_in_our_site": item.is_in_our_site,
-                "ai_note": item.ai_note,
-                "published_at": item.published_at.isoformat() if item.published_at else None
-            }
-            for item in items
-        ]
+        return {
+            "items": [
+                {
+                    "id": item.id,
+                    "headline": item.headline,
+                    "url": item.url,
+                    "content": item.content,
+                    "source_name": item.source_name,
+                    "source_url": item.source_url,
+                    "image_url": item.image_url,
+                    "category": item.category,
+                    "topic": item.topic,
+                    "is_in_our_site": item.is_in_our_site,
+                    "ai_note": item.ai_note,
+                    "published_at": item.published_at.isoformat() if item.published_at else None
+                }
+                for item in items
+            ]
+        }
 
 
 @app.post("/api/admin/news-intelligence/sync")

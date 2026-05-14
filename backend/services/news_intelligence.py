@@ -15,33 +15,33 @@ logger = logging.getLogger(__name__)
 CATEGORY_SOURCES = {
     "İş Dünyası": [
         "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=ekonomi+finans+borsa+piyasalar+when:1h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=ekonomi+finans+borsa+piyasalar+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
-        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:1h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:12h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Rakip": [
-        "https://news.google.com/rss/search?q=(site:ekonomim.com OR site:dunya.com OR site:bloomberght.com OR site:cnbce.com OR site:ntv.com.tr OR site:cnnturk.com OR site:foreks.com OR site:gazeteoksijen.com) (finans OR ekonomi OR politika) when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=(site:ekonomim.com OR site:dunya.com OR site:bloomberght.com OR site:cnbce.com OR site:ntv.com.tr OR site:cnnturk.com OR site:foreks.com OR site:gazeteoksijen.com) (finans OR ekonomi OR politika) when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Yahoo Finance": [
         "https://finance.yahoo.com/news/rssindex",
-        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:1h&hl=en-US&gl=US&ceid=US:en"
+        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:12h&hl=en-US&gl=US&ceid=US:en"
     ],
     "Dünya": [
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Türkiye": [
         "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=türkiye+gündemi+son+dakika+manşetler+when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=türkiye+gündemi+son+dakika+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:1h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:12h&hl=tr&gl=TR&ceid=TR:tr"
     ]
 }
 
