@@ -1211,7 +1211,7 @@ def fetch_realtime_top_pages_with_app_fallback(
             limit=limit,
             sort_by=sort_by,
             compare_previous=compare_previous,
-            include_page_path=True,   # web/mweb'de pagePath geçerli
+            include_page_path=False,  # pagePath dim. bazı property'lerde API hatasına neden oluyor
             client=client,
         )
         base["breakdown"] = "unifiedScreenName"
