@@ -7673,8 +7673,16 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
     from backend.services.tmdb import fetch_combined_upcoming
     months = max(1, min(int(months), 12))
     error = None
-    data: dict = {"all_movies": [], "by_month": {}, "total": 0, "turkish_count": 0,
-                  "high_potential": [], "months_ahead": months}
+    data: dict = {
+        "theatrical": [], "theatrical_by_month": {},
+        "streaming":  [], "streaming_by_month":  {},
+        "turkish_only": [], "turkish_by_month": {},
+        "tv_series":  [], "tv_by_month": {},
+        "high_potential": [],
+        "months_ahead": months,
+        "total_theatrical": 0, "total_streaming": 0,
+        "total_turkish": 0,    "total_tv": 0,
+    }
     try:
         data = fetch_combined_upcoming(months_ahead=months)
     except Exception as exc:
