@@ -55,10 +55,13 @@ def _realtime_email_thread_key(domain: str, profile: str) -> str:
 
 
 def _email_site_short_label(domain: str, *, max_len: int = 36) -> str:
-    """Konu satırı için kısa site adı (www. atılır)."""
+    """Konu satırı için kısa site adı — www. ve TLD (.com/.net vb.) atılır."""
+    import re as _re
     d = (domain or "").strip().lower().rstrip(".")
     if d.startswith("www."):
         d = d[4:]
+    # TLD'yi kaldır: .com .net .org .com.tr .co.uk vb.
+    d = _re.sub(r"\.[a-z]{2,6}(\.[a-z]{2})?$", "", d)
     if not d:
         return "site"
     if len(d) > max_len:
