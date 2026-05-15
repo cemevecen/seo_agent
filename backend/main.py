@@ -8351,7 +8351,7 @@ def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 4
         )
         rows = list(reversed(rows))  # eskiden yeniye
 
-        if len(rows) < 4:
+        if len(rows) < 2:
             return JSONResponse({"insights": [], "has_data": False})
 
         # Ardışık snapshot farkları (GA4 iç pencere karşılaştırması değil)

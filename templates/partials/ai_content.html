@@ -587,7 +587,7 @@
           >
             <span class="llm-chip-halo" aria-hidden="true"></span>
             <span class="llm-chip-inner">
-              <span class="llm-chip-icon" aria-hidden="true">⚡</span>
+              <span class="llm-chip-icon" aria-hidden="true"></span>
               <span class="llm-chip-title">Groq</span>
             </span>
           </button>
@@ -626,13 +626,13 @@
       {% if not llm_groq or not llm_gemini or not llm_openai %}
       <div class="w-full text-right">
         {% if not llm_groq %}
-          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">⚠ Groq pasif</span>
+          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">Groq pasif</span>
         {% endif %}
         {% if not llm_gemini %}
-          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">⚠ Gemini pasif</span>
+          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">Gemini pasif</span>
         {% endif %}
         {% if not llm_openai %}
-          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">⚠ OpenAI pasif</span>
+          <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-300">OpenAI pasif</span>
         {% endif %}
       </div>
       {% endif %}
@@ -649,9 +649,9 @@
   {% else %}
     <div id="ai-brief-layout-root" class="space-y-4">
       <nav class="ai-pillar-nav" aria-label="Bölümler">
-        <a href="#ai-pillar-ga4-analizi" class="ai-pillar-chip">📊 <span>GA4</span></a>
-        <a href="#ai-pillar-pagespeed" class="ai-pillar-chip">⚡ <span>PageSpeed</span></a>
-        <a href="#ai-pillar-search-console" class="ai-pillar-chip">🔍 <span>Search Console</span></a>
+        <a href="#ai-pillar-ga4-analizi" class="ai-pillar-chip"><span>GA4</span></a>
+        <a href="#ai-pillar-pagespeed" class="ai-pillar-chip"><span>PageSpeed</span></a>
+        <a href="#ai-pillar-search-console" class="ai-pillar-chip"><span>Search Console</span></a>
         <a href="#ai-pillar-uyarilar-ve-oncelik" class="ai-pillar-chip">🚨 <span>Uyarılar</span></a>
       </nav>
 
@@ -708,10 +708,10 @@
         </section>
       {%- endmacro %}
 
-      {{ pillar_block("GA4 Analizi", "📊", ai_brief.ga4_text, "ga4") }}
-      {{ pillar_block("PageSpeed", "⚡", ai_brief.pagespeed_text, "pagespeed") }}
-      {{ pillar_block("Search Console", "🔍", ai_brief.search_console_text, "search_console") }}
-      {{ pillar_block("Uyarılar ve Öncelik", "⚠️", ai_brief.alerts_text, "alerts") }}
+      {{ pillar_block("GA4 Analizi", "", ai_brief.ga4_text, "ga4") }}
+      {{ pillar_block("PageSpeed", "", ai_brief.pagespeed_text, "pagespeed") }}
+      {{ pillar_block("Search Console", "", ai_brief.search_console_text, "search_console") }}
+      {{ pillar_block("Uyarılar ve Öncelik", "", ai_brief.alerts_text, "alerts") }}
     </div>
   {% endif %}
 

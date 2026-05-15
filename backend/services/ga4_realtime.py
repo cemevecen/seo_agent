@@ -1581,7 +1581,7 @@ def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: flo
         <div style="margin-top:20px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
             <div style="padding:10px 14px;background:{header_bg};border-bottom:1px solid #e2e8f0;">
                 <span style="font-size:12px;font-weight:700;color:{header_color};text-transform:uppercase;letter-spacing:.04em;">
-                    📊 {title}
+                    {title}
                 </span>
                 <span style="font-size:11px;color:#64748b;margin-left:8px;">Toplam değişim: {site_delta:+.0f} kullanıcı</span>
             </div>
