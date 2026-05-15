@@ -8748,21 +8748,28 @@ def api_ga4_realtime_top_pages(
         if not property_id:
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
-    try:
-        result = fetch_realtime_top_pages_with_app_fallback(
-            property_id,
-            profile=profile,
-            window_minutes=min(window, 30),
-            limit=min(limit, 25),
-            sort_by=sort_by,
-            compare_previous=True,
-        )
-        result["site_id"] = site_id
-        result["profile"] = profile
-        result["type"] = type
-        return JSONResponse(result)
-    except Exception as exc:
-        LOGGER.warning("Top pages canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
+    cap = min(limit, 25)
+    for compare in (True, False):
+        try:
+            result = fetch_realtime_top_pages_with_app_fallback(
+                property_id,
+                profile=profile,
+                window_minutes=min(window, 30),
+                limit=cap,
+                sort_by=sort_by,
+                compare_previous=compare,
+            )
+            result["site_id"] = site_id
+            result["profile"] = profile
+            result["type"] = type
+            return JSONResponse(result)
+        except Exception as exc:
+            LOGGER.warning(
+                "Top pages canlı API başarısız [compare=%s, site=%s, profile=%s]: %s",
+                compare, site_id, profile, exc,
+            )
+            if not compare:
+                break  # her iki deneme başarısız → DB fallback
 
     # DB snapshot fallback
     from backend.models import RealtimePageSnapshot
@@ -8802,13 +8809,17 @@ def api_ga4_realtime_top_pages(
         pages = []
         for row in curr_rows:
             prev = prev_map.get(row.page_path)
+            path_str = str(row.page_path or "")
+            # page_path URL path'iyse (/ ile başlıyorsa) page_paths listesi olarak döndür
+            page_paths = [path_str] if path_str.startswith("/") else []
             pages.append({
-                "page": row.page_path,
-                "activeUsers": row.active_users,
-                "screenPageViews": row.pageviews,
-                "activeUsers_previous": prev.active_users if prev else None,
+                "page":                   path_str,
+                "page_paths":             page_paths,
+                "activeUsers":            row.active_users,
+                "screenPageViews":        row.pageviews,
+                "activeUsers_previous":   prev.active_users if prev else None,
                 "screenPageViews_previous": prev.pageviews if prev else None,
-                "rank": row.rank,
+                "rank":                   row.rank,
             })
 
         pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
