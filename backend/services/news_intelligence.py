@@ -13,41 +13,47 @@ logger = logging.getLogger(__name__)
 
 # Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu
 CATEGORY_SOURCES = {
+    # Direkt kaynak RSS'leri önce — Google News topic feed'leri backup olarak sonda
+    "Türkiye": [
+        "https://www.cnnturk.com/feed/rss/all/news",          # 11:32 taze
+        "https://www.aa.com.tr/tr/rss/default?cat=guncel",    # 11:30 taze
+        "https://www.sabah.com.tr/rss/anasayfa.xml",          # 09:40 taze
+        "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",  # 08:42
+        "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
+    ],
+    "Genel": [
+        "https://www.ekonomim.com/rss",                        # 11:31 taze
+        "https://www.dunya.com/rss",                           # 11:28 taze
+        "https://www.bloomberght.com/rss",                     # 08:25 taze
+        "https://news.google.com/rss/search?q=site:cnbce.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:foreks.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+    ],
     "İş Dünyası": [
+        "https://www.dunya.com/rss",
+        "https://www.ekonomim.com/rss",
         "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=ekonomi+finans+borsa+piyasalar+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
-        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
-    "Genel": [
-        "https://news.google.com/rss/search?q=site:ekonomim.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:dunya.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:bloomberght.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:cnbce.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:foreks.com+when:12h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:gazeteoksijen.com+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+    "Dünya": [
+        "https://www.aa.com.tr/tr/rss/default?cat=dunya",
+        "https://www.cnnturk.com/feed/rss/all/news",
+        "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Yahoo Finance": [
         "https://finance.yahoo.com/news/rssindex",
-        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:12h&hl=en-US&gl=US&ceid=US:en"
-    ],
-    "Dünya": [
-        "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"
-    ],
-    "Türkiye": [
-        "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=türkiye+gündemi+son+dakika+manşetler+when:12h&hl=tr&gl=TR&ceid=TR:tr"
+        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:6h&hl=en-US&gl=US&ceid=US:en",
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:12h&hl=tr&gl=TR&ceid=TR:tr"
-    ]
+        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+    ],
 }
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
