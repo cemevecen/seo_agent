@@ -14,7 +14,7 @@
   {% set col_name = 'Etkinlik adı' %}
   {% set col_val = 'Sayı' %}
 {% else %}
-  {% set heading = 'Ekranlar (screenClass / screenPageViews)' %}
+  {% set heading = 'Ekranlar (screenClass)' %}
   {% set col_name = 'Ekran' %}
   {% set col_val = 'Görüntüleme' %}
 {% endif %}
@@ -25,7 +25,7 @@
     <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">Veri bulunamadı.</p>
   {% else %}
   <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-    <table class="w-full min-w-0 table-fixed text-[10px] sm:text-xs">
+    <table class="w-full min-w-0 table-fixed text-[10px] sm:text-xs" data-ga4-table>
       <colgroup>
         <col class="min-w-0" style="width:48%" />
         <col style="width:15%" />
@@ -35,15 +35,39 @@
       </colgroup>
       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
-          <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left align-top font-semibold">{{ col_name }}</th>
-          <th scope="col" class="px-2 py-2 text-right align-top font-semibold">
-            {{ col_val }}<br><span class="text-[9px] font-normal">{{ last_l }}</span>
+          <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-1.5 text-left align-top shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)]">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-start gap-0.5 text-left font-semibold leading-tight hover:text-slate-900 dark:text-slate-100"
+              data-sort-key="page" data-sort-type="string">
+              <span>{{ col_name }}</span>
+            </button>
           </th>
-          <th scope="col" class="px-2 py-2 text-right align-top font-semibold">
-            {{ col_val }}<br><span class="text-[9px] font-normal">{{ prev_l }}</span>
+          <th scope="col" class="px-2 py-1.5 text-right align-top">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight hover:text-slate-900 dark:text-slate-100"
+              data-sort-key="last" data-sort-type="number">
+              <span>{{ col_val }}</span>
+              <span class="text-[9px] font-normal tabular-nums">{{ last_l }}</span>
+            </button>
           </th>
-          <th scope="col" class="px-2 py-2 text-right align-top font-semibold">Fark</th>
-          <th scope="col" class="px-2 py-2 text-right align-top font-semibold">%</th>
+          <th scope="col" class="px-2 py-1.5 text-right align-top">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight hover:text-slate-900 dark:text-slate-100"
+              data-sort-key="prev" data-sort-type="number">
+              <span>{{ col_val }}</span>
+              <span class="text-[9px] font-normal tabular-nums">{{ prev_l }}</span>
+            </button>
+          </th>
+          <th scope="col" class="px-2 py-1.5 text-right align-top">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight hover:text-slate-900 dark:text-slate-100"
+              data-sort-key="delta" data-sort-type="number">
+              <span>Fark</span>
+              <span class="text-[9px] font-normal">abs</span>
+            </button>
+          </th>
+          <th scope="col" class="px-2 py-1.5 text-right align-top">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight hover:text-slate-900 dark:text-slate-100"
+              data-sort-key="deltaPct" data-sort-type="number">
+              <span>%</span>
+            </button>
+          </th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -58,6 +82,7 @@
             {% set val_prev = row.views_prev %}
           {% endif %}
           {% set delta = val - val_prev %}
+          {% set pct = row.change_pct if row.change_pct is not none else 0 %}
           {% if delta > 0 %}
             {% set delta_cls = 'text-emerald-600 dark:text-emerald-400' %}
             {% set delta_sign = '+' %}
@@ -68,14 +93,19 @@
             {% set delta_cls = 'text-slate-400' %}
             {% set delta_sign = '' %}
           {% endif %}
-          {% set pct = row.change_pct %}
-        <tr class="{% if loop.index is odd %}bg-slate-50/40 dark:bg-slate-800/20{% endif %}">
-          <td class="sticky left-0 bg-inherit px-2 py-2 font-mono text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-0" title="{{ name }}">{{ name }}</td>
+        <tr class="{% if loop.index is odd %}bg-slate-50/40 dark:bg-slate-800/20{% endif %}"
+          data-ga4-row
+          data-page="{{ name | e }}"
+          data-last="{{ val | int }}"
+          data-prev="{{ val_prev | int }}"
+          data-delta="{{ delta | int }}"
+          data-delta-pct="{{ pct }}">
+          <td class="sticky left-0 bg-inherit px-2 py-2 font-mono text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-0" title="{{ name | e }}">{{ name }}</td>
           <td class="px-2 py-2 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ "{:,.0f}".format(val) }}</td>
           <td class="px-2 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ "{:,.0f}".format(val_prev) }}</td>
           <td class="px-2 py-2 text-right tabular-nums font-semibold {{ delta_cls }}">{{ delta_sign }}{{ "{:,.0f}".format(delta) }}</td>
           <td class="px-2 py-2 text-right tabular-nums {{ delta_cls }}">
-            {% if pct is not none %}{{ delta_sign }}{{ "{:.1f}".format(pct) }}%{% else %}—{% endif %}
+            {% if row.change_pct is not none %}{{ delta_sign }}{{ "{:.1f}".format(row.change_pct) }}%{% else %}—{% endif %}
           </td>
         </tr>
         {% endfor %}
