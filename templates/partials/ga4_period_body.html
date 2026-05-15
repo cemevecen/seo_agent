@@ -167,6 +167,17 @@
     </div>
   </div>
 
+  {# Kaynak paneli — iOS/Android için de aynı endpoint #}
+  <div data-ga4-pages-kind-panel="sources" class="hidden min-w-0">
+    <div data-ga4-sources-placeholder
+      hx-get="/ga4/sources/{{ site.id }}?days={{ period_days }}&profile={{ pk }}"
+      hx-trigger="ga4-load" hx-swap="outerHTML"
+      class="rounded-2xl border border-slate-200 dark:border-slate-700">
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
+      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+    </div>
+  </div>
+
   {% else %}
   {# ─── Web / MWeb: Sayfalar · Haberler · Kaynak (dokunma) ─── #}
   <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">

@@ -8168,9 +8168,9 @@ def ga4_app_detail_partial(request: Request, site_id: int):
         label = "Eventler" if kind == "events" else "Ekranlar"
         return HTMLResponse(
             f'<div class="rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">'
-            f'{label} verisi çekilemedi. GA4 property erişimi kontrol edin.'
+            f'{label} verisi çekilemedi: {__import__("html").escape(str(exc))}'
             f'</div>',
-            status_code=200,  # HTMX swap için 200 döndür
+            status_code=200,
         )
 
     resp = templates.TemplateResponse(
