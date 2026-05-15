@@ -101,9 +101,14 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
     return results
 
 
-# 2025-2026 sabit tarih aralığı
-YEAR_FROM = "2025-01-01"
-YEAR_TO   = "2026-12-31"
+# Bitiş tarihi sabit; başlangıç her çağrıda bu ayın 1'i hesaplanır
+YEAR_TO = "2026-12-31"
+
+
+def _current_month_start() -> str:
+    """Bugünün ayının ilk günü — örn. "2026-05-01". Her ay otomatik ilerler."""
+    today = date.today()
+    return today.replace(day=1).strftime("%Y-%m-%d")
 
 # ── 1. Sinema vizyon (theatrical) ─────────────────────────────────────────────
 
@@ -121,7 +126,7 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
     İkisi birleştirilip ID bazlı tekrar önlenir.
     """
-    date_from = YEAR_FROM
+    date_from = _current_month_start()
     date_to   = YEAR_TO
 
     seen: set[int] = set()
@@ -165,7 +170,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     Netflix, Disney+, Prime, BluTV vb. platformlarda Türkiye'de yayına girecek filmler.
     Dijital/yayın vizyon tarihi (release_type=4) kullanılır.
     """
-    date_from = YEAR_FROM
+    date_from = _current_month_start()
     date_to   = YEAR_TO
 
     seen: set[int] = set()
@@ -207,7 +212,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
 def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
     """Türkçe orijinal dilli filmler — sinema + platform fark etmez."""
-    date_from = YEAR_FROM
+    date_from = _current_month_start()
     date_to   = YEAR_TO
 
     raw = _fetch_pages({
@@ -290,7 +295,7 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     2. with_original_language=tr  (ID eşleşmeyeni kurtarmak için)
     Her ikisini birleştirip dil + popularity filtresi uygular.
     """
-    date_from = YEAR_FROM
+    date_from = _current_month_start()
     date_to   = YEAR_TO
 
     base_params = {
