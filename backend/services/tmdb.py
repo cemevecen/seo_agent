@@ -251,21 +251,47 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
     for provider_id, provider_name in TR_PROVIDERS.items():
         pid = str(provider_id)
-        # Sadece watch_region=TR ile sorgula — global sorgu her filme aynı
-        # platform etiketini yapıştırıyor (yanlış veri).
+
+        # A: watch_region=TR — doğru ama az veri
         for m in _fetch_pages({
             **base_params,
             "watch_region":         "TR",
             "with_watch_providers":  pid,
             "release_date.gte":     date_from,
             "release_date.lte":     date_to,
-        }, page_limit=5):
+        }, page_limit=4):
             mid = m["id"]
             if mid not in all_movies:
                 all_movies[mid] = _enrich(m)
                 all_movies[mid]["providers"] = []
+                all_movies[mid]["_provider_hits"] = 0
             if provider_name not in all_movies[mid]["providers"]:
                 all_movies[mid]["providers"].append(provider_name)
+            all_movies[mid]["_provider_hits"] += 1
+
+        # B: global (watch_region yok) — daha fazla içerik ama overlap riski var
+        for m in _fetch_pages({
+            **base_params,
+            "with_watch_providers":     pid,
+            "primary_release_date.gte": date_from,
+            "primary_release_date.lte": date_to,
+        }, page_limit=4):
+            mid = m["id"]
+            pop = float(m.get("popularity") or 0)
+            if mid not in all_movies:
+                all_movies[mid] = _enrich(m)
+                all_movies[mid]["providers"] = []
+                all_movies[mid]["_provider_hits"] = 0
+            if provider_name not in all_movies[mid]["providers"]:
+                all_movies[mid]["providers"].append(provider_name)
+            all_movies[mid]["_provider_hits"] += 1
+
+    # Çok fazla platformda çıkıyorsa global katalog false positive — etiketi sıfırla
+    # (örn. Apple TV+ içeriği dünyada 6 farklı provider olarak listelenebiliyor)
+    for m in all_movies.values():
+        if len(m.get("providers", [])) >= 4:
+            m["providers"] = []
+        m.pop("_provider_hits", None)
 
     # Bu aydan önceki orijinal vizyon tarihli filmleri filtrele
     movies = [
