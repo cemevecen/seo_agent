@@ -1,4 +1,4 @@
-"""TMDB (The Movie Database) entegrasyonu — vizyon takvimi ve film içerik planlama."""
+"""TMDB (The Movie Database) — vizyon takvimi + platform yayınları, içerik planlama."""
 from __future__ import annotations
 
 import logging
@@ -14,212 +14,247 @@ logger = logging.getLogger(__name__)
 TMDB_BASE = "https://api.themoviedb.org/3"
 TMDB_IMG  = "https://image.tmdb.org/t/p/w185"
 
+# Sinemalar.com için anlamlı diller — Hintçe/Korece/Tagalogca vs. hariç
+ACCEPTED_LANGUAGES = {"en", "tr", "fr", "de", "es", "it"}
+
+# Türkiye'deki major streaming platformları (TMDB provider ID)
+# Netflix=8, Prime=119, Disney+=337, AppleTV+=350, Mubi=11, BluTV=341, beIN=32, exxen=1869
+STREAMING_PROVIDERS_TR = "8|119|337|350|11|341|32"
+
+MONTH_NAMES_TR = {
+    "01": "Ocak",  "02": "Şubat",  "03": "Mart",   "04": "Nisan",
+    "05": "Mayıs", "06": "Haziran","07": "Temmuz",  "08": "Ağustos",
+    "09": "Eylül", "10": "Ekim",   "11": "Kasım",   "12": "Aralık",
+}
+
+PROVIDER_NAMES = {
+    8: "Netflix", 119: "Prime Video", 337: "Disney+",
+    350: "Apple TV+", 11: "Mubi", 341: "BluTV", 32: "beIN",
+    1869: "exxen",
+}
+
 
 def _headers() -> dict[str, str]:
     token = (settings.tmdb_read_access_token or "").strip()
     if not token:
         raise RuntimeError("TMDB_READ_ACCESS_TOKEN tanımlanmamış. Railway Variables'a ekleyin.")
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-    }
+    return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 
 def _get(path: str, params: dict | None = None) -> dict[str, Any]:
-    url = TMDB_BASE + path
-    resp = requests.get(url, headers=_headers(), params=params or {}, timeout=15)
+    resp = requests.get(TMDB_BASE + path, headers=_headers(),
+                        params=params or {}, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
 
-# ── Yardımcılar ──────────────────────────────────────────────────────────────
-
-def _poster_url(poster_path: str | None) -> str:
-    if poster_path:
-        return TMDB_IMG + poster_path
-    return ""
-
-
-def _tr_release(release_dates: dict) -> str | None:
-    """Türkiye vizyon tarihi (ISO)."""
-    for entry in release_dates.get("results", []):
-        if entry.get("iso_3166_1") == "TR":
-            dates = entry.get("release_dates", [])
-            if dates:
-                return (dates[0].get("release_date") or "")[:10]
-    return None
+def _poster_url(p: str | None) -> str:
+    return TMDB_IMG + p if p else ""
 
 
 def _popularity_label(pop: float) -> str:
-    if pop >= 500:  return "🔥 Çok Yüksek"
-    if pop >= 200:  return "⭐ Yüksek"
-    if pop >= 80:   return "📈 Orta"
+    if pop >= 500: return "🔥 Çok Yüksek"
+    if pop >= 200: return "⭐ Yüksek"
+    if pop >= 80:  return "📈 Orta"
     return "📉 Düşük"
 
 
-# ── Ana veri çekme fonksiyonları ──────────────────────────────────────────────
-
-def fetch_upcoming_in_turkey(
-    months_ahead: int = 4,
-    page_limit: int = 5,
-) -> list[dict[str, Any]]:
-    """
-    Türkiye'de vizyona girecek filmler (TMDB /discover/movie, region=TR).
-    Bugünden itibaren `months_ahead` ay ilerisi sorgulanır.
-    """
-    today      = date.today()
-    date_from  = today.strftime("%Y-%m-%d")
-    date_to    = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
-
-    movies: list[dict] = []
-    seen: set[int]     = set()
-
-    for page in range(1, page_limit + 1):
-        data = _get("/discover/movie", {
-            "region":                      "TR",
-            "language":                    "tr-TR",
-            "primary_release_date.gte":    date_from,
-            "primary_release_date.lte":    date_to,
-            "sort_by":                     "popularity.desc",
-            "include_adult":               "false",
-            "page":                        page,
-        })
-        results = data.get("results", [])
-        if not results:
-            break
-        for m in results:
-            mid = m["id"]
-            if mid in seen:
-                continue
-            seen.add(mid)
-            movies.append(_enrich(m))
-        if page >= data.get("total_pages", 1):
-            break
-
-    return sorted(movies, key=lambda x: x["release_date"] or "9999")
-
-
-def fetch_turkish_productions(
-    year_from: int | None = None,
-    months_ahead: int = 6,
-    page_limit: int = 4,
-) -> list[dict[str, Any]]:
-    """
-    Türk yapımı filmler (original_language=tr).
-    Hem yakında çıkacaklar hem popüler yakın tarihli Türk filmler.
-    """
-    today     = date.today()
-    date_from = (date(year_from, 1, 1) if year_from
-                 else today).strftime("%Y-%m-%d")
-    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
-
-    movies: list[dict] = []
-    seen: set[int]     = set()
-
-    for page in range(1, page_limit + 1):
-        data = _get("/discover/movie", {
-            "with_original_language":       "tr",
-            "primary_release_date.gte":     date_from,
-            "primary_release_date.lte":     date_to,
-            "sort_by":                      "popularity.desc",
-            "include_adult":                "false",
-            "language":                     "tr-TR",
-            "page":                         page,
-        })
-        results = data.get("results", [])
-        if not results:
-            break
-        for m in results:
-            mid = m["id"]
-            if mid in seen:
-                continue
-            seen.add(mid)
-            entry = _enrich(m)
-            entry["is_turkish"] = True
-            movies.append(entry)
-        if page >= data.get("total_pages", 1):
-            break
-
-    return sorted(movies, key=lambda x: x["release_date"] or "9999")
-
-
-def _enrich(m: dict) -> dict[str, Any]:
-    """Ham TMDB film kaydını UI için hazır formata çevirir."""
-    genres = m.get("genre_ids", [])
+def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
     release = (m.get("release_date") or "")[:10]
-
     return {
         "id":               m["id"],
         "title":            m.get("title") or m.get("original_title") or "",
         "original_title":   m.get("original_title") or "",
+        "original_language":m.get("original_language") or "",
         "release_date":     release,
-        "release_month":    release[:7] if release else "",   # "2026-06"
+        "release_month":    release[:7] if release else "",
         "poster_url":       _poster_url(m.get("poster_path")),
         "popularity":       round(float(m.get("popularity") or 0), 1),
         "popularity_label": _popularity_label(float(m.get("popularity") or 0)),
         "vote_average":     round(float(m.get("vote_average") or 0), 1),
         "vote_count":       int(m.get("vote_count") or 0),
-        "overview":         (m.get("overview") or "")[:300],
-        "genre_ids":        genres,
+        "overview":         (m.get("overview") or "")[:280],
         "is_turkish":       m.get("original_language") == "tr",
         "tmdb_url":         f"https://www.themoviedb.org/movie/{m['id']}",
+        "providers":        providers or [],   # platform isimleri listesi
     }
 
 
+def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
+    """Sayfalı TMDB /discover/movie sorgusu."""
+    results: list[dict] = []
+    seen: set[int] = set()
+    for page in range(1, page_limit + 1):
+        data = _get("/discover/movie", {**params, "page": page})
+        for m in data.get("results", []):
+            if m["id"] not in seen:
+                seen.add(m["id"])
+                results.append(m)
+        if page >= data.get("total_pages", 1):
+            break
+    return results
+
+
+# ── 1. Sinema vizyon (theatrıcal) ─────────────────────────────────────────────
+
+def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
+    """
+    Türkiye'de sinemada gösterilecek filmler.
+    Yalnızca İngilizce ve Türkçe (accepted_languages).
+    Popülerlik >= 20 filtresi uygulanır.
+    """
+    today    = date.today()
+    date_from = today.strftime("%Y-%m-%d")
+    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+
+    raw = _fetch_pages({
+        "region":                   "TR",
+        "language":                 "tr-TR",
+        "primary_release_date.gte": date_from,
+        "primary_release_date.lte": date_to,
+        "sort_by":                  "popularity.desc",
+        "include_adult":            "false",
+        "with_release_type":        "3",   # sadece theatrical
+    }, page_limit=6)
+
+    movies = []
+    for m in raw:
+        lang = m.get("original_language", "")
+        pop  = float(m.get("popularity") or 0)
+        # Türk yapımları her zaman al, diğerleri dil + popülerlik filtresi
+        if lang == "tr" or (lang in ACCEPTED_LANGUAGES and pop >= 20):
+            movies.append(_enrich(m))
+
+    movies.sort(key=lambda x: x["release_date"] or "9999")
+    return movies
+
+
+# ── 2. Platform yayınları (streaming) ────────────────────────────────────────
+
+def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
+    """
+    Netflix, Disney+, Prime, BluTV vb. platformlarda Türkiye'de yayına girecek filmler.
+    Dijital/yayın vizyon tarihi (release_type=4) kullanılır.
+    """
+    today     = date.today()
+    date_from = today.strftime("%Y-%m-%d")
+    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+
+    raw = _fetch_pages({
+        "watch_region":             "TR",
+        "with_watch_providers":     STREAMING_PROVIDERS_TR,
+        "language":                 "tr-TR",
+        "primary_release_date.gte": date_from,
+        "primary_release_date.lte": date_to,
+        "sort_by":                  "popularity.desc",
+        "include_adult":            "false",
+    }, page_limit=6)
+
+    movies = []
+    seen: set[int] = set()
+    for m in raw:
+        if m["id"] in seen:
+            continue
+        lang = m.get("original_language", "")
+        pop  = float(m.get("popularity") or 0)
+        if lang == "tr" or (lang in ACCEPTED_LANGUAGES and pop >= 15):
+            seen.add(m["id"])
+            entry = _enrich(m)
+            # Hangi platformda var bilgisini ekle (ayrı API çağrısı — büyük listede kaçınılır)
+            movies.append(entry)
+
+    movies.sort(key=lambda x: x["release_date"] or "9999")
+    return movies
+
+
+# ── 3. Türk yapımları (tüm platformlar) ───────────────────────────────────────
+
+def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
+    """Türkçe orijinal dilli filmler — sinema + platform fark etmez."""
+    today     = date.today()
+    date_from = today.strftime("%Y-%m-%d")
+    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+
+    raw = _fetch_pages({
+        "with_original_language":   "tr",
+        "primary_release_date.gte": date_from,
+        "primary_release_date.lte": date_to,
+        "sort_by":                  "popularity.desc",
+        "include_adult":            "false",
+        "language":                 "tr-TR",
+    }, page_limit=4)
+
+    movies = [_enrich(m) for m in raw]
+    movies.sort(key=lambda x: x["release_date"] or "9999")
+    return movies
+
+
+# ── Ana birleştirici ──────────────────────────────────────────────────────────
+
 def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     """
-    Dashboard sayfası için tek çağrı:
-    - Türkiye'deki tüm yaklaşan filmler
-    - Türk yapımları birleşik
-    Sonuçlar aya göre gruplanmış döner.
+    Dashboard için tek çağrı — üç liste döner:
+    theatrical, streaming, turkish_only (diğerlerinde olmayan Türk yapımları)
     """
-    try:
-        all_movies = fetch_upcoming_in_turkey(months_ahead=months_ahead)
-    except Exception as exc:
-        logger.error("TMDB upcoming Turkey hatası: %s", exc)
-        all_movies = []
+    theatrical: list[dict] = []
+    streaming:  list[dict] = []
+    turkish:    list[dict] = []
 
     try:
-        turkish = fetch_turkish_productions(months_ahead=months_ahead)
+        theatrical = fetch_theatrical_turkey(months_ahead)
+    except Exception as exc:
+        logger.error("TMDB theatrical hatası: %s", exc)
+
+    try:
+        streaming = fetch_streaming_turkey(months_ahead)
+    except Exception as exc:
+        logger.error("TMDB streaming hatası: %s", exc)
+
+    try:
+        turkish = fetch_turkish_productions(months_ahead)
     except Exception as exc:
         logger.error("TMDB Turkish productions hatası: %s", exc)
-        turkish = []
 
-    # Türk yapımlarını birleştir — zaten upcoming listesinde olabilir
-    seen_ids = {m["id"] for m in all_movies}
-    for m in turkish:
-        if m["id"] not in seen_ids:
-            all_movies.append(m)
-            seen_ids.add(m["id"])
-        else:
-            # Var olanı Türk yapımı olarak işaretle
-            for existing in all_movies:
-                if existing["id"] == m["id"]:
-                    existing["is_turkish"] = True
-                    break
+    # theatrical + streaming ID'lerini işaretle
+    theatrical_ids = {m["id"] for m in theatrical}
+    streaming_ids  = {m["id"] for m in streaming}
+    known_ids      = theatrical_ids | streaming_ids
 
-    # Release date'e göre sırala
-    all_movies.sort(key=lambda x: x["release_date"] or "9999")
+    # Türk yapımlarından diğerlerinde olmayanları ayır
+    turkish_only = [m for m in turkish if m["id"] not in known_ids]
 
-    # Aya göre grupla
-    by_month: dict[str, list] = {}
-    for m in all_movies:
-        month_key = m["release_month"] or "Tarih yok"
-        by_month.setdefault(month_key, []).append(m)
+    # theatrical ve streaming'e de Türk işareti ekle
+    for lst in (theatrical, streaming):
+        for m in lst:
+            if m.get("original_language") == "tr":
+                m["is_turkish"] = True
 
-    # Ay içinde popülerliğe göre sırala
-    for month_key in by_month:
-        by_month[month_key].sort(key=lambda x: -x["popularity"])
+    def group_by_month(lst: list[dict]) -> dict[str, list]:
+        by_m: dict[str, list] = {}
+        for m in sorted(lst, key=lambda x: x["release_date"] or "9999"):
+            key = m["release_month"] or "Tarih yok"
+            by_m.setdefault(key, []).append(m)
+        # Ay içinde populariteye göre sırala
+        for k in by_m:
+            by_m[k].sort(key=lambda x: -x["popularity"])
+        return by_m
 
-    # Özet istatistikler
-    turkish_count  = sum(1 for m in all_movies if m.get("is_turkish"))
-    high_potential = [m for m in all_movies if m["popularity"] >= 100]
+    all_combined = theatrical + [m for m in streaming if m["id"] not in theatrical_ids] + turkish_only
+    high_potential = sorted(
+        [m for m in all_combined if m["popularity"] >= 100],
+        key=lambda x: -x["popularity"],
+    )
 
     return {
-        "all_movies":       all_movies,
-        "by_month":         by_month,
-        "total":            len(all_movies),
-        "turkish_count":    turkish_count,
-        "high_potential":   high_potential,
-        "months_ahead":     months_ahead,
+        "theatrical":          theatrical,
+        "theatrical_by_month": group_by_month(theatrical),
+        "streaming":           streaming,
+        "streaming_by_month":  group_by_month(streaming),
+        "turkish_only":        turkish_only,
+        "turkish_by_month":    group_by_month(turkish_only),
+        "high_potential":      high_potential[:15],
+        "months_ahead":        months_ahead,
+        "total_theatrical":    len(theatrical),
+        "total_streaming":     len(streaming),
+        "total_turkish":       len(turkish),
     }
