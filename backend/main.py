@@ -1184,6 +1184,17 @@ def on_startup() -> None:
     except Exception:
         LOGGER.exception("app_intel prewarm registration failed")
 
+    # TMDB vizyon takvimi cache'ini arka planda ısıt (ilk sayfa açılışı hızlı olsun)
+    def _prewarm_tmdb():
+        try:
+            from backend.services.tmdb import refresh_combined_cache
+            refresh_combined_cache()
+        except Exception as exc:
+            LOGGER.warning("TMDB startup prewarm hatası: %s", exc)
+
+    import threading as _threading
+    _threading.Thread(target=_prewarm_tmdb, daemon=True, name="tmdb-prewarm").start()
+
 
 @app.on_event("shutdown")
 def on_shutdown() -> None:

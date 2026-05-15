@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import requests
@@ -106,9 +106,14 @@ def _resolve_flag(m: dict) -> str:
 
 # ── In-memory cache (3 saat TTL) ─────────────────────────────────────────────
 _cache_lock    = threading.Lock()
-_cache_data:  dict | None = None
-_cache_time:  datetime | None = None
-_CACHE_TTL    = timedelta(hours=3)
+_refresh_lock  = threading.Lock()   # aynı anda sadece bir yenileme
+_cache_data:   dict | None = None
+_cache_mono:   float | None = None  # time.monotonic() snapshots
+_CACHE_TTL_S   = 3 * 3600           # saniye cinsinden TTL
+
+
+def _cache_fresh() -> bool:
+    return _cache_mono is not None and time.monotonic() - _cache_mono < _CACHE_TTL_S
 
 
 def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
@@ -135,30 +140,32 @@ def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
 
 
 def get_combined_upcoming(months_ahead: int = 5) -> dict:
-    """Cache'li fetch_combined_upcoming — 3 saatte bir yenilenir."""
-    global _cache_data, _cache_time
+    """Cache'li fetch_combined_upcoming — 3 saatte bir yenilenir.
+    Double-checked locking: eş zamanlı istekler tek yenileme tetikler."""
+    global _cache_data, _cache_mono
+    # Hızlı yol — cache taze ise direkt dön
     with _cache_lock:
-        if (
-            _cache_data is not None
-            and _cache_time is not None
-            and datetime.utcnow() - _cache_time < _CACHE_TTL
-        ):
+        if _cache_data is not None and _cache_fresh():
             return _cache_data
-    # Cache miss veya süresi dolmuş
-    fresh = fetch_combined_upcoming(months_ahead)
-    with _cache_lock:
-        _cache_data = fresh
-        _cache_time = datetime.utcnow()
-    return fresh
+    # Yavaş yol — yenileme için serialize et, yeniden kontrol et
+    with _refresh_lock:
+        with _cache_lock:
+            if _cache_data is not None and _cache_fresh():
+                return _cache_data
+        fresh = fetch_combined_upcoming(months_ahead)
+        with _cache_lock:
+            _cache_data = fresh
+            _cache_mono = time.monotonic()
+        return fresh
 
 
 def refresh_combined_cache(months_ahead: int = 5) -> dict:
-    """Scheduler job'u için: cache'i zorunlu yeniler."""
-    global _cache_data, _cache_time
+    """Scheduler job'u veya manuel tetik için: cache'i zorunlu yeniler."""
+    global _cache_data, _cache_mono
     fresh = fetch_combined_upcoming(months_ahead)
     with _cache_lock:
         _cache_data = fresh
-        _cache_time = datetime.utcnow()
+        _cache_mono = time.monotonic()
     logger.info("TMDB combined cache yenilendi — theatrical=%d streaming=%d tv=%d",
                 len(fresh.get("theatrical", [])),
                 len(fresh.get("streaming", [])),
@@ -229,8 +236,12 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
 
 # Film sekmeleri (Sinema, Platform, Türk Filmleri): bu ayın 1'inden başlar — _current_month_start()
 # Türk Dizileri sekmesi: yıl başından başlar — TV_YEAR_FROM (dönem başı ilerleyebilir)
-YEAR_TO     = "2026-12-31"
 TV_YEAR_FROM = "2025-09-01"  # Türk dizileri — Eylül 2025'ten itibaren
+
+
+def _year_end() -> str:
+    """Vizyon ufku: bir sonraki takvim yılının sonu — yıl geçişinde otomatik ilerler."""
+    return f"{date.today().year + 1}-12-31"
 
 
 def _current_month_start() -> str:
@@ -255,7 +266,7 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     İkisi birleştirilip ID bazlı tekrar önlenir.
     """
     date_from = _current_month_start()
-    date_to   = YEAR_TO
+    date_to   = _year_end()
 
     seen: set[int] = set()
     raw: list[dict] = []
@@ -331,7 +342,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     Başlangıç: bu ayın 1'i (Sinema sekmesiyle aynı mantık).
     """
     date_from = _current_month_start()
-    date_to   = YEAR_TO
+    date_to   = _year_end()
 
     # id → {movie_dict, providers:[...]}
     all_movies: dict[int, dict] = {}
@@ -399,7 +410,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
     """Türkçe orijinal dilli filmler — sinema + platform fark etmez."""
     date_from = _current_month_start()
-    date_to   = YEAR_TO
+    date_to   = _year_end()
 
     raw = _fetch_pages({
         "with_original_language": "tr",
@@ -484,7 +495,7 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     Her ikisini birleştirip dil + popularity filtresi uygular.
     """
     date_from = TV_YEAR_FROM   # Türk dizileri: yıl başından — bu ay filtresiz
-    date_to   = YEAR_TO
+    date_to   = _year_end()
 
     base_params = {
         "language":          "tr-TR",
