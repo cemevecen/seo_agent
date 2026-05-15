@@ -109,31 +109,26 @@ YEAR_TO   = "2026-12-31"
 
 def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
-    Türkiye'de sinemada gösterilecek filmler.
-    Yalnızca İngilizce ve Türkçe (accepted_languages).
-    Popülerlik >= 20 filtresi uygulanır.
+    Türkiye'de sinemada gösterilecek filmler — yeniden vizyon dahil.
+
+    release_date.gte/lte + region=TR → Türkiye gerçek vizyon tarihi.
+    primary_release_date yeniden vizyonları (2005 filmi 2026'da Türkiye'de) kaçırır.
+    Dil/popülerlik filtresi yok: Türkiye'de oynayacak her film dahil.
     """
     date_from = YEAR_FROM
     date_to   = YEAR_TO
 
     raw = _fetch_pages({
-        "region":                   "TR",
-        "language":                 "tr-TR",
-        "primary_release_date.gte": date_from,
-        "primary_release_date.lte": date_to,
-        "sort_by":                  "popularity.desc",
-        "include_adult":            "false",
-        "with_release_type":        "3",   # sadece theatrical
-    }, page_limit=6)
+        "region":            "TR",
+        "language":          "tr-TR",
+        "release_date.gte":  date_from,
+        "release_date.lte":  date_to,
+        "sort_by":           "popularity.desc",
+        "include_adult":     "false",
+        "with_release_type": "3",
+    }, page_limit=12)
 
-    movies = []
-    for m in raw:
-        lang = m.get("original_language", "")
-        pop  = float(m.get("popularity") or 0)
-        # Türk yapımları her zaman al, diğerleri dil + popülerlik filtresi
-        if lang == "tr" or (lang in ACCEPTED_LANGUAGES and pop >= 20):
-            movies.append(_enrich(m))
-
+    movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
     return movies
 
@@ -149,27 +144,21 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     date_to   = YEAR_TO
 
     raw = _fetch_pages({
-        "watch_region":             "TR",
-        "with_watch_providers":     STREAMING_PROVIDERS_TR,
-        "language":                 "tr-TR",
-        "primary_release_date.gte": date_from,
-        "primary_release_date.lte": date_to,
-        "sort_by":                  "popularity.desc",
-        "include_adult":            "false",
-    }, page_limit=6)
+        "watch_region":          "TR",
+        "with_watch_providers":  STREAMING_PROVIDERS_TR,
+        "language":              "tr-TR",
+        "release_date.gte":      date_from,
+        "release_date.lte":      date_to,
+        "sort_by":               "popularity.desc",
+        "include_adult":         "false",
+    }, page_limit=12)
 
-    movies = []
     seen: set[int] = set()
+    movies = []
     for m in raw:
-        if m["id"] in seen:
-            continue
-        lang = m.get("original_language", "")
-        pop  = float(m.get("popularity") or 0)
-        if lang == "tr" or (lang in ACCEPTED_LANGUAGES and pop >= 15):
+        if m["id"] not in seen:
             seen.add(m["id"])
-            entry = _enrich(m)
-            # Hangi platformda var bilgisini ekle (ayrı API çağrısı — büyük listede kaçınılır)
-            movies.append(entry)
+            movies.append(_enrich(m))
 
     movies.sort(key=lambda x: x["release_date"] or "9999")
     return movies
@@ -183,13 +172,13 @@ def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
     date_to   = YEAR_TO
 
     raw = _fetch_pages({
-        "with_original_language":   "tr",
-        "primary_release_date.gte": date_from,
-        "primary_release_date.lte": date_to,
-        "sort_by":                  "popularity.desc",
-        "include_adult":            "false",
-        "language":                 "tr-TR",
-    }, page_limit=4)
+        "with_original_language": "tr",
+        "release_date.gte":       date_from,
+        "release_date.lte":       date_to,
+        "sort_by":                "popularity.desc",
+        "include_adult":          "false",
+        "language":               "tr-TR",
+    }, page_limit=6)
 
     movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
