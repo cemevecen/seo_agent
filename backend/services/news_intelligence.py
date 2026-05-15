@@ -13,53 +13,45 @@ logger = logging.getLogger(__name__)
 
 # Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu
 CATEGORY_SOURCES = {
-    # Direkt kaynak RSS'leri önce — Google News topic feed'leri backup olarak sonda
     "Türkiye": [
-        "https://www.cnnturk.com/feed/rss/all/news",          # 11:32 taze
-        "https://www.aa.com.tr/tr/rss/default?cat=guncel",    # 11:30 taze
-        "https://www.sabah.com.tr/rss/anasayfa.xml",          # 09:40 taze
-        "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",  # 08:42
-        "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.cnnturk.com/feed/rss/all/news",
+        "https://www.aa.com.tr/tr/rss/default?cat=guncel",
+        "https://www.sabah.com.tr/rss/anasayfa.xml",
+        "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
     ],
     "Genel": [
-        "https://www.ekonomim.com/rss",       # direkt — 11:31
-        "https://www.dunya.com/rss",           # direkt — 11:28
-        "https://www.cnbce.com/rss",           # direkt — 11:25
-        "https://www.bloomberght.com/rss",     # direkt — 08:25
-        "https://www.foreks.com/rss",          # direkt — 08:37
+        "https://www.ekonomim.com/rss",
+        "https://www.dunya.com/rss",
+        "https://www.bloomberght.com/rss",
         "https://news.google.com/rss/search?q=site:gazeteoksijen.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:ntvpara.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "İş Dünyası": [
         "https://www.dunya.com/rss",
         "https://www.ekonomim.com/rss",
-        "https://www.cnbce.com/rss",
         "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
         "https://www.foreks.com/rss",
-        "https://www.cnbce.com/rss",
-        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=kripto+bitcoin+ethereum+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
         "https://www.aa.com.tr/tr/rss/default?cat=dunya",
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=dünya+gündemi+uluslararası+manşetler+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Yahoo Finance": [
         "https://finance.yahoo.com/news/rssindex",
-        "https://news.google.com/rss/search?q=site:finance.yahoo.com+when:6h&hl=en-US&gl=US&ceid=US:en",
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=yapay+zeka+teknoloji+dijital+yazılım+startup+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
 }
+
+# Feed başına işlenecek maksimum item sayısı
+MAX_ITEMS_PER_FEED = 30
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
 FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon", "gündem", "haber"]
@@ -98,7 +90,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     continue
                 
                 root = ET.fromstring(response.content)
-                items = root.findall(".//item")
+                items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
 
                 # Channel-level kaynak bilgisi — item'da <source> yoksa fallback
                 channel = root.find("channel")
