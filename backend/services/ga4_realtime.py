@@ -113,34 +113,42 @@ def _email_pick_primary_alarm(alarms: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _email_site_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """sinemalar.com — +312 kul. · -89 gör. [mweb]"""
     short = _email_site_short_label(domain)
     p = _email_profile_abbr(profile)
-    primary = _email_pick_primary_alarm(alarms)
-    rid = str(primary.get("rule_id", ""))
-    pct = float(primary.get("change_pct", 0.0))
-    verb, disp = _email_rt_verb_and_display_pct(rid, pct)
-    metric_slug = _email_metric_subject_slug(str(primary.get("metric", "")), rid)
-    suffix = f" · {p}" if p != "web" else ""
-    extra = f" (+{len(alarms) - 1})" if len(alarms) > 1 else ""
-    return f"{short} - rt {verb} {disp:.0f}% {metric_slug}{extra}{suffix}"
+    suffix = f" [{p}]" if p not in ("web", "") else ""
+    chips = []
+    for a in alarms[:3]:
+        cur = int(a.get("current_value", 0))
+        prev = int(a.get("previous_value", 0))
+        delta = cur - prev
+        sign = "+" if delta >= 0 else ""
+        metric_short = {"activeUsers": "kul", "screenPageViews": "gör"}.get(str(a.get("metric", "")), "")
+        chips.append(f"{sign}{delta} {metric_short}".strip())
+    rest = f" +{len(alarms) - 3}" if len(alarms) > 3 else ""
+    return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
 def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """sinemalar.com — Altın haberi +57 · Dolar +32 [mweb]"""
     short = _email_site_short_label(domain)
     p = _email_profile_abbr(profile)
-    primary = _email_pick_primary_alarm(alarms)
-    rid = str(primary.get("rule_id", ""))
-    pct = float(primary.get("change_pct", 0.0))
-    verb, disp = _email_rt_verb_and_display_pct(rid, pct)
-    slug = {
-        "page_traffic_drop": "active users",
-        "page_traffic_spike": "active users",
-        "page_disappeared": "sayfa trafiği",
-        "page_new_entry": "yeni sayfa",
-    }.get(rid, "sayfa")
-    suffix = f" · {p}" if p != "web" else ""
-    extra = f" (+{len(alarms) - 1})" if len(alarms) > 1 else ""
-    return f"{short} - rt {verb} {disp:.0f}% {slug}{extra}{suffix}"
+    suffix = f" [{p}]" if p not in ("web", "") else ""
+    chips = []
+    for a in alarms[:3]:
+        t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20)
+        c = int(a.get("current_users", 0))
+        pv = int(a.get("previous_users", 0))
+        rid = str(a.get("rule_id", ""))
+        if rid == "page_disappeared":
+            chips.append(f"{t} ↓{pv}")
+        elif rid == "page_new_entry":
+            chips.append(f"{t} ↑{c}")
+        else:
+            d = c - pv
+            chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
+    rest = f" +{len(alarms) - 3}" if len(alarms) > 3 else ""
+    return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
 def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
@@ -2592,11 +2600,6 @@ def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
         dom = a.get("domain") or a.get("site_domain") or "Bilinmeyen Site"
         by_site.setdefault(dom, []).append(a)
 
-    intro = (
-        f"Bu e-posta son kontrol periyodundaki <strong>toplam {len(alarms)} adet</strong> "
-        "Realtime alarmının özetidir. En yüksek değişim oranına sahip ilk 10 kayıt aşağıdadır."
-    )
-
     sections: list[str] = []
     # Siteleri alfabetik, içindeki alarmları ise önem sırasına göre diz
     for dom in sorted(by_site.keys()):
@@ -2641,13 +2644,10 @@ def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
         """)
 
     return f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:640px;color:#0f172a;margin:0 auto;padding:20px;">
-        <h2 style="font-size:18px;margin-bottom:12px;color:#1e293b;">Realtime Alarm Özeti</h2>
-        <p style="font-size:14px;line-height:1.5;color:#64748b;margin-bottom:24px;">{intro}</p>
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;margin:0 auto;padding:16px;">
+        <p style="font-size:13px;font-weight:600;color:#64748b;margin:0 0 16px;">{len(alarms)} alarm</p>
         {''.join(sections)}
-        <div style="margin-top:30px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;text-align:center;">
-            SEO Agent · Realtime Monitoring System
-        </div>
+        <p style="font-size:11px;color:#94a3b8;margin-top:16px;">SEO Agent · Realtime (otomatik)</p>
     </div>
     """
 
