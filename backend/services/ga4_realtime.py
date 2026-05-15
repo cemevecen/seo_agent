@@ -144,77 +144,72 @@ def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
 
 
 def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """Konu: 'sinemalar.com — Altın +90 · Petrol +81 · Kripto +71 [mweb]'"""
     short = _email_site_short_label(domain)
     p = _email_profile_abbr(profile)
-    primary = _email_pick_primary_alarm(alarms)
-    rid = str(primary.get("rule_id", ""))
-    pct = float(primary.get("change_pct", 0.0))
-    verb, disp = _email_rt_verb_and_display_pct(rid, pct)
-    slug = {
-        "news_traffic_drop": "active users",
-        "news_traffic_spike": "active users",
-        "news_disappeared": "haber trafiği",
-        "news_new_entry": "yeni haber",
-    }.get(rid, "haber")
-    suffix = f" · {p}" if p != "web" else ""
-    extra = f" (+{len(alarms) - 1})" if len(alarms) > 1 else ""
-    return f"{short} - rt {verb} {disp:.0f}% {slug}{extra}{suffix}"
+    suffix = f" [{p}]" if p not in ("web", "") else ""
+
+    # Her alarm için kısa etiket üret
+    def _alarm_chip(a: dict[str, Any]) -> str:
+        title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=22)
+        rid = str(a.get("rule_id", ""))
+        curr = int(a.get("current_users", 0))
+        prev = int(a.get("previous_users", 0))
+        if rid == "news_new_entry":
+            return f"{title} ↑{curr}"
+        if rid == "news_disappeared":
+            return f"{title} ↓{prev}"
+        delta = curr - prev
+        sign = "+" if delta >= 0 else ""
+        return f"{title} {sign}{delta}"
+
+    chips = [_alarm_chip(a) for a in alarms[:3]]
+    rest = f" +{len(alarms) - 3}" if len(alarms) > 3 else ""
+    return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
 def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
-    """Site metrik alarmları — anlaşılır kart düzeni."""
+    """Site metrik alarmları — kompakt kart, preview'da okunabilir."""
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
-    intro = (
-        "GA4 Realtime iki yarı pencereyi karşılaştırır: <strong>önceki yarı</strong> ile <strong>şimdiki yarı</strong> "
-        "aynı uzunluktadır; yüzde, önceki yarıya göre değişimi gösterir."
-    )
     cards: list[str] = []
     for alarm in alarms:
         metric_key = str(alarm.get("metric", "activeUsers"))
         metric_tr = html.escape(_email_metric_plain_tr(metric_key))
-        cur = alarm.get("current_value", 0)
-        prev = alarm.get("previous_value", 0)
+        cur = int(alarm.get("current_value", 0))
+        prev = int(alarm.get("previous_value", 0))
         pct = float(alarm.get("change_pct", 0.0))
-        is_drop = pct < 0 or str(alarm.get("rule_id", "")) in ("page_disappeared", "news_disappeared")
+        delta = cur - prev
+        is_drop = pct < 0
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
-        title_c = "#991b1b" if is_drop else "#166534"
         pct_c = "#dc2626" if is_drop else "#16a34a"
-        rule_id = str(alarm.get("rule_id", ""))
-        if rule_id == "traffic_drop":
-            explain = "Eşik aşıldı: aktif kullanıcı sayısı bir önceki yarıya göre belirgin düştü."
-        elif rule_id == "pageview_drop":
-            explain = "Eşik aşıldı: sayfa görüntülemeleri bir önceki yarıya göre belirgin düştü."
-        elif rule_id == "traffic_spike":
-            explain = "Eşik aşıldı: aktif kullanıcı bir önceki yarıya göre belirgin arttı."
-        else:
-            explain = "Kural tetiklendi; metrik ve yön aşağıda."
+        sign = "+" if delta >= 0 else ""
 
         cards.append(
-            f"""
-            <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
-                        background:{bg};max-width:600px;">
-                <div style="font-size:11px;letter-spacing:0.06em;font-weight:700;color:{title_c};text-transform:uppercase;">
-                    {metric_tr} · {prof_e}
-                </div>
-                <div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
-                    <span style="font-size:13px;color:#64748b;">Önceki yarı</span>
-                    <span style="font-size:26px;font-weight:800;color:#0f172a;">{prev:.0f}</span>
-                    <span style="font-size:20px;color:#94a3b8;">→</span>
-                    <span style="font-size:13px;color:#64748b;">Şimdiki yarı</span>
-                    <span style="font-size:26px;font-weight:800;color:#0f172a;">{cur:.0f}</span>
-                    <span style="font-size:18px;font-weight:800;color:{pct_c};margin-left:4px;">{pct:+.1f}%</span>
-                </div>
-                <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#334155;">{metric_tr}. {html.escape(explain)}</p>
-            </div>
-            """
+            f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
+            f'<div style="font-size:11px;color:#64748b;margin-bottom:4px;">{metric_tr} · {prof_e}</div>'
+            f'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
+            f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{prev}</span>'
+            f'<span style="font-size:18px;color:#94a3b8;">→</span>'
+            f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{cur}</span>'
+            f'<span style="font-size:18px;font-weight:800;color:{pct_c};margin-left:2px;">{sign}{delta} ({pct:+.0f}%)</span>'
+            f'</div>'
+            f'</div>'
         )
 
-    n = len(alarms)
-    head = html.escape("Birden fazla kural aynı anda tetiklendi." if n > 1 else "Realtime alarmı.")
-    
-    # Sürücü Analizi (Eğer varsa) — drivers, check_site_realtime tarafından alarms[0]'a eklenir
+    # Özet — preview'da ilk satırda okunur
+    summary_parts = []
+    for a in alarms:
+        cur = int(a.get("current_value", 0))
+        prev = int(a.get("previous_value", 0))
+        delta = cur - prev
+        sign = "+" if delta >= 0 else ""
+        metric_short = {"activeUsers": "kul", "screenPageViews": "gör"}.get(str(a.get("metric", "")), "")
+        summary_parts.append(f"{sign}{delta} {metric_short}".strip())
+    summary_line = html.escape(" · ".join(summary_parts))
+
+    # Sürücü Analizi (Eğer varsa)
     driver_html = ""
     first_alarm = alarms[0] if alarms else {}
     drivers = first_alarm.get("drivers", [])
@@ -223,81 +218,75 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         driver_html = _html_driver_analysis_section(drivers, site_delta)
 
     return f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:600;margin:0 0 8px;">{dom_e}</p>
-            <p style="font-size:14px;line-height:1.55;color:#475569;margin:0 0 16px;">{intro}</p>
-            <p style="font-size:13px;color:#64748b;margin:0 0 8px;">{head}</p>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+            <p style="font-size:15px;font-weight:700;margin:0 0 2px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
+            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px;">{summary_line}</p>
             {''.join(cards)}
             {driver_html}
-            <p style="color:#94a3b8;font-size:12px;margin-top:22px;">SEO Agent · GA4 Realtime (otomatik)</p>
+            <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime (otomatik)</p>
         </div>
         """
 
 
 def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
     dom_e = html.escape(domain)
-    prof_e = html.escape(profile_label)
-    intro = (
-        "Aşağıdaki satırlar <strong>en çok trafik alan sayfa/ekran</strong> listesindeki bir satırı temsil eder. "
-        "Sayılar, aynı Realtime penceresinde önceki ölçüme göre <strong>aktif kullanıcı</strong> değişimidir."
-    )
     cards: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
-        page_e = html.escape(page)
+        title = _rt_alarm_screen_title_one_line(page, max_len=70) or page
+        title_e = html.escape(title)
         row_url = _alarm_row_public_url(domain, "page:" + str(page))
-        link_block = ""
-        if row_url:
-            ru = html.escape(row_url, quote=True)
-            link_block = (
-                f'<p style="margin:8px 0 0;font-size:13px;">'
-                f'<a href="{ru}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:600;">Sayfayı aç</a>'
-                f"</p>"
-            )
-        curr = alarm.get("current_users", 0)
-        prev = alarm.get("previous_users", 0)
+        curr = int(alarm.get("current_users", 0))
+        prev = int(alarm.get("previous_users", 0))
         pct = float(alarm.get("change_pct", 0.0))
         rid = str(alarm.get("rule_id", ""))
         is_drop = pct < 0 or rid == "page_disappeared"
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
         pct_c = "#dc2626" if is_drop else "#16a34a"
+        delta = curr - prev
+        sign = "+" if delta >= 0 else ""
+
         if rid == "page_disappeared":
-            explain = "Bu başlık/URL bir önceki ölçümde listedeydi; şimdi eşik altında veya listeden çıktı."
+            metric_html = (f'<span style="font-size:24px;font-weight:900;color:{pct_c};">{prev}</span>'
+                           f'<span style="font-size:13px;color:#64748b;margin-left:6px;">kul. vardı · listeden çıktı</span>')
         elif rid == "page_new_entry":
-            explain = "Bu sayfa önceki ölçümde yoktu veya çok düşüktü; şimdi listede ve eşik üstünde."
+            metric_html = (f'<span style="font-size:24px;font-weight:900;color:{pct_c};">{curr}</span>'
+                           f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı · yeni giriş</span>')
         else:
-            explain = "Önceki ölçüme göre bu satırdaki aktif kullanıcı değişimi kural eşiğini aştı."
+            metric_html = (f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+                           f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
+                           f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+                           f'<span style="font-size:16px;font-weight:800;color:{pct_c};margin-left:6px;">{sign}{delta} ({pct:+.0f}%)</span>')
+
+        link_part = ""
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            link_part = f'<a href="{ru}" style="font-size:11px;color:#2563eb;margin-top:4px;display:inline-block;">aç ↗</a>'
 
         cards.append(
-            f"""
-            <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
-                        background:{bg};max-width:600px;">
-                <div style="font-size:11px;color:#64748b;margin-bottom:6px;">{html.escape(profile_label)}</div>
-                <p style="margin:0 0 8px;font-size:17px;font-weight:800;color:#0f172a;word-break:break-word;line-height:1.35;">{page_e}</p>
-                {link_block}
-                <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
-                    <span style="font-size:13px;color:#64748b;">Önce</span>
-                    <span style="font-size:24px;font-weight:800;color:#0f172a;">{prev:.0f}</span>
-                    <span style="font-size:18px;color:#94a3b8;">→</span>
-                    <span style="font-size:13px;color:#64748b;">Şimdi</span>
-                    <span style="font-size:24px;font-weight:800;color:#0f172a;">{curr:.0f}</span>
-                    <span style="font-size:17px;font-weight:800;color:{pct_c};">{pct:+.1f}%</span>
-                </div>
-                <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#334155;">{html.escape(explain)}</p>
-            </div>
-            """
+            f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
+            f'<p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0f172a;line-height:1.3;">{title_e}</p>'
+            f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">{metric_html}</div>'
+            f'{link_part}'
+            f'</div>'
         )
 
-    n = len(alarms)
-    head = html.escape(f"{n} sayfa satırı tetiklendi." if n > 1 else "Sayfa alarmı.")
+    # Özet satırı — preview'da görünür
+    chips = []
+    for a in alarms[:4]:
+        t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
+        c = int(a.get("current_users", 0))
+        p2 = int(a.get("previous_users", 0))
+        d = c - p2
+        chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
+    summary = html.escape(" · ".join(chips) + (f" +{len(alarms)-4}" if len(alarms) > 4 else ""))
     return f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:600;margin:0 0 8px;">{dom_e}</p>
-            <p style="font-size:14px;line-height:1.55;color:#475569;margin:0 0 16px;">{intro}</p>
-            <p style="font-size:13px;color:#64748b;margin:0 0 8px;">{head}</p>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+            <p style="font-size:15px;font-weight:700;margin:0 0 2px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {html.escape(profile_label)}</span></p>
+            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px;">{summary}</p>
             {''.join(cards)}
-            <p style="color:#94a3b8;font-size:12px;margin-top:22px;">SEO Agent · GA4 Realtime sayfa listesi (otomatik)</p>
+            <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime sayfa listesi (otomatik)</p>
         </div>
         """
 
@@ -305,67 +294,67 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
 def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
-    intro = (
-        "«Haberler» listesi, site içi haber benzeri <strong>ekran adı</strong> satırlarından oluşur. "
-        "Aşağıdaki sayılar ilgili başlık için <strong>aktif kullanıcı</strong> (önceki ölçüme göre)."
-    )
     cards: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
-        page_e = html.escape(page)
+        title = _rt_alarm_screen_title_one_line(page, max_len=80)
+        title_e = html.escape(title or page)
         row_url = _alarm_row_public_url(domain, "news:" + str(page))
-        link_block = ""
-        if row_url:
-            ru = html.escape(row_url, quote=True)
-            link_block = (
-                f'<p style="margin:8px 0 0;font-size:13px;">'
-                f'<a href="{ru}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:600;">Sayfayı aç</a>'
-                f"</p>"
-            )
-        curr = alarm.get("current_users", 0)
-        prev = alarm.get("previous_users", 0)
-        pct = float(alarm.get("change_pct", 0.0))
+        curr = int(alarm.get("current_users", 0))
+        prev = int(alarm.get("previous_users", 0))
         rid = str(alarm.get("rule_id", ""))
-        is_drop = pct < 0 or rid == "news_disappeared"
+        is_drop = rid in ("news_traffic_drop", "news_disappeared")
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
-        pct_c = "#dc2626" if is_drop else "#16a34a"
-        if rid == "news_disappeared":
-            explain = "Bu başlık listeden düştü veya trafik eşiğin altına indi."
-        elif rid == "news_new_entry":
-            explain = "Bu başlık yeni güçlü şekilde listeye girdi."
+        num_c = "#dc2626" if is_drop else "#16a34a"
+
+        # Metrik satırı: her alarm tipine özel, anlamlı
+        if rid == "news_new_entry":
+            metric_html = (
+                f'<span style="font-size:28px;font-weight:900;color:{num_c};">{curr}</span>'
+                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı · yeni giriş</span>'
+            )
+        elif rid == "news_disappeared":
+            metric_html = (
+                f'<span style="font-size:28px;font-weight:900;color:{num_c};">{prev}</span>'
+                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">kul. vardı · listeden çıktı</span>'
+            )
         else:
-            explain = "Önceki ölçüme göre bu başlıkta aktif kullanıcı değişimi eşiği aştı."
+            delta = curr - prev
+            sign = "+" if delta >= 0 else ""
+            metric_html = (
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+                f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta}</span>'
+            )
+
+        link_part = ""
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            link_part = f'<a href="{ru}" style="font-size:11px;color:#2563eb;margin-top:4px;display:inline-block;">aç ↗</a>'
 
         cards.append(
-            f"""
-            <div style="margin:16px 0;padding:16px 18px;border-radius:10px;border-left:4px solid {border};
-                        background:{bg};max-width:600px;">
-                <div style="font-size:11px;color:#64748b;margin-bottom:6px;">{prof_e}</div>
-                <p style="margin:0 0 8px;font-size:17px;font-weight:800;color:#0f172a;word-break:break-word;line-height:1.35;">{page_e}</p>
-                {link_block}
-                <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;">
-                    <span style="font-size:13px;color:#64748b;">Önce</span>
-                    <span style="font-size:24px;font-weight:800;color:#0f172a;">{prev:.0f}</span>
-                    <span style="font-size:18px;color:#94a3b8;">→</span>
-                    <span style="font-size:13px;color:#64748b;">Şimdi</span>
-                    <span style="font-size:24px;font-weight:800;color:#0f172a;">{curr:.0f}</span>
-                    <span style="font-size:17px;font-weight:800;color:{pct_c};">{pct:+.1f}%</span>
-                </div>
-                <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#334155;">{html.escape(explain)}</p>
-            </div>
-            """
+            f'<div style="margin:10px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
+            f'<p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#0f172a;line-height:1.3;">{title_e}</p>'
+            f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">{metric_html}</div>'
+            f'{link_part}'
+            f'</div>'
         )
 
+    # Özet satırı — preview'da görünür
+    entries = [_rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20) for a in alarms[:4]]
+    summary_line = " · ".join(f for f in entries if f and f != "—")
+    if len(alarms) > 4:
+        summary_line += f" (+{len(alarms) - 4})"
     n = len(alarms)
-    head = html.escape(f"{n} haber satırı tetiklendi." if n > 1 else "Haber alarmı.")
+    head = html.escape(f"{n} haber · {summary_line}")
     return f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:600;margin:0 0 8px;">{dom_e}</p>
-            <p style="font-size:14px;line-height:1.55;color:#475569;margin:0 0 16px;">{intro}</p>
-            <p style="font-size:13px;color:#64748b;margin:0 0 8px;">{head}</p>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+            <p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
+            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{head}</p>
             {''.join(cards)}
-            <p style="color:#94a3b8;font-size:12px;margin-top:22px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
+            <p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
         </div>
         """
 
