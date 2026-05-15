@@ -2644,6 +2644,7 @@ def _run_daily_ga4_refresh_job() -> None:
             for index, site in enumerate(eligible):
                 LOGGER.info("Daily GA4 refresh processing site=%s", site.domain)
                 try:
+                    collect_ga4_channel_sessions(db, site, days=90)
                     collect_ga4_channel_sessions(db, site, days=30)
                     collect_ga4_channel_sessions(db, site, days=7)
                     db.commit()
@@ -8170,9 +8171,10 @@ def ga4_single_site_card(request: Request, site_id: int):
                 profiles[profile] = {
                     "property_id": prop_id,
                     "periods": {
-                        "1": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=1, latest=latest, prop_id=prop_id),
-                        "7": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7, latest=latest, prop_id=prop_id),
+                        "1":  _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=1,  latest=latest, prop_id=prop_id),
+                        "7":  _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7,  latest=latest, prop_id=prop_id),
                         "30": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=30, latest=latest, prop_id=prop_id),
+                        "90": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=90, latest=latest, prop_id=prop_id),
                     },
                 }
             site_data = {
@@ -8225,6 +8227,7 @@ def ga4_refresh_site(request: Request, site_id: int):
         from backend.collectors.ga4 import collect_ga4_channel_sessions
 
         try:
+            collect_ga4_channel_sessions(db, site, days=90)
             collect_ga4_channel_sessions(db, site, days=30)
             collect_ga4_channel_sessions(db, site, days=7)
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
@@ -8280,6 +8283,7 @@ def ga4_refresh_all(request: Request):
             if not conn.get("connected"):
                 continue
             try:
+                collect_ga4_channel_sessions(db, site, days=90)
                 collect_ga4_channel_sessions(db, site, days=30)
                 collect_ga4_channel_sessions(db, site, days=7)
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
@@ -9797,7 +9801,7 @@ def _run_db_retention_cleanup() -> dict:
         (LighthouseAuditRecord, [LighthouseAuditRecord.strategy], "lighthouse_audit_records"),
         (PageSpeedPayloadSnapshot, [PageSpeedPayloadSnapshot.strategy], "pagespeed_payload_snapshots"),
         (PageSpeedAuditSnapshot, [PageSpeedAuditSnapshot.strategy], "pagespeed_audit_snapshots"),
-        (Ga4ReportSnapshot, [], "ga4_report_snapshots"),
+        (Ga4ReportSnapshot, [Ga4ReportSnapshot.profile, Ga4ReportSnapshot.period_days], "ga4_report_snapshots"),
         (CruxHistorySnapshot, [CruxHistorySnapshot.form_factor], "crux_history_snapshots"),
         (UrlInspectionSnapshot, [], "url_inspection_snapshots"),
     ]

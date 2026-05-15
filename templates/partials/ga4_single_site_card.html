@@ -67,6 +67,15 @@
         >
           30d
         </button>
+        <button
+          type="button"
+          role="tab"
+          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 transition sm:px-3.5 sm:py-1.5"
+          data-ga4-period-toggle="90"
+          data-active="false"
+        >
+          90d
+        </button>
       </div>
       {% endif %}
       {% if site_count is defined and site_count > 1 %}
@@ -113,13 +122,13 @@
           <div class="min-w-0 flex-1">
             {% set _dp = site.default_profile %}
             {% if _dp in site.profiles %}
-              {% for period_key in ['1', '7', '30'] %}
-                {% set _pr = site.profiles[_dp].periods[period_key] %}
+              {% for period_key in ['1', '7', '30', '90'] %}
+                {% set _pr = site.profiles[_dp].periods[period_key] if period_key in site.profiles[_dp].periods else none %}
                 <div
                   data-ga4-period-heading="{{ period_key }}"
                   class="{% if period_key != '7' %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600 dark:text-slate-300"
                 >
-                  {% if _pr.ranges and (_pr.ranges.last_start or _pr.ranges.last_end) %}
+                  {% if _pr and _pr.ranges and (_pr.ranges.last_start or _pr.ranges.last_end) %}
                     {% if _pr.ranges.prev_start and _pr.ranges.prev_end %}
                       {{ _pr.ranges.prev_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }}
                       vs
@@ -159,13 +168,13 @@
           </div>
         </div>
 
-        {% for period_key in ['1', '7', '30'] %}
+        {% for period_key in ['1', '7', '30', '90'] %}
           <div
             data-ga4-period-panel="{{ period_key }}"
             class="{% if period_key != '7' %}hidden {% endif %}space-y-5"
           >
             {% for pk in ['web', 'mweb', 'android', 'ios'] %}
-              {% if pk in site.profiles %}
+              {% if pk in site.profiles and period_key in site.profiles[pk].periods %}
                 {% set p = site.profiles[pk].periods[period_key] %}
                 {% set period_days = p.period_days %}
                 <div
