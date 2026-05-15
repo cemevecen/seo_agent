@@ -7813,6 +7813,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         "sites": get_sidebar_sites(),
         "data": data,
         "error": error,
+        "current_month": date.today().strftime("%Y-%m"),
     }
     return templates.TemplateResponse(request, "tmdb_upcoming.html",
                                       context={"request": request, **payload})
