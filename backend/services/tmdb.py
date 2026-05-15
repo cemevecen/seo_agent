@@ -104,12 +104,13 @@ def _resolve_flag(m: dict) -> str:
     return _country_flag(code)
 
 
-# ── In-memory cache (3 saat TTL) ─────────────────────────────────────────────
-_cache_lock    = threading.Lock()
-_refresh_lock  = threading.Lock()   # aynı anda sadece bir yenileme
+# ── In-memory cache (6 saat TTL, stale-while-revalidate) ─────────────────────
+_cache_lock        = threading.Lock()
+_refresh_lock      = threading.Lock()   # aynı anda sadece bir yenileme
+_bg_refresh_active = threading.Event()  # birden fazla bg thread spawn olmasın
 _cache_data:   dict | None = None
 _cache_mono:   float | None = None  # time.monotonic() snapshots
-_CACHE_TTL_S   = 3 * 3600           # saniye cinsinden TTL
+_CACHE_TTL_S   = 6 * 3600           # 6 saat TTL
 
 
 def _cache_fresh() -> bool:
@@ -139,24 +140,50 @@ def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
             logger.debug("Country detail fetch atlandı [%s]: %s", m.get("id"), exc)
 
 
-def get_combined_upcoming(months_ahead: int = 5) -> dict:
-    """Cache'li fetch_combined_upcoming — 3 saatte bir yenilenir.
-    Double-checked locking: eş zamanlı istekler tek yenileme tetikler."""
+def _do_refresh(months_ahead: int) -> None:
+    """Refresh lock altında cache'i yeniler (hem sync hem bg thread kullanır)."""
     global _cache_data, _cache_mono
-    # Hızlı yol — cache taze ise direkt dön
-    with _cache_lock:
-        if _cache_data is not None and _cache_fresh():
-            return _cache_data
-    # Yavaş yol — yenileme için serialize et, yeniden kontrol et
     with _refresh_lock:
         with _cache_lock:
-            if _cache_data is not None and _cache_fresh():
-                return _cache_data
+            if _cache_fresh():
+                return  # başkası yetişti
         fresh = fetch_combined_upcoming(months_ahead)
         with _cache_lock:
             _cache_data = fresh
             _cache_mono = time.monotonic()
-        return fresh
+
+
+def get_combined_upcoming(months_ahead: int = 5) -> dict:
+    """Stale-while-revalidate cache — kullanıcıyı asla bekletmez.
+
+    • Cache taze  → anında dön.
+    • Cache eski ama veri var → eskiyi anında dön, arka planda yenile.
+    • Cache hiç yok (ilk başlatma) → bekle, prewarm thread bitene kadar.
+    """
+    global _cache_data, _cache_mono
+    with _cache_lock:
+        fresh  = _cache_fresh()
+        stale  = _cache_data  # None veya eski dict
+
+    if fresh:
+        return stale  # type: ignore[return-value]
+
+    if stale is not None:
+        # Eski veriyi anında dön, arka planda yenile
+        if not _bg_refresh_active.is_set():
+            _bg_refresh_active.set()
+            def _bg():
+                try:
+                    _do_refresh(months_ahead)
+                finally:
+                    _bg_refresh_active.clear()
+            threading.Thread(target=_bg, daemon=True, name="tmdb-stale-refresh").start()
+        return stale
+
+    # İlk başlatma — veri hiç yok, beklemek zorunda
+    _do_refresh(months_ahead)
+    with _cache_lock:
+        return _cache_data or {}
 
 
 def refresh_combined_cache(months_ahead: int = 5) -> dict:
@@ -567,12 +594,15 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         logger.error("TMDB theatrical hatası: %s", exc)
 
     # Box office Turkey — gişedeki ama TMDB theatrical listesinde olmayan filmleri ekle
+    # Sadece bu hafta fiilen vizyonda olan filmler aranır (weekly_audience > 0).
+    # Takvimde listelenen ama seyircisi olmayan filmler TMDB'de zaten vardır.
     try:
         from backend.services.boxoffice_turkey import fetch_current_boxoffice, find_missing_from_tmdb
         boxoffice_films = fetch_current_boxoffice()
         if boxoffice_films:
+            showing_now = [f for f in boxoffice_films if f.get("weekly_audience", 0) > 0]
             existing_ids: set[int] = {m["id"] for m in theatrical}
-            extra = find_missing_from_tmdb(boxoffice_films, existing_ids, search_movie_by_title)
+            extra = find_missing_from_tmdb(showing_now, existing_ids, search_movie_by_title)
             for film in extra:
                 film["boxoffice_source"] = True
                 theatrical.append(film)
