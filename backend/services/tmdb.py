@@ -185,12 +185,14 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             raw.append(m)
 
     # B: Dünya prömiyeri 2025-2026 (TR vizyon tarihi TMDB'de yoksa da gelir)
+    # with_release_type=3 → sadece theatrical; streaming özel çekimler elenir
     for m in _fetch_pages({
         "language":                 "tr-TR",
         "primary_release_date.gte": date_from,
         "primary_release_date.lte": date_to,
         "sort_by":                  "popularity.desc",
         "include_adult":            "false",
+        "with_release_type":        "3",
     }, page_limit=15):
         if m["id"] not in seen:
             seen.add(m["id"])
@@ -286,10 +288,9 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
                 all_movies[mid]["providers"].append(provider_name)
             all_movies[mid]["_provider_hits"] += 1
 
-    # Çok fazla platformda çıkıyorsa global katalog false positive — etiketi sıfırla
-    # (örn. Apple TV+ içeriği dünyada 6 farklı provider olarak listelenebiliyor)
+    # 5+ farklı platformda çıkıyorsa global katalog false positive — etiketi sıfırla
     for m in all_movies.values():
-        if len(m.get("providers", [])) >= 4:
+        if len(m.get("providers", [])) >= 5:
             m["providers"] = []
         m.pop("_provider_hits", None)
 
