@@ -6,7 +6,8 @@
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">NEWS</h1>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-3">
+      <span id="rt-intel-last-update" class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums"></span>
       <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
         Güncelle
@@ -110,6 +111,8 @@
     const _intelLimit = 30;
     let _intelLoading = false;
     let _intelFinished = false;
+    let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
+    let _autoRefreshTimer = null;
 
     async function rtSyncNews() {
       const btn = document.getElementById('rt-news-sync-btn');
@@ -132,24 +135,34 @@
       }
     }
     
-    function rtSwitchIntelTab(cat) {
-      if(_activeIntelCategory === cat) return;
-      _activeIntelCategory = cat;
-      _intelOffset = 0;
-      _intelFinished = false;
-      
-      document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
-          btn.className = 'rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0';
-      });
-      if(cat === 'Genel') document.getElementById('rt-intel-tab-genel').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      
-      document.getElementById('rt-intel-list').innerHTML = '';
-      rtFetchNewsIntelligence();
+    function _buildNewsCard(item, isNew) {
+      const d = new Date(item.published_at);
+      const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+      let faviconUrl = '';
+      try {
+        const url = new URL(item.source_url || item.url);
+        faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
+      } catch(e) { faviconUrl = '/static/favicon.png'; }
+      const newBadge = isNew
+        ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
+        : '';
+      return `<div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:border-slate-800/50 dark:bg-[#111113] dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]${isNew ? ' ring-1 ring-emerald-200 dark:ring-emerald-900/40' : ''}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/40">
+              <img src="${faviconUrl}" class="h-full w-full object-contain" onerror="this.src='/static/favicon.png'">
+            </div>
+            <span class="text-[11px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
+            ${newBadge}
+          </div>
+          <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
+        </div>
+        <div class="flex flex-col min-w-0">
+          <h3 class="text-[14px] font-bold text-slate-900 dark:text-zinc-200 leading-snug line-clamp-6">
+            <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline}</a>
+          </h3>
+        </div>
+      </div>`;
     }
 
     function rtFetchNewsIntelligence() {
@@ -162,61 +175,80 @@
         .then(data => {
           _intelLoading = false;
           document.getElementById('rt-intel-loading').classList.add('hidden');
-          
           const items = data.items || [];
           if(items.length < _intelLimit) _intelFinished = true;
           if(items.length === 0 && _intelOffset === 0) {
             document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Henüz haber bulunamadı.</div>';
             return;
           }
-          
-          const listEl = document.getElementById('rt-intel-list');
-          
-          const html = items.map(item => {
-            const d = new Date(item.published_at);
-            const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
-            
-            let faviconUrl = '';
-            try {
-              const targetUrl = item.source_url || item.url;
-              const url = new URL(targetUrl);
-              faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
-            } catch(e) { faviconUrl = '/static/favicon.png'; }
-
-            return `
-              <div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:border-slate-800/50 dark:bg-[#111113] dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/40">
-                      <img src="${faviconUrl}" 
-                           class="h-full w-full object-contain" 
-                           onerror="this.src='/static/favicon.png'">
-                    </div>
-                    <span class="text-[11px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
-                  </div>
-                  <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
-                </div>
-                <div class="flex flex-col min-w-0">
-                  <h3 class="text-[14px] font-bold text-slate-900 dark:text-zinc-200 leading-snug line-clamp-6">
-                    <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline}</a>
-                  </h3>
-                </div>
-              </div>
-            `;
-          }).join('');
-          
-          listEl.insertAdjacentHTML('beforeend', html);
+          // İlk yüklemede en yeni haberin zamanını sakla
+          if(_intelOffset === 0 && items.length > 0 && items[0].published_at) {
+            _latestPublishedAt = items[0].published_at;
+          }
+          document.getElementById('rt-intel-list').insertAdjacentHTML('beforeend', items.map(i => _buildNewsCard(i, false)).join(''));
           _intelOffset += items.length;
         });
     }
 
-    // Infinite Scroll detection
+    function rtAutoRefreshNews() {
+        if(!_latestPublishedAt) return;
+        const url = `/api/admin/news-intelligence/list?category=${encodeURIComponent(_activeIntelCategory)}&limit=20&since=${encodeURIComponent(_latestPublishedAt)}`;
+        fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          const items = data.items || [];
+          if(items.length === 0) return;
+          // Yeni haberleri üste ekle
+          const listEl = document.getElementById('rt-intel-list');
+          const html = items.map(i => _buildNewsCard(i, true)).join('');
+          listEl.insertAdjacentHTML('afterbegin', html);
+          _latestPublishedAt = items[0].published_at;
+          _intelOffset += items.length;
+          // Son güncelleme zamanını göster
+          const ts = document.getElementById('rt-intel-last-update');
+          if(ts) ts.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) + ' güncellendi · ' + items.length + ' yeni';
+        })
+        .catch(() => {});
+    }
+
+    function _startAutoRefresh() {
+        if(_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+        _autoRefreshTimer = setInterval(rtAutoRefreshNews, 5 * 60 * 1000);  // 5 dakika
+    }
+
+    // Tab değişince timer'ı sıfırla
+    function rtSwitchIntelTab(cat) {
+      if(_activeIntelCategory === cat) return;
+      _activeIntelCategory = cat;
+      _intelOffset = 0;
+      _intelFinished = false;
+      _latestPublishedAt = null;
+
+      document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
+          btn.className = 'rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0';
+      });
+      if(cat === 'Genel') document.getElementById('rt-intel-tab-genel').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+
+      document.getElementById('rt-intel-list').innerHTML = '';
+      rtFetchNewsIntelligence();
+      _startAutoRefresh();
+    }
+
+    // Infinite Scroll
     window.addEventListener('scroll', () => {
       if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
         rtFetchNewsIntelligence();
       }
     });
 
-    document.addEventListener('DOMContentLoaded', rtFetchNewsIntelligence);
+    document.addEventListener('DOMContentLoaded', () => {
+      rtFetchNewsIntelligence();
+      _startAutoRefresh();
+    });
 </script>
 {% endblock %}

@@ -647,14 +647,21 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence/list")
-def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0):
-    """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon destekli)."""
+def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0, since: str = None):
+    """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon + since destekli)."""
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from sqlalchemy import desc
+        import datetime as _dt
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
+        if since:
+            try:
+                since_dt = _dt.datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)
+                query = query.filter(NewsIntelligenceItem.published_at > since_dt)
+            except Exception:
+                pass
         items = query.offset(offset).limit(limit).all()
         return {
             "items": [
