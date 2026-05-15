@@ -7818,6 +7818,21 @@ def api_errors_refresh(site_id: int, days: int = 1):
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/errors/{site_id}/widget")
+def api_errors_widget(site_id: int, days: int = 7):
+    """GA4 kart widget'ı için hata özeti — top 5 hatalı URL."""
+    try:
+        from backend.services.error_monitor import get_error_summary
+        from backend.models import Site
+        with SessionLocal() as db:
+            summary = get_error_summary(db, site_id, days=days)
+            site = db.query(Site).filter(Site.id == site_id).first()
+            summary["domain"] = site.domain if site else ""
+        return summary
+    except Exception as exc:
+        return {"errors": [], "total_404": 0, "total_5xx": 0, "total_users": 0, "domain": "", "message": str(exc)}
+
+
 @app.get("/tmdb-upcoming")
 def tmdb_upcoming_page(request: Request, months: int = 5):
     """TMDB vizyon takvimi — sinemalar.com içerik planlama."""
@@ -8140,6 +8155,7 @@ def ga4_single_site_card(request: Request, site_id: int):
                 "request": request,
                 "site": site_data,
                 "site_count": site_count,
+                "error_summary": _get_error_summary_for_card(db, site.id),
             },
         )
         response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
@@ -9929,6 +9945,15 @@ def _run_tmdb_cache_refresh_job() -> None:
         )
     except Exception as exc:
         LOGGER.error("TMDB cache refresh hatası: %s", exc)
+
+
+def _get_error_summary_for_card(db, site_id: int, days: int = 7) -> dict:
+    """GA4 site kartı için hızlı hata özeti — son N günün top 5 URL'si."""
+    try:
+        from backend.services.error_monitor import get_error_summary
+        return get_error_summary(db, site_id, days=days)
+    except Exception:
+        return {"total_404": 0, "total_5xx": 0, "total_users": 0, "errors": [], "days": days}
 
 
 def _run_error_detection_job() -> None:
