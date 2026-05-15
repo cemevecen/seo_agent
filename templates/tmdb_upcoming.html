@@ -50,6 +50,25 @@
         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ movie.vote_average }}</span>
       {% endif %}
     </div>
+    {% if movie.providers %}
+    <div class="mt-1 flex flex-wrap gap-1">
+      {% for p in movie.providers %}
+        <span class="rounded-full px-2 py-0.5 text-[9px] font-bold
+          {% if p == 'Netflix' %}bg-red-600 text-white
+          {% elif p == 'Disney+' %}bg-blue-700 text-white
+          {% elif p == 'Max' %}bg-purple-700 text-white
+          {% elif p == 'Prime Video' %}bg-sky-600 text-white
+          {% elif p == 'Apple TV+' %}bg-slate-800 text-white
+          {% elif p == 'Mubi' %}bg-rose-900 text-white
+          {% elif p == 'BluTV' %}bg-orange-500 text-white
+          {% elif p == 'beIN Connect' %}bg-green-700 text-white
+          {% elif p == 'exxen' %}bg-indigo-700 text-white
+          {% else %}bg-slate-600 text-white{% endif %}">
+          {{ p }}
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if movie.overview %}
       <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
     {% endif %}

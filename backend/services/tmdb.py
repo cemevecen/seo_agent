@@ -201,47 +201,86 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     return movies
 
 
+# Platform ID → görünen isim  (watch_region=TR)
+TR_PROVIDERS: dict[int, str] = {
+    8:    "Netflix",
+    337:  "Disney+",
+    1899: "Max",           # HBO Max → Max
+    119:  "Prime Video",
+    350:  "Apple TV+",
+    11:   "Mubi",
+    341:  "BluTV",
+    32:   "beIN Connect",
+    1869: "exxen",
+    # TV+ (Turkcell) henüz TMDB'de kayıtlı değil; eklenirse buraya
+}
+STREAMING_PROVIDERS_TR = "|".join(str(k) for k in TR_PROVIDERS)
+
+# Kart üzerindeki platform rozet renkleri
+PROVIDER_COLORS: dict[str, str] = {
+    "Netflix":       "bg-red-600 text-white",
+    "Disney+":       "bg-blue-700 text-white",
+    "Max":           "bg-purple-700 text-white",
+    "Prime Video":   "bg-sky-600 text-white",
+    "Apple TV+":     "bg-slate-900 text-white",
+    "Mubi":          "bg-rose-900 text-white",
+    "BluTV":         "bg-orange-500 text-white",
+    "beIN Connect":  "bg-green-700 text-white",
+    "exxen":         "bg-indigo-700 text-white",
+}
+
+
 # ── 2. Platform yayınları (streaming) ────────────────────────────────────────
 
 def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
-    Netflix, Disney+, Prime, BluTV vb. platformlarda Türkiye'de yayına girecek filmler.
-    Dijital/yayın vizyon tarihi (release_type=4) kullanılır.
+    Her platformu ayrı sorgular; hangi platformda olduğu etiketlenir.
+    Başlangıç: bu ayın 1'i (Sinema sekmesiyle aynı mantık).
     """
     date_from = _current_month_start()
     date_to   = YEAR_TO
 
-    seen: set[int] = set()
-    raw: list[dict] = []
+    # id → {movie_dict, providers:[...]}
+    all_movies: dict[int, dict] = {}
 
-    # A: Türkiye'de platforma girmiş / girişi kayıtlı
-    for m in _fetch_pages({
-        "watch_region":          "TR",
-        "with_watch_providers":  STREAMING_PROVIDERS_TR,
-        "language":              "tr-TR",
-        "release_date.gte":      date_from,
-        "release_date.lte":      date_to,
-        "sort_by":               "popularity.desc",
-        "include_adult":         "false",
-    }, page_limit=12):
-        if m["id"] not in seen:
-            seen.add(m["id"])
-            raw.append(m)
+    base_params = {
+        "language":      "tr-TR",
+        "sort_by":       "popularity.desc",
+        "include_adult": "false",
+    }
 
-    # B: Dünya geneli platform çıkışları (watch_region kaydı henüz yoksa da gelir)
-    for m in _fetch_pages({
-        "with_watch_providers":     STREAMING_PROVIDERS_TR,
-        "language":                 "tr-TR",
-        "primary_release_date.gte": date_from,
-        "primary_release_date.lte": date_to,
-        "sort_by":                  "popularity.desc",
-        "include_adult":            "false",
-    }, page_limit=10):
-        if m["id"] not in seen:
-            seen.add(m["id"])
-            raw.append(m)
+    for provider_id, provider_name in TR_PROVIDERS.items():
+        pid = str(provider_id)
+        # A: TR bölgesel kayıt
+        for m in _fetch_pages({
+            **base_params,
+            "watch_region":        "TR",
+            "with_watch_providers": pid,
+            "release_date.gte":    date_from,
+            "release_date.lte":    date_to,
+        }, page_limit=3):
+            mid = m["id"]
+            if mid not in all_movies:
+                all_movies[mid] = _enrich(m)
+                all_movies[mid]["providers"] = []
+            if provider_name not in all_movies[mid]["providers"]:
+                all_movies[mid]["providers"].append(provider_name)
 
-    movies = [_enrich(m) for m in raw]
+        # B: dünya geneli primary_release_date (TR kaydı henüz girilmemiş olabilir)
+        for m in _fetch_pages({
+            **base_params,
+            "with_watch_providers":     pid,
+            "primary_release_date.gte": date_from,
+            "primary_release_date.lte": date_to,
+        }, page_limit=3):
+            mid = m["id"]
+            if mid not in all_movies:
+                all_movies[mid] = _enrich(m)
+                all_movies[mid]["providers"] = []
+            if provider_name not in all_movies[mid]["providers"]:
+                all_movies[mid]["providers"].append(provider_name)
+
+    movies = list(all_movies.values())
     movies.sort(key=lambda x: x["release_date"] or "9999")
     return movies
 
