@@ -223,27 +223,29 @@
 {# ── Sayfa gövdesi ── #}
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
 
-  {# Başlık #}
-  <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-    <h2 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yaklaşan Vizyon Takvimi</h2>
-    <div class="flex flex-wrap items-center gap-2">
-      {# Önem filtresi #}
-      <div class="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
-        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="all">Tümü</button>
-        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="high">Yüksek</button>
-        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="medium">Orta</button>
-        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="low">Düşük</button>
-      </div>
-      {# Ay seçici #}
-      <div class="flex gap-1">
-        {% for m in [3,5,8] %}
-        <a href="/tmdb-upcoming?months={{ m }}"
-           class="rounded-full border px-3 py-1.5 text-xs font-semibold transition
-                  {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
-                  {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
-          {{ m }} ay
-        </a>
-        {% endfor %}
+  {# Başlık — mobil: dikey yığın, masaüstü: yatay satır #}
+  <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:px-5 sm:py-4">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h2 class="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">Yaklaşan Vizyon Takvimi</h2>
+      <div class="flex flex-wrap items-center gap-2">
+        {# Önem filtresi #}
+        <div class="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="all">Tümü</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="high">Yüksek</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="medium">Orta</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="low">Düşük</button>
+        </div>
+        {# Ay seçici #}
+        <div class="flex gap-1">
+          {% for m in [3,5,8] %}
+          <a href="/tmdb-upcoming?months={{ m }}"
+             class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs
+                    {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
+                    {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
+            {{ m }} ay
+          </a>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
@@ -255,16 +257,16 @@
   </div>
   {% else %}
 
-  {# Sekmeler #}
-  <div class="flex gap-2 overflow-x-auto pb-1" role="tablist">
-    <button type="button" class="tmdb-tab flex-none rounded-xl border bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm"
-            data-tab="theatrical">Sinema <span class="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ data.total_theatrical }}</span></button>
-    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="streaming">Platform <span class="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ data.total_streaming }}</span></button>
-    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="turkish">🇹🇷 Türk Filmleri <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{{ data.total_turkish }}</span></button>
-    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="tv">Türk Dizileri <span class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{{ data.total_tv }}</span></button>
+  {# Sekmeler — yatay scroll, mobil uyumlu #}
+  <div class="flex gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none]" role="tablist">
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="theatrical">Sinema <span class="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_theatrical }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="streaming">Platform <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_streaming }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="turkish">🇹🇷 Türk Filmleri <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_turkish }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="tv">Türk Dizileri <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_tv }}</span></button>
   </div>
 
   {# Sinema paneli #}
@@ -470,18 +472,30 @@
     if (bar) setActiveCF(bar, 'all');
   }
 
-  /* ── Sekme geçişi ── */
+  /* ── Sekme geçişi — inline style (zinc override'dan bağımsız) ── */
+  function tabStyle(on) {
+    var dark = document.documentElement.classList.contains('dark');
+    if (on) {
+      return {
+        background:  dark ? '#3f3f46' : '#0f172a',
+        color:       '#ffffff',
+        borderColor: dark ? '#52525b' : '#0f172a',
+      };
+    }
+    return {
+      background:  dark ? 'rgba(39,39,42,0.85)' : '#ffffff',
+      color:       dark ? '#d4d4d8' : '#4b5563',
+      borderColor: dark ? '#3f3f46' : '#e2e8f0',
+    };
+  }
+
   function activate(btn) {
     var target = 'panel-' + btn.getAttribute('data-tab');
     tabs.forEach(function (t) {
-      var on = t === btn;
-      t.classList.toggle('bg-slate-900', on);
-      t.classList.toggle('text-white',   on);
-      t.classList.toggle('border-slate-900', on);
-      t.classList.toggle('bg-white',      !on);
-      t.classList.toggle('text-slate-600',!on);
-      t.classList.toggle('dark:bg-slate-800/90', !on);
-      t.classList.toggle('dark:text-slate-300',  !on);
+      var st = tabStyle(t === btn);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
     });
     panels.forEach(function (p) {
       var visible = p.id === target;
@@ -493,9 +507,35 @@
     });
   }
 
+  // İlk yüklemede sekmeler stilini uygula
+  (function initTabStyles() {
+    var first = tabs[0];
+    tabs.forEach(function (t) {
+      var st = tabStyle(t === first);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
+    });
+  })();
+
+  // Tema değişince sekme stillerini yeniden uygula
+  document.addEventListener('seo-theme-change', function () {
+    var activeTab = Array.from(tabs).find(function (t) {
+      var tid = 'panel-' + t.getAttribute('data-tab');
+      var panel = document.getElementById(tid);
+      return panel && !panel.classList.contains('hidden');
+    }) || tabs[0];
+    tabs.forEach(function (t) {
+      var st = tabStyle(t === activeTab);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
+    });
+  });
+
   tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
 
-  // İlk sekme için de ülke barını oluştur
+  // İlk sekme için ülke barı
   buildCountryBar('panel-theatrical');
 })();
 </script>
