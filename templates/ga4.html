@@ -1099,6 +1099,19 @@
       const buttons = switcher.querySelectorAll('[data-ga4-period-toggle]');
       const activate = function (periodKey) {
         var pk = periodKey == null ? '' : String(periodKey);
+
+        // ── Dönem değişmeden önce aktif sekme tipini kaydet ──────────────────
+        // Kullanıcı Events'teyken dönem değiştirince Ekranlar'a dönme sorunu çözülüyor.
+        var savedKind = null;
+        if (card) {
+          var curPanel = card.querySelector('[data-ga4-period-panel]:not(.hidden)');
+          if (curPanel) {
+            var curProfile = curPanel.querySelector('[data-ga4-profile-panel]:not(.hidden)') || curPanel;
+            var curKindBtn = curProfile.querySelector('[data-ga4-pages-kind][data-active="true"]');
+            if (curKindBtn) savedKind = ga4DataAttr(curKindBtn, 'data-ga4-pages-kind');
+          }
+        }
+
         buttons.forEach(function (button) {
           const isActive = ga4DataAttr(button, 'data-ga4-period-toggle') === pk;
           button.dataset.active = isActive ? 'true' : 'false';
@@ -1113,6 +1126,18 @@
             const isActive = ga4DataAttr(panel, 'data-ga4-period-panel') === pk;
             panel.classList.toggle('hidden', !isActive);
             if (isActive) {
+              // ── Kayıtlı sekmeyi yeni döneme uygula ───────────────────────
+              if (savedKind && savedKind !== 'content') {
+                var newProfile = panel.querySelector('[data-ga4-profile-panel]:not(.hidden)') || panel;
+                var kindSwitch = newProfile.querySelector('[data-ga4-pages-kind-switch]');
+                if (kindSwitch) {
+                  var targetKindBtn = kindSwitch.querySelector('[data-ga4-pages-kind="' + savedKind + '"]');
+                  if (targetKindBtn) {
+                    targetKindBtn.click();
+                    return; // click zaten triggerGa4Load'u tetikler; çift yüklemeyi önle
+                  }
+                }
+              }
               // Aktif period panelindeki aktif profile panelindeki placeholder'ları tetikle
               panel.querySelectorAll('[data-ga4-profile-panel]').forEach(function (pp) {
                 if (!pp.classList.contains('hidden')) {
