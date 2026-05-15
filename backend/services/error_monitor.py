@@ -1,11 +1,12 @@
 """
-Site hata izleme — GA4, Search Console ve sunucu loglarından 404/500 toplar.
+Site hata izleme — GA4 Analytics Data API ile 404/hata sayfası tespiti.
+Credential pattern: ga4_realtime.py ile aynı (global service account).
 """
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -13,88 +14,125 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-def _ga4_run_report(credentials_json: str, property_id: str, body: dict) -> dict:
-    """GA4 Analytics Data API v1beta runReport çağrısı."""
-    import google.oauth2.service_account as _svc
-    from googleapiclient.discovery import build as _build
-    import json as _json
+def _build_ga4_client():
+    from google.analytics.data_v1beta import BetaAnalyticsDataClient
+    from google.oauth2 import service_account
+    from backend.services.ga4_auth import GA4_SCOPES, load_ga4_service_account_info
 
-    creds_dict = _json.loads(credentials_json)
-    creds = _svc.Credentials.from_service_account_info(
-        creds_dict,
-        scopes=["https://www.googleapis.com/auth/analytics.readonly"],
-    )
-    svc = _build("analyticsdata", "v1beta", credentials=creds, cache_discovery=False)
-    return (
-        svc.properties()
-        .runReport(property=f"properties/{property_id}", body=body)
-        .execute()
-    )
+    info = load_ga4_service_account_info()
+    creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
+    return BetaAnalyticsDataClient(credentials=creds)
 
 
 def fetch_ga4_error_pages(
-    credentials_json: str,
     property_id: str,
     days: int = 7,
     limit: int = 200,
 ) -> list[dict[str, Any]]:
     """
-    GA4'ten hata sayfalarını çeker.
-    404 sayfaları: pagePath'te '404' geçenler VEYA pageTitle'da hata kelimeleri.
+    GA4 Analytics Data API ile hata sayfalarını çeker.
+    pagePath'te '404' geçen VEYA pageTitle'da hata kelimeleri içeren sayfalar.
     """
-    start = f"{days}daysAgo"
+    from google.analytics.data_v1beta.types import (
+        DateRange, Dimension, Filter, FilterExpression,
+        FilterExpressionList, Metric, OrderBy, RunReportRequest,
+    )
 
-    body = {
-        "dateRanges": [{"startDate": start, "endDate": "today"}],
-        "dimensions": [
-            {"name": "pagePath"},
-            {"name": "pageTitle"},
-            {"name": "date"},
+    pid = property_id.strip()
+    if not pid.startswith("properties/"):
+        pid = f"properties/{pid}"
+
+    # 404 sayfalarını yakala: path'te /404 VEYA title'da hata kelimeleri
+    error_filters = [
+        FilterExpression(filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="/404", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="404", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="bulunamadı", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="not found", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="sayfa bulunamadı", case_sensitive=False,
+            ),
+        )),
+    ]
+
+    request = RunReportRequest(
+        property=pid,
+        date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        dimensions=[
+            Dimension(name="pagePath"),
+            Dimension(name="pageTitle"),
+            Dimension(name="date"),
         ],
-        "metrics": [
-            {"name": "screenPageViews"},
-            {"name": "totalUsers"},
+        metrics=[
+            Metric(name="screenPageViews"),
+            Metric(name="totalUsers"),
         ],
-        "dimensionFilter": {
-            "orGroup": {
-                "expressions": [
-                    {"filter": {"fieldName": "pagePath",  "stringFilter": {"matchType": "CONTAINS", "value": "/404",         "caseSensitive": False}}},
-                    {"filter": {"fieldName": "pagePath",  "stringFilter": {"matchType": "CONTAINS", "value": "404",          "caseSensitive": False}}},
-                    {"filter": {"fieldName": "pageTitle", "stringFilter": {"matchType": "CONTAINS", "value": "404",          "caseSensitive": False}}},
-                    {"filter": {"fieldName": "pageTitle", "stringFilter": {"matchType": "CONTAINS", "value": "bulunamadı",   "caseSensitive": False}}},
-                    {"filter": {"fieldName": "pageTitle", "stringFilter": {"matchType": "CONTAINS", "value": "not found",    "caseSensitive": False}}},
-                    {"filter": {"fieldName": "pageTitle", "stringFilter": {"matchType": "CONTAINS", "value": "sayfa yok",    "caseSensitive": False}}},
-                ],
-            }
-        },
-        "orderBys": [{"metric": {"metricName": "screenPageViews"}, "desc": True}],
-        "limit": limit,
-    }
+        dimension_filter=FilterExpression(
+            or_group=FilterExpressionList(expressions=error_filters)
+        ),
+        order_bys=[OrderBy(
+            metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"),
+            desc=True,
+        )],
+        limit=limit,
+    )
 
     try:
-        resp = _ga4_run_report(credentials_json, property_id, body)
+        client = _build_ga4_client()
+        response = client.run_report(request)
     except Exception as exc:
         logger.warning("GA4 error pages fetch hatası [property=%s]: %s", property_id, exc)
         return []
 
-    rows = resp.get("rows") or []
-    dim_headers = [h["name"] for h in (resp.get("dimensionHeaders") or [])]
-    met_headers = [h["name"] for h in (resp.get("metricHeaders") or [])]
-
     results = []
-    for row in rows:
-        dims = {dim_headers[i]: v["value"] for i, v in enumerate(row.get("dimensionValues", []))}
-        mets = {met_headers[i]: v["value"] for i, v in enumerate(row.get("metricValues", []))}
+    for row in response.rows:
+        dims = [dv.value for dv in row.dimension_values]
+        mets = [mv.value for mv in row.metric_values]
+        page_path  = dims[0] if len(dims) > 0 else ""
+        page_title = dims[1] if len(dims) > 1 else ""
+        pageviews  = int(mets[0]) if len(mets) > 0 else 0
+        users      = int(mets[1]) if len(mets) > 1 else 0
+
+        if not page_path:
+            continue
+
         results.append({
-            "url":         dims.get("pagePath", ""),
-            "page_title":  dims.get("pageTitle", ""),
-            "date":        dims.get("date", ""),
-            "pageviews":   int(mets.get("screenPageViews", 0)),
-            "users":       int(mets.get("totalUsers", 0)),
+            "url":         page_path,
+            "page_title":  page_title,
+            "pageviews":   pageviews,
+            "users":       users,
             "status_code": 404,
             "source":      "ga4",
             "error_type":  "not_found",
         })
+
+    logger.info("GA4 hata sayfaları: property=%s, %d satır döndü", property_id, len(results))
     return results
 
 
@@ -108,7 +146,7 @@ def save_error_logs(
     from backend.models import SiteErrorLog
 
     saved = 0
-    now = datetime.utcnow()  # naive UTC — DB DateTime kolonu ile tutarlı
+    now = datetime.utcnow()
 
     for e in errors:
         url = (e.get("url") or "")[:2048]
@@ -126,11 +164,11 @@ def save_error_logs(
             )
             .first()
         )
+        extra = json.dumps({"page_title": e.get("page_title", "")}, ensure_ascii=False)
         if existing:
             existing.hit_count = max(existing.hit_count, int(e.get("users", 1)))
-            existing.last_seen = now
-            extra = {"page_title": e.get("page_title", "")}
-            existing.extra_json = json.dumps(extra, ensure_ascii=False)
+            existing.last_seen  = now
+            existing.extra_json = extra
         else:
             row = SiteErrorLog(
                 site_id=site_id,
@@ -141,7 +179,7 @@ def save_error_logs(
                 hit_count=int(e.get("users", 1)),
                 first_seen=now,
                 last_seen=now,
-                extra_json=json.dumps({"page_title": e.get("page_title", "")}, ensure_ascii=False),
+                extra_json=extra,
             )
             db.add(row)
         saved += 1
@@ -163,7 +201,6 @@ def get_error_summary(
 ) -> dict[str, Any]:
     """Son N günün hata özetini döner."""
     from backend.models import SiteErrorLog
-    from sqlalchemy import func
 
     cutoff = datetime.utcnow() - timedelta(days=days)
 
@@ -181,10 +218,6 @@ def get_error_summary(
     total_404 = sum(1 for r in rows if r.status_code == 404)
     total_5xx = sum(1 for r in rows if r.status_code >= 500)
     total_users = sum(r.hit_count for r in rows)
-
-    by_source: dict[str, int] = {}
-    for r in rows:
-        by_source[r.source] = by_source.get(r.source, 0) + 1
 
     error_list = []
     for r in rows:
@@ -210,7 +243,7 @@ def get_error_summary(
         "total_404":   total_404,
         "total_5xx":   total_5xx,
         "total_users": total_users,
-        "by_source":   by_source,
+        "by_source":   {"ga4": total_404 + total_5xx},
         "errors":      error_list,
         "site_id":     site_id,
         "days":        days,
@@ -220,39 +253,56 @@ def get_error_summary(
 def run_error_detection_for_site(db: Session, site_id: int, days: int = 7) -> dict:
     """Tek site için GA4 hata tespiti çalıştırır ve DB'ye kaydeder."""
     from backend.models import Site
-    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.ga4_auth import (
+        get_ga4_credentials_record, load_ga4_properties, ga4_is_configured,
+    )
 
     site = db.query(Site).filter(Site.id == site_id).first()
     if not site:
         return {"status": "error", "message": "site not found"}
 
+    if not ga4_is_configured():
+        return {"status": "skip", "message": "GA4 service account yapılandırılmamış"}
+
     record = get_ga4_credentials_record(db, site.id)
-    if not record or not record.credentials_json:
-        return {"status": "skip", "message": "GA4 credentials yok"}
+    if not record:
+        return {"status": "skip", "message": "GA4 property kaydı yok"}
 
     properties = load_ga4_properties(record)
-    property_id = properties.get("web") or properties.get("mweb")
+    property_id = properties.get("web") or properties.get("mweb") or next(iter(properties.values()), "")
     if not property_id:
-        return {"status": "skip", "message": "web property yok"}
+        return {"status": "skip", "message": "web property ID yok"}
 
-    errors = fetch_ga4_error_pages(record.credentials_json, property_id, days=days)
+    errors = fetch_ga4_error_pages(property_id, days=days)
     saved = save_error_logs(db, site.id, errors, source="ga4")
 
-    logger.info("Hata tespiti: site=%s, %d hata bulundu, %d kaydedildi", site.domain, len(errors), saved)
-    return {"status": "ok", "found": len(errors), "saved": saved, "domain": site.domain}
+    logger.info(
+        "Hata tespiti: site=%s property=%s, %d hata bulundu, %d kaydedildi",
+        site.domain, property_id, len(errors), saved,
+    )
+    return {
+        "status":  "ok",
+        "found":   len(errors),
+        "saved":   saved,
+        "domain":  site.domain,
+    }
 
 
 def run_error_detection_all_sites(db: Session, days: int = 1) -> list[dict]:
     """Tüm GA4-bağlı siteler için hata tespiti."""
     from backend.models import Site
-    from backend.services.ga4_auth import get_ga4_credentials_record
+    from backend.services.ga4_auth import get_ga4_credentials_record, ga4_is_configured
+
+    if not ga4_is_configured():
+        logger.warning("GA4 service account yapılandırılmamış — hata tespiti atlanıyor")
+        return []
 
     sites = db.query(Site).all()
     results = []
     for site in sites:
         try:
             record = get_ga4_credentials_record(db, site.id)
-            if not record or not record.credentials_json:
+            if not record:
                 continue
             result = run_error_detection_for_site(db, site.id, days=days)
             results.append(result)
