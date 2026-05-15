@@ -694,6 +694,7 @@
         data-rt-profile-box
         data-rt-site-id="{{ site.id }}"
         data-rt-profile="{{ profile }}"
+        data-rt-domain="{{ site.domain }}"
       >
         {# Profile header #}
         <div class="mb-4 flex items-center justify-between">
@@ -1413,6 +1414,7 @@
     var isViews = (type === 'views');
     var listEl = box.querySelector(isViews ? '[data-rt-views-list]' : '[data-rt-pages-list]');
     var tsEl = box.querySelector(isViews ? '[data-rt-views-ts]' : '[data-rt-pages-ts]');
+    var domain = box.getAttribute('data-rt-domain') || '';
     if (!listEl) return;
 
     fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + LIST_WINDOW + '&limit=10&type=' + type)
@@ -1422,7 +1424,7 @@
           if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
-        _renderTopPages(listEl, d.pages, isViews);
+        _renderTopPages(listEl, d.pages, isViews, domain);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
@@ -1623,7 +1625,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        _renderDrivers(listEl, d);
+        _renderDrivers(listEl, d, siteId, profile);
         if (tsEl) {
           var dt = d.collected_at ? new Date(d.collected_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
@@ -1634,7 +1636,7 @@
       });
   }
 
-  function _renderDrivers(el, d) {
+  function _renderDrivers(el, d, siteId, profile) {
     if (!el) return;
     if (!d.has_data || !d.drivers || !d.drivers.length) {
       el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Karşılaştırma için henüz yeterli snapshot yok.</p>';
@@ -1656,6 +1658,9 @@
       + '<span style="font-size:14px;font-weight:800;color:' + accentColor + ';">' + totalLabel + '</span>'
       + '</div>';
 
+    var driverBox = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var driverDomain = driverBox ? (driverBox.getAttribute('data-rt-domain') || '') : '';
+
     var rows = d.drivers.map(function(dr, i) {
       var path = dr.page || '';
       var shortPath = path.length > 48 ? path.substring(0, 48) + '…' : path;
@@ -1666,9 +1671,12 @@
       var numColor = isPos ? '#34d399' : '#f87171';
       var barColor = isPos ? '#059669' : '#dc2626';
       var dSign = drDelta >= 0 ? '+' : '';
+      var pathInner = path.startsWith('/') && driverDomain
+        ? '<a href="https://' + driverDomain.replace(/^https?:\/\//, '') + encodeURI(path) + '" target="_blank" rel="noopener noreferrer" style="color:#a1a1aa;text-decoration:underline;text-underline-offset:2px;" title="' + _attr(path) + '">' + _esc(shortPath) + '</a>'
+        : _esc(shortPath);
       return '<div style="padding:7px 0;' + (i > 0 ? 'border-top:1px solid rgba(255,255,255,0.06);' : '') + '">'
         + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
-        + '<span style="font-size:12px;color:#a1a1aa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="' + _attr(path) + '">' + _esc(shortPath) + '</span>'
+        + '<span style="font-size:12px;color:#a1a1aa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="' + _attr(path) + '">' + pathInner + '</span>'
         + '<span style="font-size:13px;font-weight:700;color:' + numColor + ';white-space:nowrap;flex-shrink:0;">'
         + dSign + Math.round(drDelta).toLocaleString('tr-TR')
         + '<span style="font-size:10px;font-weight:400;color:' + dimColor + ';margin-left:3px;">%' + Math.round(pct) + '</span>'
@@ -1775,7 +1783,7 @@
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
 
-  function _renderTopPages(listEl, pages, viewsMode) {
+  function _renderTopPages(listEl, pages, viewsMode, domain) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
@@ -1795,7 +1803,17 @@
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var barColor = viewsMode ? 'rt-bar-fill-violet' : 'rt-bar-fill-indigo';
-      
+
+      // Tıklanabilir link: page_paths[0] varsa tam URL oluştur
+      var firstPath = (p.page_paths && p.page_paths[0]) ? p.page_paths[0] : (p.page_path || '');
+      var titleHtml;
+      if (firstPath && firstPath.startsWith('/') && domain) {
+        var fullUrl = 'https://' + domain.replace(/^https?:\/\//, '') + encodeURI(firstPath);
+        titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw + '\n' + firstPath) + '">' + path + '</a>';
+      } else {
+        titleHtml = '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>';
+      }
+
       var primary = viewsMode
         ? '<strong class="text-sm">' + views + '</strong>' + viewsComp + ' <span class="rt-list-meta">gör.</span>'
         : '<strong class="text-sm">' + users + '</strong>' + usersComp + ' <span class="rt-list-meta">kul.</span>';
@@ -1807,7 +1825,7 @@
       return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
         + '<div class="rt-top-list-mid">'
-        + '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>'
+        + titleHtml
         + '<div class="rt-bar-track"><div class="' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
