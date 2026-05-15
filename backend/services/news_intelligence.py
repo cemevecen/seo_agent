@@ -172,16 +172,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     if exists:
                         continue
 
-                    # Yahoo Finance haberlerini otomatik Türkçeye çevir (Ücretsiz)
-                    if category == "Yahoo Finance":
-                        try:
-                            # Sadece başlığı çevir, hata alırsa orijinali bırak
-                            translator = GoogleTranslator(source='en', target='tr')
-                            translated = translator.translate(title)
-                            if translated:
-                                title = translated
-                        except Exception as te:
-                            logger.error(f"Auto-translation failed: {te}")
+                    # Yahoo Finance — başlık İngilizce, çeviriye gerek yok (yavaşlatıyor)
+                    # Başlık olduğu gibi saklanır, UI'da İngilizce gösterilir
 
                     # Yeni haberi kaydet
                     new_item = NewsIntelligenceItem(

@@ -125,7 +125,7 @@
 </style>
 
 <script>
-    let _activeIntelCategory = 'İş Dünyası';
+    let _activeIntelCategory = 'Genel';
     let _intelOffset = 0;
     const _intelLimit = 30;
     let _intelLoading = false;
@@ -241,7 +241,7 @@
           const html = items.map(i => _buildNewsCard(i, true)).join('');
           listEl.insertAdjacentHTML('afterbegin', html);
           _latestPublishedAt = items[0].published_at;
-          _intelOffset += items.length;
+          // _intelOffset intentionally NOT updated — offset is for pagination scroll, not prepends
           // Son güncelleme zamanını göster
           const ts = document.getElementById('rt-intel-last-update');
           if(ts) ts.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) + ' güncellendi · ' + items.length + ' yeni';
