@@ -7809,7 +7809,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
             LOGGER.exception("OMDB merge hatası (sayfa yüklenmesini engellemez)")
 
     payload = {
-        "site_name": "Vizyon Takvimi",
+        "site_name": "Movie",
         "sites": get_sidebar_sites(),
         "data": data,
         "error": error,
