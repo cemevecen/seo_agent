@@ -9,6 +9,11 @@
   {% set prev_l = 'PREVIOUS 7 DAYS' %}
   {% set ch_l = 'CHANNEL SUMMARY (LAST 7 DAYS)' %}
   {% set org_l = 'ORGANIC SHARE (LAST 7 DAYS)' %}
+{% elif pd == 90 %}
+  {% set last_l = 'LAST 90 DAYS' %}
+  {% set prev_l = 'PREVIOUS 90 DAYS' %}
+  {% set ch_l = 'CHANNEL SUMMARY (LAST 90 DAYS)' %}
+  {% set org_l = 'ORGANIC SHARE (LAST 90 DAYS)' %}
 {% else %}
   {% set last_l = 'LAST 30 DAYS' %}
   {% set prev_l = 'PREVIOUS 30 DAYS' %}
@@ -20,7 +25,7 @@
 {% if not _has_period %}
   <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
     {% if pd == 1 %}
-      No same-weekday KPI yet. Run <strong>Refresh GA4 (7d + 30d)</strong> so a snapshot includes last full day vs same weekday last week.
+      No same-weekday KPI yet. Run <strong>Refresh GA4</strong> so a snapshot includes last full day vs same weekday last week.
     {% else %}
       No {{ pd }}-day GA4 snapshot yet. Use <strong>Refresh</strong> to collect this window.
     {% endif %}
@@ -93,7 +98,7 @@
   ></div>
   {% else %}
   <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-    No daily series for this window yet. Use <strong>Refresh GA4 (7d + 30d)</strong> to collect.
+    No daily series for this window yet. Use <strong>Refresh GA4</strong> to collect.
   </div>
   {% endif %}
 {% endif %}
@@ -138,7 +143,7 @@
     </p>
     <div class="ga4-period-proxy-wrap inline-flex shrink-0 items-stretch gap-0.5 rounded-full border border-violet-200 bg-violet-50 p-1 dark:border-slate-600 dark:bg-slate-800/95"
          data-period-proxy-pk="{{ pk }}" role="group" aria-label="Dönem seç">
-      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30')] %}
+      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30'), ('90g', '90')] %}
         <button type="button"
           class="ga4-period-proxy-btn shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition"
           data-period-proxy-val="{{ dval }}"
