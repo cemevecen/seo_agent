@@ -966,7 +966,7 @@ def fetch_realtime_top_news_pages(
         limit=fetch_n,
         sort_by=sort_by,
         dimension="unifiedScreenName",
-        compare_previous=True,
+        compare_previous=False,
         client=client,
     )
     out: list[dict[str, Any]] = []
