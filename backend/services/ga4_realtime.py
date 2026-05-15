@@ -275,10 +275,25 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             ru = html.escape(row_url, quote=True)
             link_part = f'<a href="{ru}" style="font-size:11px;color:#2563eb;margin-top:4px;display:inline-block;">aç ↗</a>'
 
+        # URL listesi — pagePath varsa başlığın altında göster
+        paths_html = ""
+        page_paths = alarm.get("page_paths") or []
+        if page_paths:
+            path_items = "".join(
+                f'<div style="font-size:11px;color:#2563eb;font-family:monospace;margin-top:2px;">'
+                f'<a href="https://{domain}{html.escape(p)}" style="color:#2563eb;">{html.escape(p)}</a>'
+                f'</div>'
+                for p in page_paths[:5]
+            )
+            paths_html = f'<div style="margin-top:4px;">{path_items}</div>'
+            if len(page_paths) > 5:
+                paths_html += f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">+{len(page_paths)-5} URL daha…</div>'
+
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
             f'<p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0f172a;line-height:1.3;">{title_e}</p>'
-            f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">{metric_html}</div>'
+            f'{paths_html}'
+            f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;margin-top:6px;">{metric_html}</div>'
             f'{link_part}'
             f'</div>'
         )
@@ -708,12 +723,14 @@ def fetch_realtime_top_pages(
     dimension: str = "unifiedScreenName",
     sort_by: str = "activeUsers",
     compare_previous: bool = False,
+    include_page_path: bool = True,   # pagePath ikinci dimension olarak ekle
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Realtime API ile son N dakikadaki top sayfaları çeker.
 
     compare_previous: True ise önceki pencereyle (window_minutes kadar öncesi) karşılaştırma metriklerini de döner.
     sort_by: "activeUsers" veya "screenPageViews" — sıralama kriteri.
+    include_page_path: True ise pagePath ikinci dimension olarak eklenir; her sayfa için URL listesi de döner.
     """
     if client is None:
         client = _build_client()
@@ -729,9 +746,14 @@ def fetch_realtime_top_pages(
             MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w)
         )
 
+    # pagePath sadece web profillerinde anlamlı; app/unifiedScreenName ile birlikte kullanılabilir
+    dims = [Dimension(name=dimension)]
+    if include_page_path and dimension != "pagePath":
+        dims.append(Dimension(name="pagePath"))
+
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
-        dimensions=[Dimension(name=dimension)],
+        dimensions=dims,
         metrics=[
             Metric(name="activeUsers"),
             Metric(name="screenPageViews"),
@@ -771,9 +793,17 @@ def fetch_realtime_top_pages(
         if not page_val:
             continue
 
+        # pagePath ikinci dimension'sa topla
+        path_val = ""
+        if include_page_path and dimension != "pagePath":
+            path_val = str(dm.get("pagePath", "") or "").strip()
+            if path_val.lower() in ("current", "previous", ""):
+                path_val = ""
+
         if page_val not in temp_map:
             temp_map[page_val] = {
                 "page": page_val,
+                "page_paths": [],  # URL listesi
                 "activeUsers": 0.0,
                 "screenPageViews": 0.0,
                 "activeUsers_previous": 0.0,
@@ -781,6 +811,11 @@ def fetch_realtime_top_pages(
             }
 
         entry = temp_map[page_val]
+
+        # URL'yi ekle (tekrar etmesin)
+        if path_val and path_val not in entry["page_paths"]:
+            entry["page_paths"].append(path_val)
+
         suffix = "_previous" if range_name == "previous" else ""
 
         for i, mv in enumerate(row.metric_values):
@@ -2077,6 +2112,7 @@ def evaluate_page_alarms(
                         "rule_id": "page_traffic_drop",
                         "severity": rule["severity"],
                         "page": page_path,
+                        "page_paths": curr.get("page_paths", []),
                         "profile": profile,
                         "domain": site_domain,
                         "current_users": curr_users,
@@ -2093,6 +2129,7 @@ def evaluate_page_alarms(
                         "rule_id": "page_traffic_spike",
                         "severity": rule["severity"],
                         "page": page_path,
+                        "page_paths": curr.get("page_paths", []),
                         "profile": profile,
                         "domain": site_domain,
                         "current_users": curr_users,
@@ -2107,6 +2144,7 @@ def evaluate_page_alarms(
                     "rule_id": "page_new_entry",
                     "severity": rule["severity"],
                     "page": page_path,
+                    "page_paths": curr.get("page_paths", []),
                     "profile": profile,
                     "domain": site_domain,
                     "current_users": curr_users,
@@ -2127,6 +2165,7 @@ def evaluate_page_alarms(
                     "rule_id": "page_disappeared",
                     "severity": rule["severity"],
                     "page": page_path,
+                    "page_paths": prev.get("page_paths", []),
                     "profile": profile,
                     "domain": site_domain,
                     "current_users": 0,
