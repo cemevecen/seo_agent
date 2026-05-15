@@ -77,12 +77,18 @@ def _country_flag(country_code: str) -> str:
     return chr(0x1F1E6 + ord(cc[0]) - 65) + chr(0x1F1E6 + ord(cc[1]) - 65)
 
 
-def _resolve_flag(m: dict) -> str:
-    """TMDB ham kaydından ülke bayrağı emoji'si çıkar."""
+def _resolve_country_code(m: dict) -> str:
+    """TMDB ham kaydından ISO 3166-1 alpha-2 ülke kodu (küçük harf, flagcdn için)."""
     countries = m.get("origin_country") or []
     code = countries[0] if countries else _LANG_TO_COUNTRY.get(
         str(m.get("original_language") or ""), ""
     )
+    return code.lower() if code else ""
+
+
+def _resolve_flag(m: dict) -> str:
+    """TMDB ham kaydından ülke bayrağı emoji'si çıkar."""
+    code = _resolve_country_code(m).upper()
     return _country_flag(code)
 
 
@@ -110,6 +116,7 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
         "overview":         (m.get("overview") or "")[:280],
         "is_turkish":       m.get("original_language") == "tr",
         "country_flag":     _resolve_flag(m),
+        "country_code":     _resolve_country_code(m),
         "tmdb_url":         f"https://www.themoviedb.org/movie/{m['id']}",
         "providers":        providers or [],
     }
@@ -294,6 +301,7 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
         "overview":         (m.get("overview") or "")[:280],
         "is_turkish":       m.get("original_language") == "tr",
         "country_flag":     _resolve_flag(m),
+        "country_code":     _resolve_country_code(m),
         "tmdb_url":         f"https://www.themoviedb.org/tv/{m['id']}",
         "networks":         network_names,
         "status":           TV_STATUS_TR.get(status_en, status_en),
