@@ -8211,9 +8211,9 @@ def ga4_app_detail_partial(request: Request, site_id: int):
     try:
         from backend.collectors.ga4 import fetch_ga4_app_screens, fetch_ga4_app_events
         if kind == "events":
-            rows = fetch_ga4_app_events(property_id=property_id, days=days, limit=100)
+            rows = fetch_ga4_app_events(property_id=property_id, days=days, limit=50)
         else:
-            rows = fetch_ga4_app_screens(property_id=property_id, days=days, limit=100)
+            rows = fetch_ga4_app_screens(property_id=property_id, days=days, limit=50)
     except Exception as exc:
         LOGGER.exception("GA4 app detail hatası [site=%s, profile=%s, kind=%s]", site_id, profile, kind)
         label = "Eventler" if kind == "events" else "Ekranlar"
