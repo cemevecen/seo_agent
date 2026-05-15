@@ -786,7 +786,7 @@
               data-rt-top-tab="pages">Sayfalar</button>
             <button type="button" onclick="rtSwitchTopTab(this,'views')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="views">Görüntüleme</button>
+              data-rt-top-tab="views">Görünüm</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
@@ -1625,49 +1625,50 @@
   function _renderDrivers(el, d) {
     if (!el) return;
     if (!d.has_data || !d.drivers || !d.drivers.length) {
-      el.innerHTML = '<p class="rt-empty text-sm italic text-slate-400 dark:text-slate-500 py-3">Karşılaştırma için henüz yeterli snapshot yok.</p>';
+      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Karşılaştırma için henüz yeterli snapshot yok.</p>';
       return;
     }
     var delta = d.site_delta || 0;
     var isDrop = delta < 0;
-    var totalLabel = (delta >= 0 ? '+' : '') + Math.round(delta).toLocaleString('tr-TR') + ' kul.';
-    var summaryColor = isDrop ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
-    var summaryBg = isDrop
-      ? 'bg-rose-50 border-rose-100 dark:bg-rose-950/30 dark:border-rose-900/40'
-      : 'bg-emerald-50 border-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-900/40';
-    var dirLabel = isDrop ? 'Düşüşün kaynağı' : 'Artışın kaynağı';
+    var sign = delta >= 0 ? '+' : '';
+    var totalLabel = sign + Math.round(delta).toLocaleString('tr-TR') + ' kul.';
+    var accentColor = isDrop ? '#f87171' : '#34d399';
+    var dimColor = '#71717a';
 
     var maxAbs = Math.max.apply(null, d.drivers.map(function(x){ return Math.abs(x.delta||0); })) || 1;
 
+    // Özet satırı — border'sız, sade
+    var summary = '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:8px;">'
+      + '<span style="font-size:11px;font-weight:600;color:' + dimColor + ';text-transform:uppercase;letter-spacing:.05em;">'
+      + (isDrop ? 'Düşüş kaynağı' : 'Artış kaynağı') + '</span>'
+      + '<span style="font-size:14px;font-weight:800;color:' + accentColor + ';">' + totalLabel + '</span>'
+      + '</div>';
+
     var rows = d.drivers.map(function(dr, i) {
       var path = dr.page || '';
-      var shortPath = path.length > 52 ? path.substring(0, 52) + '…' : path;
+      var shortPath = path.length > 48 ? path.substring(0, 48) + '…' : path;
       var drDelta = dr.delta || 0;
       var pct = Math.min(Math.abs(dr.contribution_pct || 0), 999);
       var barW = Math.round(Math.abs(drDelta) / maxAbs * 100);
       var isPos = drDelta > 0;
-      var numColor = isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
-      var barFill = isPos ? 'bg-emerald-400 dark:bg-emerald-500' : 'bg-rose-400 dark:bg-rose-500';
-      var sign = drDelta >= 0 ? '+' : '';
-      return '<div class="py-2 ' + (i > 0 ? 'border-t border-slate-100 dark:border-slate-700/50' : '') + '">'
-        + '<div class="flex items-start justify-between gap-2">'
-        + '<span class="min-w-0 text-[13px] text-slate-700 dark:text-slate-300 break-all leading-snug" title="' + _attr(path) + '">' + _esc(shortPath) + '</span>'
-        + '<span class="shrink-0 tabular-nums text-[13px] font-bold ' + numColor + ' whitespace-nowrap">'
-        + sign + Math.round(drDelta).toLocaleString('tr-TR')
-        + ' <span class="text-[11px] font-normal text-slate-400">(%' + Math.round(pct) + ')</span>'
+      var numColor = isPos ? '#34d399' : '#f87171';
+      var barColor = isPos ? '#059669' : '#dc2626';
+      var dSign = drDelta >= 0 ? '+' : '';
+      return '<div style="padding:7px 0;' + (i > 0 ? 'border-top:1px solid rgba(255,255,255,0.06);' : '') + '">'
+        + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+        + '<span style="font-size:12px;color:#a1a1aa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="' + _attr(path) + '">' + _esc(shortPath) + '</span>'
+        + '<span style="font-size:13px;font-weight:700;color:' + numColor + ';white-space:nowrap;flex-shrink:0;">'
+        + dSign + Math.round(drDelta).toLocaleString('tr-TR')
+        + '<span style="font-size:10px;font-weight:400;color:' + dimColor + ';margin-left:3px;">%' + Math.round(pct) + '</span>'
         + '</span>'
         + '</div>'
-        + '<div class="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-700">'
-        + '<div class="h-1.5 rounded-full ' + barFill + '" style="width:' + barW + '%"></div>'
+        + '<div style="margin-top:5px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;">'
+        + '<div style="height:3px;border-radius:2px;background:' + barColor + ';width:' + barW + '%;opacity:0.7;"></div>'
         + '</div>'
         + '</div>';
     }).join('');
 
-    el.innerHTML = '<div class="mb-3 flex items-center justify-between rounded-lg border px-3 py-2 ' + summaryBg + '">'
-      + '<span class="text-[12px] font-semibold text-slate-500 dark:text-slate-400">' + dirLabel + '</span>'
-      + '<span class="text-[13px] font-extrabold ' + summaryColor + '">' + totalLabel + '</span>'
-      + '</div>'
-      + '<div class="space-y-0">' + rows + '</div>';
+    el.innerHTML = summary + rows;
   }
 
   function _fetchInsights(siteId, profile) {
