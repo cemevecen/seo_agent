@@ -21,7 +21,7 @@
     {% if movie.poster_url %}
       <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" loading="lazy">
     {% else %}
-      <div class="flex h-full items-center justify-center text-2xl">🎬</div>
+      <div class="flex h-full items-center justify-center text-xs text-slate-400">Film</div>
     {% endif %}
   </div>
   <div class="min-w-0 flex-1">
@@ -32,7 +32,7 @@
     {% if movie.original_title and movie.original_title != movie.title %}
       <p class="truncate text-[10px] text-slate-400">{{ movie.original_title }}</p>
     {% endif %}
-    <p class="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">📅 {{ movie.release_date }}</p>
+    <p class="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{{ movie.release_date }}</p>
     <div class="mt-1 flex flex-wrap gap-1.5">
       <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
         {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
@@ -42,7 +42,7 @@
         {{ movie.popularity_label }}
       </span>
       {% if movie.vote_average > 0 %}
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ movie.vote_average }}</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ movie.vote_average }}</span>
       {% endif %}
     </div>
     {% if movie.overview %}
@@ -71,7 +71,7 @@
     {% if show.poster_url %}
       <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="h-full w-full object-cover" loading="lazy">
     {% else %}
-      <div class="flex h-full items-center justify-center text-2xl">📺</div>
+      <div class="flex h-full items-center justify-center text-xs text-slate-400">Dizi</div>
     {% endif %}
   </div>
   <div class="min-w-0 flex-1">
@@ -80,10 +80,10 @@
       <p class="truncate text-[10px] text-slate-400">{{ show.original_title }}</p>
     {% endif %}
     {% if show.networks %}
-      <p class="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">📡 {{ show.networks | join(' · ') }}</p>
+      <p class="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">{{ show.networks | join(' · ') }}</p>
     {% endif %}
     <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-      {% if show.first_air_date %}📅 {{ show.first_air_date }}{% endif %}
+      {% if show.first_air_date %}{{ show.first_air_date }}{% endif %}
       {% if show.seasons > 0 %}<span>· {{ show.seasons }}. sezon</span>{% endif %}
       {% if show.status %}<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-slate-800">{{ show.status }}</span>{% endif %}
     </div>
@@ -96,7 +96,7 @@
         {{ show.popularity_label }}
       </span>
       {% if show.vote_average > 0 %}
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ show.vote_average }}</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ show.vote_average }}</span>
       {% endif %}
     </div>
     {% if show.overview %}
@@ -174,13 +174,13 @@
   {# Sekmeler #}
   <div class="flex gap-2 overflow-x-auto pb-1" role="tablist">
     <button type="button" class="tmdb-tab flex-none rounded-xl border bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm"
-            data-tab="theatrical">🎬 Sinema <span class="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ data.total_theatrical }}</span></button>
+            data-tab="theatrical">Sinema <span class="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ data.total_theatrical }}</span></button>
     <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="streaming">📺 Platform <span class="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ data.total_streaming }}</span></button>
+            data-tab="streaming">Platform <span class="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ data.total_streaming }}</span></button>
     <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
             data-tab="turkish">🇹🇷 Türk Filmleri <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{{ data.total_turkish }}</span></button>
     <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="tv">📡 Türk Dizileri <span class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{{ data.total_tv }}</span></button>
+            data-tab="tv">Türk Dizileri <span class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{{ data.total_tv }}</span></button>
   </div>
 
   {# Sinema paneli #}
@@ -209,7 +209,7 @@
   {# Yüksek Potansiyel #}
   {% if data.high_potential %}
   <section class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">⚡ Yüksek Potansiyel — Öncelikli Ekle</h3>
+    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">Yüksek Potansiyel — Öncelikli Ekle</h3>
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
       {% for movie in data.high_potential %}
       <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"

@@ -59,10 +59,10 @@ def _poster_url(p: str | None) -> str:
 
 
 def _popularity_label(pop: float) -> str:
-    if pop >= 500: return "🔥 Çok Yüksek"
-    if pop >= 200: return "⭐ Yüksek"
-    if pop >= 80:  return "📈 Orta"
-    return "📉 Düşük"
+    if pop >= 500: return "Çok Yüksek"
+    if pop >= 200: return "Yüksek"
+    if pop >= 80:  return "Orta"
+    return "Düşük"
 
 
 def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
@@ -101,7 +101,11 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
     return results
 
 
-# ── 1. Sinema vizyon (theatrıcal) ─────────────────────────────────────────────
+# 2025-2026 sabit tarih aralığı
+YEAR_FROM = "2025-01-01"
+YEAR_TO   = "2026-12-31"
+
+# ── 1. Sinema vizyon (theatrical) ─────────────────────────────────────────────
 
 def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
@@ -109,9 +113,8 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     Yalnızca İngilizce ve Türkçe (accepted_languages).
     Popülerlik >= 20 filtresi uygulanır.
     """
-    today    = date.today()
-    date_from = today.strftime("%Y-%m-%d")
-    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+    date_from = YEAR_FROM
+    date_to   = YEAR_TO
 
     raw = _fetch_pages({
         "region":                   "TR",
@@ -142,9 +145,8 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     Netflix, Disney+, Prime, BluTV vb. platformlarda Türkiye'de yayına girecek filmler.
     Dijital/yayın vizyon tarihi (release_type=4) kullanılır.
     """
-    today     = date.today()
-    date_from = today.strftime("%Y-%m-%d")
-    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+    date_from = YEAR_FROM
+    date_to   = YEAR_TO
 
     raw = _fetch_pages({
         "watch_region":             "TR",
@@ -177,9 +179,8 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
 def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
     """Türkçe orijinal dilli filmler — sinema + platform fark etmez."""
-    today     = date.today()
-    date_from = today.strftime("%Y-%m-%d")
-    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+    date_from = YEAR_FROM
+    date_to   = YEAR_TO
 
     raw = _fetch_pages({
         "with_original_language":   "tr",
@@ -261,9 +262,8 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     2. with_original_language=tr  (ID eşleşmeyeni kurtarmak için)
     Her ikisini birleştirip dil + popularity filtresi uygular.
     """
-    today     = date.today()
-    date_from = today.strftime("%Y-%m-%d")
-    date_to   = (today + timedelta(days=30 * months_ahead)).strftime("%Y-%m-%d")
+    date_from = YEAR_FROM
+    date_to   = YEAR_TO
 
     base_params = {
         "language":          "tr-TR",
