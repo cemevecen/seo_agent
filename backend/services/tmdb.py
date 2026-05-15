@@ -514,9 +514,9 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         for m in sorted(lst, key=lambda x: x["release_date"] or "9999"):
             key = m["release_month"] or "Tarih yok"
             by_m.setdefault(key, []).append(m)
-        # Ay içinde populariteye göre sırala
+        # Ay içinde tarihe göre artan sıra (05-13 önce, 05-27 sonra)
         for k in by_m:
-            by_m[k].sort(key=lambda x: -x["popularity"])
+            by_m[k].sort(key=lambda x: x["release_date"] or "9999")
         return by_m
 
     all_combined = theatrical + [m for m in streaming if m["id"] not in theatrical_ids] + turkish_only
