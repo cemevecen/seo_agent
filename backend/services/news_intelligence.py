@@ -42,7 +42,8 @@ CATEGORY_SOURCES = {
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Yahoo Finance": [
-        "https://finance.yahoo.com/news/rssindex",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^DJI&region=US&lang=en-US",
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
@@ -96,9 +97,16 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 channel = root.find("channel")
                 ch_title = (channel.findtext("title") or "").strip() if channel is not None else ""
                 ch_link  = (channel.findtext("link")  or "").strip() if channel is not None else ""
-                # Google News RSS'lerinde channel title genellikle "... - Google News" gibi gelir, temizle
-                if " - Google News" in ch_title:
-                    ch_title = ch_title.replace(" - Google News", "").strip()
+                # Google News RSS channel title'larını temizle (TR/EN)
+                for _suffix in (" - Google News", " - Google Haberler", " - En yeni", " - Latest"):
+                    if _suffix in ch_title:
+                        ch_title = ch_title.replace(_suffix, "").strip()
+                # "site:xxx.com" formatındaki arama sorgularından domain çıkar
+                if ch_title.startswith('"site:'):
+                    import re as _re2
+                    _m = _re2.search(r'site:([a-z0-9.-]+)', ch_title)
+                    if _m:
+                        ch_title = _m.group(1).replace("www.", "").split(".")[0].capitalize()
 
                 # --- Adım 1: Ham parse (çeviri öncesi) ---
                 pending_items = []  # (title, link, source_name, source_url, description, display_topic, published_at)

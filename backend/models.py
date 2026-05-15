@@ -633,7 +633,7 @@ class NewsIntelligenceItem(Base):
     topic: Mapped[str] = mapped_column(String(100), nullable=True, index=True)     # Döviz, Finans, Ekonomi
     is_in_our_site: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_note: Mapped[str] = mapped_column(Text, nullable=True)
-    published_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

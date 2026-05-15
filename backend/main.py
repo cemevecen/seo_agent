@@ -647,7 +647,7 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence/list")
-def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0, since: str = None):
+def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0, since: str = None):
     """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon + since destekli)."""
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
@@ -656,13 +656,17 @@ def get_news_intelligence(category: str = None, limit: int = 50, offset: int = 0
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
+        # "Unknown" ve boş kaynak isimli eski kayıtları gizle
+        query = query.filter(
+            NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""])
+        )
         if since:
             try:
                 since_dt = _dt.datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)
                 query = query.filter(NewsIntelligenceItem.published_at > since_dt)
             except Exception:
                 pass
-        items = query.offset(offset).limit(limit).all()
+        items = query.offset(offset).limit(min(limit, 50)).all()
         return {
             "items": [
                 {
@@ -1070,18 +1074,19 @@ def on_startup() -> None:
         from sqlalchemy import text
         from backend.database import engine
         with engine.connect() as conn:
-            # source_url
-            try:
-                conn.execute(text("ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)"))
-                conn.commit()
-            except: pass
-            # image_url
-            try:
-                conn.execute(text("ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)"))
-                conn.commit()
-            except: pass
+            for stmt in [
+                "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
+                "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
+                # published_at index — sorgular hızlanır (IF NOT EXISTS Postgres'te desteklenir)
+                "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
+                "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
+            ]:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except: pass
     except Exception as e:
-        print(f"Migration error: {e}")
+        LOGGER.warning("Startup migration hatası: %s", e)
 
     # Startup logic continued
     # Uygulama açılışında tablolar create_all ile hazırlanır.
