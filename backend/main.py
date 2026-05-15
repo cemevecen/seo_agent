@@ -2916,7 +2916,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     if (settings.omdb_api_key or "").strip():
         scheduler.add_job(
             _run_omdb_enrichment_job,
-            trigger=CronTrigger(hour=2, minute=30, timezone=timezone),
+            trigger=CronTrigger(hour=1, minute=0, timezone=timezone),
             id="daily-omdb-enrichment",
             replace_existing=True,
             max_instances=1,
