@@ -902,9 +902,9 @@
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
-  var PAGES_INTERVAL_MS = 15 * 60000;
+  var PAGES_INTERVAL_MS = 1 * 60000;   // 1 dakika — KPI ile eşzamanlı
   var WINDOW = {{ window_minutes }};
-  /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi: aynı aralık; KPI poll bunları tetiklemez */
+  /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi */
   var LIST_WINDOW = 15;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
   var RT_EVENTS_PAGE_SIZE = 10;

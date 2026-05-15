@@ -232,21 +232,21 @@ class Settings(BaseSettings):
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
     ga4_realtime_enabled: bool = True
-    ga4_realtime_interval_minutes: int = 15
-    ga4_realtime_window_minutes: int = 30
-    # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız; çok düşük = kota.
-    ga4_realtime_ui_poll_seconds: int = Field(default=300, ge=15, le=600)
+    ga4_realtime_interval_minutes: int = 5          # Backend alarm job: 5dk (alarm tespiti daha hızlı)
+    ga4_realtime_window_minutes: int = 30            # KPI karşılaştırma penceresi: 30dk (15+15 yarı)
+    # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
+    ga4_realtime_ui_poll_seconds: int = Field(default=60, ge=15, le=600)   # 1 dakika
     ga4_realtime_page_alerts_enabled: bool = True
     # Haberler (unifiedScreenName): snapshot karşılaştırması + e-posta; kontrol aralığı ayrı (dakika).
     ga4_realtime_news_alerts_enabled: bool = True
-    ga4_realtime_news_alert_interval_minutes: int = Field(default=15, ge=5, le=120)
+    ga4_realtime_news_alert_interval_minutes: int = Field(default=5, ge=5, le=120)   # 5dk
     ga4_realtime_news_alert_window_minutes: int = Field(default=15, ge=5, le=30)
     # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
     ga4_realtime_email_enabled: bool = True
     ga4_realtime_page_alert_email: bool = True
     ga4_realtime_news_alert_email: bool = True
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
-    ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=45, ge=0, le=480)
+    ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=30, ge=0, le=480)  # 30dk cooldown
     # Realtime «Haberler» sekmesi: unifiedScreenName bu öneklerle başlıyorsa elenir (virgülle). Boş = yerleşik liste.
     ga4_realtime_news_screen_exclude_prefixes: str = ""
 
