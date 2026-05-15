@@ -1178,7 +1178,7 @@ def fetch_ga4_app_screens(
     days: int = 30,
     limit: int = 50,
 ) -> list[dict]:
-    """Mobil uygulama ekran kırılımı (screenClass / screenPageViews): son N gün vs önceki N gün."""
+    """Mobil uygulama ekran kırılımı (unifiedScreenName / screenPageViews): son N gün vs önceki N gün."""
     safe_days = max(1, int(days))
     safe_limit = max(10, min(int(limit), 200))
     (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
@@ -1187,7 +1187,7 @@ def fetch_ga4_app_screens(
     def _fetch(start: str, end: str) -> dict[str, float]:
         req = RunReportRequest(
             property=f"properties/{property_id}",
-            dimensions=[Dimension(name="screenClass")],
+            dimensions=[Dimension(name="unifiedScreenName")],
             metrics=[Metric(name="screenPageViews")],
             date_ranges=[DateRange(start_date=start, end_date=end)],
             limit=safe_limit,
