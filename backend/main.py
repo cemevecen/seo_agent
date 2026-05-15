@@ -2917,15 +2917,15 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    # Saatlik hata tespiti (GA4'ten 404/500 çekimi) — 07:00–23:00 arası
+    # Günlük hata tespiti (GA4'ten 404 çekimi) — her gece 01:30'da, son 3 günü kapsar
     scheduler.add_job(
         _run_error_detection_job,
-        trigger=CronTrigger(hour="7-23", minute=30, timezone=timezone),
-        id="hourly-error-detection",
+        trigger=CronTrigger(hour=1, minute=30, timezone=timezone),
+        id="daily-error-detection",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
-        misfire_grace_time=1800,
+        misfire_grace_time=3600,
     )
     job_count += 1
 
@@ -7818,6 +7818,53 @@ def api_errors_refresh(site_id: int, days: int = 1):
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/errors/{site_id}/debug-pages")
+def api_errors_debug(site_id: int, days: int = 7, limit: int = 50):
+    """Debug: GA4'teki düşük trafikli sayfaları filtre olmadan listeler.
+    Amacı: 404 sayfasının gerçek başlığını bulmak."""
+    try:
+        from google.analytics.data_v1beta.types import (
+            DateRange, Dimension, Metric, OrderBy, RunReportRequest,
+        )
+        from backend.services.error_monitor import _build_ga4_client
+        from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+        from backend.models import Site
+
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if not site:
+                return {"error": "site not found"}
+            record = get_ga4_credentials_record(db, site.id)
+            properties = load_ga4_properties(record)
+
+        prop_id = properties.get("web") or next(iter(properties.values()), "")
+        if not prop_id:
+            return {"error": "property bulunamadı"}
+
+        pid = prop_id if prop_id.startswith("properties/") else f"properties/{prop_id}"
+        client = _build_ga4_client()
+        req = RunReportRequest(
+            property=pid,
+            date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+            dimensions=[Dimension(name="pagePath"), Dimension(name="pageTitle")],
+            metrics=[Metric(name="screenPageViews"), Metric(name="totalUsers")],
+            order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=False)],
+            limit=limit,
+        )
+        resp = client.run_report(req)
+        rows = []
+        for row in resp.rows:
+            rows.append({
+                "path":   row.dimension_values[0].value,
+                "title":  row.dimension_values[1].value,
+                "views":  row.metric_values[0].value,
+                "users":  row.metric_values[1].value,
+            })
+        return {"rows": rows, "total": len(rows), "property": prop_id, "days": days}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/errors/{site_id}/widget")
 def api_errors_widget(site_id: int, days: int = 7):
     """GA4 kart widget'ı için hata özeti — top 5 hatalı URL."""
@@ -9957,11 +10004,11 @@ def _get_error_summary_for_card(db, site_id: int, days: int = 7) -> dict:
 
 
 def _run_error_detection_job() -> None:
-    """Saatlik GA4 hata tespiti — bugünün 404/500 sayfalarını çeker."""
+    """Günlük GA4 hata tespiti — son 3 günün 404 sayfalarını çeker."""
     try:
         from backend.services.error_monitor import run_error_detection_all_sites
         with SessionLocal() as db:
-            results = run_error_detection_all_sites(db, days=1)
+            results = run_error_detection_all_sites(db, days=3)
         total = sum(r.get("found", 0) for r in results if isinstance(r, dict))
         LOGGER.info("Hata tespiti tamamlandı: %d site, %d hata", len(results), total)
     except Exception as exc:
