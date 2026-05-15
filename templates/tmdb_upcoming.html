@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-6">
+
+  {# ── Başlık ── #}
+  <div class="flex flex-wrap items-end justify-between gap-4 rounded-2xl bg-white px-5 py-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">İçerik Planlama</p>
+      <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yaklaşan Vizyon Takvimi</h2>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        TMDB verisi — önümüzdeki <strong>{{ data.months_ahead }}</strong> ayda Türkiye'de vizyona girecek filmler.
+        Toplam <strong>{{ data.total }}</strong> film · <strong>{{ data.turkish_count }}</strong> Türk yapımı ·
+        <strong>{{ data.high_potential | length }}</strong> yüksek potansiyel
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/tmdb-upcoming?months=3"
+         class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 {% if data.months_ahead == 3 %}bg-slate-900 text-white border-slate-900{% endif %}">3 ay</a>
+      <a href="/tmdb-upcoming?months=5"
+         class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 {% if data.months_ahead == 5 %}bg-slate-900 text-white border-slate-900{% endif %}">5 ay</a>
+      <a href="/tmdb-upcoming?months=8"
+         class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 {% if data.months_ahead == 8 %}bg-slate-900 text-white border-slate-900{% endif %}">8 ay</a>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+    <strong>TMDB hatası:</strong> {{ error }}<br>
+    <span class="text-xs opacity-75">Railway Variables → TMDB_READ_ACCESS_TOKEN kontrol edin.</span>
+  </div>
+  {% elif not data.all_movies %}
+  <div class="rounded-2xl border border-dashed border-slate-300 px-5 py-10 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">
+    Bu dönem için TMDB'de film bulunamadı.
+  </div>
+  {% else %}
+
+  {# ── Ay bazlı listeler ── #}
+  {% for month_key, movies in data.by_month.items() %}
+  <section class="space-y-3">
+    <div class="flex items-center gap-3">
+      <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">
+        {% set parts = month_key.split('-') %}
+        {% if parts|length == 2 %}
+          {% set month_names = {'01':'Ocak','02':'Şubat','03':'Mart','04':'Nisan','05':'Mayıs','06':'Haziran','07':'Temmuz','08':'Ağustos','09':'Eylül','10':'Ekim','11':'Kasım','12':'Aralık'} %}
+          {{ month_names.get(parts[1], parts[1]) }} {{ parts[0] }}
+        {% else %}
+          {{ month_key }}
+        {% endif %}
+      </h3>
+      <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ movies|length }} film</span>
+      {% set tr_count = movies | selectattr('is_turkish') | list | length %}
+      {% if tr_count %}
+      <span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">🇹🇷 {{ tr_count }} Türk yapımı</span>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for movie in movies %}
+      <div class="group relative flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
+        {% if movie.is_turkish %}border-rose-200 dark:border-rose-900/40{% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-900/40{% else %}border-slate-200 dark:border-slate-700{% endif %}
+        dark:bg-slate-900">
+
+        {# Poster #}
+        <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+          {% if movie.poster_url %}
+            <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" loading="lazy">
+          {% else %}
+            <div class="flex h-full items-center justify-center text-2xl">🎬</div>
+          {% endif %}
+        </div>
+
+        {# Bilgiler #}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-start justify-between gap-1">
+            <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ movie.title }}">{{ movie.title }}</p>
+            {% if movie.is_turkish %}
+              <span class="shrink-0 text-xs">🇹🇷</span>
+            {% endif %}
+          </div>
+
+          {% if movie.original_title and movie.original_title != movie.title %}
+            <p class="truncate text-[11px] text-slate-500 dark:text-slate-400">{{ movie.original_title }}</p>
+          {% endif %}
+
+          <p class="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            📅 {{ movie.release_date }}
+          </p>
+
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {# Popülerlik #}
+            <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
+              {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
+              {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
+              {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
+              {% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400{% endif %}">
+              {{ movie.popularity_label }}
+            </span>
+
+            {% if movie.vote_average > 0 %}
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              ⭐ {{ movie.vote_average }}
+            </span>
+            {% endif %}
+          </div>
+
+          {% if movie.overview %}
+          <p class="mt-1.5 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
+          {% endif %}
+
+          {# Aksiyon butonları #}
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+               class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+              TMDB ↗
+            </a>
+            <a href="https://www.sinemalar.com/search?q={{ movie.title | urlencode }}" target="_blank" rel="noopener"
+               class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
+              sinemalar'da ara ↗
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  {# ── Yüksek Potansiyel Özet ── #}
+  {% if data.high_potential %}
+  <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-900/40 dark:bg-amber-950/20">
+    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">⚡ Yüksek Potansiyel — Öncelikli Ekle</h3>
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      {% for movie in data.high_potential[:12] %}
+      <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+         class="flex flex-col items-center gap-1 rounded-xl border border-amber-200 bg-white p-2 text-center transition hover:shadow-md dark:border-amber-900/40 dark:bg-slate-900">
+        {% if movie.poster_url %}
+          <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-24 w-16 rounded-lg object-cover">
+        {% else %}
+          <div class="flex h-24 w-16 items-center justify-center rounded-lg bg-slate-100 text-3xl dark:bg-slate-800">🎬</div>
+        {% endif %}
+        <p class="line-clamp-2 text-[11px] font-semibold leading-tight text-slate-800 dark:text-slate-200">{{ movie.title }}</p>
+        <p class="text-[10px] text-slate-500">{{ movie.release_date }}</p>
+        {% if movie.is_turkish %}<span class="text-[10px]">🇹🇷 Türk yapımı</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     encryption_key: str
 
+    # TMDB (The Movie Database) — vizyon takvimi ve film içerik planlama
+    tmdb_read_access_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TMDB_READ_ACCESS_TOKEN", "tmdb_read_access_token"),
+    )
+
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
     ga4_service_account_json: str = ""
     ga4_service_account_file: str = ""

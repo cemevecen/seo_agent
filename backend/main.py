@@ -7667,6 +7667,29 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     return RedirectResponse(url="/ai", status_code=303)
 
 
+@app.get("/tmdb-upcoming")
+def tmdb_upcoming_page(request: Request, months: int = 5):
+    """TMDB vizyon takvimi — sinemalar.com içerik planlama."""
+    from backend.services.tmdb import fetch_combined_upcoming
+    months = max(1, min(int(months), 12))
+    error = None
+    data: dict = {"all_movies": [], "by_month": {}, "total": 0, "turkish_count": 0,
+                  "high_potential": [], "months_ahead": months}
+    try:
+        data = fetch_combined_upcoming(months_ahead=months)
+    except Exception as exc:
+        LOGGER.exception("TMDB upcoming hatası")
+        error = str(exc)
+    payload = {
+        "site_name": "Vizyon Takvimi",
+        "sites": get_sidebar_sites(),
+        "data": data,
+        "error": error,
+    }
+    return templates.TemplateResponse(request, "tmdb_upcoming.html",
+                                      context={"request": request, **payload})
+
+
 @app.get("/app")
 def app_intel_page(request: Request):
     from backend.services.app_intel import list_products
