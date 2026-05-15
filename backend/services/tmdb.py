@@ -101,8 +101,10 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
     return results
 
 
-# Bitiş tarihi sabit; başlangıç her çağrıda bu ayın 1'i hesaplanır
-YEAR_TO = "2026-12-31"
+# Film sekmeleri (Sinema, Platform, Türk Filmleri): bu ayın 1'inden başlar — _current_month_start()
+# Türk Dizileri sekmesi: yıl başından başlar — TV_YEAR_FROM (dönem başı ilerleyebilir)
+YEAR_TO     = "2026-12-31"
+TV_YEAR_FROM = "2025-01-01"  # Türk dizileri için sabit başlangıç
 
 
 def _current_month_start() -> str:
@@ -295,7 +297,7 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     2. with_original_language=tr  (ID eşleşmeyeni kurtarmak için)
     Her ikisini birleştirip dil + popularity filtresi uygular.
     """
-    date_from = _current_month_start()
+    date_from = TV_YEAR_FROM   # Türk dizileri: yıl başından — bu ay filtresiz
     date_to   = YEAR_TO
 
     base_params = {
