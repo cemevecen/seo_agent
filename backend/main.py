@@ -647,6 +647,23 @@ def admin_omdb_enrich_now():
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/admin/refresh-tmdb-cache")
+def admin_refresh_tmdb_cache():
+    """TMDB vizyon takvimi cache'ini MANUEL yeniler."""
+    try:
+        from backend.services.tmdb import refresh_combined_cache
+        result = refresh_combined_cache(months_ahead=5)
+        return {
+            "status": "ok",
+            "theatrical": len(result.get("theatrical", [])),
+            "streaming":  len(result.get("streaming", [])),
+            "tv_series":  len(result.get("tv_series", [])),
+            "turkish_only": len(result.get("turkish_only", [])),
+        }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
     """Saatlik inbox özetini MANUEL olarak tetikler."""
@@ -2909,6 +2926,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=1800,
+    )
+    job_count += 1
+
+    # TMDB vizyon takvimi cache — her gece 02:30'da
+    scheduler.add_job(
+        _run_tmdb_cache_refresh_job,
+        trigger=CronTrigger(hour=2, minute=30, timezone=timezone),
+        id="daily-tmdb-cache-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
     job_count += 1
 
@@ -7715,7 +7744,7 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
 @app.get("/tmdb-upcoming")
 def tmdb_upcoming_page(request: Request, months: int = 5):
     """TMDB vizyon takvimi — sinemalar.com içerik planlama."""
-    from backend.services.tmdb import fetch_combined_upcoming
+    from backend.services.tmdb import get_combined_upcoming
     months = max(1, min(int(months), 12))
     error = None
     data: dict = {
@@ -7729,7 +7758,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         "total_turkish": 0,    "total_tv": 0,
     }
     try:
-        data = fetch_combined_upcoming(months_ahead=months)
+        data = get_combined_upcoming(months_ahead=months)
     except Exception as exc:
         LOGGER.exception("TMDB upcoming hatası")
         error = str(exc)
@@ -9796,6 +9825,21 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         import traceback
         logging.exception("GA4 Realtime check hatası")
         return {"status": "error", "message": str(exc), "traceback": traceback.format_exc()}
+
+
+def _run_tmdb_cache_refresh_job() -> None:
+    """TMDB combined cache'ini günlük tazeler (02:30)."""
+    try:
+        from backend.services.tmdb import refresh_combined_cache
+        result = refresh_combined_cache(months_ahead=5)
+        LOGGER.info(
+            "TMDB cache refresh tamamlandı: theatrical=%d streaming=%d tv=%d",
+            len(result.get("theatrical", [])),
+            len(result.get("streaming", [])),
+            len(result.get("tv_series", [])),
+        )
+    except Exception as exc:
+        LOGGER.error("TMDB cache refresh hatası: %s", exc)
 
 
 def _run_omdb_enrichment_job() -> None:

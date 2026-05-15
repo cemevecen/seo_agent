@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+import threading
+import time
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import requests
@@ -66,6 +68,16 @@ _LANG_TO_COUNTRY: dict[str, str] = {
     "sv": "SE", "da": "DK", "fi": "FI", "nb": "NO", "hu": "HU",
     "cs": "CZ", "ro": "RO", "uk": "UA", "he": "IL", "th": "TH",
     "id": "ID", "ms": "MY", "vi": "VN", "fa": "IR", "ur": "PK",
+    "az": "AZ", "ka": "GE", "hy": "AM", "bg": "BG", "hr": "HR",
+    "sk": "SK", "sl": "SI", "sr": "RS", "lt": "LT", "lv": "LV",
+    "et": "EE", "el": "GR", "mk": "MK", "sq": "AL", "bs": "BA",
+    "gl": "ES", "ca": "ES", "eu": "ES", "af": "ZA", "sw": "KE",
+    "bn": "BD", "ta": "IN", "te": "IN", "ml": "IN", "mr": "IN",
+    "pa": "IN", "gu": "IN", "kn": "IN", "si": "LK", "ne": "NP",
+    "km": "KH", "lo": "LA", "my": "MM", "mn": "MN", "uz": "UZ",
+    "kk": "KZ", "tg": "TJ", "tk": "TM", "ky": "KG",
+    "am": "ET", "ha": "NG", "yo": "NG", "ig": "NG", "so": "SO",
+    "is": "IS",
 }
 
 
@@ -90,6 +102,68 @@ def _resolve_flag(m: dict) -> str:
     """TMDB ham kaydından ülke bayrağı emoji'si çıkar."""
     code = _resolve_country_code(m).upper()
     return _country_flag(code)
+
+
+# ── In-memory cache (3 saat TTL) ─────────────────────────────────────────────
+_cache_lock    = threading.Lock()
+_cache_data:  dict | None = None
+_cache_time:  datetime | None = None
+_CACHE_TTL    = timedelta(hours=3)
+
+
+def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
+    """country_code boş filmler için /movie/{id} detay çekip günceller. Max `limit` film."""
+    empty = [m for m in movies if not m.get("country_code")][:limit]
+    if not empty:
+        return
+    for m in empty:
+        try:
+            detail = _get(f"/movie/{m['id']}")
+            prod = detail.get("production_countries") or []
+            if prod:
+                cc = prod[0]["iso_3166_1"]
+                m["country_code"] = cc.lower()
+                m["country_flag"] = _country_flag(cc.upper())
+            else:
+                oc = detail.get("origin_country") or []
+                if oc:
+                    m["country_code"] = oc[0].lower()
+                    m["country_flag"] = _country_flag(oc[0].upper())
+            time.sleep(0.05)
+        except Exception as exc:
+            logger.debug("Country detail fetch atlandı [%s]: %s", m.get("id"), exc)
+
+
+def get_combined_upcoming(months_ahead: int = 5) -> dict:
+    """Cache'li fetch_combined_upcoming — 3 saatte bir yenilenir."""
+    global _cache_data, _cache_time
+    with _cache_lock:
+        if (
+            _cache_data is not None
+            and _cache_time is not None
+            and datetime.utcnow() - _cache_time < _CACHE_TTL
+        ):
+            return _cache_data
+    # Cache miss veya süresi dolmuş
+    fresh = fetch_combined_upcoming(months_ahead)
+    with _cache_lock:
+        _cache_data = fresh
+        _cache_time = datetime.utcnow()
+    return fresh
+
+
+def refresh_combined_cache(months_ahead: int = 5) -> dict:
+    """Scheduler job'u için: cache'i zorunlu yeniler."""
+    global _cache_data, _cache_time
+    fresh = fetch_combined_upcoming(months_ahead)
+    with _cache_lock:
+        _cache_data = fresh
+        _cache_time = datetime.utcnow()
+    logger.info("TMDB combined cache yenilendi — theatrical=%d streaming=%d tv=%d",
+                len(fresh.get("theatrical", [])),
+                len(fresh.get("streaming", [])),
+                len(fresh.get("tv_series", [])))
+    return fresh
 
 
 def _popularity_label(pop: float) -> str:
@@ -216,6 +290,7 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
     movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
+    _enrich_missing_countries(movies)
     return movies
 
 
@@ -490,6 +565,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
             for film in extra:
                 film["boxoffice_source"] = True
                 theatrical.append(film)
+            _enrich_missing_countries(extra)
             if extra:
                 logger.info("Gişe takviminden %d film eklendi", len(extra))
     except Exception as exc:
