@@ -197,15 +197,33 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         pct_c = "#dc2626" if is_drop else "#16a34a"
         sign = "+" if delta >= 0 else ""
 
+        if prev > 0:
+            metric_row = (
+                f'<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
+                f'<span style="font-size:26px;font-weight:900;color:#475569;">{prev}</span>'
+                f'</div>'
+                f'<span style="font-size:20px;color:#94a3b8;padding-bottom:4px;">→</span>'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
+                f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{cur}</span>'
+                f'</div>'
+                f'<span style="font-size:20px;font-weight:800;color:{pct_c};padding-bottom:4px;">{pct:+.1f}%</span>'
+                f'</div>'
+            )
+        else:
+            metric_row = (
+                f'<div style="display:flex;align-items:baseline;gap:6px;">'
+                f'<span style="font-size:28px;font-weight:900;color:#0f172a;">{cur}</span>'
+                f'<span style="font-size:13px;color:#64748b;">aktif</span>'
+                f'</div>'
+            )
+
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
-            f'<div style="font-size:11px;color:#64748b;margin-bottom:4px;">{metric_tr} · {prof_e}</div>'
-            f'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
-            f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{prev}</span>'
-            f'<span style="font-size:18px;color:#94a3b8;">→</span>'
-            f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{cur}</span>'
-            f'<span style="font-size:18px;font-weight:800;color:{pct_c};margin-left:2px;">{sign}{delta} ({pct:+.0f}%)</span>'
-            f'</div>'
+            f'<div style="font-size:11px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{metric_tr} · {prof_e}</div>'
+            f'{metric_row}'
             f'</div>'
         )
 
@@ -217,7 +235,11 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         delta = cur - prev
         sign = "+" if delta >= 0 else ""
         metric_short = {"activeUsers": "kul", "screenPageViews": "gör"}.get(str(a.get("metric", "")), "")
-        summary_parts.append(f"{sign}{delta} {metric_short}".strip())
+        if prev > 0:
+            pct_a = float(a.get("change_pct", 0.0))
+            summary_parts.append(f"{prev}→{cur} ({pct_a:+.0f}%) {metric_short}".strip())
+        else:
+            summary_parts.append(f"{cur} {metric_short}".strip())
     summary_line = html.escape(" · ".join(summary_parts))
 
     # Sürücü Analizi (Eğer varsa)
@@ -264,11 +286,26 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         elif rid == "page_new_entry":
             metric_html = (f'<span style="font-size:24px;font-weight:900;color:{pct_c};">{curr}</span>'
                            f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı · yeni giriş</span>')
+        elif prev > 0:
+            metric_html = (
+                f'<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
+                f'<span style="font-size:22px;font-weight:900;color:#475569;">{prev}</span>'
+                f'</div>'
+                f'<span style="font-size:16px;color:#94a3b8;padding-bottom:3px;">→</span>'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+                f'</div>'
+                f'<span style="font-size:16px;font-weight:800;color:{pct_c};padding-bottom:3px;">{pct:+.1f}%</span>'
+                f'</div>'
+            )
         else:
-            metric_html = (f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
-                           f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
-                           f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                           f'<span style="font-size:16px;font-weight:800;color:{pct_c};margin-left:6px;">{sign}{delta} ({pct:+.0f}%)</span>')
+            metric_html = (
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı</span>'
+            )
 
         link_part = ""
         if row_url:
