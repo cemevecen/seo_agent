@@ -346,16 +346,11 @@
     bar.querySelectorAll('.tmdb-cf-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var cf = btn.getAttribute('data-cf');
-        setActiveCF(bar, cf);
-        panel.querySelectorAll('.tmdb-card').forEach(function (card) {
-          var cc = card.getAttribute('data-country') || '';
-          card.style.display = (cf === 'all' || cc === cf) ? '' : 'none';
-        });
-        // Boş kalan ay başlıklarını gizle
-        panel.querySelectorAll('section').forEach(function (sec) {
-          var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
-          sec.style.display = visible ? '' : 'none';
-        });
+        // Zaten aktifse → Tümü'ne dön (toggle)
+        if (btn.getAttribute('data-active-cf') === '1' && cf !== 'all') {
+          cf = 'all';
+        }
+        filterByCountry(panel, bar, cf);
       });
     });
   }
@@ -363,10 +358,31 @@
   function setActiveCF(bar, cf) {
     bar.querySelectorAll('.tmdb-cf-btn').forEach(function (b) {
       var on = b.getAttribute('data-cf') === cf;
-      b.classList.toggle('bg-slate-900', on);
-      b.classList.toggle('!bg-slate-900', on);
-      b.classList.toggle('text-white', on);
-      b.classList.toggle('border-slate-900', on);
+      b.setAttribute('data-active-cf', on ? '1' : '0');
+      // Inline style — zinc override'ından bağımsız, her iki temada çalışır
+      if (on) {
+        b.style.background = '#0f172a';
+        b.style.color      = '#f8fafc';
+        b.style.borderColor= '#334155';
+        b.style.fontWeight = '700';
+      } else {
+        b.style.background  = '';
+        b.style.color       = '';
+        b.style.borderColor = '';
+        b.style.fontWeight  = '';
+      }
+    });
+  }
+
+  function filterByCountry(panel, bar, cf) {
+    setActiveCF(bar, cf);
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var cc = card.getAttribute('data-country') || '';
+      card.style.display = (cf === 'all' || cc === cf) ? '' : 'none';
+    });
+    panel.querySelectorAll('section').forEach(function (sec) {
+      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
+      sec.style.display = visible ? '' : 'none';
     });
   }
 
