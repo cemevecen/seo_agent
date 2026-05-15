@@ -99,21 +99,34 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 
                 root = ET.fromstring(response.content)
                 items = root.findall(".//item")
-                
+
+                # Channel-level kaynak bilgisi — item'da <source> yoksa fallback
+                channel = root.find("channel")
+                ch_title = (channel.findtext("title") or "").strip() if channel is not None else ""
+                ch_link  = (channel.findtext("link")  or "").strip() if channel is not None else ""
+                # Google News RSS'lerinde channel title genellikle "... - Google News" gibi gelir, temizle
+                if " - Google News" in ch_title:
+                    ch_title = ch_title.replace(" - Google News", "").strip()
+
                 new_count = 0
                 for item in items:
                     title = item.find("title").text if item.find("title") is not None else ""
                     link = item.find("link").text if item.find("link") is not None else ""
-                    
+
                     # Yahoo Finance haberlerini filtrele
                     if category == "Yahoo Finance" and "/personal-finance/" in link.lower():
                         continue
 
                     pub_date_str = item.find("pubDate").text if item.find("pubDate") is not None else ""
-                    
+
                     source_el = item.find("source")
-                    source_name = source_el.text if source_el is not None else "Unknown"
-                    source_url = source_el.get("url") if source_el is not None else None
+                    if source_el is not None:
+                        source_name = (source_el.text or "").strip() or ch_title or "Bilinmiyor"
+                        source_url  = source_el.get("url") or ch_link or None
+                    else:
+                        # Direkt feed — channel bilgisini kullan
+                        source_name = ch_title or "Bilinmiyor"
+                        source_url  = ch_link or None
                     
                     description = item.find("description").text if item.find("description") is not None else ""
                     

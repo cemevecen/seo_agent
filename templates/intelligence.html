@@ -164,11 +164,23 @@
     function _buildNewsCard(item, isNew) {
       const d = new Date(item.published_at);
       const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
-      let faviconUrl = '';
+      let faviconUrl = '/static/favicon.png';
       try {
-        const url = new URL(item.source_url || item.url);
-        faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
-      } catch(e) { faviconUrl = '/static/favicon.png'; }
+        // Önce source_url dene (site URL'si), yoksa article URL'sine bak
+        // News.google.com redirect URL'lerinden favicon alma — her zaman Google logosu verir
+        const rawUrl = item.source_url || item.url || '';
+        const parsed = new URL(rawUrl);
+        const host = parsed.hostname;
+        if (host && host !== 'news.google.com') {
+          faviconUrl = `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
+        } else if (item.url) {
+          // article URL'sinden dene (direkt feed'lerde makale URL'si site URL'sidir)
+          const art = new URL(item.url);
+          if (art.hostname && art.hostname !== 'news.google.com') {
+            faviconUrl = `https://www.google.com/s2/favicons?domain=${art.hostname}&sz=64`;
+          }
+        }
+      } catch(e) {}
       const newBadge = isNew
         ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
         : '';
