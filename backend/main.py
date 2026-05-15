@@ -9769,7 +9769,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
     now_local = _dt.now(_ZoneInfo(tz_name))
     hour = now_local.hour
-    is_night = (0 <= hour < 7)
+    is_night = (0 <= hour < 6)
     
     if is_night and not force_run:
         LOGGER.info("GA4 Realtime Job: Gece modu aktif (saat %d), kontrol atlanıyor.", hour)
