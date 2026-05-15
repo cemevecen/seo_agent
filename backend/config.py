@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     encryption_key: str
 
+    # OMDB (Open Movie Database) — IMDb / RT / Metacritic zenginleştirme
+    omdb_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("OMDB_API_KEY", "omdb_api_key"),
+    )
+
     # TMDB (The Movie Database) — vizyon takvimi ve film içerik planlama
     tmdb_read_access_token: str = Field(
         default="",

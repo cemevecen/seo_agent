@@ -637,6 +637,25 @@ class NewsIntelligenceItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class OmdbEnrichment(Base):
+    """TMDB filmlerine ait OMDB/IMDb zenginleştirme verisi önbelleği."""
+
+    __tablename__ = "omdb_enrichment"
+
+    id:           Mapped[int]  = mapped_column(Integer, primary_key=True)
+    tmdb_id:      Mapped[int]  = mapped_column(Integer, unique=True, nullable=False, index=True)
+    imdb_id:      Mapped[str]  = mapped_column(String(20),  nullable=True)
+    imdb_rating:  Mapped[str]  = mapped_column(String(10),  nullable=True)   # "7.6"
+    imdb_votes:   Mapped[str]  = mapped_column(String(30),  nullable=True)   # "828,114"
+    rt_score:     Mapped[str]  = mapped_column(String(10),  nullable=True)   # "85%"
+    metacritic:   Mapped[str]  = mapped_column(String(10),  nullable=True)   # "67"
+    age_rating:   Mapped[str]  = mapped_column(String(20),  nullable=True)   # "PG-13"
+    box_office:   Mapped[str]  = mapped_column(String(40),  nullable=True)   # "$389,813,101"
+    awards:       Mapped[str]  = mapped_column(String(255), nullable=True)
+    fetched_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    found:        Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class SupportInboxMessage(Base):
     """Konuşma içindeki tek Gmail mesajı."""
 

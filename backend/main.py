@@ -2880,6 +2880,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Günlük OMDB zenginleştirme — her gece 02:30'da, max 999 film
+    if (settings.omdb_api_key or "").strip():
+        scheduler.add_job(
+            _run_omdb_enrichment_job,
+            trigger=CronTrigger(hour=2, minute=30, timezone=timezone),
+            id="daily-omdb-enrichment",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
     # NEWS (07:01 - 23:59 arası her 10 dakikada bir: 07:01, 07:11, ...)
     scheduler.add_job(
         _run_news_intelligence_job,
@@ -7688,6 +7701,41 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
     except Exception as exc:
         LOGGER.exception("TMDB upcoming hatası")
         error = str(exc)
+
+    # OMDB zenginleştirme verisini DB'den çek ve filmlere merge et
+    if (settings.omdb_api_key or "").strip():
+        try:
+            from backend.services.omdb import get_enrichment_map
+            all_lists = (
+                data.get("theatrical", []) +
+                data.get("streaming", []) +
+                data.get("turkish_only", [])
+            )
+            tmdb_ids = [m["id"] for m in all_lists if m.get("id")]
+            with SessionLocal() as db:
+                omdb_map = get_enrichment_map(db, tmdb_ids)
+            for lst_key in ("theatrical", "streaming", "turkish_only",
+                            "theatrical_by_month", "streaming_by_month", "turkish_by_month"):
+                lst = data.get(lst_key, [])
+                items = lst.values() if isinstance(lst, dict) else []
+                if isinstance(lst, list):
+                    items = lst
+                else:
+                    items = [m for month in lst.values() for m in month]
+                for m in items:
+                    mid = m.get("id")
+                    if mid and mid in omdb_map:
+                        row = omdb_map[mid]
+                        m["imdb_rating"]  = row.imdb_rating
+                        m["imdb_votes"]   = row.imdb_votes
+                        m["rt_score"]     = row.rt_score
+                        m["metacritic"]   = row.metacritic
+                        m["age_rating"]   = row.age_rating
+                        m["box_office"]   = row.box_office
+                        m["awards"]       = row.awards
+        except Exception:
+            LOGGER.exception("OMDB merge hatası (sayfa yüklenmesini engellemez)")
+
     payload = {
         "site_name": "Vizyon Takvimi",
         "sites": get_sidebar_sites(),
@@ -9716,6 +9764,17 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         import traceback
         logging.exception("GA4 Realtime check hatası")
         return {"status": "error", "message": str(exc), "traceback": traceback.format_exc()}
+
+
+def _run_omdb_enrichment_job() -> None:
+    """APScheduler: Günlük OMDB zenginleştirme (max 999 film)."""
+    try:
+        from backend.services.omdb import run_daily_omdb_enrichment
+        with SessionLocal() as db:
+            result = run_daily_omdb_enrichment(db)
+        LOGGER.info("OMDB zenginleştirme: %s", result)
+    except Exception:
+        LOGGER.exception("OMDB enrichment job failed")
 
 
 def _run_inbox_summary_job() -> None:
