@@ -140,7 +140,7 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
 # Film sekmeleri (Sinema, Platform, Türk Filmleri): bu ayın 1'inden başlar — _current_month_start()
 # Türk Dizileri sekmesi: yıl başından başlar — TV_YEAR_FROM (dönem başı ilerleyebilir)
 YEAR_TO     = "2026-12-31"
-TV_YEAR_FROM = "2025-01-01"  # Türk dizileri için sabit başlangıç
+TV_YEAR_FROM = "2025-09-01"  # Türk dizileri — Eylül 2025'ten itibaren
 
 
 def _current_month_start() -> str:
