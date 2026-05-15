@@ -43,7 +43,7 @@ def run_inbox_summary_job(db: Session):
 
     lines = []
     lines.append("<div style='font-family: sans-serif; color: #333;'>")
-    lines.append(f"<h2 style='color: #2563eb;'>📬 Okunmamış Mesaj Özeti</h2>")
+    lines.append(f"<h2 style='color: #2563eb;'> Okunmamış Mesaj Özeti</h2>")
     
     # Hesap bazlı özet
     lines.append("<div style='background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;'>")

@@ -22,10 +22,10 @@ def analyze_lighthouse_issues(perf_score: int) -> dict:
                 {
                     "step": 1,
                     "title": "HTML'de tüm IMG tag'lere alt attribute ekle",
-                    "code": """<!-- ❌ YANLIŞ -->
+                    "code": """<!--  YANLIŞ -->
 <img src="hero.jpg" />
 
-<!-- ✅ DOĞRU -->
+<!--  DOĞRU -->
 <img src="hero.jpg" alt="E-ticaret dashboard ana sayfa hero banner" />
 
 <!-- Açıklayıcı, kısa ama anlamlı (125 karakter max) -->
@@ -69,14 +69,14 @@ add_filter('wp_get_attachment_image_attributes', function($attr, $attachment) {
                 {
                     "step": 1,
                     "title": "Tüm input'lar için açık label tag'i kullan",
-                    "code": """<!-- ❌ YANLIŞ - aria-label yetersiz -->
+                    "code": """<!--  YANLIŞ - aria-label yetersiz -->
 <input type="email" aria-label="email" />
 
-<!-- ✅ DOĞRU - label kullan -->
+<!--  DOĞRU - label kullan -->
 <label for="user-email">Email Adresi</label>
 <input type="email" id="user-email" name="email" required />
 
-<!-- ✅ DOĞRU - select için -->
+<!--  DOĞRU - select için -->
 <label for="country">Ülke Seçin</label>
 <select id="country" name="country">
     <option value="">-- Seçenek --</option>

@@ -39,7 +39,7 @@ def analyze_pagespeed_alerts(mobile_score: int, desktop_score: int) -> Dict:
     tier_roadmap = create_tier_roadmap(mobile_score, desktop_score)
     
     # Impact analizi
-    impact_msg = f"🔴 RANKING PENALTY -5-10 position | Monthly traffic loss ~{monthly_clicks_loss} clicks" if mobile_score < THRESHOLD else "✅ Good performance"
+    impact_msg = f" RANKING PENALTY -5-10 position | Monthly traffic loss ~{monthly_clicks_loss} clicks" if mobile_score < THRESHOLD else " Good performance"
     
     result = {
         "check": "PageSpeed Performance",
@@ -71,7 +71,7 @@ def create_tier_roadmap(mobile_score: int, desktop_score: int) -> str:
     monthly_to_gain = max(15, int((90 - mobile_score) * 0.3 * 5))
     
     roadmap = (
-        "\n📋 TIER-BASED FIX ROADMAP:\n"
+        "\n TIER-BASED FIX ROADMAP:\n"
         "\n"
         "TIER 1 (5 dakika, +15 puan):\n"
         "─────────────────────────────\n"
@@ -125,7 +125,7 @@ def create_tier_roadmap(mobile_score: int, desktop_score: int) -> str:
         "Beklenen Sonuc: " + str(tier2_score) + " → 95+ puan\n"
         "─────────────────────────────\n"
         "\n"
-        "🎯 TIMELINE:\n"
+        " TIMELINE:\n"
         "\n"
         "Gun 1-2: TIER 1 → Mobile " + str(mobile_score) + " + 15 = " + str(tier1_score) + "\n"
         "Gun 3-7: TIER 2 → Mobile " + str(tier1_score) + " + 20 = " + str(tier2_score) + "\n"
@@ -134,7 +134,7 @@ def create_tier_roadmap(mobile_score: int, desktop_score: int) -> str:
         "Final: Mobile " + str(mobile_score) + " → 95+ (2 hafta)\n"
         "Expected: +" + str(monthly_to_gain) + " clicks/month kurtarimi\n"
         "\n"
-        "✅ MONITORING:\n"
+        " MONITORING:\n"
         "1. https://pagespeed.web.dev\n"
         "2. Google Search Console > Core Web Vitals\n"
         "3. Analytics > Real User Metrics\n"

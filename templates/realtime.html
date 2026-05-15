@@ -970,7 +970,7 @@
     if (!el) return;
     var night = _isNightMode();
     if (night) {
-      el.textContent = '🌙 ' + Math.max(0, _liveCountdownSec);
+      el.textContent = Math.max(0, _liveCountdownSec) + 's (gece)';
       el.parentElement.title = 'Gece Modu: Sadece Spark grafikleri yenileniyor (00:00-07:00).';
     } else {
       el.textContent = String(Math.max(0, _liveCountdownSec));
@@ -2267,19 +2267,19 @@
           msg.indexOf('girdi') !== -1;
         if (isDown) {
           sev = 'rt-alarm-row rt-alarm--down';
-          icon = '🔴';
+          icon = '↓';
         } else if (isUp) {
           sev = 'rt-alarm-row rt-alarm--up';
-          icon = '🟢';
+          icon = '↑';
         } else if (a.severity === 'critical') {
           sev = 'rt-alarm-row rt-alarm--crit';
-          icon = '🔴';
+          icon = '!';
         } else if (a.severity === 'info') {
           sev = 'rt-alarm-row rt-alarm--info';
-          icon = '🔵';
+          icon = '·';
         } else {
           sev = 'rt-alarm-row rt-alarm--warn';
-          icon = '🟡';
+          icon = '~';
         }
       }
       var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';

@@ -35,19 +35,19 @@ def check_robots_txt(domain: str) -> Dict:
                 "estimated_daily_crawl_budget_reduction": f"{100-crawl_efficiency}%"
             }
             
-            action_details = f"""✅ TEKNIK DETAY:
+            action_details = f""" TEKNIK DETAY:
 - Dosya boyutu: {analysis['robots_size_kb']:.2f} KB
 - Crawl Delay yapılandırması: {'✓ Var' if crawl_delay_found else '✗ Yok'}
 - Disallow kuralları: {disallow_count}
 - Allow kuralları: {allow_count}
 - Crawl Efficiency Skoru: {crawl_efficiency}/100
 
-📊 ETKİ ANALİZİ:
+ ETKİ ANALİZİ:
 - Google crawl budget optimizasyonu: {crawl_efficiency}% verimli
 - Estimat: Günde ~{int(10000 * (crawl_efficiency/100))} URL crawl edilebiliyor
 - Crawl waste riski: %{100-crawl_efficiency}
 
-🔧 DEVELOPER REKOMENDASYONLARı:
+ DEVELOPER REKOMENDASYONLARı:
 1. Crawl-delay ayarla (minimum 1-2 saniye):
    User-agent: *
    Crawl-delay: 2
@@ -79,7 +79,7 @@ def check_robots_txt(domain: str) -> Dict:
                 "status": f"✗ Erişim Başarısız (HTTP {resp.status_code})",
                 "reason": f"robots.txt dosyasına istek {resp.status_code} yanıtı aldı. Server tarafından engellenmişor sunucu hatası var.",
                 "impact": "KRITIK: Google tüm URL'leri crawl etmeye çalışır → crawl budget israfı (+40-60% bandwidth kullanımı) → Crawl delays ve Disallow kuralları göz ardı edilir",
-                "action": """🔴 HEMEN ÇÖZ:
+                "action": """ HEMEN ÇÖZ:
 1. /robots.txt dosyasının sunucuda var olduğunu doğrula
 2. HTTP 403/404 alıyorsan, dosya izinlerini kontrol et:
    chmod 644 /var/www/html/robots.txt
@@ -108,7 +108,7 @@ YAYGYN HATALAR:
             "status": "✗ Timeout (5+ saniye)",
             "reason": "robots.txt isteği 5 saniye içinde cevap vermedi. Server latency yüksek.",
             "impact": "ORTA: Her URL crawl öncesi robots.txt check'i 5+ saniye geciktirir (crawl throughput %60 azalır)",
-            "action": f"""⚠️ SERVERİ İYİLEŞTİR:
+            "action": f"""️ SERVERİ İYİLEŞTİR:
 1. Sunucu yanıt süresi ölç:
    time curl -I https://{domain}/robots.txt
    
@@ -169,7 +169,7 @@ def check_sitemap_xml(domain: str) -> Dict:
                 "estimated_index_coverage_improvement": f"+30-50% (sitemap olmadığında +15 gün index delay)"
             }
             
-            action_details = f"""✅ TEKNIK DETAY:
+            action_details = f""" TEKNIK DETAY:
 - URL sayısı: {url_count} / {max_sitemap_entries} (max)
 - Sitemap boyutu: {analysis['sitemap_size_kb']:.2f} KB
 - Unique domains: {unique_domains}
@@ -177,12 +177,12 @@ def check_sitemap_xml(domain: str) -> Dict:
 - changefreq tags: {'✓ Var' if has_changefreq else '✗ Yok'}
 - Utilization: {sitemap_utilization:.1f}%
 
-📊 ETKİ ANALİZİ (doviz.com için):
+ ETKİ ANALİZİ (doviz.com için):
 - Crawl discovery hızlandırması: +30-50% index hızı
 - Yeni sayfaların index zamanı: 3-5 gün → 1-2 gün
 - Estimat: {int(url_count * 0.75)} URL'den ~{int(url_count * 0.75 * 0.9)} monthly index coverage
 
-🔧 DEVELOPER ÖNERİLERİ:
+ DEVELOPER ÖNERİLERİ:
 1. Lastmod tag'ları ekle (ISO 8601 format):
    <url>
      <loc>https://{domain}/page</loc>
@@ -223,12 +223,12 @@ def check_sitemap_xml(domain: str) -> Dict:
                 "passed": False,
                 "status": f"✗ Bulunamadı (HTTP {resp.status_code})",
                 "reason": f"sitemap.xml istek {resp.status_code} döndürdü. Dosya eksik, yanlış konumda veya erişim engelli.",
-                "impact": f"""🔴 KRITIK ETKİ:
+                "impact": f""" KRITIK ETKİ:
 - Index yazlık: Yeni sayfalar +7-15 gün gecikme ile index edilir
 - Crawl waste: Her URL'ye bağımsız crawl isteği → bandwidth +40-60%
 - Discovery kaybı: 20-30% alt kategoriler/ürünler index edilmez
 - Estimat zararı: Büyük sitede ayda ~500-1000 indexed URL kaybı""",
-                "action": f"""🔧 HEMEN ÇÖZ (Öncelik sırası):
+                "action": f""" HEMEN ÇÖZ (Öncelik sırası):
 
 1. Sitemap generator yükle (Python):
    pip install sitemap-generator
@@ -258,7 +258,7 @@ def check_sitemap_xml(domain: str) -> Dict:
    - GSC → Sitemaps → "Accepted vs. Submitted"
    - Hedef: >85% acceptance rate
 
-🎯 SONUÇ: 7-14 gün içinde +30-50% index artışı gözlemlenecek""",
+ SONUÇ: 7-14 gün içinde +30-50% index artışı gözlemlenecek""",
                 "technical_data": {
                     "http_status": resp.status_code,
                     "file_present": False,
@@ -316,18 +316,18 @@ def check_json_ld_schema(html: str, domain: str) -> Dict:
                 "estimated_additional_clicks": f"+{int(ctr_improvement)}% (average)"
             }
             
-            action_details = f"""✅ TEKNIK DETAY:
+            action_details = f""" TEKNIK DETAY:
 - JSON-LD blocks: {len(matches)}
 - Schema types: {', '.join(set(schema_types)) if schema_types else 'Belirtilmemiş'}
 - Rich snippet potansiyeli: {ctr_improvement}% CTR artışı
 
-📊 ETKİ ANALİZİ:
+ ETKİ ANALİZİ:
 - SERP görünüşü: Zengin snippet + star ratings
 - CTR potansiyeli: +{ctr_improvement}% (average)
 - Voice search optimization: Aktif
 - Knowledge Graph eligibility: Yüksek
 
-🔧 DEVELOPER ÖNERİLERİ:
+ DEVELOPER ÖNERİLERİ:
 Mevcut schema'ları maintain etmeye devam et. Ek yapılandırmalar:
 
 1. FAQPage schema ekle (doviz.com için):
@@ -361,7 +361,7 @@ Mevcut schema'ları maintain etmeye devam et. Ek yapılandırmalar:
      "ratingCount": "1200"
    }}
 
-🎯 SONUÇ: +{ctr_improvement}% CTR artışı = Aylık +{int(ctr_improvement * 10)} KClick potansiyeli""",
+ SONUÇ: +{ctr_improvement}% CTR artışı = Aylık +{int(ctr_improvement * 10)} KClick potansiyeli""",
             
             return {
                 "check": "JSON-LD Schema",
@@ -379,13 +379,13 @@ Mevcut schema'ları maintain etmeye devam et. Ek yapılandırmalar:
                 "passed": False,
                 "status": "✗ Bulunamadı",
                 "reason": "Sayfada herhangi bir JSON-LD structured data tespit edilmedi",
-                "impact": f"""🔴 KRITIK ETKİ:
+                "impact": f""" KRITIK ETKİ:
 - SERP görünüşü: Sadece düz metin (no rich snippets)
 - CTR potansiyel kaybı: -12-45% (schema tipine göre)
 - Voice search visibility: 0% (structured data yok → NLP'de geri kalan)
 - Knowledge graph eligibility: Düşük
 - Estimat: Aylık {int(10000 * 0.25)} click kaybı (25% CTR reduction)""",
-                "action": f"""🔧 ŞU SCHEMA'LAR EKLE (Öncelik sırası):
+                "action": f""" ŞU SCHEMA'LAR EKLE (Öncelik sırası):
 
 1. HEMEN ekle - Organization schema (homepage):
    {{
@@ -432,13 +432,13 @@ Mevcut schema'ları maintain etmeye devam et. Ek yapılandırmalar:
      "author": {{"@type": "Person", "name": "[Yazar]"}}
    }}
 
-📋 İMPLEMENTASYON ADIMLAR:
+ İMPLEMENTASYON ADIMLAR:
 1. Template'lere schema <script> tag'ı ekle
 2. GSC → Enhancements → Rich Results Test ile validate et
 3. Monitor: GSC → Enhancements → Cardsı tak (haftada 1x)
 4. Test: https://validator.schema.org/ ile syntax check et
 
-🎯 BEKLENEN SONUÇ:
+ BEKLENEN SONUÇ:
 - 7-14 gün içinde rich results görülmeye başlanacak
 - CTR: +12-45% artışı
 - Aylık +3000-5000 click kazanımı (tahmini)
@@ -504,19 +504,19 @@ def check_canonical_tag(html: str) -> Dict:
                 "duplicate_risk": "Low" if not (has_params or has_session_id) else "Medium-High"
             }
             
-            action_details = f"""✅ TEKNIK DETAY:
+            action_details = f""" TEKNIK DETAY:
 - Canonical URL: {canonical_url}
 - Self-referential: ✓ Evet
 - Query parameters: {'✓ Var' if has_params else '✗ Yok'}
 - Session ID: {'✓ Var (Risk!)' if has_session_id else '✗ Yok'}
 - Duplicate risk: {analysis['duplicate_risk']}
 
-📊 ETKİ ANALİZİ:
+ ETKİ ANALİZİ:
 - Duplicate content sorunları: Önlendi
 - Link juice consolidation: Optimal
 - PageRank dilution: Yok (self-referential → 0% signal loss)
 
-🔧 DEVELOPER ÖNERİLERİ:
+ DEVELOPER ÖNERİLERİ:
 1. Mevcut canonical configuration'ı maintain etmeye devam et
 
 2. Eğer query parameters varsa, bunu optimize et:
@@ -556,7 +556,7 @@ def check_canonical_tag(html: str) -> Dict:
                 "passed": False,
                 "status": "✗ Yok",
                 "reason": "Sayfada canonical tag bulunmadı",
-                "impact": f"""🔴 KRITIK ETKİ:
+                "impact": f""" KRITIK ETKİ:
 - Duplicate content problem: Aktif
   * example.com vs www.example.com → Link juice split 50-50
   * /page vs /page? vs /page?utm_source=x → 3 canonical urlden sanal duplicate
@@ -565,7 +565,7 @@ def check_canonical_tag(html: str) -> Dict:
 - Ranking dilution: -15-30% ranking power loss
 - PageRank leak: Canonical olmayan varyasyonlar → 404'e gider
 - Estimat: %20 ranking kaybı = Aylık -{int(10000 * 0.2)} trafik""",
-                "action": """🔧 HEMEN FIX ET:
+                "action": """ HEMEN FIX ET:
 
 1. SEO-friendly template setup (Homepage):
    <head>
@@ -598,7 +598,7 @@ def check_canonical_tag(html: str) -> Dict:
    - URL Inspect Tool → GSC'de her sayfanın canonical check et
    - Coverage → Excluded → "Alternate page with proper canonical tag" = 0 hedef
 
-🎯 SONUÇ: 30-60 gün içinde +15-30% ranking artışı (duplicate consolidation)""",
+ SONUÇ: 30-60 gün içinde +15-30% ranking artışı (duplicate consolidation)""",
                 "technical_data": {
                     "canonical_present": False,
                     "duplicate_risk": "CRITICAL",

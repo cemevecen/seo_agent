@@ -335,12 +335,12 @@ def get_network_dependency_solution() -> Dict:
                 "code": """Chrome DevTools → Network tab → Filter: 'Fetch/XHR'
 
 Look for CHAIN pattern:
-❌ BAD (Serial):
+ BAD (Serial):
   CSS starts at 100ms → ends 200ms
   Font starts at 200ms → ends 350ms  (waits for CSS!)
   JS starts at 350ms → ends 550ms    (waits for Font!)
 
-✅ GOOD (Parallel):
+ GOOD (Parallel):
   CSS starts at 100ms → ends 200ms
   Font starts at 100ms → ends 350ms  (parallel, no wait)
   JS starts at 100ms → ends 550ms    (parallel, no wait)
