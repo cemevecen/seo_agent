@@ -1,5 +1,5 @@
 """
-boxofficeturkiye.com veri çekici — haftalık Türkiye gişe listesi.
+boxofficeturkiye.com veri çekici — haftalık Türkiye gişe listesi + vizyon takvimi.
 robots.txt: Allow: / (tüm botlara açık)
 HTML tabanlı, JavaScript render yok.
 """
@@ -24,14 +24,12 @@ BOT_HEADERS = {
 
 
 def _current_week_url() -> str:
-    """Bu haftanın detay URL'si: /hafta/detay/2026-19 formatı."""
     today = date.today()
     year, week, _ = today.isocalendar()
     return f"{BOT_BASE}/hafta/detay/{year}-{week:02d}"
 
 
 def _prev_week_url() -> str:
-    """Geçen haftanın detay URL'si (pazartesi günü yeni hafta henüz yayınlanmamış olabilir)."""
     today = date.today()
     year, week, _ = today.isocalendar()
     week -= 1
@@ -42,64 +40,89 @@ def _prev_week_url() -> str:
 
 
 def _parse_number(s: str) -> int:
-    """'58.801' veya '₺16.995.056' → integer."""
     return int(re.sub(r"[^\d]", "", s or "0") or 0)
+
+
+def _extract_film_links(raw_html: str) -> list[tuple[str, str, str]]:
+    """HTML'den (slug, bot_id, title) üçlülerini çıkarır — tekrarları atar."""
+    pattern = re.compile(
+        r'href="/film/([^"]+)--(\d+)"[^>]*>([^<]+)</a>',
+        re.IGNORECASE,
+    )
+    seen: set[str] = set()
+    results = []
+    for slug, bot_id, raw_title in pattern.findall(raw_html):
+        if bot_id in seen:
+            continue
+        title = html.unescape(raw_title.strip())
+        if title:
+            seen.add(bot_id)
+            results.append((slug, bot_id, title))
+    return results
 
 
 def fetch_current_boxoffice() -> list[dict[str, Any]]:
     """
-    Türkiye'nin güncel haftalık gişe listesini çeker.
-    Format: [{title, bot_id, weekly_audience, weekly_revenue, total_audience, total_revenue, detail_url}]
+    Haftalık gişe listesi + vizyon takvimini birleştirir.
+    Gişe listesi: bu haftanın seyirci/hasılat verileri (60-70 film).
+    Vizyon takvimi: gelecek haftaların vizyon programı (40-50 film).
+    İkisi birleşince ~100+ film kümesi elde edilir.
     """
+    all_films: dict[str, dict] = {}
+
+    # 1. Haftalık gişe listesi (mevcut haftadan başla, gerekirse önceki haftaya geç)
     for url_fn in (_current_week_url, _prev_week_url):
         url = url_fn()
         try:
             resp = requests.get(url, headers=BOT_HEADERS, timeout=15)
             if resp.status_code == 200 and len(resp.text) > 5000:
-                films = _parse_film_list(resp.text, url)
+                films = _parse_weekly_list(resp.text, url)
                 if films:
-                    logger.info("BOT gişe listesi çekildi: %s → %d film", url, len(films))
-                    return films
+                    logger.info("BOT haftalık liste: %s → %d film", url, len(films))
+                    for f in films:
+                        all_films[f["bot_id"]] = f
+                    break
         except Exception as exc:
-            logger.warning("BOT gişe fetch hatası (%s): %s", url, exc)
+            logger.warning("BOT haftalık fetch hatası (%s): %s", url, exc)
 
-    return []
+    # 2. Vizyon takvimi (gelecek haftaların filmleri)
+    takvim_url = f"{BOT_BASE}/takvim"
+    try:
+        resp = requests.get(takvim_url, headers=BOT_HEADERS, timeout=15)
+        if resp.status_code == 200:
+            for slug, bot_id, title in _extract_film_links(resp.text):
+                if bot_id not in all_films:
+                    all_films[bot_id] = {
+                        "title":           title,
+                        "bot_id":          bot_id,
+                        "slug":            slug,
+                        "weekly_audience": 0,
+                        "total_audience":  0,
+                        "weekly_revenue":  0,
+                        "total_revenue":   0,
+                        "detail_url":      f"{BOT_BASE}/film/{slug}--{bot_id}",
+                        "source_url":      takvim_url,
+                    }
+            logger.info("BOT vizyon takvimi: %s → toplam %d film", takvim_url, len(all_films))
+    except Exception as exc:
+        logger.warning("BOT takvim fetch hatası: %s", exc)
+
+    return list(all_films.values())
 
 
-def _parse_film_list(raw_html: str, source_url: str) -> list[dict[str, Any]]:
-    """HTML'den film listesini ayrıştırır (BeautifulSoup kullanmadan)."""
-    films: list[dict] = []
+def _parse_weekly_list(raw_html: str, source_url: str) -> list[dict[str, Any]]:
+    """Haftalık gişe sayfasından film + seyirci/hasılat verilerini çıkarır."""
+    links = _extract_film_links(raw_html)
 
-    # Film linkleri: href="/film/slug--id">Film Adı</a>
-    link_pattern = re.compile(
-        r'href="/film/([^"]+)--(\d+)"[^>]*>([^<]+)</a>',
-        re.IGNORECASE,
-    )
-
-    # Satır bazlı yaklaşım: <tr> bloklarını bul, içinden film + sayıları çıkar
-    # Basit yaklaşım: tüm film linklerini çek, sıra numarasına göre sayılarla eşleştir
-    links = link_pattern.findall(raw_html)
-
-    # Sayılar: tablodaki <td> içindeki rakamları sırayla çek
     td_pattern = re.compile(r'<td[^>]*>\s*([\d.,₺\s]+?)\s*</td>', re.IGNORECASE)
     numbers_raw = [m.group(1).strip() for m in td_pattern.finditer(raw_html)]
     numbers = [_parse_number(n) for n in numbers_raw if re.search(r'\d{3,}', n)]
 
-    # Her film için 4 sayı: hafta_seyirci, toplam_seyirci, hafta_hasılat, toplam_hasılat
-    # (ya da tersi — sıralamanın kesin formatını bilemiyoruz, iki kombinasyonu dene)
-    seen_ids: set[str] = set()
+    films = []
     num_idx = 0
-
-    for slug, bot_id, raw_title in links:
-        title = html.unescape(raw_title.strip())
-        if not title or bot_id in seen_ids:
-            continue
-        seen_ids.add(bot_id)
-
-        # Sonraki 4 sayıyı al
+    for slug, bot_id, title in links:
         chunk = numbers[num_idx:num_idx + 4] if num_idx + 4 <= len(numbers) else [0, 0, 0, 0]
         num_idx += 4
-
         films.append({
             "title":           title,
             "bot_id":          bot_id,
@@ -111,7 +134,6 @@ def _parse_film_list(raw_html: str, source_url: str) -> list[dict[str, Any]]:
             "detail_url":      f"{BOT_BASE}/film/{slug}--{bot_id}",
             "source_url":      source_url,
         })
-
     return films
 
 
