@@ -108,7 +108,7 @@ def save_error_logs(
     from backend.models import SiteErrorLog
 
     saved = 0
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.utcnow()  # naive UTC — DB DateTime kolonu ile tutarlı
 
     for e in errors:
         url = (e.get("url") or "")[:2048]

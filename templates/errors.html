@@ -95,9 +95,7 @@
               </span>
             </td>
             <td class="px-4 py-3 min-w-0 max-w-md">
-              {% set domain = "" %}
-              {% for s in all_sites %}{% if s.id == selected_site_id %}{% set domain = s.domain %}{% endif %}{% endfor %}
-              <a href="https://{{ domain }}{{ e.url }}" target="_blank" rel="noopener"
+              <a href="https://{{ selected_site_domain }}{{ e.url }}" target="_blank" rel="noopener"
                  class="block truncate font-mono text-xs text-sky-600 hover:underline dark:text-sky-400">{{ e.url }}</a>
               {% if e.page_title %}
               <span class="block truncate text-xs text-slate-400 mt-0.5">{{ e.page_title }}</span>
@@ -143,7 +141,7 @@ function filterErrors(q) {
 }
 
 function refreshErrors() {
-  var siteId = {{ selected_site_id or 'null' }};
+  var siteId = {{ selected_site_id if selected_site_id else 'null' }};
   if (!siteId) return;
   var btn = document.querySelector('[onclick="refreshErrors()"]');
   var icon = document.getElementById('err-spin');

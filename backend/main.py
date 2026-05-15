@@ -1195,13 +1195,6 @@ def on_startup() -> None:
     import threading as _threading
     _threading.Thread(target=_prewarm_tmdb, daemon=True, name="tmdb-prewarm").start()
 
-    # Hata izleme tablosunu oluştur
-    try:
-        from backend.models import SiteErrorLog
-        from backend.database import engine
-        SiteErrorLog.__table__.create(bind=engine, checkfirst=True)
-    except Exception as exc:
-        LOGGER.warning("SiteErrorLog tablo oluşturma hatası: %s", exc)
 
 
 @app.on_event("shutdown")
@@ -7789,6 +7782,9 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
     if not site_id and all_sites_list:
         site_id = all_sites_list[0]["id"]
 
+    # Seçili sitenin domain'ini bul (template'de Jinja2 scope sorunu yaşamamak için)
+    selected_site_domain = next((s["domain"] for s in all_sites_list if s["id"] == site_id), "")
+
     summary = {"total_404": 0, "total_5xx": 0, "total_users": 0, "by_source": {}, "errors": [], "site_id": site_id, "days": days}
 
     if site_id:
@@ -7804,6 +7800,7 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
             "all_sites": all_sites_list,
             "summary": summary,
             "selected_site_id": site_id,
+            "selected_site_domain": selected_site_domain,
             "days": days,
         },
     )
