@@ -1,14 +1,11 @@
-/* alerts_page.js — basit, tek-listener implementation */
+/* alerts_page.js */
 
-// Inject CSS once
+// CSS inject — alert-details gizle/göster
 (function () {
   if (document.getElementById('alerts-component-style')) return;
   var s = document.createElement('style');
   s.id = 'alerts-component-style';
-  s.textContent = [
-    '.alert-details { display: none !important; }',
-    '.alert-details.show { display: block !important; }',
-  ].join('\n');
+  s.textContent = '.alert-details{display:none!important;}.alert-details.show{display:block!important;}';
   document.head.appendChild(s);
 })();
 
@@ -32,7 +29,7 @@ function applyAlertsFilters() {
   var categoryCounts = {};
   var visible = 0;
 
-  // Önce tip filtresi hariç say: içi boş chipler gizlensin.
+  // Tip filtresi hariç say — boş chip'ler gizlensin
   cards.forEach(function (card) {
     var domain = card.getAttribute('data-domain') || '';
     var category = (card.getAttribute('data-alert-category') || 'other').trim();
@@ -54,17 +51,15 @@ function applyAlertsFilters() {
     }
   });
 
+  // Boş kategorilerin chip'lerini gizle
   if (view) {
     view.querySelectorAll('.alert-type-tab').forEach(function (btn) {
       var filter = btn.getAttribute('data-alert-filter') || 'all';
-      if (filter === 'all') {
-        btn.style.display = '';
-        return;
-      }
+      if (filter === 'all') { btn.style.display = ''; return; }
       btn.style.display = categoryCounts[filter] ? '' : 'none';
     });
   }
-  // Aktif tip artık boşsa Tümü'ne dön.
+  // Aktif tip boşsa → "Tümü"ye dön
   if (_alertType !== 'all' && !categoryCounts[_alertType]) {
     _alertType = 'all';
     setActiveTypeTab('all');
@@ -82,7 +77,7 @@ function applyAlertsFilters() {
     if (selectedDomain === '__external__') {
       domainOk = isExternal;
     } else if (!selectedDomain) {
-      domainOk = !isExternal; // "Tüm Siteler" → external'ları gizle
+      domainOk = !isExternal;
     } else {
       domainOk = domain === selectedDomain;
     }
@@ -97,7 +92,7 @@ function applyAlertsFilters() {
   if (visible === 0) {
     if (!empty) {
       empty = document.createElement('div');
-      empty.className = 'alerts-empty-state rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-slate-500 dark:text-slate-400';
+      empty.className = 'alerts-empty-state rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400';
       container.appendChild(empty);
     }
     empty.textContent = 'Bu filtreye uygun alarm kaydı bulunamadı.';
@@ -116,11 +111,12 @@ function setActiveTypeTab(activeFilter) {
     var isActive = f === activeFilter;
     var inactiveCls = (btn.getAttribute('data-inactive-cls') || '').split(' ').filter(Boolean);
 
-    // Tüm mevcut renk/ring sınıflarını temizle
+    // Sadece renk + ring sınıflarını temizle (hover: ve diğerleri korunsun)
     var toRemove = Array.from(btn.classList).filter(function (c) {
-      return c.startsWith('bg-') || c.startsWith('text-') || c.startsWith('dark:bg-') ||
-             c.startsWith('dark:text-') || c === 'ring-2' || c === 'ring-offset-0' ||
-             c.startsWith('ring-slate') || c.startsWith('dark:ring-slate') || c === 'hover:bg-slate-200';
+      return (c.startsWith('bg-') || c.startsWith('text-') ||
+              c.startsWith('dark:bg-') || c.startsWith('dark:text-') ||
+              c === 'ring-2' || c === 'ring-offset-0' ||
+              c.startsWith('ring-slate') || c.startsWith('dark:ring-slate'));
     });
     toRemove.forEach(function (c) { btn.classList.remove(c); });
 
@@ -137,12 +133,22 @@ function setActivePeriodTab(period) {
   if (!view) return;
   view.querySelectorAll('.alert-period-tab').forEach(function (btn) {
     var p = parseInt(btn.getAttribute('data-period'), 10);
-    btn.classList.remove('bg-slate-900', 'text-white', 'bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300');
+    // Tüm renk sınıflarını temizle
+    btn.classList.remove('bg-slate-900', 'text-white', 'bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
     if (p === period) {
       btn.classList.add('bg-slate-900', 'text-white');
     } else {
-      btn.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300');
+      btn.classList.add('bg-slate-100', 'dark:bg-slate-800/70', 'text-slate-600', 'dark:text-slate-300', 'hover:bg-slate-200', 'dark:hover:bg-slate-700');
     }
+  });
+}
+
+// ─── Comparison button helpers ────────────────────────────────────────────────
+function setComparisonBtnActive(card, activeType) {
+  card.querySelectorAll('.comparison-btn').forEach(function (b) {
+    var isActive = b.getAttribute('data-comparison') === activeType;
+    b.classList.toggle('comp-active', isActive);
+    b.classList.toggle('comp-inactive', !isActive);
   });
 }
 
@@ -163,7 +169,7 @@ function toggleAlertDetail(toggleBtn) {
   }
 }
 
-// ─── API: load comparison data ────────────────────────────────────────────────
+// ─── API: comparison verisi yükle ────────────────────────────────────────────
 async function loadAlertDetails(alertId, card) {
   try {
     var [dailyData, weeklyData] = await Promise.all([
@@ -174,37 +180,21 @@ async function loadAlertDetails(alertId, card) {
     var weeklyUsable = !weeklyData || !weeklyData.comparison || weeklyData.comparison.has_meaningful_data !== false;
     var dailyUsable = !dailyData || !dailyData.comparison || dailyData.comparison.has_meaningful_data !== false;
 
+    // Disabled state
     var weeklyBtn = card.querySelector('.comparison-btn[data-comparison="weekly"]');
     var dailyBtn = card.querySelector('.comparison-btn[data-comparison="daily"]');
     if (weeklyBtn) {
-      weeklyBtn.dataset.disabled = weeklyUsable ? 'false' : 'true';
-      weeklyBtn.classList.toggle('opacity-50', !weeklyUsable);
-      weeklyBtn.classList.toggle('cursor-not-allowed', !weeklyUsable);
+      weeklyBtn.classList.toggle('comp-disabled', !weeklyUsable);
     }
     if (dailyBtn) {
-      dailyBtn.dataset.disabled = dailyUsable ? 'false' : 'true';
-      dailyBtn.classList.toggle('opacity-50', !dailyUsable);
-      dailyBtn.classList.toggle('cursor-not-allowed', !dailyUsable);
+      dailyBtn.classList.toggle('comp-disabled', !dailyUsable);
     }
 
     var initialType = (_alertPeriod === 1)
       ? (dailyUsable ? 'daily' : 'weekly')
       : (weeklyUsable ? 'weekly' : 'daily');
 
-    card.querySelectorAll('.comparison-btn').forEach(function (b) {
-      var isActive = b.getAttribute('data-comparison') === initialType;
-      b.classList.toggle('bg-blue-100', isActive);
-      b.classList.toggle('text-blue-700', isActive);
-      b.classList.toggle('hover:bg-blue-200', isActive);
-      b.classList.toggle('dark:bg-sky-950/50', isActive);
-      b.classList.toggle('dark:text-sky-300', isActive);
-      b.classList.toggle('dark:hover:bg-sky-900/60', isActive);
-      b.classList.toggle('bg-slate-100', !isActive);
-      b.classList.toggle('dark:bg-slate-800/70', !isActive);
-      b.classList.toggle('text-slate-700', !isActive);
-      b.classList.toggle('dark:text-slate-200', !isActive);
-    });
-
+    setComparisonBtnActive(card, initialType);
     renderComparisonData(alertId, initialType);
   } catch (err) {
     var div = document.getElementById('comparison-info-' + alertId);
@@ -229,43 +219,43 @@ function renderComparisonData(alertId, comparisonType) {
   var comparison = cached.comparison || {};
   var typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
   var isDark = document.documentElement.classList.contains('dark');
-  var wrapperStyle = isDark
-    ? 'background:rgba(15,23,42,0.72);border-color:rgba(71,85,105,0.75);'
-    : 'background:rgba(240,249,255,0.72);border-color:rgba(186,230,253,0.95);';
-  var toneStyleMap = isDark
+
+  var wrapBg = isDark ? 'rgba(15,23,42,0.55)' : 'rgba(240,249,255,0.72)';
+  var wrapBorder = isDark ? 'rgba(63,63,70,0.7)' : 'rgba(186,230,253,0.95)';
+  var toneStyle = isDark
     ? {
-        blue: 'background:rgba(15,23,42,0.82);border-color:rgba(71,85,105,0.72);color:rgb(226,232,240);',
-        slate: 'background:rgba(15,23,42,0.64);border-color:rgba(51,65,85,0.7);color:rgb(226,232,240);',
-        red: 'background:rgba(76,5,25,0.42);border-color:rgba(136,19,55,0.65);color:rgb(253,164,175);',
-        green: 'background:rgba(2,44,34,0.42);border-color:rgba(6,95,70,0.62);color:rgb(110,231,183);',
+        blue:  'background:rgba(24,24,27,0.8);border-color:rgba(63,63,70,0.7);color:#e4e4e7;',
+        slate: 'background:rgba(24,24,27,0.55);border-color:rgba(39,39,42,0.7);color:#d4d4d8;',
+        red:   'background:rgba(76,5,25,0.38);border-color:rgba(136,19,55,0.6);color:#fda4af;',
+        green: 'background:rgba(2,44,34,0.38);border-color:rgba(6,95,70,0.6);color:#6ee7b7;',
       }
     : {
-        blue: 'background:rgb(240,249,255);border-color:rgb(224,242,254);color:rgb(15,23,42);',
-        slate: 'background:rgb(248,250,252);border-color:rgb(241,245,249);color:rgb(15,23,42);',
-        red: 'background:rgb(255,241,242);border-color:rgb(255,228,230);color:rgb(190,24,93);',
-        green: 'background:rgb(236,253,245);border-color:rgb(209,250,229);color:rgb(4,120,87);',
+        blue:  'background:#f0f9ff;border-color:#e0f2fe;color:#0f172a;',
+        slate: 'background:#f8fafc;border-color:#f1f5f9;color:#0f172a;',
+        red:   'background:#fff1f2;border-color:#ffe4e6;color:#be123c;',
+        green: 'background:#ecfdf5;border-color:#d1fae5;color:#047857;',
       };
 
-  var html = '<div class="rounded-2xl border p-4 sm:p-5" style="' + wrapperStyle + '">';
-  html += '<p class="text-xs font-semibold tracking-[0.16em] text-slate-500 dark:text-slate-400 uppercase mb-3">' + typeLabel + '</p>';
+  var html = '<div class="rounded-2xl border p-3.5 sm:p-4" style="background:' + wrapBg + ';border-color:' + wrapBorder + ';">';
+  html += '<p class="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">' + typeLabel + '</p>';
 
   if (comparison.message) {
-    html += '<p class="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">' + comparison.message + '</p>';
+    html += '<p class="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">' + comparison.message + '</p>';
   }
 
   if (Array.isArray(comparison.cards) && comparison.cards.length > 0) {
-    html += '<div class="grid grid-cols-3 gap-2">';
+    html += '<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">';
     comparison.cards.forEach(function (c) {
-      var toneStyle = toneStyleMap[c.tone] || toneStyleMap.slate;
-      html += '<div class="rounded-xl border px-3 py-2" style="' + toneStyle + '">';
-      html += '<p class="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">' + (c.label || '') + '</p>';
-      html += '<p class="mt-1 text-lg font-bold leading-none">' + (c.value || 'N/A') + '</p>';
-      if (c.detail) html += '<p class="mt-1 text-[11px] leading-4 opacity-85">' + c.detail + '</p>';
+      var ts = toneStyle[c.tone] || toneStyle.slate;
+      html += '<div class="rounded-xl border px-3 py-2.5" style="' + ts + '">';
+      html += '<p class="text-[10px] font-semibold uppercase tracking-[0.13em] opacity-75">' + (c.label || '') + '</p>';
+      html += '<p class="mt-1 text-base font-bold leading-none sm:text-lg">' + (c.value || 'N/A') + '</p>';
+      if (c.detail) html += '<p class="mt-1 text-[11px] leading-4 opacity-80">' + c.detail + '</p>';
       html += '</div>';
     });
     html += '</div>';
   } else if (!comparison.message) {
-    html += '<p class="text-slate-600 dark:text-slate-300">Karşılaştırma verisi bulunamadı</p>';
+    html += '<p class="text-sm text-slate-500 dark:text-slate-400">Karşılaştırma verisi bulunamadı.</p>';
   }
 
   html += '</div>';
@@ -289,7 +279,7 @@ function bindRefreshButton() {
     var percentEl = document.getElementById('alerts-progress-percent');
     var barEl = document.getElementById('alerts-progress-bar');
 
-    var origText = btn.textContent;
+    var origText = btn.innerHTML;
     btn.disabled = true;
     btn.textContent = 'Yenileniyor…';
 
@@ -315,19 +305,13 @@ function bindRefreshButton() {
     var timer = setInterval(tick, 1200);
 
     try {
-      var resp = await fetch('/alerts/refresh', {
-        method: 'POST',
-        headers: { Accept: 'application/json' },
-      });
+      var resp = await fetch('/alerts/refresh', { method: 'POST', headers: { Accept: 'application/json' } });
       clearInterval(timer);
       if (resp.ok) {
         if (percentEl) percentEl.textContent = '100%';
         if (barEl) barEl.style.width = '100%';
-        if (titleEl) titleEl.textContent = 'Tamamlandı';
-        // JSON dönen refresh endpointi sonrası güncel partial'ı yeniden al.
-        var partialResp = await fetch('/alerts', {
-          headers: { 'HX-Request': 'true', Accept: 'text/html' },
-        });
+        if (titleEl) titleEl.textContent = 'Tamamlandı ✓';
+        var partialResp = await fetch('/alerts', { headers: { 'HX-Request': 'true', Accept: 'text/html' } });
         if (partialResp.ok) {
           var html = await partialResp.text();
           var viewRoot = document.getElementById('alerts-view');
@@ -352,9 +336,9 @@ function bindRefreshButton() {
 
     setTimeout(function () {
       btn.disabled = false;
-      btn.textContent = origText;
+      btn.innerHTML = origText;
       if (panel) panel.classList.add('hidden');
-    }, 1500);
+    }, 1800);
   });
 }
 
@@ -364,7 +348,6 @@ function bindMainDelegation() {
   if (_mainBound) return;
   _mainBound = true;
 
-  // Click delegation
   document.body.addEventListener('click', function (e) {
     var view = document.getElementById('alerts-view');
     if (!view) return;
@@ -381,22 +364,12 @@ function bindMainDelegation() {
     var compBtn = e.target.closest('.comparison-btn');
     if (compBtn && view.contains(compBtn)) {
       e.preventDefault();
-      if (compBtn.dataset.disabled === 'true') return;
+      if (compBtn.classList.contains('comp-disabled')) return;
       var card = compBtn.closest('.alert-card');
       var alertId = card && card.getAttribute('data-alert-id');
       var compType = compBtn.getAttribute('data-comparison');
       if (!alertId || !compType) return;
-      // Active stil
-      card.querySelectorAll('.comparison-btn').forEach(function (b) {
-        var isActive = b.getAttribute('data-comparison') === compType;
-        b.classList.toggle('bg-slate-900', isActive);
-        b.classList.toggle('text-white', isActive);
-        b.classList.toggle('bg-slate-100', !isActive);
-        b.classList.toggle('text-slate-700', !isActive);
-        b.classList.toggle('dark:bg-slate-700', !isActive);
-        b.classList.toggle('dark:text-slate-200', !isActive);
-      });
-      // Cache varsa direkt render, yoksa fetch et
+      setComparisonBtnActive(card, compType);
       if (_compCache[alertId] && _compCache[alertId][compType]) {
         renderComparisonData(alertId, compType);
       } else {
@@ -450,22 +423,19 @@ function initAlertsPage() {
   setActivePeriodTab(_alertPeriod);
   applyAlertsFilters();
 
-  // Auto-open selected alert from URL — tüm filtreler sıfırlanarak detay açılır
+  // URL'den seçili alert'i aç
   var root = document.getElementById('alerts-view');
   var selectedId = root && root.getAttribute('data-selected-alert-id');
   if (selectedId && selectedId.trim()) {
     setTimeout(function () {
       var card = document.querySelector('.alert-card[data-alert-id="' + selectedId.trim() + '"]');
       if (!card) return;
-      // Kart hangi filtre altında olursa olsun görünür yap
       _alertType = 'all';
       setActiveTypeTab('all');
       var filterSelect = document.getElementById('site-filter');
       if (filterSelect) filterSelect.value = '';
       applyAlertsFilters();
-      // Kart display:none kalmasın
       card.style.display = '';
-      // Detayı aç (zaten açık değilse)
       var details = card.querySelector('.alert-details');
       if (details && !details.classList.contains('show')) {
         var btn = card.querySelector('.toggle-details');
@@ -478,14 +448,12 @@ function initAlertsPage() {
 
 window.seoInitAlertsPage = initAlertsPage;
 
-// Sayfa yüklenince çalıştır
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAlertsPage);
 } else {
   initAlertsPage();
 }
 
-// HTMX swap sonrası da çalıştır
 document.addEventListener('htmx:afterSwap', function () {
   if (document.getElementById('alerts-view')) {
     setTimeout(initAlertsPage, 0);

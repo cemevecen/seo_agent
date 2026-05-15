@@ -1,6 +1,83 @@
+<style id="alerts-page-styles">
+  /* Scrollbar gizle — type filter chips satırı */
+  #alerts-type-filter-row {
+    scrollbar-width: none;
+  }
+  #alerts-type-filter-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Progress panel: dark modda arka plan kaybolmasın */
+  html.dark #alerts-progress-panel {
+    background-color: rgba(24, 24, 27, 0.95) !important;
+    background-image: none !important;
+    border-color: rgba(63, 63, 70, 0.8) !important;
+  }
+
+  /* Ana kart container: dark modda hafif zemin */
+  html.dark #alerts-container-wrap {
+    background-color: rgba(24, 24, 27, 0.55) !important;
+    border-color: rgba(39, 39, 42, 0.7) !important;
+  }
+
+  /* Comparison btn aktif hali dark modda görünür olsun */
+  html.dark #alerts-view .comparison-btn.comp-active {
+    background-color: #3f3f46 !important;
+    color: #f4f4f5 !important;
+    box-shadow: inset 0 0 0 1px rgba(113, 113, 122, 0.6) !important;
+  }
+  html.dark #alerts-view .comparison-btn.comp-inactive {
+    background-color: rgba(39, 39, 42, 0.6) !important;
+    color: #a1a1aa !important;
+  }
+  html.dark #alerts-view .comparison-btn.comp-inactive:hover {
+    background-color: rgba(63, 63, 70, 0.7) !important;
+    color: #d4d4d8 !important;
+  }
+
+  /* Light mode comparison btn */
+  #alerts-view .comparison-btn.comp-active {
+    background-color: #0f172a;
+    color: #ffffff;
+  }
+  #alerts-view .comparison-btn.comp-inactive {
+    background-color: #f1f5f9;
+    color: #475569;
+  }
+  #alerts-view .comparison-btn.comp-inactive:hover {
+    background-color: #e2e8f0;
+  }
+
+  /* Disabled comparison btn */
+  #alerts-view .comparison-btn.comp-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Domain stripe renkleri — zinc override'ından bağımsız */
+  .alert-domain-stripe-doviz  { background-color: #0ea5e9; }
+  .alert-domain-stripe-sinema { background-color: #f43f5e; }
+
+  /* Metric badge — uzun metin kesilsin */
+  .alert-metric-badge {
+    display: inline-block;
+    max-width: 6.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  /* Alert card'da sol aksanlı şerit space'i */
+  .alert-has-stripe .alert-card-body {
+    padding-left: 1.125rem;
+  }
+</style>
+
 <div id="alerts-view" class="relative mx-auto w-full min-w-0 max-w-[1800px] space-y-3" data-selected-alert-id="{{ selected_alert_id or '' }}">
-  {# Tailwind CDN safelist #}
-  <div class="hidden pointer-events-none" aria-hidden="true" data-tailwind-safelist>
+  {# Tailwind CDN safelist — kullanılan dinamik sınıflar #}
+  <div class="hidden pointer-events-none" aria-hidden="true">
     <span class="
       bg-slate-900 text-white ring-2 ring-offset-0 ring-slate-400 dark:ring-slate-500
       bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 text-slate-600 dark:text-slate-300
@@ -14,24 +91,25 @@
       bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300
       bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300
       bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300
-      bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60
     "></span>
   </div>
 
-  {# ── Satır 1: Başlık + Dönem + Yenile + Site filtresi ── #}
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <div class="flex items-center gap-3">
-      <h3 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Son Uyarılar</h3>
-      <div class="flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-3">
-        <button type="button" class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-period="1">1g</button>
-        <button type="button" class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-900 text-white" data-period="7">7g</button>
+  {# ── Satır 1: Başlık + Dönem + Filtre + Yenile ── #}
+  <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <div class="flex min-w-0 flex-wrap items-center gap-3">
+      <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Son Uyarılar</h3>
+      <div class="flex items-center gap-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+        <button type="button"
+          class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+          data-period="1">1g</button>
+        <button type="button"
+          class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+          data-period="7">7g</button>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button id="refresh-alerts-button" type="button" class="px-3 py-1.5 rounded-full bg-slate-900 text-xs font-semibold text-white hover:bg-slate-700 transition-colors">
-        Uyarıları Yenile
-      </button>
-      <select id="site-filter" class="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-600">
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <select id="site-filter"
+        class="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
         <option value="">Tüm Siteler</option>
         {% for site in sites %}
           <option value="{{ site.domain }}">{{ site.label }}</option>
@@ -41,66 +119,89 @@
           <option value="__external__">External Siteler</option>
         {% endif %}
       </select>
+      <button id="refresh-alerts-button" type="button"
+        class="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
+        <svg class="h-3 w-3" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm5-2.5 4 2.5-4 2.5V5.5z"/>
+        </svg>
+        Yenile
+      </button>
     </div>
   </div>
 
-  {# ── Satır 2: Tip chip'leri (yatay kaydırmalı) ── #}
-  <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-900 text-white ring-2 ring-offset-0 ring-slate-400 dark:ring-slate-500"
+  {# ── Satır 2: Tip chip'leri ── #}
+  <div id="alerts-type-filter-row" class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="all"
-      data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200">Tümü</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-rose-50 text-rose-700 dark:bg-rose-950/45 dark:text-rose-300"
+      data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Tümü</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="ctr"
-      data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/45 dark:text-rose-300">CTR</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300"
+      data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/45 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50">CTR</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="position"
-      data-inactive-cls="bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300">Pozisyon</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+      data-inactive-cls="bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50">Pozisyon</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="impression"
-      data-inactive-cls="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">Impression</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+      data-inactive-cls="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50">Impression</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="schema"
-      data-inactive-cls="bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">Schema</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+      data-inactive-cls="bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50">Schema</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="sitemap"
-      data-inactive-cls="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Sitemap</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300"
+      data-inactive-cls="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50">Sitemap</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="ps_mobile"
-      data-inactive-cls="bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">PS Mobile</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+      data-inactive-cls="bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/50">PS Mobile</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="ps_desktop"
-      data-inactive-cls="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">PS Desktop</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-100 text-slate-600 dark:bg-slate-800/70 dark:text-slate-300"
+      data-inactive-cls="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50">PS Desktop</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="robots"
-      data-inactive-cls="bg-slate-100 text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">Robots</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"
+      data-inactive-cls="bg-slate-100 text-slate-600 dark:bg-slate-800/70 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">Robots</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="canonical"
-      data-inactive-cls="bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">Canonical</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+      data-inactive-cls="bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50">Canonical</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="broken_links"
-      data-inactive-cls="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300">Kırık Link</button>
-    <button type="button" class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+      data-inactive-cls="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50">Kırık Link</button>
+    <button type="button"
+      class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-alert-filter="redirect"
-      data-inactive-cls="bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">Redirect</button>
+      data-inactive-cls="bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50">Redirect</button>
   </div>
 
-  <div id="alerts-progress-panel" class="hidden rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-3 shadow-sm ring-1 ring-sky-200/70 dark:border-slate-600 dark:bg-none dark:bg-slate-900 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)] dark:ring-slate-600/70">
+  {# ── Progress paneli ── #}
+  <div id="alerts-progress-panel"
+    class="hidden rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-3 shadow-sm ring-1 ring-sky-200/70 dark:ring-zinc-700/70">
     <div class="flex items-center justify-between gap-4">
-      <div>
+      <div class="min-w-0 flex-1">
         <p id="alerts-progress-title" class="text-sm font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
-        <p id="alerts-progress-detail" class="text-xs text-slate-600 dark:text-slate-300">Tüm siteler için Search Console alert verisi yeniden hesaplanacak.</p>
+        <p id="alerts-progress-detail" class="mt-0.5 text-xs text-slate-600 dark:text-slate-300">Tüm siteler için Search Console alert verisi yeniden hesaplanacak.</p>
       </div>
-      <p id="alerts-progress-percent" class="text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
+      <p id="alerts-progress-percent" class="shrink-0 text-lg font-bold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">0%</p>
     </div>
-    <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-sky-200/70 dark:ring-sky-900/45">
-      <div id="alerts-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_22px_rgba(14,165,233,0.28)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
+    <div class="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/90 dark:bg-zinc-800 ring-1 ring-sky-200/70 dark:ring-zinc-700/50">
+      <div id="alerts-progress-bar"
+        class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_22px_rgba(14,165,233,0.28)] transition-all duration-500"
+        style="width: 0%"></div>
     </div>
   </div>
 
-  <div class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 p-2 sm:p-3">
+  {# ── Alert kartları wrapper ── #}
+  <div id="alerts-container-wrap" class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 p-2 sm:p-3">
     <div id="alerts-container" class="flex flex-col gap-2">
       {% for alert in recent_alerts %}
-        {# Kategori mapping #}
         {% set _cat_map = {
           'CTR': 'ctr',
           'Impression': 'impression',
@@ -116,24 +217,30 @@
         } %}
         {% set cat = _cat_map.get(alert.metric_type, 'other') %}
         {% set domain_key = (alert.domain or '')|lower %}
+        {% set is_doviz = 'doviz.com' in domain_key %}
+        {% set is_sinema = 'sinemalar.com' in domain_key %}
+
         <div
-          class="alert-card relative rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden"
+          class="alert-card group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 transition hover:bg-white dark:border-slate-700/70 dark:bg-slate-800/30 dark:hover:bg-slate-800/50{% if is_doviz or is_sinema %} alert-has-stripe pl-[3px]{% endif %}"
           data-alert-id="{{ alert.id }}"
           data-domain="{{ alert.domain }}"
           data-alert-category="{{ cat }}"
           data-triggered-at="{{ alert.triggered_at_iso }}"
           data-is-external="{{ 'true' if alert.is_external else '' }}"
         >
-          {% if 'doviz.com' in domain_key %}
-            <div class="absolute inset-y-0 left-0 w-1.5 bg-sky-500 dark:bg-sky-400" aria-hidden="true"></div>
-          {% elif 'sinemalar.com' in domain_key %}
-            <div class="absolute inset-y-0 left-0 w-1.5 bg-rose-500 dark:bg-rose-400" aria-hidden="true"></div>
+          {# Sol şerit — inline style ile zinc override'ından bağımsız #}
+          {% if is_doviz %}
+            <div class="alert-domain-stripe-doviz absolute inset-y-0 left-0 w-[3px] rounded-l-xl" aria-hidden="true"></div>
+          {% elif is_sinema %}
+            <div class="alert-domain-stripe-sinema absolute inset-y-0 left-0 w-[3px] rounded-l-xl" aria-hidden="true"></div>
           {% endif %}
+
           {# ── Kart başlığı ── #}
-          <div class="flex items-start gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
-            {# Metric badge — Reduced width from w-44 to w-28 to pull middle content to the left #}
-            <div class="w-24 shrink-0">
-              <span class="inline-block rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide
+          <div class="alert-card-body flex items-start gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
+
+            {# Metric badge — sabit genişlik + truncate ile overflow engeli #}
+            <div class="w-[5.5rem] shrink-0 overflow-hidden pt-0.5">
+              <span class="alert-metric-badge rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide
                 {% if cat == 'ctr' %}bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300
                 {% elif cat == 'position' %}bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300
                 {% elif cat == 'impression' %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
@@ -145,62 +252,58 @@
                 {% elif cat == 'canonical' %}bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300
                 {% elif cat == 'broken_links' %}bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300
                 {% elif cat == 'redirect' %}bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300
-                {% else %}bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}">
+                {% else %}bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}"
+                title="{{ alert.metric_type if alert.metric_type else 'Diğer' }}">
                 {{ alert.metric_type if alert.metric_type else 'Diğer' }}
               </span>
             </div>
 
-            {# Query + metric detail — Smaller font and better space usage #}
-            <div class="min-w-0 flex-1 pl-0">
+            {# Orta: sorgu + metrik #}
+            <div class="min-w-0 flex-1">
               {% if alert.display_query %}
-                <p class="truncate text-[12px] font-bold text-slate-900 dark:text-slate-100">'{{ alert.display_query }}'</p>
+                <p class="truncate text-[12px] font-bold leading-5 text-slate-900 dark:text-slate-100" title="{{ alert.display_query }}">'{{ alert.display_query }}'</p>
               {% endif %}
-              <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <p class="truncate text-[11px] font-medium {% if cat in ('ctr', 'position', 'broken_links', 'redirect', 'robots', 'schema', 'sitemap', 'ps_mobile', 'ps_desktop', 'canonical') %}text-slate-600 dark:text-slate-400{% elif cat == 'impression' %}text-amber-700 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">
-                  {{ alert.display_metric | safe }}
-                </p>
-                {% if alert.diff is defined and alert.diff != 0 %}
-                   <span class="text-[10px] font-bold {% if alert.diff > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
-                     (Fark: {{ "%+d"|format(alert.diff) if alert.diff is number else alert.diff }})
-                   </span>
-                {% endif %}
-              </div>
+              <p class="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 dark:text-slate-400 [overflow-wrap:anywhere]">
+                {{ alert.display_metric | safe }}
+              </p>
             </div>
 
-            {# Right: domain + date + status + button #}
-            <div class="flex shrink-0 flex-col items-end gap-1">
-              <div class="flex items-center gap-2">
-                <span class="hidden text-[10px] text-slate-400 sm:inline">{{ alert.domain }}</span>
-                <span class="text-[10px] text-slate-400">{{ alert.triggered_at }}</span>
-                <span class="text-xs {% if alert.sent_mail %}text-emerald-600{% else %}text-amber-500{% endif %}">
-                  {% if alert.sent_mail %}✓{% else %}⧗{% endif %}
-                </span>
+            {# Sağ: domain + tarih + mail durumu + buton #}
+            <div class="flex shrink-0 flex-col items-end gap-1.5">
+              <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5">
+                <span class="hidden text-[10px] font-medium text-slate-400 sm:block dark:text-slate-500">{{ alert.domain }}</span>
+                <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{{ alert.triggered_at }}</span>
+                {% if alert.sent_mail %}
+                  <span class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400" title="Mail gönderildi">✓</span>
+                {% else %}
+                  <span class="text-[10px] text-amber-500 dark:text-amber-400" title="Mail bekleniyor">⧗</span>
+                {% endif %}
               </div>
-              <button class="toggle-details rounded-md bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-800 transition hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60">
+              <button class="toggle-details rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700">
                 Detayına Bak
               </button>
             </div>
           </div>
 
-          {# ── Collapsible detail ── #}
-          <div class="alert-details border-t border-slate-200 dark:border-slate-700 px-3 py-3 sm:px-4">
+          {# ── Collapsible detay ── #}
+          <div class="alert-details border-t border-slate-200/80 bg-white/60 px-3 py-3 dark:border-slate-700/60 dark:bg-slate-900/30 sm:px-4">
             <div class="flex flex-col gap-3">
               <div class="flex flex-wrap gap-2">
-                <button class="comparison-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors bg-slate-900 text-white" data-comparison="weekly">
+                <button class="comparison-btn comp-active rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors" data-comparison="weekly">
                   Geçen Hafta
                 </button>
-                <button class="comparison-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600" data-comparison="daily">
+                <button class="comparison-btn comp-inactive rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors" data-comparison="daily">
                   Dünle
                 </button>
               </div>
-              <div id="comparison-info-{{ alert.id }}" class="text-sm text-slate-600 dark:text-slate-300">
-                Yükleniyor…
+              <div id="comparison-info-{{ alert.id }}" class="text-sm text-slate-600 dark:text-slate-300 min-h-[2rem]">
               </div>
             </div>
           </div>
         </div>
+
       {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+        <div class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
           Henüz alarm kaydı oluşmadı.
         </div>
       {% endfor %}
