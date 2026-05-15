@@ -3,16 +3,64 @@
 from __future__ import annotations
 
 import hashlib
+import html as _html_mod
 import logging
 import random
 import re
 import secrets
 import smtplib
+import threading
 import time
 import base64
 import googleapiclient.discovery
 from email.message import EmailMessage
 from email.utils import parseaddr
+
+# ── Realtime e-posta batch modu ──────────────────────────────────────────────
+# Bir job döngüsü içinde gönderilecek tüm realtime mailleri biriktirip
+# tek bir mail olarak gönderir. Alarm tespiti / DB mantığına dokunulmaz.
+_batch_ctx = threading.local()
+
+
+def realtime_email_batch_begin() -> None:
+    """Batch toplamayı başlat — bu thread'deki send_realtime_email çağrıları biriktirilir."""
+    _batch_ctx.collecting = True
+    _batch_ctx.items = []  # (subject, html_body)
+
+
+def realtime_email_batch_flush() -> bool:
+    """Biriktirilen mailleri tek email olarak gönder; batch'i temizle."""
+    if not getattr(_batch_ctx, "collecting", False):
+        return False
+    items: list[tuple[str, str]] = list(getattr(_batch_ctx, "items", []))
+    _batch_ctx.collecting = False
+    _batch_ctx.items = []
+    if not items:
+        return False
+
+    if len(items) == 1:
+        # Tek mail: normal yolla gönder (thread key önemli değil, batch çıktı)
+        subj, body = items[0]
+        return send_realtime_email(subj, body, thread_kind="combined", thread_key="batch_single")
+
+    # Birden fazla mail → tek email
+    subject_chips = [s[:45] for s, _ in items[:3]]
+    rest_lbl = f" +{len(items) - 3}" if len(items) > 3 else ""
+    combined_subject = f"SEO Realtime: {len(items)} alarm · {' · '.join(subject_chips)}{rest_lbl}"
+
+    sep = '<div style="border-top:2px dashed #e2e8f0;margin:22px 0 18px;"></div>'
+    combined_body = (
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+        'max-width:620px;margin:0 auto;padding:8px 0;">'
+        + sep.join(body for _, body in items)
+        + "</div>"
+    )
+    return send_realtime_email(
+        combined_subject,
+        combined_body,
+        thread_kind="combined",
+        thread_key="all_sites_batch",
+    )
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -257,6 +305,11 @@ def send_realtime_email(
     - Haber başlığı alarmları: ``send_realtime_news_email`` ve ``ga4_realtime_news_alert_email``.
     - Geçici SMTP hatalarında ``send_email`` ile aynı yeniden deneme mantığı kullanılır.
     """
+    # ── Batch modu: biriktir, şimdi gönderme ─────────────────────────────────
+    if getattr(_batch_ctx, "collecting", False) and not is_summary:
+        _batch_ctx.items.append((subject.strip(), html_body))
+        return True
+
     if not settings.ga4_realtime_email_enabled:
         logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
         return False
@@ -308,6 +361,11 @@ def send_realtime_news_email(
     thread_key: str | None = None,
 ) -> bool:
     """GA4 Realtime «Haberler» alarm e-postası (sayfa postasından bağımsız bayrak)."""
+    # ── Batch modu: haber alarmlarını da aynı batch'e ekle ───────────────────
+    if getattr(_batch_ctx, "collecting", False):
+        _batch_ctx.items.append((subject.strip(), html_body))
+        return True
+
     if not settings.ga4_realtime_email_enabled:
         logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_email_enabled=False")
         return False

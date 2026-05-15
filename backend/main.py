@@ -9619,12 +9619,20 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             run_news_alarm_check_all_sites,
             run_page_alarm_check_all_sites,
         )
+        from backend.services.mailer import (
+            realtime_email_batch_begin,
+            realtime_email_batch_flush,
+        )
 
         total_site_alarms = 0
         total_page_alarms = 0
         total_news_alarms = 0
 
-        # 1. Site-level KPI alarmları — her fonksiyon kendi domain/profile bağlamıyla email gönderir
+        # Tüm alarm tiplerinden gelen e-postalar tek bir mailde toplanır.
+        # Alarm tespiti / DB mantığına dokunulmaz; sadece gönderim batche alınır.
+        realtime_email_batch_begin()
+
+        # 1. Site-level KPI alarmları
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
                 db,
@@ -9638,6 +9646,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 total_site_alarms += len(res["alarms"])
 
         if is_night and not force_run:
+            realtime_email_batch_flush()  # batch'i temizle (gece modunda gönderme)
             LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
             return {"total_alarms": 0, "status": "night_mode_passive"}
 
@@ -9646,7 +9655,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             with SessionLocal() as db:
                 page_alarms = run_page_alarm_check_all_sites(
                     db, window_minutes=settings.ga4_realtime_window_minutes,
-                    skip_emails=False,   # fonksiyon kendi email'ini gönderir
+                    skip_emails=False,
                 )
             total_page_alarms = len(page_alarms) if page_alarms else 0
 
@@ -9655,6 +9664,9 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             with SessionLocal() as db:
                 news_alarms = run_news_alarm_check_all_sites(db, skip_emails=False)
             total_news_alarms = len(news_alarms) if news_alarms else 0
+
+        # Tüm alarmlar toplandı — tek mail olarak gönder
+        realtime_email_batch_flush()
 
         total = total_site_alarms + total_page_alarms + total_news_alarms
         LOGGER.info(
