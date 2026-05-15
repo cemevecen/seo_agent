@@ -1016,6 +1016,7 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
                 limit=limit,
                 sort_by=sort_by,
                 dimension=dim,
+                include_page_path=False,   # app profillerde pagePath geçersiz
                 client=client,
             )
         except Exception as exc:
@@ -1173,6 +1174,7 @@ def fetch_realtime_top_pages_with_app_fallback(
             limit=limit,
             sort_by=sort_by,
             compare_previous=compare_previous,
+            include_page_path=True,   # web/mweb'de pagePath geçerli
             client=client,
         )
         base["breakdown"] = "unifiedScreenName"
