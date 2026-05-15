@@ -109,16 +109,26 @@ YEAR_TO   = "2026-12-31"
 
 def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
-    Türkiye'de sinemada gösterilecek filmler — yeniden vizyon dahil.
+    Türkiye'de sinemada gösterilecek filmler — çift sorgu ile tam kapsam.
 
-    release_date.gte/lte + region=TR → Türkiye gerçek vizyon tarihi.
-    primary_release_date yeniden vizyonları (2005 filmi 2026'da Türkiye'de) kaçırır.
-    Dil/popülerlik filtresi yok: Türkiye'de oynayacak her film dahil.
+    Sorgu A: release_date + region=TR
+      → Türkiye'ye özgü vizyon tarihi kayıtlıları + yeniden vizyonlar (eski filmler).
+
+    Sorgu B: primary_release_date (bölge fark etmez)
+      → Dünya prömiyeri 2025-2026 olan tüm filmler.
+      → "Avengers: Doomsday", "Şrek 5" gibi büyük yapımlar
+        TR vizyon tarihi TMDB'ye henüz girmemiş olsa bile yakalanır.
+
+    İkisi birleştirilip ID bazlı tekrar önlenir.
     """
     date_from = YEAR_FROM
     date_to   = YEAR_TO
 
-    raw = _fetch_pages({
+    seen: set[int] = set()
+    raw: list[dict] = []
+
+    # A: Türkiye bölgesel vizyon tarihi (yeniden vizyonlar dahil)
+    for m in _fetch_pages({
         "region":            "TR",
         "language":          "tr-TR",
         "release_date.gte":  date_from,
@@ -126,7 +136,22 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
         "sort_by":           "popularity.desc",
         "include_adult":     "false",
         "with_release_type": "3",
-    }, page_limit=12)
+    }, page_limit=12):
+        if m["id"] not in seen:
+            seen.add(m["id"])
+            raw.append(m)
+
+    # B: Dünya prömiyeri 2025-2026 (TR vizyon tarihi TMDB'de yoksa da gelir)
+    for m in _fetch_pages({
+        "language":                 "tr-TR",
+        "primary_release_date.gte": date_from,
+        "primary_release_date.lte": date_to,
+        "sort_by":                  "popularity.desc",
+        "include_adult":            "false",
+    }, page_limit=15):
+        if m["id"] not in seen:
+            seen.add(m["id"])
+            raw.append(m)
 
     movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
@@ -143,7 +168,11 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     date_from = YEAR_FROM
     date_to   = YEAR_TO
 
-    raw = _fetch_pages({
+    seen: set[int] = set()
+    raw: list[dict] = []
+
+    # A: Türkiye'de platforma girmiş / girişi kayıtlı
+    for m in _fetch_pages({
         "watch_region":          "TR",
         "with_watch_providers":  STREAMING_PROVIDERS_TR,
         "language":              "tr-TR",
@@ -151,15 +180,25 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
         "release_date.lte":      date_to,
         "sort_by":               "popularity.desc",
         "include_adult":         "false",
-    }, page_limit=12)
-
-    seen: set[int] = set()
-    movies = []
-    for m in raw:
+    }, page_limit=12):
         if m["id"] not in seen:
             seen.add(m["id"])
-            movies.append(_enrich(m))
+            raw.append(m)
 
+    # B: Dünya geneli platform çıkışları (watch_region kaydı henüz yoksa da gelir)
+    for m in _fetch_pages({
+        "with_watch_providers":     STREAMING_PROVIDERS_TR,
+        "language":                 "tr-TR",
+        "primary_release_date.gte": date_from,
+        "primary_release_date.lte": date_to,
+        "sort_by":                  "popularity.desc",
+        "include_adult":            "false",
+    }, page_limit=10):
+        if m["id"] not in seen:
+            seen.add(m["id"])
+            raw.append(m)
+
+    movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
     return movies
 
