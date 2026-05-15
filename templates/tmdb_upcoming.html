@@ -25,9 +25,11 @@
     {% endif %}
   </div>
   <div class="min-w-0 flex-1">
-    <div class="flex items-start justify-between gap-1">
+    <div class="flex items-start justify-between gap-1.5">
       <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ movie.title }}">{{ movie.title }}</p>
-      {% if movie.is_turkish %}<span class="shrink-0 text-xs">🇹🇷</span>{% endif %}
+      {% if movie.country_flag %}
+      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800" title="{{ movie.country_flag }}">{{ movie.country_flag }}</div>
+      {% endif %}
     </div>
     {% if movie.original_title and movie.original_title != movie.title %}
       <p class="truncate text-[10px] text-slate-400">{{ movie.original_title }}</p>
@@ -75,7 +77,12 @@
     {% endif %}
   </div>
   <div class="min-w-0 flex-1">
-    <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ show.title }}">{{ show.title }}</p>
+    <div class="flex items-start justify-between gap-1.5">
+      <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ show.title }}">{{ show.title }}</p>
+      {% if show.country_flag %}
+      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800">{{ show.country_flag }}</div>
+      {% endif %}
+    </div>
     {% if show.original_title and show.original_title != show.title %}
       <p class="truncate text-[10px] text-slate-400">{{ show.original_title }}</p>
     {% endif %}
@@ -221,7 +228,7 @@
         {% endif %}
         <p class="line-clamp-2 text-[10px] font-semibold leading-tight text-slate-800 dark:text-slate-200">{{ movie.title }}</p>
         <p class="text-[9px] text-slate-400">{{ movie.release_date }}</p>
-        {% if movie.is_turkish %}<span class="text-[9px]">🇹🇷</span>{% endif %}
+        {% if movie.country_flag %}<span class="text-sm">{{ movie.country_flag }}</span>{% endif %}
       </a>
       {% endfor %}
     </div>

@@ -58,6 +58,34 @@ def _poster_url(p: str | None) -> str:
     return TMDB_IMG + p if p else ""
 
 
+# Dil kodu → varsayılan ülke kodu (origin_country yoksa fallback)
+_LANG_TO_COUNTRY: dict[str, str] = {
+    "en": "US", "tr": "TR", "fr": "FR", "de": "DE", "es": "ES",
+    "it": "IT", "ja": "JP", "ko": "KR", "zh": "CN", "ru": "RU",
+    "pt": "BR", "ar": "SA", "hi": "IN", "pl": "PL", "nl": "NL",
+    "sv": "SE", "da": "DK", "fi": "FI", "nb": "NO", "hu": "HU",
+    "cs": "CZ", "ro": "RO", "uk": "UA", "he": "IL", "th": "TH",
+    "id": "ID", "ms": "MY", "vi": "VN", "fa": "IR", "ur": "PK",
+}
+
+
+def _country_flag(country_code: str) -> str:
+    """ISO 3166-1 alpha-2 → bayrak emoji (ör. 'US' → '🇺🇸')."""
+    cc = (country_code or "").upper().strip()
+    if len(cc) != 2 or not cc.isalpha():
+        return ""
+    return chr(0x1F1E6 + ord(cc[0]) - 65) + chr(0x1F1E6 + ord(cc[1]) - 65)
+
+
+def _resolve_flag(m: dict) -> str:
+    """TMDB ham kaydından ülke bayrağı emoji'si çıkar."""
+    countries = m.get("origin_country") or []
+    code = countries[0] if countries else _LANG_TO_COUNTRY.get(
+        str(m.get("original_language") or ""), ""
+    )
+    return _country_flag(code)
+
+
 def _popularity_label(pop: float) -> str:
     if pop >= 500: return "Çok Yüksek"
     if pop >= 200: return "Yüksek"
@@ -81,8 +109,9 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
         "vote_count":       int(m.get("vote_count") or 0),
         "overview":         (m.get("overview") or "")[:280],
         "is_turkish":       m.get("original_language") == "tr",
+        "country_flag":     _resolve_flag(m),
         "tmdb_url":         f"https://www.themoviedb.org/movie/{m['id']}",
-        "providers":        providers or [],   # platform isimleri listesi
+        "providers":        providers or [],
     }
 
 
@@ -264,6 +293,7 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
         "vote_count":       int(m.get("vote_count") or 0),
         "overview":         (m.get("overview") or "")[:280],
         "is_turkish":       m.get("original_language") == "tr",
+        "country_flag":     _resolve_flag(m),
         "tmdb_url":         f"https://www.themoviedb.org/tv/{m['id']}",
         "networks":         network_names,
         "status":           TV_STATUS_TR.get(status_en, status_en),
