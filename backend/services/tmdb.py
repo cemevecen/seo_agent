@@ -122,6 +122,22 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
     }
 
 
+def search_movie_by_title(title: str) -> dict[str, Any] | None:
+    """Başlık ile TMDB'de film arar, en iyi eşleşmeyi zenginleştirilmiş dict olarak döner."""
+    try:
+        data = _get("/search/movie", {
+            "query":          title,
+            "language":       "tr-TR",
+            "include_adult":  "false",
+        })
+        results = data.get("results", [])
+        if results:
+            return _enrich(results[0])
+    except Exception as exc:
+        logger.warning("TMDB title search hatası [%s]: %s", title, exc)
+    return None
+
+
 def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
     """Sayfalı TMDB /discover/movie sorgusu."""
     results: list[dict] = []
@@ -463,6 +479,21 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         theatrical = fetch_theatrical_turkey(months_ahead)
     except Exception as exc:
         logger.error("TMDB theatrical hatası: %s", exc)
+
+    # Box office Turkey — gişedeki ama TMDB theatrical listesinde olmayan filmleri ekle
+    try:
+        from backend.services.boxoffice_turkey import fetch_current_boxoffice, find_missing_from_tmdb
+        boxoffice_films = fetch_current_boxoffice()
+        if boxoffice_films:
+            existing_ids: set[int] = {m["id"] for m in theatrical}
+            extra = find_missing_from_tmdb(boxoffice_films, existing_ids, search_movie_by_title)
+            for film in extra:
+                film["boxoffice_source"] = True
+                theatrical.append(film)
+            if extra:
+                logger.info("Gişe takviminden %d film eklendi", len(extra))
+    except Exception as exc:
+        logger.error("BOT gişe entegrasyon hatası: %s", exc)
 
     try:
         streaming = fetch_streaming_turkey(months_ahead)
