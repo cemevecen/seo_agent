@@ -22,20 +22,25 @@ CATEGORY_SOURCES = {
         "https://news.google.com/news/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Genel": [
-        "https://www.ekonomim.com/rss",                        # 11:31 taze
-        "https://www.dunya.com/rss",                           # 11:28 taze
-        "https://www.bloomberght.com/rss",                     # 08:25 taze
-        "https://news.google.com/rss/search?q=site:cnbce.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=site:foreks.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.ekonomim.com/rss",       # direkt — 11:31
+        "https://www.dunya.com/rss",           # direkt — 11:28
+        "https://www.cnbce.com/rss",           # direkt — 11:25
+        "https://www.bloomberght.com/rss",     # direkt — 08:25
+        "https://www.foreks.com/rss",          # direkt — 08:37
+        "https://news.google.com/rss/search?q=site:gazeteoksijen.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=site:ntvpara.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "İş Dünyası": [
         "https://www.dunya.com/rss",
         "https://www.ekonomim.com/rss",
+        "https://www.cnbce.com/rss",
         "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=şirket+haberleri+yatırım+girişim+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
+        "https://www.foreks.com/rss",
+        "https://www.cnbce.com/rss",
         "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+temettü+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=kripto+para+bitcoin+ethereum+blokzincir+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
