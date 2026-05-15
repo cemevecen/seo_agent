@@ -8165,7 +8165,13 @@ def ga4_app_detail_partial(request: Request, site_id: int):
             rows = fetch_ga4_app_screens(property_id=property_id, days=days, limit=50)
     except Exception as exc:
         LOGGER.exception("GA4 app detail hatası [site=%s, profile=%s, kind=%s]", site_id, profile, kind)
-        return HTMLResponse(f"Veri çekilemedi: {exc}", status_code=500)
+        label = "Eventler" if kind == "events" else "Ekranlar"
+        return HTMLResponse(
+            f'<div class="rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">'
+            f'{label} verisi çekilemedi. GA4 property erişimi kontrol edin.'
+            f'</div>',
+            status_code=200,  # HTMX swap için 200 döndür
+        )
 
     resp = templates.TemplateResponse(
         request,
