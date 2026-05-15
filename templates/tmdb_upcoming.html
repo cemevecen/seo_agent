@@ -30,7 +30,8 @@
   {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
-  data-country="{{ movie.country_code }}">
+  data-country="{{ movie.country_code }}"
+  data-pop="{% if movie.popularity >= 200 %}high{% elif movie.popularity >= 80 %}medium{% else %}low{% endif %}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -123,7 +124,8 @@
   {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
-  data-country="{{ show.country_code }}">
+  data-country="{{ show.country_code }}"
+  data-pop="{% if show.popularity >= 200 %}high{% elif show.popularity >= 80 %}medium{% else %}low{% endif %}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -222,27 +224,27 @@
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
 
   {# Başlık #}
-  <div class="flex flex-wrap items-end justify-between gap-4 rounded-2xl bg-white px-5 py-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-    <div>
-      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">İçerik Planlama</p>
-      <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yaklaşan Vizyon Takvimi</h2>
-      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        TMDB — önümüzdeki <strong>{{ data.months_ahead }}</strong> ay ·
-        <span class="font-semibold text-slate-700 dark:text-slate-300">{{ data.total_theatrical }}</span> sinema ·
-        <span class="font-semibold text-violet-700 dark:text-violet-300">{{ data.total_streaming }}</span> platform ·
-        <span class="font-semibold text-rose-700 dark:text-rose-300">{{ data.total_turkish }}</span> Türk filmi ·
-        <span class="font-semibold text-emerald-700 dark:text-emerald-300">{{ data.total_tv }}</span> Türk dizisi
-      </p>
-    </div>
-    <div class="flex flex-wrap gap-2">
-      {% for m in [3,5,8] %}
-      <a href="/tmdb-upcoming?months={{ m }}"
-         class="rounded-full border px-3 py-1.5 text-xs font-semibold transition
-                {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
-                {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
-        {{ m }} ay
-      </a>
-      {% endfor %}
+  <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <h2 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yaklaşan Vizyon Takvimi</h2>
+    <div class="flex flex-wrap items-center gap-2">
+      {# Önem filtresi #}
+      <div class="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
+        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="all">Tümü</button>
+        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="high">Yüksek</button>
+        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="medium">Orta</button>
+        <button type="button" class="tmdb-pop-btn rounded-lg px-2.5 py-1 text-xs font-semibold transition" data-pop="low">Düşük</button>
+      </div>
+      {# Ay seçici #}
+      <div class="flex gap-1">
+        {% for m in [3,5,8] %}
+        <a href="/tmdb-upcoming?months={{ m }}"
+           class="rounded-full border px-3 py-1.5 text-xs font-semibold transition
+                  {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
+                  {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
+          {{ m }} ay
+        </a>
+        {% endfor %}
+      </div>
     </div>
   </div>
 
@@ -325,6 +327,54 @@
   var tabs   = document.querySelectorAll('.tmdb-tab');
   var panels = document.querySelectorAll('.tmdb-panel');
 
+  /* ── Önem / popülerlik filtresi ── */
+  var _activePop = 'all';
+  var popBtns = document.querySelectorAll('.tmdb-pop-btn');
+
+  function setActivePopBtn(val) {
+    popBtns.forEach(function (b) {
+      var on = b.getAttribute('data-pop') === val;
+      if (on) {
+        b.style.background = '#0f172a';
+        b.style.color      = '#f8fafc';
+      } else {
+        b.style.background = '';
+        b.style.color      = '';
+      }
+    });
+  }
+
+  function applyPopFilter() {
+    document.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var pop = card.getAttribute('data-pop') || 'low';
+      var show = _activePop === 'all' || pop === _activePop;
+      // Ülke filtresiyle çakışmasın — zaten gizliyse dokunma
+      if (card.style.display === 'none' && show) {
+        // ülke filtresi gizlemişse karışma
+      }
+      card.setAttribute('data-pop-hidden', show ? '0' : '1');
+      // Her iki filtreyi birleştir
+      var countryHidden = card.getAttribute('data-country-hidden') === '1';
+      card.style.display = (show && !countryHidden) ? '' : 'none';
+    });
+    // Boş kalan ay başlıklarını gizle
+    document.querySelectorAll('.tmdb-panel:not(.hidden) section').forEach(function (sec) {
+      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
+      sec.style.display = visible ? '' : 'none';
+    });
+  }
+
+  popBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      _activePop = btn.getAttribute('data-pop');
+      setActivePopBtn(_activePop);
+      applyPopFilter();
+    });
+  });
+
+  // İlk yüklemede "Tümü" aktif
+  setActivePopBtn('all');
+
   /* ── Ülke filtresi ── */
   var COUNTRY_NAMES = {
     us:'ABD', gb:'İngiltere', fr:'Fransa', de:'Almanya', it:'İtalya',
@@ -400,7 +450,10 @@
     setActiveCF(bar, cf);
     panel.querySelectorAll('.tmdb-card').forEach(function (card) {
       var cc = card.getAttribute('data-country') || '';
-      card.style.display = (cf === 'all' || cc === cf) ? '' : 'none';
+      var countryOk = (cf === 'all' || cc === cf);
+      card.setAttribute('data-country-hidden', countryOk ? '0' : '1');
+      var popHidden = card.getAttribute('data-pop-hidden') === '1';
+      card.style.display = (countryOk && !popHidden) ? '' : 'none';
     });
     panel.querySelectorAll('section').forEach(function (sec) {
       var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
