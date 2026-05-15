@@ -8499,7 +8499,15 @@ def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 4
                     "current": round(cu),
                     "contribution_pct": round(pd / site_delta * 100) if site_delta else 0,
                 })
-            page_contribs.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
+            # Sadece site_delta ile AYNI yönde hareket eden sayfalar
+            # (karşı yönde gidenler "neden düştü" sorusuna cevap değil)
+            if site_delta < 0:
+                same_dir = [p for p in page_contribs if p["delta"] < 0]
+            else:
+                same_dir = [p for p in page_contribs if p["delta"] > 0]
+            # Aynı yönde page yoksa tüm listeyi göster (veri az olabilir)
+            pool = same_dir if same_dir else page_contribs
+            pool.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
 
             start_local = ts_prev.replace(tzinfo=_dt.timezone.utc).astimezone(tz)
             end_local = ts_curr.replace(tzinfo=_dt.timezone.utc).astimezone(tz)
@@ -8512,7 +8520,7 @@ def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 4
                 "change_pct": round(site_delta / max(a["baseline"], 1) * 100, 1),
                 "current_total": round(r.active_users_current or 0),
                 "previous_total": round(prev_r.active_users_current or 0),
-                "top_pages": page_contribs[:3],
+                "top_pages": pool[:3],
                 "collected_at": ts_curr.isoformat(),
             })
 
