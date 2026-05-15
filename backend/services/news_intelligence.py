@@ -100,12 +100,12 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 if " - Google News" in ch_title:
                     ch_title = ch_title.replace(" - Google News", "").strip()
 
-                new_count = 0
+                # --- Adım 1: Ham parse (çeviri öncesi) ---
+                pending_items = []  # (title, link, source_name, source_url, description, display_topic, published_at)
                 for item in items:
                     title = item.find("title").text if item.find("title") is not None else ""
                     link = item.find("link").text if item.find("link") is not None else ""
 
-                    # Yahoo Finance haberlerini filtrele
                     if category == "Yahoo Finance" and "/personal-finance/" in link.lower():
                         continue
 
@@ -116,66 +116,67 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         source_name = (source_el.text or "").strip() or ch_title or "Bilinmiyor"
                         source_url  = source_el.get("url") or ch_link or None
                     else:
-                        # Direkt feed — channel bilgisini kullan
                         source_name = ch_title or "Bilinmiyor"
                         source_url  = ch_link or None
-                    
+
                     description = item.find("description").text if item.find("description") is not None else ""
-                    
-                    # Görsel (Thumbnail) Çekme - Kaldırıldı (Artık logo kullanılacak)
                     image_url = None
-                    
-                    # Temizlik: Başlığın sonundaki site isimlerini ve gereksiz ekleri temizle
+
                     title = title.strip()
                     for suffix in [f" - {source_name}", f" | {source_name}", f" - {source_name.upper()}", f" | {source_name.upper()}"]:
                         if title.endswith(suffix):
                             title = title[:-len(suffix)].strip()
-                    
-                    # 50 karakter sınırı ve temel filtreler
+
                     if len(title) < 50:
                         continue
-                    
-                    # Eğer başlık sadece site adından oluşuyorsa veya çok jenerikse atla
                     lower_title = title.lower()
                     if lower_title == source_name.lower() or lower_title == category.lower():
                         continue
                     if any(ex in lower_title for ex in EXCLUDE_KEYWORDS):
                         continue
 
-                    # Etiketleme için anahtar kelime kontrolü
                     combined_text = (title + " " + description).lower()
                     matched_topic = next((kw for kw in FILTER_KEYWORDS if kw in combined_text), None)
-                    
-                    # Her halükarda bir konu ismi veriyoruz
                     display_topic = matched_topic.capitalize() if matched_topic else category
-                    
-                    # Tarih dönüşümü
+
                     published_at = None
-                    date_formats = [
-                        "%a, %d %b %Y %H:%M:%S %Z",
-                        "%a, %d %b %Y %H:%M:%S %z",
-                        "%Y-%m-%dT%H:%M:%S%z",
-                        "%Y-%m-%d %H:%M:%S"
-                    ]
-                    for fmt in date_formats:
+                    for fmt in ["%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z",
+                                "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S"]:
                         try:
                             published_at = datetime.strptime(pub_date_str, fmt)
                             break
                         except:
                             continue
-                    
                     if not published_at:
                         published_at = datetime.utcnow()
 
-                    # DB'de var mı kontrol et (ÖNCE KONTROL: Varsa çeviriye girme, vakit kazan)
-                    exists = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first()
-                    if exists:
+                    if db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first():
                         continue
 
-                    # Yahoo Finance — başlık İngilizce, çeviriye gerek yok (yavaşlatıyor)
-                    # Başlık olduğu gibi saklanır, UI'da İngilizce gösterilir
+                    pending_items.append((title, link, source_name, source_url, description,
+                                          display_topic, published_at, image_url))
 
-                    # Yeni haberi kaydet
+                # --- Adım 2: Yahoo için toplu çeviri (tek API çağrısı) ---
+                if category == "Yahoo Finance" and pending_items:
+                    SEP = " ||| "
+                    raw_titles = [p[0] for p in pending_items]
+                    try:
+                        from deep_translator import GoogleTranslator
+                        joined = SEP.join(raw_titles)
+                        translated_joined = GoogleTranslator(source="en", target="tr").translate(joined)
+                        translated_parts = [t.strip() for t in (translated_joined or "").split(SEP.strip())]
+                        if len(translated_parts) == len(raw_titles):
+                            pending_items = [
+                                (translated_parts[i],) + pending_items[i][1:]
+                                for i in range(len(pending_items))
+                            ]
+                    except Exception as te:
+                        logger.warning("Yahoo toplu çeviri başarısız, orijinal başlıklar kullanılacak: %s", te)
+
+                # --- Adım 3: Kaydet ---
+                new_count = 0
+                for (title, link, source_name, source_url, description,
+                     display_topic, published_at, image_url) in pending_items:
                     new_item = NewsIntelligenceItem(
                         url=link,
                         headline=title,
