@@ -615,6 +615,38 @@ templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
 
+@app.get("/api/admin/omdb-test")
+def admin_omdb_test():
+    """OMDB API key doğrulama + örnek sorgu."""
+    from backend.services.omdb import _api_key, _fetch_omdb
+    try:
+        key = _api_key()
+        data = _fetch_omdb("The Godfather", "1972")
+        if data:
+            return {
+                "status": "ok",
+                "key_prefix": key[:6] + "***",
+                "test_movie": data.get("Title"),
+                "imdb_rating": data.get("imdbRating"),
+                "rt": next((r["Value"] for r in data.get("Ratings", []) if "Rotten" in r["Source"]), None),
+            }
+        return {"status": "error", "message": "OMDB boş yanıt döndü — key geçersiz olabilir"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.get("/api/admin/omdb-enrich-now")
+def admin_omdb_enrich_now():
+    """OMDB zenginleştirmeyi MANUEL tetikler (max 999 film)."""
+    try:
+        from backend.services.omdb import run_daily_omdb_enrichment
+        with SessionLocal() as db:
+            result = run_daily_omdb_enrichment(db)
+        return {"status": "ok", **result}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
     """Saatlik inbox özetini MANUEL olarak tetikler."""
