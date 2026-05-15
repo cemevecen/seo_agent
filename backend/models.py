@@ -676,3 +676,21 @@ class SupportInboxMessage(Base):
     is_outbound: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     thread: Mapped["SupportInboxThread"] = relationship("SupportInboxThread", back_populates="messages")
+
+
+class SiteErrorLog(Base):
+    """Tespit edilen site hataları (GA4, SC, sunucu kaynaklı)."""
+    __tablename__ = "site_error_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False, index=True)   # 404, 500, vs.
+    source: Mapped[str] = mapped_column(String(30), nullable=False, index=True)     # "ga4", "sc", "server"
+    error_type: Mapped[str] = mapped_column(String(50), nullable=False)             # "not_found", "server_error"
+    hit_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)      # kaç kullanıcı etkilendi
+    first_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    extra_json: Mapped[str | None] = mapped_column(Text, nullable=True)             # ek veri (başlık, referrer, vs.)
+
+    site: Mapped["Site"] = relationship("Site")

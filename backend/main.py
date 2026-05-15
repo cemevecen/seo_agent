@@ -1195,6 +1195,14 @@ def on_startup() -> None:
     import threading as _threading
     _threading.Thread(target=_prewarm_tmdb, daemon=True, name="tmdb-prewarm").start()
 
+    # Hata izleme tablosunu oluştur
+    try:
+        from backend.models import SiteErrorLog
+        from backend.database import engine
+        SiteErrorLog.__table__.create(bind=engine, checkfirst=True)
+    except Exception as exc:
+        LOGGER.warning("SiteErrorLog tablo oluşturma hatası: %s", exc)
+
 
 @app.on_event("shutdown")
 def on_shutdown() -> None:
@@ -2915,6 +2923,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             settings.ga4_realtime_window_minutes,
         )
         job_count += 1
+
+    # Saatlik hata tespiti (GA4'ten 404/500 çekimi) — 07:00–23:00 arası
+    scheduler.add_job(
+        _run_error_detection_job,
+        trigger=CronTrigger(hour="7-23", minute=30, timezone=timezone),
+        id="hourly-error-detection",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+    job_count += 1
 
     # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
     scheduler.add_job(
@@ -7752,6 +7772,55 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     return RedirectResponse(url="/ai", status_code=303)
 
 
+@app.get("/errors")
+def errors_page(request: Request, site_id: int | None = None, days: int = 7):
+    """Site hata izleme — GA4 + SC + sunucu kaynaklı 404/500 listesi."""
+    from backend.services.error_monitor import get_error_summary, run_error_detection_for_site
+
+    sidebar_sites = get_sidebar_sites()
+    days = max(1, min(int(days), 30))
+
+    # Seçili site yoksa ilk siteyi al
+    with SessionLocal() as db:
+        from backend.models import Site
+        all_sites = db.query(Site).order_by(Site.created_at.desc()).all()
+        all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
+
+    if not site_id and all_sites_list:
+        site_id = all_sites_list[0]["id"]
+
+    summary = {"total_404": 0, "total_5xx": 0, "total_users": 0, "by_source": {}, "errors": [], "site_id": site_id, "days": days}
+
+    if site_id:
+        with SessionLocal() as db:
+            summary = get_error_summary(db, site_id, days=days)
+
+    return templates.TemplateResponse(
+        request,
+        "errors.html",
+        context={
+            "request": request,
+            "sites": sidebar_sites,
+            "all_sites": all_sites_list,
+            "summary": summary,
+            "selected_site_id": site_id,
+            "days": days,
+        },
+    )
+
+
+@app.get("/api/errors/{site_id}/refresh")
+def api_errors_refresh(site_id: int, days: int = 1):
+    """Manuel hata tespiti tetikle — site için GA4'ten 404 çek."""
+    try:
+        from backend.services.error_monitor import run_error_detection_for_site
+        with SessionLocal() as db:
+            result = run_error_detection_for_site(db, site_id, days=days)
+        return {"status": "ok", **result}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/tmdb-upcoming")
 def tmdb_upcoming_page(request: Request, months: int = 5):
     """TMDB vizyon takvimi — sinemalar.com içerik planlama."""
@@ -9863,6 +9932,18 @@ def _run_tmdb_cache_refresh_job() -> None:
         )
     except Exception as exc:
         LOGGER.error("TMDB cache refresh hatası: %s", exc)
+
+
+def _run_error_detection_job() -> None:
+    """Saatlik GA4 hata tespiti — bugünün 404/500 sayfalarını çeker."""
+    try:
+        from backend.services.error_monitor import run_error_detection_all_sites
+        with SessionLocal() as db:
+            results = run_error_detection_all_sites(db, days=1)
+        total = sum(r.get("found", 0) for r in results if isinstance(r, dict))
+        LOGGER.info("Hata tespiti tamamlandı: %d site, %d hata", len(results), total)
+    except Exception as exc:
+        LOGGER.error("Hata tespiti job hatası: %s", exc)
 
 
 def _run_omdb_enrichment_job() -> None:
