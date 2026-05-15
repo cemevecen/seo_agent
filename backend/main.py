@@ -8406,21 +8406,34 @@ def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 4
         if len(rows) < 2:
             return JSONResponse({"insights": [], "has_data": False})
 
-        # Ardışık snapshot farkları (GA4 iç pencere karşılaştırması değil)
+        # Ardışık snapshot farkları
         vals = [r.active_users_current or 0 for r in rows]
         diffs = []
         for i in range(1, len(rows)):
             delta = vals[i] - vals[i - 1]
-            # Rolling baseline: önceki 4 snapshot'ın ortalaması
-            baseline_vals = vals[max(0, i - 5):i]
+            baseline_vals = vals[max(0, i - 6):i]
             baseline = sum(baseline_vals) / len(baseline_vals) if baseline_vals else vals[i - 1]
             diffs.append({"idx": i, "delta": delta, "baseline": baseline, "row": rows[i], "prev_row": rows[i - 1]})
 
-        # Anomali eşiği: baseline'ın %25'i VE en az 30 kullanıcı
+        # Anomali eşiği: delta'ların standart sapması × 1.5  VEYA  baseline'ın %5'i
+        # (hangisi küçükse) — yüksek trafikli sitelerde %25 çok büyük kalıyordu
+        all_deltas = [abs(d["delta"]) for d in diffs]
+        try:
+            stdev = statistics.stdev(all_deltas) if len(all_deltas) >= 3 else 0
+        except Exception:
+            stdev = 0
+
         anomalies = []
         for d in diffs:
             b = max(d["baseline"], 10)
-            if abs(d["delta"]) >= max(b * 0.25, 30):
+            # Stdev varsa: stdev × 1.5 (volatiliteye adapte)
+            # Stdev yoksa (az veri): baseline × %3
+            # Her halükarda minimum 20 kullanıcı
+            if stdev > 0:
+                dynamic_thresh = max(stdev * 1.5, 20)
+            else:
+                dynamic_thresh = max(b * 0.03, 20)
+            if abs(d["delta"]) >= dynamic_thresh:
                 anomalies.append(d)
 
         if not anomalies:
