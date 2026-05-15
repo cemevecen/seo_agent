@@ -493,6 +493,13 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
             tv_upcoming.append(m)
             tv_seen.add(m["id"])
 
+    # first_air_date < TV_YEAR_FROM olan eski dizileri filtrele
+    # (Survivor gibi /tv/on_the_air'den gelen 2005 tarihliler çıkar)
+    tv_upcoming = [
+        m for m in tv_upcoming
+        if (m.get("first_air_date") or "0000") >= TV_YEAR_FROM
+    ]
+
     tv_upcoming.sort(key=lambda x: (-x["popularity"], x["release_date"] or "9999"))
 
     # theatrical + streaming ID'lerini işaretle
