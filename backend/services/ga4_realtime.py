@@ -1789,7 +1789,11 @@ def check_site_realtime(
                 
         logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
         if not skip_emails:
-            _send_site_alarm_emails(site.domain, profile, alarms)
+            rule_ids = [a["rule_id"] for a in alarms]
+            if _alarm_email_suppressed(db, site.id, rule_ids):
+                logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s).", site.domain)
+            else:
+                _send_site_alarm_emails(site.domain, profile, alarms)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -1850,6 +1854,27 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
     except Exception:
         db.rollback()
         logger.exception("RealtimeAlarmLog kayıt hatası (site_id=%s)", site_id)
+
+
+def _alarm_email_suppressed(db: Session, site_id: int, rule_ids: list[str]) -> bool:
+    """Cooldown kontrolü: aynı site için son N dakika içinde aynı kural tetiklendiyse True döner."""
+    from backend.config import settings
+    from backend.models import RealtimeAlarmLog
+
+    cooldown = int(getattr(settings, "ga4_realtime_alarm_email_cooldown_minutes", 45))
+    if cooldown <= 0 or not rule_ids:
+        return False
+    cutoff = datetime.utcnow() - timedelta(minutes=cooldown)
+    recent = (
+        db.query(RealtimeAlarmLog.rule_id)
+        .filter(
+            RealtimeAlarmLog.site_id == site_id,
+            RealtimeAlarmLog.rule_id.in_(rule_ids),
+            RealtimeAlarmLog.triggered_at > cutoff,
+        )
+        .first()
+    )
+    return recent is not None
 
 
 def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
@@ -2268,7 +2293,11 @@ def check_page_alarms_for_site(
     if alarms:
         _save_page_alarm_logs(db, site.id, alarms)
         if not skip_emails:
-            _send_page_alarm_email(site.domain, profile, alarms)
+            rule_ids = [a["rule_id"] for a in alarms]
+            if _alarm_email_suppressed(db, site.id, rule_ids):
+                logger.info("Sayfa alarmı e-posta cooldown aktif, atlandı (site=%s).", site.domain)
+            else:
+                _send_page_alarm_email(site.domain, profile, alarms)
 
     return alarms
 
@@ -2630,7 +2659,11 @@ def check_news_alarms_for_site(
     if alarms:
         _save_news_alarm_logs(db, site.id, alarms)
         if not skip_emails:
-            _send_news_alarm_email(site.domain, profile, alarms)
+            rule_ids = [a["rule_id"] for a in alarms]
+            if _alarm_email_suppressed(db, site.id, rule_ids):
+                logger.info("Haber alarmı e-posta cooldown aktif, atlandı (site=%s).", site.domain)
+            else:
+                _send_news_alarm_email(site.domain, profile, alarms)
 
     return alarms
 
