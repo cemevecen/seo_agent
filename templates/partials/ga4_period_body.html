@@ -129,10 +129,73 @@
   data-ga4-pages-section
 >
   {% if pk in ('ios', 'android') %}
-  {# ─── iOS / Android: Ekranlar · Eventler · Kaynak ─── #}
-  <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-    Ekranlar · Eventler · Kaynak
-  </p>
+  {# ─── iOS / Android: Dönem kısayolu + Ekranlar · Eventler · Kaynak ─── #}
+
+  {# Dönem pill kopyası — header pill ile senkron çalışır #}
+  <div class="flex items-center justify-between gap-2">
+    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+      Ekranlar · Eventler · Kaynak
+    </p>
+    <div class="ga4-period-proxy-wrap inline-flex shrink-0 items-stretch gap-0.5 rounded-full border border-violet-200 bg-violet-50 p-1 dark:border-slate-600 dark:bg-slate-800/95"
+         data-period-proxy-pk="{{ pk }}" role="group" aria-label="Dönem seç">
+      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30')] %}
+        <button type="button"
+          class="ga4-period-proxy-btn shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition"
+          data-period-proxy-val="{{ dval }}"
+          data-active="false">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <script>
+  (function(){
+    var script = document.currentScript;
+    var wrap   = script ? script.previousElementSibling.querySelector('.ga4-period-proxy-wrap') : null;
+    if (!wrap || wrap.dataset.proxyBound) return;
+    wrap.dataset.proxyBound = '1';
+    var section = wrap.closest('section');
+
+    function applyStyle(btn, isActive) {
+      btn.dataset.active = isActive ? 'true' : 'false';
+      btn.classList.toggle('bg-violet-900', isActive);
+      btn.classList.toggle('dark:bg-violet-600', isActive);
+      btn.classList.toggle('text-white', isActive);
+      btn.classList.toggle('text-slate-600', !isActive);
+      btn.classList.toggle('dark:text-slate-300', !isActive);
+    }
+
+    function syncAll(pk) {
+      wrap.querySelectorAll('[data-period-proxy-val]').forEach(function(b) {
+        applyStyle(b, b.getAttribute('data-period-proxy-val') === String(pk));
+      });
+    }
+
+    // Proxy butona tıklama → orijinal header butonunu tetikle
+    wrap.querySelectorAll('[data-period-proxy-val]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var val = btn.getAttribute('data-period-proxy-val');
+        if (section) {
+          var orig = section.querySelector('[data-ga4-period-toggle="' + val + '"]');
+          if (orig) orig.click();
+        }
+        syncAll(val);
+      });
+    });
+
+    // Orijinal header butonlarına tıklanınca proxy pill'i de güncelle
+    if (section) {
+      section.querySelectorAll('[data-ga4-period-toggle]').forEach(function(orig) {
+        orig.addEventListener('click', function() {
+          syncAll(orig.getAttribute('data-ga4-period-toggle'));
+        });
+      });
+      // İlk senkronizasyon: header'daki aktif butonu bul
+      var active = section.querySelector('[data-ga4-period-toggle][data-active="true"]');
+      if (active) syncAll(active.getAttribute('data-ga4-period-toggle'));
+      else syncAll('{{ period_days }}');
+    }
+  })();
+  </script>
+
   <div class="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:gap-2" data-ga4-pages-kind-switch role="tablist">
     <button type="button" role="tab"
       class="ga4-pages-kind-btn min-h-[3rem] w-full rounded-xl border border-slate-200 bg-slate-900 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-sm dark:border-slate-600 dark:bg-slate-600 sm:flex-1"
