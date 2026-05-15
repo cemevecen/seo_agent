@@ -915,19 +915,36 @@ def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
 
 _ADMIN_AUTH_COOKIE = "seo_admin_auth"
 _SETTINGS_AUTH_COOKIE = "seo_settings_auth"
+_INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
 
 
 def _is_settings_authenticated(request: Request) -> bool:
     """Settings sayfasına özel ikinci katman doğrulaması."""
     raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
     if not raw_pwd:
-        return True  # İkinci şifre tanımlanmamışsa admin şifresi yeterli
+        return True
     token = str(request.cookies.get(_SETTINGS_AUTH_COOKIE) or "")
     if not token:
         return False
     secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
     expected = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
     return hmac.compare_digest(token, expected)
+
+
+def _inbox_action_token(raw_pwd: str) -> str:
+    secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
+    return hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+
+
+def _is_inbox_action_authenticated(request: Request) -> bool:
+    """Inbox aksiyon koruması: INBOX_ACTION_PASSWORD tanımlıysa cookie doğrula."""
+    raw_pwd = (getattr(settings, "inbox_action_password", "") or "").strip()
+    if not raw_pwd:
+        return True  # Şifre tanımlanmamışsa herkese açık
+    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
+    if not token:
+        return False
+    return hmac.compare_digest(token, _inbox_action_token(raw_pwd))
 
 
 def _admin_auth_row(db) -> AdminAuthSetting | None:
@@ -6786,6 +6803,35 @@ def settings_login_submit(request: Request, password: str = Form(default="")):
         return response
     
     return RedirectResponse(url="/admin/settings-login?error=1", status_code=303)
+
+
+@app.post("/api/inbox/action-auth")
+def inbox_action_auth(request: Request, password: str = Form(default="")):
+    """Inbox aksiyon şifresi doğrulama — başarılıysa cookie set eder."""
+    raw_pwd = (getattr(settings, "inbox_action_password", "") or "").strip()
+    if not raw_pwd:
+        return JSONResponse({"ok": True})
+    input_pwd = str(password or "").strip()
+    if hmac.compare_digest(input_pwd, raw_pwd):
+        token = _inbox_action_token(raw_pwd)
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(
+            key=_INBOX_ACTION_AUTH_COOKIE,
+            value=token,
+            httponly=True,
+            secure=_admin_auth_cookie_secure(request),
+            samesite="lax",
+            max_age=60 * 60 * 8,  # 8 saat
+            path="/",
+        )
+        return resp
+    return JSONResponse({"ok": False, "error": "Yanlış şifre"}, status_code=401)
+
+
+@app.get("/api/inbox/action-auth/status")
+def inbox_action_auth_status(request: Request):
+    """Inbox aksiyon yetkisi var mı?"""
+    return JSONResponse({"authenticated": _is_inbox_action_authenticated(request)})
 
 
 @app.post("/admin/auth/login")

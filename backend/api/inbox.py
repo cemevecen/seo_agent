@@ -18,6 +18,24 @@ from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
 
+_INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
+
+
+def _require_inbox_action_auth(request: Request) -> None:
+    """Inbox aksiyon koruması — INBOX_ACTION_PASSWORD tanımlıysa cookie doğrula."""
+    import hashlib, hmac as _hmac
+    from backend.config import settings as _settings
+    raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
+    if not raw_pwd:
+        return  # Şifre tanımlanmamışsa herkese açık
+    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
+    if not token:
+        raise HTTPException(status_code=403, detail="inbox_action_auth_required")
+    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
+    expected = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    if not _hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=403, detail="inbox_action_auth_required")
+
 LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
@@ -237,6 +255,7 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
 @limiter.limit("20/minute")
 def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
     ok = inbox_gmail_auth.delete_inbox_credentials(db)
+    _require_inbox_action_auth(request)
     return {"disconnected": ok}
 
 
@@ -258,6 +277,7 @@ def inbox_sync_post(request: Request, db: Session = Depends(get_db)):
 def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     """NDJSON satırları: senkron ilerlemesi (gerçek zamanlı progress için)."""
 
+    _require_inbox_action_auth(request)
     def ndjson_iter():
         try:
             for evt in inbox_sync.iter_sync_inbox_threads(db, max_threads=35):
@@ -358,6 +378,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
 @limiter.limit("30/minute")
 def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = Depends(get_db)):
     """İleti gövdelerini Gmail'den tekrar çeker (attachmentId / büyük gövde)."""
+    _require_inbox_action_auth(request)
     try:
         out = inbox_sync.refresh_thread_bodies_from_gmail(db, thread_id=thread_id)
     except RuntimeError as exc:
@@ -372,6 +393,7 @@ async def inbox_thread_set_read(
     thread_id: int,
     db: Session = Depends(get_db),
 ):
+    _require_inbox_action_auth(request)
     # Manual parse to avoid Pydantic forward ref issues
     read_val: bool = True
     try:
@@ -423,6 +445,7 @@ async def inbox_thread_set_answered(
 @limiter.limit("30/minute")
 def inbox_thread_delete(request: Request, thread_id: int, db: Session = Depends(get_db)):
     _thread_or_404(db, thread_id)
+    _require_inbox_action_auth(request)
     try:
         inbox_sync.trash_thread_gmail_and_delete_local(db, thread_id=thread_id)
     except RuntimeError as exc:
@@ -434,6 +457,7 @@ def inbox_thread_delete(request: Request, thread_id: int, db: Session = Depends(
 @limiter.limit("20/minute")
 def inbox_thread_summarize(request: Request, thread_id: int, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
+    _require_inbox_action_auth(request)
     msgs = (
         db.query(SupportInboxMessage)
         .filter(SupportInboxMessage.thread_id == t.id)
@@ -458,6 +482,7 @@ def inbox_thread_summarize(request: Request, thread_id: int, db: Session = Depen
 @limiter.limit("20/minute")
 def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
+    _require_inbox_action_auth(request)
     msgs = (
         db.query(SupportInboxMessage)
         .filter(SupportInboxMessage.thread_id == t.id)
@@ -542,6 +567,7 @@ async def inbox_thread_reply_templates(
 async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depends(get_db)):
     # Manual parse to avoid Pydantic forward ref issues
     to_email: str = ""
+    _require_inbox_action_auth(request)
     subject: str = ""
     body_text: str = ""
     reply_to_gmail_message_id: str | None = None
