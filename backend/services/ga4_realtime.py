@@ -967,6 +967,7 @@ def fetch_realtime_top_news_pages(
         sort_by=sort_by,
         dimension="unifiedScreenName",
         compare_previous=False,
+        include_page_path=False,
         client=client,
     )
     out: list[dict[str, Any]] = []
@@ -1085,6 +1086,7 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
         limit=limit,
         sort_by=sort_by,
         dimension="unifiedScreenName",
+        include_page_path=False,
         client=client,
     )
 
