@@ -100,7 +100,7 @@
           data-prev="{{ val_prev | int }}"
           data-delta="{{ delta | int }}"
           data-delta-pct="{{ pct }}">
-          <td class="sticky left-0 bg-inherit px-2 py-2 font-mono text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-0" title="{{ name | e }}">{{ name }}</td>
+          <td class="sticky left-0 bg-inherit px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300 truncate max-w-0" title="{{ name | e }}">{{ name }}</td>
           <td class="px-2 py-2 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ "{:,.0f}".format(val) }}</td>
           <td class="px-2 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ "{:,.0f}".format(val_prev) }}</td>
           <td class="px-2 py-2 text-right tabular-nums font-semibold {{ delta_cls }}">{{ delta_sign }}{{ "{:,.0f}".format(delta) }}</td>
