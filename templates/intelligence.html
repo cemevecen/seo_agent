@@ -133,25 +133,32 @@
     let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
     let _autoRefreshTimer = null;
 
+    const _syncSvg = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>';
+
     async function rtSyncNews() {
       const btn = document.getElementById('rt-news-sync-btn');
       btn.disabled = true;
-      btn.innerHTML = 'Güncelleniyor...';
-      
+      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Çekiliyor...';
+
       try {
-        const r = await fetch('/api/admin/news-intelligence/sync', { method: 'POST' });
-        const d = await r.json();
-        if(d.ok) {
-          _intelOffset = 0;
-          _intelFinished = false;
-          document.getElementById('rt-intel-list').innerHTML = '';
-          rtFetchNewsIntelligence();
-        }
+        // Sync'i tetikle — backend background'da çalışır, hemen döner
+        await fetch('/api/admin/news-intelligence/sync', { method: 'POST' });
       } catch(e) { console.error(e); }
-      finally {
-        btn.disabled = false;
-        btn.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg> Güncelle';
-      }
+
+      // Sync başladı; kaynakların çekilmesi ~10-15 sn sürer.
+      // 12 saniye sonra listeyi yenile — yeni haberler o zaman DB'de olur.
+      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Bekleniyor...';
+      await new Promise(r => setTimeout(r, 12000));
+
+      // Listeyi sıfırdan yükle
+      _intelOffset = 0;
+      _intelFinished = false;
+      _latestPublishedAt = null;
+      document.getElementById('rt-intel-list').innerHTML = '';
+      rtFetchNewsIntelligence();
+
+      btn.disabled = false;
+      btn.innerHTML = _syncSvg + ' Güncelle';
     }
     
     function _buildNewsCard(item, isNew) {
