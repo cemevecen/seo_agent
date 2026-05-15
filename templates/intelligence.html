@@ -4,7 +4,7 @@
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
   <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">NEWS</h1>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-400">NEWS</h1>
     </div>
     <div class="flex items-center gap-3">
       <span id="rt-intel-last-update" class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums"></span>
@@ -42,9 +42,9 @@
     background-color: #ffffff !important;
     border-color: #e2e8f0 !important;
   }
-  html.dark .rt-intel-container { 
-    background-color: #09090b !important; 
-    border-color: rgba(255,255,255,0.03) !important; 
+  html.dark .rt-intel-container {
+    background-color: #111113 !important;
+    border-color: rgba(255,255,255,0.06) !important;
   }
 
   @media (max-width: 640px) {
@@ -53,22 +53,41 @@
       border-radius: 1.5rem !important;
     }
   }
-  
+
   .rt-intel-card {
     background-color: #f8fafc !important;
     border-color: #f1f5f9 !important;
   }
   html.dark .rt-intel-card {
-    background-color: #121214 !important;
-    border-color: rgba(255, 255, 255, 0.05) !important;
+    background-color: #1c1c1f !important;          /* #111 yerine daha yumuşak */
+    border-color: rgba(255,255,255,0.07) !important;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  html.dark .rt-intel-card:hover {
+    background-color: #222226 !important;
+    border-color: rgba(255,255,255,0.11) !important;
   }
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+
+  /* Başlık rengi — pitch white yerine dingin gri */
+  html.dark .rt-intel-card h3,
+  html.dark .rt-intel-card h3 a {
+    color: #c4c4cc !important;
   }
+  html.dark .rt-intel-card h3 a:hover {
+    color: #a5b4fc !important;
+  }
+
+  /* Kaynak adı */
+  html.dark .rt-intel-card .rt-source-name {
+    color: #5c5c6e !important;
+  }
+
+  /* Saat */
+  html.dark .rt-intel-card .rt-time {
+    color: #46464e !important;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
   .rt-alarm-tab-active {
     padding: 0.75rem 1.25rem;
@@ -80,8 +99,8 @@
     transition: all 0.2s;
   }
   html.dark .rt-alarm-tab-active {
-    color: #818cf8;
-    border-bottom: 2px solid #818cf8;
+    color: #7c7cad;                 /* indigo yerine mat mor-gri */
+    border-bottom-color: #7c7cad;
   }
   .rt-alarm-tab-inactive {
     padding: 0.75rem 1.25rem;
@@ -93,14 +112,14 @@
     transition: all 0.2s;
   }
   html.dark .rt-alarm-tab-inactive {
-    color: #94a3b8;
+    color: #52525b;
   }
   .rt-alarm-tab-inactive:hover {
     color: #475569;
     background: #f8fafc;
   }
   html.dark .rt-alarm-tab-inactive:hover {
-    color: #cbd5e1;
+    color: #a1a1aa;
     background: rgba(255,255,255,0.03);
   }
 </style>
@@ -146,20 +165,20 @@
       const newBadge = isNew
         ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
         : '';
-      return `<div class="group rt-intel-card flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all duration-300 hover:border-indigo-200/50 hover:shadow-lg dark:border-slate-800/50 dark:bg-[#111113] dark:hover:border-zinc-700/50 dark:hover:bg-[#18181b]${isNew ? ' ring-1 ring-emerald-200 dark:ring-emerald-900/40' : ''}">
+      return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}">
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0">
-            <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/40">
+            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 p-0.5 dark:bg-zinc-800/60">
               <img src="${faviconUrl}" class="h-full w-full object-contain" onerror="this.src='/static/favicon.png'">
             </div>
-            <span class="text-[11px] font-bold text-slate-500 dark:text-zinc-500 truncate uppercase tracking-wider">${item.source_name}</span>
+            <span class="rt-source-name text-[10px] font-bold text-slate-400 truncate uppercase tracking-wider">${item.source_name}</span>
             ${newBadge}
           </div>
-          <span class="text-[10px] font-medium text-slate-400 dark:text-zinc-400 opacity-40 shrink-0">${timeStr}</span>
+          <span class="rt-time text-[10px] text-slate-300 dark:text-zinc-600 shrink-0">${timeStr}</span>
         </div>
-        <div class="flex flex-col min-w-0">
-          <h3 class="text-[14px] font-bold text-slate-900 dark:text-zinc-200 leading-snug line-clamp-6">
-            <a href="${item.url}" target="_blank" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${item.headline}</a>
+        <div class="min-w-0">
+          <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-5">
+            <a href="${item.url}" target="_blank" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${item.headline}</a>
           </h3>
         </div>
       </div>`;
