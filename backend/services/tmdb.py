@@ -251,14 +251,15 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 
     for provider_id, provider_name in TR_PROVIDERS.items():
         pid = str(provider_id)
-        # A: TR bölgesel kayıt
+        # Sadece watch_region=TR ile sorgula — global sorgu her filme aynı
+        # platform etiketini yapıştırıyor (yanlış veri).
         for m in _fetch_pages({
             **base_params,
-            "watch_region":        "TR",
-            "with_watch_providers": pid,
-            "release_date.gte":    date_from,
-            "release_date.lte":    date_to,
-        }, page_limit=3):
+            "watch_region":         "TR",
+            "with_watch_providers":  pid,
+            "release_date.gte":     date_from,
+            "release_date.lte":     date_to,
+        }, page_limit=5):
             mid = m["id"]
             if mid not in all_movies:
                 all_movies[mid] = _enrich(m)
@@ -266,21 +267,11 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             if provider_name not in all_movies[mid]["providers"]:
                 all_movies[mid]["providers"].append(provider_name)
 
-        # B: dünya geneli primary_release_date (TR kaydı henüz girilmemiş olabilir)
-        for m in _fetch_pages({
-            **base_params,
-            "with_watch_providers":     pid,
-            "primary_release_date.gte": date_from,
-            "primary_release_date.lte": date_to,
-        }, page_limit=3):
-            mid = m["id"]
-            if mid not in all_movies:
-                all_movies[mid] = _enrich(m)
-                all_movies[mid]["providers"] = []
-            if provider_name not in all_movies[mid]["providers"]:
-                all_movies[mid]["providers"].append(provider_name)
-
-    movies = list(all_movies.values())
+    # Bu aydan önceki orijinal vizyon tarihli filmleri filtrele
+    movies = [
+        m for m in all_movies.values()
+        if (m.get("release_date") or "9999") >= date_from
+    ]
     movies.sort(key=lambda x: x["release_date"] or "9999")
     return movies
 
