@@ -5,6 +5,7 @@ HTML tabanlı, JavaScript render yok.
 """
 from __future__ import annotations
 
+import html
 import logging
 import re
 import time
@@ -65,7 +66,7 @@ def fetch_current_boxoffice() -> list[dict[str, Any]]:
     return []
 
 
-def _parse_film_list(html: str, source_url: str) -> list[dict[str, Any]]:
+def _parse_film_list(raw_html: str, source_url: str) -> list[dict[str, Any]]:
     """HTML'den film listesini ayrıştırır (BeautifulSoup kullanmadan)."""
     films: list[dict] = []
 
@@ -77,11 +78,11 @@ def _parse_film_list(html: str, source_url: str) -> list[dict[str, Any]]:
 
     # Satır bazlı yaklaşım: <tr> bloklarını bul, içinden film + sayıları çıkar
     # Basit yaklaşım: tüm film linklerini çek, sıra numarasına göre sayılarla eşleştir
-    links = link_pattern.findall(html)
+    links = link_pattern.findall(raw_html)
 
     # Sayılar: tablodaki <td> içindeki rakamları sırayla çek
     td_pattern = re.compile(r'<td[^>]*>\s*([\d.,₺\s]+?)\s*</td>', re.IGNORECASE)
-    numbers_raw = [m.group(1).strip() for m in td_pattern.finditer(html)]
+    numbers_raw = [m.group(1).strip() for m in td_pattern.finditer(raw_html)]
     numbers = [_parse_number(n) for n in numbers_raw if re.search(r'\d{3,}', n)]
 
     # Her film için 4 sayı: hafta_seyirci, toplam_seyirci, hafta_hasılat, toplam_hasılat
@@ -90,7 +91,7 @@ def _parse_film_list(html: str, source_url: str) -> list[dict[str, Any]]:
     num_idx = 0
 
     for slug, bot_id, raw_title in links:
-        title = raw_title.strip()
+        title = html.unescape(raw_title.strip())
         if not title or bot_id in seen_ids:
             continue
         seen_ids.add(bot_id)
