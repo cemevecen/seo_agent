@@ -1555,6 +1555,18 @@
         var nm = _esc(rawNm);
         var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
         var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
+        // Önceki dönem kıyaslaması
+        var prevCount = e.eventCount_previous;
+        var compHtml = '';
+        if (prevCount != null && prevCount >= 0) {
+          var diff = (e.eventCount || 0) - prevCount;
+          if (diff !== 0) {
+            var diffColor = diff > 0 ? '#34d399' : '#f87171';
+            var diffSign = diff > 0 ? '+' : '';
+            compHtml = '<span style="font-size:10px;font-weight:700;color:' + diffColor + ';margin-left:4px;">'
+              + diffSign + _fmtEvInt(diff) + '</span>';
+          }
+        }
         return '<div class="rt-event-row border-b border-slate-100 py-2 last:border-0 dark:border-slate-700' + zebra + '">'
           + '<div class="rt-top-list-row">'
           + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-[10px] font-bold">' + globalIdx + '</span>'
@@ -1562,7 +1574,7 @@
           + '<div class="rt-list-title font-mono text-xs" title="' + _attr(rawNm) + '">' + nm + '</div>'
           + '<div class="rt-bar-track"><div class="rt-bar-fill-sky" style="width:' + barW + '%"></div></div>'
           + '</div>'
-          + '<span class="rt-top-list-nums-col rt-list-nums tabular-nums text-sm font-semibold">' + _fmt(e.eventCount) + '</span>'
+          + '<span class="rt-top-list-nums-col rt-list-nums tabular-nums text-sm font-semibold">' + _fmt(e.eventCount) + compHtml + '</span>'
           + '</div></div>';
       }).join('');
     }

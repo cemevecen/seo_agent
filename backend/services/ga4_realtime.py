@@ -1261,6 +1261,7 @@ def fetch_realtime_top_events(
     window_minutes: int = 30,
     *,
     limit: int = 200,
+    compare_previous: bool = True,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Realtime API: etkinlik adına göre eventCount — mobil uygulama kartları için."""
@@ -1294,13 +1295,15 @@ def fetch_realtime_top_events(
             exc,
         )
 
+    minute_ranges = [MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0)]
+    if compare_previous:
+        minute_ranges.append(MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w))
+
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         dimensions=[Dimension(name="eventName")],
         metrics=[Metric(name="eventCount")],
-        minute_ranges=[
-            MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-        ],
+        minute_ranges=minute_ranges,
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
         limit=fetch_limit,
     )
@@ -1309,39 +1312,52 @@ def fetch_realtime_top_events(
     try:
         response = client.run_realtime_report(request)
     except Exception:
+        # Fallback: sıralama olmadan dene
         request = RunRealtimeReportRequest(
             property=f"properties/{property_id}",
             dimensions=[Dimension(name="eventName")],
             metrics=[Metric(name="eventCount")],
-            minute_ranges=[
-                MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-            ],
+            minute_ranges=minute_ranges,
             limit=fetch_limit,
         )
         response = client.run_realtime_report(request)
     elapsed_ms = int((time.monotonic() - t0) * 1000)
     metric_names = [m.name for m in response.metric_headers]
     dim_headers = [h.name for h in response.dimension_headers]
-    events: list[dict[str, Any]] = []
 
+    # current/previous merge
+    temp_map: dict[str, dict[str, Any]] = {}
     for row in response.rows:
         dm = _realtime_row_dimensions(row, dim_headers)
         event_name = str(dm.get("eventName", "") or "").strip()
-        if not event_name:
-            for _k, v in dm.items():
+        # range adını tespit et
+        range_name = "current"
+        for k, v in dm.items():
+            if str(v).lower() in ("current", "previous"):
+                range_name = str(v).lower()
+                break
+        if not event_name or event_name.lower() in ("current", "previous"):
+            for k, v in dm.items():
                 vs = (v or "").strip()
                 if vs and vs.lower() not in ("current", "previous"):
                     event_name = vs
                     break
-        metrics_dict: dict[str, float] = {}
+        if not event_name:
+            continue
+        if event_name not in temp_map:
+            temp_map[event_name] = {"eventName": event_name, "eventCount": 0.0, "eventCount_previous": 0.0}
+        ec = 0.0
         for i, mv in enumerate(row.metric_values):
-            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
-                metrics_dict[mname] = float(mv.value)
+                ec = float(mv.value)
             except (ValueError, TypeError):
-                metrics_dict[mname] = 0.0
-        ec = metrics_dict.get("eventCount", 0.0)
-        events.append({"eventName": event_name, "eventCount": ec})
+                pass
+        if range_name == "previous":
+            temp_map[event_name]["eventCount_previous"] += ec
+        else:
+            temp_map[event_name]["eventCount"] += ec
+
+    events: list[dict[str, Any]] = sorted(temp_map.values(), key=lambda e: e["eventCount"], reverse=True)
 
     events.sort(key=lambda e: e["eventCount"], reverse=True)
 
