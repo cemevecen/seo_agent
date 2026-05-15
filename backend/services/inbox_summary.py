@@ -29,7 +29,7 @@ def run_inbox_summary_job(db: Session):
         .all()
     )
 
-    logger.info("Unread threads found: %d (tags: %s)", len(unread_threads), target_tags)
+    logger.info("Unread threads found: %d", len(unread_threads))
 
     if not unread_threads:
         logger.info("No unread threads found for summary. Skipping email.")
