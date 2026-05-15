@@ -25,11 +25,12 @@
 
 {% macro film_card(movie) %}
 {# Dikey kart — afiş üstte tam genişlik, içerik altta #}
-<div class="group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+<div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
   {% if movie.is_turkish %}border-rose-200 dark:border-rose-800/60
   {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
-  bg-white dark:bg-slate-800">
+  bg-white dark:bg-slate-800"
+  data-country="{{ movie.country_code }}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -96,10 +97,11 @@
 {% endmacro %}
 
 {% macro tv_card(show) %}
-<div class="group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+<div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
   {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
-  bg-white dark:bg-slate-800">
+  bg-white dark:bg-slate-800"
+  data-country="{{ show.country_code }}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -214,8 +216,8 @@
       {% for m in [3,5,8] %}
       <a href="/tmdb-upcoming?months={{ m }}"
          class="rounded-full border px-3 py-1.5 text-xs font-semibold transition
-                {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900
-                {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300{% endif %}">
+                {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
+                {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
         {{ m }} ay
       </a>
       {% endfor %}
@@ -243,16 +245,19 @@
 
   {# Sinema paneli #}
   <div id="panel-theatrical" class="tmdb-panel space-y-5">
+    <div id="cbar-theatrical" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.theatrical_by_month, film_card) }}
   </div>
 
   {# Platform paneli #}
   <div id="panel-streaming" class="tmdb-panel hidden space-y-5">
+    <div id="cbar-streaming" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.streaming_by_month, film_card) }}
   </div>
 
   {# Türk filmleri paneli #}
   <div id="panel-turkish" class="tmdb-panel hidden space-y-5">
+    <div id="cbar-turkish" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.turkish_by_month, film_card) }}
   </div>
 
@@ -261,6 +266,7 @@
     <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
       ATV · Kanal D · Show TV · Star TV · TRT1 · NOW TV · TV8 ve devam eden Türk dizileri dahildir.
     </div>
+    <div id="cbar-tv" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.tv_by_month, tv_card, 'dizi') }}
   </div>
 
@@ -296,6 +302,84 @@
 (function () {
   var tabs   = document.querySelectorAll('.tmdb-tab');
   var panels = document.querySelectorAll('.tmdb-panel');
+
+  /* ── Ülke filtresi ── */
+  var COUNTRY_NAMES = {
+    us:'ABD', gb:'İngiltere', fr:'Fransa', de:'Almanya', it:'İtalya',
+    es:'İspanya', tr:'Türkiye', jp:'Japonya', kr:'Güney Kore', cn:'Çin',
+    ru:'Rusya', br:'Brezilya', in:'Hindistan', au:'Avustralya', ca:'Kanada',
+    mx:'Meksika', ar:'Arjantin', se:'İsveç', dk:'Danimarka', no:'Norveç',
+    nl:'Hollanda', be:'Belçika', ch:'İsviçre', at:'Avusturya', pl:'Polonya',
+    hu:'Macaristan', cz:'Çekya', ro:'Romanya', th:'Tayland', id:'Endonezya',
+    sa:'Suudi Arabistan', il:'İsrail', ie:'İrlanda', nz:'Yeni Zelanda',
+  };
+
+  function buildCountryBar(panelId) {
+    var panel = document.getElementById(panelId);
+    var bar   = document.getElementById('cbar-' + panelId.replace('panel-',''));
+    if (!panel || !bar) return;
+
+    // Sayfadaki kartları tara
+    var counts = {};
+    panel.querySelectorAll('.tmdb-card[data-country]').forEach(function (c) {
+      var cc = c.getAttribute('data-country');
+      if (cc) counts[cc] = (counts[cc] || 0) + 1;
+    });
+
+    var codes = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    if (codes.length <= 1) { bar.innerHTML = ''; return; } // tek ülkeyse gösterme
+
+    var html = '<button class="tmdb-cf-btn rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" data-cf="all">Tümü</button>';
+    codes.forEach(function (cc) {
+      var name = COUNTRY_NAMES[cc] || cc.toUpperCase();
+      html += '<button class="tmdb-cf-btn flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-300" data-cf="' + cc + '">'
+            + '<img src="https://flagcdn.com/w20/' + cc + '.png" class="h-3.5 w-3.5 rounded-full object-cover" loading="lazy">'
+            + '<span>' + name + '</span>'
+            + '<span class="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-600 dark:text-slate-300">' + counts[cc] + '</span>'
+            + '</button>';
+    });
+    bar.innerHTML = html;
+
+    // İlk btn (Tümü) aktif
+    setActiveCF(bar, 'all');
+
+    bar.querySelectorAll('.tmdb-cf-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cf = btn.getAttribute('data-cf');
+        setActiveCF(bar, cf);
+        panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+          var cc = card.getAttribute('data-country') || '';
+          card.style.display = (cf === 'all' || cc === cf) ? '' : 'none';
+        });
+        // Boş kalan ay başlıklarını gizle
+        panel.querySelectorAll('section').forEach(function (sec) {
+          var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
+          sec.style.display = visible ? '' : 'none';
+        });
+      });
+    });
+  }
+
+  function setActiveCF(bar, cf) {
+    bar.querySelectorAll('.tmdb-cf-btn').forEach(function (b) {
+      var on = b.getAttribute('data-cf') === cf;
+      b.classList.toggle('bg-slate-900', on);
+      b.classList.toggle('!bg-slate-900', on);
+      b.classList.toggle('text-white', on);
+      b.classList.toggle('border-slate-900', on);
+    });
+  }
+
+  function resetCF(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (c) { c.style.display = ''; });
+    panel.querySelectorAll('section').forEach(function (s) { s.style.display = ''; });
+    var bar = document.getElementById('cbar-' + panelId.replace('panel-',''));
+    if (bar) setActiveCF(bar, 'all');
+  }
+
+  /* ── Sekme geçişi ── */
   function activate(btn) {
     var target = 'panel-' + btn.getAttribute('data-tab');
     tabs.forEach(function (t) {
@@ -308,9 +392,20 @@
       t.classList.toggle('dark:bg-slate-800/90', !on);
       t.classList.toggle('dark:text-slate-300',  !on);
     });
-    panels.forEach(function (p) { p.classList.toggle('hidden', p.id !== target); });
+    panels.forEach(function (p) {
+      var visible = p.id === target;
+      p.classList.toggle('hidden', !visible);
+      if (visible) {
+        resetCF(p.id);
+        buildCountryBar(p.id);
+      }
+    });
   }
+
   tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
+
+  // İlk sekme için de ülke barını oluştur
+  buildCountryBar('panel-theatrical');
 })();
 </script>
 {% endblock %}
