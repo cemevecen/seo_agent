@@ -1,18 +1,155 @@
 {% extends "base.html" %}
 {% block content %}
+
+{# ── Macro'lar — çağrılmadan ÖNCE tanımlanmalı ── #}
+
+{% macro month_label(month_key) %}
+  {%- set parts = month_key.split('-') -%}
+  {%- if parts|length == 2 -%}
+    {%- set mnames = {'01':'Ocak','02':'Şubat','03':'Mart','04':'Nisan','05':'Mayıs','06':'Haziran','07':'Temmuz','08':'Ağustos','09':'Eylül','10':'Ekim','11':'Kasım','12':'Aralık'} -%}
+    {{ mnames.get(parts[1], parts[1]) }} {{ parts[0] }}
+  {%- else -%}{{ month_key }}{%- endif -%}
+{% endmacro %}
+
+{% macro film_card(movie) %}
+<div class="flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
+  {% if movie.is_turkish %}border-rose-200 dark:border-rose-900/40
+  {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-900/40
+  {% else %}border-slate-200 dark:border-slate-700{% endif %}
+  dark:bg-slate-900">
+  <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+    {% if movie.poster_url %}
+      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" loading="lazy">
+    {% else %}
+      <div class="flex h-full items-center justify-center text-2xl">🎬</div>
+    {% endif %}
+  </div>
+  <div class="min-w-0 flex-1">
+    <div class="flex items-start justify-between gap-1">
+      <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ movie.title }}">{{ movie.title }}</p>
+      {% if movie.is_turkish %}<span class="shrink-0 text-xs">🇹🇷</span>{% endif %}
+    </div>
+    {% if movie.original_title and movie.original_title != movie.title %}
+      <p class="truncate text-[10px] text-slate-400">{{ movie.original_title }}</p>
+    {% endif %}
+    <p class="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">📅 {{ movie.release_date }}</p>
+    <div class="mt-1 flex flex-wrap gap-1.5">
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
+        {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
+        {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
+        {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
+        {{ movie.popularity_label }}
+      </span>
+      {% if movie.vote_average > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ movie.vote_average }}</span>
+      {% endif %}
+    </div>
+    {% if movie.overview %}
+      <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
+    {% endif %}
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+         class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
+        TMDB ↗
+      </a>
+      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ movie.title | urlencode }}" target="_blank" rel="noopener"
+         class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
+        sinemalar'da ara ↗
+      </a>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro tv_card(show) %}
+<div class="flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
+  {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-900/40
+  {% else %}border-slate-200 dark:border-slate-700{% endif %}
+  dark:bg-slate-900">
+  <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+    {% if show.poster_url %}
+      <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="h-full w-full object-cover" loading="lazy">
+    {% else %}
+      <div class="flex h-full items-center justify-center text-2xl">📺</div>
+    {% endif %}
+  </div>
+  <div class="min-w-0 flex-1">
+    <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ show.title }}">{{ show.title }}</p>
+    {% if show.original_title and show.original_title != show.title %}
+      <p class="truncate text-[10px] text-slate-400">{{ show.original_title }}</p>
+    {% endif %}
+    {% if show.networks %}
+      <p class="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">📡 {{ show.networks | join(' · ') }}</p>
+    {% endif %}
+    <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+      {% if show.first_air_date %}📅 {{ show.first_air_date }}{% endif %}
+      {% if show.seasons > 0 %}<span>· {{ show.seasons }}. sezon</span>{% endif %}
+      {% if show.status %}<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-slate-800">{{ show.status }}</span>{% endif %}
+    </div>
+    <div class="mt-1 flex flex-wrap gap-1.5">
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
+        {% if show.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
+        {% elif show.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
+        {% elif show.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
+        {{ show.popularity_label }}
+      </span>
+      {% if show.vote_average > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ show.vote_average }}</span>
+      {% endif %}
+    </div>
+    {% if show.overview %}
+      <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
+    {% endif %}
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
+         class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
+        TMDB ↗
+      </a>
+      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ show.title | urlencode }}" target="_blank" rel="noopener"
+         class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
+        sinemalar'da ara ↗
+      </a>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro month_grid(by_month, card_macro, label_suffix='') %}
+  {% for month_key, items in by_month.items() %}
+  <section class="space-y-2">
+    <div class="flex items-center gap-2">
+      <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">{{ month_label(month_key) }}</h3>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
+      {% set tr_c = items | selectattr('is_turkish') | list | length %}
+      {% if tr_c %}<span class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
+    </div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for item in items %}
+        {{ card_macro(item) }}
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için sonuç bulunamadı.</p>
+  {% endfor %}
+{% endmacro %}
+
+{# ── Sayfa gövdesi ── #}
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
 
-  {# ── Başlık ── #}
+  {# Başlık #}
   <div class="flex flex-wrap items-end justify-between gap-4 rounded-2xl bg-white px-5 py-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
     <div>
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">İçerik Planlama</p>
       <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yaklaşan Vizyon Takvimi</h2>
       <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
         TMDB — önümüzdeki <strong>{{ data.months_ahead }}</strong> ay ·
-        <span class="text-slate-700 dark:text-slate-300 font-semibold">{{ data.total_theatrical }}</span> sinema ·
-        <span class="text-violet-700 dark:text-violet-300 font-semibold">{{ data.total_streaming }}</span> platform ·
-        <span class="text-rose-700 dark:text-rose-300 font-semibold">{{ data.total_turkish }}</span> Türk filmi ·
-        <span class="text-emerald-700 dark:text-emerald-300 font-semibold">{{ data.total_tv }}</span> Türk dizisi
+        <span class="font-semibold text-slate-700 dark:text-slate-300">{{ data.total_theatrical }}</span> sinema ·
+        <span class="font-semibold text-violet-700 dark:text-violet-300">{{ data.total_streaming }}</span> platform ·
+        <span class="font-semibold text-rose-700 dark:text-rose-300">{{ data.total_turkish }}</span> Türk filmi ·
+        <span class="font-semibold text-emerald-700 dark:text-emerald-300">{{ data.total_tv }}</span> Türk dizisi
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -34,175 +171,45 @@
   </div>
   {% else %}
 
-  {# ── Sekmeler ── #}
-  <div class="flex gap-2 overflow-x-auto pb-1" id="tmdb-tabs" role="tablist">
-    <button type="button" class="tmdb-tab-btn flex-none rounded-xl border bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition dark:border-slate-600"
-            data-tab="theatrical" data-active="true">
-      🎬 Sinema Vizyonu
-      <span class="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ data.total_theatrical }}</span>
-    </button>
-    <button type="button" class="tmdb-tab-btn flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="streaming" data-active="false">
-      📺 Platform Yayınları
-      <span class="ml-1.5 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ data.total_streaming }}</span>
-    </button>
-    <button type="button" class="tmdb-tab-btn flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="turkish" data-active="false">
-      🇹🇷 Türk Filmleri
-      <span class="ml-1.5 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{{ data.total_turkish }}</span>
-    </button>
-    <button type="button" class="tmdb-tab-btn flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-            data-tab="tv" data-active="false">
-      📡 Türk Dizileri
-      <span class="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{{ data.total_tv }}</span>
-    </button>
+  {# Sekmeler #}
+  <div class="flex gap-2 overflow-x-auto pb-1" role="tablist">
+    <button type="button" class="tmdb-tab flex-none rounded-xl border bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm"
+            data-tab="theatrical">🎬 Sinema <span class="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ data.total_theatrical }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
+            data-tab="streaming">📺 Platform <span class="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ data.total_streaming }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
+            data-tab="turkish">🇹🇷 Türk Filmleri <span class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{{ data.total_turkish }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
+            data-tab="tv">📡 Türk Dizileri <span class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{{ data.total_tv }}</span></button>
   </div>
 
-  {# ── Sinema paneli ── #}
+  {# Sinema paneli #}
   <div id="panel-theatrical" class="tmdb-panel space-y-5">
-    {% if not data.theatrical %}
-      <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için sinema vizyon filmi bulunamadı.</p>
-    {% else %}
-      {% include "partials/tmdb_month_grid.html" with context %}
-      {# month_data değişkenini set edip include edemeyiz, macro kullanıyoruz #}
-      {{ _tmdb_month_sections(data.theatrical_by_month) }}
-    {% endif %}
+    {{ month_grid(data.theatrical_by_month, film_card) }}
   </div>
 
-  {# ── Platform paneli ── #}
+  {# Platform paneli #}
   <div id="panel-streaming" class="tmdb-panel hidden space-y-5">
-    {% if not data.streaming %}
-      <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için platform yayını bulunamadı.</p>
-    {% else %}
-      {{ _tmdb_month_sections(data.streaming_by_month) }}
-    {% endif %}
+    {{ month_grid(data.streaming_by_month, film_card) }}
   </div>
 
-  {# ── Türk yapımları paneli ── #}
+  {# Türk filmleri paneli #}
   <div id="panel-turkish" class="tmdb-panel hidden space-y-5">
-    {% if not data.turkish_only and not data.theatrical | selectattr('is_turkish') | list %}
-      <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için Türk yapımı bulunamadı.</p>
-    {% else %}
-      {# Sinema + platform'daki Türk yapımlarını da göster #}
-      {% set all_turkish = (data.theatrical | selectattr('is_turkish') | list) +
-                           (data.streaming | selectattr('is_turkish') | list | rejectattr('id', 'in', data.theatrical | map(attribute='id') | list) | list) +
-                           data.turkish_only %}
-      {{ _tmdb_month_sections(data.turkish_by_month) }}
-      {% if data.theatrical | selectattr('is_turkish') | list %}
-      <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/30">
-        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Vizyon/Platform listesinde de olan Türk yapımları</p>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {% for movie in data.theatrical | selectattr('is_turkish') | list %}
-            {{ _tmdb_card(movie) }}
-          {% endfor %}
-          {% for movie in data.streaming | selectattr('is_turkish') | list %}
-            {% if movie.id not in (data.theatrical | map(attribute='id') | list) %}
-              {{ _tmdb_card(movie) }}
-            {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-    {% endif %}
+    {{ month_grid(data.turkish_by_month, film_card) }}
   </div>
 
-  {# ── Diziler paneli ── #}
+  {# Türk dizileri paneli #}
   <div id="panel-tv" class="tmdb-panel hidden space-y-5">
-    {% if not data.tv_series %}
-      <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için dizi bulunamadı.</p>
-    {% else %}
-      <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
-        ATV · Kanal D · Show TV · Star TV · TRT1 · NOW TV · TV8 · Kanal 7 ve devam eden Türk dizileri dahildir.
-        Kanal bilgisi TMDB'de kayıtlıysa kart üzerinde gösterilir.
-      </div>
-      {% for month_key, series in data.tv_by_month.items() %}
-      <section class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">
-            {% set parts = month_key.split('-') %}
-            {% if parts|length == 2 %}
-              {% set mnames = {'01':'Ocak','02':'Şubat','03':'Mart','04':'Nisan','05':'Mayıs','06':'Haziran','07':'Temmuz','08':'Ağustos','09':'Eylül','10':'Ekim','11':'Kasım','12':'Aralık'} %}
-              {{ mnames.get(parts[1], parts[1]) }} {{ parts[0] }}
-            {% else %}{{ month_key }}{% endif %}
-          </h3>
-          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ series|length }} dizi</span>
-        </div>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {% for show in series %}
-          <div class="flex gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-slate-700 dark:bg-slate-900
-            {% if show.popularity >= 200 %} border-emerald-200 dark:border-emerald-900/40{% endif %}">
-            <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-              {% if show.poster_url %}
-                <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="h-full w-full object-cover" loading="lazy">
-              {% else %}
-                <div class="flex h-full items-center justify-center text-2xl">📺</div>
-              {% endif %}
-            </div>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ show.title }}">{{ show.title }}</p>
-              {% if show.original_title and show.original_title != show.title %}
-                <p class="truncate text-[10px] text-slate-400">{{ show.original_title }}</p>
-              {% endif %}
-
-              {# Kanal bilgisi #}
-              {% if show.networks %}
-                <p class="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                  📡 {{ show.networks | join(' · ') }}
-                </p>
-              {% endif %}
-
-              <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">
-                  {% if show.first_air_date %}📅 {{ show.first_air_date }}{% endif %}
-                </span>
-                {% if show.seasons > 0 %}
-                  <span class="text-[10px] text-slate-400">{{ show.seasons }}. sezon</span>
-                {% endif %}
-                {% if show.status %}
-                  <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ show.status }}</span>
-                {% endif %}
-              </div>
-
-              <div class="mt-1 flex flex-wrap gap-1.5">
-                <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
-                  {% if show.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
-                  {% elif show.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
-                  {% elif show.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
-                  {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
-                  {{ show.popularity_label }}
-                </span>
-                {% if show.vote_average > 0 %}
-                  <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ show.vote_average }}</span>
-                {% endif %}
-              </div>
-
-              {% if show.overview %}
-                <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
-              {% endif %}
-
-              <div class="mt-2 flex flex-wrap gap-1.5">
-                <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
-                   class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
-                  TMDB ↗
-                </a>
-                <a href="https://www.google.com/search?q=site:sinemalar.com+{{ show.title | urlencode }}" target="_blank" rel="noopener"
-                   class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
-                  sinemalar'da ara ↗
-                </a>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-      {% endfor %}
-    {% endif %}
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+      ATV · Kanal D · Show TV · Star TV · TRT1 · NOW TV · TV8 ve devam eden Türk dizileri dahildir.
+    </div>
+    {{ month_grid(data.tv_by_month, tv_card, 'dizi') }}
   </div>
 
-  {# ── Yüksek Potansiyel (tüm sekmelerde ortak, alta sabit) ── #}
+  {# Yüksek Potansiyel #}
   {% if data.high_potential %}
   <section class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">⚡ Yüksek Potansiyel — Öncelikli Ekle (popülerlik ≥ 100)</h3>
+    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">⚡ Yüksek Potansiyel — Öncelikli Ekle</h3>
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
       {% for movie in data.high_potential %}
       <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
@@ -221,113 +228,28 @@
   </section>
   {% endif %}
 
-  {% endif %}{# /error #}
+  {% endif %}
 </div>
 
-{# ── Macro: aylık grid ── #}
-{% macro _tmdb_month_sections(by_month) %}
-  {% for month_key, movies in by_month.items() %}
-  <section class="space-y-2">
-    <div class="flex items-center gap-2">
-      <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">
-        {% set parts = month_key.split('-') %}
-        {% if parts|length == 2 %}
-          {% set mnames = {'01':'Ocak','02':'Şubat','03':'Mart','04':'Nisan','05':'Mayıs','06':'Haziran','07':'Temmuz','08':'Ağustos','09':'Eylül','10':'Ekim','11':'Kasım','12':'Aralık'} %}
-          {{ mnames.get(parts[1], parts[1]) }} {{ parts[0] }}
-        {% else %}{{ month_key }}{% endif %}
-      </h3>
-      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ movies|length }}</span>
-      {% set tr_c = movies | selectattr('is_turkish') | list | length %}
-      {% if tr_c %}<span class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
-    </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {% for movie in movies %}{{ _tmdb_card(movie) }}{% endfor %}
-    </div>
-  </section>
-  {% endfor %}
-{% endmacro %}
-
-{# ── Macro: film kartı ── #}
-{% macro _tmdb_card(movie) %}
-<div class="group flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
-  {% if movie.is_turkish %}border-rose-200 dark:border-rose-900/40
-  {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-900/40
-  {% else %}border-slate-200 dark:border-slate-700{% endif %}
-  dark:bg-slate-900">
-  <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-    {% if movie.poster_url %}
-      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" loading="lazy">
-    {% else %}
-      <div class="flex h-full items-center justify-center text-2xl">🎬</div>
-    {% endif %}
-  </div>
-  <div class="min-w-0 flex-1">
-    <div class="flex items-start justify-between gap-1">
-      <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ movie.title }}">
-        {{ movie.title }}
-      </p>
-      {% if movie.is_turkish %}<span class="shrink-0 text-xs">🇹🇷</span>{% endif %}
-    </div>
-    {% if movie.original_title and movie.original_title != movie.title %}
-      <p class="truncate text-[10px] text-slate-400">{{ movie.original_title }}</p>
-    {% endif %}
-    <p class="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">📅 {{ movie.release_date }}</p>
-    <div class="mt-1 flex flex-wrap gap-1.5">
-      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
-        {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
-        {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
-        {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
-        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
-        {{ movie.popularity_label }}
-      </span>
-      {% if movie.vote_average > 0 %}
-      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">⭐ {{ movie.vote_average }}</span>
-      {% endif %}
-    </div>
-    {% if movie.overview %}
-      <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
-    {% endif %}
-    <div class="mt-2 flex flex-wrap gap-1.5">
-      <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
-        TMDB ↗
-      </a>
-      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ movie.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
-        sinemalar'da ara ↗
-      </a>
-    </div>
-  </div>
-</div>
-{% endmacro %}
-
-{# ── Tab JS ── #}
 <script>
 (function () {
-  var tabs = document.querySelectorAll('.tmdb-tab-btn');
+  var tabs   = document.querySelectorAll('.tmdb-tab');
   var panels = document.querySelectorAll('.tmdb-panel');
-
-  function activate(tabEl) {
+  function activate(btn) {
+    var target = 'panel-' + btn.getAttribute('data-tab');
     tabs.forEach(function (t) {
-      var isActive = t === tabEl;
-      t.dataset.active = isActive ? 'true' : 'false';
-      t.classList.toggle('bg-slate-900', isActive);
-      t.classList.toggle('text-white', isActive);
-      t.classList.toggle('border-slate-900', isActive);
-      t.classList.toggle('bg-white', !isActive);
-      t.classList.toggle('text-slate-600', !isActive);
-      t.classList.toggle('dark:bg-slate-800/90', !isActive);
-      t.classList.toggle('dark:text-slate-300', !isActive);
+      var on = t === btn;
+      t.classList.toggle('bg-slate-900', on);
+      t.classList.toggle('text-white',   on);
+      t.classList.toggle('border-slate-900', on);
+      t.classList.toggle('bg-white',      !on);
+      t.classList.toggle('text-slate-600',!on);
+      t.classList.toggle('dark:bg-slate-800/90', !on);
+      t.classList.toggle('dark:text-slate-300',  !on);
     });
-    var targetId = 'panel-' + tabEl.getAttribute('data-tab');
-    panels.forEach(function (p) {
-      p.classList.toggle('hidden', p.id !== targetId);
-    });
+    panels.forEach(function (p) { p.classList.toggle('hidden', p.id !== target); });
   }
-
-  tabs.forEach(function (t) {
-    t.addEventListener('click', function () { activate(t); });
-  });
+  tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
 })();
 </script>
 {% endblock %}
