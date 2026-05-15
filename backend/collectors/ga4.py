@@ -1170,3 +1170,91 @@ def fetch_ga4_same_weekday_channel_maps(*, property_id: str) -> dict[str, dict[s
         "channels_last": {_slugify(k): float(v or 0.0) for k, v in (last_raw or {}).items()},
         "channels_prev": {_slugify(k): float(v or 0.0) for k, v in (prev_raw or {}).items()},
     }
+
+
+def fetch_ga4_app_screens(
+    *,
+    property_id: str,
+    days: int = 30,
+    limit: int = 50,
+) -> list[dict]:
+    """Mobil uygulama ekran kırılımı (screenClass / screenViews): son N gün vs önceki N gün."""
+    safe_days = max(1, int(days))
+    safe_limit = max(10, min(int(limit), 200))
+    (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
+    client = _client()
+
+    def _fetch(start: str, end: str) -> dict[str, float]:
+        req = RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="screenClass")],
+            metrics=[Metric(name="screenViews")],
+            date_ranges=[DateRange(start_date=start, end_date=end)],
+            limit=safe_limit,
+            order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenViews"), desc=True)],
+        )
+        resp = client.run_report(req)
+        return {
+            str(row.dimension_values[0].value or "").strip(): float(row.metric_values[0].value or 0.0)
+            for row in resp.rows if row.dimension_values
+        }
+
+    last_map = _fetch(last_start, last_end)
+    prev_map = _fetch(prev_start, prev_end)
+    merged = _merge_period_maps(last_map, prev_map)
+    rows = [
+        {
+            "screen": k,
+            "views": last_val,
+            "views_prev": prev_val,
+            "change_pct": round((last_val - prev_val) / prev_val * 100, 1) if prev_val else None,
+        }
+        for k, (last_val, prev_val) in merged.items()
+        if last_val > 0 or prev_val > 0
+    ]
+    rows.sort(key=lambda r: r["views"], reverse=True)
+    return rows[:safe_limit]
+
+
+def fetch_ga4_app_events(
+    *,
+    property_id: str,
+    days: int = 30,
+    limit: int = 50,
+) -> list[dict]:
+    """Mobil uygulama etkinlik kırılımı (eventName / eventCount): son N gün vs önceki N gün."""
+    safe_days = max(1, int(days))
+    safe_limit = max(10, min(int(limit), 200))
+    (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
+    client = _client()
+
+    def _fetch(start: str, end: str) -> dict[str, float]:
+        req = RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="eventName")],
+            metrics=[Metric(name="eventCount")],
+            date_ranges=[DateRange(start_date=start, end_date=end)],
+            limit=safe_limit,
+            order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
+        )
+        resp = client.run_report(req)
+        return {
+            str(row.dimension_values[0].value or "").strip(): float(row.metric_values[0].value or 0.0)
+            for row in resp.rows if row.dimension_values
+        }
+
+    last_map = _fetch(last_start, last_end)
+    prev_map = _fetch(prev_start, prev_end)
+    merged = _merge_period_maps(last_map, prev_map)
+    rows = [
+        {
+            "event_name": k,
+            "count": last_val,
+            "count_prev": prev_val,
+            "change_pct": round((last_val - prev_val) / prev_val * 100, 1) if prev_val else None,
+        }
+        for k, (last_val, prev_val) in merged.items()
+        if last_val > 0 or prev_val > 0
+    ]
+    rows.sort(key=lambda r: r["count"], reverse=True)
+    return rows[:safe_limit]

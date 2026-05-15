@@ -8136,6 +8136,52 @@ def ga4_pages_partial(request: Request, site_id: int):
         return pages_resp
 
 
+@app.get("/ga4/app-detail/{site_id}")
+def ga4_app_detail_partial(request: Request, site_id: int):
+    """iOS / Android için ekran veya etkinlik kırılımı tablosu (HTMX partial)."""
+    profile = (request.query_params.get("profile") or "android").strip().lower()
+    kind = (request.query_params.get("kind") or "screens").strip().lower()  # screens | events
+    raw_days = (request.query_params.get("days") or "30").strip()
+    try:
+        days = max(1, int(raw_days))
+    except ValueError:
+        days = 30
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        ga4_status = get_ga4_connection_status(db, site.id)
+        properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+        property_id = str(properties.get(profile) or "").strip()
+        if not property_id:
+            return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
+
+    try:
+        from backend.collectors.ga4 import fetch_ga4_app_screens, fetch_ga4_app_events
+        if kind == "events":
+            rows = fetch_ga4_app_events(property_id=property_id, days=days, limit=50)
+        else:
+            rows = fetch_ga4_app_screens(property_id=property_id, days=days, limit=50)
+    except Exception as exc:
+        LOGGER.exception("GA4 app detail hatası [site=%s, profile=%s, kind=%s]", site_id, profile, kind)
+        return HTMLResponse(f"Veri çekilemedi: {exc}", status_code=500)
+
+    resp = templates.TemplateResponse(
+        request,
+        "partials/ga4_app_table.html",
+        context={
+            "request": request,
+            "rows": rows,
+            "kind": kind,
+            "days": days,
+            "profile": profile,
+        },
+    )
+    resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+    return resp
+
+
 @app.get("/ga4/sources/{site_id}")
 def ga4_sources_partial(request: Request, site_id: int):
     profile = (request.query_params.get("profile") or "").strip().lower()
