@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -41,9 +42,10 @@ CATEGORY_SOURCES = {
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
     ],
+    # Yahoo Finance — feeds.finance.yahoo.com/rss kaldırıldı (deprecated).
+    # Ana sayfa URL'si sentinel olarak kullanılır; özel API çekici devreye girer.
     "Yahoo Finance": [
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US",
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^DJI&region=US&lang=en-US",
+        "https://finance.yahoo.com/",
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
@@ -85,11 +87,16 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         logger.info("Scanning category: %s with %d sources", category, len(rss_urls))
         for rss_url in rss_urls:
             try:
+                # ── Yahoo Finance: ana sayfa sentinel → JSON API ile çek ──
+                if rss_url == "https://finance.yahoo.com/":
+                    _sync_yahoo_finance_news(db, headers, MAX_ITEMS_PER_FEED)
+                    continue
+
                 response = requests.get(rss_url, headers=headers, timeout=15)
                 if response.status_code != 200:
                     logger.error("Failed to fetch RSS for %s from %s: HTTP %d", category, rss_url, response.status_code)
                     continue
-                
+
                 root = ET.fromstring(response.content)
                 items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
 
@@ -219,6 +226,131 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     except Exception as e:
         logger.error("Error during news intelligence cleanup: %s", e)
         db.rollback()
+
+def _sync_yahoo_finance_news(db, headers: dict, max_items: int) -> None:
+    """
+    Yahoo Finance JSON API üzerinden haber çeker ve DB'ye kaydeder.
+    feeds.finance.yahoo.com/rss deprecated olduğu için bu fonksiyon kullanılır.
+    Kaynak URL: https://finance.yahoo.com/
+    """
+    YAHOO_BASE = "https://finance.yahoo.com"
+    api_headers = {
+        **headers,
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://finance.yahoo.com/",
+        "Origin": "https://finance.yahoo.com",
+    }
+
+    # Birden fazla arama sorgusuyla çok yönlü haber çek
+    endpoints = [
+        f"https://query2.finance.yahoo.com/v1/finance/search?q=market+stocks+economy&newsCount={max_items}&region=US&lang=en-US&type=STORY&enableNavLinks=false",
+        f"https://query1.finance.yahoo.com/v1/finance/search?q=dollar+forex+currency&newsCount={max_items}&region=US&lang=en-US&type=STORY&enableNavLinks=false",
+    ]
+
+    seen_links: set[str] = set()
+    # Zaten DB'de olan URL'leri önceden yükle
+    existing_urls = {row[0] for row in db.query(NewsIntelligenceItem.url).filter(
+        NewsIntelligenceItem.category == "Yahoo Finance"
+    ).all()}
+
+    collected: list[tuple] = []
+
+    for endpoint in endpoints:
+        try:
+            resp = requests.get(endpoint, headers=api_headers, timeout=20)
+            if not resp.ok:
+                logger.warning("Yahoo Finance API HTTP %d: %s", resp.status_code, endpoint)
+                continue
+
+            data = resp.json()
+            finance_block = data.get("finance", {})
+            if finance_block.get("error"):
+                logger.warning("Yahoo Finance API hata döndü: %s", finance_block["error"])
+                continue
+
+            result_list = finance_block.get("result") or []
+            news_list: list[dict] = result_list[0].get("news", []) if result_list else []
+
+            for item in news_list:
+                link = (item.get("link") or "").strip()
+                title = (item.get("title") or "").strip()
+                if not link or not title:
+                    continue
+                if link in seen_links or link in existing_urls:
+                    continue
+                if "/personal-finance/" in link.lower():
+                    continue
+                if len(title) < 15:
+                    continue
+
+                seen_links.add(link)
+
+                publisher = (item.get("publisher") or "Yahoo Finance").strip()
+                publish_ts = item.get("providerPublishTime")
+                published_at = (
+                    datetime.utcfromtimestamp(int(publish_ts))
+                    if publish_ts
+                    else datetime.utcnow()
+                )
+                thumbnail = item.get("thumbnail") or {}
+                resolutions = thumbnail.get("resolutions") or [] if isinstance(thumbnail, dict) else []
+                image_url = resolutions[0].get("url") if resolutions else None
+
+                collected.append((
+                    title, link, publisher, YAHOO_BASE, "",
+                    "Finans", published_at, image_url,
+                ))
+        except Exception as exc:
+            logger.warning("Yahoo Finance API endpoint hatası (%s): %s", endpoint, exc)
+
+    if not collected:
+        logger.warning("Yahoo Finance: API'den haber gelmedi, hiçbir kayıt eklenmedi.")
+        return
+
+    # Çeviri (toplu, tek API çağrısı)
+    SEP = " ||| "
+    raw_titles = [p[0] for p in collected]
+    try:
+        joined = SEP.join(raw_titles)
+        translated_joined = GoogleTranslator(source="en", target="tr").translate(joined)
+        translated_parts = [t.strip() for t in (translated_joined or "").split(SEP.strip())]
+        if len(translated_parts) == len(raw_titles):
+            collected = [
+                (translated_parts[i],) + collected[i][1:]
+                for i in range(len(collected))
+            ]
+    except Exception as te:
+        logger.warning("Yahoo Finance toplu çeviri başarısız, orijinal başlıklar korundu: %s", te)
+
+    # DB'ye kaydet
+    new_count = 0
+    for (title, link, source_name, source_url, description, display_topic, published_at, image_url) in collected:
+        try:
+            new_item = NewsIntelligenceItem(
+                url=link,
+                headline=title,
+                content=description,
+                source_name=source_name,
+                source_url=source_url,
+                image_url=image_url,
+                category="Yahoo Finance",
+                topic=display_topic,
+                published_at=published_at,
+                is_in_our_site=False,
+                ai_note=None,
+            )
+            db.add(new_item)
+            new_count += 1
+        except Exception as exc:
+            logger.warning("Yahoo Finance kayıt hatası: %s", exc)
+
+    try:
+        db.commit()
+        logger.info("Yahoo Finance: %d yeni haber kaydedildi.", new_count)
+    except Exception as exc:
+        db.rollback()
+        logger.error("Yahoo Finance DB commit hatası: %s", exc)
+
 
 def run_news_intelligence_job(reset: bool = False):
     """APScheduler wrapper."""
