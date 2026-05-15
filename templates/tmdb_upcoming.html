@@ -11,69 +11,83 @@
   {%- else -%}{{ month_key }}{%- endif -%}
 {% endmacro %}
 
+{% macro provider_badge(p) %}<span class="rounded px-1.5 py-0.5 text-[10px] font-bold leading-none
+  {% if p == 'Netflix' %}bg-red-600 text-white
+  {% elif p == 'Disney+' %}bg-blue-700 text-white
+  {% elif p == 'Max' %}bg-purple-700 text-white
+  {% elif p == 'Prime Video' %}bg-sky-500 text-white
+  {% elif p == 'Apple TV+' %}bg-zinc-800 text-white
+  {% elif p == 'Mubi' %}bg-rose-900 text-white
+  {% elif p == 'BluTV' %}bg-orange-500 text-white
+  {% elif p == 'beIN Connect' %}bg-green-700 text-white
+  {% elif p == 'exxen' %}bg-indigo-600 text-white
+  {% else %}bg-slate-500 text-white{% endif %}">{{ p }}</span>{% endmacro %}
+
 {% macro film_card(movie) %}
-<div class="flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
-  {% if movie.is_turkish %}border-rose-200 dark:border-rose-900/40
-  {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-900/40
-  {% else %}border-slate-200 dark:border-slate-700{% endif %}
-  dark:bg-slate-900">
-  <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+{# Dikey kart — afiş üstte tam genişlik, içerik altta #}
+<div class="group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+  {% if movie.is_turkish %}border-rose-200 dark:border-rose-800/60
+  {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-800/60
+  {% else %}border-slate-200 dark:border-slate-600{% endif %}
+  bg-white dark:bg-slate-800">
+
+  {# Afiş #}
+  <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
     {% if movie.poster_url %}
-      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" loading="lazy">
+      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}"
+           class="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy">
     {% else %}
-      <div class="flex h-full items-center justify-center text-xs text-slate-400">Film</div>
+      <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">Afiş yok</div>
     {% endif %}
-  </div>
-  <div class="min-w-0 flex-1">
-    <div class="flex items-start justify-between gap-1.5">
-      <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ movie.title }}">{{ movie.title }}</p>
-      {% if movie.country_code %}
+    {# Bayrak — poster üstü sağ köşe #}
+    {% if movie.country_code %}
+    <div class="absolute right-2 top-2 drop-shadow">
       <img src="https://flagcdn.com/w40/{{ movie.country_code }}.png"
            alt="{{ movie.country_code }}"
-           class="h-7 w-7 shrink-0 rounded-full object-cover shadow-sm ring-1 ring-slate-200 dark:ring-slate-700"
+           class="h-8 w-8 rounded-full object-cover ring-2 ring-white/80 dark:ring-slate-700"
            loading="lazy">
-      {% endif %}
     </div>
-    {% if movie.original_title and movie.original_title != movie.title %}
-      <p class="truncate text-[10px] text-slate-400">{{ movie.original_title }}</p>
     {% endif %}
-    <p class="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{{ movie.release_date }}</p>
-    <div class="mt-1 flex flex-wrap items-center gap-1.5">
+    {# Platform rozetleri — poster alt şeridi #}
+    {% if movie.providers %}
+    <div class="absolute bottom-0 left-0 right-0 flex flex-wrap gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-2 pt-4">
+      {% for p in movie.providers %}{{ provider_badge(p) }}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# İçerik #}
+  <div class="flex flex-1 flex-col p-3">
+    <p class="text-sm font-bold leading-snug text-slate-900 dark:text-slate-200" title="{{ movie.title }}">{{ movie.title }}</p>
+    {% if movie.original_title and movie.original_title != movie.title %}
+      <p class="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{{ movie.original_title }}</p>
+    {% endif %}
+
+    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+      <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ movie.release_date }}</span>
       <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
-        {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
-        {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
-        {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
-        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
+        {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300
+        {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}">
         {{ movie.popularity_label }}
       </span>
       {% if movie.vote_average > 0 %}
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ movie.vote_average }}</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ movie.vote_average }}</span>
       {% endif %}
-      {% for p in movie.providers %}
-        <span class="rounded-md px-2 py-0.5 text-[9px] font-bold tracking-wide
-          {% if p == 'Netflix' %}bg-red-600 text-white
-          {% elif p == 'Disney+' %}bg-blue-700 text-white
-          {% elif p == 'Max' %}bg-purple-700 text-white
-          {% elif p == 'Prime Video' %}bg-sky-500 text-white
-          {% elif p == 'Apple TV+' %}bg-slate-800 text-white dark:bg-slate-600
-          {% elif p == 'Mubi' %}bg-rose-900 text-white
-          {% elif p == 'BluTV' %}bg-orange-500 text-white
-          {% elif p == 'beIN Connect' %}bg-green-700 text-white
-          {% elif p == 'exxen' %}bg-indigo-600 text-white
-          {% else %}bg-slate-500 text-white{% endif %}">{{ p }}
-        </span>
-      {% endfor %}
     </div>
+
     {% if movie.overview %}
-      <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
+      <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
     {% endif %}
-    <div class="mt-2 flex flex-wrap gap-1.5">
+
+    <div class="mt-auto flex flex-wrap gap-1.5 pt-3">
       <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
+         class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
         TMDB ↗
       </a>
       <a href="https://www.google.com/search?q=site:sinemalar.com+{{ movie.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
+         class="rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50">
         sinemalar'da ara ↗
       </a>
     </div>
@@ -82,60 +96,77 @@
 {% endmacro %}
 
 {% macro tv_card(show) %}
-<div class="flex gap-3 overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:shadow-md
-  {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-900/40
-  {% else %}border-slate-200 dark:border-slate-700{% endif %}
-  dark:bg-slate-900">
-  <div class="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+<div class="group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+  {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-800/60
+  {% else %}border-slate-200 dark:border-slate-600{% endif %}
+  bg-white dark:bg-slate-800">
+
+  {# Afiş #}
+  <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
     {% if show.poster_url %}
-      <img src="{{ show.poster_url }}" alt="{{ show.title }}" class="h-full w-full object-cover" loading="lazy">
+      <img src="{{ show.poster_url }}" alt="{{ show.title }}"
+           class="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy">
     {% else %}
-      <div class="flex h-full items-center justify-center text-xs text-slate-400">Dizi</div>
+      <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">Afiş yok</div>
     {% endif %}
-  </div>
-  <div class="min-w-0 flex-1">
-    <div class="flex items-start justify-between gap-1.5">
-      <p class="truncate text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" title="{{ show.title }}">{{ show.title }}</p>
-      {% if show.country_code %}
+    {% if show.country_code %}
+    <div class="absolute right-2 top-2 drop-shadow">
       <img src="https://flagcdn.com/w40/{{ show.country_code }}.png"
            alt="{{ show.country_code }}"
-           class="h-7 w-7 shrink-0 rounded-full object-cover shadow-sm ring-1 ring-slate-200 dark:ring-slate-700"
+           class="h-8 w-8 rounded-full object-cover ring-2 ring-white/80 dark:ring-slate-700"
            loading="lazy">
-      {% endif %}
     </div>
-    {% if show.original_title and show.original_title != show.title %}
-      <p class="truncate text-[10px] text-slate-400">{{ show.original_title }}</p>
     {% endif %}
     {% if show.networks %}
-      <p class="mt-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">{{ show.networks | join(' · ') }}</p>
-    {% endif %}
-    <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-      {% if show.first_air_date %}{{ show.first_air_date }}{% endif %}
-      {% if show.seasons > 0 %}<span>· {{ show.seasons }}. sezon</span>{% endif %}
-      {% if show.status %}<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-slate-800">{{ show.status }}</span>{% endif %}
+    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-2 pt-4">
+      <p class="text-xs font-bold text-white/90">{{ show.networks | join(' · ') }}</p>
     </div>
-    <div class="mt-1 flex flex-wrap gap-1.5">
-      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold
-        {% if show.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300
-        {% elif show.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300
-        {% elif show.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300
-        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400{% endif %}">
+    {% endif %}
+  </div>
+
+  {# İçerik #}
+  <div class="flex flex-1 flex-col p-3">
+    <p class="text-sm font-bold leading-snug text-slate-900 dark:text-slate-200" title="{{ show.title }}">{{ show.title }}</p>
+    {% if show.original_title and show.original_title != show.title %}
+      <p class="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{{ show.original_title }}</p>
+    {% endif %}
+
+    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+      {% if show.first_air_date %}
+        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ show.first_air_date }}</span>
+      {% endif %}
+      {% if show.seasons > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-400">{{ show.seasons }}. sezon</span>
+      {% endif %}
+      {% if show.status %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-400">{{ show.status }}</span>
+      {% endif %}
+    </div>
+
+    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+        {% if show.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300
+        {% elif show.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif show.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}">
         {{ show.popularity_label }}
       </span>
       {% if show.vote_average > 0 %}
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ show.vote_average }}</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ show.vote_average }}</span>
       {% endif %}
     </div>
+
     {% if show.overview %}
-      <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
+      <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
     {% endif %}
-    <div class="mt-2 flex flex-wrap gap-1.5">
+
+    <div class="mt-auto flex flex-wrap gap-1.5 pt-3">
       <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
+         class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
         TMDB ↗
       </a>
       <a href="https://www.google.com/search?q=site:sinemalar.com+{{ show.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300">
+         class="rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50">
         sinemalar'da ara ↗
       </a>
     </div>
@@ -145,14 +176,14 @@
 
 {% macro month_grid(by_month, card_macro, label_suffix='') %}
   {% for month_key, items in by_month.items() %}
-  <section class="space-y-2">
+  <section class="space-y-3">
     <div class="flex items-center gap-2">
-      <h3 class="text-base font-bold text-slate-800 dark:text-slate-200">{{ month_label(month_key) }}</h3>
-      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">{{ month_label(month_key) }}</h3>
+      <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
       {% set tr_c = items | selectattr('is_turkish') | list | length %}
-      {% if tr_c %}<span class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
+      {% if tr_c %}<span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {% for item in items %}
         {{ card_macro(item) }}
       {% endfor %}
