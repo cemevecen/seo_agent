@@ -201,52 +201,70 @@
 {% endmacro %}
 
 {% macro month_grid(by_month, card_macro, label_suffix='') %}
+  {# 1. Geçmiş ay sayısını ve toplam film sayısını hesapla #}
+  {% set ns = namespace(past_months=0, past_films=0) %}
   {% for month_key, items in by_month.items() %}
-  {% set is_past    = month_key < current_month %}
-  {% set is_current = month_key == current_month %}
+    {% if month_key < current_month %}
+      {% set ns.past_months = ns.past_months + 1 %}
+      {% set ns.past_films  = ns.past_films  + items|length %}
+    {% endif %}
+  {% endfor %}
 
-  {% if is_past %}
-  {# Geçmiş aylar: kapalı accordion #}
-  <details class="tmdb-past-month group rounded-xl border border-slate-200 dark:border-slate-700">
+  {# 2. Tüm geçmiş ayları tek bir "Geçmiş" accordion'u altında göster #}
+  {% if ns.past_months > 0 %}
+  <details class="tmdb-past-group group rounded-xl border border-slate-200 dark:border-slate-700">
     <summary class="flex cursor-pointer list-none select-none items-center gap-2 px-4 py-3">
       <svg class="h-4 w-4 flex-none text-slate-400 transition-transform duration-200 group-open:rotate-90"
            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
       </svg>
-      <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ month_label(month_key) }}</span>
-      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-400">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
-      <span class="ml-auto text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Tekrar vizyon</span>
+      <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">Geçmiş &amp; Tekrar Vizyon</span>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-400">{{ ns.past_months }} dönem · {{ ns.past_films }} film</span>
     </summary>
-    <div class="px-4 pb-4 pt-2">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
-        {% for item in items %}{{ card_macro(item) }}{% endfor %}
-      </div>
-    </div>
-  </details>
-
-  {% else %}
-  {# Bu ay veya gelecek aylar: normal açık bölüm #}
-  <section class="space-y-3"{% if is_current %} id="current-month"{% endif %}>
-    <div class="flex items-center gap-2{% if is_current %} border-l-4 border-amber-400 pl-3{% endif %}">
-      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200{% if is_current %} text-amber-600 dark:text-amber-400{% endif %}">
-        {{ month_label(month_key) }}
-        {% if is_current %}<span class="ml-2 text-xs font-normal text-amber-500">← bu ay</span>{% endif %}
-      </h3>
-      <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
-      {% set tr_c = items | selectattr('is_turkish') | list | length %}
-      {% if tr_c %}<span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
-    </div>
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
-      {% for item in items %}
-        {{ card_macro(item) }}
+    <div class="space-y-5 px-4 pb-5 pt-3">
+      {% for month_key, items in by_month.items() %}
+        {% if month_key < current_month %}
+        <section class="space-y-2">
+          <div class="flex items-center gap-2">
+            <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ month_label(month_key) }}</h4>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400 dark:bg-slate-700 dark:text-slate-500">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
+            {% for item in items %}{{ card_macro(item) }}{% endfor %}
+          </div>
+        </section>
+        {% endif %}
       {% endfor %}
     </div>
-  </section>
+  </details>
   {% endif %}
 
-  {% else %}
-    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için sonuç bulunamadı.</p>
+  {# 3. Bu ay ve gelecek aylar: normal açık bölümler #}
+  {% set any_present = namespace(found=false) %}
+  {% for month_key, items in by_month.items() %}
+    {% if month_key >= current_month %}
+      {% set any_present.found = true %}
+      {% set is_current = month_key == current_month %}
+      <section class="space-y-3"{% if is_current %} id="current-month"{% endif %}>
+        <div class="flex items-center gap-2{% if is_current %} border-l-4 border-amber-400 pl-3{% endif %}">
+          <h3 class="text-lg font-bold {% if is_current %}text-amber-600 dark:text-amber-400{% else %}text-slate-800 dark:text-slate-200{% endif %}">
+            {{ month_label(month_key) }}
+            {% if is_current %}<span class="ml-2 text-xs font-normal text-amber-500">← bu ay</span>{% endif %}
+          </h3>
+          <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
+          {% set tr_c = items | selectattr('is_turkish') | list | length %}
+          {% if tr_c %}<span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
+          {% for item in items %}{{ card_macro(item) }}{% endfor %}
+        </div>
+      </section>
+    {% endif %}
   {% endfor %}
+
+  {% if not any_present.found and ns.past_months == 0 %}
+    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">Bu dönem için sonuç bulunamadı.</p>
+  {% endif %}
 {% endmacro %}
 
 {# ── Sayfa gövdesi ── #}
@@ -389,7 +407,7 @@
       card.style.display = (show && !countryHidden) ? '' : 'none';
     });
     // Boş kalan ay bölümlerini gizle (section + details accordion)
-    document.querySelectorAll('.tmdb-panel:not(.hidden) section, .tmdb-panel:not(.hidden) details.tmdb-past-month').forEach(function (sec) {
+    document.querySelectorAll('.tmdb-panel:not(.hidden) section, .tmdb-panel:not(.hidden) details.tmdb-past-group').forEach(function (sec) {
       var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
       sec.style.display = visible ? '' : 'none';
     });
@@ -486,7 +504,7 @@
       var popHidden = card.getAttribute('data-pop-hidden') === '1';
       card.style.display = (countryOk && !popHidden) ? '' : 'none';
     });
-    panel.querySelectorAll('section, details.tmdb-past-month').forEach(function (sec) {
+    panel.querySelectorAll('section, details.tmdb-past-group').forEach(function (sec) {
       var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
       sec.style.display = visible ? '' : 'none';
     });
@@ -496,7 +514,7 @@
     var panel = document.getElementById(panelId);
     if (!panel) return;
     panel.querySelectorAll('.tmdb-card').forEach(function (c) { c.style.display = ''; });
-    panel.querySelectorAll('section, details.tmdb-past-month').forEach(function (s) { s.style.display = ''; });
+    panel.querySelectorAll('section, details.tmdb-past-group').forEach(function (s) { s.style.display = ''; });
     var bar = document.getElementById('cbar-' + panelId.replace('panel-',''));
     if (bar) setActiveCF(bar, 'all');
   }
