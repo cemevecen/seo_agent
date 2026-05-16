@@ -7866,7 +7866,7 @@ def api_seo_audit_run(site_id: int):
         existing = db.query(CollectorRun).filter(
             CollectorRun.site_id == site_id,
             CollectorRun.provider == "site_audit",
-            CollectorRun.status == "running",
+            CollectorRun.status.in_(["started", "running"]),
         ).first()
         if existing:
             return {"status": "running", "message": "Tarama zaten devam ediyor"}
@@ -7894,7 +7894,7 @@ def api_seo_audit_status(site_id: int):
         running_run = db.query(CollectorRun).filter(
             CollectorRun.site_id == site_id,
             CollectorRun.provider == "site_audit",
-            CollectorRun.status == "running",
+            CollectorRun.status.in_(["started", "running"]),
         ).first()
         count = db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id).count()
     return {"running": running_run is not None, "url_count": count}
