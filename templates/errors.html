@@ -192,29 +192,23 @@ function switchPeriod(d) {
 }
 
 function refreshErrors() {
-  var siteId = {{ selected_site_id if selected_site_id else 'null' }};
-  if (!siteId) return;
   var btn = document.querySelector('[onclick="refreshErrors()"]');
   var icon = document.getElementById('err-spin');
-  var label = btn ? btn.querySelector('span') || btn : null;
-  if (btn) btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.title = 'Tüm siteler çekiliyor…'; }
   if (icon) icon.style.animation = 'spin 0.8s linear infinite';
-  if (label && label.tagName !== 'BUTTON') label.textContent = 'Çekiliyor…';
 
-  // Tüm periyotları sırayla çek (1,7,14,30)
-  var periods = [1, 7, 14, 30];
-  var idx = 0;
-  function fetchNext() {
-    if (idx >= periods.length) {
-      window.location.reload();
-      return;
-    }
-    fetch('/api/errors/' + siteId + '/refresh?days=' + periods[idx], {credentials: 'same-origin'})
-      .then(function(r) { return r.json(); })
-      .catch(function() {})
-      .finally(function() { idx++; fetchNext(); });
-  }
-  fetchNext();
+  // Tüm siteler + tüm periyotlar tek çağrıda
+  fetch('/api/errors/refresh-all', {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'ok') window.location.reload();
+      else alert('Hata: ' + (d.message || 'bilinmiyor'));
+    })
+    .catch(function() { alert('İstek başarısız'); })
+    .finally(function() {
+      if (btn) { btn.disabled = false; btn.title = ''; }
+      if (icon) icon.style.animation = '';
+    });
 }
 </script>
 <style>

@@ -7845,6 +7845,19 @@ def api_errors_refresh(site_id: int, days: int = 1):
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/errors/refresh-all")
+def api_errors_refresh_all():
+    """Tüm siteler için tüm periyotları GA4'ten çek (manuel tetikleme)."""
+    try:
+        from backend.services.error_monitor import run_error_detection_all_sites
+        with SessionLocal() as db:
+            results = run_error_detection_all_sites(db)
+        total_found = sum(r.get("found", 0) for r in results if isinstance(r, dict))
+        return {"status": "ok", "sites": len(results), "total_found": total_found}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/errors/{site_id}/debug-pages")
 def api_errors_debug(site_id: int, days: int = 7, limit: int = 50):
     """Debug: GA4'teki düşük trafikli sayfaları filtre olmadan listeler.
