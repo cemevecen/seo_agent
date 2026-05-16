@@ -29,6 +29,22 @@
     </div>
   </div>
 
+  {# Progress Panel — tarama sırasında görünür #}
+  <div id="progress-panel" class="hidden rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold text-slate-600 dark:text-zinc-300">Taranıyor</span>
+      <span id="prog-count" class="text-xs text-slate-400 dark:text-zinc-500">0 / 0</span>
+    </div>
+    <div class="h-2 w-full rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+      <div id="prog-bar" class="h-full rounded-full bg-sky-500 transition-all duration-500" style="width:0%"></div>
+    </div>
+    <p id="prog-url" class="mt-2 truncate text-[11px] text-slate-400 dark:text-zinc-500 font-mono"></p>
+    <div class="mt-1.5 flex gap-4 text-[11px]">
+      <span class="text-emerald-600 dark:text-emerald-400"><span id="prog-ok">0</span> başarılı</span>
+      <span class="text-rose-500"><span id="prog-err">0</span> hata</span>
+    </div>
+  </div>
+
   {# Özet Kartlar #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
     {% set sc = summary.score_counts %}
@@ -315,32 +331,40 @@ function _resetBtn() {
 
 function _startPolling() {
   if (_pollTimer) return;
-  var _pollCount = 0;
+  var panel = document.getElementById('progress-panel');
+  if (panel) panel.classList.remove('hidden');
+
   _pollTimer = setInterval(function() {
-    _pollCount++;
     fetch('/api/seo-audit/' + _siteId + '/status', {credentials: 'same-origin'})
       .then(function(r) { return r.json(); })
       .then(function(d) {
         var label = document.getElementById('run-label');
-        if (d.running) {
-          var mins = Math.floor(_pollCount * 3 / 60);
-          var secs = (_pollCount * 3) % 60;
-          var elapsed = mins > 0 ? mins + 'dk ' + secs + 'sn' : secs + 'sn';
-          if (label) label.textContent = 'Taranıyor… ' + elapsed;
-        } else {
+        var bar   = document.getElementById('prog-bar');
+        var cnt   = document.getElementById('prog-count');
+        var url   = document.getElementById('prog-url');
+        var ok    = document.getElementById('prog-ok');
+        var err   = document.getElementById('prog-err');
+
+        var pct = d.total > 0 ? Math.round(d.done / d.total * 100) : 0;
+        if (bar) bar.style.width = pct + '%';
+        if (cnt) cnt.textContent = d.done + ' / ' + (d.total || '?');
+        if (url) url.textContent = d.current || '';
+        if (ok)  ok.textContent  = d.ok || 0;
+        if (err) err.textContent = d.error || 0;
+        if (label) label.textContent = d.total > 0 ? pct + '%' : 'Keşfediliyor…';
+
+        if (!d.running) {
           clearInterval(_pollTimer); _pollTimer = null;
+          if (panel) panel.classList.add('hidden');
           if (d.url_count > 0) {
             window.location.reload();
           } else {
             _resetBtn();
-            var label2 = document.getElementById('run-label');
-            if (label2) label2.textContent = 'Tara';
-            alert('Tarama tamamlandı ancak sonuç bulunamadı. Loglara bakın.');
           }
         }
       })
       .catch(function() {});
-  }, 3000);
+  }, 2000);
 }
 
 function switchTab(tab) {

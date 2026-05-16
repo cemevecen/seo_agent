@@ -7851,16 +7851,16 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
     })
 
 
-_seo_audit_running: set[int] = set()  # in-process flag; Railway tek process çalıştırır
+_seo_audit_progress: dict[int, dict] = {}  # site_id → progress dict
 
 
 @app.post("/api/seo-audit/{site_id}/run")
 def api_seo_audit_run(site_id: int):
-    """Site audit crawler'ı arka planda başlatır, anında döner."""
+    """Site audit — URL'leri tek tek işler, anında kaydeder, progress döner."""
     import threading
     from backend.models import Site
 
-    if site_id in _seo_audit_running:
+    if site_id in _seo_audit_progress and _seo_audit_progress[site_id].get("running"):
         return {"status": "running", "message": "Tarama zaten devam ediyor"}
 
     with SessionLocal() as db:
@@ -7870,22 +7870,94 @@ def api_seo_audit_run(site_id: int):
         site_domain = site.domain
 
     def _run():
-        _seo_audit_running.add(site_id)
+        from backend.collectors.site_audit import (
+            _discover_sitemap_entries, _fetch_url_audit, _normalize_http_url,
+        )
+        from backend.models import UrlAuditRecord
+        from datetime import datetime as _dt
+
+        prog = {
+            "running": True, "total": 0, "done": 0,
+            "ok": 0, "error": 0, "current": "Sitemap keşfediliyor…",
+        }
+        _seo_audit_progress[site_id] = prog
+
         try:
-            from backend.collectors.site_audit import collect_site_audit
-            with SessionLocal() as db:
-                site_obj = db.query(Site).filter(Site.id == site_id).first()
-                if site_obj:
-                    collect_site_audit(
-                        db, site_obj,
-                        sitemap_url_limit=500,       # UI'dan max 500 URL — 5-10dk
-                        request_timeout_seconds=8,   # URL başına max 8sn
-                    )
-            LOGGER.info("SEO audit tamamlandı: site=%s", site_domain)
+            # 1. Sitemap'ten URL listesini çek
+            disc = _discover_sitemap_entries(
+                f"https://{site_domain}",
+                max_urls=500, recent_days=90, timeout_seconds=8,
+            )
+            urls = [e["url"] for e in disc.get("url_entries", [])]
+            prog["total"] = len(urls)
+            prog["current"] = f"{len(urls)} URL bulundu, tarama başlıyor…"
+
+            if not urls:
+                prog["running"] = False
+                prog["current"] = "Sitemap'ten URL bulunamadı"
+                return
+
+            collected_at = _dt.utcnow()
+
+            # 2. URL'leri tek tek işle, her biri DB'ye anında yaz
+            for url in urls:
+                prog["current"] = url
+                try:
+                    result = _fetch_url_audit(url, timeout_seconds=8)
+                    result.setdefault("sitemap_source", "sitemap")
+                    result.setdefault("sitemap_lastmod", "")
+                    # Mevcut kaydı sil, taze ekle
+                    with SessionLocal() as db:
+                        db.query(UrlAuditRecord).filter(
+                            UrlAuditRecord.site_id == site_id,
+                            UrlAuditRecord.url == result.get("url", url),
+                        ).delete(synchronize_session=False)
+                        checks = result.get("checks") or {}
+                        db.add(UrlAuditRecord(
+                            site_id=site_id,
+                            url=result.get("url", url),
+                            final_url=result.get("final_url", url),
+                            status_code=int(result.get("status_code") or 0),
+                            content_type=str(result.get("content_type") or ""),
+                            sitemap_source=str(result.get("sitemap_source") or ""),
+                            sitemap_lastmod=str(result.get("sitemap_lastmod") or ""),
+                            has_title=bool(result.get("has_title", checks.get("title"))),
+                            title=str(result.get("title") or ""),
+                            title_length=int(result.get("title_length") or len(result.get("title") or "")),
+                            has_meta_description=bool(result.get("has_meta_description", checks.get("desc"))),
+                            meta_description=str(result.get("meta_description") or ""),
+                            meta_description_length=int(result.get("meta_description_length") or len(result.get("meta_description") or "")),
+                            has_h1=bool(result.get("has_h1", checks.get("h1"))),
+                            h1=str(result.get("h1") or ""),
+                            h1_count=int(result.get("h1_count") or 0),
+                            has_canonical=bool(result.get("has_canonical", checks.get("canonical"))),
+                            canonical_url=str(result.get("canonical_url") or ""),
+                            canonical_matches_final=bool(result.get("canonical_matches_final", checks.get("canonical_matches_final"))),
+                            has_schema=bool(result.get("has_schema", checks.get("schema"))),
+                            is_noindex=bool(result.get("is_noindex", not checks.get("indexable", True))),
+                            meta_robots=str(result.get("meta_robots") or ""),
+                            has_og_title=bool(result.get("has_og_title", checks.get("og_title"))),
+                            has_og_description=bool(result.get("has_og_description", checks.get("og_description"))),
+                            issue_count=int(result.get("issue_count") or 0),
+                            checks_json=__import__("json").dumps(checks, ensure_ascii=True),
+                            seo_score=str(result.get("seo_score") or "poor"),
+                            collected_at=collected_at,
+                        ))
+                        db.commit()
+                    prog["ok"] += 1
+                except Exception as exc:
+                    LOGGER.debug("URL audit hatası [%s]: %s", url, exc)
+                    prog["error"] += 1
+                finally:
+                    prog["done"] += 1
+
+            prog["current"] = f"Tamamlandı — {prog['ok']} URL başarılı, {prog['error']} hata"
+            LOGGER.info("SEO audit tamamlandı: site=%s, %d/%d URL", site_domain, prog["ok"], prog["total"])
         except Exception:
-            LOGGER.exception("SEO audit arka plan hatası site_id=%s", site_id)
+            LOGGER.exception("SEO audit hatası site_id=%s", site_id)
+            prog["current"] = "Hata oluştu"
         finally:
-            _seo_audit_running.discard(site_id)
+            prog["running"] = False
 
     threading.Thread(target=_run, daemon=True, name=f"seo-audit-{site_id}").start()
     return {"status": "started", "message": "Tarama başladı"}
@@ -7893,12 +7965,20 @@ def api_seo_audit_run(site_id: int):
 
 @app.get("/api/seo-audit/{site_id}/status")
 def api_seo_audit_status(site_id: int):
-    """Tarama devam ediyor mu — in-process flag (Railway tek process)."""
-    from backend.models import UrlAuditRecord
-    running = site_id in _seo_audit_running
+    """Anlık tarama progress'i."""
+    prog = _seo_audit_progress.get(site_id, {})
     with SessionLocal() as db:
+        from backend.models import UrlAuditRecord
         count = db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id).count()
-    return {"running": running, "url_count": count}
+    return {
+        "running": bool(prog.get("running")),
+        "total": prog.get("total", 0),
+        "done": prog.get("done", 0),
+        "ok": prog.get("ok", 0),
+        "error": prog.get("error", 0),
+        "current": prog.get("current", ""),
+        "url_count": count,
+    }
 
 
 @app.get("/api/seo-audit/{site_id}/issues")
