@@ -41,7 +41,7 @@
     <!-- Boards -->
     <div x-show="!loading && !error && activeProject" class="flex h-full items-start gap-4 overflow-x-auto pb-4" id="lists-wrapper" style="display: none;">
       <template x-for="lst in lists" :key="lst.id">
-        <div class="flex w-80 shrink-0 flex-col rounded-xl bg-slate-100 p-3 shadow-sm dark:bg-slate-800/60">
+        <div class="flex w-80 shrink-0 flex-col rounded-xl bg-slate-100 p-3 shadow-sm dark:bg-slate-800/60" :class="lst.isClosed ? 'opacity-75' : ''">
           <h4 class="mb-3 flex items-center justify-between text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
             <span x-text="lst.label.name"></span>
             <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300" x-text="getIssuesForList(lst).length"></span>
@@ -51,6 +51,7 @@
             class="sortable-list flex min-h-[300px] flex-col gap-2 rounded-lg border-2 border-transparent transition-colors" 
             :data-label="lst.label.name"
             :data-virtual="lst.isVirtual"
+            :data-closed="lst.isClosed"
             x-effect="initSortable($el)"
           >
             <template x-for="issue in getIssuesForList(lst)" :key="issue.id">
@@ -59,7 +60,7 @@
                 :data-id="issue.iid"
               >
                 <div class="flex items-start justify-between gap-2">
-                  <a :href="issue.web_url" target="_blank" class="text-sm font-medium text-slate-900 hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400" x-text="issue.title"></a>
+                  <a :href="issue.web_url" target="_blank" class="text-sm font-medium text-slate-900 hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400" :class="issue.state === 'closed' ? 'line-through text-slate-500 dark:text-slate-500' : ''" x-text="issue.title"></a>
                 </div>
                 <div class="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span class="font-medium" x-text="'#' + issue.iid"></span>
@@ -100,8 +101,15 @@
       async fetchAllIssues(encodedPath) {
         let allIssues = [];
         let page = 1;
+        
+        // Son 1 yıl tarihi hesapla
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const updatedAfter = oneYearAgo.toISOString();
+
         while (true) {
-          const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues?state=opened&per_page=100&page=${page}`, {
+          // state filtresi yok (hepsi gelir), updated_after ve order_by=relative_position eklendi
+          const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues?updated_after=${updatedAfter}&order_by=relative_position&sort=asc&per_page=100&page=${page}`, {
             headers: { 'PRIVATE-TOKEN': this.token }
           });
           if (!res.ok) throw new Error("Issues fetch failed");
@@ -124,7 +132,12 @@
         const headers = { 'PRIVATE-TOKEN': this.token };
 
         try {
-          const boardsRes = await fetch(`${this.baseUrl}/projects/${encodedPath}/boards`, { headers });
+          // Paralel indirme
+          const [boardsRes, allIssues] = await Promise.all([
+            fetch(`${this.baseUrl}/projects/${encodedPath}/boards`, { headers }),
+            this.fetchAllIssues(encodedPath)
+          ]);
+
           if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
           
           const boardsData = await boardsRes.json();
@@ -133,17 +146,26 @@
           this.board = boardsData[0];
           
           // Gerçek etiketli listeler
-          let actualLists = this.board.lists.map(l => ({...l, isVirtual: false}));
+          let actualLists = this.board.lists.map(l => ({...l, isVirtual: false, isClosed: false}));
           
           // Başa "Open / Backlog" ekle (Etiketsiz issue'lar için)
           actualLists.unshift({
             id: 'virtual-open',
             label: { name: 'Open (Backlog)' },
-            isVirtual: true
+            isVirtual: true,
+            isClosed: false
+          });
+
+          // Sona "Closed" ekle
+          actualLists.push({
+            id: 'virtual-closed',
+            label: { name: 'Closed' },
+            isVirtual: true,
+            isClosed: true
           });
           
           this.lists = actualLists;
-          this.issues = await this.fetchAllIssues(encodedPath);
+          this.issues = allIssues;
 
         } catch (err) {
           console.error(err);
@@ -154,12 +176,22 @@
       },
 
       getIssuesForList(lst) {
-        if (lst.isVirtual) {
-          // Open (Backlog) kolonuna, diğer board listelerindeki etiketlere sahip OLMAYANLARI koyuyoruz
-          const boardLabels = this.board.lists.map(l => l.label.name);
-          return this.issues.filter(issue => !issue.labels.some(label => boardLabels.includes(label)));
+        // Closed listesi için
+        if (lst.isClosed) {
+          return this.issues.filter(issue => issue.state === 'closed');
         }
-        return this.issues.filter(issue => issue.labels && issue.labels.includes(lst.label.name));
+
+        // Açık issue'lar üzerinden filtreleme
+        const openedIssues = this.issues.filter(issue => issue.state === 'opened');
+
+        // Open (Backlog) listesi için
+        if (lst.isVirtual) {
+          const boardLabels = this.board.lists.map(l => l.label.name);
+          return openedIssues.filter(issue => !issue.labels.some(label => boardLabels.includes(label)));
+        }
+
+        // Etiketli listeler için
+        return openedIssues.filter(issue => issue.labels && issue.labels.includes(lst.label.name));
       },
 
       initSortable(el) {
@@ -179,7 +211,10 @@
             const fromList = evt.from;
             const toList = evt.to;
             
-            if (fromList === toList) return;
+            if (fromList === toList) {
+              // Sütun içi sıralama değişimi (relative_position API çağrısı eklenebilir ama şu an atlıyoruz)
+              return; 
+            }
             
             const issueIid = itemEl.dataset.id;
             const fromLabel = fromList.dataset.label;
@@ -187,11 +222,26 @@
             
             const isToVirtual = toList.dataset.virtual === "true";
             const isFromVirtual = fromList.dataset.virtual === "true";
+            const isToClosed = toList.dataset.closed === "true";
+            const isFromClosed = fromList.dataset.closed === "true";
             
             const encodedPath = encodeURIComponent(this.activeProject);
             
-            const addLabels = !isToVirtual ? toLabel : "";
-            const removeLabels = !isFromVirtual ? fromLabel : "";
+            let payload = {};
+            
+            // Kapanma / Açılma durumu
+            if (isToClosed && !isFromClosed) {
+              payload.state_event = 'close';
+            } else if (!isToClosed && isFromClosed) {
+              payload.state_event = 'reopen';
+            }
+            
+            // Etiket yönetimi (Kapalı sütunu etiket eklemez)
+            const addLabels = !isToVirtual && !isToClosed ? toLabel : "";
+            const removeLabels = !isFromVirtual && !isFromClosed ? fromLabel : "";
+            
+            if (addLabels) payload.add_labels = addLabels;
+            if (removeLabels) payload.remove_labels = removeLabels;
             
             try {
               const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}`, {
@@ -200,17 +250,17 @@
                   'PRIVATE-TOKEN': this.token,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  add_labels: addLabels,
-                  remove_labels: removeLabels
-                })
+                body: JSON.stringify(payload)
               });
               
               if(!res.ok) throw new Error("Update failed");
               
-              // Local state update (UI'ın hemen tepki vermesi için issue labels'ı güncelle)
+              // Local state update
               const issueIndex = this.issues.findIndex(i => i.iid == issueIid);
               if(issueIndex > -1) {
+                if (payload.state_event === 'close') this.issues[issueIndex].state = 'closed';
+                if (payload.state_event === 'reopen') this.issues[issueIndex].state = 'opened';
+                
                 let labels = this.issues[issueIndex].labels;
                 if(removeLabels) labels = labels.filter(l => l !== removeLabels);
                 if(addLabels && !labels.includes(addLabels)) labels.push(addLabels);
@@ -219,7 +269,6 @@
               
             } catch(e) {
               alert("Taşıma işlemi GitLab'e kaydedilemedi: " + e.message);
-              // Hata durumunda sayfayı yenilemek en garantisi
               this.loadProject(this.activeProject);
             }
           }
