@@ -10103,6 +10103,7 @@ def _run_error_report_email_job() -> None:
             sites = db.query(Site).order_by(Site.id).all()
             site_blocks: list[str] = []
             grand_total = 0
+            top_errors_all: list[dict] = []  # preheader için
 
             for site in sites:
                 summary = get_error_summary(db, site.id, days=1)
@@ -10110,6 +10111,7 @@ def _run_error_report_email_job() -> None:
                 if not errors:
                     continue
                 grand_total += len(errors)
+                top_errors_all.extend(errors[:5])
 
                 rows = ""
                 for e in errors[:15]:
@@ -10161,9 +10163,22 @@ def _run_error_report_email_job() -> None:
 
         from datetime import datetime as _dt
         now_str = _dt.now().strftime("%d.%m.%Y %H:%M")
+
+        # Preheader: en fazla etkilenen ilk 3 URL + kullanıcı sayısı
+        top_errors_all.sort(key=lambda x: x.get("hit_count", 0), reverse=True)
+        pre_parts = [f'{e["url"][:28]}: {e["hit_count"]}' for e in top_errors_all[:3] if e.get("url")]
+        pre404_daily = f'{grand_total} URL · ' + " · ".join(pre_parts) if pre_parts else f"{grand_total} benzersiz URL"
+        filler = "&nbsp;" * 80
+        preheader_html = (
+            f'<span style="display:none;font-size:1px;color:#fafafa;'
+            f'max-height:0;line-height:0;overflow:hidden;mso-hide:all;">'
+            f'{pre404_daily}{filler}</span>'
+        )
+
         html = (
             f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
             f'max-width:640px;color:#0f172a">'
+            f'{preheader_html}'
             f'<p style="font-size:15px;font-weight:700;margin:0 0 4px">404 Hata Özeti</p>'
             f'<p style="font-size:12px;color:#64748b;margin:0 0 16px">'
             f'{now_str} · Son 24 saat · {grand_total} benzersiz URL</p>'

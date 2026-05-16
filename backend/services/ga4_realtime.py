@@ -354,6 +354,18 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         """
 
 
+def _preheader(text: str) -> str:
+    """Email preview alanı için görünmez preheader — telefon/watch lock screen'de ilk görünen metin."""
+    t = html.escape(text)
+    # Trailing whitespace: email client'ların body'den fazla metin çekmesini engeller
+    filler = "&nbsp;" * 80
+    return (
+        f'<span style="display:none;font-size:1px;color:#fafafa;'
+        f'max-height:0;line-height:0;overflow:hidden;mso-hide:all;">'
+        f'{t}{filler}</span>'
+    )
+
+
 def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
@@ -455,8 +467,24 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
                 f'</div>'
             )
 
+    # Preheader: KPI varsa önce trafik sayısı, sonra haber özeti
+    kpi = site_kpi or {}
+    pre_parts: list[str] = []
+    if kpi.get("current"):
+        cur_k = int(kpi["current"])
+        pct_k = float(kpi.get("change_pct", 0))
+        sign  = "+" if pct_k >= 0 else ""
+        pre_parts.append(f"{cur_k:,} kul. {sign}{pct_k:.0f}%")
+    for a in alarms[:4]:
+        title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
+        curr  = int(a.get("current_users", 0))
+        if title and title != "—":
+            pre_parts.append(f"{title}: {curr}")
+    preheader_str = " · ".join(pre_parts) if pre_parts else f"{len(alarms)} haber alarmı"
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+            {_preheader(preheader_str)}
             <p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
             <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{head}</p>
             {kpi_html}
@@ -2946,8 +2974,16 @@ def _html_404_spike_body(
         for p in pages[:8]
     )
 
+    # Preheader
+    top_pages_str = " · ".join(
+        f'{html.escape(p["title"][:20])}: {p["activeUsers"]}'
+        for p in pages[:3]
+    ) if pages else ""
+    pre404 = f"{current_users} kul. 404'te ({sev_tr})" + (f" · {top_pages_str}" if top_pages_str else "")
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+          {_preheader(pre404)}
           <p style="font-size:15px;font-weight:700;margin:0 0 2px">{dom_e}
             <span style="font-weight:400;color:#64748b;font-size:13px">· {prof_e}</span>
           </p>
