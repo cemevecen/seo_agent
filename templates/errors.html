@@ -81,35 +81,30 @@
     <div class="overflow-x-auto">
       <table class="w-full table-fixed text-sm" id="err-table">
         <colgroup>
-          <col style="width:52px">
-          <col style="width:38%">
-          <col style="width:32%">
-          <col style="width:64px">
-          <col style="width:80px">
+          <col style="width:60px">
+          <col>
+          <col style="width:30%">
+          <col style="width:60px">
+          <col style="width:96px">
         </colgroup>
         <thead>
           <tr class="border-b border-slate-100 dark:border-zinc-800/30">
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Kod</th>
+            <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kod</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
               404 olan URL
               <span class="ml-1 font-normal normal-case text-slate-400 dark:text-zinc-500">← tıkla, git, kontrol et</span>
             </th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-              Referrer
-            </th>
-            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-              Kullanıcı
-              <span class="block text-[10px] font-normal normal-case text-slate-400 dark:text-zinc-500">bu URL'e düşen</span>
-            </th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Son Görülme</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Referrer</th>
+            <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kul.</th>
+            <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Son Görülme</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-zinc-800" id="err-tbody">
           {% for e in summary.errors %}
           {% set is_404 = e.status_code == 404 %}
           <tr class="err-row hover:bg-slate-50 dark:hover:bg-zinc-800/60" data-url="{{ e.url | lower }}">
-            <td class="px-4 py-3">
-              <span class="rounded-md px-2 py-0.5 text-xs font-bold
+            <td class="px-3 py-3">
+              <span class="rounded-md px-2 py-0.5 text-xs font-bold whitespace-nowrap
                 {% if is_404 %}bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400
                 {% else %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400{% endif %}">
                 {{ e.status_code }}
@@ -148,21 +143,19 @@
                 <span class="text-xs text-slate-300 dark:text-zinc-600">—</span>
               {% endif %}
             </td>
-            <td class="px-4 py-3 text-right">
+            <td class="px-3 py-3 text-right whitespace-nowrap">
               <span class="text-sm font-bold {% if e.hit_count >= 20 %}text-rose-600 dark:text-rose-400{% elif e.hit_count >= 5 %}text-orange-600 dark:text-orange-400{% else %}text-slate-600 dark:text-zinc-300{% endif %}">
                 {{ e.hit_count }}
               </span>
             </td>
-            <td class="px-4 py-3">
-              <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase
-                {% if e.source == 'ga4' %}bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400
+            <td class="px-3 py-3 whitespace-nowrap">
+              <div class="text-xs text-slate-400 dark:text-zinc-500">{{ e.last_seen[:10] if e.last_seen else "—" }}</div>
+              <span class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase whitespace-nowrap
+                {% if 'ga4' in e.source %}bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400
                 {% elif e.source == 'sc' %}bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400
-                {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400{% endif %}">
-                {{ e.source }}
+                {% else %}bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
+                {{ e.source | upper | replace('GA4_', '') | replace('D', 'G') if 'ga4_' in e.source else e.source }}
               </span>
-            </td>
-            <td class="px-4 py-3 text-xs text-slate-400 dark:text-zinc-500 whitespace-nowrap">
-              {{ e.last_seen[:10] if e.last_seen else "—" }}
             </td>
           </tr>
           {% endfor %}
