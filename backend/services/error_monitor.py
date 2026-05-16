@@ -110,31 +110,39 @@ def fetch_ga4_error_pages(
         logger.warning("GA4 error pages fetch hatası [property=%s]: %s", property_id, exc)
         return []
 
-    results = []
+    # URL bazında grupla — aynı URL farklı referrer'lardan gelebilir
+    grouped: dict[str, dict] = {}
     for row in response.rows:
         dims = [dv.value for dv in row.dimension_values]
         mets = [mv.value for mv in row.metric_values]
         page_path  = dims[0] if len(dims) > 0 else ""
         page_title = dims[1] if len(dims) > 1 else ""
-        referrer   = dims[2] if len(dims) > 2 else ""
+        referrer   = (dims[2] if len(dims) > 2 else "").strip()
         pageviews  = int(mets[0]) if len(mets) > 0 else 0
         users      = int(mets[1]) if len(mets) > 1 else 0
 
         if not page_path:
             continue
 
-        results.append({
-            "url":         page_path,
-            "page_title":  page_title,
-            "referrer":    referrer,   # bu linke nereden gelindi
-            "pageviews":   pageviews,
-            "users":       users,
-            "status_code": 404,
-            "source":      "ga4",
-            "error_type":  "not_found",
-        })
+        if page_path not in grouped:
+            grouped[page_path] = {
+                "url":         page_path,
+                "page_title":  page_title,
+                "referrers":   [],
+                "pageviews":   0,
+                "users":       0,
+                "status_code": 404,
+                "source":      "ga4",
+                "error_type":  "not_found",
+            }
+        grouped[page_path]["pageviews"] += pageviews
+        grouped[page_path]["users"]     += users
+        if referrer and referrer not in grouped[page_path]["referrers"]:
+            grouped[page_path]["referrers"].append(referrer)
 
-    logger.info("GA4 hata sayfaları: property=%s, %d satır döndü", property_id, len(results))
+    results = sorted(grouped.values(), key=lambda x: x["users"], reverse=True)
+    logger.info("GA4 hata sayfaları: property=%s, %d benzersiz URL, %d satır döndü",
+                property_id, len(results), len(response.rows))
     return results
 
 
@@ -166,9 +174,21 @@ def save_error_logs(
             )
             .first()
         )
+        # Mevcut referrer listesiyle birleştir (yeni çekimde yeni kaynaklar eklensin)
+        new_refs = e.get("referrers") or ([e.get("referrer")] if e.get("referrer") else [])
+        if existing:
+            old_extra = {}
+            try:
+                old_extra = json.loads(existing.extra_json or "{}")
+            except Exception:
+                pass
+            old_refs = old_extra.get("referrers") or []
+            merged = old_refs + [r for r in new_refs if r and r not in old_refs]
+        else:
+            merged = [r for r in new_refs if r]
         extra = json.dumps({
             "page_title": e.get("page_title", ""),
-            "referrer":   e.get("referrer", ""),
+            "referrers":  merged[:20],  # max 20 referrer sakla
         }, ensure_ascii=False)
         if existing:
             existing.hit_count = int(e.get("users", 1))  # GA4 artık date'siz, tam toplam
@@ -242,7 +262,7 @@ def get_error_summary(
             "first_seen":  r.first_seen.isoformat() if r.first_seen else "",
             "last_seen":   r.last_seen.isoformat() if r.last_seen else "",
             "page_title":  extra.get("page_title", ""),
-            "referrer":    extra.get("referrer", ""),
+            "referrers":   extra.get("referrers") or [],
         })
 
     return {
