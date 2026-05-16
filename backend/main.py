@@ -8007,7 +8007,18 @@ def api_seo_audit_run(site_id: int):
             except Exception as exc:
                 LOGGER.debug("Sitemap hatası: %s", exc)
 
-            # 2. Subdomain'lerin ana sayfalarından link toplama (sitemap yoksa)
+            # 2a. www.doviz.com içindeki kategori sayfalarından link toplama
+            if "doviz.com" in site_domain:
+                for cat_url, cat_domain in [
+                    (f"{base}/akaryakit-fiyatlari", site_domain),
+                    (f"{base}/emtia",               site_domain),
+                    (f"{base}/kripto-paralar",       site_domain),
+                ]:
+                    prog["current"] = f"Keşfediliyor: {cat_url}"
+                    for u in _crawl_homepage_links(cat_url, cat_domain):
+                        _add(u)
+
+            # 2b. Subdomain'lerin ana sayfalarından link toplama (sitemap yoksa)
             if "doviz.com" in site_domain:
                 for sub_root, sub_domain in [
                     ("https://kur.doviz.com",   "kur.doviz.com"),
@@ -8026,9 +8037,14 @@ def api_seo_audit_run(site_id: int):
                     f"{base}/emtia/doga-gazi",
                     f"{base}/emtia/altin",
                     f"{base}/akaryakit-fiyatlari",
-                    f"{base}/akaryakit-fiyatlari/benzin",
-                    f"{base}/akaryakit-fiyatlari/motorin",
-                    f"{base}/akaryakit-fiyatlari/lpg",
+                    f"{base}/akaryakit-fiyatlari/istanbul-avrupa",
+                    f"{base}/akaryakit-fiyatlari/istanbul-anadolu",
+                    f"{base}/akaryakit-fiyatlari/ankara",
+                    f"{base}/akaryakit-fiyatlari/izmir",
+                    f"{base}/akaryakit-fiyatlari/adana",
+                    f"{base}/akaryakit-fiyatlari/bursa",
+                    f"{base}/akaryakit-fiyatlari/antalya",
+                    f"{base}/akaryakit-fiyatlari/gaziantep",
                     f"{base}/doviz-cevirici",
                     f"{base}/altin-cevirici",
                     f"{base}/kripto-para-cevirici",
