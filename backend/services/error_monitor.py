@@ -174,8 +174,18 @@ def save_error_logs(
     errors: list[dict[str, Any]],
     source: str,
 ) -> int:
-    """Hataları DB'ye upsert eder. Aynı URL+source varsa hit_count ve last_seen günceller."""
+    """Hataları DB'ye kaydeder. Her çekimde önce eski kayıtlar temizlenir, taze yazılır."""
     from backend.models import SiteErrorLog
+
+    # Eski kayıtları sil — GA4 artık gruplu sonuç döndürüyor, duplicate kalmasın
+    try:
+        db.query(SiteErrorLog).filter(
+            SiteErrorLog.site_id == site_id,
+            SiteErrorLog.source == source,
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        db.rollback()
 
     saved = 0
     now = datetime.utcnow()
