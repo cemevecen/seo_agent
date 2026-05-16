@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
+  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h3 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">KANBAN BOARDS</h3>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">GitLab ile tam senkronize interaktif görev yönetimi</p>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 overflow-x-auto pb-2">
+    {% for project in projects %}
+      <button 
+        hx-get="/api/boards/content?project_path={{ project.path }}"
+        hx-target="#board-container"
+        hx-swap="innerHTML"
+        class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white dark:focus:ring-slate-400 dark:focus:ring-offset-slate-900"
+      >
+        {{ project.name }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <div id="board-container" class="min-h-[600px] rounded-2xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700">
+    <p class="text-slate-500 dark:text-slate-400 mt-20">Lütfen yukarıdan bir proje seçin.</p>
+  </div>
+</div>
+{% endblock %}

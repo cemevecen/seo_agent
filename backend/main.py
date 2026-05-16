@@ -11812,3 +11812,46 @@ def health_check():
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# --- GITLAB BOARDS ---
+
+from backend.services.gitlab_board import fetch_project_board, move_issue
+
+@app.get("/boards", response_class=HTMLResponse)
+def page_boards(request: Request):
+    """GitLab Kanban Board ana sayfası."""
+    projects = [
+        {"name": "Döviz Web", "path": "nokta/doviz"},
+        {"name": "Döviz iOS", "path": "ios/doviz"},
+        {"name": "Döviz Android", "path": "android/doviz"},
+        {"name": "Sinemalar Web", "path": "nokta/sinemalar"}
+    ]
+    return templates.TemplateResponse(
+        request, "pages/boards.html",
+        context={"request": request, "projects": projects}
+    )
+
+@app.get("/api/boards/content")
+def api_boards_content(request: Request, project_path: str):
+    """Belirli bir proje için board ve issue'ları getirir."""
+    data = fetch_project_board(project_path)
+    return templates.TemplateResponse(
+        request, "partials/boards/board_content.html",
+        context={"request": request, "data": data, "project_path": project_path}
+    )
+
+@app.post("/api/boards/move")
+async def api_boards_move(request: Request):
+    """Sürükle-bırak işlemi sonrası etiketleri günceller."""
+    form = await request.form()
+    project_path = form.get("project_path")
+    issue_iid = int(form.get("issue_iid", 0))
+    from_label = form.get("from_label")
+    to_label = form.get("to_label")
+    
+    add_labels = [to_label] if to_label and to_label != "null" else []
+    remove_labels = [from_label] if from_label and from_label != "null" else []
+    
+    success = move_issue(project_path, issue_iid, add_labels, remove_labels)
+    # Başarılıysa sadece 200 döneriz, UI zaten SortableJS ile güncellendi
+    return Response(status_code=200 if success else 400)
