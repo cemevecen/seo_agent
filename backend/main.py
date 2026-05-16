@@ -6021,6 +6021,501 @@ def dashboard_measure_site(request: Request, site_id: int):
     )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Yeni Ana Sayfa API'leri — HTMX lazy-load partial endpoint'leri.
+# Tüm endpoint'ler HTMLResponse döner; hata durumunda boş/uyarı state'i gösterilir.
+# Tab routing veya ana navigation'a dokunmaz; sadece dashboard_content.html içine doldurur.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_HOME_SITE_DOMAINS = {1: ("doviz.com", "Döviz"), 2: ("www.sinemalar.com", "Sinemalar")}
+_HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("android", "Android"), ("ios", "iOS")]
+_HOME_SINEMA_PROFILES = [("web", "Web"), ("mweb", "MWeb")]
+
+
+def _home_format_int(n: float) -> str:
+    try:
+        n = int(round(float(n)))
+    except (TypeError, ValueError):
+        return "—"
+    if n >= 1_000_000:
+        return f"{n/1_000_000:.1f}M".replace(".0M", "M")
+    if n >= 1_000:
+        return f"{n/1_000:.1f}K".replace(".0K", "K")
+    return str(n)
+
+
+def _home_pct_delta(cur: float, prev: float) -> tuple[str, str]:
+    try:
+        c = float(cur); p = float(prev)
+    except (TypeError, ValueError):
+        return ("—", "flat")
+    if p <= 0:
+        if c > 0:
+            return ("+∞", "up")
+        return ("0%", "flat")
+    pct = (c - p) / p * 100.0
+    tone = "up" if pct > 0.5 else ("down" if pct < -0.5 else "flat")
+    sign = "+" if pct > 0 else ""
+    return (f"{sign}{pct:.1f}%", tone)
+
+
+def _home_get_site(db, site_id: int):
+    return db.query(Site).filter(Site.id == site_id).first()
+
+
+def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
+    """RealtimeSnapshot tablosundan her profil için en taze snapshot'ı al."""
+    out = []
+    for prof_key, prof_label in profiles:
+        row = (
+            db.query(RealtimeSnapshot)
+            .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof_key)
+            .order_by(RealtimeSnapshot.collected_at.desc())
+            .first()
+        )
+        if row is None:
+            out.append({"label": prof_label, "value_fmt": "—", "delta_fmt": None, "delta_tone": "flat"})
+            continue
+        cur = float(row.active_users_current or 0)
+        prev = float(row.active_users_previous or 0)
+        delta_fmt, tone = _home_pct_delta(cur, prev)
+        out.append({"label": prof_label, "value_fmt": _home_format_int(cur), "delta_fmt": delta_fmt, "delta_tone": tone})
+    return out
+
+
+@app.get("/api/home/realtime", response_class=HTMLResponse)
+def api_home_realtime(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "profiles": _home_load_realtime_for_site(db, site_id, profs),
+            })
+    now_label = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
+    return templates.TemplateResponse(
+        request, "partials/home/realtime.html",
+        context={"request": request, "sites": sites_out, "now_label": now_label},
+    )
+
+
+def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
+    out = []
+    for prof_key, prof_label in profiles:
+        snap = (
+            db.query(Ga4ReportSnapshot)
+            .filter(
+                Ga4ReportSnapshot.site_id == site_id,
+                Ga4ReportSnapshot.profile == prof_key,
+                Ga4ReportSnapshot.period_days == 7,
+            )
+            .order_by(Ga4ReportSnapshot.collected_at.desc())
+            .first()
+        )
+        last_v = 0.0
+        prev_v = 0.0
+        if snap is not None:
+            try:
+                payload = json.loads(snap.payload_json or "{}")
+            except Exception:
+                payload = {}
+            last_v = float(payload.get(f"ga4_{prof_key}_sessions_last7d_total") or 0.0)
+            prev_v = float(payload.get(f"ga4_{prof_key}_sessions_prev7d_total") or 0.0)
+        delta_fmt, tone = _home_pct_delta(last_v, prev_v)
+        out.append({
+            "label": prof_label,
+            "last_fmt": _home_format_int(last_v),
+            "prev_fmt": _home_format_int(prev_v),
+            "delta_fmt": delta_fmt,
+            "tone": tone,
+        })
+    return out
+
+
+@app.get("/api/home/ga4-sessions", response_class=HTMLResponse)
+def api_home_ga4_sessions(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "profiles": _home_load_ga4_sessions_for_site(db, site_id, profs),
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/ga4_sessions.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
+def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
+    """Tek site & device için current_7d ve previous_7d toplamları."""
+    from sqlalchemy import func as sa_func
+    def _sum(scope: str) -> tuple[float, float]:
+        row = (
+            db.query(
+                sa_func.coalesce(sa_func.sum(SearchConsoleQuerySnapshot.clicks), 0.0),
+                sa_func.coalesce(sa_func.sum(SearchConsoleQuerySnapshot.impressions), 0.0),
+            )
+            .filter(
+                SearchConsoleQuerySnapshot.site_id == site_id,
+                SearchConsoleQuerySnapshot.data_scope == scope,
+                SearchConsoleQuerySnapshot.device == device,
+            )
+            .first()
+        )
+        return (float(row[0] or 0.0), float(row[1] or 0.0)) if row else (0.0, 0.0)
+
+    c_clicks, c_impr = _sum("current_7d")
+    p_clicks, p_impr = _sum("previous_7d")
+    clicks_delta, clicks_tone = _home_pct_delta(c_clicks, p_clicks)
+    impr_delta, impr_tone = _home_pct_delta(c_impr, p_impr)
+    return {
+        "clicks_last_fmt": _home_format_int(c_clicks),
+        "clicks_prev_fmt": _home_format_int(p_clicks),
+        "clicks_delta_fmt": clicks_delta,
+        "clicks_tone": clicks_tone,
+        "impr_last_fmt": _home_format_int(c_impr),
+        "impr_prev_fmt": _home_format_int(p_impr),
+        "impr_delta_fmt": impr_delta,
+        "impr_tone": impr_tone,
+    }
+
+
+@app.get("/api/home/sc-summary", response_class=HTMLResponse)
+def api_home_sc_summary(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            devices = []
+            for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
+                agg = _home_sc_device_aggregate(db, site_id, dev_code)
+                agg["label"] = dev_label
+                devices.append(agg)
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "devices": devices,
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/sc_summary.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
+def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
+    """current_7d vs previous_7d MOBILE pozisyon farkı en kötü (artış) ilk N sorgu."""
+    cur_rows = (
+        db.query(SearchConsoleQuerySnapshot.query, SearchConsoleQuerySnapshot.position, SearchConsoleQuerySnapshot.clicks)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == "current_7d",
+            SearchConsoleQuerySnapshot.device == "MOBILE",
+        )
+        .all()
+    )
+    prev_rows = (
+        db.query(SearchConsoleQuerySnapshot.query, SearchConsoleQuerySnapshot.position)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == "previous_7d",
+            SearchConsoleQuerySnapshot.device == "MOBILE",
+        )
+        .all()
+    )
+    prev_map = {(r[0] or "").strip().lower(): float(r[1] or 0.0) for r in prev_rows if r[0]}
+    candidates: list[dict] = []
+    for q, pos_cur, clicks in cur_rows:
+        if not q:
+            continue
+        key = q.strip().lower()
+        if key not in prev_map:
+            continue
+        pos_prev = prev_map[key]
+        pos_cur_f = float(pos_cur or 0.0)
+        if pos_prev <= 0 or pos_cur_f <= 0:
+            continue
+        diff = pos_cur_f - pos_prev  # pozitif = düşüş (kötü)
+        if diff < 1.0:
+            continue
+        impact = diff * max(float(clicks or 0.0), 1.0)
+        candidates.append({
+            "query": q,
+            "pos_cur": f"{pos_cur_f:.1f}",
+            "pos_prev": f"{pos_prev:.1f}",
+            "diff_fmt": f"{diff:.1f}",
+            "impact": impact,
+        })
+    candidates.sort(key=lambda x: x["impact"], reverse=True)
+    return candidates[:limit]
+
+
+@app.get("/api/home/position-drops", response_class=HTMLResponse)
+def api_home_position_drops(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "drops": _home_position_drops_for_site(db, site_id, limit=5),
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/position_drops.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
+def _home_parse_iso_date(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        if "T" in s:
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return datetime.strptime(s, "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+@app.get("/api/home/app-release", response_class=HTMLResponse)
+def api_home_app_release(request: Request):
+    from backend.services.app_intel import build_intel_payload
+    platforms = []
+    try:
+        payload = build_intel_payload("doviz", 7, cache_only=True)
+    except Exception:
+        payload = {"error": "no_cache"}
+
+    if not payload.get("error"):
+        and_meta = (payload.get("android") or {}).get("meta") or {}
+        ios_meta = (payload.get("ios") or {}).get("meta") or {}
+        now = datetime.now(timezone_utc := ZoneInfo("UTC"))
+
+        for key, label, meta, version_key, date_key in [
+            ("android", "Android · Play", and_meta, "play_version", "play_last_updated_at"),
+            ("ios", "iOS · App Store", ios_meta, "version", "currentVersionReleaseDate"),
+        ]:
+            ver = meta.get(version_key) or "—"
+            updated_raw = meta.get(date_key)
+            updated_dt = _home_parse_iso_date(updated_raw)
+            updated_label = "—"
+            is_recent = False
+            if updated_dt is not None:
+                try:
+                    if updated_dt.tzinfo is None:
+                        updated_dt = updated_dt.replace(tzinfo=timezone_utc)
+                    updated_label = updated_dt.astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d %b %Y")
+                    is_recent = (now - updated_dt).days <= 7
+                except Exception:
+                    updated_label = str(updated_raw)
+            score = meta.get("score")
+            score_fmt = f"{float(score):.2f}" if isinstance(score, (int, float)) else "—"
+            ratings_val = meta.get("ratings") if key == "android" else meta.get("ratings_count")
+            ratings_fmt = _home_format_int(ratings_val) if ratings_val else "—"
+            rank = (meta.get("category_rank") or {}).get("rank") if isinstance(meta.get("category_rank"), dict) else None
+            rank_fmt = f"#{rank}" if rank else "—"
+            platforms.append({
+                "key": key,
+                "label": label,
+                "subtitle": meta.get("genre") or meta.get("primary_genre_name") or "—",
+                "version": ver,
+                "updated_label": updated_label,
+                "is_recent": is_recent,
+                "score_fmt": score_fmt,
+                "ratings_fmt": ratings_fmt,
+                "rank_fmt": rank_fmt,
+            })
+    else:
+        for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
+            platforms.append({
+                "key": key, "label": label, "subtitle": "Veri bekleniyor",
+                "version": None, "updated_label": None, "is_recent": False,
+                "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
+            })
+
+    return templates.TemplateResponse(
+        request, "partials/home/app_release.html",
+        context={"request": request, "platforms": platforms},
+    )
+
+
+def _home_shorten_url(u: str, max_len: int = 60) -> str:
+    if not u:
+        return ""
+    try:
+        from urllib.parse import urlparse as _up
+        p = _up(u)
+        s = (p.path or "/") + (("?" + p.query) if p.query else "")
+        if len(s) > max_len:
+            s = s[: max_len - 1] + "…"
+        return s
+    except Exception:
+        return u[:max_len]
+
+
+def _home_top_404s_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
+    """Dün için en kritik 404 URL'leri. SiteErrorLog tablosu yoksa UrlAuditRecord'a düşer."""
+    yday_start = datetime.now() - timedelta(days=1)
+    yday_start = yday_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = yday_start + timedelta(days=1)
+
+    try:
+        from backend.models import SiteErrorLog
+        rows = (
+            db.query(SiteErrorLog)
+            .filter(
+                SiteErrorLog.site_id == site_id,
+                SiteErrorLog.status_code == 404,
+                SiteErrorLog.last_seen >= yday_start,
+                SiteErrorLog.last_seen < today_start,
+            )
+            .order_by(SiteErrorLog.hit_count.desc())
+            .limit(limit)
+            .all()
+        )
+        if rows:
+            return [{
+                "url": r.url,
+                "url_short": _home_shorten_url(r.url),
+                "hit_label": f"{_home_format_int(r.hit_count)} hit",
+            } for r in rows]
+    except Exception:
+        pass
+
+    # Fallback: UrlAuditRecord'dan 404'leri çek
+    try:
+        rows = (
+            db.query(UrlAuditRecord.url, UrlAuditRecord.status_code)
+            .filter(
+                UrlAuditRecord.site_id == site_id,
+                UrlAuditRecord.status_code == 404,
+                UrlAuditRecord.collected_at >= yday_start,
+            )
+            .order_by(UrlAuditRecord.collected_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [{
+            "url": r[0],
+            "url_short": _home_shorten_url(r[0]),
+            "hit_label": "404",
+        } for r in rows]
+    except Exception:
+        return []
+
+
+@app.get("/api/home/top-404s", response_class=HTMLResponse)
+def api_home_top_404s(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "rows": _home_top_404s_for_site(db, site_id, limit=5),
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/top_404s.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
+def _home_seo_problem_summary(rec: UrlAuditRecord) -> str:
+    """Hangi alanlar eksik — kısa Türkçe."""
+    parts = []
+    if not rec.has_title:
+        parts.append("title yok")
+    elif rec.title_length and (rec.title_length < 30 or rec.title_length > 65):
+        parts.append("title uzunluk")
+    if not rec.has_meta_description:
+        parts.append("meta yok")
+    elif rec.meta_description_length and rec.meta_description_length < 80:
+        parts.append("kısa meta")
+    if not rec.has_h1:
+        parts.append("h1 yok")
+    elif rec.h1_count and rec.h1_count > 1:
+        parts.append("çoklu h1")
+    if not rec.has_canonical:
+        parts.append("canonical yok")
+    elif not rec.canonical_matches_final:
+        parts.append("canonical uyumsuz")
+    if rec.is_noindex:
+        parts.append("noindex")
+    if not rec.has_schema:
+        parts.append("schema yok")
+    return ", ".join(parts[:4])
+
+
+def _home_seo_errors_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
+    rows = (
+        db.query(UrlAuditRecord)
+        .filter(
+            UrlAuditRecord.site_id == site_id,
+            UrlAuditRecord.status_code < 400,
+        )
+        .filter((UrlAuditRecord.seo_score == "poor") | (UrlAuditRecord.issue_count >= 3))
+        .order_by(UrlAuditRecord.issue_count.desc(), UrlAuditRecord.collected_at.desc())
+        .limit(limit * 2)
+        .all()
+    )
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in rows:
+        if r.url in seen:
+            continue
+        seen.add(r.url)
+        out.append({
+            "url": r.url,
+            "url_short": _home_shorten_url(r.url),
+            "issue_count": r.issue_count or 0,
+            "problems": _home_seo_problem_summary(r),
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+@app.get("/api/home/seo-errors", response_class=HTMLResponse)
+def api_home_seo_errors(request: Request):
+    sites_out = []
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            site = _home_get_site(db, site_id)
+            if site is None:
+                continue
+            sites_out.append({
+                "site_id": site_id,
+                "domain": site.domain,
+                "display_name": site.display_name,
+                "rows": _home_seo_errors_for_site(db, site_id, limit=5),
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/seo_errors.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
 @app.get("/site/{domain}", response_class=HTMLResponse)
 def site_detail(request: Request, domain: str):
     # Lighthouse içeriği Data Explorer'a taşındığı için eski rota güvenli şekilde yönlendirilir.

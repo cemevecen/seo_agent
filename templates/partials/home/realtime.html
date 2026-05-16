@@ -1,0 +1,30 @@
+<div class="flex flex-wrap items-center justify-between gap-2">
+  <div class="flex items-center gap-2">
+    <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+    <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">Anlık Aktif Kullanıcı</h4>
+  </div>
+  <span class="text-[11px] text-slate-400">{{ now_label }} · 60s yenileme</span>
+</div>
+<div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+  {% for site in sites %}
+    <div class="rounded-xl border bg-white px-3 py-3 shadow-sm dark:bg-slate-900 {% if 'doviz' in site.domain %}border-blue-200 dark:border-blue-900/60{% elif 'sinemalar' in site.domain %}border-rose-200 dark:border-rose-900/60{% else %}border-slate-200 dark:border-slate-700{% endif %}">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ site.display_name }}</p>
+        <p class="text-[11px] text-slate-400">{{ site.domain }}</p>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {% for prof in site.profiles %}
+          <div class="rounded-lg bg-slate-50 px-2 py-2 text-center dark:bg-slate-800/60">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
+            <p class="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ prof.value_fmt }}</p>
+            {% if prof.delta_fmt %}
+              <p class="text-[10px] {% if prof.delta_tone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif prof.delta_tone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-400{% endif %}">{{ prof.delta_fmt }}</p>
+            {% else %}
+              <p class="text-[10px] text-slate-400">—</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
