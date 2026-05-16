@@ -8,7 +8,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Integer, case, cast, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,9 @@ def _issues_for(row) -> list[str]:
     return issues
 
 
-def _c(cond) -> Any:
-    """Bool koşulunu SUM için 0/1'e çevirir (SQLAlchemy 2.x uyumlu)."""
-    return func.sum(cast(case((cond, 1), else_=0), Integer))
+def _cnt(cond) -> Any:
+    """Koşulu karşılayan satır sayısı — COUNT(CASE WHEN cond THEN 1 END)."""
+    return func.count(case((cond, 1)))
 
 
 def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
@@ -61,23 +61,23 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         func.count(M.id).label("total"),
         func.max(M.collected_at).label("last_crawled"),
         # Score dağılımı
-        _c(M.seo_score == "good").label("good"),
-        _c(M.seo_score == "needs_improvement").label("needs_improvement"),
-        _c(M.seo_score == "poor").label("poor"),
+        _cnt(M.seo_score == "good").label("good"),
+        _cnt(M.seo_score == "needs_improvement").label("needs_improvement"),
+        _cnt(M.seo_score == "poor").label("poor"),
         # Title
-        _c(M.has_title == False).label("missing_title"),
-        _c((M.has_title == True) & (M.title_length < TITLE_MIN)).label("short_title"),
-        _c((M.has_title == True) & (M.title_length > TITLE_MAX)).label("long_title"),
+        _cnt(M.has_title == False).label("missing_title"),
+        _cnt(and_(M.has_title == True, M.title_length < TITLE_MIN)).label("short_title"),
+        _cnt(and_(M.has_title == True, M.title_length > TITLE_MAX)).label("long_title"),
         # Desc
-        _c(M.has_meta_description == False).label("missing_desc"),
-        _c((M.has_meta_description == True) & (M.meta_description_length < DESC_MIN)).label("short_desc"),
-        _c((M.has_meta_description == True) & (M.meta_description_length > DESC_MAX)).label("long_desc"),
+        _cnt(M.has_meta_description == False).label("missing_desc"),
+        _cnt(and_(M.has_meta_description == True, M.meta_description_length < DESC_MIN)).label("short_desc"),
+        _cnt(and_(M.has_meta_description == True, M.meta_description_length > DESC_MAX)).label("long_desc"),
         # Canonical
-        _c(M.has_canonical == False).label("missing_canonical"),
-        _c((M.has_canonical == True) & (M.canonical_matches_final == False)).label("broken_canonical"),
+        _cnt(M.has_canonical == False).label("missing_canonical"),
+        _cnt(and_(M.has_canonical == True, M.canonical_matches_final == False)).label("broken_canonical"),
         # Diğer
-        _c(M.is_noindex == True).label("noindex"),
-        _c((M.has_og_title == False) | (M.has_og_description == False)).label("missing_og"),
+        _cnt(M.is_noindex == True).label("noindex"),
+        _cnt(or_(M.has_og_title == False, M.has_og_description == False)).label("missing_og"),
     ).filter(M.site_id == site_id).first()
 
     if not row or not row.total:
@@ -138,7 +138,7 @@ _FILTER_MAP = {
     "missing_canonical": lambda q, M: q.filter(M.has_canonical == False),
     "broken_canonical": lambda q, M: q.filter(M.has_canonical == True, M.canonical_matches_final == False),
     "noindex": lambda q, M: q.filter(M.is_noindex == True),
-    "missing_og": lambda q, M: q.filter((M.has_og_title == False) | (M.has_og_description == False)),
+    "missing_og": lambda q, M: q.filter(or_(M.has_og_title == False, M.has_og_description == False)),
 }
 
 
