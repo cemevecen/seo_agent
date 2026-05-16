@@ -150,26 +150,29 @@
     <div id="tab-issues" class="audit-tab">
       {# Filter chips #}
       <div class="flex flex-wrap gap-1.5 px-5 py-3 border-b border-slate-50 dark:border-zinc-800/50">
+        {% set sc = summary.score_counts %}
+        {% set ic = summary.issue_counts %}
         {% set filters = [
-          ("all", "Tümü"),
-          ("poor", "Kritik"),
-          ("needs_improvement", "İyileştir"),
-          ("missing_title", "Başlık yok"),
-          ("long_title", "Başlık uzun"),
-          ("missing_desc", "Desc yok"),
-          ("long_desc", "Desc uzun"),
-          ("missing_canonical", "Canonical yok"),
-          ("broken_canonical", "Canonical mismatch"),
-          ("noindex", "Noindex"),
-          ("missing_og", "OG eksik"),
+          ("all",               "Tümü",              summary.total_pages),
+          ("poor",              "Kritik",             sc.get("poor", 0)),
+          ("needs_improvement", "İyileştir",          sc.get("needs_improvement", 0)),
+          ("missing_title",     "Başlık yok",         ic.get("missing_title", 0)),
+          ("long_title",        "Başlık uzun",        ic.get("long_title", 0)),
+          ("missing_desc",      "Desc yok",           ic.get("missing_desc", 0)),
+          ("long_desc",         "Desc uzun",          ic.get("long_desc", 0)),
+          ("missing_canonical", "Canonical yok",      ic.get("missing_canonical", 0)),
+          ("broken_canonical",  "Canonical mismatch", ic.get("broken_canonical", 0)),
+          ("noindex",           "Noindex",            ic.get("noindex", 0)),
+          ("missing_og",        "OG eksik",           ic.get("missing_og", 0)),
         ] %}
-        {% for fkey, flabel in filters %}
+        {% for fkey, flabel, fcount in filters %}
+        {% if fcount > 0 or fkey == "all" or filter == fkey %}
         <a href="/seo-audit?site_id={{ selected_site_id }}&filter={{ fkey }}"
            class="rounded-full border px-2.5 py-1 text-xs font-semibold transition
                   {% if filter == fkey %}audit-chip-active{% else %}border-zinc-200 text-slate-500 hover:border-zinc-400 hover:text-slate-700 dark:border-zinc-700 dark:text-zinc-500 dark:hover:border-zinc-500 dark:hover:text-zinc-300{% endif %}">
-          {{ flabel }}
-          {% if fkey == "all" and summary.total_issues %}<span class="ml-1 opacity-60">{{ summary.total_issues }}</span>{% endif %}
+          {{ flabel }}{% if fcount %}<span class="ml-1 opacity-60">{{ fcount }}</span>{% endif %}
         </a>
+        {% endif %}
         {% endfor %}
       </div>
 
