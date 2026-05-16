@@ -6305,13 +6305,32 @@ def _home_parse_iso_date(s: str | None) -> datetime | None:
 @app.get("/api/home/app-release", response_class=HTMLResponse)
 def api_home_app_release(request: Request):
     from backend.services.app_intel import build_intel_payload
+    import threading
+    
+    product_id = "doviz"
     platforms = []
     try:
-        payload = build_intel_payload("doviz", 7, cache_only=True)
+        payload = build_intel_payload(product_id, 7, cache_only=True)
     except Exception:
         payload = {"error": "no_cache"}
 
-    if not payload.get("error"):
+    if payload.get("error") == "no_cached_data" or payload.get("error") == "no_cache":
+        # Arkaplanda çekimi başlat
+        def _bg_refresh():
+            try:
+                build_intel_payload(product_id, 30, force_refresh=True)
+            except Exception:
+                pass
+        threading.Thread(target=_bg_refresh, daemon=True).start()
+        
+        # Fallback state
+        for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
+            platforms.append({
+                "key": key, "label": label, "subtitle": "Veri bekleniyor...",
+                "version": None, "updated_label": None, "is_recent": False,
+                "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
+            })
+    elif not payload.get("error"):
         and_meta = (payload.get("android") or {}).get("meta") or {}
         ios_meta = (payload.get("ios") or {}).get("meta") or {}
         now = datetime.now(timezone_utc := ZoneInfo("UTC"))
@@ -6351,9 +6370,10 @@ def api_home_app_release(request: Request):
                 "rank_fmt": rank_fmt,
             })
     else:
+        # Other errors
         for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
             platforms.append({
-                "key": key, "label": label, "subtitle": "Veri bekleniyor",
+                "key": key, "label": label, "subtitle": "Bağlantı hatası",
                 "version": None, "updated_label": None, "is_recent": False,
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
             })
