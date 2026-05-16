@@ -354,7 +354,7 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         """
 
 
-def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
+def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
     cards: list[str] = []
@@ -412,10 +412,54 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         summary_line += f" (+{len(alarms) - 4})"
     n = len(alarms)
     head = html.escape(f"{n} haber · {summary_line}")
+
+    # Genel trafik özeti banner'ı
+    kpi_html = ""
+    kpi = site_kpi or {}
+    if kpi.get("current") is not None:
+        cur_kpi  = int(kpi.get("current", 0))
+        prev_kpi = int(kpi.get("previous", 0))
+        pct_kpi  = float(kpi.get("change_pct", 0.0))
+        is_drop_kpi = pct_kpi < 0
+        kpi_color = "#dc2626" if is_drop_kpi else "#16a34a"
+        kpi_bg    = "#fef2f2" if is_drop_kpi else "#f0fdf4"
+        kpi_border= "#dc2626" if is_drop_kpi else "#16a34a"
+        pct_sign  = "" if pct_kpi < 0 else "+"
+        if prev_kpi > 0:
+            kpi_html = (
+                f'<div style="margin:0 0 14px;padding:10px 14px;border-radius:8px;'
+                f'border-left:4px solid {kpi_border};background:{kpi_bg};">'
+                f'<div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;'
+                f'letter-spacing:.06em;margin-bottom:4px;">Genel Trafik · {prof_e}</div>'
+                f'<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
+                f'<span style="font-size:22px;font-weight:900;color:#475569;">{prev_kpi:,}</span>'
+                f'</div>'
+                f'<span style="font-size:16px;color:#94a3b8;padding-bottom:2px;">→</span>'
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{cur_kpi:,}</span>'
+                f'</div>'
+                f'<span style="font-size:16px;font-weight:800;color:{kpi_color};padding-bottom:2px;">'
+                f'{pct_sign}{pct_kpi:.1f}%</span>'
+                f'</div>'
+                f'</div>'
+            )
+        else:
+            kpi_html = (
+                f'<div style="margin:0 0 14px;padding:8px 14px;border-radius:8px;'
+                f'background:#f8fafc;border-left:4px solid #e2e8f0;">'
+                f'<span style="font-size:11px;color:#64748b;">Genel Trafik · {prof_e}: '
+                f'<strong style="color:#0f172a;">{cur_kpi:,}</strong> aktif kullanıcı</span>'
+                f'</div>'
+            )
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
             <p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
             <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{head}</p>
+            {kpi_html}
             {''.join(cards)}
             <p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
         </div>
@@ -2589,7 +2633,28 @@ def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         logger.exception("Haber alarm log kayıt hatası (site_id=%s)", site_id)
 
 
-def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
+def _get_site_kpi_summary(db: Session, site_id: int, profile: str) -> dict:
+    """Son RealtimeSnapshot'tan genel trafik özetini döner (mail için)."""
+    from backend.models import RealtimeSnapshot
+    from sqlalchemy import desc as _desc
+    try:
+        snap = (
+            db.query(RealtimeSnapshot)
+            .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
+            .order_by(_desc(RealtimeSnapshot.collected_at))
+            .first()
+        )
+        if snap:
+            cur  = snap.active_users_current  or 0
+            prev = snap.active_users_previous or 0
+            pct  = round((cur - prev) / prev * 100, 1) if prev > 0 else 0.0
+            return {"current": int(cur), "previous": int(prev), "change_pct": pct}
+    except Exception:
+        pass
+    return {}
+
+
+def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> None:
     """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
     from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
 
@@ -2605,7 +2670,7 @@ def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_news_alarm_body(domain, profile_label, alarms)
+    html_body = _html_news_alarm_body(domain, profile_label, alarms, site_kpi=site_kpi or {})
     subject = _email_news_alarm_subject(domain, profile, alarms)
     send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
 
@@ -2663,7 +2728,9 @@ def check_news_alarms_for_site(
             if _alarm_email_suppressed(db, site.id, rule_ids):
                 logger.info("Haber alarmı e-posta cooldown aktif, atlandı (site=%s).", site.domain)
             else:
-                _send_news_alarm_email(site.domain, profile, alarms)
+                # Son site-geneli KPI snapshot'ından genel trafik özetini al
+                site_kpi = _get_site_kpi_summary(db, site.id, profile)
+                _send_news_alarm_email(site.domain, profile, alarms, site_kpi=site_kpi)
 
     return alarms
 

@@ -2942,11 +2942,22 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Saatlik Inbox Özeti (Hangi hesaba kaç kullanıcı maili geldiği ve detayları)
+    # Inbox Özeti — 06:00–00:00 arası 1,5 saatte bir
+    # :00'lı saatler: 0,6,9,12,15,18,20,22  |  :30'lu saatler: 7,10,13,16
     scheduler.add_job(
         _run_inbox_summary_job,
-        trigger=CronTrigger(minute=0, timezone=timezone),
-        id="hourly-inbox-summary",
+        trigger=CronTrigger(hour="0,6,9,12,15,18,20,22", minute=0, timezone=timezone),
+        id="inbox-summary-on-hour",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+    job_count += 1
+    scheduler.add_job(
+        _run_inbox_summary_job,
+        trigger=CronTrigger(hour="7,10,13,16", minute=30, timezone=timezone),
+        id="inbox-summary-on-half",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
