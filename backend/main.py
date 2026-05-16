@@ -7876,7 +7876,11 @@ def api_seo_audit_run(site_id: int):
             with SessionLocal() as db:
                 site_obj = db.query(Site).filter(Site.id == site_id).first()
                 if site_obj:
-                    collect_site_audit(db, site_obj)
+                    collect_site_audit(
+                        db, site_obj,
+                        sitemap_url_limit=500,       # UI'dan max 500 URL — 5-10dk
+                        request_timeout_seconds=8,   # URL başına max 8sn
+                    )
             LOGGER.info("SEO audit tamamlandı: site=%s", site_domain)
         except Exception:
             LOGGER.exception("SEO audit arka plan hatası site_id=%s", site_id)

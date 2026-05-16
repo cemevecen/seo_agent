@@ -315,15 +315,28 @@ function _resetBtn() {
 
 function _startPolling() {
   if (_pollTimer) return;
+  var _pollCount = 0;
   _pollTimer = setInterval(function() {
+    _pollCount++;
     fetch('/api/seo-audit/' + _siteId + '/status', {credentials: 'same-origin'})
       .then(function(r) { return r.json(); })
       .then(function(d) {
         var label = document.getElementById('run-label');
-        if (d.url_count > 0 && label) label.textContent = d.url_count + ' URL tarandı…';
-        if (!d.running) {
+        if (d.running) {
+          var mins = Math.floor(_pollCount * 3 / 60);
+          var secs = (_pollCount * 3) % 60;
+          var elapsed = mins > 0 ? mins + 'dk ' + secs + 'sn' : secs + 'sn';
+          if (label) label.textContent = 'Taranıyor… ' + elapsed;
+        } else {
           clearInterval(_pollTimer); _pollTimer = null;
-          window.location.reload();
+          if (d.url_count > 0) {
+            window.location.reload();
+          } else {
+            _resetBtn();
+            var label2 = document.getElementById('run-label');
+            if (label2) label2.textContent = 'Tara';
+            alert('Tarama tamamlandı ancak sonuç bulunamadı. Loglara bakın.');
+          }
         }
       })
       .catch(function() {});
