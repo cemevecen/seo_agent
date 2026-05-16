@@ -7797,10 +7797,14 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
     sidebar_sites = get_sidebar_sites()
     days = max(1, min(int(days), 30))
 
-    # Seçili site yoksa ilk siteyi al
+    # Seçili site yoksa ilk siteyi al — external siteler dahil edilmez
     with SessionLocal() as db:
         from backend.models import Site
-        all_sites = db.query(Site).order_by(Site.created_at.desc()).all()
+        external_ids = _external_site_ids(db)
+        all_sites = [
+            s for s in db.query(Site).order_by(Site.created_at.desc()).all()
+            if s.id not in external_ids
+        ]
         all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
 
     if not site_id and all_sites_list:

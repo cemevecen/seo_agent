@@ -81,13 +81,13 @@ def fetch_ga4_error_pages(
         )),
     ]
 
-    request = RunReportRequest(
+    # Sorgu 1: URL + başlık + kullanıcı sayısı
+    req_main = RunReportRequest(
         property=pid,
         date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
         dimensions=[
-            Dimension(name="pagePathPlusQueryString"),  # tam URL — query string dahil
+            Dimension(name="pagePathPlusQueryString"),
             Dimension(name="pageTitle"),
-            Dimension(name="pageReferrer"),              # nereden geldi — hangi link kırdı
         ],
         metrics=[
             Metric(name="screenPageViews"),
@@ -97,7 +97,7 @@ def fetch_ga4_error_pages(
             or_group=FilterExpressionList(expressions=error_filters)
         ),
         order_bys=[OrderBy(
-            metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"),
+            metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
             desc=True,
         )],
         limit=limit,
@@ -105,44 +105,66 @@ def fetch_ga4_error_pages(
 
     try:
         client = _build_ga4_client()
-        response = client.run_report(request)
+        response = client.run_report(req_main)
     except Exception as exc:
         logger.warning("GA4 error pages fetch hatası [property=%s]: %s", property_id, exc)
         return []
 
-    # URL bazında grupla — aynı URL farklı referrer'lardan gelebilir
     grouped: dict[str, dict] = {}
     for row in response.rows:
         dims = [dv.value for dv in row.dimension_values]
         mets = [mv.value for mv in row.metric_values]
         page_path  = dims[0] if len(dims) > 0 else ""
         page_title = dims[1] if len(dims) > 1 else ""
-        referrer   = (dims[2] if len(dims) > 2 else "").strip()
         pageviews  = int(mets[0]) if len(mets) > 0 else 0
         users      = int(mets[1]) if len(mets) > 1 else 0
-
         if not page_path:
             continue
+        grouped[page_path] = {
+            "url":         page_path,
+            "page_title":  page_title,
+            "referrers":   [],
+            "pageviews":   pageviews,
+            "users":       users,
+            "status_code": 404,
+            "source":      "ga4",
+            "error_type":  "not_found",
+        }
 
-        if page_path not in grouped:
-            grouped[page_path] = {
-                "url":         page_path,
-                "page_title":  page_title,
-                "referrers":   [],
-                "pageviews":   0,
-                "users":       0,
-                "status_code": 404,
-                "source":      "ga4",
-                "error_type":  "not_found",
-            }
-        grouped[page_path]["pageviews"] += pageviews
-        grouped[page_path]["users"]     += users
-        if referrer and referrer not in grouped[page_path]["referrers"]:
-            grouped[page_path]["referrers"].append(referrer)
+    if not grouped:
+        return []
+
+    # Sorgu 2: aynı filtre + pageReferrer — ayrı sorgu daha güvenilir
+    req_ref = RunReportRequest(
+        property=pid,
+        date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        dimensions=[
+            Dimension(name="pagePathPlusQueryString"),
+            Dimension(name="pageReferrer"),
+        ],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=FilterExpression(
+            or_group=FilterExpressionList(expressions=error_filters)
+        ),
+        order_bys=[OrderBy(
+            metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
+            desc=True,
+        )],
+        limit=limit * 5,
+    )
+    try:
+        ref_response = client.run_report(req_ref)
+        for row in ref_response.rows:
+            dims = [dv.value for dv in row.dimension_values]
+            page_path = dims[0] if len(dims) > 0 else ""
+            referrer  = (dims[1] if len(dims) > 1 else "").strip()
+            if page_path in grouped and referrer and referrer not in grouped[page_path]["referrers"]:
+                grouped[page_path]["referrers"].append(referrer)
+    except Exception as exc:
+        logger.debug("GA4 referrer sorgusu atlandı [property=%s]: %s", property_id, exc)
 
     results = sorted(grouped.values(), key=lambda x: x["users"], reverse=True)
-    logger.info("GA4 hata sayfaları: property=%s, %d benzersiz URL, %d satır döndü",
-                property_id, len(results), len(response.rows))
+    logger.info("GA4 hata sayfaları: property=%s, %d benzersiz URL", property_id, len(results))
     return results
 
 
