@@ -33,7 +33,6 @@
   <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-bold text-slate-700 dark:text-zinc-300">Garantili Tarama URL'leri</h3>
-      <span class="text-xs text-slate-400 dark:text-zinc-500">Her taramada mutlaka dahil edilir</span>
     </div>
     <div id="seed-list" class="mb-3 flex flex-wrap gap-1.5"></div>
     <div class="flex gap-2">
@@ -100,32 +99,6 @@
     </div>
   </div>
 
-  {# Issue breakdown — mini chips #}
-  {% if summary.total_pages %}
-  <div class="rounded-2xl bg-white px-5 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500 dark:text-zinc-400">
-      {% set pairs = [
-        ("Başlık yok", ic.get("missing_title",0), "rose"),
-        ("Başlık kısa", ic.get("short_title",0), "amber"),
-        ("Başlık uzun", ic.get("long_title",0), "amber"),
-        ("Desc yok", ic.get("missing_desc",0), "rose"),
-        ("Desc kısa", ic.get("short_desc",0), "amber"),
-        ("Desc uzun", ic.get("long_desc",0), "amber"),
-        ("Canonical yok", ic.get("missing_canonical",0), "rose"),
-        ("Canonical mismatch", ic.get("broken_canonical",0), "rose"),
-        ("OG eksik", ic.get("missing_og",0), "slate"),
-      ] %}
-      {% for label, count, color in pairs %}
-      {% if count %}
-      <span class="whitespace-nowrap">
-        <span class="font-semibold {% if color == 'rose' %}text-rose-600 dark:text-rose-400{% elif color == 'amber' %}text-amber-600 dark:text-amber-400{% else %}text-slate-600 dark:text-zinc-300{% endif %}">{{ count }}</span>
-        {{ label }}
-      </span>
-      {% endif %}
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 
   {# Sekmeler: Sorunlar / Değişiklikler / Duplicate #}
   <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
@@ -335,7 +308,7 @@ function renderSeeds(seeds) {
   var el = document.getElementById('seed-list');
   if (!el) return;
   if (!seeds.length) {
-    el.innerHTML = '<span class="text-xs text-slate-400 dark:text-zinc-600">Henüz URL eklenmedi</span>';
+    el.innerHTML = '';
     return;
   }
   el.innerHTML = seeds.map(function(s) {
