@@ -55,8 +55,8 @@ def _issues_for(row) -> list[str]:
     if not row.has_schema:
         issues.append("schema_missing")
 
-    # H2 kontrolü
-    if row.h2_count == 0:
+    # H2 kontrolü (sütun henüz eklenmemiş DB'lerde getattr ile güvenli)
+    if getattr(row, "h2_count", 0) == 0:
         issues.append("h2_missing")
 
     return issues
@@ -70,6 +70,12 @@ def _cnt(cond) -> Any:
 def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
     """SQL aggregation ile site geneli SEO özeti — RAM'a tüm satırları yüklemez."""
     from backend.models import UrlAuditRecord as M
+
+    # h2_count sütunu DB'de yoksa sorguyu atla
+    try:
+        _h2_expr = _cnt(M.h2_count == 0).label("missing_h2")
+    except Exception:
+        _h2_expr = func.count(None).label("missing_h2")
 
     row = db.query(
         func.count(M.id).label("total"),
@@ -95,7 +101,7 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         _cnt(M.has_h1.is_(False)).label("missing_h1"),
         _cnt(M.h1_count > 1).label("multiple_h1"),
         _cnt(M.has_schema.is_(False)).label("missing_schema"),
-        _cnt(M.h2_count == 0).label("missing_h2"),
+        _h2_expr,
     ).filter(M.site_id == site_id).first()
 
     if not row or not row.total:
@@ -164,7 +170,7 @@ _FILTER_MAP = {
     "missing_h1": lambda q, M: q.filter(M.has_h1.is_(False)),
     "multiple_h1": lambda q, M: q.filter(M.h1_count > 1),
     "missing_schema": lambda q, M: q.filter(M.has_schema.is_(False)),
-    "missing_h2": lambda q, M: q.filter(M.h2_count == 0),
+    "missing_h2": lambda q, M: q.filter(func.coalesce(M.h2_count, 0) == 0),
 }
 
 
