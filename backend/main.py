@@ -6496,6 +6496,7 @@ def _home_seo_problem_summary(rec: UrlAuditRecord) -> str:
 
 
 def _home_seo_errors_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
+    # Daha fazla kayıt çekip uygulama katmanında akıllı deduplikasyon yapıyoruz
     rows = (
         db.query(UrlAuditRecord)
         .filter(
@@ -6504,23 +6505,45 @@ def _home_seo_errors_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
         )
         .filter((UrlAuditRecord.seo_score == "poor") | (UrlAuditRecord.issue_count >= 3))
         .order_by(UrlAuditRecord.issue_count.desc(), UrlAuditRecord.collected_at.desc())
-        .limit(limit * 2)
+        .limit(limit * 5) 
         .all()
     )
-    seen: set[str] = set()
-    out: list[dict] = []
+
+    def _is_web(u: str) -> bool:
+        u_low = u.lower()
+        return "www." in u_low or "://m." not in u_low
+
+    # Path bazlı grupla ve en "kaliteli" (web + yüksek hata) olanı seç
+    grouped: dict[str, UrlAuditRecord] = {}
     for r in rows:
-        if r.url in seen:
+        path = _home_shorten_url(r.url)
+        existing = grouped.get(path)
+        if not existing:
+            grouped[path] = r
             continue
-        seen.add(r.url)
+        
+        # Eğer mevcut olan m. ise ve yeni gelen web ise, web'i tercih et (hata sayısı yakınsa)
+        # Veya yeni gelenin hata sayısı çok daha fazlaysa onu al (isteğe göre ayarlanabilir)
+        curr_is_web = _is_web(existing.url)
+        new_is_web = _is_web(r.url)
+        
+        if not curr_is_web and new_is_web:
+            grouped[path] = r
+        elif curr_is_web == new_is_web:
+            if (r.issue_count or 0) > (existing.issue_count or 0):
+                grouped[path] = r
+
+    # Sonuçları tekrar hata sayısına göre diz ve limit uygula
+    final_rows = sorted(grouped.values(), key=lambda x: (x.issue_count or 0), reverse=True)
+    
+    out: list[dict] = []
+    for r in final_rows[:limit]:
         out.append({
             "url": r.url,
             "url_short": _home_shorten_url(r.url),
             "issue_count": r.issue_count or 0,
             "problems": _home_seo_problem_summary(r),
         })
-        if len(out) >= limit:
-            break
     return out
 
 
