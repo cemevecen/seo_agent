@@ -106,7 +106,10 @@
                     <div class="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium w-full">
                       <span x-text="'#' + issue.iid"></span>
                       <template x-if="issue.assignee">
-                        <img :src="getAvatarUrl(issue.assignee.avatar_url)" :alt="issue.assignee.name" :title="issue.assignee.name" class="h-6 w-6 shrink-0 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-sm object-cover">
+                        <div class="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 ring-2 ring-white dark:bg-blue-900/50 dark:ring-slate-900 shadow-sm overflow-hidden" :title="issue.assignee.name">
+                          <span class="text-[10px] font-bold text-blue-700 dark:text-blue-300" x-text="(issue.assignee.name || '?').charAt(0).toUpperCase()"></span>
+                          <img x-show="issue.assignee.avatar_url" :src="getAvatarUrl(issue.assignee.avatar_url)" @error="$el.style.display='none'" :alt="issue.assignee.name" class="absolute inset-0 h-full w-full bg-white object-cover dark:bg-slate-800">
+                        </div>
                       </template>
                     </div>
                   </div>
