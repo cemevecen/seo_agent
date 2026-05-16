@@ -2930,6 +2930,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # 404 hata özeti maili — 13:15 ve 23:15
+    scheduler.add_job(
+        _run_error_report_email_job,
+        trigger=CronTrigger(hour="13,23", minute=15, timezone=timezone),
+        id="error-report-email",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+    job_count += 1
+
     # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
     scheduler.add_job(
         _run_scheduled_db_cleanup_job,
@@ -10016,6 +10028,94 @@ def _get_error_summary_for_card(db, site_id: int, days: int = 7) -> dict:
         return get_error_summary(db, site_id, days=days)
     except Exception:
         return {"total_404": 0, "total_5xx": 0, "total_users": 0, "errors": [], "days": days}
+
+
+def _run_error_report_email_job() -> None:
+    """404 hata özeti maili — 13:15 ve 23:15'te tüm siteler için tek mail."""
+    try:
+        from backend.services.error_monitor import get_error_summary
+        from backend.services.mailer import send_email
+        from backend.models import Site
+
+        with SessionLocal() as db:
+            sites = db.query(Site).order_by(Site.id).all()
+            site_blocks: list[str] = []
+            grand_total = 0
+
+            for site in sites:
+                summary = get_error_summary(db, site.id, days=1)
+                errors = summary.get("errors") or []
+                if not errors:
+                    continue
+                grand_total += len(errors)
+
+                rows = ""
+                for e in errors[:15]:
+                    url = e.get("url", "")
+                    refs = e.get("referrers") or []
+                    ref_html = ""
+                    if refs:
+                        ref_items = "".join(
+                            f'<div style="font-size:10px;color:#64748b;font-family:monospace;margin-top:1px">'
+                            f'↳ {r[:70]}{"…" if len(r) > 70 else ""}</div>'
+                            for r in refs[:3]
+                        )
+                        ref_html = f'<div style="margin-top:2px">{ref_items}</div>'
+                        if len(refs) > 3:
+                            ref_html += f'<div style="font-size:10px;color:#94a3b8">+{len(refs)-3} kaynak daha</div>'
+
+                    cnt = e.get("hit_count", 0)
+                    cnt_color = "#dc2626" if cnt >= 20 else "#ea580c" if cnt >= 5 else "#475569"
+                    rows += (
+                        f'<tr style="border-bottom:1px solid #f1f5f9">'
+                        f'<td style="padding:8px 10px 8px 0;vertical-align:top">'
+                        f'<a href="https://{site.domain}{url}" target="_blank" '
+                        f'style="font-family:monospace;font-size:12px;color:#0284c7;text-decoration:none">'
+                        f'{url[:60]}{"…" if len(url) > 60 else ""}</a>'
+                        f'{ref_html}'
+                        f'</td>'
+                        f'<td style="padding:8px 0;text-align:right;white-space:nowrap;vertical-align:top">'
+                        f'<strong style="color:{cnt_color}">{cnt}</strong>'
+                        f'<span style="font-size:10px;color:#94a3b8;margin-left:2px">kul.</span>'
+                        f'</td></tr>'
+                    )
+
+                total = summary.get("total_404", 0)
+                users = summary.get("total_users", 0)
+                site_blocks.append(
+                    f'<div style="margin-bottom:20px">'
+                    f'<div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:6px">'
+                    f'<a href="https://{site.domain}" style="color:#0f172a;text-decoration:none">{site.domain}</a>'
+                    f' <span style="font-weight:400;font-size:12px;color:#64748b">'
+                    f'· {total} benzersiz URL · {users} kullanıcı etkilendi</span></div>'
+                    f'<table style="width:100%;border-collapse:collapse">{rows}</table>'
+                    f'{"<div style=\'font-size:11px;color:#94a3b8;margin-top:4px\'>…ve " + str(len(errors)-15) + " URL daha</div>" if len(errors) > 15 else ""}'
+                    f'</div>'
+                )
+
+        if not site_blocks:
+            LOGGER.info("404 mail: Bugün raporlanacak hata yok.")
+            return
+
+        from datetime import datetime as _dt
+        now_str = _dt.now().strftime("%d.%m.%Y %H:%M")
+        html = (
+            f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
+            f'max-width:640px;color:#0f172a">'
+            f'<p style="font-size:15px;font-weight:700;margin:0 0 4px">404 Hata Özeti</p>'
+            f'<p style="font-size:12px;color:#64748b;margin:0 0 16px">'
+            f'{now_str} · Son 24 saat · {grand_total} benzersiz URL</p>'
+            f'{"".join(site_blocks)}'
+            f'<p style="font-size:11px;color:#94a3b8;margin-top:16px">'
+            f'SEO Agent · Otomatik 404 raporu — '
+            f'<a href="/errors" style="color:#94a3b8">detaylar</a></p>'
+            f'</div>'
+        )
+        subject = f"404 Raporu · {grand_total} URL · {now_str}"
+        send_email(subject, html)
+        LOGGER.info("404 hata raporu maili gönderildi: %d URL", grand_total)
+    except Exception as exc:
+        LOGGER.error("404 hata raporu mail hatası: %s", exc)
 
 
 def _run_error_detection_job() -> None:
