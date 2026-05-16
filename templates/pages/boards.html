@@ -1,9 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5" x-data="gitlabBoards()" x-init="initBoards()">
-  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-end sm:justify-between">
-    <div>
+  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-4">
       <h3 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">git.nokta.com</h3>
+      <button 
+        @click="refreshActiveProject()" 
+        :disabled="!activeProject || (projectData[activeProject] && projectData[activeProject].loading)" 
+        class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+        title="Aktif Projeyi Yenile"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="(projectData[activeProject] && projectData[activeProject].loading) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Yenile
+      </button>
     </div>
   </div>
 
@@ -15,7 +26,6 @@
         class="relative rounded-full border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 focus:outline-none dark:border-slate-700 dark:hover:bg-slate-700 transition-colors"
       >
         <span x-text="project.name"></span>
-        <!-- Yükleniyor ikonu (küçük) -->
         <span x-show="projectData[project.path] && projectData[project.path].loading" class="ml-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-middle opacity-50"></span>
       </button>
     </template>
@@ -25,18 +35,15 @@
     
     <template x-if="activeProject && projectData[activeProject]">
       <div class="h-full">
-        <!-- Error State -->
-        <div x-show="projectData[activeProject].error" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-400">
+        <div x-show="projectData[activeProject].error" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-400 mb-4">
           <p class="font-medium" x-text="projectData[activeProject].error"></p>
         </div>
 
-        <!-- Initial Loading State (sadece ilk yüklemede) -->
         <div x-show="projectData[activeProject].loading && !projectData[activeProject].loaded && !projectData[activeProject].error" class="mt-20 text-center">
           <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-slate-900 border-r-transparent align-[-0.125em] dark:border-white dark:border-r-transparent"></div>
           <p class="mt-4 text-slate-500 dark:text-slate-400">GitLab'den veriler çekiliyor...</p>
         </div>
 
-        <!-- Boards -->
         <div x-show="projectData[activeProject].loaded && !projectData[activeProject].error" class="flex h-full items-start gap-4 overflow-x-auto pb-4" id="lists-wrapper">
           <template x-for="(lst, index) in projectData[activeProject].lists" :key="lst.id">
             <div x-data="{ collapsed: getIssuesForList(activeProject, lst).length === 0 }"
@@ -59,10 +66,25 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
                   </button>
                   <span x-text="lst.label.name" class="truncate pr-1"></span>
+                  <button x-show="!lst.isClosed" @click.stop="lst.showNewIssueForm = true" class="ml-1 shrink-0 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Yeni Madde Ekle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                  </button>
                 </div>
                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600 shrink-0" x-text="getIssuesForList(activeProject, lst).length"></span>
               </h4>
               
+              <!-- Yeni Ekleme Formu -->
+              <div x-show="!collapsed && lst.showNewIssueForm" x-transition class="mb-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <input type="text" x-model="lst.newIssueTitle" @keydown.enter="createIssue(activeProject, lst)" :disabled="lst.isCreating" placeholder="Ne yapılması gerekiyor?" class="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500">
+                <div class="mt-2 flex justify-end gap-2">
+                  <button @click="lst.showNewIssueForm = false; lst.newIssueTitle = ''" class="text-xs font-medium text-slate-500 hover:text-slate-700">İptal</button>
+                  <button @click="createIssue(activeProject, lst)" :disabled="!lst.newIssueTitle || !lst.newIssueTitle.trim() || lst.isCreating" class="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition">
+                    <span x-show="!lst.isCreating">Ekle</span>
+                    <span x-show="lst.isCreating" class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></span>
+                  </button>
+                </div>
+              </div>
+
               <div 
                 class="sortable-list flex flex-col gap-2 rounded-lg border-2 border-transparent transition-colors flex-1 w-full" 
                 style="min-height: 300px;"
@@ -113,49 +135,27 @@
     return {
       token: '{{ token }}',
       baseUrl: 'https://git.nokta.com/api/v4',
-      
-      // Projeler sunucudan JSON olarak geliyor
       configProjects: {{ projects | tojson | safe }},
-      
       activeProject: null,
-      
-      // Tüm projelerin verilerini tutacak obje
       projectData: {},
 
       initBoards() {
-        // State objesini başlat
         this.configProjects.forEach(p => {
-          this.projectData[p.path] = {
-            loading: false,
-            loaded: false,
-            error: null,
-            board: null,
-            lists: [],
-            issues: []
-          };
+          this.projectData[p.path] = { loading: false, loaded: false, error: null, board: null, lists: [], issues: [] };
         });
-        
-        // İlk projeyi aktif et
-        if (this.configProjects.length > 0) {
-          this.activeProject = this.configProjects[0].path;
-        }
+        if (this.configProjects.length > 0) this.activeProject = this.configProjects[0].path;
+        this.configProjects.forEach(p => this.fetchProjectData(p.path));
+      },
 
-        // Açılışta TÜM projeleri arkaplanda paralel çek
-        this.configProjects.forEach(p => {
-          this.fetchProjectData(p.path);
-        });
+      refreshActiveProject() {
+        if (!this.activeProject) return;
+        this.projectData[this.activeProject].loaded = false;
+        this.fetchProjectData(this.activeProject);
       },
 
       getListColor(index, isClosed) {
-        if (isClosed) return 'border-t-emerald-500'; // Closed her zaman yeşil
-        const colors = [
-          'border-t-slate-400',   // Open (Backlog)
-          'border-t-sky-500',     // To Do / Column 1
-          'border-t-indigo-500',  // Doing / Column 2
-          'border-t-amber-500',   // Testing / Column 3
-          'border-t-fuchsia-500', // Diğer
-          'border-t-rose-500'     // Diğer
-        ];
+        if (isClosed) return 'border-t-emerald-500';
+        const colors = ['border-t-slate-400', 'border-t-sky-500', 'border-t-indigo-500', 'border-t-amber-500', 'border-t-fuchsia-500', 'border-t-rose-500'];
         return colors[index % colors.length];
       },
 
@@ -207,9 +207,34 @@
           
           pd.board = boardsData[0];
           
-          let actualLists = pd.board.lists.map(l => ({...l, isVirtual: false, isClosed: false}));
-          actualLists.unshift({ id: 'virtual-open', label: { name: 'Open (Backlog)' }, isVirtual: true, isClosed: false });
-          actualLists.push({ id: 'virtual-closed', label: { name: 'Closed' }, isVirtual: true, isClosed: true });
+          let actualLists = pd.board.lists.map(l => ({
+            ...l, 
+            isVirtual: false, 
+            isClosed: false,
+            showNewIssueForm: false,
+            newIssueTitle: '',
+            isCreating: false
+          }));
+          
+          actualLists.unshift({ 
+            id: 'virtual-open', 
+            label: { name: 'Open (Backlog)' }, 
+            isVirtual: true, 
+            isClosed: false,
+            showNewIssueForm: false,
+            newIssueTitle: '',
+            isCreating: false
+          });
+          
+          actualLists.push({ 
+            id: 'virtual-closed', 
+            label: { name: 'Closed' }, 
+            isVirtual: true, 
+            isClosed: true,
+            showNewIssueForm: false,
+            newIssueTitle: '',
+            isCreating: false
+          });
           
           pd.lists = actualLists;
           pd.issues = allIssues;
@@ -220,6 +245,43 @@
           pd.error = err.message || "Bağlantı hatası.";
         } finally {
           pd.loading = false;
+        }
+      },
+
+      async createIssue(path, lst) {
+        if (!lst.newIssueTitle || !lst.newIssueTitle.trim()) return;
+        lst.isCreating = true;
+        const encodedPath = encodeURIComponent(path);
+        
+        let payload = {
+          title: lst.newIssueTitle.trim()
+        };
+        
+        if (!lst.isVirtual) {
+          payload.labels = lst.label.name;
+        }
+        
+        try {
+          const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues`, {
+            method: 'POST',
+            headers: {
+              'PRIVATE-TOKEN': this.token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!res.ok) throw new Error("Oluşturulamadı");
+          
+          const newIssue = await res.json();
+          this.projectData[path].issues.push(newIssue);
+          
+          lst.newIssueTitle = '';
+          lst.showNewIssueForm = false;
+        } catch (err) {
+          alert("Hata: " + err.message);
+        } finally {
+          lst.isCreating = false;
         }
       },
 
