@@ -138,7 +138,7 @@ def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
     p = _email_profile_abbr(profile)
     suffix = f" [{p}]" if p not in ("web", "") else ""
     chips = []
-    for a in alarms[:3]:
+    for a in alarms[:10]:
         t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20)
         c = int(a.get("current_users", 0))
         pv = int(a.get("previous_users", 0))
@@ -150,7 +150,7 @@ def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
         else:
             d = c - pv
             chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
-    rest = f" +{len(alarms) - 3}" if len(alarms) > 3 else ""
+    rest = f" +{len(alarms) - 10}" if len(alarms) > 10 else ""
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
@@ -187,8 +187,8 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
         return f"{title} {sign}{delta}"
 
     sorted_alarms = _sort_news_alarms(alarms)
-    chips = [_alarm_chip(a) for a in sorted_alarms[:10]]
-    rest = f" +{len(sorted_alarms) - 10}" if len(sorted_alarms) > 10 else ""
+    chips = [_alarm_chip(a) for a in sorted_alarms[:15]]
+    rest = f" +{len(sorted_alarms) - 15}" if len(sorted_alarms) > 15 else ""
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
@@ -350,13 +350,13 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
 
     # Özet satırı — preview'da görünür
     chips = []
-    for a in alarms[:4]:
+    for a in alarms[:10]:
         t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
         c = int(a.get("current_users", 0))
         p2 = int(a.get("previous_users", 0))
         d = c - p2
         chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
-    summary = html.escape(" · ".join(chips) + (f" +{len(alarms)-4}" if len(alarms) > 4 else ""))
+    summary = html.escape(" · ".join(chips) + (f" +{len(alarms)-10}" if len(alarms) > 10 else ""))
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
             <p style="font-size:15px;font-weight:700;margin:0 0 2px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {html.escape(profile_label)}</span></p>
@@ -382,8 +382,8 @@ def _preheader(text: str) -> str:
 def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
-    # Sırala + ilk 10
-    alarms = _sort_news_alarms(alarms)[:10]
+    # Sırala + ilk 15
+    alarms = _sort_news_alarms(alarms)[:15]
     cards: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
@@ -488,7 +488,7 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         pct_k = float(kpi.get("change_pct", 0))
         sign  = "+" if pct_k >= 0 else ""
         pre_parts.append(f"{cur_k:,} kul. {sign}{pct_k:.0f}%")
-    for a in alarms[:4]:
+    for a in alarms[:10]:
         title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
         curr  = int(a.get("current_users", 0))
         if title and title != "—":
@@ -630,14 +630,25 @@ def _realtime_rules_threshold_pct_for_domain(
     base_rules: dict[str, dict[str, Any]],
     site_domain: str | None,
 ) -> dict[str, dict[str, Any]]:
-    """sinemalar için tüm ``threshold_pct`` = 50; mutlak tabanlar (min_*) de %50 ölçeklenir."""
-    if not _is_sinemalar_site_domain(site_domain):
+    """sinemalar için tüm ``threshold_pct`` = 50; döviz için 30; mutlak tabanlar (min_*) de buna göre ölçeklenir."""
+    d = (site_domain or "").strip().lower()
+    if d.startswith("www."):
+        d = d[4:]
+
+    target_pct = None
+    if d == "sinemalar.com" or d.endswith(".sinemalar.com"):
+        target_pct = 50.0
+    elif d == "doviz.com" or d.endswith(".doviz.com"):
+        target_pct = 30.0
+
+    if target_pct is None:
         return base_rules
+
     out = copy.deepcopy(base_rules)
-    scale = _SINEMALAR_REALTIME_ALARM_PCT / 100.0
+    scale = target_pct / 100.0
     for _rid, rule in out.items():
         if "threshold_pct" in rule:
-            rule["threshold_pct"] = _SINEMALAR_REALTIME_ALARM_PCT
+            rule["threshold_pct"] = target_pct
         for key in ("min_users", "min_prev_users", "min_baseline"):
             if key in rule and isinstance(rule[key], (int, float)):
                 rule[key] = max(1, int(round(float(rule[key]) * scale)))
@@ -2162,7 +2173,7 @@ def save_page_snapshots(
     """Top sayfa sonuçlarını DB'ye kaydeder."""
     from backend.models import RealtimePageSnapshot
 
-    for i, page in enumerate(pages[:25]):
+    for i, page in enumerate(pages[:100]):
         snap = RealtimePageSnapshot(
             site_id=site_id,
             profile=profile,
@@ -2357,7 +2368,7 @@ def check_page_alarms_for_site(
             property_id,
             profile=profile,
             window_minutes=window_minutes,
-            limit=25,
+            limit=100,
             sort_by="activeUsers",
         )
     except Exception as exc:
@@ -2498,7 +2509,7 @@ def save_news_snapshots(
 ) -> None:
     from backend.models import RealtimeNewsSnapshot
 
-    for i, page in enumerate(pages[:25]):
+    for i, page in enumerate(pages[:100]):
         title = str(page.get("page") or "")[:500]
         snap = RealtimeNewsSnapshot(
             site_id=site_id,
@@ -2725,9 +2736,6 @@ def check_news_alarms_for_site(
     interval_minutes: int = 15,
     skip_emails: bool = False,
 ) -> list[dict[str, Any]]:
-    if profile not in ("web", "mweb"):
-        return []
-
     if not _news_snapshot_due(db, site.id, profile, interval_minutes=interval_minutes):
         return []
 
@@ -2744,7 +2752,7 @@ def check_news_alarms_for_site(
             property_id,
             site_domain=(site.domain or "").strip(),
             window_minutes=window_minutes,
-            limit=20,
+            limit=100,
             sort_by="activeUsers",
         )
     except Exception as exc:
@@ -2792,7 +2800,7 @@ def run_news_alarm_check_all_sites(db: Session, *, skip_emails: bool = False) ->
     for site in sites:
         record = get_ga4_credentials_record(db, site.id)
         properties = load_ga4_properties(record)
-        for profile in ("web", "mweb"):
+        for profile in ("web", "mweb", "ios", "android"):
             prop_id = str(properties.get(profile, "")).strip()
             if not prop_id:
                 continue
