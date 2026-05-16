@@ -2918,7 +2918,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    # Günlük hata tespiti (GA4'ten 404 çekimi) — her gece 01:30'da, son 3 günü kapsar
+    # Günlük hata tespiti — her gece 01:30'da, tüm siteler için 4 periyot (1/7/14/30g)
     scheduler.add_job(
         _run_error_detection_job,
         trigger=CronTrigger(hour=1, minute=30, timezone=timezone),
@@ -10181,13 +10181,18 @@ def _run_error_report_email_job() -> None:
 
 
 def _run_error_detection_job() -> None:
-    """Günlük GA4 hata tespiti — 1/7/14/30 günlük periyotları DB'ye önceden yazar."""
+    """Günlük GA4 hata tespiti — tüm siteler için 1/7/14/30g periyotlarını DB'ye yazar."""
     try:
-        from backend.services.error_monitor import run_error_detection_all_sites
+        from backend.services.error_monitor import run_error_detection_all_sites, _GA4_PERIODS
         with SessionLocal() as db:
             results = run_error_detection_all_sites(db)
-        total = sum(r.get("found", 0) for r in results if isinstance(r, dict))
-        LOGGER.info("Hata tespiti tamamlandı: %d site, %d hata", len(results), total)
+        ok = [r for r in results if isinstance(r, dict) and r.get("status") == "ok"]
+        total_found = sum(r.get("found", 0) for r in ok)
+        site_count = len({r.get("domain") for r in ok if r.get("domain")})
+        LOGGER.info(
+            "Hata tespiti tamamlandı: %d site, %d periyot, toplam %d hata URL",
+            site_count, len(_GA4_PERIODS), total_found,
+        )
     except Exception as exc:
         LOGGER.error("Hata tespiti job hatası: %s", exc)
 
