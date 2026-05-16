@@ -182,32 +182,8 @@ function filterErrors(q) {
 
 function switchPeriod(d) {
   var siteId = {{ selected_site_id if selected_site_id else 'null' }};
-  if (!siteId) { window.location = '/errors?days=' + d; return; }
-
-  // Tıklanan butonu hemen aktif göster
-  var isDark = document.documentElement.classList.contains('dark');
-  document.querySelectorAll('[onclick^="switchPeriod"]').forEach(function(b) {
-    var bd = parseInt(b.getAttribute('onclick').match(/\d+/)[0]);
-    if (bd === d) {
-      b.style.backgroundColor = isDark ? '#52525b' : '#18181b';
-      b.style.color = '#ffffff';
-      b.style.borderColor = isDark ? '#52525b' : '#18181b';
-      b.disabled = true;
-    } else {
-      b.style.opacity = '0.4';
-      b.disabled = true;
-    }
-  });
-
-  // Tablo yerine yükleniyor göster
-  var tbody = document.getElementById('err-tbody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:#71717a;font-size:13px">GA4\'ten çekiliyor…</td></tr>';
-
-  fetch('/api/errors/' + siteId + '/refresh?days=' + d, {credentials: 'same-origin'})
-    .then(function(r) { return r.json(); })
-    .finally(function() {
-      window.location = '/errors?site_id=' + siteId + '&days=' + d;
-    });
+  // Veri DB'de hazır — sadece URL değiştir, GA4 çağrısı yapma
+  window.location = '/errors?' + (siteId ? 'site_id=' + siteId + '&' : '') + 'days=' + d;
 }
 
 function refreshErrors() {
@@ -215,20 +191,25 @@ function refreshErrors() {
   if (!siteId) return;
   var btn = document.querySelector('[onclick="refreshErrors()"]');
   var icon = document.getElementById('err-spin');
+  var label = btn ? btn.querySelector('span') || btn : null;
   if (btn) btn.disabled = true;
   if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+  if (label && label.tagName !== 'BUTTON') label.textContent = 'Çekiliyor…';
 
-  fetch('/api/errors/' + siteId + '/refresh?days={{ days }}', {credentials: 'same-origin'})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.status === 'ok') window.location.reload();
-      else alert('Hata: ' + (d.message || 'bilinmiyor'));
-    })
-    .catch(function() { alert('İstek başarısız'); })
-    .finally(function() {
-      if (btn) btn.disabled = false;
-      if (icon) icon.style.animation = '';
-    });
+  // Tüm periyotları sırayla çek (1,7,14,30)
+  var periods = [1, 7, 14, 30];
+  var idx = 0;
+  function fetchNext() {
+    if (idx >= periods.length) {
+      window.location.reload();
+      return;
+    }
+    fetch('/api/errors/' + siteId + '/refresh?days=' + periods[idx], {credentials: 'same-origin'})
+      .then(function(r) { return r.json(); })
+      .catch(function() {})
+      .finally(function() { idx++; fetchNext(); });
+  }
+  fetchNext();
 }
 </script>
 <style>

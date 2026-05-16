@@ -10168,11 +10168,11 @@ def _run_error_report_email_job() -> None:
 
 
 def _run_error_detection_job() -> None:
-    """Günlük GA4 hata tespiti — son 3 günün 404 sayfalarını çeker."""
+    """Günlük GA4 hata tespiti — 1/7/14/30 günlük periyotları DB'ye önceden yazar."""
     try:
         from backend.services.error_monitor import run_error_detection_all_sites
         with SessionLocal() as db:
-            results = run_error_detection_all_sites(db, days=3)
+            results = run_error_detection_all_sites(db)
         total = sum(r.get("found", 0) for r in results if isinstance(r, dict))
         LOGGER.info("Hata tespiti tamamlandı: %d site, %d hata", len(results), total)
     except Exception as exc:

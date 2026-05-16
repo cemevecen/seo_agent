@@ -251,21 +251,25 @@ def save_error_logs(
     return saved
 
 
+def _ga4_source_key(days: int) -> str:
+    return f"ga4_{days}d"
+
+
 def get_error_summary(
     db: Session,
     site_id: int,
     days: int = 7,
 ) -> dict[str, Any]:
-    """Son N günün hata özetini döner."""
+    """Belirtilen periyot için DB'den hata özetini döner (GA4 çağrısı yapmaz)."""
     from backend.models import SiteErrorLog
 
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    source_key = _ga4_source_key(days)
 
     rows = (
         db.query(SiteErrorLog)
         .filter(
             SiteErrorLog.site_id == site_id,
-            SiteErrorLog.last_seen >= cutoff,
+            SiteErrorLog.source == source_key,
         )
         .order_by(SiteErrorLog.hit_count.desc())
         .limit(500)
@@ -332,11 +336,12 @@ def run_error_detection_for_site(db: Session, site_id: int, days: int = 7) -> di
         return {"status": "skip", "message": "web property ID yok"}
 
     errors = fetch_ga4_error_pages(property_id, days=days)
-    saved = save_error_logs(db, site.id, errors, source="ga4")
+    source_key = _ga4_source_key(days)
+    saved = save_error_logs(db, site.id, errors, source=source_key)
 
     logger.info(
-        "Hata tespiti: site=%s property=%s, %d hata bulundu, %d kaydedildi",
-        site.domain, property_id, len(errors), saved,
+        "Hata tespiti: site=%s property=%s days=%d, %d hata bulundu, %d kaydedildi",
+        site.domain, property_id, days, len(errors), saved,
     )
     return {
         "status":  "ok",
@@ -346,8 +351,11 @@ def run_error_detection_for_site(db: Session, site_id: int, days: int = 7) -> di
     }
 
 
-def run_error_detection_all_sites(db: Session, days: int = 1) -> list[dict]:
-    """Tüm GA4-bağlı siteler için hata tespiti."""
+_GA4_PERIODS = [1, 7, 14, 30]
+
+
+def run_error_detection_all_sites(db: Session) -> list[dict]:
+    """Tüm GA4-bağlı siteler için hata tespiti — 1/7/14/30 günlük periyotları önceden çeker."""
     from backend.models import Site
     from backend.services.ga4_auth import get_ga4_credentials_record, ga4_is_configured
 
@@ -362,8 +370,12 @@ def run_error_detection_all_sites(db: Session, days: int = 1) -> list[dict]:
             record = get_ga4_credentials_record(db, site.id)
             if not record:
                 continue
-            result = run_error_detection_for_site(db, site.id, days=days)
-            results.append(result)
+            for days in _GA4_PERIODS:
+                try:
+                    result = run_error_detection_for_site(db, site.id, days=days)
+                    results.append(result)
+                except Exception as exc:
+                    logger.warning("Hata tespiti başarısız [site=%s days=%d]: %s", site.domain, days, exc)
         except Exception as exc:
             logger.warning("Hata tespiti başarısız [site=%s]: %s", site.domain, exc)
     return results
