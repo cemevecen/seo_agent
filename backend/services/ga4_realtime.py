@@ -154,13 +154,25 @@ def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
+def _sort_news_alarms(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alarmları öncelik+kullanıcı sayısına göre sırala (yeni girişler önce, en yüksek trafik üstte)."""
+    def _key(a):
+        rid = str(a.get("rule_id", ""))
+        # Yeni giriş > spike > drop > disappeared
+        priority = {"news_new_entry": 0, "news_traffic_spike": 1, "news_traffic_drop": 2, "news_disappeared": 3}.get(rid, 9)
+        curr = int(a.get("current_users", 0))
+        prev = int(a.get("previous_users", 0))
+        users = max(curr, prev)
+        return (priority, -users)
+    return sorted(alarms, key=_key)
+
+
 def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
-    """Konu: 'sinemalar.com — Altın +90 · Petrol +81 · Kripto +71 [mweb]'"""
+    """Konu: en yüksek trafikli ilk 10 haber alarmının özeti."""
     short = _email_site_short_label(domain)
     p = _email_profile_abbr(profile)
     suffix = f" [{p}]" if p not in ("web", "") else ""
 
-    # Her alarm için kısa etiket üret
     def _alarm_chip(a: dict[str, Any]) -> str:
         title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=22)
         rid = str(a.get("rule_id", ""))
@@ -174,8 +186,9 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
         sign = "+" if delta >= 0 else ""
         return f"{title} {sign}{delta}"
 
-    chips = [_alarm_chip(a) for a in alarms[:3]]
-    rest = f" +{len(alarms) - 3}" if len(alarms) > 3 else ""
+    sorted_alarms = _sort_news_alarms(alarms)
+    chips = [_alarm_chip(a) for a in sorted_alarms[:10]]
+    rest = f" +{len(sorted_alarms) - 10}" if len(sorted_alarms) > 10 else ""
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
@@ -369,6 +382,8 @@ def _preheader(text: str) -> str:
 def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
+    # Sırala + ilk 10
+    alarms = _sort_news_alarms(alarms)[:10]
     cards: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
@@ -417,11 +432,9 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
-    # Özet satırı — preview'da görünür
-    entries = [_rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20) for a in alarms[:4]]
+    # Özet satırı — preview'da görünür (sıralı ilk 10)
+    entries = [_rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20) for a in alarms]
     summary_line = " · ".join(f for f in entries if f and f != "—")
-    if len(alarms) > 4:
-        summary_line += f" (+{len(alarms) - 4})"
     n = len(alarms)
     head = html.escape(f"{n} haber · {summary_line}")
 
@@ -3142,3 +3155,159 @@ def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
         
     thread_key = _realtime_email_thread_key(domain, profile)
     return send_realtime_email(subject, html_body, thread_kind=thread_kind, thread_key=thread_key)
+
+
+# ── App Event Spike Alarm (Android / iOS) ───────────────────────────────────
+
+APP_EVENT_SPIKE_THRESHOLD_PCT = 40
+APP_EVENT_MIN_COUNT = 50  # min eventCount eşiği — düşük trafikli event'leri filtrele
+
+# Gürültü oluşturan teknik event'ler
+_APP_EVENT_BLACKLIST = {
+    "session_start", "first_open", "user_engagement", "screen_view",
+    "app_remove", "app_clear_data", "app_update", "os_update",
+}
+
+
+def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
+    dom_e = html.escape(domain)
+    prof_e = html.escape(profile_label)
+    # Sırala
+    alarms = sorted(alarms, key=lambda a: int(a.get("current_count", 0)), reverse=True)[:10]
+
+    cards = []
+    for a in alarms:
+        evt = html.escape(str(a.get("event_name", "")))
+        curr = int(a.get("current_count", 0))
+        prev = int(a.get("previous_count", 0))
+        delta = curr - prev
+        pct = a.get("change_pct", 0)
+        is_drop = delta < 0
+        border = "#dc2626" if is_drop else "#16a34a"
+        bg = "#fef2f2" if is_drop else "#f0fdf4"
+        num_c = "#dc2626" if is_drop else "#16a34a"
+        sign = "+" if delta >= 0 else ""
+        pct_sign = "+" if pct >= 0 else ""
+        cards.append(
+            f'<div style="margin:10px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
+            f'<p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#0f172a;font-family:monospace;">{evt}</p>'
+            f'<div>'
+            f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+            f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
+            f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+            f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%)</span>'
+            f'</div></div>'
+        )
+
+    pre_parts = [f"{a.get('event_name','')[:18]}:{int(a.get('current_count',0))}" for a in alarms[:5]]
+    preheader = " · ".join(pre_parts) or f"{len(alarms)} event alarmı"
+
+    return (
+        f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:600px;color:#0f172a;">'
+        f'{_preheader(preheader)}'
+        f'<p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>'
+        f'<p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{len(alarms)} event ani değişim</p>'
+        f'{"".join(cards)}'
+        f'<p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · Uygulama event alarmı (otomatik)</p>'
+        f'</div>'
+    )
+
+
+def check_app_event_spike_for_site(
+    db: Session,
+    site: "Site",
+    *,
+    profile: str = "android",
+    window_minutes: int = 30,
+    skip_emails: bool = False,
+) -> dict[str, Any]:
+    """Tek site+profil için app event spike kontrolü (android/ios)."""
+    if profile not in ("android", "ios"):
+        return {}
+
+    record = get_ga4_credentials_record(db, site.id)
+    if not record:
+        return {}
+    properties = load_ga4_properties(record)
+    prop_id = str(properties.get(profile, "")).strip()
+    if not prop_id:
+        return {}
+
+    try:
+        result = fetch_realtime_top_events(
+            prop_id, window_minutes=window_minutes, limit=200, compare_previous=True,
+        )
+    except Exception as exc:
+        logger.warning("App event çekim hatası [%s/%s]: %s", site.domain, profile, exc)
+        return {}
+
+    events = result.get("events", []) or []
+    alarms = []
+    for e in events:
+        name = str(e.get("eventName") or "").strip()
+        if not name or name.lower() in _APP_EVENT_BLACKLIST:
+            continue
+        curr = int(e.get("eventCount") or 0)
+        prev = int(e.get("eventCount_previous") or 0)
+        if curr < APP_EVENT_MIN_COUNT and prev < APP_EVENT_MIN_COUNT:
+            continue
+        if prev == 0:
+            continue
+        pct = (curr - prev) / prev * 100
+        if abs(pct) < APP_EVENT_SPIKE_THRESHOLD_PCT:
+            continue
+        alarms.append({
+            "event_name": name,
+            "current_count": curr,
+            "previous_count": prev,
+            "change_pct": round(pct, 1),
+            "rule_id": "app_event_spike" if pct > 0 else "app_event_drop",
+        })
+
+    if not alarms:
+        return {"alarms": []}
+
+    # Cooldown — RealtimeAlarmLog üzerinden
+    if not skip_emails:
+        rule_ids = [a["rule_id"] for a in alarms]
+        if _alarm_email_suppressed(db, site.id, rule_ids):
+            logger.info("App event e-posta cooldown aktif (site=%s/%s).", site.domain, profile)
+        else:
+            from backend.services.mailer import send_realtime_email
+            profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
+            html_body = _html_app_event_alarm_body(site.domain, profile_label, alarms)
+            top_a = sorted(alarms, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:3]
+            chips = [f"{a['event_name'][:14]} {('+' if a['change_pct']>=0 else '')}{a['change_pct']:.0f}%" for a in top_a]
+            subject = f"{_email_site_short_label(site.domain)} — {' · '.join(chips)} [{profile}]"
+            thread_key = _realtime_email_thread_key(site.domain, profile)
+            send_realtime_email(subject, html_body, thread_kind="app_event", thread_key=thread_key)
+
+            # Cooldown için log
+            _save_alarm_logs(db, site.id, [
+                {"rule_id": a["rule_id"], "message": a["event_name"], "page": "", "profile": profile}
+                for a in alarms
+            ])
+
+    return {"alarms": alarms}
+
+
+def run_app_event_spike_check_all_sites(db: Session, *, skip_emails: bool = False) -> list[dict]:
+    """Tüm siteler için android+ios profillerinde event spike kontrolü."""
+    from backend.models import Site as SiteModel
+    results = []
+    sites = db.query(SiteModel).all()
+    for site in sites:
+        record = get_ga4_credentials_record(db, site.id)
+        if not record:
+            continue
+        for profile in ("android", "ios"):
+            try:
+                r = check_app_event_spike_for_site(db, site, profile=profile, skip_emails=skip_emails)
+                if r and r.get("alarms"):
+                    r["site_id"] = site.id
+                    r["domain"] = site.domain
+                    r["profile"] = profile
+                    results.append(r)
+            except Exception as exc:
+                logger.warning("App event check hatası [%s/%s]: %s", site.domain, profile, exc)
+    return results

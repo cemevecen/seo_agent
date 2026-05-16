@@ -10795,6 +10795,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             run_news_alarm_check_all_sites,
             run_page_alarm_check_all_sites,
             run_404_spike_check_all_sites,
+            run_app_event_spike_check_all_sites,
         )
         from backend.services.mailer import (
             realtime_email_batch_begin,
@@ -10849,13 +10850,22 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 spike_results = run_404_spike_check_all_sites(db, skip_emails=False)
             total_404_alarms = sum(1 for r in spike_results if r.get("severity"))
 
+        # 5. App event spike (android/ios)
+        total_app_event_alarms = 0
+        try:
+            with SessionLocal() as db:
+                app_event_results = run_app_event_spike_check_all_sites(db, skip_emails=False)
+            total_app_event_alarms = sum(len(r.get("alarms") or []) for r in app_event_results if isinstance(r, dict))
+        except Exception as exc:
+            LOGGER.warning("App event check hatası: %s", exc)
+
         # Tüm alarmlar toplandı — tek mail olarak gönder
         realtime_email_batch_flush()
 
-        total = total_site_alarms + total_page_alarms + total_news_alarms + total_404_alarms
+        total = total_site_alarms + total_page_alarms + total_news_alarms + total_404_alarms + total_app_event_alarms
         LOGGER.info(
-            "<<< GA4 Realtime Job BİTTİ. Site: %d, Sayfa: %d, Haber: %d, 404 Spike: %d alarm",
-            total_site_alarms, total_page_alarms, total_news_alarms, total_404_alarms,
+            "<<< GA4 Realtime Job BİTTİ. Site: %d, Sayfa: %d, Haber: %d, 404 Spike: %d, App Event: %d alarm",
+            total_site_alarms, total_page_alarms, total_news_alarms, total_404_alarms, total_app_event_alarms,
         )
         return {
             "total_alarms": total,
@@ -10863,6 +10873,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             "page_alarms": total_page_alarms,
             "news_alarms": total_news_alarms,
             "404_alarms": total_404_alarms,
+            "app_event_alarms": total_app_event_alarms,
             "site_check_count": len(results),
             "status": "completed",
         }
