@@ -29,6 +29,26 @@
     </div>
   </div>
 
+  {# Seed URL Yönetimi #}
+  <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-bold text-slate-700 dark:text-zinc-300">Garantili Tarama URL'leri</h3>
+      <span class="text-xs text-slate-400 dark:text-zinc-500">Her taramada mutlaka dahil edilir</span>
+    </div>
+    <div id="seed-list" class="mb-3 flex flex-wrap gap-1.5"></div>
+    <div class="flex gap-2">
+      <input id="seed-input" type="url" placeholder="https://kur.doviz.com/serbest-piyasa/amerikan-dolari"
+             class="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 min-w-0"
+             onkeydown="if(event.key==='Enter')addSeed()">
+      <input id="seed-note" type="text" placeholder="Not (isteğe bağlı)"
+             class="w-32 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400">
+      <button onclick="addSeed()"
+              class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700">
+        Ekle
+      </button>
+    </div>
+  </div>
+
   {# Progress Panel — tarama sırasında görünür #}
   <div id="progress-panel" class="hidden rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
     <div class="flex items-center justify-between mb-2">
@@ -293,6 +313,62 @@
 var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
 var _activeTab = 'issues';
 var _loaded = {issues: true, changes: false, duplicates: false};
+
+// Seed URL yönetimi
+function loadSeeds() {
+  if (!_siteId) return;
+  fetch('/api/seo-audit/' + _siteId + '/seeds', {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) { renderSeeds(d.seeds || []); })
+    .catch(function() {});
+}
+
+function renderSeeds(seeds) {
+  var el = document.getElementById('seed-list');
+  if (!el) return;
+  if (!seeds.length) {
+    el.innerHTML = '<span class="text-xs text-slate-400 dark:text-zinc-600">Henüz URL eklenmedi</span>';
+    return;
+  }
+  el.innerHTML = seeds.map(function(s) {
+    var label = s.url.replace('https://', '').replace('http://', '');
+    if (label.length > 50) label = label.substring(0, 48) + '…';
+    var note = s.note ? ' · ' + s.note : '';
+    return '<span class="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-zinc-800 px-2.5 py-1 text-xs text-slate-600 dark:text-zinc-400">'
+      + '<span title="' + s.url + '">' + label + note + '</span>'
+      + '<button onclick="deleteSeed(' + s.id + ')" class="ml-1 text-slate-400 hover:text-rose-500 dark:hover:text-zinc-300 text-[10px] font-bold">✕</button>'
+      + '</span>';
+  }).join('');
+}
+
+function addSeed() {
+  if (!_siteId) return;
+  var url = (document.getElementById('seed-input') || {}).value || '';
+  var note = (document.getElementById('seed-note') || {}).value || '';
+  if (!url.startsWith('http')) { alert('Geçerli bir URL girin'); return; }
+  fetch('/api/seo-audit/' + _siteId + '/seeds/add', {
+    method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: url.trim(), note: note.trim()})
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'ok' || d.status === 'exists') {
+        document.getElementById('seed-input').value = '';
+        document.getElementById('seed-note').value = '';
+        loadSeeds();
+      }
+    })
+    .catch(function() {});
+}
+
+function deleteSeed(id) {
+  fetch('/api/seo-audit/seeds/' + id, {method: 'DELETE', credentials: 'same-origin'})
+    .then(function() { loadSeeds(); })
+    .catch(function() {});
+}
+
+if (_siteId) loadSeeds();
 
 var _pollTimer = null;
 var _lastCount = 0;
