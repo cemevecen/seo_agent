@@ -7869,9 +7869,30 @@ def api_seo_audit_run(site_id: int):
             return {"status": "error", "message": "site not found"}
         site_domain = site.domain
 
+    # Subdomain'ler ve öncelik sırası — site'a özel
+    _PRIORITY_PATTERNS = [
+        ("kur.doviz.com",            1),
+        ("altin.doviz.com",          2),
+        ("/emtia/",                  3),
+        ("/akaryakit-fiyatlari",     4),
+        ("haber.doviz.com",          5),
+        ("/doviz-cevirici",          6),
+        ("/altin-cevirici",          6),
+        ("/kripto-para-cevirici",    6),
+        ("/kripto-paralar/",         7),
+        ("/makale/",                 8),
+        ("/haberler/",               8),
+    ]
+
+    def _url_priority(url: str) -> int:
+        for pattern, pri in _PRIORITY_PATTERNS:
+            if pattern in url:
+                return pri
+        return 99
+
     def _run():
         from backend.collectors.site_audit import (
-            _discover_sitemap_entries, _fetch_url_audit, _normalize_http_url,
+            _discover_sitemap_entries, _fetch_url_audit,
         )
         from backend.models import UrlAuditRecord
         from datetime import datetime as _dt
@@ -7883,12 +7904,37 @@ def api_seo_audit_run(site_id: int):
         _seo_audit_progress[site_id] = prog
 
         try:
-            # 1. Sitemap'ten URL listesini çek
-            disc = _discover_sitemap_entries(
-                f"https://{site_domain}",
-                max_urls=500, recent_days=90, timeout_seconds=8,
-            )
-            urls = [e["url"] for e in disc.get("url_entries", [])]
+            # 1. Ana domain + bilinen subdomain'lerin sitemap'lerini keşfet
+            base = f"https://{site_domain}"
+            candidate_roots = [base]
+            # doviz.com için subdomain'leri otomatik ekle
+            if "doviz.com" in site_domain:
+                candidate_roots = [
+                    "https://kur.doviz.com",
+                    "https://altin.doviz.com",
+                    "https://haber.doviz.com",
+                    base,
+                ]
+
+            seen_urls: set[str] = set()
+            all_url_entries = []
+            for root in candidate_roots:
+                try:
+                    prog["current"] = f"Sitemap taranıyor: {root}"
+                    disc = _discover_sitemap_entries(
+                        root, max_urls=300, recent_days=365, timeout_seconds=8,
+                    )
+                    for e in disc.get("url_entries", []):
+                        u = e.get("url", "")
+                        if u and u not in seen_urls:
+                            seen_urls.add(u)
+                            all_url_entries.append(u)
+                except Exception as exc:
+                    LOGGER.debug("Sitemap keşif hatası [%s]: %s", root, exc)
+
+            # 2. Öncelik sırasına göre sırala, max 500
+            all_url_entries.sort(key=_url_priority)
+            urls = all_url_entries[:500]
             prog["total"] = len(urls)
             prog["current"] = f"{len(urls)} URL bulundu, tarama başlıyor…"
 

@@ -50,33 +50,33 @@
     {% set sc = summary.score_counts %}
     {% set ic = summary.issue_counts %}
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Toplam Sayfa</p>
-      <p class="mt-1 text-2xl font-black text-slate-800 dark:text-zinc-200">{{ summary.total_pages }}</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Toplam Sayfa</p>
+      <p class="mt-1 text-2xl font-black text-slate-800 dark:text-zinc-300">{{ summary.total_pages }}</p>
     </div>
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-500">İyi</p>
-      <p class="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ sc.get("good", 0) }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500">Sağlıklı sayfa</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-zinc-500">İyi</p>
+      <p class="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-600">{{ sc.get("good", 0) }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-600">Sağlıklı sayfa</p>
     </div>
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-500">İyileştir</p>
-      <p class="mt-1 text-2xl font-black text-amber-500 dark:text-amber-400">{{ sc.get("needs_improvement", 0) }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500">Eksik/kısa</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-zinc-500">İyileştir</p>
+      <p class="mt-1 text-2xl font-black text-amber-600 dark:text-amber-600">{{ sc.get("needs_improvement", 0) }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-600">Eksik/kısa</p>
     </div>
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-500">Kritik</p>
-      <p class="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">{{ sc.get("poor", 0) }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500">Ciddi sorun</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-zinc-500">Kritik</p>
+      <p class="mt-1 text-2xl font-black text-rose-600 dark:text-rose-600">{{ sc.get("poor", 0) }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-600">Ciddi sorun</p>
     </div>
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">Duplicate</p>
-      <p class="mt-1 text-2xl font-black text-violet-600 dark:text-violet-400">{{ (summary.duplicate_title_groups or 0) + (summary.duplicate_desc_groups or 0) }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500">Tekrar eden</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-zinc-500">Duplicate</p>
+      <p class="mt-1 text-2xl font-black text-violet-600 dark:text-zinc-300">{{ (summary.duplicate_title_groups or 0) + (summary.duplicate_desc_groups or 0) }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-600">Tekrar eden</p>
     </div>
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-500">Noindex</p>
-      <p class="mt-1 text-2xl font-black text-rose-700 dark:text-rose-400">{{ ic.get("noindex", 0) }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500">İndekslenmez</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-zinc-500">Noindex</p>
+      <p class="mt-1 text-2xl font-black text-rose-700 dark:text-rose-600">{{ ic.get("noindex", 0) }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-600">İndekslenmez</p>
     </div>
   </div>
 
@@ -190,17 +190,17 @@
               <td class="px-3 py-2 overflow-hidden">
                 {% if e.has_title %}
                   <span class="block truncate text-xs text-slate-700 dark:text-zinc-300" title="{{ e.title }}">{{ e.title }}</span>
-                  <span class="text-[10px] {% if e.title_length < 20 or e.title_length > 65 %}text-amber-500{% else %}text-slate-400 dark:text-zinc-500{% endif %}">{{ e.title_length }} kr</span>
+                  <span class="text-[10px] {% if e.title_length < 20 or e.title_length > 65 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.title_length }} kr</span>
                 {% else %}
-                  <span class="text-xs text-rose-500">—</span>
+                  <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
                 {% endif %}
               </td>
               <td class="px-3 py-2 overflow-hidden">
                 {% if e.has_meta_description %}
                   <span class="block truncate text-xs text-slate-600 dark:text-zinc-400" title="{{ e.meta_description }}">{{ e.meta_description }}</span>
-                  <span class="text-[10px] {% if e.meta_description_length < 70 or e.meta_description_length > 170 %}text-amber-500{% else %}text-slate-400 dark:text-zinc-500{% endif %}">{{ e.meta_description_length }} kr</span>
+                  <span class="text-[10px] {% if e.meta_description_length < 70 or e.meta_description_length > 170 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.meta_description_length }} kr</span>
                 {% else %}
-                  <span class="text-xs text-rose-500">—</span>
+                  <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
                 {% endif %}
               </td>
               <td class="px-3 py-2 overflow-hidden">
@@ -208,13 +208,13 @@
                   {% if e.canonical_matches_final %}
                     <span class="text-xs text-emerald-600 dark:text-emerald-500">✓</span>
                   {% else %}
-                    <span class="block truncate text-[10px] text-rose-500" title="{{ e.canonical_url }}">✗ {{ e.canonical_url }}</span>
+                    <span class="block truncate text-[10px] text-slate-500 dark:text-zinc-500" title="{{ e.canonical_url }}">✗ {{ e.canonical_url }}</span>
                   {% endif %}
                 {% else %}
-                  <span class="text-xs text-rose-500">—</span>
+                  <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
                 {% endif %}
                 {% if e.is_noindex %}
-                  <span class="block text-[10px] font-bold text-rose-600 dark:text-rose-400">NOINDEX</span>
+                  <span class="block text-[10px] font-bold text-rose-600 dark:text-zinc-400">NOINDEX</span>
                 {% endif %}
               </td>
               <td class="px-3 py-2">
@@ -234,9 +234,9 @@
                   {% for issue in e.issues %}
                   {% set icolor = issue_colors.get(issue, "slate") %}
                   <span class="rounded px-1 py-0.5 text-[9px] font-semibold
-                    {% if icolor == 'rose' %}bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400
-                    {% elif icolor == 'amber' %}bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400
-                    {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400{% endif %}">
+                    {% if icolor == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
+                    {% elif icolor == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
+                    {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
                     {{ issue_labels.get(issue, issue) }}
                   </span>
                   {% endfor %}
