@@ -6124,8 +6124,9 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
                 payload = json.loads(snap.payload_json or "{}")
             except Exception:
                 payload = {}
-            last_v = float(payload.get(f"ga4_{prof_key}_sessions_last7d_total") or 0.0)
-            prev_v = float(payload.get(f"ga4_{prof_key}_sessions_prev7d_total") or 0.0)
+            summary = payload.get("summary") or {}
+            last_v = float(summary.get("last", {}).get("sessions") or 0.0)
+            prev_v = float(summary.get("prev", {}).get("sessions") or 0.0)
         delta_fmt, tone = _home_pct_delta(last_v, prev_v)
         out.append({
             "label": prof_label,
@@ -6160,7 +6161,13 @@ def api_home_ga4_sessions(request: Request):
 def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
     """Tek site & device için current_7d ve previous_7d toplamları."""
     from sqlalchemy import func as sa_func
+    latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
+        SearchConsoleQuerySnapshot.site_id == site_id
+    ).scalar()
+
     def _sum(scope: str) -> tuple[float, float]:
+        if not latest_ts:
+            return (0.0, 0.0)
         row = (
             db.query(
                 sa_func.coalesce(sa_func.sum(SearchConsoleQuerySnapshot.clicks), 0.0),
@@ -6170,6 +6177,7 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
                 SearchConsoleQuerySnapshot.site_id == site_id,
                 SearchConsoleQuerySnapshot.data_scope == scope,
                 SearchConsoleQuerySnapshot.device == device,
+                SearchConsoleQuerySnapshot.collected_at == latest_ts,
             )
             .first()
         )

@@ -206,7 +206,7 @@
     {# ── Hata İzleme Widget ── #}
     <div class="rounded-xl border border-rose-200/70 bg-rose-50/40 dark:border-rose-900/30 dark:bg-rose-950/10"
          id="err-widget-{{ site.id }}">
-      <div class="flex items-center justify-between px-4 py-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Hata Sayfaları</span>
           {% if error_summary.total_404 > 0 %}
