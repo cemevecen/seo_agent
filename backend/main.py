@@ -7851,6 +7851,23 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
     })
 
 
+@app.post("/api/seo-audit/{site_id}/run")
+def api_seo_audit_run(site_id: int):
+    """Site audit crawler'ı tetikler — UrlAuditRecord'ları doldurur."""
+    try:
+        from backend.collectors.site_audit import collect_site_audit
+        from backend.models import Site
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if not site:
+                return {"status": "error", "message": "site not found"}
+            result = collect_site_audit(db, site)
+        return {"status": "ok", "total_urls": result.get("site_audit_total_urls", 0)}
+    except Exception as exc:
+        LOGGER.exception("SEO audit run hatası site_id=%s", site_id)
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/seo-audit/{site_id}/issues")
 def api_seo_audit_issues(site_id: int, filter: str = "all", limit: int = 100, offset: int = 0):
     from backend.services.meta_audit import get_audit_issues, get_audit_issues_count
