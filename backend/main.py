@@ -7950,118 +7950,88 @@ def api_seo_audit_run(site_id: int):
         _seo_audit_progress[site_id] = prog
 
         try:
-            import re as _re
-            import requests as _req
-
-            def _extract_links(html: str, base_domain: str) -> list[str]:
-                """HTML'den aynı domain'e ait linkleri çıkar."""
-                found = set()
-                for m in _re.finditer(r'href=["\']([^"\']+)["\']', html):
-                    href = m.group(1)
-                    if href.startswith("//"):
-                        href = "https:" + href
-                    if base_domain in href and href.startswith("http"):
-                        href = href.split("?")[0].split("#")[0].rstrip("/")
-                        if href:
-                            found.add(href)
-                return list(found)
-
-            def _crawl_homepage_links(root_url: str, domain: str) -> list[str]:
-                """Subdomain'in ana sayfasından URL'leri topla."""
-                try:
-                    r = _req.get(root_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-                    if r.ok:
-                        return _extract_links(r.text, domain)
-                except Exception:
-                    pass
-                return []
-
-            from backend.models import AuditSeedUrl
-
             seen_urls: set[str] = set()
-            all_url_entries: list[str] = []
+            urls: list[str] = []
 
             def _add(u: str):
-                u = u.rstrip("/")
-                if u and u not in seen_urls:
+                u = u.split("?")[0].rstrip("/")
+                if u and u.startswith("http") and u not in seen_urls:
                     seen_urls.add(u)
-                    all_url_entries.append(u)
+                    urls.append(u)
 
             base = f"https://{site_domain}"
 
-            # 0. Kullanıcının tanımladığı seed URL'leri — her zaman önce ve garantili
-            prog["current"] = "Seed URL'ler yükleniyor…"
-            with SessionLocal() as db:
-                seed_rows = db.query(AuditSeedUrl).filter(AuditSeedUrl.site_id == site_id).all()
-                for s in seed_rows:
-                    _add(s.url)
-
-            # 1. Sitemap'ten URL'leri çek (makale sayfaları vb.)
-            prog["current"] = "Sitemap taranıyor…"
+            # 1. GA4'ten web + mweb top 250 sayfaları çek
+            prog["current"] = "GA4'ten trafik verileri çekiliyor…"
             try:
-                disc = _discover_sitemap_entries(
-                    base, max_urls=400, recent_days=365, timeout_seconds=8,
-                )
-                for e in disc.get("url_entries", []):
-                    _add(e.get("url", ""))
+                from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties, ga4_is_configured
+                from google.analytics.data_v1beta import BetaAnalyticsDataClient
+                from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, OrderBy, RunReportRequest
+                from google.oauth2 import service_account
+                from backend.services.ga4_auth import GA4_SCOPES, load_ga4_service_account_info
+
+                if ga4_is_configured():
+                    with SessionLocal() as db:
+                        record = get_ga4_credentials_record(db, site_id)
+                        properties = load_ga4_properties(record)
+
+                    info = load_ga4_service_account_info()
+                    creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
+                    client = BetaAnalyticsDataClient(credentials=creds)
+
+                    for profile_key in ["web", "mweb"]:
+                        prop_id = properties.get(profile_key, "")
+                        if not prop_id:
+                            continue
+                        pid = prop_id if prop_id.startswith("properties/") else f"properties/{prop_id}"
+                        prog["current"] = f"GA4 top sayfalar çekiliyor: {profile_key}…"
+                        try:
+                            resp = client.run_report(RunReportRequest(
+                                property=pid,
+                                date_ranges=[DateRange(start_date="7daysAgo", end_date="today")],
+                                dimensions=[Dimension(name="pagePath")],
+                                metrics=[Metric(name="sessions")],
+                                order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+                                limit=250,
+                            ))
+                            for row in resp.rows:
+                                path = row.dimension_values[0].value if row.dimension_values else ""
+                                if path and path != "(not set)":
+                                    # pagePath → tam URL (subdomain için domain'i bul)
+                                    if path.startswith("http"):
+                                        _add(path)
+                                    else:
+                                        _add(f"{base}{path}")
+                            LOGGER.info("GA4 top sayfalar: profile=%s, %d URL", profile_key, len(resp.rows))
+                        except Exception as exc:
+                            LOGGER.warning("GA4 top pages hatası [%s]: %s", profile_key, exc)
             except Exception as exc:
-                LOGGER.debug("Sitemap hatası: %s", exc)
+                LOGGER.warning("GA4 URL çekimi başarısız: %s", exc)
 
-            # 2a. www.doviz.com içindeki kategori sayfalarından link toplama
-            if "doviz.com" in site_domain:
-                for cat_url, cat_domain in [
-                    (f"{base}/akaryakit-fiyatlari", site_domain),
-                    (f"{base}/emtia",               site_domain),
-                    (f"{base}/kripto-paralar",       site_domain),
-                ]:
-                    prog["current"] = f"Keşfediliyor: {cat_url}"
-                    for u in _crawl_homepage_links(cat_url, cat_domain):
-                        _add(u)
-
-            # 2b. Subdomain'lerin ana sayfalarından link toplama (sitemap yoksa)
-            if "doviz.com" in site_domain:
-                for sub_root, sub_domain in [
-                    ("https://kur.doviz.com",   "kur.doviz.com"),
-                    ("https://altin.doviz.com", "altin.doviz.com"),
-                    ("https://haber.doviz.com", "haber.doviz.com"),
-                ]:
-                    prog["current"] = f"Keşfediliyor: {sub_domain}"
-                    for u in _crawl_homepage_links(sub_root, sub_domain):
-                        _add(u)
-                    _add(sub_root)  # ana sayfa da dahil et
-
-                # 3. Sitemap'te olmayan ama bilinen kritik www sayfaları
-                for known in [
-                    f"{base}/emtia",
-                    f"{base}/emtia/brent-petrol",
-                    f"{base}/emtia/doga-gazi",
-                    f"{base}/emtia/altin",
-                    f"{base}/akaryakit-fiyatlari",
-                    f"{base}/akaryakit-fiyatlari/istanbul-avrupa",
-                    f"{base}/akaryakit-fiyatlari/istanbul-anadolu",
-                    f"{base}/akaryakit-fiyatlari/ankara",
-                    f"{base}/akaryakit-fiyatlari/izmir",
-                    f"{base}/akaryakit-fiyatlari/adana",
-                    f"{base}/akaryakit-fiyatlari/bursa",
-                    f"{base}/akaryakit-fiyatlari/antalya",
-                    f"{base}/akaryakit-fiyatlari/gaziantep",
-                    f"{base}/doviz-cevirici",
-                    f"{base}/altin-cevirici",
-                    f"{base}/kripto-para-cevirici",
-                    f"{base}/kripto-paralar",
-                ]:
-                    _add(known)
-
-            # 4. Öncelik sırasına göre sırala, max 500
-            all_url_entries.sort(key=_url_priority)
-            urls = all_url_entries[:500]
-            prog["total"] = len(urls)
-            prog["current"] = f"{len(urls)} URL bulundu, tarama başlıyor…"
+            # 2. Akaryakıt fallback — GA4'te yoksa ekle
+            akaryakit_fallback = [
+                f"{base}/akaryakit-fiyatlari",
+                f"{base}/akaryakit-fiyatlari/istanbul-avrupa",
+                f"{base}/akaryakit-fiyatlari/istanbul-anadolu",
+                f"{base}/akaryakit-fiyatlari/ankara",
+                f"{base}/akaryakit-fiyatlari/izmir",
+                f"{base}/akaryakit-fiyatlari/adana",
+                f"{base}/akaryakit-fiyatlari/bursa",
+                f"{base}/akaryakit-fiyatlari/antalya",
+            ]
+            has_akaryakit = any("akaryakit" in u for u in urls)
+            if not has_akaryakit:
+                for u in akaryakit_fallback:
+                    _add(u)
+                LOGGER.info("Akaryakit fallback eklendi (%d URL)", len(akaryakit_fallback))
 
             if not urls:
                 prog["running"] = False
-                prog["current"] = "Sitemap'ten URL bulunamadı"
+                prog["current"] = "GA4'ten URL çekilemedi"
                 return
+
+            prog["total"] = len(urls)
+            prog["current"] = f"{len(urls)} URL bulundu, tarama başlıyor…"
 
             collected_at = _dt.utcnow()
 
