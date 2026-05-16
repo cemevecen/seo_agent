@@ -78,22 +78,19 @@
     </div>
 
     {% if summary.errors %}
-    <div class="overflow-x-auto">
-      <table class="w-full table-fixed text-sm" id="err-table">
+    <div class="overflow-x-auto -mx-0">
+      <table class="table-fixed text-sm" style="min-width:640px;width:100%" id="err-table">
         <colgroup>
           <col style="width:52px">
-          <col style="width:34%">
-          <col style="width:32%">
+          <col style="width:260px">
+          <col>
           <col style="width:52px">
           <col style="width:88px">
         </colgroup>
         <thead>
           <tr class="border-b border-slate-100 dark:border-zinc-800/30">
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kod</th>
-            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-              404 olan URL
-              <span class="ml-1 font-normal normal-case text-slate-400 dark:text-zinc-500">← tıkla, git, kontrol et</span>
-            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">404 olan URL</th>
             <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Referrer</th>
             <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kul.</th>
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Son Görülme</th>
@@ -119,10 +116,8 @@
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                 </svg>
               </a>
-              {% if e.page_title and e.page_title != 'Sayfa Bulunamadı' %}
+              {% if e.page_title and e.page_title not in ('Sayfa Bulunamadı', 'Sayfa Bulunamadı - Sinemalar.com') %}
               <span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">{{ e.page_title }}</span>
-              {% else %}
-              <span class="block text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">Bu adres sitenizde mevcut değil</span>
               {% endif %}
             </td>
             <td class="px-3 py-2 overflow-hidden">
