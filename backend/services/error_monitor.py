@@ -85,8 +85,9 @@ def fetch_ga4_error_pages(
         property=pid,
         date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
         dimensions=[
-            Dimension(name="pagePath"),
+            Dimension(name="pagePathPlusQueryString"),  # tam URL — query string dahil
             Dimension(name="pageTitle"),
+            Dimension(name="pageReferrer"),              # nereden geldi — hangi link kırdı
         ],
         metrics=[
             Metric(name="screenPageViews"),
@@ -115,6 +116,7 @@ def fetch_ga4_error_pages(
         mets = [mv.value for mv in row.metric_values]
         page_path  = dims[0] if len(dims) > 0 else ""
         page_title = dims[1] if len(dims) > 1 else ""
+        referrer   = dims[2] if len(dims) > 2 else ""
         pageviews  = int(mets[0]) if len(mets) > 0 else 0
         users      = int(mets[1]) if len(mets) > 1 else 0
 
@@ -124,6 +126,7 @@ def fetch_ga4_error_pages(
         results.append({
             "url":         page_path,
             "page_title":  page_title,
+            "referrer":    referrer,   # bu linke nereden gelindi
             "pageviews":   pageviews,
             "users":       users,
             "status_code": 404,
@@ -163,7 +166,10 @@ def save_error_logs(
             )
             .first()
         )
-        extra = json.dumps({"page_title": e.get("page_title", "")}, ensure_ascii=False)
+        extra = json.dumps({
+            "page_title": e.get("page_title", ""),
+            "referrer":   e.get("referrer", ""),
+        }, ensure_ascii=False)
         if existing:
             existing.hit_count = int(e.get("users", 1))  # GA4 artık date'siz, tam toplam
             existing.last_seen  = now
@@ -236,6 +242,7 @@ def get_error_summary(
             "first_seen":  r.first_seen.isoformat() if r.first_seen else "",
             "last_seen":   r.last_seen.isoformat() if r.last_seen else "",
             "page_title":  extra.get("page_title", ""),
+            "referrer":    extra.get("referrer", ""),
         })
 
     return {

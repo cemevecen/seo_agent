@@ -98,11 +98,14 @@
               404 olan URL
               <span class="ml-1 font-normal normal-case text-slate-400 dark:text-zinc-500">← tıkla, git, kontrol et</span>
             </th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+              Nereden Geldi
+              <span class="block text-[10px] font-normal normal-case text-slate-400 dark:text-zinc-500">hangi link kırdı</span>
+            </th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
               Kullanıcı
               <span class="block text-[10px] font-normal normal-case text-slate-400 dark:text-zinc-500">bu URL'e düşen</span>
             </th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Kaynak</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Son Görülme</th>
           </tr>
         </thead>
@@ -130,6 +133,20 @@
               <span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">{{ e.page_title }}</span>
               {% else %}
               <span class="block text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">Bu adres sitenizde mevcut değil</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3" style="max-width:220px">
+              {% if e.referrer %}
+                {% set ref = e.referrer %}
+                {% if ref.startswith('http') %}
+                  <a href="{{ ref }}" target="_blank" rel="noopener"
+                     class="block truncate text-xs text-slate-500 hover:text-sky-600 hover:underline dark:text-zinc-400 dark:hover:text-sky-400"
+                     title="{{ ref }}">{{ ref | replace('https://', '') | replace('http://', '') | truncate(45) }}</a>
+                {% else %}
+                  <span class="block truncate text-xs text-slate-400 dark:text-zinc-500" title="{{ ref }}">{{ ref | truncate(45) }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-xs text-slate-300 dark:text-zinc-600">—</span>
               {% endif %}
             </td>
             <td class="px-4 py-3 text-right">
