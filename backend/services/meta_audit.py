@@ -196,28 +196,32 @@ def get_duplicates(db: Session, site_id: int) -> dict[str, Any]:
     """Aynı title veya meta description paylaşan URL gruplarını döner."""
     from backend.models import UrlAuditRecord
 
-    def _dup_groups(field, has_field):
-        groups = (
-            db.query(field, func.count(field).label("cnt"), func.group_concat(UrlAuditRecord.url).label("urls"))
-            .filter(UrlAuditRecord.site_id == site_id, has_field == True, field != "")
-            .group_by(field)
-            .having(func.count(field) > 1)
-            .order_by(func.count(field).desc())
-            .limit(50)
-            .all()
-        )
-        return [
-            {
-                "value": g[0],
-                "count": g[1],
-                "urls": (g[2] or "").split(",")[:10],
-            }
-            for g in groups
+    rows = (
+        db.query(UrlAuditRecord.url, UrlAuditRecord.title, UrlAuditRecord.meta_description,
+                 UrlAuditRecord.has_title, UrlAuditRecord.has_meta_description)
+        .filter(UrlAuditRecord.site_id == site_id)
+        .all()
+    )
+
+    def _dup_groups(value_attr, has_attr):
+        groups: dict[str, list[str]] = {}
+        for r in rows:
+            val = getattr(r, value_attr) or ""
+            has = getattr(r, has_attr)
+            if not has or not val:
+                continue
+            groups.setdefault(val, []).append(r.url)
+        result = [
+            {"value": val, "count": len(urls), "urls": urls[:10]}
+            for val, urls in groups.items()
+            if len(urls) > 1
         ]
+        result.sort(key=lambda x: x["count"], reverse=True)
+        return result[:50]
 
     return {
-        "duplicate_titles": _dup_groups(UrlAuditRecord.title, UrlAuditRecord.has_title),
-        "duplicate_descs": _dup_groups(UrlAuditRecord.meta_description, UrlAuditRecord.has_meta_description),
+        "duplicate_titles": _dup_groups("title", "has_title"),
+        "duplicate_descs": _dup_groups("meta_description", "has_meta_description"),
     }
 
 

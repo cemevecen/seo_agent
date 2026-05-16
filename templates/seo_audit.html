@@ -154,7 +154,7 @@
             {% set score_cls = "text-rose-600 dark:text-rose-400" if e.seo_score == "poor" else ("text-amber-500 dark:text-amber-400" if e.seo_score == "needs_improvement" else "text-emerald-600 dark:text-emerald-400") %}
             <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/40">
               <td class="px-4 py-2 overflow-hidden">
-                <a href="https://{{ all_sites | selectattr('id','eq', selected_site_id) | map(attribute='domain') | first | default('') }}{{ e.url }}"
+                <a href="https://{{ selected_site_domain }}{{ e.url }}"
                    target="_blank" rel="noopener"
                    class="flex items-center gap-1 group" title="{{ e.url }}">
                   <span class="truncate font-mono text-xs text-sky-600 dark:text-sky-500 group-hover:underline">{{ e.url }}</span>

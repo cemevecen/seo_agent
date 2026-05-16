@@ -7833,11 +7833,14 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
             issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
             total_count = get_audit_issues_count(db, site_id, filter_key=filter)
 
+    selected_site_domain = next((s["domain"] for s in all_sites if s["id"] == site_id), "")
+
     return templates.TemplateResponse(request, "seo_audit.html", {
         "request": request,
         "sites": sidebar_sites,
         "all_sites": all_sites,
         "selected_site_id": site_id,
+        "selected_site_domain": selected_site_domain,
         "summary": summary,
         "issues": issues,
         "filter": filter,
