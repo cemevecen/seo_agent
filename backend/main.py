@@ -7905,35 +7905,84 @@ def api_seo_audit_run(site_id: int):
         _seo_audit_progress[site_id] = prog
 
         try:
-            # 1. Ana domain + bilinen subdomain'lerin sitemap'lerini keşfet
-            base = f"https://{site_domain}"
-            candidate_roots = [base]
-            # doviz.com için subdomain'leri otomatik ekle
-            if "doviz.com" in site_domain:
-                candidate_roots = [
-                    "https://kur.doviz.com",
-                    "https://altin.doviz.com",
-                    "https://haber.doviz.com",
-                    base,
-                ]
+            import re as _re
+            import requests as _req
+
+            def _extract_links(html: str, base_domain: str) -> list[str]:
+                """HTML'den aynı domain'e ait linkleri çıkar."""
+                found = set()
+                for m in _re.finditer(r'href=["\']([^"\']+)["\']', html):
+                    href = m.group(1)
+                    if href.startswith("//"):
+                        href = "https:" + href
+                    if base_domain in href and href.startswith("http"):
+                        href = href.split("?")[0].split("#")[0].rstrip("/")
+                        if href:
+                            found.add(href)
+                return list(found)
+
+            def _crawl_homepage_links(root_url: str, domain: str) -> list[str]:
+                """Subdomain'in ana sayfasından URL'leri topla."""
+                try:
+                    r = _req.get(root_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+                    if r.ok:
+                        return _extract_links(r.text, domain)
+                except Exception:
+                    pass
+                return []
 
             seen_urls: set[str] = set()
-            all_url_entries = []
-            for root in candidate_roots:
-                try:
-                    prog["current"] = f"Sitemap taranıyor: {root}"
-                    disc = _discover_sitemap_entries(
-                        root, max_urls=300, recent_days=365, timeout_seconds=8,
-                    )
-                    for e in disc.get("url_entries", []):
-                        u = e.get("url", "")
-                        if u and u not in seen_urls:
-                            seen_urls.add(u)
-                            all_url_entries.append(u)
-                except Exception as exc:
-                    LOGGER.debug("Sitemap keşif hatası [%s]: %s", root, exc)
+            all_url_entries: list[str] = []
 
-            # 2. Öncelik sırasına göre sırala, max 500
+            def _add(u: str):
+                u = u.rstrip("/")
+                if u and u not in seen_urls:
+                    seen_urls.add(u)
+                    all_url_entries.append(u)
+
+            base = f"https://{site_domain}"
+
+            # 1. Sitemap'ten URL'leri çek (makale sayfaları vb.)
+            prog["current"] = "Sitemap taranıyor…"
+            try:
+                disc = _discover_sitemap_entries(
+                    base, max_urls=400, recent_days=365, timeout_seconds=8,
+                )
+                for e in disc.get("url_entries", []):
+                    _add(e.get("url", ""))
+            except Exception as exc:
+                LOGGER.debug("Sitemap hatası: %s", exc)
+
+            # 2. Subdomain'lerin ana sayfalarından link toplama (sitemap yoksa)
+            if "doviz.com" in site_domain:
+                for sub_root, sub_domain in [
+                    ("https://kur.doviz.com",   "kur.doviz.com"),
+                    ("https://altin.doviz.com", "altin.doviz.com"),
+                    ("https://haber.doviz.com", "haber.doviz.com"),
+                ]:
+                    prog["current"] = f"Keşfediliyor: {sub_domain}"
+                    for u in _crawl_homepage_links(sub_root, sub_domain):
+                        _add(u)
+                    _add(sub_root)  # ana sayfa da dahil et
+
+                # 3. Sitemap'te olmayan ama bilinen kritik www sayfaları
+                for known in [
+                    f"{base}/emtia",
+                    f"{base}/emtia/brent-petrol",
+                    f"{base}/emtia/doga-gazi",
+                    f"{base}/emtia/altin",
+                    f"{base}/akaryakit-fiyatlari",
+                    f"{base}/akaryakit-fiyatlari/benzin",
+                    f"{base}/akaryakit-fiyatlari/motorin",
+                    f"{base}/akaryakit-fiyatlari/lpg",
+                    f"{base}/doviz-cevirici",
+                    f"{base}/altin-cevirici",
+                    f"{base}/kripto-para-cevirici",
+                    f"{base}/kripto-paralar",
+                ]:
+                    _add(known)
+
+            # 4. Öncelik sırasına göre sırala, max 500
             all_url_entries.sort(key=_url_priority)
             urls = all_url_entries[:500]
             prog["total"] = len(urls)
