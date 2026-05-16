@@ -6331,8 +6331,8 @@ def api_home_app_release(request: Request):
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
             })
     elif not payload.get("error"):
-        and_meta = (payload.get("android") or {}).get("meta") or {}
-        ios_meta = (payload.get("ios") or {}).get("meta") or {}
+        and_meta = (payload.get("meta") or {}).get("android") or {}
+        ios_meta = (payload.get("meta") or {}).get("ios") or {}
         now = datetime.now(timezone_utc := ZoneInfo("UTC"))
 
         for key, label, meta, version_key, date_key in [

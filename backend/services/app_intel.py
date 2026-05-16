@@ -2220,6 +2220,10 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         "fetched_at": raw["fetched_at"],
         "display_fetched_at": get_last_forced_refresh_at(product_id) or raw["fetched_at"],
         "errors": {"android": raw["android"].get("error"), "ios": raw["ios"].get("error")},
+        "meta": {
+            "android": raw["android"]["meta"],
+            "ios": raw["ios"]["meta"],
+        },
         "scrape": {
             "android_review_samples": len(raw["android"]["reviews"]),
             "ios_review_samples": len(raw["ios"]["reviews"]),
