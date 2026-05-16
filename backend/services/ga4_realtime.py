@@ -2877,7 +2877,7 @@ def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
     rule_id = alarm.get("rule_id", "")
     if rule_id.startswith("news_"):
         subject = _email_news_alarm_subject(domain, profile, [alarm])
-        html_body = _html_news_alarm_body(domain, profile_label, [alarm])
+        html_body = _html_news_alarm_body(domain, profile_label, [alarm], site_kpi={})
         thread_kind = "news"
     elif rule_id.startswith("page_"):
         subject = _email_page_alarm_subject(domain, profile, [alarm])

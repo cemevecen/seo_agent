@@ -276,6 +276,7 @@
 </section>
 
 <script>
+if (!window.errWidgetLoad) {
 function errWidgetLoad(siteId, days) {
   var listEl = document.getElementById('err-list-' + siteId);
   var widget = document.getElementById('err-widget-' + siteId);
@@ -313,6 +314,9 @@ function errWidgetRefresh(siteId) {
     .then(function(r) { return r.json(); })
     .then(function() { errWidgetLoad(siteId, 7); })
     .finally(function() { if (icon) icon.style.animation = ''; });
+}
+window.errWidgetLoad = errWidgetLoad;
+window.errWidgetRefresh = errWidgetRefresh;
 }
 </script>
 <style>@keyframes errSpin{to{transform:rotate(360deg)}}</style>
