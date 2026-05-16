@@ -20,10 +20,10 @@
         </select>
         <button onclick="runAudit()" id="run-btn"
                 class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700">
-          <svg id="run-spin" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <svg id="run-spin" class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          Tara
+          <span id="run-label">Tara</span>
         </button>
       </div>
     </div>
@@ -278,23 +278,56 @@ var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
 var _activeTab = 'issues';
 var _loaded = {issues: true, changes: false, duplicates: false};
 
+var _pollTimer = null;
+var _lastCount = 0;
+
 function runAudit() {
   if (!_siteId) return;
   var btn = document.getElementById('run-btn');
   var spin = document.getElementById('run-spin');
-  if (btn) { btn.disabled = true; btn.querySelector('span') && (btn.querySelector('span').textContent = 'Taranıyor…'); }
+  var label = document.getElementById('run-label');
+  if (btn) btn.disabled = true;
   if (spin) spin.style.animation = 'spin 0.8s linear infinite';
+  if (label) label.textContent = 'Başlatılıyor…';
+
   fetch('/api/seo-audit/' + _siteId + '/run', {method: 'POST', credentials: 'same-origin'})
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d.status === 'ok') window.location.reload();
-      else alert('Hata: ' + (d.message || 'bilinmiyor'));
+      if (d.status === 'started' || d.status === 'running') {
+        if (label) label.textContent = 'Taranıyor…';
+        _startPolling();
+      } else {
+        alert('Hata: ' + (d.message || 'bilinmiyor'));
+        _resetBtn();
+      }
     })
-    .catch(function() { alert('İstek başarısız'); })
-    .finally(function() {
-      if (btn) btn.disabled = false;
-      if (spin) spin.style.animation = '';
-    });
+    .catch(function() { alert('İstek başarısız'); _resetBtn(); });
+}
+
+function _resetBtn() {
+  var btn = document.getElementById('run-btn');
+  var spin = document.getElementById('run-spin');
+  var label = document.getElementById('run-label');
+  if (btn) btn.disabled = false;
+  if (spin) spin.style.animation = '';
+  if (label) label.textContent = 'Tara';
+}
+
+function _startPolling() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(function() {
+    fetch('/api/seo-audit/' + _siteId + '/status', {credentials: 'same-origin'})
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var label = document.getElementById('run-label');
+        if (d.url_count > 0 && label) label.textContent = d.url_count + ' URL tarandı…';
+        if (!d.running) {
+          clearInterval(_pollTimer); _pollTimer = null;
+          window.location.reload();
+        }
+      })
+      .catch(function() {});
+  }, 3000);
 }
 
 function switchTab(tab) {
