@@ -83,16 +83,16 @@
         <colgroup>
           <col style="width:52px">
           <col style="width:260px">
-          <col>
           <col style="width:52px">
+          <col>
           <col style="width:88px">
         </colgroup>
         <thead>
           <tr class="border-b border-slate-100 dark:border-zinc-800/30">
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kod</th>
             <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">404 olan URL</th>
-            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Referrer</th>
             <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kul.</th>
+            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Referrer</th>
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Son Görülme</th>
           </tr>
         </thead>
@@ -120,6 +120,11 @@
               <span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">{{ e.page_title }}</span>
               {% endif %}
             </td>
+            <td class="px-2 py-2 text-right whitespace-nowrap">
+              <span class="text-sm font-bold {% if e.hit_count >= 20 %}text-rose-600 dark:text-rose-400{% elif e.hit_count >= 5 %}text-orange-600 dark:text-orange-400{% else %}text-slate-600 dark:text-zinc-300{% endif %}">
+                {{ e.hit_count }}
+              </span>
+            </td>
             <td class="px-3 py-2 overflow-hidden">
               {% if e.referrers %}
                 {% for ref in e.referrers[:5] %}
@@ -137,11 +142,6 @@
               {% else %}
                 <span class="text-xs text-slate-300 dark:text-zinc-600">—</span>
               {% endif %}
-            </td>
-            <td class="px-2 py-2 text-right whitespace-nowrap">
-              <span class="text-sm font-bold {% if e.hit_count >= 20 %}text-rose-600 dark:text-rose-400{% elif e.hit_count >= 5 %}text-orange-600 dark:text-orange-400{% else %}text-slate-600 dark:text-zinc-300{% endif %}">
-                {{ e.hit_count }}
-              </span>
             </td>
             <td class="px-2 py-2 whitespace-nowrap">
               <div class="text-xs text-slate-400 dark:text-zinc-500">{{ e.last_seen[:10] if e.last_seen else "—" }}</div>
