@@ -280,6 +280,10 @@ def get_error_summary(
     total_5xx = sum(1 for r in rows if r.status_code >= 500)
     total_users = sum(r.hit_count for r in rows)
 
+    # Verinin çekildiği tarih: en güncel last_seen
+    fetched_at = max((r.last_seen for r in rows if r.last_seen), default=None)
+    fetched_at_str = fetched_at.strftime("%d.%m.%Y %H:%M") if fetched_at else ""
+
     error_list = []
     for r in rows:
         extra = {}
@@ -309,6 +313,7 @@ def get_error_summary(
         "errors":      error_list,
         "site_id":     site_id,
         "days":        days,
+        "fetched_at":  fetched_at_str,
     }
 
 
