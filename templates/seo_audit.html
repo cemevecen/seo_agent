@@ -233,7 +233,7 @@
             {# Detay satırı — badge tıklanınca açılır #}
             <tr id="detail-{{ rid }}" class="hidden">
               <td colspan="4" class="px-4 pb-3 pt-0">
-                <div class="rounded-lg bg-slate-50 dark:bg-zinc-800/50 px-4 py-3 text-xs space-y-2">
+                <div class="seo-detail-panel rounded-lg px-4 py-3 text-xs space-y-2">
                   <div id="detail-title-{{ rid }}" class="hidden">
                     <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Başlık</span>
                     <p class="mt-1 text-slate-700 dark:text-zinc-300 leading-relaxed">{% if e.has_title %}"{{ e.title }}"<span class="ml-2 text-[10px] text-slate-400">{{ e.title_length }} karakter · ideal: 20–65</span>{% else %}<em class="text-slate-400">Başlık tanımlanmamış</em>{% endif %}</p>
@@ -499,6 +499,8 @@ function _renderDuplicates(data) {
 .seo-row:hover { background: #f8fafc; }
 html.dark .seo-row { border-bottom: 1px solid rgba(39,39,42,0.5); }
 html.dark .seo-row:hover { background: rgba(39,39,42,0.3); }
+.seo-detail-panel { background-color: #f8fafc; }
+html.dark .seo-detail-panel { background-color: rgba(39,39,42,0.5) !important; color: #d4d4d8; }
 .audit-chip-active {
   background-color: #18181b;
   color: #ffffff;
