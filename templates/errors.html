@@ -20,8 +20,8 @@
           {% for d in [1, 7, 14, 30] %}
           <button type="button" onclick="switchPeriod({{ d }})"
                   class="rounded-full border px-2.5 py-1 text-xs font-semibold transition
-                         {% if days == d %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-700 dark:text-zinc-100
-                         {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800{% endif %}">
+                         {% if days == d %}bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-600 dark:text-zinc-100 dark:border-zinc-500
+                         {% else %}border-zinc-200 text-slate-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/60{% endif %}">
             {{ d }}g
           </button>
           {% endfor %}
@@ -216,5 +216,8 @@ function refreshErrors() {
     });
 }
 </script>
-<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+html.dark .err-row:hover { background-color: rgba(63,63,70,0.35) !important; }
+</style>
 {% endblock %}
