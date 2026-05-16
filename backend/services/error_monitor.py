@@ -87,7 +87,6 @@ def fetch_ga4_error_pages(
         dimensions=[
             Dimension(name="pagePath"),
             Dimension(name="pageTitle"),
-            Dimension(name="date"),
         ],
         metrics=[
             Metric(name="screenPageViews"),
@@ -166,7 +165,7 @@ def save_error_logs(
         )
         extra = json.dumps({"page_title": e.get("page_title", "")}, ensure_ascii=False)
         if existing:
-            existing.hit_count = max(existing.hit_count, int(e.get("users", 1)))
+            existing.hit_count = int(e.get("users", 1))  # GA4 artık date'siz, tam toplam
             existing.last_seen  = now
             existing.extra_json = extra
         else:
