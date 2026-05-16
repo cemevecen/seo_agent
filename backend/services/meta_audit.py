@@ -67,42 +67,48 @@ def _cnt(cond) -> Any:
     return func.count(case((cond, 1)))
 
 
-def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
-    """SQL aggregation ile site geneli SEO özeti — RAM'a tüm satırları yüklemez."""
-    from backend.models import UrlAuditRecord as M
-
-    # h2_count sütunu DB'de yoksa sorguyu atla
-    try:
-        _h2_expr = _cnt(M.h2_count == 0).label("missing_h2")
-    except Exception:
-        _h2_expr = func.count(None).label("missing_h2")
-
-    row = db.query(
+def _base_summary_query(db, M, site_id, include_h2: bool):
+    exprs = [
         func.count(M.id).label("total"),
         func.max(M.collected_at).label("last_crawled"),
-        # Score dağılımı
         _cnt(M.seo_score == "good").label("good"),
         _cnt(M.seo_score == "needs_improvement").label("needs_improvement"),
         _cnt(M.seo_score == "poor").label("poor"),
-        # Title
         _cnt(M.has_title.is_(False)).label("missing_title"),
         _cnt(and_(M.has_title.is_(True), M.title_length < TITLE_MIN)).label("short_title"),
         _cnt(and_(M.has_title.is_(True), M.title_length > TITLE_MAX)).label("long_title"),
-        # Desc
         _cnt(M.has_meta_description.is_(False)).label("missing_desc"),
         _cnt(and_(M.has_meta_description.is_(True), M.meta_description_length < DESC_MIN)).label("short_desc"),
         _cnt(and_(M.has_meta_description.is_(True), M.meta_description_length > DESC_MAX)).label("long_desc"),
-        # Canonical
         _cnt(M.has_canonical.is_(False)).label("missing_canonical"),
         _cnt(and_(M.has_canonical.is_(True), M.canonical_matches_final.is_(False))).label("broken_canonical"),
-        # Diğer
         _cnt(M.is_noindex.is_(True)).label("noindex"),
         _cnt(or_(M.has_og_title.is_(False), M.has_og_description.is_(False))).label("missing_og"),
         _cnt(M.has_h1.is_(False)).label("missing_h1"),
         _cnt(M.h1_count > 1).label("multiple_h1"),
         _cnt(M.has_schema.is_(False)).label("missing_schema"),
-        _h2_expr,
-    ).filter(M.site_id == site_id).first()
+    ]
+    if include_h2:
+        exprs.append(_cnt(M.h2_count == 0).label("missing_h2"))
+    else:
+        exprs.append(func.count(None).label("missing_h2"))
+    return db.query(*exprs).filter(M.site_id == site_id).first()
+
+
+def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
+    """SQL aggregation ile site geneli SEO özeti — RAM'a tüm satırları yüklemez."""
+    from backend.models import UrlAuditRecord as M
+
+    try:
+        row = _base_summary_query(db, M, site_id, include_h2=True)
+    except Exception:
+        db.rollback()
+        try:
+            row = _base_summary_query(db, M, site_id, include_h2=False)
+        except Exception:
+            db.rollback()
+            return {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "total_issues": 0,
+                    "duplicate_title_groups": 0, "duplicate_desc_groups": 0, "last_crawled": None}
 
     if not row or not row.total:
         return {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "total_issues": 0,
@@ -170,7 +176,7 @@ _FILTER_MAP = {
     "missing_h1": lambda q, M: q.filter(M.has_h1.is_(False)),
     "multiple_h1": lambda q, M: q.filter(M.h1_count > 1),
     "missing_schema": lambda q, M: q.filter(M.has_schema.is_(False)),
-    "missing_h2": lambda q, M: q.filter(func.coalesce(M.h2_count, 0) == 0),
+    "missing_h2": lambda q, M: q.filter(M.h2_count == 0),
 }
 
 
@@ -189,7 +195,11 @@ def get_audit_issues(
     if filter_key in _FILTER_MAP:
         q = _FILTER_MAP[filter_key](q, UrlAuditRecord)
 
-    rows = q.order_by(UrlAuditRecord.seo_score, UrlAuditRecord.url).offset(offset).limit(limit).all()
+    try:
+        rows = q.order_by(UrlAuditRecord.seo_score, UrlAuditRecord.url).offset(offset).limit(limit).all()
+    except Exception:
+        db.rollback()
+        rows = []
 
     result = []
     for r in rows:
@@ -208,6 +218,10 @@ def get_audit_issues(
             "is_noindex": r.is_noindex,
             "has_og_title": r.has_og_title,
             "has_og_description": r.has_og_description,
+            "h1_count": getattr(r, "h1_count", 0),
+            "h2_count": getattr(r, "h2_count", 0),
+            "has_schema": r.has_schema,
+            "meta_robots": r.meta_robots,
             "collected_at": r.collected_at.isoformat() if r.collected_at else "",
             "issues": _issues_for(r),
         })
@@ -219,7 +233,11 @@ def get_audit_issues_count(db: Session, site_id: int, filter_key: str = "all") -
     q = db.query(func.count(UrlAuditRecord.id)).filter(UrlAuditRecord.site_id == site_id)
     if filter_key in _FILTER_MAP:
         q = _FILTER_MAP[filter_key](q, UrlAuditRecord)
-    return q.scalar() or 0
+    try:
+        return q.scalar() or 0
+    except Exception:
+        db.rollback()
+        return 0
 
 
 def get_duplicates(db: Session, site_id: int) -> dict[str, Any]:
