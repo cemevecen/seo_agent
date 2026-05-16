@@ -11498,6 +11498,82 @@ def admin_truncate_sc_snapshots():
         return JSONResponse({"status": "error", "detail": str(exc)})
 
 
+@app.get("/api/admin/force-test-alarm-emails")
+def admin_force_test_alarm_emails():
+    """Gerçek verilerle %50 sahte drop yaratarak web, mweb, ios, android mailleri atar."""
+    from backend.services.ga4_realtime import (
+        fetch_realtime_top_pages_with_app_fallback,
+        _send_news_alarm_email,
+        get_ga4_credentials_record,
+        load_ga4_properties
+    )
+    from backend.services.mailer import realtime_email_batch_begin, realtime_email_batch_flush
+    from backend.models import Site
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.domain.ilike('%doviz%')).first()
+        if not site:
+            site = db.query(Site).first()
+        if not site:
+            return {"error": "Site bulunamadı."}
+
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+
+        realtime_email_batch_begin()
+
+        logs = []
+        for profile in ("web", "mweb", "ios", "android"):
+            prop_id = str(properties.get(profile, "")).strip()
+            if not prop_id:
+                logs.append(f"Profil: {profile} için property_id yok.")
+                continue
+
+            try:
+                result = fetch_realtime_top_pages_with_app_fallback(
+                    prop_id, profile=profile, window_minutes=15, limit=15, sort_by="activeUsers"
+                )
+                pages = result.get("pages", [])
+                
+                if not pages:
+                    logs.append(f"{profile} için aktif sayfa bulunamadı.")
+                    continue
+
+                fake_alarms = []
+                for p in pages:
+                    cur = p.get("activeUsers", 0)
+                    if cur == 0: continue
+                    prev = cur * 2 # %50 drop
+                    pct = ((cur - prev) / prev) * 100
+                    fake_alarms.append({
+                        "rule_id": "news_traffic_drop",
+                        "severity": "critical",
+                        "page": p["page"],
+                        "profile": profile,
+                        "domain": site.domain,
+                        "current_users": cur,
+                        "previous_users": prev,
+                        "change_pct": round(pct, 1),
+                        "message": f"{p['page']} — trafik düştü (TEST)",
+                    })
+                
+                if fake_alarms:
+                    site_kpi = {
+                        "current": sum(a["current_users"] for a in fake_alarms),
+                        "previous": sum(a["previous_users"] for a in fake_alarms),
+                        "change_pct": -50.0
+                    }
+                    _send_news_alarm_email(site.domain, profile, fake_alarms, site_kpi=site_kpi)
+                    logs.append(f"✅ {profile} için test maili sıraya alındı ({len(fake_alarms)} içerik)")
+
+            except Exception as e:
+                logs.append(f"Hata {profile}: {str(e)}")
+
+        realtime_email_batch_flush()
+        logs.append("Posta kuyruğu boşaltıldı (Mailler gönderildi).")
+        return {"status": "ok", "domain": site.domain, "logs": logs}
+
+
 @app.get("/admin/db-size")
 def admin_db_size():
     """PostgreSQL veritabanı boyutunu ve tablo bazlı kullanımı gösterir."""
