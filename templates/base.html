@@ -411,14 +411,21 @@
     .header-main-nav {
       display: flex;
       min-width: 0;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+      flex-wrap: wrap;
+      row-gap: 0.35rem;
+      column-gap: 0.25rem;
     }
-    .header-main-nav::-webkit-scrollbar {
-      display: none;
+    @media (min-width: 1024px) {
+      .header-main-nav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .header-main-nav::-webkit-scrollbar {
+        display: none;
+      }
     }
     .header-nav-link {
       border-color: rgba(15, 23, 42, 0.12);
