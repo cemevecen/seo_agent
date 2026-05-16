@@ -39,8 +39,9 @@
         <!-- Boards -->
         <div x-show="projectData[activeProject].loaded && !projectData[activeProject].error" class="flex h-full items-start gap-4 overflow-x-auto pb-4" id="lists-wrapper">
           <template x-for="(lst, index) in projectData[activeProject].lists" :key="lst.id">
-            <div class="flex w-[400px] max-w-[400px] shrink-0 flex-col rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 border-t-4" 
-                 :class="[getListColor(index, lst.isClosed), lst.isClosed ? 'opacity-75' : '']">
+            <div class="flex shrink-0 flex-col rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 border-t-4" 
+                 :class="[getListColor(index, lst.isClosed), lst.isClosed ? 'opacity-75' : '']"
+                 style="width: 400px; min-width: 400px; max-width: 400px;">
               
               <h4 class="mb-3 flex items-center justify-between text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 <span x-text="lst.label.name" class="truncate pr-2"></span>
@@ -48,7 +49,8 @@
               </h4>
               
               <div 
-                class="sortable-list flex min-h-[300px] flex-col gap-2 rounded-lg border-2 border-transparent transition-colors" 
+                class="sortable-list flex flex-col gap-2 rounded-lg border-2 border-transparent transition-colors" 
+                style="min-height: 300px;"
                 :data-label="lst.label.name"
                 :data-virtual="lst.isVirtual"
                 :data-closed="lst.isClosed"
