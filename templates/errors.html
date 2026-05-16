@@ -7,9 +7,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-100">Hata İzleme</h2>
-        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-          GA4'te 404 dönen sayfalar — kullanıcıların ulaşmaya çalıştığı ama bulunamayan URL'ler · Son {{ days }} gün
-        </p>
+        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son {{ days }} gün</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select onchange="window.location='/errors?site_id='+this.value+'&days={{ days }}'"
@@ -37,17 +35,6 @@
         </button>
       </div>
     </div>
-  </div>
-
-  {# Bilgi notu #}
-  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p class="text-xs text-amber-800 dark:text-amber-300">
-      <strong>Bu veriler ne anlama gelir?</strong>
-      Her satır, kullanıcıların ziyaret etmeye çalıştığı ama sitenin 404 (Sayfa Bulunamadı) döndürdüğü bir URL'dir.
-      Örn: <code class="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">/yorum</code> → kullanıcılar bu adrese gitmeye çalışmış ama sayfa mevcut değil.
-      <strong>Kullanıcı</strong> sütunu o URL'e kaç farklı kullanıcının düştüğünü gösterir.
-      URL'e tıklayarak sitenin o adreste ne döndürdüğünü kontrol edebilirsin.
-    </p>
   </div>
 
   {# Özet kartlar #}
@@ -80,7 +67,6 @@
       <div class="flex items-center justify-between gap-3">
         <div>
           <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-200">Hatalı URL'ler</h3>
-          <p class="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">Tıklayarak o URL'e gidebilirsin — 404 mi döndürüyor kontrol et</p>
         </div>
         <input id="err-search" type="search" placeholder="URL filtrele…"
                oninput="filterErrors(this.value)"
@@ -100,7 +86,6 @@
             </th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
               Nereden Geldi
-              <span class="block text-[10px] font-normal normal-case text-slate-400 dark:text-zinc-500">hangi link kırdı</span>
             </th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
               Kullanıcı
