@@ -378,6 +378,7 @@ class UrlAuditRecord(Base):
     has_h1: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     h1: Mapped[str] = mapped_column(Text, nullable=False, default="")
     h1_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    h2_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     has_canonical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     canonical_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     canonical_matches_final: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

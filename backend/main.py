@@ -8002,6 +8002,7 @@ def api_seo_audit_run(site_id: int):
                             has_h1=bool(result.get("has_h1", checks.get("h1"))),
                             h1=str(result.get("h1") or ""),
                             h1_count=int(result.get("h1_count") or 0),
+                            h2_count=int(result.get("h2_count") or 0),
                             has_canonical=bool(result.get("has_canonical", checks.get("canonical"))),
                             canonical_url=str(result.get("canonical_url") or ""),
                             canonical_matches_final=bool(result.get("canonical_matches_final", checks.get("canonical_matches_final"))),

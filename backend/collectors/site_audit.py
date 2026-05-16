@@ -26,6 +26,7 @@ from backend.services.warehouse import finish_collector_run, save_url_audit_reco
 
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 H1_RE = re.compile(r"<h1\b[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
+H2_RE = re.compile(r"<h2\b[^>]*>(.*?)</h2>", re.IGNORECASE | re.DOTALL)
 TAG_RE = re.compile(r"<[^>]+>")
 SPACE_RE = re.compile(r"\s+")
 SCHEMA_RE = re.compile(r'<script[^>]+type=["\']application/ld\+json["\']', re.IGNORECASE)
@@ -433,6 +434,8 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
     h1_matches = H1_RE.findall(html or "")
     h1_values = [_clean_text(match) for match in h1_matches if _clean_text(match)]
     h1 = h1_values[0] if h1_values else ""
+    h2_matches = H2_RE.findall(html or "")
+    h2_count = len([_clean_text(m) for m in h2_matches if _clean_text(m)])
     meta_description = _extract_meta_content(html, "name", "description")
     meta_robots = _extract_meta_content(html, "name", "robots")
     canonical_raw = _extract_link_href(html, "canonical")
@@ -493,6 +496,7 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
         "has_h1": bool(h1),
         "h1": h1,
         "h1_count": len(h1_values),
+        "h2_count": h2_count,
         "has_canonical": bool(canonical_url),
         "canonical_url": canonical_url,
         "canonical_matches_final": checks["canonical_matches_final"],

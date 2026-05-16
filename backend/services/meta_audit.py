@@ -55,6 +55,10 @@ def _issues_for(row) -> list[str]:
     if not row.has_schema:
         issues.append("schema_missing")
 
+    # H2 kontrolü
+    if row.h2_count == 0:
+        issues.append("h2_missing")
+
     return issues
 
 
@@ -91,6 +95,7 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         _cnt(M.has_h1.is_(False)).label("missing_h1"),
         _cnt(M.h1_count > 1).label("multiple_h1"),
         _cnt(M.has_schema.is_(False)).label("missing_schema"),
+        _cnt(M.h2_count == 0).label("missing_h2"),
     ).filter(M.site_id == site_id).first()
 
     if not row or not row.total:
@@ -125,6 +130,7 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         "missing_h1": row.missing_h1 or 0,
         "multiple_h1": row.multiple_h1 or 0,
         "missing_schema": row.missing_schema or 0,
+        "missing_h2": row.missing_h2 or 0,
     }
 
     return {
@@ -158,6 +164,7 @@ _FILTER_MAP = {
     "missing_h1": lambda q, M: q.filter(M.has_h1.is_(False)),
     "multiple_h1": lambda q, M: q.filter(M.h1_count > 1),
     "missing_schema": lambda q, M: q.filter(M.has_schema.is_(False)),
+    "missing_h2": lambda q, M: q.filter(M.h2_count == 0),
 }
 
 
