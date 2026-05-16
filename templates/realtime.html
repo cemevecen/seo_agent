@@ -750,7 +750,7 @@
         {# 404 Spike indicator — sadece veri varsa gösterilir #}
         <div class="rt-404-section hidden mt-2 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-800/40 dark:bg-amber-950/20"
              data-rt-404-section>
-          <div class="flex items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center justify-between gap-1.5">
             <div class="flex items-center gap-2">
               <span class="relative flex h-2 w-2">
                 <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
@@ -2408,7 +2408,7 @@
     if (pagesEl && data.pages && data.pages.length) {
       pagesEl.innerHTML = data.pages.slice(0, 5).map(function(p) {
         return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">'
-          + '<span style="color:#78716c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">'
+          + '<span style="color:#78716c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(260px,45vw)">'
           + _esc(p.title) + '</span>'
           + '<strong style="color:#d97706;margin-left:8px;flex-shrink:0">' + p.activeUsers + ' kul.</strong>'
           + '</div>';
