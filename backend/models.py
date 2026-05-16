@@ -696,18 +696,6 @@ class SiteErrorLog(Base):
     site: Mapped["Site"] = relationship("Site")
 
 
-class AuditSeedUrl(Base):
-    """Kullanıcının tanımladığı garantili tarama URL'leri — her taramaya dahil edilir."""
-    __tablename__ = "audit_seed_urls"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
-    url: Mapped[str] = mapped_column(String(2048), nullable=False)
-    note: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-    site: Mapped["Site"] = relationship("Site")
-
 
 class MetaTagSnapshot(Base):
     """Günlük meta tag snapshot — UrlAuditRecord'dan alınan anlık görüntü, regresyon tespiti için."""

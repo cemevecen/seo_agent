@@ -7854,50 +7854,6 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
 _seo_audit_progress: dict[int, dict] = {}  # site_id → progress dict
 
 
-@app.get("/api/seo-audit/{site_id}/seeds")
-def api_seo_audit_seeds_get(site_id: int):
-    from backend.models import AuditSeedUrl
-    with SessionLocal() as db:
-        rows = db.query(AuditSeedUrl).filter(AuditSeedUrl.site_id == site_id).order_by(AuditSeedUrl.id).all()
-    return {"seeds": [{"id": r.id, "url": r.url, "note": r.note} for r in rows]}
-
-
-@app.post("/api/seo-audit/{site_id}/seeds")
-def api_seo_audit_seeds_add(site_id: int, request: Request):
-    from backend.models import AuditSeedUrl
-    import asyncio
-    body = asyncio.get_event_loop().run_until_complete(request.json()) if False else None
-    # sync workaround
-    import json as _j
-    body = None
-    return {"error": "use form"}
-
-
-@app.post("/api/seo-audit/{site_id}/seeds/add")
-async def api_seo_audit_seeds_add_v2(site_id: int, request: Request):
-    from backend.models import AuditSeedUrl
-    data = await request.json()
-    url = (data.get("url") or "").strip()
-    note = (data.get("note") or "").strip()[:200]
-    if not url or not url.startswith("http"):
-        return {"status": "error", "message": "Geçersiz URL"}
-    with SessionLocal() as db:
-        existing = db.query(AuditSeedUrl).filter(AuditSeedUrl.site_id == site_id, AuditSeedUrl.url == url).first()
-        if existing:
-            return {"status": "exists"}
-        db.add(AuditSeedUrl(site_id=site_id, url=url, note=note))
-        db.commit()
-    return {"status": "ok"}
-
-
-@app.delete("/api/seo-audit/seeds/{seed_id}")
-def api_seo_audit_seeds_delete(seed_id: int):
-    from backend.models import AuditSeedUrl
-    with SessionLocal() as db:
-        db.query(AuditSeedUrl).filter(AuditSeedUrl.id == seed_id).delete()
-        db.commit()
-    return {"status": "ok"}
-
 
 @app.post("/api/seo-audit/{site_id}/run")
 def api_seo_audit_run(site_id: int):
