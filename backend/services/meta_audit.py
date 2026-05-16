@@ -65,19 +65,19 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         _cnt(M.seo_score == "needs_improvement").label("needs_improvement"),
         _cnt(M.seo_score == "poor").label("poor"),
         # Title
-        _cnt(M.has_title == False).label("missing_title"),
-        _cnt(and_(M.has_title == True, M.title_length < TITLE_MIN)).label("short_title"),
-        _cnt(and_(M.has_title == True, M.title_length > TITLE_MAX)).label("long_title"),
+        _cnt(M.has_title.is_(False)).label("missing_title"),
+        _cnt(and_(M.has_title.is_(True), M.title_length < TITLE_MIN)).label("short_title"),
+        _cnt(and_(M.has_title.is_(True), M.title_length > TITLE_MAX)).label("long_title"),
         # Desc
-        _cnt(M.has_meta_description == False).label("missing_desc"),
-        _cnt(and_(M.has_meta_description == True, M.meta_description_length < DESC_MIN)).label("short_desc"),
-        _cnt(and_(M.has_meta_description == True, M.meta_description_length > DESC_MAX)).label("long_desc"),
+        _cnt(M.has_meta_description.is_(False)).label("missing_desc"),
+        _cnt(and_(M.has_meta_description.is_(True), M.meta_description_length < DESC_MIN)).label("short_desc"),
+        _cnt(and_(M.has_meta_description.is_(True), M.meta_description_length > DESC_MAX)).label("long_desc"),
         # Canonical
-        _cnt(M.has_canonical == False).label("missing_canonical"),
-        _cnt(and_(M.has_canonical == True, M.canonical_matches_final == False)).label("broken_canonical"),
+        _cnt(M.has_canonical.is_(False)).label("missing_canonical"),
+        _cnt(and_(M.has_canonical.is_(True), M.canonical_matches_final.is_(False))).label("broken_canonical"),
         # Diğer
-        _cnt(M.is_noindex == True).label("noindex"),
-        _cnt(or_(M.has_og_title == False, M.has_og_description == False)).label("missing_og"),
+        _cnt(M.is_noindex.is_(True)).label("noindex"),
+        _cnt(or_(M.has_og_title.is_(False), M.has_og_description.is_(False))).label("missing_og"),
     ).filter(M.site_id == site_id).first()
 
     if not row or not row.total:
@@ -87,13 +87,13 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
     # Duplicate grup sayısı — subquery ile verimli
     title_dup_count = (
         db.query(func.count()).select_from(
-            db.query(M.title).filter(M.site_id == site_id, M.has_title == True)
+            db.query(M.title).filter(M.site_id == site_id, M.has_title.is_(True))
             .group_by(M.title).having(func.count(M.title) > 1).subquery()
         ).scalar() or 0
     )
     desc_dup_count = (
         db.query(func.count()).select_from(
-            db.query(M.meta_description).filter(M.site_id == site_id, M.has_meta_description == True)
+            db.query(M.meta_description).filter(M.site_id == site_id, M.has_meta_description.is_(True))
             .group_by(M.meta_description).having(func.count(M.meta_description) > 1).subquery()
         ).scalar() or 0
     )
@@ -129,16 +129,16 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
 _FILTER_MAP = {
     "poor": lambda q, M: q.filter(M.seo_score == "poor"),
     "needs_improvement": lambda q, M: q.filter(M.seo_score == "needs_improvement"),
-    "missing_title": lambda q, M: q.filter(M.has_title == False),
-    "short_title": lambda q, M: q.filter(M.has_title == True, M.title_length < TITLE_MIN),
-    "long_title": lambda q, M: q.filter(M.has_title == True, M.title_length > TITLE_MAX),
-    "missing_desc": lambda q, M: q.filter(M.has_meta_description == False),
-    "short_desc": lambda q, M: q.filter(M.has_meta_description == True, M.meta_description_length < DESC_MIN),
-    "long_desc": lambda q, M: q.filter(M.has_meta_description == True, M.meta_description_length > DESC_MAX),
-    "missing_canonical": lambda q, M: q.filter(M.has_canonical == False),
-    "broken_canonical": lambda q, M: q.filter(M.has_canonical == True, M.canonical_matches_final == False),
-    "noindex": lambda q, M: q.filter(M.is_noindex == True),
-    "missing_og": lambda q, M: q.filter(or_(M.has_og_title == False, M.has_og_description == False)),
+    "missing_title": lambda q, M: q.filter(M.has_title.is_(False)),
+    "short_title": lambda q, M: q.filter(M.has_title.is_(True), M.title_length < TITLE_MIN),
+    "long_title": lambda q, M: q.filter(M.has_title.is_(True), M.title_length > TITLE_MAX),
+    "missing_desc": lambda q, M: q.filter(M.has_meta_description.is_(False)),
+    "short_desc": lambda q, M: q.filter(M.has_meta_description.is_(True), M.meta_description_length < DESC_MIN),
+    "long_desc": lambda q, M: q.filter(M.has_meta_description.is_(True), M.meta_description_length > DESC_MAX),
+    "missing_canonical": lambda q, M: q.filter(M.has_canonical.is_(False)),
+    "broken_canonical": lambda q, M: q.filter(M.has_canonical.is_(True), M.canonical_matches_final.is_(False)),
+    "noindex": lambda q, M: q.filter(M.is_noindex.is_(True)),
+    "missing_og": lambda q, M: q.filter(or_(M.has_og_title.is_(False), M.has_og_description.is_(False))),
 }
 
 

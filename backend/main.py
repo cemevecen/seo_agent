@@ -7891,6 +7891,7 @@ def api_seo_audit_run(site_id: int):
         return 99
 
     def _run():
+        import json as _json
         from backend.collectors.site_audit import (
             _discover_sitemap_entries, _fetch_url_audit,
         )
@@ -7985,7 +7986,7 @@ def api_seo_audit_run(site_id: int):
                             has_og_title=bool(result.get("has_og_title", checks.get("og_title"))),
                             has_og_description=bool(result.get("has_og_description", checks.get("og_description"))),
                             issue_count=int(result.get("issue_count") or 0),
-                            checks_json=__import__("json").dumps(checks, ensure_ascii=True),
+                            checks_json=_json.dumps(checks, ensure_ascii=True),
                             seo_score=str(result.get("seo_score") or "poor"),
                             collected_at=collected_at,
                         ))
