@@ -114,7 +114,7 @@
               <a href="https://{{ selected_site_domain }}{{ e.url }}" target="_blank" rel="noopener"
                  class="flex items-center gap-1 group"
                  title="Aç: https://{{ selected_site_domain }}{{ e.url }}">
-                <span class="truncate font-mono text-xs text-sky-600 group-hover:underline dark:text-sky-600">{{ e.url }}</span>
+                <span class="truncate font-mono text-xs text-sky-600 group-hover:underline dark:text-sky-600">{{ e.url.split('?')[0] }}</span>
                 <svg class="h-3 w-3 flex-none text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                 </svg>
