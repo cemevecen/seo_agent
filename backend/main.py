@@ -8049,15 +8049,15 @@ def api_seo_audit_run(site_id: int):
 
             collected_at = _dt.utcnow()
 
-            # 2. URL'leri tek tek işle, her biri DB'ye anında yaz
+            # URL'leri tek tek işle, her biri DB'ye anında yaz
             for url in urls:
                 prog["current"] = url
                 try:
                     result = _fetch_url_audit(url, timeout_seconds=8)
                     result.setdefault("sitemap_source", "sitemap")
                     result.setdefault("sitemap_lastmod", "")
-                    # Mevcut kaydı sil, taze ekle
                     with SessionLocal() as db:
+                        # Aynı URL'nin eski kaydını sil
                         db.query(UrlAuditRecord).filter(
                             UrlAuditRecord.site_id == site_id,
                             UrlAuditRecord.url == result.get("url", url),
@@ -8100,6 +8100,15 @@ def api_seo_audit_run(site_id: int):
                     prog["error"] += 1
                 finally:
                     prog["done"] += 1
+
+            # Tarama bitti — bu run'dan önceki eski kayıtları sil
+            with SessionLocal() as db:
+                deleted = db.query(UrlAuditRecord).filter(
+                    UrlAuditRecord.site_id == site_id,
+                    UrlAuditRecord.collected_at < collected_at,
+                ).delete(synchronize_session=False)
+                db.commit()
+            LOGGER.info("Eski kayıtlar silindi: site=%s, %d kayıt", site_domain, deleted)
 
             prog["current"] = f"Tamamlandı — {prog['ok']} URL başarılı, {prog['error']} hata"
             LOGGER.info("SEO audit tamamlandı: site=%s, %d/%d URL", site_domain, prog["ok"], prog["total"])

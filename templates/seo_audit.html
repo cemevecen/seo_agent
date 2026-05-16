@@ -175,87 +175,92 @@
 
       {% if issues %}
       <div class="overflow-x-auto">
-        <table class="table-fixed text-sm" style="min-width:780px;width:100%">
-          <colgroup>
-            <col style="width:28%">
-            <col style="width:22%">
-            <col style="width:22%">
-            <col style="width:14%">
-            <col style="width:14%">
-          </colgroup>
-          <thead>
+        <table class="w-full text-sm">
+          <thead class="hidden sm:table-header-group">
             <tr class="border-b border-slate-100 dark:border-zinc-800/30">
-              <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">URL</th>
-              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Title</th>
-              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Description</th>
-              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Canonical</th>
-              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Sorunlar</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500 w-[40%]">URL / Title</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500 hidden md:table-cell">Description</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500 hidden lg:table-cell">Canonical</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Sorunlar</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-50 dark:divide-zinc-800/50">
+          <tbody class="divide-y divide-slate-100 dark:divide-zinc-800/40">
             {% for e in issues %}
-            {% set score_cls = "text-rose-600 dark:text-rose-400" if e.seo_score == "poor" else ("text-amber-500 dark:text-amber-400" if e.seo_score == "needs_improvement" else "text-emerald-600 dark:text-emerald-400") %}
-            <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/40">
-              <td class="px-4 py-2 overflow-hidden">
-                <a href="https://{{ selected_site_domain }}{{ e.url }}"
-                   target="_blank" rel="noopener"
-                   class="flex items-center gap-1 group" title="{{ e.url }}">
-                  <span class="truncate font-mono text-xs text-sky-600 dark:text-sky-500 group-hover:underline">{{ e.url }}</span>
-                  <svg class="h-3 w-3 flex-none text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            {% set issue_labels = {
+              "title_missing": "T:yok", "title_short": "T:kısa", "title_long": "T:uzun",
+              "desc_missing": "D:yok", "desc_short": "D:kısa", "desc_long": "D:uzun",
+              "canonical_missing": "C:yok", "canonical_mismatch": "C:hata",
+              "noindex": "noindex", "og_missing": "OG"
+            } %}
+            {% set issue_colors = {
+              "title_missing": "rose", "title_short": "amber", "title_long": "amber",
+              "desc_missing": "rose", "desc_short": "amber", "desc_long": "amber",
+              "canonical_missing": "rose", "canonical_mismatch": "rose",
+              "noindex": "rose", "og_missing": "slate"
+            } %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/40 align-top">
+              {# URL + Title — her zaman görünür #}
+              <td class="px-4 py-3 w-[40%] min-w-0">
+                <a href="{{ e.url }}" target="_blank" rel="noopener"
+                   class="group flex items-start gap-1" title="{{ e.url }}">
+                  <span class="break-all text-xs font-mono text-sky-600 dark:text-sky-500 group-hover:underline leading-relaxed">{{ e.url }}</span>
+                  <svg class="h-3 w-3 flex-none mt-0.5 text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                   </svg>
                 </a>
-                <span class="text-[10px] {{ score_cls }} font-semibold uppercase">{{ e.seo_score | replace("_"," ") }}</span>
-              </td>
-              <td class="px-3 py-2 overflow-hidden">
                 {% if e.has_title %}
-                  <span class="block truncate text-xs text-slate-700 dark:text-zinc-300" title="{{ e.title }}">{{ e.title }}</span>
-                  <span class="text-[10px] {% if e.title_length < 20 or e.title_length > 65 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.title_length }} kr</span>
+                  <p class="mt-0.5 text-xs text-slate-600 dark:text-zinc-400 leading-snug">
+                    {{ e.title }}
+                    <span class="ml-1 text-[10px] {% if e.title_length < 20 or e.title_length > 65 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.title_length }}kr</span>
+                  </p>
                 {% else %}
-                  <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
+                  <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-600">Başlık yok</p>
                 {% endif %}
+                {# Mobilde sorunları burada göster #}
+                <div class="mt-1 flex flex-wrap gap-0.5 sm:hidden">
+                  {% for issue in e.issues %}
+                  {% set ic = issue_colors.get(issue, "slate") %}
+                  <span class="rounded px-1 py-0.5 text-[9px] font-semibold
+                    {% if ic == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
+                    {% elif ic == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
+                    {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
+                    {{ issue_labels.get(issue, issue) }}
+                  </span>
+                  {% endfor %}
+                </div>
               </td>
-              <td class="px-3 py-2 overflow-hidden">
+              {# Description — md+ #}
+              <td class="px-3 py-3 hidden md:table-cell max-w-xs">
                 {% if e.has_meta_description %}
-                  <span class="block truncate text-xs text-slate-600 dark:text-zinc-400" title="{{ e.meta_description }}">{{ e.meta_description }}</span>
-                  <span class="text-[10px] {% if e.meta_description_length < 70 or e.meta_description_length > 170 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.meta_description_length }} kr</span>
+                  <p class="text-xs text-slate-600 dark:text-zinc-400 leading-snug line-clamp-3" title="{{ e.meta_description }}">{{ e.meta_description }}</p>
+                  <span class="text-[10px] {% if e.meta_description_length < 70 or e.meta_description_length > 170 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.meta_description_length }}kr</span>
                 {% else %}
                   <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
                 {% endif %}
               </td>
-              <td class="px-3 py-2 overflow-hidden">
+              {# Canonical — lg+ #}
+              <td class="px-3 py-3 hidden lg:table-cell">
                 {% if e.has_canonical %}
                   {% if e.canonical_matches_final %}
-                    <span class="text-xs text-emerald-600 dark:text-emerald-500">✓</span>
+                    <span class="text-xs text-emerald-600 dark:text-emerald-600">✓</span>
                   {% else %}
-                    <span class="block truncate text-[10px] text-slate-500 dark:text-zinc-500" title="{{ e.canonical_url }}">✗ {{ e.canonical_url }}</span>
+                    <span class="block text-[10px] text-slate-500 dark:text-zinc-500 break-all" title="{{ e.canonical_url }}">✗ {{ e.canonical_url[:60] }}{% if e.canonical_url|length > 60 %}…{% endif %}</span>
                   {% endif %}
                 {% else %}
                   <span class="text-xs text-slate-400 dark:text-zinc-600">—</span>
                 {% endif %}
                 {% if e.is_noindex %}
-                  <span class="block text-[10px] font-bold text-rose-600 dark:text-zinc-400">NOINDEX</span>
+                  <span class="block text-[10px] font-bold text-slate-500 dark:text-zinc-500">noindex</span>
                 {% endif %}
               </td>
-              <td class="px-3 py-2">
+              {# Sorunlar — sm+ #}
+              <td class="px-3 py-3 hidden sm:table-cell">
                 <div class="flex flex-wrap gap-0.5">
-                  {% set issue_colors = {
-                    "title_missing": "rose", "title_short": "amber", "title_long": "amber",
-                    "desc_missing": "rose", "desc_short": "amber", "desc_long": "amber",
-                    "canonical_missing": "rose", "canonical_mismatch": "rose",
-                    "noindex": "rose", "og_missing": "slate"
-                  } %}
-                  {% set issue_labels = {
-                    "title_missing": "T:yok", "title_short": "T:kısa", "title_long": "T:uzun",
-                    "desc_missing": "D:yok", "desc_short": "D:kısa", "desc_long": "D:uzun",
-                    "canonical_missing": "C:yok", "canonical_mismatch": "C:hata",
-                    "noindex": "noindex", "og_missing": "OG"
-                  } %}
                   {% for issue in e.issues %}
-                  {% set icolor = issue_colors.get(issue, "slate") %}
+                  {% set ic = issue_colors.get(issue, "slate") %}
                   <span class="rounded px-1 py-0.5 text-[9px] font-semibold
-                    {% if icolor == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
-                    {% elif icolor == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
+                    {% if ic == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
+                    {% elif ic == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
                     {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
                     {{ issue_labels.get(issue, issue) }}
                   </span>
