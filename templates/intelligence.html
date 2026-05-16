@@ -163,7 +163,13 @@
     
     function _buildNewsCard(item, isNew) {
       const d = new Date(item.published_at);
-      const timeStr = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+      const now = new Date();
+      const hhmm = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+      const isToday = d.toDateString() === now.toDateString();
+      const isYesterday = d.toDateString() === new Date(now - 864e5).toDateString();
+      const timeStr = isToday ? hhmm
+        : isYesterday ? ('dün ' + hhmm)
+        : (d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm);
       let faviconUrl = '/static/favicon.png';
       try {
         // Önce source_url dene (site URL'si), yoksa article URL'sine bak

@@ -42,10 +42,12 @@ CATEGORY_SOURCES = {
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
     ],
-    # Yahoo Finance — feeds.finance.yahoo.com/rss kaldırıldı (deprecated).
-    # Ana sayfa URL'si sentinel olarak kullanılır; özel API çekici devreye girer.
+    # Yahoo Finance — RSS önce denenir, başarısız olursa JSON API fallback.
     "Yahoo Finance": [
-        "https://finance.yahoo.com/",
+        "https://feeds.finance.yahoo.com/rss/2.0/topfinstories?region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=EURUSD%3DX&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=USDTRY%3DX&region=US&lang=en-US",
+        "https://finance.yahoo.com/",  # sentinel → JSON API fallback
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
@@ -241,10 +243,12 @@ def _sync_yahoo_finance_news(db, headers: dict, max_items: int) -> None:
         "Origin": "https://finance.yahoo.com",
     }
 
-    # Birden fazla arama sorgusuyla çok yönlü haber çek
+    # JSON API — v2 news endpoint + v1 search fallback
     endpoints = [
-        f"https://query2.finance.yahoo.com/v1/finance/search?q=market+stocks+economy&newsCount={max_items}&region=US&lang=en-US&type=STORY&enableNavLinks=false",
-        f"https://query1.finance.yahoo.com/v1/finance/search?q=dollar+forex+currency&newsCount={max_items}&region=US&lang=en-US&type=STORY&enableNavLinks=false",
+        f"https://query2.finance.yahoo.com/v2/finance/news?newsCount={max_items}&region=US&lang=en-US",
+        f"https://query1.finance.yahoo.com/v2/finance/news?newsCount={max_items}&region=US&lang=en-US",
+        f"https://query2.finance.yahoo.com/v1/finance/search?q=forex+economy+market&newsCount={max_items}&region=US&lang=en-US&type=STORY",
+        f"https://query1.finance.yahoo.com/v1/finance/search?q=dollar+currency+interest+rate&newsCount={max_items}&region=US&lang=en-US&type=STORY",
     ]
 
     seen_links: set[str] = set()
@@ -263,13 +267,23 @@ def _sync_yahoo_finance_news(db, headers: dict, max_items: int) -> None:
                 continue
 
             data = resp.json()
-            finance_block = data.get("finance", {})
-            if finance_block.get("error"):
-                logger.warning("Yahoo Finance API hata döndü: %s", finance_block["error"])
-                continue
+            # v2 /finance/news → {"items": {"result": [...]}}
+            # v1 /finance/search → {"finance": {"result": [{"news": [...]}]}}
+            news_list: list[dict] = []
+            if "items" in data:
+                news_list = data["items"].get("result") or []
+            else:
+                finance_block = data.get("finance", {})
+                if finance_block.get("error"):
+                    logger.warning("Yahoo Finance API hata döndü: %s", finance_block["error"])
+                    continue
+                result_list = finance_block.get("result") or []
+                news_list = result_list[0].get("news", []) if result_list else []
 
-            result_list = finance_block.get("result") or []
-            news_list: list[dict] = result_list[0].get("news", []) if result_list else []
+            if not news_list:
+                logger.debug("Yahoo Finance endpoint boş döndü: %s", endpoint)
+                continue
+            logger.info("Yahoo Finance: %d haber alındı (%s)", len(news_list), endpoint)
 
             for item in news_list:
                 link = (item.get("link") or "").strip()
