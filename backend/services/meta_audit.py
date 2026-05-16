@@ -45,6 +45,16 @@ def _issues_for(row) -> list[str]:
     if not row.has_og_title or not row.has_og_description:
         issues.append("og_missing")
 
+    # H1 kontrolü
+    if not row.has_h1:
+        issues.append("h1_missing")
+    elif row.h1_count > 1:
+        issues.append("h1_multiple")
+
+    # Schema (yapılandırılmış veri) kontrolü
+    if not row.has_schema:
+        issues.append("schema_missing")
+
     return issues
 
 
@@ -78,6 +88,9 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         # Diğer
         _cnt(M.is_noindex.is_(True)).label("noindex"),
         _cnt(or_(M.has_og_title.is_(False), M.has_og_description.is_(False))).label("missing_og"),
+        _cnt(M.has_h1.is_(False)).label("missing_h1"),
+        _cnt(M.h1_count > 1).label("multiple_h1"),
+        _cnt(M.has_schema.is_(False)).label("missing_schema"),
     ).filter(M.site_id == site_id).first()
 
     if not row or not row.total:
@@ -109,6 +122,9 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         "broken_canonical": row.broken_canonical or 0,
         "noindex": row.noindex or 0,
         "missing_og": row.missing_og or 0,
+        "missing_h1": row.missing_h1 or 0,
+        "multiple_h1": row.multiple_h1 or 0,
+        "missing_schema": row.missing_schema or 0,
     }
 
     return {
@@ -139,6 +155,9 @@ _FILTER_MAP = {
     "broken_canonical": lambda q, M: q.filter(M.has_canonical.is_(True), M.canonical_matches_final.is_(False)),
     "noindex": lambda q, M: q.filter(M.is_noindex.is_(True)),
     "missing_og": lambda q, M: q.filter(or_(M.has_og_title.is_(False), M.has_og_description.is_(False))),
+    "missing_h1": lambda q, M: q.filter(M.has_h1.is_(False)),
+    "multiple_h1": lambda q, M: q.filter(M.h1_count > 1),
+    "missing_schema": lambda q, M: q.filter(M.has_schema.is_(False)),
 }
 
 

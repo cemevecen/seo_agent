@@ -119,6 +119,9 @@
           ("broken_canonical",  "Canonical mismatch", ic.get("broken_canonical", 0)),
           ("noindex",           "Noindex",            ic.get("noindex", 0)),
           ("missing_og",        "OG eksik",           ic.get("missing_og", 0)),
+          ("missing_h1",        "H1 yok",             ic.get("missing_h1", 0)),
+          ("multiple_h1",       "Çoklu H1",           ic.get("multiple_h1", 0)),
+          ("missing_schema",    "Schema yok",         ic.get("missing_schema", 0)),
         ] %}
         {% for fkey, flabel, fcount in filters %}
         {% if fcount > 0 or fkey == "all" or filter == fkey %}
@@ -148,13 +151,17 @@
               "title_missing": "Başlık yok", "title_short": "Başlık kısa", "title_long": "Başlık uzun",
               "desc_missing": "Desc yok", "desc_short": "Desc kısa", "desc_long": "Desc uzun",
               "canonical_missing": "Canon. yok", "canonical_mismatch": "Canon. hata",
-              "noindex": "Noindex", "og_missing": "OG eksik"
+              "noindex": "Noindex", "og_missing": "OG eksik",
+              "h1_missing": "H1 yok", "h1_multiple": "Çoklu H1",
+              "schema_missing": "Schema yok"
             } %}
             {% set issue_colors = {
               "title_missing": "rose", "title_short": "amber", "title_long": "amber",
               "desc_missing": "rose", "desc_short": "amber", "desc_long": "amber",
               "canonical_missing": "rose", "canonical_mismatch": "rose",
-              "noindex": "rose", "og_missing": "slate"
+              "noindex": "rose", "og_missing": "slate",
+              "h1_missing": "rose", "h1_multiple": "amber",
+              "schema_missing": "slate"
             } %}
             {% set rid = loop.index %}
             <tr class="seo-row align-top" id="row-{{ rid }}">
@@ -254,6 +261,14 @@
                     <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Robots</span>
                     <p class="mt-1 font-mono text-slate-700 dark:text-zinc-300">meta robots: {{ e.meta_robots or "noindex" }}</p>
                   </div>
+                  <div id="detail-h1-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">H1 Başlık</span>
+                    <p class="mt-1 text-slate-700 dark:text-zinc-300">{% if e.has_h1 %}"{{ e.h1 }}"<span class="ml-2 text-[10px] text-slate-400">{{ e.h1_count }} adet H1 etiketi{% if e.h1_count > 1 %} (1 olmalı){% endif %}</span>{% else %}<em class="text-slate-400">H1 etiketi bulunamadı — her sayfada bir adet H1 olmalı</em>{% endif %}</p>
+                  </div>
+                  <div id="detail-schema-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Schema (JSON-LD)</span>
+                    <p class="mt-1 text-slate-700 dark:text-zinc-300">{% if e.has_schema %}<span class="text-emerald-600">✓</span> Yapılandırılmış veri mevcut{% else %}<em class="text-slate-400">JSON-LD schema bulunamadı — arama sonuçlarında rich snippet için gerekli</em>{% endif %}</p>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -318,6 +333,8 @@ function toggleDetail(rid, issue) {
     'canonical_missing': 'canonical', 'canonical_mismatch': 'canonical',
     'og_missing': 'og',
     'noindex': 'noindex',
+    'h1_missing': 'h1', 'h1_multiple': 'h1',
+    'schema_missing': 'schema',
   };
   var panelKey = panelMap[issue] || issue;
 
@@ -329,7 +346,7 @@ function toggleDetail(rid, issue) {
   }
 
   // Tüm panelleri gizle, ilgili olanı göster
-  ['title','desc','canonical','og','noindex'].forEach(function(k) {
+  ['title','desc','canonical','og','noindex','h1','schema'].forEach(function(k) {
     var el = document.getElementById('detail-' + k + '-' + rid);
     if (el) el.classList.add('hidden');
   });
