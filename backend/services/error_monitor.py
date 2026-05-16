@@ -285,7 +285,9 @@ def get_error_summary(
     if fetched_at:
         range_end = fetched_at.date()
         range_start = range_end - timedelta(days=days - 1)
-        if range_start.year == range_end.year:
+        if range_start == range_end:
+            fetched_at_str = range_end.strftime("%-d %b %Y")
+        elif range_start.year == range_end.year:
             fetched_at_str = f"{range_start.strftime('%-d %b')} – {range_end.strftime('%-d %b %Y')}"
         else:
             fetched_at_str = f"{range_start.strftime('%-d %b %Y')} – {range_end.strftime('%-d %b %Y')}"
