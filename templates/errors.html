@@ -184,8 +184,31 @@ function filterErrors(q) {
 
 function switchPeriod(d) {
   var siteId = {{ selected_site_id if selected_site_id else 'null' }};
-  var url = siteId ? '/errors?site_id=' + siteId + '&days=' + d : '/errors?days=' + d;
-  window.location = url;
+  if (!siteId) { window.location = '/errors?days=' + d; return; }
+
+  // Tıklanan butonu hemen aktif göster
+  document.querySelectorAll('[onclick^="switchPeriod"]').forEach(function(b) {
+    var bd = parseInt(b.getAttribute('onclick').match(/\d+/)[0]);
+    if (bd === d) {
+      b.style.background = '#52525b';
+      b.style.color = '#f4f4f5';
+      b.style.borderColor = '#71717a';
+      b.disabled = true;
+    } else {
+      b.style.opacity = '0.4';
+      b.disabled = true;
+    }
+  });
+
+  // Tablo yerine yükleniyor göster
+  var tbody = document.getElementById('err-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:#71717a;font-size:13px">GA4\'ten çekiliyor…</td></tr>';
+
+  fetch('/api/errors/' + siteId + '/refresh?days=' + d, {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .finally(function() {
+      window.location = '/errors?site_id=' + siteId + '&days=' + d;
+    });
 }
 
 function refreshErrors() {
