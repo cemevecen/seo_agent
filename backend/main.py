@@ -2954,6 +2954,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Günlük SEO meta tag taraması — GA4 top 250 web + 250 mweb — 03:00
+    scheduler.add_job(
+        _run_seo_audit_job,
+        trigger=CronTrigger(hour=3, minute=0, timezone=timezone),
+        id="daily-seo-audit",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 1
+
     # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
     scheduler.add_job(
         _run_scheduled_db_cleanup_job,
@@ -10574,6 +10586,183 @@ def _run_meta_audit_snapshot_job() -> None:
         LOGGER.info("Meta audit kritik alarm maili gönderildi: %d değişiklik", len(all_critical))
     except Exception as exc:
         LOGGER.error("Meta audit snapshot job hatası: %s", exc)
+
+
+def _run_seo_audit_job() -> None:
+    """Günlük SEO meta tag taraması — GA4 top 250 web + 250 mweb, gece 03:00."""
+    import json as _json
+    from backend.collectors.site_audit import _fetch_url_audit
+    from backend.models import Site, UrlAuditRecord
+    from datetime import datetime as _dt
+
+    try:
+        with SessionLocal() as db:
+            external_ids = _external_site_ids(db)
+            sites = [s for s in db.query(Site).order_by(Site.id).all() if s.id not in external_ids]
+    except Exception as exc:
+        LOGGER.error("SEO audit job: site listesi alınamadı: %s", exc)
+        return
+
+    for site in sites:
+        site_id = site.id
+        site_domain = site.domain
+
+        # Aynı anda başka bir tarama devam ediyorsa atla
+        if _seo_audit_progress.get(site_id, {}).get("running"):
+            LOGGER.info("SEO audit job: site=%s zaten taranıyor, atlandı", site_domain)
+            continue
+
+        prog = {"running": True, "total": 0, "done": 0, "ok": 0, "error": 0, "current": "Job başladı"}
+        _seo_audit_progress[site_id] = prog
+        LOGGER.info("SEO audit job başladı: site=%s", site_domain)
+
+        try:
+            base = f"https://{site_domain}"
+            seen_urls: set[str] = set()
+            urls: list[str] = []
+
+            def _add(u: str):
+                u = u.split("?")[0].rstrip("/")
+                if u and u.startswith("http") and u not in seen_urls:
+                    seen_urls.add(u)
+                    urls.append(u)
+
+            # GA4'ten top 250 web + 250 mweb
+            prog["current"] = "GA4 top sayfalar çekiliyor…"
+            try:
+                from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties, ga4_is_configured, GA4_SCOPES, load_ga4_service_account_info
+                from google.analytics.data_v1beta import BetaAnalyticsDataClient
+                from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, OrderBy, RunReportRequest
+                from google.oauth2 import service_account
+
+                if ga4_is_configured():
+                    with SessionLocal() as db:
+                        record = get_ga4_credentials_record(db, site_id)
+                        properties = load_ga4_properties(record)
+
+                    info = load_ga4_service_account_info()
+                    creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
+                    client = BetaAnalyticsDataClient(credentials=creds)
+
+                    for profile_key in ["web", "mweb"]:
+                        prop_id = properties.get(profile_key, "")
+                        if not prop_id:
+                            continue
+                        pid = prop_id if prop_id.startswith("properties/") else f"properties/{prop_id}"
+                        try:
+                            resp = client.run_report(RunReportRequest(
+                                property=pid,
+                                date_ranges=[DateRange(start_date="7daysAgo", end_date="today")],
+                                dimensions=[Dimension(name="hostname"), Dimension(name="pagePath")],
+                                metrics=[Metric(name="sessions")],
+                                order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+                                limit=250,
+                            ))
+                            for row in resp.rows:
+                                dims = row.dimension_values
+                                hostname = dims[0].value if dims else ""
+                                path = dims[1].value if len(dims) > 1 else ""
+                                if path and path != "(not set)" and hostname and hostname != "(not set)":
+                                    full_url = f"https://{hostname}{path}" if not path.startswith("http") else path
+                                    _add(full_url)
+                            LOGGER.info("SEO audit GA4: site=%s profile=%s %d URL", site_domain, profile_key, len(resp.rows))
+                        except Exception as exc:
+                            LOGGER.warning("SEO audit GA4 hatası [%s/%s]: %s", site_domain, profile_key, exc)
+            except Exception as exc:
+                LOGGER.warning("SEO audit GA4 genel hata [%s]: %s", site_domain, exc)
+
+            # Akaryakıt fallback
+            has_akaryakit = any("akaryakit" in u for u in urls)
+            if not has_akaryakit and "doviz.com" in site_domain:
+                for u in [
+                    f"{base}/akaryakit-fiyatlari",
+                    f"{base}/akaryakit-fiyatlari/istanbul-avrupa",
+                    f"{base}/akaryakit-fiyatlari/istanbul-anadolu",
+                    f"{base}/akaryakit-fiyatlari/ankara",
+                    f"{base}/akaryakit-fiyatlari/izmir",
+                    f"{base}/akaryakit-fiyatlari/adana",
+                    f"{base}/akaryakit-fiyatlari/bursa",
+                    f"{base}/akaryakit-fiyatlari/antalya",
+                ]:
+                    _add(u)
+                LOGGER.info("SEO audit: akaryakit fallback eklendi [%s]", site_domain)
+
+            if not urls:
+                LOGGER.warning("SEO audit job: URL listesi boş, atlandı [%s]", site_domain)
+                prog["running"] = False
+                continue
+
+            prog["total"] = len(urls)
+            collected_at = _dt.utcnow()
+
+            for url in urls:
+                prog["current"] = url
+                try:
+                    result = _fetch_url_audit(url, timeout_seconds=8)
+                    result.setdefault("sitemap_source", "job")
+                    result.setdefault("sitemap_lastmod", "")
+                    checks = result.get("checks") or {}
+                    with SessionLocal() as db:
+                        db.query(UrlAuditRecord).filter(
+                            UrlAuditRecord.site_id == site_id,
+                            UrlAuditRecord.url == result.get("url", url),
+                        ).delete(synchronize_session=False)
+                        db.add(UrlAuditRecord(
+                            site_id=site_id,
+                            url=result.get("url", url),
+                            final_url=result.get("final_url", url),
+                            status_code=int(result.get("status_code") or 0),
+                            content_type=str(result.get("content_type") or ""),
+                            sitemap_source=str(result.get("sitemap_source") or ""),
+                            sitemap_lastmod=str(result.get("sitemap_lastmod") or ""),
+                            has_title=bool(result.get("has_title", checks.get("title"))),
+                            title=str(result.get("title") or ""),
+                            title_length=int(result.get("title_length") or len(result.get("title") or "")),
+                            has_meta_description=bool(result.get("has_meta_description", checks.get("desc"))),
+                            meta_description=str(result.get("meta_description") or ""),
+                            meta_description_length=int(result.get("meta_description_length") or len(result.get("meta_description") or "")),
+                            has_h1=bool(result.get("has_h1", checks.get("h1"))),
+                            h1=str(result.get("h1") or ""),
+                            h1_count=int(result.get("h1_count") or 0),
+                            h2_count=int(result.get("h2_count") or 0),
+                            has_canonical=bool(result.get("has_canonical", checks.get("canonical"))),
+                            canonical_url=str(result.get("canonical_url") or ""),
+                            canonical_matches_final=bool(result.get("canonical_matches_final", checks.get("canonical_matches_final"))),
+                            has_schema=bool(result.get("has_schema", checks.get("schema"))),
+                            is_noindex=bool(result.get("is_noindex", not checks.get("indexable", True))),
+                            meta_robots=str(result.get("meta_robots") or ""),
+                            has_og_title=bool(result.get("has_og_title", checks.get("og_title"))),
+                            has_og_description=bool(result.get("has_og_description", checks.get("og_description"))),
+                            issue_count=int(result.get("issue_count") or 0),
+                            checks_json=_json.dumps(checks, ensure_ascii=True),
+                            seo_score=str(result.get("seo_score") or "poor"),
+                            collected_at=collected_at,
+                        ))
+                        db.commit()
+                    prog["ok"] += 1
+                except Exception as exc:
+                    LOGGER.debug("SEO audit URL hatası [%s]: %s", url, exc)
+                    prog["error"] += 1
+                finally:
+                    prog["done"] += 1
+
+            # Eski kayıtları sil
+            with SessionLocal() as db:
+                deleted = db.query(UrlAuditRecord).filter(
+                    UrlAuditRecord.site_id == site_id,
+                    UrlAuditRecord.collected_at < collected_at,
+                ).delete(synchronize_session=False)
+                db.commit()
+
+            LOGGER.info(
+                "SEO audit job tamamlandı: site=%s, %d/%d URL, %d eski kayıt silindi",
+                site_domain, prog["ok"], prog["total"], deleted,
+            )
+
+        except Exception as exc:
+            LOGGER.exception("SEO audit job hatası [%s]: %s", site_domain, exc)
+        finally:
+            prog["running"] = False
 
 
 def _run_omdb_enrichment_job() -> None:
