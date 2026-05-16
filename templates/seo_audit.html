@@ -160,7 +160,7 @@
               <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Sorunlar</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-zinc-800/40">
+          <tbody>
             {% for e in issues %}
             {% set issue_labels = {
               "title_missing": "Başlık yok", "title_short": "Başlık kısa", "title_long": "Başlık uzun",
@@ -174,18 +174,18 @@
               "canonical_missing": "rose", "canonical_mismatch": "rose",
               "noindex": "rose", "og_missing": "slate"
             } %}
-            <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/40 align-top">
+            <tr class="seo-row align-top">
               {# URL + Title — her zaman görünür #}
               <td class="px-4 py-3 w-[40%] min-w-0">
                 <a href="{{ e.url }}" target="_blank" rel="noopener"
                    class="group flex items-start gap-1" title="{{ e.url }}">
-                  <span class="break-all text-xs font-mono text-sky-600 dark:text-sky-500 group-hover:underline leading-relaxed">{{ e.url }}</span>
+                  <span class="break-all text-xs font-mono text-sky-700 dark:text-zinc-400 group-hover:underline leading-relaxed">{{ e.url }}</span>
                   <svg class="h-3 w-3 flex-none mt-0.5 text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                   </svg>
                 </a>
                 {% if e.has_title %}
-                  <p class="mt-0.5 text-xs text-slate-600 dark:text-zinc-400 leading-snug">
+                  <p class="mt-0.5 text-xs text-slate-600 dark:text-zinc-500 leading-snug">
                     {{ e.title }}
                     <span class="ml-1 text-[10px] {% if e.title_length < 20 or e.title_length > 65 %}text-amber-600 dark:text-zinc-500{% else %}text-slate-400 dark:text-zinc-600{% endif %}">{{ e.title_length }}kr</span>
                   </p>
@@ -503,6 +503,10 @@ function _renderDuplicates(data) {
 
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
+.seo-row { border-bottom: 1px solid #f1f5f9; }
+.seo-row:hover { background: #f8fafc; }
+html.dark .seo-row { border-bottom: 1px solid rgba(39,39,42,0.5); }
+html.dark .seo-row:hover { background: rgba(39,39,42,0.3); }
 .audit-chip-active {
   background-color: #18181b;
   color: #ffffff;
