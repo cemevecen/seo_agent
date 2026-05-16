@@ -280,9 +280,17 @@ def get_error_summary(
     total_5xx = sum(1 for r in rows if r.status_code >= 500)
     total_users = sum(r.hit_count for r in rows)
 
-    # Verinin çekildiği tarih: en güncel last_seen
+    # Verinin kapsadığı tarih aralığı: çekim anından geriye days gün
     fetched_at = max((r.last_seen for r in rows if r.last_seen), default=None)
-    fetched_at_str = fetched_at.strftime("%d.%m.%Y %H:%M") if fetched_at else ""
+    if fetched_at:
+        range_end = fetched_at.date()
+        range_start = range_end - timedelta(days=days - 1)
+        if range_start.year == range_end.year:
+            fetched_at_str = f"{range_start.strftime('%-d %b')} – {range_end.strftime('%-d %b %Y')}"
+        else:
+            fetched_at_str = f"{range_start.strftime('%-d %b %Y')} – {range_end.strftime('%-d %b %Y')}"
+    else:
+        fetched_at_str = ""
 
     error_list = []
     for r in rows:
