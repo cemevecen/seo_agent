@@ -8,7 +8,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, text
+from sqlalchemy import Integer, case, cast, func
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -48,83 +48,81 @@ def _issues_for(row) -> list[str]:
     return issues
 
 
+def _c(cond) -> Any:
+    """Bool koşulunu SUM için 0/1'e çevirir (SQLAlchemy 2.x uyumlu)."""
+    return func.sum(cast(case((cond, 1), else_=0), Integer))
+
+
 def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
-    """UrlAuditRecord'dan site geneli SEO özeti döner."""
-    from backend.models import UrlAuditRecord
+    """SQL aggregation ile site geneli SEO özeti — RAM'a tüm satırları yüklemez."""
+    from backend.models import UrlAuditRecord as M
 
-    rows = (
-        db.query(UrlAuditRecord)
-        .filter(UrlAuditRecord.site_id == site_id)
-        .all()
-    )
+    row = db.query(
+        func.count(M.id).label("total"),
+        func.max(M.collected_at).label("last_crawled"),
+        # Score dağılımı
+        _c(M.seo_score == "good").label("good"),
+        _c(M.seo_score == "needs_improvement").label("needs_improvement"),
+        _c(M.seo_score == "poor").label("poor"),
+        # Title
+        _c(M.has_title == False).label("missing_title"),
+        _c((M.has_title == True) & (M.title_length < TITLE_MIN)).label("short_title"),
+        _c((M.has_title == True) & (M.title_length > TITLE_MAX)).label("long_title"),
+        # Desc
+        _c(M.has_meta_description == False).label("missing_desc"),
+        _c((M.has_meta_description == True) & (M.meta_description_length < DESC_MIN)).label("short_desc"),
+        _c((M.has_meta_description == True) & (M.meta_description_length > DESC_MAX)).label("long_desc"),
+        # Canonical
+        _c(M.has_canonical == False).label("missing_canonical"),
+        _c((M.has_canonical == True) & (M.canonical_matches_final == False)).label("broken_canonical"),
+        # Diğer
+        _c(M.is_noindex == True).label("noindex"),
+        _c((M.has_og_title == False) | (M.has_og_description == False)).label("missing_og"),
+    ).filter(M.site_id == site_id).first()
 
-    if not rows:
-        return {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "last_crawled": None}
+    if not row or not row.total:
+        return {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "total_issues": 0,
+                "duplicate_title_groups": 0, "duplicate_desc_groups": 0, "last_crawled": None}
 
-    score_counts: dict[str, int] = {"good": 0, "needs_improvement": 0, "poor": 0}
-    issue_counts: dict[str, int] = {
-        "missing_title": 0, "short_title": 0, "long_title": 0,
-        "missing_desc": 0, "short_desc": 0, "long_desc": 0,
-        "missing_canonical": 0, "broken_canonical": 0,
-        "noindex": 0, "missing_og": 0,
-    }
-
-    last_crawled = None
-    for r in rows:
-        score_counts[r.seo_score] = score_counts.get(r.seo_score, 0) + 1
-        if not r.has_title:
-            issue_counts["missing_title"] += 1
-        elif r.title_length < TITLE_MIN:
-            issue_counts["short_title"] += 1
-        elif r.title_length > TITLE_MAX:
-            issue_counts["long_title"] += 1
-
-        if not r.has_meta_description:
-            issue_counts["missing_desc"] += 1
-        elif r.meta_description_length < DESC_MIN:
-            issue_counts["short_desc"] += 1
-        elif r.meta_description_length > DESC_MAX:
-            issue_counts["long_desc"] += 1
-
-        if not r.has_canonical:
-            issue_counts["missing_canonical"] += 1
-        elif not r.canonical_matches_final:
-            issue_counts["broken_canonical"] += 1
-
-        if r.is_noindex:
-            issue_counts["noindex"] += 1
-        if not r.has_og_title or not r.has_og_description:
-            issue_counts["missing_og"] += 1
-
-        if last_crawled is None or r.collected_at > last_crawled:
-            last_crawled = r.collected_at
-
-    # Duplicate tespiti
+    # Duplicate grup sayısı — subquery ile verimli
     title_dup_count = (
-        db.query(UrlAuditRecord.title)
-        .filter(UrlAuditRecord.site_id == site_id, UrlAuditRecord.has_title == True)
-        .group_by(UrlAuditRecord.title)
-        .having(func.count(UrlAuditRecord.title) > 1)
-        .count()
+        db.query(func.count()).select_from(
+            db.query(M.title).filter(M.site_id == site_id, M.has_title == True)
+            .group_by(M.title).having(func.count(M.title) > 1).subquery()
+        ).scalar() or 0
     )
     desc_dup_count = (
-        db.query(UrlAuditRecord.meta_description)
-        .filter(UrlAuditRecord.site_id == site_id, UrlAuditRecord.has_meta_description == True)
-        .group_by(UrlAuditRecord.meta_description)
-        .having(func.count(UrlAuditRecord.meta_description) > 1)
-        .count()
+        db.query(func.count()).select_from(
+            db.query(M.meta_description).filter(M.site_id == site_id, M.has_meta_description == True)
+            .group_by(M.meta_description).having(func.count(M.meta_description) > 1).subquery()
+        ).scalar() or 0
     )
 
-    total_issues = sum(issue_counts.values())
+    issue_counts = {
+        "missing_title": row.missing_title or 0,
+        "short_title": row.short_title or 0,
+        "long_title": row.long_title or 0,
+        "missing_desc": row.missing_desc or 0,
+        "short_desc": row.short_desc or 0,
+        "long_desc": row.long_desc or 0,
+        "missing_canonical": row.missing_canonical or 0,
+        "broken_canonical": row.broken_canonical or 0,
+        "noindex": row.noindex or 0,
+        "missing_og": row.missing_og or 0,
+    }
 
     return {
-        "total_pages": len(rows),
-        "score_counts": score_counts,
+        "total_pages": row.total or 0,
+        "score_counts": {
+            "good": row.good or 0,
+            "needs_improvement": row.needs_improvement or 0,
+            "poor": row.poor or 0,
+        },
         "issue_counts": issue_counts,
-        "total_issues": total_issues,
+        "total_issues": sum(issue_counts.values()),
         "duplicate_title_groups": title_dup_count,
         "duplicate_desc_groups": desc_dup_count,
-        "last_crawled": last_crawled.isoformat() if last_crawled else None,
+        "last_crawled": row.last_crawled.isoformat() if row.last_crawled else None,
     }
 
 
@@ -200,6 +198,7 @@ def get_duplicates(db: Session, site_id: int) -> dict[str, Any]:
         db.query(UrlAuditRecord.url, UrlAuditRecord.title, UrlAuditRecord.meta_description,
                  UrlAuditRecord.has_title, UrlAuditRecord.has_meta_description)
         .filter(UrlAuditRecord.site_id == site_id)
+        .limit(5000)  # bellek koruması
         .all()
     )
 
