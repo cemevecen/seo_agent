@@ -22,7 +22,7 @@
     <template x-for="project in configProjects" :key="project.path">
       <button 
         @click="activeProject = project.path"
-        :class="activeProject === project.path ? 'bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 shadow-md' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'"
+        :class="activeProject === project.path ? 'bg-blue-600 text-white border-blue-600 shadow-md dark:bg-blue-500 dark:border-blue-500' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'"
         class="relative rounded-full border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 focus:outline-none dark:border-slate-700 dark:hover:bg-slate-700 transition-colors"
       >
         <span x-text="project.name"></span>
