@@ -7914,32 +7914,9 @@ def api_seo_audit_run(site_id: int):
             return {"status": "error", "message": "site not found"}
         site_domain = site.domain
 
-    # Subdomain'ler ve öncelik sırası — site'a özel
-    _PRIORITY_PATTERNS = [
-        ("kur.doviz.com",            1),
-        ("altin.doviz.com",          2),
-        ("/emtia/",                  3),
-        ("/akaryakit-fiyatlari",     4),
-        ("haber.doviz.com",          5),
-        ("/doviz-cevirici",          6),
-        ("/altin-cevirici",          6),
-        ("/kripto-para-cevirici",    6),
-        ("/kripto-paralar/",         7),
-        ("/makale/",                 8),
-        ("/haberler/",               8),
-    ]
-
-    def _url_priority(url: str) -> int:
-        for pattern, pri in _PRIORITY_PATTERNS:
-            if pattern in url:
-                return pri
-        return 99
-
     def _run():
         import json as _json
-        from backend.collectors.site_audit import (
-            _discover_sitemap_entries, _fetch_url_audit,
-        )
+        from backend.collectors.site_audit import _fetch_url_audit
         from backend.models import UrlAuditRecord
         from datetime import datetime as _dt
 
@@ -7989,19 +7966,22 @@ def api_seo_audit_run(site_id: int):
                             resp = client.run_report(RunReportRequest(
                                 property=pid,
                                 date_ranges=[DateRange(start_date="7daysAgo", end_date="today")],
-                                dimensions=[Dimension(name="pagePath")],
+                                dimensions=[
+                                    Dimension(name="hostname"),
+                                    Dimension(name="pagePath"),
+                                ],
                                 metrics=[Metric(name="sessions")],
                                 order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
                                 limit=250,
                             ))
                             for row in resp.rows:
-                                path = row.dimension_values[0].value if row.dimension_values else ""
-                                if path and path != "(not set)":
-                                    # pagePath → tam URL (subdomain için domain'i bul)
-                                    if path.startswith("http"):
-                                        _add(path)
-                                    else:
-                                        _add(f"{base}{path}")
+                                dims = row.dimension_values
+                                hostname = dims[0].value if dims else ""
+                                path = dims[1].value if len(dims) > 1 else ""
+                                if not path or path == "(not set)" or not hostname or hostname == "(not set)":
+                                    continue
+                                full_url = f"https://{hostname}{path}" if not path.startswith("http") else path
+                                _add(full_url)
                             LOGGER.info("GA4 top sayfalar: profile=%s, %d URL", profile_key, len(resp.rows))
                         except Exception as exc:
                             LOGGER.warning("GA4 top pages hatası [%s]: %s", profile_key, exc)
