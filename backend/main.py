@@ -7801,10 +7801,9 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
     with SessionLocal() as db:
         from backend.models import Site
         external_ids = _external_site_ids(db)
-        all_sites = [
-            s for s in db.query(Site).order_by(Site.created_at.desc()).all()
-            if s.id not in external_ids
-        ]
+        _raw_sites = [s for s in db.query(Site).order_by(Site.domain).all() if s.id not in external_ids]
+        # doviz her zaman ilk sırada
+        all_sites = sorted(_raw_sites, key=lambda s: (0 if "doviz" in (s.domain or "").lower() else 1, s.domain or ""))
         all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
 
     if not site_id and all_sites_list:

@@ -19,9 +19,7 @@
         <div class="flex gap-1">
           {% for d in [1, 7, 14, 30] %}
           <button type="button" onclick="switchPeriod({{ d }})"
-                  class="rounded-full border px-2.5 py-1 text-xs font-semibold transition
-                         {% if days == d %}bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-600 dark:text-zinc-100 dark:border-zinc-500 cursor-default
-                         {% else %}border-zinc-200 text-slate-500 dark:border-zinc-700 dark:text-zinc-500 hover:border-zinc-400 hover:text-slate-700 dark:hover:border-zinc-500 dark:hover:text-zinc-300 active:scale-95{% endif %}">
+                  class="rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:px-2.5 sm:py-1 period-chip {% if days == d %}period-chip-active cursor-default{% else %}border-zinc-200 text-slate-500 dark:border-zinc-700 dark:text-zinc-500 hover:border-zinc-400 hover:text-slate-700 dark:hover:border-zinc-500 dark:hover:text-zinc-300 active:scale-95{% endif %}">
             {{ d }}g
           </button>
           {% endfor %}
@@ -70,7 +68,7 @@
         </div>
         <input id="err-search" type="search" placeholder="URL filtrele…"
                oninput="filterErrors(this.value)"
-               class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 w-48">
+               class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 w-28 sm:w-40 md:w-48">
       </div>
     </div>
 
@@ -105,7 +103,7 @@
                 {{ e.status_code }}
               </span>
             </td>
-            <td class="px-4 py-3 min-w-0" style="max-width:420px">
+            <td class="px-4 py-3 min-w-0 max-w-[180px] sm:max-w-xs md:max-w-sm lg:max-w-md">
               <a href="https://{{ selected_site_domain }}{{ e.url }}" target="_blank" rel="noopener"
                  class="flex items-center gap-1 group"
                  title="Aç: https://{{ selected_site_domain }}{{ e.url }}">
@@ -120,7 +118,7 @@
               <span class="block text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">Bu adres sitenizde mevcut değil</span>
               {% endif %}
             </td>
-            <td class="px-4 py-3" style="max-width:240px">
+            <td class="px-4 py-3 max-w-[140px] sm:max-w-[200px] md:max-w-[240px]">
               {% if e.referrers %}
                 {% for ref in e.referrers[:5] %}
                   {% if ref.startswith('http') %}
@@ -187,12 +185,13 @@ function switchPeriod(d) {
   if (!siteId) { window.location = '/errors?days=' + d; return; }
 
   // Tıklanan butonu hemen aktif göster
+  var isDark = document.documentElement.classList.contains('dark');
   document.querySelectorAll('[onclick^="switchPeriod"]').forEach(function(b) {
     var bd = parseInt(b.getAttribute('onclick').match(/\d+/)[0]);
     if (bd === d) {
-      b.style.background = '#52525b';
-      b.style.color = '#f4f4f5';
-      b.style.borderColor = '#71717a';
+      b.style.backgroundColor = isDark ? '#52525b' : '#18181b';
+      b.style.color = '#ffffff';
+      b.style.borderColor = isDark ? '#52525b' : '#18181b';
       b.disabled = true;
     } else {
       b.style.opacity = '0.4';
@@ -235,5 +234,15 @@ function refreshErrors() {
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
 html.dark .err-row:hover { background-color: rgba(63,63,70,0.35) !important; }
+.period-chip-active {
+  background-color: #18181b;
+  color: #ffffff;
+  border-color: #18181b;
+}
+html.dark .period-chip-active {
+  background-color: #52525b;
+  color: #f4f4f5;
+  border-color: #52525b;
+}
 </style>
 {% endblock %}
