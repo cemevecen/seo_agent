@@ -1,8 +1,8 @@
 """Aşama 2 için temel SQLAlchemy modelleri."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -692,5 +692,32 @@ class SiteErrorLog(Base):
     first_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     extra_json: Mapped[str | None] = mapped_column(Text, nullable=True)             # ek veri (başlık, referrer, vs.)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
+class MetaTagSnapshot(Base):
+    """Günlük meta tag snapshot — UrlAuditRecord'dan alınan anlık görüntü, regresyon tespiti için."""
+    __tablename__ = "meta_tag_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    meta_description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    meta_description_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    seo_score: Mapped[str] = mapped_column(String(30), nullable=False, default="poor")
+    is_noindex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    has_og_title: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    has_og_description: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_meta_tag_snapshots_site_date", "site_id", "snapshot_date"),
+        Index("ix_meta_tag_snapshots_site_url_date", "site_id", "url", "snapshot_date"),
+    )
 
     site: Mapped["Site"] = relationship("Site")

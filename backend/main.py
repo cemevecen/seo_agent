@@ -2942,6 +2942,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Günlük meta tag snapshot + kritik regresyon alarmı — 02:15
+    scheduler.add_job(
+        _run_meta_audit_snapshot_job,
+        trigger=CronTrigger(hour=2, minute=15, timezone=timezone),
+        id="daily-meta-audit-snapshot",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 1
+
     # Her gün gece 03:30'da eski verileri temizle (her zaman aktif)
     scheduler.add_job(
         _run_scheduled_db_cleanup_job,
@@ -7789,6 +7801,76 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     return RedirectResponse(url="/ai", status_code=303)
 
 
+@app.get("/seo-audit")
+def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "all", page: int = 1):
+    """SEO meta tag denetim sayfası."""
+    from backend.services.meta_audit import get_audit_summary, get_audit_issues, get_audit_issues_count
+    from backend.models import Site
+
+    sidebar_sites = get_sidebar_sites()
+
+    with SessionLocal() as db:
+        external_ids = _external_site_ids(db)
+        all_sites = [
+            {"id": s.id, "domain": s.domain, "display_name": s.display_name}
+            for s in db.query(Site).order_by(Site.domain).all()
+            if s.id not in external_ids
+        ]
+        all_sites = sorted(all_sites, key=lambda s: (0 if "doviz" in (s["domain"] or "").lower() else 1, s["domain"] or ""))
+
+    if not site_id and all_sites:
+        site_id = all_sites[0]["id"]
+
+    limit = 100
+    offset = (page - 1) * limit
+    summary: dict = {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "last_crawled": None}
+    issues: list = []
+    total_count = 0
+
+    if site_id:
+        with SessionLocal() as db:
+            summary = get_audit_summary(db, site_id)
+            issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
+            total_count = get_audit_issues_count(db, site_id, filter_key=filter)
+
+    return templates.TemplateResponse(request, "seo_audit.html", {
+        "request": request,
+        "sites": sidebar_sites,
+        "all_sites": all_sites,
+        "selected_site_id": site_id,
+        "summary": summary,
+        "issues": issues,
+        "filter": filter,
+        "page": page,
+        "total_count": total_count,
+        "per_page": limit,
+        "total_pages": max(1, (total_count + limit - 1) // limit),
+    })
+
+
+@app.get("/api/seo-audit/{site_id}/issues")
+def api_seo_audit_issues(site_id: int, filter: str = "all", limit: int = 100, offset: int = 0):
+    from backend.services.meta_audit import get_audit_issues, get_audit_issues_count
+    with SessionLocal() as db:
+        issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
+        total = get_audit_issues_count(db, site_id, filter_key=filter)
+    return {"issues": issues, "total": total}
+
+
+@app.get("/api/seo-audit/{site_id}/duplicates")
+def api_seo_audit_duplicates(site_id: int):
+    from backend.services.meta_audit import get_duplicates
+    with SessionLocal() as db:
+        return get_duplicates(db, site_id)
+
+
+@app.get("/api/seo-audit/{site_id}/changes")
+def api_seo_audit_changes(site_id: int, days: int = 7):
+    from backend.services.meta_audit import get_changes
+    with SessionLocal() as db:
+        return {"changes": get_changes(db, site_id, days=days)}
+
+
 @app.get("/errors")
 def errors_page(request: Request, site_id: int | None = None, days: int = 7):
     """Site hata izleme — GA4 + SC + sunucu kaynaklı 404/500 listesi."""
@@ -10210,6 +10292,73 @@ def _run_error_detection_job() -> None:
         )
     except Exception as exc:
         LOGGER.error("Hata tespiti job hatası: %s", exc)
+
+
+def _run_meta_audit_snapshot_job() -> None:
+    """Günlük meta tag snapshot + kritik regresyon alarmı — 02:15."""
+    try:
+        from backend.services.meta_audit import take_daily_snapshot, get_changes, cleanup_old_snapshots
+        from backend.services.mailer import send_email
+        from backend.models import Site
+
+        with SessionLocal() as db:
+            external_ids = _external_site_ids(db)
+            sites = [s for s in db.query(Site).order_by(Site.id).all() if s.id not in external_ids]
+
+        all_critical: list[dict] = []
+        for site in sites:
+            try:
+                with SessionLocal() as db:
+                    saved = take_daily_snapshot(db, site.id)
+                    changes = get_changes(db, site.id, days=1)
+                critical = [c for c in changes if any(d.get("severity") == "critical" for d in c["changes"])]
+                for c in critical:
+                    c["domain"] = site.domain
+                all_critical.extend(critical)
+                LOGGER.info("Meta snapshot: site=%s, %d URL kaydedildi, %d değişiklik", site.domain, saved, len(changes))
+            except Exception as exc:
+                LOGGER.warning("Meta snapshot hatası [site=%s]: %s", site.domain, exc)
+
+        with SessionLocal() as db:
+            cleanup_old_snapshots(db, retention_days=90)
+
+        if not all_critical:
+            return
+
+        # Kritik değişiklik maili
+        from datetime import datetime as _dt
+        now_str = _dt.now().strftime("%d.%m.%Y %H:%M")
+        pre_parts = [f'{c["domain"]}{c["url"][:30]}' for c in all_critical[:3]]
+        filler = "&nbsp;" * 80
+        preheader = f'{len(all_critical)} kritik değişiklik · ' + " · ".join(pre_parts)
+        rows_html = ""
+        for c in all_critical[:20]:
+            for d in c["changes"]:
+                if d.get("severity") != "critical":
+                    continue
+                field_label = {"noindex": "Noindex eklendi", "canonical": "Canonical değişti"}.get(d["field"], d["field"])
+                rows_html += (
+                    f'<tr style="border-bottom:1px solid #fee2e2">'
+                    f'<td style="padding:8px 10px 8px 0;font-family:monospace;font-size:12px;color:#dc2626">'
+                    f'<a href="https://{c["domain"]}{c["url"]}" style="color:#dc2626">{c["url"][:60]}</a></td>'
+                    f'<td style="padding:8px;font-size:12px;color:#64748b">{field_label}</td>'
+                    f'<td style="padding:8px 0;font-size:11px;color:#94a3b8">{str(d.get("old",""))[:40]} → {str(d.get("new",""))[:40]}</td>'
+                    f'</tr>'
+                )
+        html = (
+            f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:640px">'
+            f'<span style="display:none;font-size:1px;color:#fafafa;max-height:0;overflow:hidden">{preheader}{filler}</span>'
+            f'<p style="font-size:15px;font-weight:700;color:#dc2626;margin:0 0 4px">⚠ SEO Kritik Değişiklik</p>'
+            f'<p style="font-size:12px;color:#64748b;margin:0 0 16px">{now_str} · {len(all_critical)} sayfa etkilendi</p>'
+            f'<table style="width:100%;border-collapse:collapse">{rows_html}</table>'
+            f'<p style="font-size:11px;color:#94a3b8;margin-top:16px">SEO Agent · <a href="/seo-audit" style="color:#94a3b8">detaylar</a></p>'
+            f'</div>'
+        )
+        subject = f"⚠ SEO Kritik Değişiklik · {len(all_critical)} sayfa · {now_str}"
+        send_email(subject, html)
+        LOGGER.info("Meta audit kritik alarm maili gönderildi: %d değişiklik", len(all_critical))
+    except Exception as exc:
+        LOGGER.error("Meta audit snapshot job hatası: %s", exc)
 
 
 def _run_omdb_enrichment_job() -> None:
