@@ -2865,6 +2865,222 @@ def send_realtime_summary_email(all_alarms: list[dict[str, Any]]) -> bool:
     return success
 
 
+# ── Realtime 404 Spike İzleme ─────────────────────────────────────────────────
+
+_RT_404_TITLE_PATTERNS: tuple[str, ...] = (
+    "sayfa bulunamadı",
+    "page not found",
+    "bulunamadı",
+    "not found",
+    "404",
+    "hata sayfası",
+    "error page",
+)
+
+
+def _is_rt_404_title(title: str) -> bool:
+    t = (title or "").lower().strip()
+    return any(p in t for p in _RT_404_TITLE_PATTERNS)
+
+
+def fetch_realtime_404_users(
+    property_id: str,
+    window_minutes: int = 15,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """GA4 Realtime'dan 404 sayfasındaki aktif kullanıcıları çeker."""
+    if client is None:
+        client = _build_client()
+
+    result = fetch_realtime_top_pages(
+        property_id,
+        window_minutes=window_minutes,
+        limit=50,
+        sort_by="activeUsers",
+        dimension="unifiedScreenName",
+        compare_previous=False,
+        include_page_path=False,
+        client=client,
+    )
+
+    pages_404 = [
+        p for p in (result.get("pages") or [])
+        if _is_rt_404_title(str(p.get("page") or ""))
+    ]
+    total_users = sum(int(p.get("activeUsers") or 0) for p in pages_404)
+
+    return {
+        "total_404_users": total_users,
+        "pages": [
+            {
+                "title":       str(p.get("page") or ""),
+                "activeUsers": int(p.get("activeUsers") or 0),
+            }
+            for p in pages_404
+        ],
+        "window_minutes": window_minutes,
+    }
+
+
+def _html_404_spike_body(
+    domain: str,
+    profile_label: str,
+    current_users: int,
+    pages: list[dict],
+    severity: str,
+    threshold: int,
+) -> str:
+    dom_e  = html.escape(domain)
+    prof_e = html.escape(profile_label)
+    border = "#dc2626" if severity == "critical" else "#f59e0b"
+    bg     = "#fef2f2" if severity == "critical" else "#fffbeb"
+    badge_c= "#dc2626" if severity == "critical" else "#d97706"
+    sev_tr = "KRİTİK" if severity == "critical" else "UYARI"
+
+    page_rows = "".join(
+        f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
+        f'border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;">'
+        f'<span style="color:#475569">{html.escape(p["title"][:60])}</span>'
+        f'<strong style="color:{badge_c};margin-left:12px">{p["activeUsers"]} kul.</strong>'
+        f'</div>'
+        for p in pages[:8]
+    )
+
+    return f"""
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
+          <p style="font-size:15px;font-weight:700;margin:0 0 2px">{dom_e}
+            <span style="font-weight:400;color:#64748b;font-size:13px">· {prof_e}</span>
+          </p>
+          <div style="margin:10px 0;padding:14px 16px;border-radius:10px;border-left:4px solid {border};background:{bg}">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:{badge_c};margin-bottom:8px">
+              {sev_tr} · 404 Spike
+            </div>
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <span style="font-size:32px;font-weight:900;color:{badge_c}">{current_users}</span>
+              <span style="font-size:14px;color:#475569">kullanıcı şu an 404 sayfasında</span>
+            </div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px">
+              Eşik: {threshold} · Pencere: son {15} dakika
+            </div>
+          </div>
+          {('<div style="margin-top:8px">' + page_rows + '</div>') if pages else ''}
+          <p style="color:#94a3b8;font-size:11px;margin-top:14px">SEO Agent · GA4 Realtime 404 (otomatik)</p>
+        </div>"""
+
+
+def check_realtime_404_for_site(
+    db: Session,
+    site: "Site",
+    *,
+    profile: str = "web",
+    skip_emails: bool = False,
+) -> dict[str, Any]:
+    """Tek site+profil için realtime 404 spike kontrolü."""
+    from backend.config import settings
+    from backend.models import RealtimeAlarmLog
+
+    if not getattr(settings, "ga4_realtime_404_enabled", True):
+        return {}
+
+    warn_threshold = int(getattr(settings, "ga4_realtime_404_warning_threshold", 10))
+    crit_threshold = int(getattr(settings, "ga4_realtime_404_critical_threshold", 25))
+    window         = int(getattr(settings, "ga4_realtime_404_window_minutes", 15))
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    property_id = properties.get(profile) or properties.get("web")
+    if not property_id:
+        return {}
+
+    try:
+        data = fetch_realtime_404_users(property_id, window_minutes=window)
+    except Exception as exc:
+        logger.warning("Realtime 404 fetch hatası [%s/%s]: %s", site.domain, profile, exc)
+        return {}
+
+    total = data.get("total_404_users", 0)
+    pages = data.get("pages", [])
+
+    if total == 0:
+        return {"total_404_users": 0, "pages": [], "severity": None}
+
+    severity = None
+    if total >= crit_threshold:
+        severity = "critical"
+    elif total >= warn_threshold:
+        severity = "warning"
+
+    result = {"total_404_users": total, "pages": pages, "severity": severity}
+
+    if severity is None:
+        return result
+
+    # DB'ye kaydet
+    rule_id = f"rt_404_{severity}"
+    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+    log = RealtimeAlarmLog(
+        site_id=site.id,
+        rule_id=rule_id,
+        metric="active_404_users",
+        severity=severity,
+        current_value=float(total),
+        previous_value=0.0,
+        change_pct=0.0,
+        message=f"{site.domain} {profile_label} — {total} kullanıcı 404 sayfasında",
+    )
+    db.add(log)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    if skip_emails:
+        return result
+
+    # Cooldown kontrolü
+    if _alarm_email_suppressed(db, site.id, [rule_id, "rt_404_warning", "rt_404_critical"]):
+        logger.info("404 spike cooldown aktif, mail atlandı (site=%s).", site.domain)
+        return result
+
+    # Mail gönder
+    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
+    if is_realtime_mail_ready():
+        threshold = crit_threshold if severity == "critical" else warn_threshold
+        html_body = _html_404_spike_body(
+            site.domain, profile_label, total, pages, severity, threshold
+        )
+        subject = f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · {site.domain} · {total} kul. 404 sayfasında"
+        thread_key = _realtime_email_thread_key(site.domain, profile)
+        send_realtime_email(subject, html_body, thread_kind="404spike", thread_key=thread_key)
+        logger.warning("404 Spike [%s %s]: %d kullanıcı (%s)", site.domain, profile, total, severity)
+
+    return result
+
+
+def run_404_spike_check_all_sites(db: Session, *, skip_emails: bool = False) -> list[dict]:
+    """Tüm sitelerin web + mweb profillerinde 404 spike kontrolü."""
+    from backend.models import Site as SiteModel
+    from backend.services.ga4_auth import get_ga4_credentials_record
+
+    results = []
+    sites = db.query(SiteModel).all()
+    for site in sites:
+        record = get_ga4_credentials_record(db, site.id)
+        if not record:
+            continue
+        for profile in ("web", "mweb"):
+            try:
+                r = check_realtime_404_for_site(db, site, profile=profile, skip_emails=skip_emails)
+                if r:
+                    r["site_id"] = site.id
+                    r["domain"]  = site.domain
+                    r["profile"] = profile
+                    results.append(r)
+            except Exception as exc:
+                logger.warning("404 spike check hatası [%s/%s]: %s", site.domain, profile, exc)
+    return results
+
+
 def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
     """Tekil bir alarm için e-posta gönderir (hibrit gönderim mantığı için)."""
     from backend.services.mailer import send_realtime_email

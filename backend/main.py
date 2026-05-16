@@ -8702,6 +8702,43 @@ def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
     return JSONResponse({"site_id": site_id, "alarms": alarms})
 
 
+@app.get("/api/ga4/realtime/{site_id}/404-spike")
+def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int = 15):
+    """Anlık 404 spike verisi — realtime sayfası için."""
+    from backend.services.ga4_realtime import fetch_realtime_404_users, _is_rt_404_title
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.config import settings
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if not site:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(profile) or properties.get("web")
+        if not property_id:
+            return JSONResponse({"error": "no_property"}, status_code=404)
+
+    try:
+        data = fetch_realtime_404_users(property_id, window_minutes=min(window, 30))
+        warn = int(getattr(settings, "ga4_realtime_404_warning_threshold", 10))
+        crit = int(getattr(settings, "ga4_realtime_404_critical_threshold", 25))
+        total = data.get("total_404_users", 0)
+        severity = "critical" if total >= crit else ("warning" if total >= warn else None)
+        return JSONResponse({
+            "site_id": site_id,
+            "profile": profile,
+            "total_404_users": total,
+            "pages": data.get("pages", []),
+            "severity": severity,
+            "warn_threshold": warn,
+            "crit_threshold": crit,
+        })
+    except Exception as exc:
+        LOGGER.warning("404 spike API hatası [%s]: %s", site_id, exc)
+        return JSONResponse({"error": str(exc), "total_404_users": 0, "pages": [], "severity": None})
+
+
 @app.get("/api/ga4/realtime/{site_id}/drivers")
 def api_ga4_realtime_drivers(site_id: int, profile: str = "web"):
     """Realtime trafik değişim analizi — hangi sayfalar site genelindeki değişime katkıda bulunuyor."""
@@ -9941,6 +9978,7 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             run_all_sites_realtime_check,
             run_news_alarm_check_all_sites,
             run_page_alarm_check_all_sites,
+            run_404_spike_check_all_sites,
         )
         from backend.services.mailer import (
             realtime_email_batch_begin,
@@ -9987,6 +10025,13 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             with SessionLocal() as db:
                 news_alarms = run_news_alarm_check_all_sites(db, skip_emails=False)
             total_news_alarms = len(news_alarms) if news_alarms else 0
+
+        # 4. Realtime 404 spike kontrolü
+        total_404_alarms = 0
+        if getattr(settings, "ga4_realtime_404_enabled", True):
+            with SessionLocal() as db:
+                spike_results = run_404_spike_check_all_sites(db, skip_emails=False)
+            total_404_alarms = sum(1 for r in spike_results if r.get("severity"))
 
         # Tüm alarmlar toplandı — tek mail olarak gönder
         realtime_email_batch_flush()

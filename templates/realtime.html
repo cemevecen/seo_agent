@@ -747,6 +747,24 @@
           </div>
         </div>
 
+        {# 404 Spike indicator — sadece veri varsa gösterilir #}
+        <div class="rt-404-section hidden mt-2 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-800/40 dark:bg-amber-950/20"
+             data-rt-404-section>
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="relative flex h-2 w-2">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+              </span>
+              <span class="text-xs font-bold text-amber-700 dark:text-amber-400">404 SPIKE</span>
+              <span class="rt-404-badge rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white" data-rt-404-count>0</span>
+              <span class="text-[10px] text-amber-600 dark:text-amber-500">kullanıcı şu an 404 sayfasında</span>
+            </div>
+            <span class="rt-404-severity text-[10px] font-bold uppercase" data-rt-404-severity></span>
+          </div>
+          <div class="mt-2 space-y-0.5" data-rt-404-pages></div>
+        </div>
+
         {% if profile in ('android', 'ios') %}
         {# Mobil uygulama: Top ekran / görüntüleme listeleri yok; etkinlik kartı spark’ın altında #}
         <div class="mt-4 flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-4 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
@@ -1610,6 +1628,7 @@
     _fetchTopNews(siteId, profile);
     _fetchDrivers(siteId, profile);
     _fetchInsights(siteId, profile);
+    _fetch404Spike(siteId, profile);
   }
   window.rtFetchTopPages = rtFetchTopPages;
 
@@ -2365,6 +2384,47 @@
         _fetchGlobalAlarms();
       } catch (eVis) {}
     });
+  }
+
+  /* ── 404 Spike monitoring ── */
+  function _render404Section(box, data) {
+    var sec = box.querySelector('[data-rt-404-section]');
+    if (!sec) return;
+    var total = (data && data.total_404_users) || 0;
+    if (total === 0 || !data || !data.severity) {
+      sec.classList.add('hidden');
+      return;
+    }
+    sec.classList.remove('hidden');
+    var countEl = sec.querySelector('[data-rt-404-count]');
+    var sevEl   = sec.querySelector('[data-rt-404-severity]');
+    var pagesEl = sec.querySelector('[data-rt-404-pages]');
+    if (countEl) countEl.textContent = total;
+    if (sevEl) {
+      var isCrit = data.severity === 'critical';
+      sevEl.textContent = isCrit ? 'KRİTİK' : 'UYARI';
+      sevEl.style.color = isCrit ? '#dc2626' : '#d97706';
+    }
+    if (pagesEl && data.pages && data.pages.length) {
+      pagesEl.innerHTML = data.pages.slice(0, 5).map(function(p) {
+        return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">'
+          + '<span style="color:#78716c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">'
+          + _esc(p.title) + '</span>'
+          + '<strong style="color:#d97706;margin-left:8px;flex-shrink:0">' + p.activeUsers + ' kul.</strong>'
+          + '</div>';
+      }).join('');
+    }
+  }
+
+  function _fetch404Spike(siteId, profile) {
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box || profile === 'android' || profile === 'ios') return;
+    fetch('/api/ga4/realtime/' + siteId + '/404-spike?profile=' + encodeURIComponent(profile) + '&window=15', {
+      credentials: 'same-origin', cache: 'no-store',
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { _render404Section(box, d); })
+      .catch(function() {});
   }
 
   document.addEventListener('DOMContentLoaded', function () {

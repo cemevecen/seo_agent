@@ -250,6 +250,12 @@ class Settings(BaseSettings):
     # Realtime «Haberler» sekmesi: unifiedScreenName bu öneklerle başlıyorsa elenir (virgülle). Boş = yerleşik liste.
     ga4_realtime_news_screen_exclude_prefixes: str = ""
 
+    # Realtime 404 spike: anlık 404 sayfasındaki kullanıcı eşikleri
+    ga4_realtime_404_enabled: bool = True
+    ga4_realtime_404_warning_threshold: int = Field(default=10, ge=1, le=500)   # uyarı eşiği
+    ga4_realtime_404_critical_threshold: int = Field(default=25, ge=1, le=500)  # kritik eşik
+    ga4_realtime_404_window_minutes: int = Field(default=15, ge=5, le=30)       # GA4 penceresi
+
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
     live_refresh_enabled: bool = True
     live_refresh_method: str = "GET"
