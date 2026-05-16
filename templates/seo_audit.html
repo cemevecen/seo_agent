@@ -174,7 +174,8 @@
               "canonical_missing": "rose", "canonical_mismatch": "rose",
               "noindex": "rose", "og_missing": "slate"
             } %}
-            <tr class="seo-row align-top">
+            {% set rid = loop.index %}
+            <tr class="seo-row align-top" id="row-{{ rid }}">
               {# URL + Title — her zaman görünür #}
               <td class="px-4 py-3 w-[40%] min-w-0">
                 <a href="{{ e.url }}" target="_blank" rel="noopener"
@@ -196,12 +197,13 @@
                 <div class="mt-1 flex flex-wrap gap-0.5 sm:hidden">
                   {% for issue in e.issues %}
                   {% set ic = issue_colors.get(issue, "slate") %}
-                  <span class="rounded px-1 py-0.5 text-[9px] font-semibold
+                  <button type="button" onclick="toggleDetail({{ rid }}, '{{ issue }}')"
+                          class="rounded px-1 py-0.5 text-[9px] font-semibold cursor-pointer hover:opacity-70
                     {% if ic == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
                     {% elif ic == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
                     {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
                     {{ issue_labels.get(issue, issue) }}
-                  </span>
+                  </button>
                   {% endfor %}
                 </div>
               </td>
@@ -234,13 +236,42 @@
                 <div class="flex flex-wrap gap-0.5">
                   {% for issue in e.issues %}
                   {% set ic = issue_colors.get(issue, "slate") %}
-                  <span class="rounded px-1 py-0.5 text-[9px] font-semibold
+                  <button type="button" onclick="toggleDetail({{ rid }}, '{{ issue }}')"
+                          class="rounded px-1 py-0.5 text-[9px] font-semibold cursor-pointer transition-opacity hover:opacity-70
                     {% if ic == 'rose' %}bg-rose-50 text-rose-600 dark:bg-zinc-800 dark:text-zinc-400
                     {% elif ic == 'amber' %}bg-amber-50 text-amber-700 dark:bg-zinc-800 dark:text-zinc-400
                     {% else %}bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
                     {{ issue_labels.get(issue, issue) }}
-                  </span>
+                  </button>
                   {% endfor %}
+                </div>
+                {# Mobil badge'ler de tıklanabilir — URL hücresindekiler #}
+              </td>
+            </tr>
+            {# Detay satırı — badge tıklanınca açılır #}
+            <tr id="detail-{{ rid }}" class="hidden">
+              <td colspan="4" class="px-4 pb-3 pt-0">
+                <div class="rounded-lg bg-slate-50 dark:bg-zinc-800/50 px-4 py-3 text-xs space-y-2">
+                  <div id="detail-title-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Başlık</span>
+                    <p class="mt-1 text-slate-700 dark:text-zinc-300 leading-relaxed">{% if e.has_title %}"{{ e.title }}"<span class="ml-2 text-[10px] text-slate-400">{{ e.title_length }} karakter · ideal: 20–65</span>{% else %}<em class="text-slate-400">Başlık tanımlanmamış</em>{% endif %}</p>
+                  </div>
+                  <div id="detail-desc-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Meta Description</span>
+                    <p class="mt-1 text-slate-700 dark:text-zinc-300 leading-relaxed">{% if e.has_meta_description %}"{{ e.meta_description }}"<span class="ml-2 text-[10px] text-slate-400">{{ e.meta_description_length }} karakter · ideal: 70–170</span>{% else %}<em class="text-slate-400">Açıklama tanımlanmamış</em>{% endif %}</p>
+                  </div>
+                  <div id="detail-canonical-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Canonical URL</span>
+                    <p class="mt-1 font-mono text-slate-700 dark:text-zinc-300 break-all">{% if e.has_canonical %}{{ e.canonical_url }}{% if not e.canonical_matches_final %} <span class="text-amber-600">(final URL ile eşleşmiyor)</span>{% endif %}{% else %}<em class="text-slate-400">Canonical tag tanımlanmamış</em>{% endif %}</p>
+                  </div>
+                  <div id="detail-og-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Open Graph</span>
+                    <p class="mt-1 text-slate-700 dark:text-zinc-300">og:title: {% if e.has_og_title %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-rose-500">✗ eksik</span>{% endif %} &nbsp;·&nbsp; og:description: {% if e.has_og_description %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-rose-500">✗ eksik</span>{% endif %}</p>
+                  </div>
+                  <div id="detail-noindex-{{ rid }}" class="hidden">
+                    <span class="font-semibold text-slate-500 dark:text-zinc-400 uppercase text-[10px] tracking-wide">Robots</span>
+                    <p class="mt-1 font-mono text-slate-700 dark:text-zinc-300">meta robots: {{ e.meta_robots or "noindex" }}</p>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -292,6 +323,40 @@
 
 <script>
 var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
+var _openDetail = {};  // rid → active issue type
+
+function toggleDetail(rid, issue) {
+  var detailRow = document.getElementById('detail-' + rid);
+  if (!detailRow) return;
+
+  // Hangi panel gösterilecek
+  var panelMap = {
+    'title_missing': 'title', 'title_short': 'title', 'title_long': 'title',
+    'desc_missing': 'desc', 'desc_short': 'desc', 'desc_long': 'desc',
+    'canonical_missing': 'canonical', 'canonical_mismatch': 'canonical',
+    'og_missing': 'og',
+    'noindex': 'noindex',
+  };
+  var panelKey = panelMap[issue] || issue;
+
+  // Aynı badge'e tekrar tıklayınca kapat
+  if (_openDetail[rid] === issue) {
+    detailRow.classList.add('hidden');
+    _openDetail[rid] = null;
+    return;
+  }
+
+  // Tüm panelleri gizle, ilgili olanı göster
+  ['title','desc','canonical','og','noindex'].forEach(function(k) {
+    var el = document.getElementById('detail-' + k + '-' + rid);
+    if (el) el.classList.add('hidden');
+  });
+  var target = document.getElementById('detail-' + panelKey + '-' + rid);
+  if (target) target.classList.remove('hidden');
+
+  detailRow.classList.remove('hidden');
+  _openDetail[rid] = issue;
+}
 var _activeTab = 'issues';
 var _loaded = {issues: true, changes: false, duplicates: false};
 
