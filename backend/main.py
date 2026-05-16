@@ -11820,6 +11820,8 @@ from backend.services.gitlab_board import fetch_project_board_async, move_issue_
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
     """GitLab Kanban Board ana sayfası."""
+    import os
+    token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz"},
         {"name": "Döviz iOS", "path": "ios/doviz"},
@@ -11828,7 +11830,7 @@ def page_boards(request: Request):
     ]
     return templates.TemplateResponse(
         request, "pages/boards.html",
-        context={"request": request, "projects": projects}
+        context={"request": request, "projects": projects, "token": token}
     )
 
 @app.get("/api/boards/content")
