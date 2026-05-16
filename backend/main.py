@@ -7851,26 +7851,27 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
     })
 
 
-_audit_running: set[int] = set()  # site_id'ler — aynı anda tek çalışma garantisi
-
-
 @app.post("/api/seo-audit/{site_id}/run")
 def api_seo_audit_run(site_id: int):
     """Site audit crawler'ı arka planda başlatır, anında döner."""
     import threading
-    from backend.models import Site
-
-    if site_id in _audit_running:
-        return {"status": "running", "message": "Tarama zaten devam ediyor"}
+    from backend.models import CollectorRun, Site
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if not site:
             return {"status": "error", "message": "site not found"}
         site_domain = site.domain
+        # DB'de zaten çalışan bir run var mı? (multi-worker safe)
+        existing = db.query(CollectorRun).filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider == "site_audit",
+            CollectorRun.status == "running",
+        ).first()
+        if existing:
+            return {"status": "running", "message": "Tarama zaten devam ediyor"}
 
     def _run():
-        _audit_running.add(site_id)
         try:
             from backend.collectors.site_audit import collect_site_audit
             with SessionLocal() as db:
@@ -7878,10 +7879,8 @@ def api_seo_audit_run(site_id: int):
                 if site_obj:
                     collect_site_audit(db, site_obj)
             LOGGER.info("SEO audit tamamlandı: site=%s", site_domain)
-        except Exception as exc:
+        except Exception:
             LOGGER.exception("SEO audit arka plan hatası site_id=%s", site_id)
-        finally:
-            _audit_running.discard(site_id)
 
     threading.Thread(target=_run, daemon=True, name=f"seo-audit-{site_id}").start()
     return {"status": "started", "message": "Tarama başladı"}
@@ -7889,12 +7888,16 @@ def api_seo_audit_run(site_id: int):
 
 @app.get("/api/seo-audit/{site_id}/status")
 def api_seo_audit_status(site_id: int):
-    """Tarama devam ediyor mu kontrol et."""
-    from backend.models import UrlAuditRecord
-    running = site_id in _audit_running
+    """Tarama devam ediyor mu — CollectorRun DB'den kontrol (multi-worker safe)."""
+    from backend.models import CollectorRun, UrlAuditRecord
     with SessionLocal() as db:
+        running_run = db.query(CollectorRun).filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider == "site_audit",
+            CollectorRun.status == "running",
+        ).first()
         count = db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id).count()
-    return {"running": running, "url_count": count}
+    return {"running": running_run is not None, "url_count": count}
 
 
 @app.get("/api/seo-audit/{site_id}/issues")
