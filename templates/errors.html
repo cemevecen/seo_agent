@@ -18,12 +18,12 @@
         </select>
         <div class="flex gap-1">
           {% for d in [1, 7, 14, 30] %}
-          <a href="/errors?site_id={{ selected_site_id }}&days={{ d }}"
-             class="rounded-full border px-2.5 py-1 text-xs font-semibold transition
-                    {% if days == d %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900
-                    {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800{% endif %}">
+          <button type="button" onclick="switchPeriod({{ d }})"
+                  class="rounded-full border px-2.5 py-1 text-xs font-semibold transition
+                         {% if days == d %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900
+                         {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800{% endif %}">
             {{ d }}g
-          </a>
+          </button>
           {% endfor %}
         </div>
         <button onclick="refreshErrors()"
@@ -180,6 +180,19 @@ function filterErrors(q) {
   document.querySelectorAll('.err-row').forEach(function(r) {
     r.style.display = (!lq || r.getAttribute('data-url').includes(lq)) ? '' : 'none';
   });
+}
+
+function switchPeriod(d) {
+  var siteId = {{ selected_site_id if selected_site_id else 'null' }};
+  if (!siteId) { window.location = '/errors?days=' + d; return; }
+  // Önce o periyot için GA4'ten taze veri çek, sonra sayfayı yenile
+  var btns = document.querySelectorAll('[onclick^="switchPeriod"]');
+  btns.forEach(function(b) { b.disabled = true; });
+  fetch('/api/errors/' + siteId + '/refresh?days=' + d, {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .finally(function() {
+      window.location = '/errors?site_id=' + siteId + '&days=' + d;
+    });
 }
 
 function refreshErrors() {
