@@ -44,9 +44,9 @@ CATEGORY_SOURCES = {
     ],
     # Yahoo Finance — RSS önce denenir, başarısız olursa JSON API fallback.
     "Yahoo Finance": [
-        "https://feeds.finance.yahoo.com/rss/2.0/topfinstories?region=US&lang=en-US",
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=EURUSD%3DX&region=US&lang=en-US",
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=USDTRY%3DX&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC%3DF&region=US&lang=en-US",   # Altın
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",  # S&P 500
         "https://finance.yahoo.com/",  # sentinel → JSON API fallback
     ],
     "Bilim ve Teknoloji": [
