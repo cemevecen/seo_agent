@@ -10036,16 +10036,17 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         # Tüm alarmlar toplandı — tek mail olarak gönder
         realtime_email_batch_flush()
 
-        total = total_site_alarms + total_page_alarms + total_news_alarms
+        total = total_site_alarms + total_page_alarms + total_news_alarms + total_404_alarms
         LOGGER.info(
-            "<<< GA4 Realtime Job BİTTİ. Site: %d, Sayfa: %d, Haber: %d alarm",
-            total_site_alarms, total_page_alarms, total_news_alarms,
+            "<<< GA4 Realtime Job BİTTİ. Site: %d, Sayfa: %d, Haber: %d, 404 Spike: %d alarm",
+            total_site_alarms, total_page_alarms, total_news_alarms, total_404_alarms,
         )
         return {
             "total_alarms": total,
             "site_alarms": total_site_alarms,
             "page_alarms": total_page_alarms,
             "news_alarms": total_news_alarms,
+            "404_alarms": total_404_alarms,
             "site_check_count": len(results),
             "status": "completed",
         }
