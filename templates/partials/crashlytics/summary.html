@@ -9,6 +9,11 @@
 {% set T = data.totals or {} %}
 {% set trend = data.trend or [] %}
 {% set trend_by_plat = data.trend_by_platform or {} %}
+{% set active_type = (params.error_type or '')|upper %}
+{% set fatal_dim = active_type and active_type != 'FATAL' %}
+{% set anr_dim = active_type and active_type != 'ANR' %}
+{% set nf_dim = active_type and active_type != 'NON_FATAL' %}
+{% set cf_dim = active_type and active_type != 'FATAL' %}
 
 {# ── Sparkline macro: değer listesi + tema → ince SVG çizgi + soft fill ── #}
 {% macro spark(values, key, theme='rose') %}
@@ -91,7 +96,7 @@
   {# Crash-free + Fatal/ANR/Non-Fatal kartları (sparkline ile) #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
     {# CRASH-FREE #}
-    <div class="col-span-2 flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 sm:col-span-1">
+    <div class="col-span-2 flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 sm:col-span-1 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         {% if cf is not none %}
           <p class="text-3xl font-black tabular-nums {% if cf >= 99 %}text-emerald-600 dark:text-emerald-400{% elif cf >= 95 %}text-amber-600 dark:text-amber-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ "%.1f"|format(cf) }}%</p>
@@ -105,7 +110,7 @@
     </div>
 
     {# FATAL #}
-    <div class="flex flex-col rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-900/40 dark:bg-slate-800/70">
+    <div class="flex flex-col rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-900/40 dark:bg-slate-800/70 transition-opacity{% if fatal_dim %} opacity-40{% elif active_type == 'FATAL' %} ring-2 ring-rose-400 dark:ring-rose-500{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-400">{{ T.fatal or 0 }}</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-500">Fatal</p>
@@ -114,7 +119,7 @@
     </div>
 
     {# ANR #}
-    <div class="flex flex-col rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-900/30 dark:bg-slate-800/70">
+    <div class="flex flex-col rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-900/30 dark:bg-slate-800/70 transition-opacity{% if anr_dim %} opacity-40{% elif active_type == 'ANR' %} ring-2 ring-amber-400 dark:ring-amber-500{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-400">{{ T.anr or 0 }}</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-500">ANR</p>
@@ -123,7 +128,7 @@
     </div>
 
     {# NON-FATAL #}
-    <div class="flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+    <div class="flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 transition-opacity{% if nf_dim %} opacity-40{% elif active_type == 'NON_FATAL' %} ring-2 ring-slate-400 dark:ring-slate-500{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-2xl font-black tabular-nums text-slate-700 dark:text-slate-300">{{ T.non_fatal or 0 }}</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</p>

@@ -9060,6 +9060,11 @@ def api_crash_anr(request: Request):
 def api_crash_versions(request: Request):
     params = _crash_params(request)
     data = _crash_fetch(params)
+    # "Tür" filtresine göre yeniden sırala — seçili türün sayısı yüksek olan üstte
+    et = params.get("error_type")
+    sort_key = {"FATAL": "fatal_count", "ANR": "anr_count", "NON_FATAL": "non_fatal_count"}.get(et or "")
+    if sort_key and isinstance(data, dict) and data.get("versions"):
+        data = {**data, "versions": sorted(data["versions"], key=lambda v: -int(v.get(sort_key, 0) or 0))}
     return templates.TemplateResponse(
         request, "partials/crashlytics/versions.html",
         {"request": request, "data": data, "params": params},

@@ -10,6 +10,9 @@
 
   <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/60">
     <p class="text-xs text-amber-800 dark:text-amber-400">ANR (Application Not Responding) — kullanıcı arayüzü 5+ saniye donması. Play Store sıralamasını doğrudan etkiler.</p>
+    {% if params and params.error_type and params.error_type|upper != 'ANR' %}
+      <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Bu sekmede yalnızca ANR olayları gösterilir — "Tür" filtresi burada uygulanmaz.</p>
+    {% endif %}
   </div>
 
   {% if not rows %}
