@@ -4746,6 +4746,63 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
     }
 
 
+def _build_performance_budget(
+    crux_mobile_series: dict | None = None,
+    crux_desktop_series: dict | None = None,
+) -> dict:
+    """Web Vitals "iyi" eşikleri için bütçe paneli — Google önerilen eşikleri kullanır.
+
+    Format: {"items": [{"metric": "LCP", "form_factor": "mobile", "threshold": 2500, "actual": 3200, "exceeded": True, "delta_pct": 28.0, "unit": "ms"}, ...]}
+    """
+    # Google CWV "iyi" eşikleri — endüstri standardı, kullanıcı override gerekirse ayarlardan eklenebilir
+    budgets = {
+        "largest_contentful_paint": {"label": "LCP", "threshold": 2500, "unit": "ms"},
+        "interaction_to_next_paint": {"label": "INP", "threshold": 200, "unit": "ms"},
+        "cumulative_layout_shift": {"label": "CLS", "threshold": 0.1, "unit": ""},
+        "first_contentful_paint": {"label": "FCP", "threshold": 1800, "unit": "ms"},
+        "experimental_time_to_first_byte": {"label": "TTFB", "threshold": 800, "unit": "ms"},
+    }
+    items: list[dict] = []
+    summary = {"total": 0, "exceeded": 0, "warning": 0, "ok": 0}
+    for form_factor, series in (("mobile", crux_mobile_series or {}), ("desktop", crux_desktop_series or {})):
+        for metric_key, budget in budgets.items():
+            metric = series.get(metric_key) or {}
+            actual = metric.get("latest")
+            if actual is None:
+                continue
+            threshold = budget["threshold"]
+            try:
+                actual_f = float(actual)
+            except (TypeError, ValueError):
+                continue
+            exceeded = actual_f > threshold
+            # %20'den az aşma = uyarı, %20+ aşma = ihlal
+            if exceeded:
+                delta_pct = ((actual_f - threshold) / threshold * 100) if threshold > 0 else 0
+                state = "warning" if delta_pct < 20 else "exceeded"
+            else:
+                delta_pct = ((actual_f - threshold) / threshold * 100) if threshold > 0 else 0
+                state = "ok"
+            summary["total"] += 1
+            summary[state] += 1
+            items.append({
+                "metric": budget["label"],
+                "metric_key": metric_key,
+                "form_factor": form_factor,
+                "threshold": threshold,
+                "actual": round(actual_f, 3) if metric_key == "cumulative_layout_shift" else round(actual_f),
+                "exceeded": exceeded,
+                "state": state,
+                "delta_pct": round(delta_pct, 1),
+                "unit": budget["unit"],
+            })
+    return {
+        "items": items,
+        "summary": summary,
+        "has_data": bool(items),
+    }
+
+
 def _build_error_widget(db, site_id: int) -> dict:
     """Son 7 günde sitedeki hata kayıtlarının özetini döner (404, 5xx).
 
@@ -4812,6 +4869,10 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
         mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
         error_widget = _build_error_widget(db, site.id)
+        budget_status = _build_performance_budget(
+            crux_mobile_series=_format_crux_series(mobile_crux, mobile_pagespeed_current),
+            crux_desktop_series=_format_crux_series(desktop_crux, desktop_pagespeed_current),
+        )
 
         return {
             "site_name": f"PageSpeed - {site.display_name}",
@@ -4829,6 +4890,7 @@ def _data_explorer_context(domain: str) -> dict:
             "pagespeed_report_desktop": desktop_panel,
             "mobile_desktop_delta": mobile_desktop_delta,
             "error_widget": error_widget,
+            "performance_budget": budget_status,
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",

@@ -313,6 +313,46 @@ text-slate-500 dark:text-slate-400
     </div>
   </div>
 
+  {# ── Performans Bütçesi — Google CWV "iyi" eşiklerine karşı durum ── #}
+  {% if performance_budget and performance_budget.has_data %}
+  <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Performans Bütçesi</p>
+        <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">CWV "iyi" eşiklerine karşı durum</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Google CWV önerilen eşikleri (LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1, FCP ≤ 1.8s, TTFB ≤ 0.8s)</p>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if performance_budget.summary.exceeded > 0 %}
+        <span class="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">{{ performance_budget.summary.exceeded }} ihlal</span>
+        {% endif %}
+        {% if performance_budget.summary.warning > 0 %}
+        <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{{ performance_budget.summary.warning }} uyarı</span>
+        {% endif %}
+        {% if performance_budget.summary.ok > 0 %}
+        <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">{{ performance_budget.summary.ok }} iyi</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      {% for it in performance_budget.items %}
+      {% if it.state == 'exceeded' %}{% set tile_class = 'border-rose-300 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40' %}{% set txt_class = 'text-rose-700 dark:text-rose-300' %}
+      {% elif it.state == 'warning' %}{% set tile_class = 'border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40' %}{% set txt_class = 'text-amber-700 dark:text-amber-300' %}
+      {% else %}{% set tile_class = 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/30' %}{% set txt_class = 'text-emerald-700 dark:text-emerald-300' %}
+      {% endif %}
+      <div class="rounded-xl border p-2.5 {{ tile_class }}" title="{{ it.form_factor|capitalize }} · Bütçe: {{ it.threshold }}{{ it.unit }} · Gerçek: {{ it.actual }}{{ it.unit }}">
+        <div class="flex items-center justify-between gap-1">
+          <p class="text-[10px] font-bold uppercase {{ txt_class }}">{{ it.metric }} <span class="text-slate-400 dark:text-slate-500">· {{ it.form_factor[0]|upper }}</span></p>
+          {% if it.state == 'exceeded' %}<span class="text-[10px] font-black {{ txt_class }}">⚠</span>{% elif it.state == 'ok' %}<span class="text-[10px] font-black {{ txt_class }}">✓</span>{% endif %}
+        </div>
+        <p class="mt-1 text-base font-black tabular-nums {{ txt_class }}">{{ it.actual }}{{ it.unit }}</p>
+        <p class="text-[9px] text-slate-500 dark:text-slate-400">bütçe {{ it.threshold }}{{ it.unit }} · {{ '%+.0f'|format(it.delta_pct) }}%</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {# ── Sağlık Özeti — Mobil/Masaüstü farkları + son 7 gün hata özeti ── #}
   {% if mobile_desktop_delta or (error_widget and (error_widget.total_404 or error_widget.total_5xx)) %}
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
