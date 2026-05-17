@@ -598,7 +598,13 @@ def build_full_payload(
         "errors": errors,
     }
 
-    _cache_set(cache_key, result)
+    # Erişim hatası içeren sonuçları cache'leme; izinler düzeltilince hemen yansısın.
+    has_access_error = any(
+        "reddedildi" in e.lower() or "forbidden" in e.lower() or "access denied" in e.lower()
+        for e in errors
+    )
+    if not has_access_error:
+        _cache_set(cache_key, result)
     _step(100, "Tamamlandı")
     return result
 
@@ -658,13 +664,11 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
     def _worker():
         global _REFRESH_RUNNING
         try:
-            for days in (1, 7, 30, 90):
-                for pf in ("android", "ios"):
-                    if platform_ready(pf):
-                        # Cache'i temizle ki taze veri çekilsin
-                        cache_key = f"{product_id}:{days}:{pf}::"
-                        with _CACHE_LOCK:
-                            _CACHE.pop(cache_key, None)
+            # Bu ürüne ait tüm cache girdilerini temizle
+            with _CACHE_LOCK:
+                stale = [k for k in _CACHE if k.startswith(f"{product_id}:")]
+                for k in stale:
+                    del _CACHE[k]
             build_full_payload(product_id, days=7, platform_filter="all", jid=jid)
             _job_done(jid)
         except Exception as exc:
