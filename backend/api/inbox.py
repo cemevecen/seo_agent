@@ -502,6 +502,25 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
     return {"draft": draft}
 
 
+@router.post("/generate-from-prompt")
+@limiter.limit("30/minute")
+async def inbox_generate_from_prompt(request: Request):
+    """Kabaca yazılmış talimatı profesyonel Türkçe e-postaya çevirir."""
+    _require_inbox_action_auth(request)
+    body = await request.json()
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="prompt boş olamaz.")
+    if len(prompt) > 2000:
+        raise HTTPException(status_code=422, detail="prompt en fazla 2000 karakter olabilir.")
+    try:
+        text, provider = inbox_llm.generate_email_from_prompt(prompt)
+        return {"text": text, "provider": provider}
+    except Exception as exc:
+        LOGGER.exception("inbox generate-from-prompt failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/threads/{thread_id}/reply-templates")
 @limiter.limit("20/minute")
 async def inbox_thread_reply_templates(

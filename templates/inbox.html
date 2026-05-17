@@ -102,6 +102,23 @@
           <p id="inbox-templates-provider" class="text-[10px] text-slate-400 dark:text-slate-500"></p>
           <div id="inbox-templates-list" class="grid gap-2 sm:grid-cols-3"></div>
         </div>
+        {# ── AI Serbest Yazma ── #}
+        <div id="inbox-freewrite-wrap" class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40 space-y-2">
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">AI ile yaz</label>
+          <textarea
+            id="inbox-freewrite-prompt"
+            rows="3"
+            placeholder="Kabaca anlat: ne yazmak istiyorsun? AI profesyonel e-postaya çevirir."
+            class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder-slate-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
+          ></textarea>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-freewrite" class="inbox-btn-secondary rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white disabled:opacity-50">
+              Yaz →
+            </button>
+            <span id="inbox-freewrite-status" class="text-[11px] text-slate-400 dark:text-slate-500"></span>
+          </div>
+        </div>
+
         <div id="inbox-compose-anchor" class="space-y-2">
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Alıcı</label>
           <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
@@ -891,6 +908,50 @@
     .catch(function (e) {
       showBanner(String(e.message || e));
     });
+})();
+
+(function () {
+  var btn = document.getElementById('btn-freewrite');
+  var prompt = document.getElementById('inbox-freewrite-prompt');
+  var status = document.getElementById('inbox-freewrite-status');
+  var body = document.getElementById('inbox-send-body');
+  if (!btn || !prompt) return;
+
+  btn.addEventListener('click', function () {
+    var txt = (prompt.value || '').trim();
+    if (!txt) { prompt.focus(); return; }
+    btn.disabled = true;
+    status.textContent = 'Yazılıyor…';
+    fetch('/api/inbox/generate-from-prompt', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: txt })
+    })
+      .then(function (r) {
+        if (r.status === 403) return r.json().then(function (d) { throw new Error(d.detail || 'Yetki gerekiyor.'); });
+        if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'Hata'); });
+        return r.json();
+      })
+      .then(function (d) {
+        if (body) {
+          body.value = d.text || '';
+          body.dispatchEvent(new Event('input'));
+          var anchor = document.getElementById('inbox-compose-anchor');
+          if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        status.textContent = '✓ ' + (d.provider || '') + ' ile oluşturuldu';
+        setTimeout(function () { status.textContent = ''; }, 4000);
+      })
+      .catch(function (e) {
+        status.textContent = '✗ ' + (e.message || 'Hata');
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  prompt.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') btn.click();
+  });
 })();
 </script>
 {% endblock %}

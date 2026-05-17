@@ -144,6 +144,19 @@ def summarize_thread_tr_tr(messages_plain: str) -> str:
     return text
 
 
+def generate_email_from_prompt(prompt: str) -> tuple[str, str]:
+    """Kullanıcının kabaca yazdığı talimatı profesyonel Türkçe e-postaya çevirir.
+    (metin, kullanılan_sağlayıcı) döndürür."""
+    system = (
+        "Sen profesyonel bir Türkçe iş yazışması uzmanısın. "
+        "Kullanıcı sana kaba bir talimat veya özet verecek; sen bunu akıcı, kibar, "
+        "profesyonel bir Türkçe e-posta gövdesine dönüştür. "
+        "Selamlama (Sayın ...) ve kapanış ekle. "
+        "Sadece e-posta gövdesini yaz, başka açıklama ekleme."
+    )
+    return inbox_plain_text_with_failover(system, prompt.strip())
+
+
 def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
     system = (
         f"Sen {brand} müşteri iletişim temsilcisisin. Aşağıdaki e-posta zincirine profesyonel, "
