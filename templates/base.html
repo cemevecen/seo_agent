@@ -359,29 +359,35 @@
   </style>
   <style id="seo-dark-delta-tones">
     /* Delta / değişim göstergeleri: yukarıdaki monochrome zinc bastırmasını
-       geri alarak artan/azalan değerleri 4 renkli (açık yeşil, koyu yeşil,
-       turuncu, kırmızı) tutar. Light mode davranışına denk gelir. */
-    html.dark .dark\:text-emerald-400 { color: #34d399 !important; }
-    html.dark .dark\:text-emerald-300 { color: #6ee7b7 !important; }
-    html.dark .dark\:text-emerald-500 { color: #10b981 !important; }
-    html.dark .dark\:text-emerald-200 { color: #a7f3d0 !important; }
-    html.dark .dark\:text-rose-400 { color: #fb7185 !important; }
-    html.dark .dark\:text-rose-500 { color: #f43f5e !important; }
-    html.dark .dark\:text-rose-300 { color: #fda4af !important; }
-    html.dark .dark\:text-rose-200 { color: #fecdd3 !important; }
-    html.dark .dark\:text-orange-400 { color: #fb923c !important; }
-    html.dark .dark\:text-orange-300 { color: #fdba74 !important; }
-    html.dark .dark\:text-amber-400 { color: #fbbf24 !important; }
-    html.dark .dark\:text-amber-300 { color: #fcd34d !important; }
-    html.dark .dark\:text-amber-200 { color: #fde68a !important; }
-    html.dark .dark\:text-amber-500 { color: #f59e0b !important; }
-    /* Sky / violet / sky tonları — info ve 3rd-party panellerinde okunabilirlik */
-    html.dark .dark\:text-sky-300 { color: #7dd3fc !important; }
-    html.dark .dark\:text-sky-200 { color: #bae6fd !important; }
-    html.dark .dark\:text-sky-400 { color: #38bdf8 !important; }
-    html.dark .dark\:text-violet-300 { color: #c4b5fd !important; }
-    html.dark .dark\:text-violet-200 { color: #ddd6fe !important; }
-    html.dark .dark\:text-violet-400 { color: #a78bfa !important; }
+       geri alarak artan/azalan değerleri renkli tutar. Koyu zeminde parlak
+       pastel (-300/-400) tonları neon gibi parlıyor — hepsi -500 hex'ine
+       indirgenir: WCAG AA okunabilirliği korunur, göz almaz. */
+    /* emerald — yeşil (good/improvement) */
+    html.dark .dark\:text-emerald-200,
+    html.dark .dark\:text-emerald-300,
+    html.dark .dark\:text-emerald-400,
+    html.dark .dark\:text-emerald-500 { color: #10b981 !important; } /* emerald-500 */
+    /* rose — kırmızı (bad/regression) */
+    html.dark .dark\:text-rose-200,
+    html.dark .dark\:text-rose-300,
+    html.dark .dark\:text-rose-400,
+    html.dark .dark\:text-rose-500 { color: #f43f5e !important; } /* rose-500 */
+    /* orange — turuncu (warning) */
+    html.dark .dark\:text-orange-300,
+    html.dark .dark\:text-orange-400 { color: #f97316 !important; } /* orange-500 */
+    /* amber — sarı (caution / izlenmeli) */
+    html.dark .dark\:text-amber-200,
+    html.dark .dark\:text-amber-300,
+    html.dark .dark\:text-amber-400,
+    html.dark .dark\:text-amber-500 { color: #f59e0b !important; } /* amber-500 */
+    /* sky — mavi (info / saha verisi) */
+    html.dark .dark\:text-sky-200,
+    html.dark .dark\:text-sky-300,
+    html.dark .dark\:text-sky-400 { color: #0ea5e9 !important; } /* sky-500 */
+    /* violet — mor (3rd-party) */
+    html.dark .dark\:text-violet-200,
+    html.dark .dark\:text-violet-300,
+    html.dark .dark\:text-violet-400 { color: #8b5cf6 !important; } /* violet-500 */
   </style>
   <style id="seo-midnight-overrides">
     html.midnight {
