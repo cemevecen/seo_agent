@@ -1,17 +1,24 @@
-<div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+<div class="flex items-center justify-between gap-3">
+  <div class="flex items-center gap-2">
+    <span class="relative flex h-2 w-2">
+      <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+      <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+    </span>
+    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+  </div>
+  <span class="text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }} · 60s</span>
+</div>
+<div class="mt-4 space-y-3">
   {% for site in sites %}
-    <section class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <div class="flex items-center justify-between gap-3">
+    <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div class="flex items-center justify-between gap-2">
         <div class="flex min-w-0 items-center gap-2">
-          <span class="relative flex h-2 w-2 shrink-0">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
-            <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-          </span>
-          <h3 class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık · {{ site.display_name }}</h3>
+          <span class="h-1.5 w-1.5 shrink-0 rounded-full {% if 'doviz' in site.domain %}bg-blue-500{% elif 'sinemalar' in site.domain %}bg-rose-500{% else %}bg-slate-400{% endif %}"></span>
+          <p class="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{{ site.display_name }}</p>
         </div>
-        <span class="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }} · 60s</span>
+        <p class="shrink-0 truncate text-xs text-slate-500 dark:text-slate-400">{{ site.domain }}</p>
       </div>
-      <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+      <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {% for prof in site.profiles %}
           <div class="min-w-0">
             <p class="truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
@@ -25,6 +32,6 @@
           </div>
         {% endfor %}
       </div>
-    </section>
+    </div>
   {% endfor %}
 </div>

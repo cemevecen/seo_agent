@@ -4884,7 +4884,7 @@ def _data_explorer_nightly_schedule() -> str:
     return f"{hour:02d}:{minute:02d}"
 
 
-def _build_dashboard_data_explorer_summary(db) -> dict:
+def _build_dashboard_data_explorer_summary(db, only_site_ids: set[int] | None = None) -> dict:
     """Ana sayfa için Data Explorer özet kartı — her site için CrUX p75 + verdict + son güncelleme."""
     from backend.models import CruxHistorySnapshot
     from sqlalchemy import func as sqlfunc
@@ -4897,6 +4897,8 @@ def _build_dashboard_data_explorer_summary(db) -> dict:
         .all()
     )
     sites = [s for s in sites if s.id not in external_ids]
+    if only_site_ids is not None:
+        sites = [s for s in sites if s.id in only_site_ids]
     sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
 
     # CWV "iyi" eşikleri — Google standardı
@@ -6615,6 +6617,18 @@ def _home_get_site(db, site_id: int):
     return db.query(Site).filter(Site.id == site_id).first()
 
 
+def _home_site_filter_ids(site: str | None) -> set[int] | None:
+    """`site=doviz|sinemalar` query param'ı site_id setine çevirir. None = filtre yok."""
+    if not site:
+        return None
+    s = str(site).strip().lower()
+    if s in ("doviz", "doviz.com", "1"):
+        return {1}
+    if s in ("sinemalar", "sinemalar.com", "2"):
+        return {2}
+    return None
+
+
 def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
     """RealtimeSnapshot tablosundan her profil için en taze snapshot'ı al."""
     out = []
@@ -6636,17 +6650,20 @@ def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str
 
 
 @app.get("/api/home/realtime", response_class=HTMLResponse)
-def api_home_realtime(request: Request):
+def api_home_realtime(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "profiles": _home_load_realtime_for_site(db, site_id, profs),
             })
     now_label = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
@@ -6715,17 +6732,20 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
 
 
 @app.get("/api/home/ga4-sessions", response_class=HTMLResponse)
-def api_home_ga4_sessions(request: Request):
+def api_home_ga4_sessions(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "profiles": _home_load_ga4_sessions_for_site(db, site_id, profs),
             })
     return templates.TemplateResponse(
@@ -6778,12 +6798,15 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
 
 
 @app.get("/api/home/sc-summary", response_class=HTMLResponse)
-def api_home_sc_summary(request: Request):
+def api_home_sc_summary(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             devices = []
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
@@ -6792,8 +6815,8 @@ def api_home_sc_summary(request: Request):
                 devices.append(agg)
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "devices": devices,
             })
     return templates.TemplateResponse(
@@ -6850,17 +6873,20 @@ def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict
 
 
 @app.get("/api/home/position-drops", response_class=HTMLResponse)
-def api_home_position_drops(request: Request):
+def api_home_position_drops(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "drops": _home_position_drops_for_site(db, site_id, limit=8),
             })
     return templates.TemplateResponse(
@@ -7059,17 +7085,20 @@ def _home_top_404s_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
 
 
 @app.get("/api/home/top-404s", response_class=HTMLResponse)
-def api_home_top_404s(request: Request):
+def api_home_top_404s(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "rows": _home_top_404s_for_site(db, site_id, limit=7),
             })
     return templates.TemplateResponse(
@@ -7157,10 +7186,11 @@ def _home_seo_errors_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
 
 
 @app.get("/api/home/data-explorer", response_class=HTMLResponse)
-def api_home_data_explorer(request: Request):
+def api_home_data_explorer(request: Request, site: str | None = None):
     """Ana sayfa Data Explorer özet kartı — site bazlı CWV (CrUX) snapshot + verdict."""
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
-        payload = _build_dashboard_data_explorer_summary(db)
+        payload = _build_dashboard_data_explorer_summary(db, only_site_ids=_site_filter)
     return templates.TemplateResponse(
         request, "partials/home/data_explorer.html",
         context={"request": request, **payload},
@@ -7168,17 +7198,20 @@ def api_home_data_explorer(request: Request):
 
 
 @app.get("/api/home/seo-errors", response_class=HTMLResponse)
-def api_home_seo_errors(request: Request):
+def api_home_seo_errors(request: Request, site: str | None = None):
     sites_out = []
+    _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
-            site = _home_get_site(db, site_id)
-            if site is None:
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
                 continue
             sites_out.append({
                 "site_id": site_id,
-                "domain": site.domain,
-                "display_name": site.display_name,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
                 "rows": _home_seo_errors_for_site(db, site_id, limit=5),
             })
     return templates.TemplateResponse(
