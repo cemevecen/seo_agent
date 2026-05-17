@@ -162,8 +162,8 @@
     "></span>
   </div>
 
-  {# ── Üst Sekme Anahtarı ── #}
-  <div class="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+  {# ── Üst Sekme Anahtarı — sayfa ortasında ── #}
+  <div class="flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
     <button type="button" class="alerts-top-tab is-active" data-alerts-tab="search-console">
       Search Console
       <span class="alerts-tab-count">{{ recent_alerts|length }}</span>
@@ -172,9 +172,6 @@
       Threshold
       <span class="alerts-tab-count">{{ (threshold_realtime_alerts|length) + (threshold_error_alerts|length) }}</span>
     </button>
-    <div class="ml-auto hidden text-[11px] text-slate-400 sm:block dark:text-slate-500">
-      cemevecen@nokta.com adresine giden tüm eşik uyarıları
-    </div>
   </div>
 
   {# ────────────────────────────────────────────────────────────────── #}
