@@ -151,7 +151,9 @@ def generate_email_from_prompt(prompt: str) -> tuple[str, str]:
         "Sen profesyonel bir Türkçe iş yazışması uzmanısın. "
         "Kullanıcı sana kaba bir talimat veya özet verecek; sen bunu akıcı, kibar, "
         "profesyonel bir Türkçe e-posta gövdesine dönüştür. "
-        "Selamlama (Sayın ...) ve kapanış ekle. "
+        "Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma. "
+        "Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma. "
+        "Kapanış imzası veya isim/ünvan/şirket/iletişim bilgisi ekleme. "
         "Sadece e-posta gövdesini yaz, başka açıklama ekleme."
     )
     return inbox_plain_text_with_failover(system, prompt.strip())
@@ -160,9 +162,11 @@ def generate_email_from_prompt(prompt: str) -> tuple[str, str]:
 def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
     system = (
         f"Sen {brand} müşteri iletişim temsilcisisin. Aşağıdaki e-posta zincirine profesyonel, "
-        "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz. Selamlama ve kapanış ekle.\n"
+        "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz.\n"
+        "Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma.\n"
+        "Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma.\n"
         "ÖNEMLİ KURAL: KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
-        "Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan.\n"
+        "Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan; isim/ünvan/şirket/iletişim bilgisi ekleme.\n"
         "Yalnızca e-posta gövdesini yaz; konu satırı yazma."
     )
     text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
@@ -230,8 +234,10 @@ def _reply_templates_user_prompt(thread_blob: str) -> str:
         "- Yalnızca tek bir geçerli JSON nesnesi döndür; kod bloğu veya açıklama yazma.\n"
         '- Şekil: {"templates":[{"label":"kısa etiket","body":"..."},{"label":"...","body":"..."},{"label":"...","body":"..."}]}\n'
         "- döviz.com müşteri desteği tonu; gereksiz vaat verme.\n"
+        "- Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma.\n"
+        "- Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma.\n"
         "- KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
-        "- Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan.\n\n"
+        "- Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan; isim/ünvan/şirket/iletişim bilgisi ekleme.\n\n"
         "E-posta bağlamı:\n"
         + _truncate(thread_blob)
     )
