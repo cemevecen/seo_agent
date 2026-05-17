@@ -215,9 +215,6 @@ text-slate-500 dark:text-slate-400
     class="mt-1.5 text-[0.76rem] font-semibold leading-snug text-slate-500 dark:text-slate-400"
     style="font-size: 12px;"
   >{{ hint_map.get(metric.label, 'ölçüm özeti') }}</p>
-  <div class="mt-2.5 h-2 overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50 dark:bg-slate-800/90 dark:ring-slate-600/70">
-    <div class="h-full rounded-full {{ bar_class }}" style="width: {{ bar_width }}"></div>
-  </div>
 </div>
 {% endmacro %}
 
