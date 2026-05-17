@@ -203,7 +203,9 @@
 
 <script>
   (function () {
-    const headerTitle = document.getElementById('header-site-title');
+    // Header'da artık logo yanına metin basılmıyor (sr-only ile gizli);
+    // başlığı sadece inner span'a yaz ki logo bozulmasın + tarayıcı title senkron kalsın.
+    const headerTitle = document.getElementById('header-site-title-text');
     if (headerTitle) {
       headerTitle.textContent = '{{ site_name|default("Lighthouse")|e }}';
     }
