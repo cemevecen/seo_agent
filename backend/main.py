@@ -8296,6 +8296,14 @@ def _ga4_sites_payload(db) -> list[dict]:
                         latest=latest,
                         prop_id=prop_id,
                     ),
+                    "90": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=90,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
                 },
             }
 
