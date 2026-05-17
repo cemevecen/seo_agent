@@ -1,28 +1,31 @@
-<div class="flex items-center justify-between gap-2">
-  <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">SEO · Kritik Hatalar</h4>
+<div class="flex items-center justify-between gap-3">
+  <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
   <a href="/seo-audit" hx-get="/seo-audit" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
 </div>
-<div class="mt-3 grid grid-cols-1 gap-3">
+<div class="mt-4 space-y-3">
   {% for site in sites %}
-    <div class="rounded-xl border bg-white p-3 dark:bg-slate-900 {% if 'doviz' in site.domain %}border-blue-200 dark:border-blue-900/60{% elif 'sinemalar' in site.domain %}border-rose-200 dark:border-rose-900/60{% else %}border-slate-200 dark:border-slate-700{% endif %}">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ site.display_name }}</p>
+    <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full {% if 'doviz' in site.domain %}bg-blue-500{% elif 'sinemalar' in site.domain %}bg-rose-500{% else %}bg-slate-400{% endif %}"></span>
+        <p class="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{{ site.display_name }}</p>
+      </div>
       {% if site.rows %}
-        <ul class="mt-2 space-y-1.5">
+        <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
           {% for it in site.rows %}
-            <li class="rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
-              <div class="flex items-start justify-between gap-2">
-                <a href="{{ it.url }}" target="_blank" rel="noopener" class="min-w-0 flex-1 truncate text-xs font-medium text-slate-800 hover:text-amber-600 dark:text-slate-100 dark:hover:text-amber-400" title="{{ it.url }}">{{ it.url_short }}</a>
-                <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 tabular-nums">{{ it.issue_count }} sorun</span>
+            <li class="py-2 first:pt-0 last:pb-0">
+              <div class="flex items-start justify-between gap-3">
+                <a href="{{ it.url }}" target="_blank" rel="noopener" class="min-w-0 flex-1 truncate text-xs text-slate-700 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100" title="{{ it.url }}">{{ it.url_short }}</a>
+                <span class="shrink-0 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">{{ it.issue_count }} sorun</span>
               </div>
               {% if it.problems %}
-                <p class="mt-0.5 truncate text-[10px] text-slate-500 dark:text-slate-400">{{ it.problems }}</p>
+                <p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ it.problems }}</p>
               {% endif %}
             </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">Kritik hata tespit edilmedi</p>
+        <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Kritik hata tespit edilmedi</p>
       {% endif %}
     </div>
   {% endfor %}
