@@ -407,7 +407,8 @@ def query_daily_trend(platform: str, table: str, days: int) -> tuple[list[dict],
 SELECT
   DATE(event_timestamp) AS crash_date,
   COUNTIF(error_type = 'FATAL') AS fatal_count,
-  COUNTIF(error_type = 'ANR') AS anr_count
+  COUNTIF(error_type = 'ANR') AS anr_count,
+  COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count
 FROM `{table}`
 WHERE {_ts_filter(days)}
 GROUP BY crash_date
@@ -420,6 +421,7 @@ LIMIT {days + 5}
             "date": str(r.get("crash_date") or ""),
             "fatal": int(r.get("fatal_count") or 0),
             "anr": int(r.get("anr_count") or 0),
+            "non_fatal": int(r.get("non_fatal_count") or 0),
         }
         for r in rows
     ], err
@@ -596,6 +598,7 @@ def build_full_payload(
         "anr": _merge_issues(anr_all),
         "versions": _merge_versions(ver_all),
         "trend": _merge_trend(trend_all),
+        "trend_by_platform": {plat: rows for plat, rows in trend_all},
         "storage_mb": storage_mb,
         "errors": errors,
     }
@@ -632,8 +635,9 @@ def _merge_trend(results: list[tuple[str, list[dict]]]) -> list[dict]:
             if d in merged:
                 merged[d]["fatal"] += r["fatal"]
                 merged[d]["anr"] += r["anr"]
+                merged[d]["non_fatal"] = merged[d].get("non_fatal", 0) + r.get("non_fatal", 0)
             else:
-                merged[d] = {**r}
+                merged[d] = {"date": d, "fatal": r["fatal"], "anr": r["anr"], "non_fatal": r.get("non_fatal", 0)}
     return sorted(merged.values(), key=lambda x: x["date"])
 
 
