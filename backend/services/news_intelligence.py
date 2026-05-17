@@ -19,39 +19,63 @@ CATEGORY_SOURCES = {
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
         "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
+        "https://www.hurriyet.com.tr/rss/anasayfa",
+        "https://www.haberturk.com/rss",
+        "https://news.google.com/rss/search?q=türkiye+gündem+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=ankara+siyaset+meclis+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Genel": [
         "https://www.ekonomim.com/rss",
         "https://www.dunya.com/rss",
         "https://www.bloomberght.com/rss",
-        "https://news.google.com/rss/search?q=site:gazeteoksijen.com+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.cnnturk.com/feed/rss/all/news",
+        "https://www.aa.com.tr/tr/rss/default?cat=guncel",
+        "https://www.ntv.com.tr/gundem.rss",
+        "https://news.google.com/rss/headlines/section/topic/TOP_STORIES?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=türkiye+ekonomi+dünya+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "İş Dünyası": [
         "https://www.dunya.com/rss",
         "https://www.ekonomim.com/rss",
+        "https://www.bloomberght.com/rss",
+        "https://www.paraanaliz.com/rss",
         "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=şirket+ihracat+yatırım+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=startup+girişim+teknoloji+şirketi+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
         "https://www.foreks.com/rss",
-        "https://news.google.com/rss/search?q=borsa+istanbul+hisse+analiz+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.ekonomim.com/rss",
+        "https://www.paraanaliz.com/rss",
+        "https://news.google.com/rss/search?q=borsa+istanbul+bist+hisse+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=merkez+bankası+faiz+enflasyon+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dolar+euro+kur+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=kripto+bitcoin+ethereum+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
         "https://www.aa.com.tr/tr/rss/default?cat=dunya",
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=avrupa+abd+rusya+çin+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=nato+g7+bm+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
     ],
     # Yahoo Finance — RSS önce denenir, başarısız olursa JSON API fallback.
     "Yahoo Finance": [
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=EURUSD%3DX&region=US&lang=en-US",
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC%3DF&region=US&lang=en-US",   # Altın
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",  # S&P 500
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=GC%3DF&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC&region=US&lang=en-US",
         "https://finance.yahoo.com/",  # sentinel → JSON API fallback
     ],
     "Bilim ve Teknoloji": [
         "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=yapay+zeka+ai+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=uzay+nasa+esa+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
 }
 

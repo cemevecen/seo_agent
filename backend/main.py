@@ -705,7 +705,6 @@ def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
-        # "Unknown" ve boş kaynak isimli eski kayıtları gizle
         query = query.filter(
             NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""])
         )
@@ -715,7 +714,29 @@ def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0
                 query = query.filter(NewsIntelligenceItem.published_at > since_dt)
             except Exception:
                 pass
-        items = query.offset(offset).limit(min(limit, 50)).all()
+            items = query.limit(50).all()
+        else:
+            # Kaynak çeşitliliği: geniş pencere çek, kaynaklara göre sırayla dağıt
+            safe_limit = min(limit, 50)
+            pool = query.limit(max(safe_limit * 6, 200)).all()
+            # Round-robin interleave by source_name
+            from collections import defaultdict
+            buckets = defaultdict(list)
+            for it in pool:
+                buckets[it.source_name].append(it)
+            interleaved = []
+            source_keys = list(buckets.keys())
+            i = 0
+            while len(interleaved) < len(pool):
+                added = False
+                for key in source_keys:
+                    if i < len(buckets[key]):
+                        interleaved.append(buckets[key][i])
+                        added = True
+                if not added:
+                    break
+                i += 1
+            items = interleaved[offset: offset + safe_limit]
         return {
             "items": [
                 {

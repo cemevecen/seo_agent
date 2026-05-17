@@ -325,6 +325,7 @@
           ev.stopPropagation();
           var idx = parseInt(btn.getAttribute("data-idx"), 10);
           if (!templatesCache[idx] || !selectedId) return;
+          try { await _ensureInboxActionAuth(); } catch (e) { return; }
           applyReplyTemplate(templatesCache[idx]);
           // Minik bir gecikme: scroll bitmeden confirm açılırsa bazı tarayıcılarda sorun çıkabiliyor
           setTimeout(async function() {
@@ -655,11 +656,6 @@
   }
 
   async function openDetail(id) {
-    try {
-      await _ensureInboxActionAuth();
-    } catch (e) {
-      return;  // Şifre girilmediyse detayı açma
-    }
     selectedId = id;
     replyToGmailId = null;
     try {
@@ -795,6 +791,7 @@
 
   async function postRead(read) {
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     await jfetch("/api/inbox/threads/" + selectedId + "/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -812,6 +809,7 @@
 
   async function patchAnswered(v) {
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     await jfetch("/api/inbox/threads/" + selectedId + "/answered", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -829,6 +827,7 @@
 
   document.getElementById("btn-delete").addEventListener("click", async function () {
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     if (
       !confirm(
         "Bu konuşma Gmail’de çöp kutusuna taşınacak ve panelden kaldırılacak. Emin misiniz?"
@@ -851,6 +850,7 @@
 
   document.getElementById("btn-summarize").addEventListener("click", async function () {
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     try {
       var out = await jfetch("/api/inbox/threads/" + selectedId + "/summarize", { method: "POST" });
       var sum = document.getElementById("inbox-ai-summary");
@@ -862,6 +862,7 @@
   });
   document.getElementById("btn-draft").addEventListener("click", async function () {
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     try {
       var out = await jfetch("/api/inbox/threads/" + selectedId + "/draft", { method: "POST" });
       document.getElementById("inbox-send-body").value = out.draft || "";
@@ -873,6 +874,7 @@
     ev.preventDefault();
     ev.stopPropagation();
     if (!selectedId) return;
+    try { await _ensureInboxActionAuth(); } catch (e) { return; }
     if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
     try {
       await sendInboxMailFromComposer();
