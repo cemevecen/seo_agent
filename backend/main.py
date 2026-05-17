@@ -9809,9 +9809,8 @@ def api_crash_versions(request: Request):
 
 @app.get("/api/app/crashlytics/diagnose")
 def api_crash_diagnose(product: str = "doviz"):
-    """Firebase Crashlytics BigQuery bağlantısını teşhis et:
-    service account email, kullanılan GCP project, datasette mevcut tabloları
-    ve beklenen tablo adlarını döner. Tablo yok mesajı geliyorsa buraya bak."""
+    """Firebase Crashlytics BigQuery bağlantısını teşhis et.
+    Her adımda gerçek API hatasını yüzeye çıkarır."""
     from backend.services import crashlytics_bq as cbq
     from backend.services.app_intel import APP_PRODUCTS
 
@@ -9822,22 +9821,16 @@ def api_crash_diagnose(product: str = "doviz"):
         bundle = (
             meta.get("android_package") if plat == "android" else meta.get("ios_bundle_id")
         ) or ""
-        plat_block: dict = {
-            "configured": cbq.platform_ready(plat),
-            "service_account_email": cbq._sa_email(plat),
-            "effective_project_id": cbq._effective_project(plat),
-            "hardcoded_project_id": cbq._PLATFORM_PROJECTS.get(plat),
-            "bundle_id": bundle,
-            "expected_table_standard": f"{bundle.replace('.', '_')}_{plat.upper()}" if bundle else None,
-        }
-        if cbq.platform_ready(plat):
+        plat_block = cbq.diagnose_platform(plat)
+        plat_block["bundle_id"] = bundle
+        plat_block["expected_table_standard"] = (
+            f"{bundle.replace('.', '_')}_{plat.upper()}" if bundle else None
+        )
+        if plat_block.get("dataset_exists") and bundle:
             try:
-                tables = cbq._list_dataset_tables(plat)
-                plat_block["dataset_tables"] = tables
-                plat_block["dataset_table_count"] = len(tables)
-                plat_block["discovered_table"] = cbq._discover_table_id(plat, bundle) if bundle else None
+                plat_block["discovered_table"] = cbq._discover_table_id(plat, bundle)
             except Exception as exc:  # noqa: BLE001
-                plat_block["dataset_error"] = str(exc)[:300]
+                plat_block["discovery_error"] = str(exc)[:300]
         out["platforms"][plat] = plat_block
     return JSONResponse(out)
 

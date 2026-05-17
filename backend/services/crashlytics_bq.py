@@ -119,6 +119,53 @@ def _list_dataset_tables(platform: str) -> list[str]:
         return []
 
 
+def diagnose_platform(platform: str) -> dict:
+    """Detaylı teşhis: tüm datasetleri listele, firebase_crashlytics var mı kontrol et,
+    içindeki tabloları getir. Her adımda hata varsa onu da göster.
+    """
+    info = _load_creds(platform) or {}
+    out: dict = {
+        "platform": platform,
+        "configured": bool(info),
+        "service_account_email": info.get("client_email"),
+        "sa_json_project_id": info.get("project_id"),
+        "effective_project_id": _effective_project(platform),
+        "hardcoded_project_id": _PLATFORM_PROJECTS.get(platform),
+        "dataset_target": _DATASET,
+    }
+    if not info:
+        return out
+
+    proj = _effective_project(platform)
+    # 1) Projedeki tüm dataset'leri listele
+    try:
+        client = _get_client(platform)
+        try:
+            datasets = [ds.dataset_id for ds in client.list_datasets(max_results=50)]
+            out["all_datasets_in_project"] = datasets
+        except Exception as exc:
+            out["list_datasets_error"] = str(exc)[:300]
+        # 2) firebase_crashlytics dataset'i var mı?
+        from google.cloud import bigquery as _bq
+        try:
+            client.get_dataset(_bq.DatasetReference(proj, _DATASET))
+            out["dataset_exists"] = True
+        except Exception as exc:
+            out["dataset_exists"] = False
+            out["dataset_check_error"] = str(exc)[:300]
+        # 3) Varsa içindeki tabloları getir
+        if out.get("dataset_exists"):
+            try:
+                tables = [t.table_id for t in client.list_tables(f"{proj}.{_DATASET}")]
+                out["dataset_tables"] = tables
+                out["dataset_table_count"] = len(tables)
+            except Exception as exc:
+                out["list_tables_error"] = str(exc)[:300]
+    except Exception as exc:
+        out["client_error"] = str(exc)[:300]
+    return out
+
+
 def _discover_table_id(platform: str, bundle: str) -> str | None:
     """Verilen bundle için datasette mevcut gerçek table_id'yi bul."""
     key = f"{platform}:{bundle}"
