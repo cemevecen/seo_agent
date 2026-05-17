@@ -8060,6 +8060,17 @@ def alerts_page(request: Request):
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
 
 
+@app.get("/alerts/threshold-panel")
+def alerts_threshold_panel(request: Request):
+    with SessionLocal() as db:
+        threshold_payload = _build_threshold_alerts_payload(db, days=7)
+    return templates.TemplateResponse(
+        request,
+        "partials/alerts_threshold_body.html",
+        context={"request": request, **threshold_payload},
+    )
+
+
 @app.post("/alerts/refresh")
 def alerts_refresh(request: Request):
     summaries: list[dict[str, object]] = []
