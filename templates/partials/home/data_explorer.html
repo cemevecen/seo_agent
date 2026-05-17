@@ -33,8 +33,9 @@
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400">Saha · CrUX 28 gün</p>
-          <p class="mt-0.5 truncate text-base font-semibold text-slate-900 dark:text-slate-100">{{ row.display_name }}</p>
-          <p class="truncate text-[11px] text-slate-500 dark:text-slate-400">{{ row.domain }}{% if row.form_factor %} · {{ row.form_factor }}{% endif %}</p>
+          {% if row.form_factor %}
+            <p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ row.form_factor }}</p>
+          {% endif %}
         </div>
         <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wider {{ ov_chip }}">{{ ov_label }}</span>
       </div>

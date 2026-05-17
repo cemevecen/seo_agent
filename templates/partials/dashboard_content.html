@@ -1,4 +1,4 @@
-<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
+<div class="mx-auto w-full min-w-0 max-w-[1600px]">
   <div class="flex flex-col gap-3 rounded-2xl bg-white px-6 py-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h2 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Günün Özeti</h2>
@@ -12,135 +12,145 @@
     </div>
   </div>
 
-  {# Column headers — sticky labels for left=doviz, right=sinemalar #}
-  <div class="hidden grid-cols-2 gap-5 lg:grid">
-    <div class="flex items-center gap-2 rounded-xl bg-blue-50/60 px-4 py-2 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50">
-      <span class="h-2 w-2 rounded-full bg-blue-500"></span>
-      <p class="text-sm font-semibold text-blue-900 dark:text-blue-200">doviz.com</p>
+  {# Ana içerik: dikey divider içeren wrapper #}
+  <div class="relative mt-5">
+    {# Dikey divider — lg ve üstünde, sol-sağ sütun ortası boyunca #}
+    <div aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-1/2 hidden -translate-x-1/2 lg:block">
+      <div class="h-full w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent dark:via-slate-700"></div>
     </div>
-    <div class="flex items-center gap-2 rounded-xl bg-rose-50/60 px-4 py-2 ring-1 ring-rose-200/70 dark:bg-rose-950/30 dark:ring-rose-900/50">
-      <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-      <p class="text-sm font-semibold text-rose-900 dark:text-rose-200">sinemalar.com</p>
+
+    {# Sütun başlıkları — büyük & belirgin, en üstte #}
+    <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div class="flex items-center gap-3 rounded-2xl bg-blue-50/60 px-5 py-3 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50">
+        <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+        <h2 class="text-lg font-bold tracking-tight text-blue-900 dark:text-blue-200 sm:text-xl">doviz.com</h2>
+      </div>
+      <div class="flex items-center gap-3 rounded-2xl bg-rose-50/60 px-5 py-3 ring-1 ring-rose-200/70 dark:bg-rose-950/30 dark:ring-rose-900/50">
+        <span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>
+        <h2 class="text-lg font-bold tracking-tight text-rose-900 dark:text-rose-200 sm:text-xl">sinemalar.com</h2>
+      </div>
     </div>
-  </div>
 
-  {% set _placeholder_short = '<div class="mt-4 h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-  {% set _placeholder_mid   = '<div class="mt-4 h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-  {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+    {% set _placeholder_short = '<div class="mt-4 h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+    {% set _placeholder_mid   = '<div class="mt-4 h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+    {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
 
-  {# Row 1 — Anlık #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/realtime?site=doviz" hx-trigger="load, every 60s" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <div class="flex items-center gap-2">
-        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+    <div class="space-y-5">
+      {# Row 1 — Anlık #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/realtime?site=doviz" hx-trigger="load, every 60s" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+          </div>
+          {{ _placeholder_short | safe }}
+        </section>
+        <section hx-get="/api/home/realtime?site=sinemalar" hx-trigger="load, every 60s" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+          </div>
+          {{ _placeholder_short | safe }}
+        </section>
       </div>
-      {{ _placeholder_short | safe }}
-    </section>
-    <section hx-get="/api/home/realtime?site=sinemalar" hx-trigger="load, every 60s" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <div class="flex items-center gap-2">
-        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+
+      {# Row 2 — GA4 #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/ga4-sessions?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
       </div>
-      {{ _placeholder_short | safe }}
-    </section>
-  </div>
 
-  {# Row 2 — GA4 Sessions #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/ga4-sessions?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-    <section hx-get="/api/home/ga4-sessions?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-  </div>
+      {# Row 3 — Search Console #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/sc-summary?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+        <section hx-get="/api/home/sc-summary?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+      </div>
 
-  {# Row 3 — Search Console #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/sc-summary?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-    <section hx-get="/api/home/sc-summary?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-  </div>
+      {# Row 4 — Position Drops #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/position-drops?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">En Kritik Pozisyon Düşüşleri · 7g</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+        <section hx-get="/api/home/position-drops?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">En Kritik Pozisyon Düşüşleri · 7g</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+      </div>
 
-  {# Row 4 — Position Drops #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/position-drops?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">En Kritik Pozisyon Düşüşleri · 7g</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-    <section hx-get="/api/home/position-drops?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">En Kritik Pozisyon Düşüşleri · 7g</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-  </div>
+      {# Row 5 — Data Explorer #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/data-explorer?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+        <section hx-get="/api/home/data-explorer?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+      </div>
 
-  {# Row 5 — Data Explorer · Core Web Vitals #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/data-explorer?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-    <section hx-get="/api/home/data-explorer?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
-      {{ _placeholder_mid | safe }}
-    </section>
-  </div>
+      {# Row 6 — 404 #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/top-404s?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+        <section hx-get="/api/home/top-404s?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+      </div>
 
-  {# Row 6 — 404s #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/top-404s?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-    <section hx-get="/api/home/top-404s?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-  </div>
+      {# Row 7 — SEO Errors #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/seo-errors?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+        <section hx-get="/api/home/seo-errors?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+      </div>
 
-  {# Row 7 — SEO Errors #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/seo-errors?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-    <section hx-get="/api/home/seo-errors?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
-      {{ _placeholder_tall | safe }}
-    </section>
-  </div>
-
-  {# Row 8 — doviz mobil uygulama (sol), sağ taraf boş #}
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <section hx-get="/api/home/app-release" hx-trigger="load" hx-swap="innerHTML"
-             class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">doviz.com · iOS &amp; Android Release</h3>
-      <div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
-    </section>
-    <section class="hidden rounded-2xl border border-dashed border-slate-200 p-5 dark:border-slate-700/60 lg:flex lg:items-center lg:justify-center">
-      <p class="text-xs text-slate-400 dark:text-slate-500">sinemalar.com için mobil uygulama yok</p>
-    </section>
+      {# Row 8 — Mobil uygulama: sol = doviz, sağ boş #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/app-release" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">iOS &amp; Android Release</h3>
+          <div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+        </section>
+        <section class="hidden rounded-2xl border border-dashed border-slate-200 p-5 dark:border-slate-700/60 lg:flex lg:items-center lg:justify-center">
+          <p class="text-xs text-slate-400 dark:text-slate-500">mobil uygulama yok</p>
+        </section>
+      </div>
+    </div>
   </div>
 </div>
