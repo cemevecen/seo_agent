@@ -3,8 +3,8 @@
   {% if data.errors %}
     {% set _seen = [] %}{% set _unique = [] %}
     {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/60 dark:bg-amber-950/30">
-      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>{% endfor %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
     </div>
   {% endif %}
 
@@ -37,7 +37,7 @@
               <td class="px-3 py-2.5">
                 <span class="inline-block rounded-md px-2 py-0.5 text-[10px] font-bold
                   {% if et == 'FATAL' %}bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200
-                  {% elif et == 'ANR' %}bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100
+                  {% elif et == 'ANR' %}bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-400
                   {% else %}bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300{% endif %}">{{ et }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">

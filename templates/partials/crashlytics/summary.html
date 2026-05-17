@@ -1,6 +1,6 @@
 {# Servis konfigüre değilse / hata varsa: kullanıcı dostu fallback #}
 {% if not data or data.ok is sameas false or data.configured is sameas false %}
-  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-400">
     <p class="text-sm font-semibold">Crashlytics özetini gösteremiyoruz.</p>
     <p class="mt-1 text-xs">{{ data.message if data and data.message else "Servis henüz tamamlanmadı veya credential eksik." }}</p>
   </div>
@@ -11,8 +11,8 @@
 {# Storage badge — storage_mb yoksa Normal varsay #}
 {% set _storage = data.storage_mb or {} %}
 {% set total_mb = _storage.values()|sum if _storage else 0 %}
-{% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200" %}{% set sb_label = "Kritik" %}
-{% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" %}{% set sb_label = "Yüksek" %}
+{% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400" %}{% set sb_label = "Kritik" %}
+{% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" %}{% set sb_label = "Yüksek" %}
 {% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
 
 <div class="space-y-4">
@@ -23,9 +23,9 @@
     {% for e in data.errors %}
       {% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}
     {% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/60 dark:bg-amber-950/30">
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800">
       {% for e in _unique %}
-        <p class="text-xs leading-snug text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>
+        <p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>
       {% endfor %}
     </div>
   {% endif %}
@@ -41,13 +41,13 @@
         <p class="mt-1 text-[10px] uppercase text-slate-400">Crash-Free</p>
       {% endif %}
     </div>
-    <div class="flex flex-col items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-900/50 dark:bg-rose-950/30">
-      <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300">{{ T.fatal or 0 }}</p>
-      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Fatal</p>
+    <div class="flex flex-col items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-900/40 dark:bg-slate-800/70">
+      <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-400">{{ T.fatal or 0 }}</p>
+      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-500">Fatal</p>
     </div>
-    <div class="flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-900/40 dark:bg-amber-950/30">
-      <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300">{{ T.anr or 0 }}</p>
-      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">ANR</p>
+    <div class="flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-900/30 dark:bg-slate-800/70">
+      <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-400">{{ T.anr or 0 }}</p>
+      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-500">ANR</p>
     </div>
     <div class="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
       <p class="text-2xl font-black tabular-nums text-slate-700 dark:text-slate-300">{{ T.non_fatal or 0 }}</p>

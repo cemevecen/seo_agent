@@ -3,13 +3,13 @@
   {% if data.errors %}
     {% set _seen = [] %}{% set _unique = [] %}
     {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/60 dark:bg-amber-950/30">
-      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>{% endfor %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
     </div>
   {% endif %}
 
-  <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p class="text-xs text-amber-800 dark:text-amber-200">ANR (Application Not Responding) — kullanıcı arayüzü 5+ saniye donması. Play Store sıralamasını doğrudan etkiler.</p>
+  <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-slate-700/60 dark:bg-slate-800/60">
+    <p class="text-xs text-amber-800 dark:text-amber-400">ANR (Application Not Responding) — kullanıcı arayüzü 5+ saniye donması. Play Store sıralamasını doğrudan etkiler.</p>
   </div>
 
   {% if not rows %}
@@ -40,7 +40,7 @@
                 <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ r.app_version or "—" }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
-                <span class="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ r.event_count }}</span>
+                <span class="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-400">{{ r.event_count }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
                 <span class="text-sm tabular-nums text-slate-600 dark:text-slate-300">{{ r.affected_users }}</span>

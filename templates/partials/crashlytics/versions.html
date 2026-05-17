@@ -3,8 +3,8 @@
   {% if data.errors %}
     {% set _seen = [] %}{% set _unique = [] %}
     {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/60 dark:bg-amber-950/30">
-      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>{% endfor %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
     </div>
   {% endif %}
 
@@ -22,7 +22,7 @@
           <tr class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
             <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon</th>
             <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-rose-500 dark:text-rose-400">Fatal</th>
-            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">ANR</th>
+            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500">ANR</th>
             <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</th>
             <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kullanıcı</th>
             <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım</th>
@@ -39,7 +39,7 @@
                 <span class="text-sm font-bold tabular-nums {% if r.fatal_count > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.fatal_count }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
-                <span class="text-sm font-bold tabular-nums {% if r.anr_count > 0 %}text-amber-600 dark:text-amber-400{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.anr_count }}</span>
+                <span class="text-sm font-bold tabular-nums {% if r.anr_count > 0 %}text-amber-600 dark:text-amber-500{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.anr_count }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
                 <span class="text-sm tabular-nums text-slate-500 dark:text-slate-400">{{ r.non_fatal_count }}</span>
