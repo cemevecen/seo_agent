@@ -157,13 +157,10 @@
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
               {% set tp = (view.ctr_pct_change | default(0)) | float %}
               {% set pd = (view.position_delta | default(0)) | float %}
-              {%- macro _pct_cls(v) -%}{%- set _v = v | float -%}{%- if _v >= 20 -%}text-emerald-700 dark:text-emerald-400{%- elif _v >= 5 -%}text-emerald-600 dark:text-emerald-500{%- elif _v > 0.5 -%}text-emerald-500 dark:text-emerald-600{%- elif _v > -0.5 -%}text-slate-400 dark:text-slate-500{%- elif _v > -5 -%}text-amber-600 dark:text-amber-500{%- elif _v > -20 -%}text-orange-600 dark:text-orange-500{%- else -%}text-rose-600 dark:text-rose-500{%- endif -%}{%- endmacro -%}
-              {%- macro _pos_cls(v) -%}{%- set _v = v | float -%}{%- if _v >= 5 -%}text-emerald-700 dark:text-emerald-400{%- elif _v >= 1 -%}text-emerald-600 dark:text-emerald-500{%- elif _v > 0.1 -%}text-emerald-500 dark:text-emerald-600{%- elif _v > -0.1 -%}text-slate-400 dark:text-slate-500{%- elif _v > -1 -%}text-amber-600 dark:text-amber-500{%- elif _v > -5 -%}text-orange-600 dark:text-orange-500{%- else -%}text-rose-600 dark:text-rose-500{%- endif -%}{%- endmacro -%}
-              {%- macro _diff_cls(v) -%}{%- set _v = v | float -%}{%- if _v >= 100 -%}text-emerald-700 dark:text-emerald-400{%- elif _v >= 10 -%}text-emerald-600 dark:text-emerald-500{%- elif _v > 0 -%}text-emerald-500 dark:text-emerald-600{%- elif _v == 0 -%}text-slate-400 dark:text-slate-500{%- elif _v > -10 -%}text-amber-600 dark:text-amber-500{%- elif _v > -100 -%}text-orange-600 dark:text-orange-500{%- else -%}text-rose-600 dark:text-rose-500{%- endif -%}{%- endmacro -%}
-              {% set clicks_pct_class = _pct_cls(cp) | trim %}
-              {% set impressions_pct_class = _pct_cls(ip) | trim %}
-              {% set ctr_pct_class = _pct_cls(tp) | trim %}
-              {% set position_delta_class = _pos_cls(pd) | trim %}
+              {% set clicks_pct_class = 'text-emerald-600' if cp > 0 else ('text-rose-600' if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set impressions_pct_class = 'text-emerald-600' if ip > 0 else ('text-rose-600' if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set ctr_pct_class = 'text-emerald-600' if tp > 0 else ('text-rose-600' if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set position_delta_class = 'text-emerald-600 dark:text-emerald-400' if pd > 0 else ('text-rose-600 dark:text-rose-400' if pd < 0 else 'text-slate-500 dark:text-slate-400') %}
 
               <article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0">
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-blue-500 dark:text-blue-400 sm:text-xs sm:tracking-[0.12em]">CLICKS</p>
@@ -266,10 +263,10 @@
                         <td class="sticky left-0 z-[1] max-w-[min(60vw,18rem)] bg-white px-1.5 py-2 text-left text-[11px] font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-words shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2.5 sm:text-xs md:text-sm">{{ row.query }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
-                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {{ _diff_cls(row.clicks_diff) | trim }} sm:px-2 sm:py-2.5">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_current) }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_previous) }}</td>
-                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {{ _pos_cls(row.position_diff) | trim }} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
+                        <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
                       </tr>
                     {% else %}
                       <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde ilk 50 anahtar kelime verisi henüz yok.</td></tr>
@@ -352,8 +349,8 @@
                       {% for row in view.content_trending_down %}
                       <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80">
                         <td class="sticky left-0 z-[1] max-w-[min(100vw,30rem)] bg-white px-2 py-2 text-left font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-all shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:text-sm">{{ row.page }}</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-500 sm:px-3">-{{ "{:.1f}".format(row.clicks_drop_pct or 0) }}%</td>
-                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-500 sm:px-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">-{{ "{:.1f}".format(row.clicks_drop_pct or 0) }}%</td>
+                        <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
                       </tr>
@@ -374,7 +371,7 @@
     {% endfor %}
     </div>
   {% elif site.report.has_data %}
-    <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-400">
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
       Rapor yapısı güncelleniyor. Lütfen Search Console verisini yenileyin.
     </div>
   {% endif %}

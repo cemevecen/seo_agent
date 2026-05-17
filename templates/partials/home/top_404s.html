@@ -12,7 +12,7 @@
           {% for it in site.rows %}
             <li class="flex items-start justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
               <a href="{{ it.url }}" target="_blank" rel="noopener" class="min-w-0 flex-1 truncate text-xs font-medium text-slate-800 hover:text-rose-600 dark:text-slate-100 dark:hover:text-rose-400" title="{{ it.url }}">{{ it.url_short }}</a>
-              <span class="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 tabular-nums">{{ it.hit_label }}</span>
+              <span class="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 tabular-nums">{{ it.hit_label }}</span>
             </li>
           {% endfor %}
         </ul>
