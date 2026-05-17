@@ -4347,16 +4347,16 @@ def _pagespeed_metric_numeric_value(audit: dict, fallback_value: float | None = 
 def _pagespeed_metric_benchmark_tr(metric_key: str) -> str:
     """Google CWV (lab) ve Lighthouse ile uyumlu eşikler; arayüzde 'hedef' satırı için."""
     mapping = {
-        "fcp": "Hedef (lab): iyi ≤1,8 sn · geliştirilebilir ≤3 sn",
-        "lcp": "Hedef (lab): iyi ≤2,5 sn · geliştirilebilir ≤4 sn",
-        "tbt": "Hedef (lab): iyi ≤200 ms · geliştirilebilir ≤600 ms",
-        "cls": "Hedef (lab): iyi ≤0,10 · geliştirilebilir ≤0,25",
-        "speed_index": "Hedef (Lighthouse SI): iyi ≤3,4 sn · geliştirilebilir ≤5,8 sn",
+        "fcp": "ideal: ≤1,8sn · hedef ≤3sn",
+        "lcp": "ideal: ≤2,5sn · hedef ≤4sn",
+        "tbt": "ideal: ≤200ms · hedef ≤600ms",
+        "cls": "ideal: ≤0,10 · hedef ≤0,25",
+        "speed_index": "ideal: ≤3,4sn · hedef ≤5,8sn",
     }
     return mapping.get(metric_key, "")
 
 
-PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR = "Kategori skoru: iyi ≥90 · geliştirilebilir 50–89 · zayıf <50"
+PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR = "ideal ≥90 · hedef 50–89 · zayıf <50"
 
 
 def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict[str, str]:

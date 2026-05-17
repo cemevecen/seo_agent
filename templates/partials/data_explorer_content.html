@@ -27,13 +27,13 @@
 
 {# Lab eşikleri: backend benchmark_tr ile uyumlu; sadece şablon güncell olsa bile kutu görünür #}
 {% set ps_lab_benchmarks = {
-  'fcp': 'Hedef (lab): iyi ≤1,8 sn · geliştirilebilir ≤3 sn',
-  'lcp': 'Hedef (lab): iyi ≤2,5 sn · geliştirilebilir ≤4 sn',
-  'tbt': 'Hedef (lab): iyi ≤200 ms · geliştirilebilir ≤600 ms',
-  'cls': 'Hedef (lab): iyi ≤0,10 · geliştirilebilir ≤0,25',
-  'speed_index': 'Hedef (Lighthouse SI): iyi ≤3,4 sn · geliştirilebilir ≤5,8 sn',
+  'fcp': 'ideal: ≤1,8sn · hedef ≤3sn',
+  'lcp': 'ideal: ≤2,5sn · hedef ≤4sn',
+  'tbt': 'ideal: ≤200ms · hedef ≤600ms',
+  'cls': 'ideal: ≤0,10 · hedef ≤0,25',
+  'speed_index': 'ideal: ≤3,4sn · hedef ≤5,8sn',
 } %}
-{% set ps_category_benchmark_tr = 'Kategori skoru: iyi ≥90 · geliştirilebilir 50–89 · zayıf <50' %}
+{% set ps_category_benchmark_tr = 'ideal ≥90 · hedef 50–89 · zayıf <50' %}
 
 {% macro crux_metric_color_class(label) %}
 {% set normalized = (label or '')|upper %}
@@ -377,12 +377,12 @@ text-slate-500 dark:text-slate-400
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mobil ↔ Masaüstü</p>
         <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {% for d in mobile_desktop_delta %}
-          <div class="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 {% if d.tone == 'negative' %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/30{% else %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/30{% endif %}">
+          <div class="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 {% if d.tone == 'negative' %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-slate-800/60{% endif %}">
             <div class="min-w-0">
               <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{{ d.label }}</p>
               <p class="text-[10px] text-slate-500 dark:text-slate-400">M: {{ d.mobile }} · D: {{ d.desktop }}</p>
             </div>
-            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold {% if d.tone == 'negative' %}bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300{% else %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300{% endif %}">{{ d.delta_text }}</span>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold {% if d.tone == 'negative' %}bg-rose-100 text-rose-700 dark:bg-slate-700/70 dark:text-rose-300{% else %}bg-emerald-100 text-emerald-700 dark:bg-slate-700/70 dark:text-emerald-300{% endif %}">{{ d.delta_text }}</span>
           </div>
           {% endfor %}
         </div>
@@ -391,7 +391,7 @@ text-slate-500 dark:text-slate-400
 
       {# 7 günlük hata özeti #}
       {% if error_widget and (error_widget.total_404 or error_widget.total_5xx) %}
-      <div class="rounded-2xl border {% if error_widget.total_5xx > 0 %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/30{% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/30{% endif %} p-4">
+      <div class="rounded-2xl border p-4 {% if error_widget.total_5xx > 0 %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-slate-800/60{% endif %}">
         <p class="text-[10px] font-bold uppercase tracking-wider {% if error_widget.total_5xx > 0 %}text-rose-700 dark:text-rose-300{% else %}text-amber-700 dark:text-amber-300{% endif %}">Son {{ error_widget.window_days }} gün hata</p>
         <div class="mt-2 flex items-baseline gap-4">
           <div>
@@ -707,198 +707,52 @@ text-slate-500 dark:text-slate-400
     </div>
   </section>
 
-  {# ── Derin analiz panelleri ── #}
-  {% for report in [pagespeed_report_mobile, pagespeed_report_desktop] %}
-    {% if report and report.has_data %}
-    <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
-      <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }}</p>
-          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">Trend & Bulgular</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Kategori skoru, audit önem dağılımı, en yüksek ROI'li düzeltmeler ve 3rd-party scriptler</p>
-        </div>
-      </div>
-
-      {# Kategori skor trendi + Önem trendi yan yana #}
-      <div class="mt-4 grid gap-3 lg:grid-cols-2">
-        {# Kategori skor trendi #}
-        {% if report.category_trend and report.category_trend|length > 1 %}
-        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori skoru trendi (son {{ report.category_trend|length }} ölçüm)</p>
-          <div class="mt-3 space-y-2">
-            {% for cat_key, cat_label, cat_color in [('performance', 'Performance', '#0ea5e9'), ('accessibility', 'Accessibility', '#10b981'), ('best_practices', 'Best Practices', '#f59e0b'), ('seo', 'SEO', '#a855f7')] %}
-            {% set values = [] %}
-            {% for entry in report.category_trend %}{% set _ = values.append(entry.get(cat_key)) %}{% endfor %}
-            {% set last_val = values[-1] %}
-            {% set first_val = None %}
-            {% for v in values %}{% if first_val is none and v is not none %}{% set first_val = v %}{% endif %}{% endfor %}
-            {% set delta = (last_val - first_val) if (last_val is not none and first_val is not none) else None %}
-            <div class="flex items-center gap-2">
-              <span class="w-24 shrink-0 text-[11px] font-semibold" style="color: {{ cat_color }}">{{ cat_label }}</span>
-              <div class="flex-1">
-                <svg viewBox="0 0 100 18" preserveAspectRatio="none" class="h-5 w-full" style="overflow:visible">
-                  {% set n = values|length %}
-                  {% if n > 1 %}
-                  {% set step = (100 / (n - 1)) %}
-                  {% set pts = [] %}
-                  {% for v in values %}
-                    {% set x = (loop.index0 * step)|round(1) %}
-                    {% set y = (18 - (((v or 0) / 100.0) * 16))|round(1) %}
-                    {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
-                  {% endfor %}
-                  <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ cat_color }}" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
-                  {% endif %}
-                </svg>
-              </div>
-              <span class="w-10 shrink-0 text-right text-xs font-bold tabular-nums" style="color: {{ cat_color }}">{{ last_val if last_val is not none else '—' }}</span>
-              {% if delta is not none and delta != 0 %}
-              <span class="w-10 shrink-0 text-right text-[10px] font-semibold tabular-nums {% if delta > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ '%+d'|format(delta) }}</span>
-              {% else %}
-              <span class="w-10 shrink-0"></span>
-              {% endif %}
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        {# Önem (severity) trendi — CRITICAL/HIGH/MEDIUM/LOW yığılı çubuk #}
-        {% if report.severity_trend and report.severity_trend|length > 1 %}
-        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Audit önem trendi (CRITICAL/HIGH/MEDIUM)</p>
-          <div class="mt-3 flex h-24 items-end gap-1.5">
-            {% set max_total = namespace(v=1) %}
-            {% for e in report.severity_trend %}
-              {% set t = (e.CRITICAL or 0) + (e.HIGH or 0) + (e.MEDIUM or 0) + (e.LOW or 0) %}
-              {% if t > max_total.v %}{% set max_total.v = t %}{% endif %}
-            {% endfor %}
-            {% for e in report.severity_trend %}
-            {% set total = (e.CRITICAL or 0) + (e.HIGH or 0) + (e.MEDIUM or 0) + (e.LOW or 0) %}
-            {% set h_total = ((total / max_total.v) * 90)|round(1) %}
-            <div class="flex-1 flex flex-col items-center gap-1" title="{{ e.date }} · C:{{ e.CRITICAL }} H:{{ e.HIGH }} M:{{ e.MEDIUM }} L:{{ e.LOW }}">
-              <div class="w-full overflow-hidden rounded" style="height: {{ h_total }}px">
-                {% set c_pct = (e.CRITICAL / total * 100)|round(1) if total > 0 else 0 %}
-                {% set h_pct = (e.HIGH / total * 100)|round(1) if total > 0 else 0 %}
-                {% set m_pct = (e.MEDIUM / total * 100)|round(1) if total > 0 else 0 %}
-                {% set l_pct = 100 - c_pct - h_pct - m_pct %}
-                <div style="height: {{ c_pct }}%; background-color: #f43f5e"></div>
-                <div style="height: {{ h_pct }}%; background-color: #f97316"></div>
-                <div style="height: {{ m_pct }}%; background-color: #fbbf24"></div>
-                <div style="height: {{ l_pct }}%; background-color: #cbd5e1"></div>
-              </div>
-              <span class="text-[8px] text-slate-400 dark:text-slate-500">{{ e.date[5:] }}</span>
-            </div>
-            {% endfor %}
-          </div>
-          <div class="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500 dark:text-slate-400">
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #f43f5e"></span>CRITICAL</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #f97316"></span>HIGH</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #fbbf24"></span>MEDIUM</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #cbd5e1"></span>LOW</span>
-          </div>
-        </div>
-        {% endif %}
-      </div>
-
-      {# ROI matrisi — en yüksek savings_ms #}
-      {% if report.roi_top %}
-      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/30">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">ROI: En yüksek tasarruf potansiyeli</p>
-          <span class="text-[10px] text-slate-500 dark:text-slate-400">Lighthouse opportunity audit'leri · savings_ms büyükten küçüğe</span>
-        </div>
-        <div class="mt-3 space-y-1.5">
-          {% set roi_max = namespace(v=1) %}
-          {% for r in report.roi_top %}{% if r.savings_ms > roi_max.v %}{% set roi_max.v = r.savings_ms %}{% endif %}{% endfor %}
-          {% for r in report.roi_top[:10] %}
-          <div class="flex items-center gap-2">
-            <span class="w-7 shrink-0 text-right text-[10px] font-bold text-slate-500 dark:text-slate-400">#{{ loop.index }}</span>
-            <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 dark:text-slate-200" title="{{ r.title_tr or r.title_en }}">{{ r.title_tr or r.title_en }}</span>
-            <div class="hidden sm:block h-2 w-24 overflow-hidden rounded-full bg-emerald-200/60 dark:bg-emerald-900/50">
-              <div class="h-full rounded-full bg-emerald-500" style="width: {{ ((r.savings_ms / roi_max.v) * 100)|round(0) }}%"></div>
-            </div>
-            <span class="w-16 shrink-0 text-right text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ r.savings_ms|round(0)|int }}ms</span>
-            {% if r.savings_bytes > 0 %}
-            <span class="hidden md:inline w-16 shrink-0 text-right text-[10px] text-slate-500 dark:text-slate-400" title="{{ r.savings_bytes }} bayt">{{ (r.savings_bytes / 1024)|round(0)|int }}KB</span>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {# Third-party scripts paneli #}
-      {% if report.third_party and report.third_party.entries %}
-      <div class="mt-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900/40 dark:bg-violet-950/30">
-        <div class="flex items-center justify-between gap-2 flex-wrap">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">3rd-Party scriptler · main thread bloklayan</p>
-            <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ report.third_party.entity_count }} servis · toplam {{ report.third_party.total_blocking_ms }}ms blocking · {{ report.third_party.total_transfer_kb }}KB transfer</p>
-          </div>
-        </div>
-        <div class="mt-3 overflow-hidden rounded-lg border border-violet-200/60 dark:border-violet-900/40">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-violet-100/50 text-[10px] uppercase text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
-              <tr>
-                <th class="px-2 py-1.5 font-bold">Entity</th>
-                <th class="px-2 py-1.5 text-right font-bold">Blocking</th>
-                <th class="px-2 py-1.5 text-right font-bold hidden sm:table-cell">Main Thread</th>
-                <th class="px-2 py-1.5 text-right font-bold">Transfer</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-violet-100/60 dark:divide-violet-900/40">
-              {% for tp in report.third_party.entries[:10] %}
-              <tr>
-                <td class="px-2 py-1.5 truncate max-w-[200px] font-semibold text-slate-700 dark:text-slate-200" title="{{ tp.entity }}">{{ tp.entity }}</td>
-                <td class="px-2 py-1.5 text-right font-bold tabular-nums {% if tp.blocking_ms > 250 %}text-rose-700 dark:text-rose-300{% elif tp.blocking_ms > 50 %}text-amber-700 dark:text-amber-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ tp.blocking_ms }}ms</td>
-                <td class="px-2 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400 hidden sm:table-cell">{{ tp.main_thread_ms }}ms</td>
-                <td class="px-2 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ tp.transfer_kb }}KB</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {% endif %}
-
-    </section>
-    {% endif %}
-  {% endfor %}
-
-  <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div class="flex items-center justify-between gap-3">
+  <details class="rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 group">
+    <summary class="flex cursor-pointer items-center justify-between gap-3 p-6 list-none [&::-webkit-details-marker]:hidden">
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Warehouse Özeti</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Kayıt Sayaçları</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Toplama servisi ve veri depoları için kayıt sayıları</p>
+      </div>
+      <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </span>
+    </summary>
+    <div class="border-t border-slate-100 px-6 pb-6 pt-4 dark:border-slate-800">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.", "warehouse-runs-section", "Son çalışma kayıtlarına git") }}
+        {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.", "warehouse-runs-section", "Son PSI çalışmalarına git") }}
+        {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.", "warehouse-runs-section", "Lighthouse audit çalışmalarına git") }}
+        {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.", "warehouse-runs-section", "Search Console toplama kayıtlarına git") }}
+        {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.", "warehouse-runs-section", "CrUX toplama kayıtlarına git") }}
       </div>
     </div>
-    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.", "warehouse-runs-section", "Son çalışma kayıtlarına git") }}
-      {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.", "warehouse-runs-section", "Son PSI çalışmalarına git") }}
-      {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.", "warehouse-runs-section", "Lighthouse audit çalışmalarına git") }}
-      {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.", "warehouse-runs-section", "Search Console toplama kayıtlarına git") }}
-      {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.", "warehouse-runs-section", "CrUX toplama kayıtlarına git") }}
-    </div>
-  </section>
+  </details>
 
-  <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <div class="flex items-center justify-between gap-3">
-      <div>
+  <details class="rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 group">
+    <summary class="flex cursor-pointer items-start justify-between gap-3 p-6 list-none [&::-webkit-details-marker]:hidden">
+      <div class="min-w-0">
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler Denetimi</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Kırık Link ve Redirect Taraması</h4>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ crawler_link_audit.source_strategy if crawler_link_audit.has_data else "Kaynak sayfalar hazır olduğunda site içi link denetimi burada görünecek." }}. Tarama sonunda 301, 302, redirect zinciri, kırık URL, final URL ve kaynak sayfa listesi gösterilir.</p>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Sitemap + Search Console URL listesinden iç linklerin 301/302/zincir/kırık durumları</p>
       </div>
-      {% if crawler_link_audit.has_data %}
-      <span class="rounded-full border px-3 py-1 text-xs font-semibold {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}border-rose-200 bg-rose-50 text-rose-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-700{% endif %}">
-        {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}Kontrol gerekli{% else %}Sağlıklı{% endif %}
-      </span>
-      {% else %}
-      <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">Henüz taranmadı</span>
-      {% endif %}
-    </div>
+      <div class="flex shrink-0 items-center gap-2">
+        {% if crawler_link_audit.has_data %}
+        <span class="rounded-full border px-3 py-1 text-xs font-semibold {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-slate-800/60 dark:text-rose-300{% else %}border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-slate-800/60 dark:text-emerald-300{% endif %}">
+          {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}Kontrol gerekli{% else %}Sağlıklı{% endif %}
+        </span>
+        {% else %}
+        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-slate-800/60 dark:text-amber-300">Henüz taranmadı</span>
+        {% endif %}
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </span>
+      </div>
+    </summary>
+    <div class="border-t border-slate-100 px-6 pb-6 pt-4 dark:border-slate-800">
 
     {% if crawler_link_audit.has_data %}
-    <div class="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-6 xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-6 xl:grid-cols-3">
       {{ metric_tile("Kaynak Sayfa", crawler_link_audit.source_pages, "Başlangıç URL", "İç linkleri çıkarılan kaynak sayfa sayısıdır.") }}
       {{ metric_tile("Taranan URL", crawler_link_audit.audited_urls, "Final durum kontrolü", "Durumu tek tek kontrol edilen benzersiz hedef URL sayısıdır.") }}
       {{ metric_tile("301", crawler_link_audit.redirect_301_links, "Kalıcı yönlendirme", "Dahili linklerin kaç tanesi 301 ile başka adrese gidiyor.", ("crawler-redirects-section" if crawler_link_audit.redirect_301_links > 0 else ""), "301 örneklerini gör") }}
@@ -965,11 +819,12 @@ text-slate-500 dark:text-slate-400
       </details>
     </div>
     {% else %}
-    <div class="mt-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
+    <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
       Henüz crawler link denetimi kaydı yok.
     </div>
     {% endif %}
-  </section>
+    </div>
+  </details>
 
   {# ── Collector Günlüğü — sayfa sonunda kapalı dropdown ── #}
   <details id="warehouse-runs-section" class="scroll-mt-20 rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-all duration-300 group">
