@@ -3042,6 +3042,29 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         LOGGER.info("All scheduled refresh jobs are disabled via settings.")
         return None
 
+    # Crashlytics günlük çekim — her sabah 06:15 (startup'ta çalışmaz)
+    def _run_crashlytics_daily() -> None:
+        from backend.services import crashlytics_bq as cbq
+        from backend.services.app_intel import APP_PRODUCTS
+        LOGGER.info("Crashlytics günlük çekim başladı.")
+        for pid in APP_PRODUCTS:
+            if cbq.any_platform_ready():
+                try:
+                    cbq.run_daily_refresh(pid)
+                    LOGGER.info("Crashlytics %s yenileme tetiklendi.", pid)
+                except Exception as exc:
+                    LOGGER.warning("Crashlytics %s yenileme hatası: %s", pid, exc)
+
+    scheduler.add_job(
+        _run_crashlytics_daily,
+        trigger=CronTrigger(hour=6, minute=15, timezone=timezone),
+        id="crashlytics-daily-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+
     return scheduler
 
 
@@ -8929,9 +8952,9 @@ def api_app_asc_preview(product: str = "doviz", period: int = 30):
 
 @app.get("/api/app/crashlytics")
 def api_app_crashlytics(product: str = "doviz", days: int = 7):
-    """Firebase Crashlytics özetini BigQuery üzerinden okur (GA4 service account + IAM)."""
+    """Eski endpoint — geriye uyumluluk için korundu."""
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
-    from backend.services.crashlytics_bq import build_crashlytics_payload
+    from backend.services import crashlytics_bq as cbq
 
     pid = (product or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -8940,10 +8963,115 @@ def api_app_crashlytics(product: str = "doviz", days: int = 7):
         d = int(days)
     except (TypeError, ValueError):
         d = 7
-    if d not in (1, 7, 14, 30):
+    if d not in (1, 7, 14, 30, 90):
         d = 7
-    payload = build_crashlytics_payload(pid, d)
+    payload = cbq.build_full_payload(pid, days=d, platform_filter="all")
     return JSONResponse(intel_json_safe(payload))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Crashlytics HTMX Partial Endpoint'leri
+# Her endpoint HTML döner; app_content.html içindeki tab'lar hx-get ile çağırır.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _crash_params(request: Request) -> dict:
+    """Ortak query param'ları ayrıştır."""
+    q = request.query_params
+    try:
+        days = int(q.get("days", 7))
+    except (ValueError, TypeError):
+        days = 7
+    if days not in (1, 7, 30, 90):
+        days = 7
+    platform = (q.get("platform") or "all").strip().lower()
+    if platform not in ("all", "android", "ios"):
+        platform = "all"
+    product = (q.get("product") or "doviz").strip().lower()
+    error_type = (q.get("type") or "").strip().upper() or None
+    version = (q.get("version") or "").strip() or None
+    return {"product": product, "days": days, "platform": platform,
+            "error_type": error_type, "version": version}
+
+
+def _crash_fetch(params: dict) -> dict:
+    from backend.services import crashlytics_bq as cbq
+    return cbq.build_full_payload(
+        params["product"],
+        days=params["days"],
+        platform_filter=params["platform"],
+        error_type=params["error_type"],
+        version=params["version"],
+    )
+
+
+@app.get("/api/app/crashlytics/summary", response_class=HTMLResponse)
+def api_crash_summary(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/summary.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
+@app.get("/api/app/crashlytics/crashes", response_class=HTMLResponse)
+def api_crash_crashes(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/crashes.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
+@app.get("/api/app/crashlytics/anr", response_class=HTMLResponse)
+def api_crash_anr(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/anr.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
+@app.get("/api/app/crashlytics/versions", response_class=HTMLResponse)
+def api_crash_versions(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/versions.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
+@app.get("/api/app/crashlytics/progress")
+def api_crash_progress(product: str = "doviz"):
+    from backend.services import crashlytics_bq as cbq
+    state = cbq.get_job_state(product.strip().lower())
+    if state is None:
+        return JSONResponse({"running": False, "pct": 0, "step": "", "done": True, "error": None})
+    return JSONResponse({
+        "running": not state["done"],
+        "pct": state.get("pct", 0),
+        "step": state.get("step", ""),
+        "done": state.get("done", False),
+        "error": state.get("error"),
+    })
+
+
+@app.post("/api/app/crashlytics/refresh")
+def api_crash_refresh(product: str = "doviz"):
+    from backend.services import crashlytics_bq as cbq
+    from backend.services.app_intel import APP_PRODUCTS
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"ok": False, "error": "unknown_product"}, status_code=400)
+    if not cbq.any_platform_ready():
+        return JSONResponse({"ok": False, "error": "credential_missing"}, status_code=400)
+    jid = cbq.run_daily_refresh(pid)
+    if jid == "already_running":
+        return JSONResponse({"ok": True, "already_running": True})
+    return JSONResponse({"ok": True, "job_id": jid})
 
 
 @app.post("/app/intel/refresh")

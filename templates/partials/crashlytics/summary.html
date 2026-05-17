@@ -1,0 +1,99 @@
+{% set cf = data.crash_free_pct %}
+{% set T = data.totals %}
+
+{# Storage badge #}
+{% set total_mb = data.storage_mb.values()|sum %}
+{% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200" %}{% set sb_label = "Kritik" %}
+{% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" %}{% set sb_label = "Yüksek" %}
+{% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
+
+<div class="space-y-4">
+  {# Hata varsa göster #}
+  {% if data.errors %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/60 dark:bg-amber-950/30">
+      {% for e in data.errors %}
+        <p class="text-xs text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# Crash-free + storage #}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="col-span-2 flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 dark:border-slate-700/60 dark:bg-slate-800/40 sm:col-span-1">
+      {% if cf is not none %}
+        <p class="text-3xl font-black tabular-nums {% if cf >= 99 %}text-emerald-600 dark:text-emerald-400{% elif cf >= 95 %}text-amber-600 dark:text-amber-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ "%.1f"|format(cf) }}%</p>
+        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
+      {% else %}
+        <p class="text-xl font-bold text-slate-400 dark:text-slate-500">—</p>
+        <p class="mt-1 text-[10px] uppercase text-slate-400">Crash-Free</p>
+      {% endif %}
+    </div>
+    <div class="flex flex-col items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-900/50 dark:bg-rose-950/30">
+      <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300">{{ T.fatal or 0 }}</p>
+      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Fatal</p>
+    </div>
+    <div class="flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+      <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300">{{ T.anr or 0 }}</p>
+      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">ANR</p>
+    </div>
+    <div class="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+      <p class="text-2xl font-black tabular-nums text-slate-700 dark:text-slate-300">{{ T.non_fatal or 0 }}</p>
+      <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</p>
+    </div>
+  </div>
+
+  {# Platform bazlı kırılım #}
+  {% if data.summary_by_platform %}
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {% for plat, s in data.summary_by_platform.items() %}
+        {% set cf_p = data.crash_free_by_platform.get(plat) %}
+        <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 dark:bg-slate-900/50">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat|upper }}</span>
+            {% if cf_p %}
+              <span class="text-xs font-semibold {% if cf_p.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-400{% elif cf_p.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ "%.1f"|format(cf_p.crash_free_pct) }}% crash-free</span>
+            {% endif %}
+          </div>
+          <div class="mt-2 grid grid-cols-3 gap-2 text-center">
+            <div><p class="text-base font-bold tabular-nums text-rose-600 dark:text-rose-400">{{ s.fatal or 0 }}</p><p class="text-[9px] uppercase text-slate-400">Fatal</p></div>
+            <div><p class="text-base font-bold tabular-nums text-amber-600 dark:text-amber-400">{{ s.anr or 0 }}</p><p class="text-[9px] uppercase text-slate-400">ANR</p></div>
+            <div><p class="text-base font-bold tabular-nums text-slate-600 dark:text-slate-300">{{ s.non_fatal or 0 }}</p><p class="text-[9px] uppercase text-slate-400">Non-Fatal</p></div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# Günlük trend sparkline #}
+  {% if data.trend %}
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-900/50">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük Trend (Fatal + ANR)</p>
+      <div class="flex items-end gap-0.5" style="height:48px">
+        {% set max_val = namespace(v=1) %}
+        {% for d in data.trend %}{% if (d.fatal + d.anr) > max_val.v %}{% set max_val.v = d.fatal + d.anr %}{% endif %}{% endfor %}
+        {% for d in data.trend %}
+          {% set h = ((d.fatal + d.anr) / max_val.v * 100)|int %}
+          <div class="group relative flex flex-1 flex-col justify-end" style="height:48px">
+            <div class="w-full rounded-t bg-rose-400/80 dark:bg-rose-500/70 transition-all" style="height:{{ [h, 2]|max }}%"></div>
+            <div class="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white group-hover:block whitespace-nowrap dark:bg-slate-700">
+              {{ d.date[-5:] }}: {{ d.fatal }}F {{ d.anr }}A
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {# Storage bilgisi #}
+  <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-800/40">
+    <span class="text-[11px] text-slate-500 dark:text-slate-400">BigQuery Storage (10 GB limit)</span>
+    <div class="flex items-center gap-2">
+      {% for plat, mb in data.storage_mb.items() %}
+        <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">{{ plat }}: {{ mb }} MB</span>
+      {% endfor %}
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold {{ sb_cls }}">{{ sb_label }}</span>
+    </div>
+  </div>
+
+  <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ data.fetched_at[:16]|replace("T", " ") }} UTC</p>
+</div>

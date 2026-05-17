@@ -1,0 +1,60 @@
+{% set rows = data.versions %}
+<div class="space-y-3">
+  {% if data.errors %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/60 dark:bg-amber-950/30">
+      {% for e in data.errors %}<p class="text-xs text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if not rows %}
+    <div class="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
+      <p class="text-sm text-slate-400 dark:text-slate-500">Versiyon verisi yok.</p>
+    </div>
+  {% else %}
+    {% set max_events = namespace(v=1) %}
+    {% for r in rows %}{% if r.total_events > max_events.v %}{% set max_events.v = r.total_events %}{% endif %}{% endfor %}
+
+    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">
+      <table class="w-full min-w-[540px] border-collapse text-left">
+        <thead>
+          <tr class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
+            <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon</th>
+            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-rose-500 dark:text-rose-400">Fatal</th>
+            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">ANR</th>
+            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</th>
+            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kullanıcı</th>
+            <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for r in rows %}
+            {% set bar_w = ((r.total_events / max_events.v) * 100)|int %}
+            <tr class="transition hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-3 py-2.5">
+                <span class="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-200">{{ r.app_version }}</span>
+              </td>
+              <td class="px-3 py-2.5 text-right">
+                <span class="text-sm font-bold tabular-nums {% if r.fatal_count > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.fatal_count }}</span>
+              </td>
+              <td class="px-3 py-2.5 text-right">
+                <span class="text-sm font-bold tabular-nums {% if r.anr_count > 0 %}text-amber-600 dark:text-amber-400{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.anr_count }}</span>
+              </td>
+              <td class="px-3 py-2.5 text-right">
+                <span class="text-sm tabular-nums text-slate-500 dark:text-slate-400">{{ r.non_fatal_count }}</span>
+              </td>
+              <td class="px-3 py-2.5 text-right">
+                <span class="text-sm tabular-nums text-slate-600 dark:text-slate-300">{{ r.affected_users }}</span>
+              </td>
+              <td class="px-3 py-2.5 min-w-[80px]">
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60">
+                  <div class="h-full rounded-full bg-rose-400/70 dark:bg-rose-500/60" style="width:{{ bar_w }}%"></div>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} versiyon · toplam olaya göre sıralı</p>
+  {% endif %}
+</div>
