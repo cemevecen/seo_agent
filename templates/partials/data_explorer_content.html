@@ -183,25 +183,25 @@ text-slate-500 dark:text-slate-400
 {% macro pagespeed_audit_item(item) %}
 {% set tone = item.priority|default('MEDIUM') %}
 {% if tone == 'CRITICAL' %}
-{% set shell_class = 'border-rose-200 bg-rose-50/80 dark:border-rose-900/50 dark:bg-rose-950/35' %}
-{% set title_class = 'text-rose-700 dark:text-rose-400' %}
-{% set badge_class = 'bg-rose-100 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-900/50' %}
-{% set problem_tr_class = 'text-rose-700 dark:text-rose-400' %}
+{% set shell_class = 'border-rose-200 bg-rose-50/80 dark:border-rose-900/50 dark:bg-rose-950/60' %}
+{% set title_class = 'text-rose-700 dark:text-rose-300' %}
+{% set badge_class = 'bg-rose-100 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/70 dark:text-rose-200 dark:ring-rose-900/60' %}
+{% set problem_tr_class = 'text-rose-700 dark:text-rose-300' %}
 {% elif tone == 'HIGH' %}
-{% set shell_class = 'border-amber-200 bg-amber-50/80 dark:border-amber-900/45 dark:bg-amber-950/35' %}
-{% set title_class = 'text-amber-700 dark:text-amber-400' %}
-{% set badge_class = 'bg-amber-100 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-900/45' %}
-{% set problem_tr_class = 'text-amber-700 dark:text-amber-400' %}
+{% set shell_class = 'border-amber-200 bg-amber-50/80 dark:border-amber-900/45 dark:bg-amber-950/60' %}
+{% set title_class = 'text-amber-700 dark:text-amber-300' %}
+{% set badge_class = 'bg-amber-100 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/70 dark:text-amber-200 dark:ring-amber-900/55' %}
+{% set problem_tr_class = 'text-amber-700 dark:text-amber-300' %}
 {% elif tone == 'LOW' %}
-{% set shell_class = 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/45 dark:bg-emerald-950/35' %}
-{% set title_class = 'text-emerald-700 dark:text-emerald-400' %}
-{% set badge_class = 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-900/45' %}
-{% set problem_tr_class = 'text-emerald-700 dark:text-emerald-400' %}
+{% set shell_class = 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/45 dark:bg-emerald-950/55' %}
+{% set title_class = 'text-emerald-700 dark:text-emerald-300' %}
+{% set badge_class = 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-200 dark:ring-emerald-900/55' %}
+{% set problem_tr_class = 'text-emerald-700 dark:text-emerald-300' %}
 {% else %}
-{% set shell_class = 'border-sky-200 bg-sky-50/70 dark:border-sky-900/45 dark:bg-sky-950/30' %}
-{% set title_class = 'text-sky-700 dark:text-sky-400' %}
-{% set badge_class = 'bg-sky-100 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-900/45' %}
-{% set problem_tr_class = 'text-sky-700 dark:text-sky-400' %}
+{% set shell_class = 'border-sky-200 bg-sky-50/70 dark:border-sky-900/45 dark:bg-sky-950/55' %}
+{% set title_class = 'text-sky-700 dark:text-sky-300' %}
+{% set badge_class = 'bg-sky-100 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/70 dark:text-sky-200 dark:ring-sky-900/55' %}
+{% set problem_tr_class = 'text-sky-700 dark:text-sky-300' %}
 {% endif %}
 <div class="rounded-xl border p-2.5 sm:p-3 {{ shell_class }}">
   <div class="flex items-start justify-between gap-2">
@@ -234,20 +234,29 @@ text-slate-500 dark:text-slate-400
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed</p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ domain }}</h3>
-      <p class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-        PSI / Lighthouse skorları — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
-        <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
-        CrUX geçmişi — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
-      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden="true"></span>
+          <span>PSI / Lighthouse:</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden="true"></span>
+          <span>CrUX geçmişi:</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
+        </span>
+      </div>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <button
         type="button"
         id="refresh-data-explorer"
-        class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+        class="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus:ring-offset-slate-900"
         data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
+        title="Google PageSpeed Insights + Chrome UX Report verilerini yeniden çek"
       >
-        PSI + CrUX Yenile
+        <span id="refresh-data-explorer-icon" aria-hidden="true">↻</span>
+        <span id="refresh-data-explorer-label">PSI + CrUX Yenile</span>
       </button>
     </div>
   </div>
@@ -730,7 +739,12 @@ text-slate-500 dark:text-slate-400
 
     function renderCruxChart(elementId) {
       const element = document.getElementById(elementId);
-      if (!element || typeof Plotly === 'undefined') {
+      if (!element) {
+        return;
+      }
+      if (typeof Plotly === 'undefined') {
+        // Plotly CDN/script yüklenememiş — kullanıcıya boş alan yerine açıklama göster
+        element.innerHTML = '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 px-4 py-6 text-center text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">Grafik kütüphanesi (Plotly) yüklenemedi. Sayfayı yenileyin veya internet bağlantınızı kontrol edin.</div>';
         return;
       }
       if (element.dataset.chartReady === '1') {
@@ -1090,9 +1104,13 @@ text-slate-500 dark:text-slate-400
 
       refreshButton.addEventListener('click', async function () {
         const url = refreshButton.dataset.refreshUrl;
-        const original = refreshButton.textContent;
+        const refreshLabel = document.getElementById('refresh-data-explorer-label');
+        const refreshIcon = document.getElementById('refresh-data-explorer-icon');
+        const original = refreshLabel ? refreshLabel.textContent : refreshButton.textContent;
         refreshButton.disabled = true;
-        refreshButton.textContent = 'Yenileniyor...';
+        if (refreshLabel) refreshLabel.textContent = 'Yenileniyor…';
+        else refreshButton.textContent = 'Yenileniyor…';
+        if (refreshIcon) refreshIcon.classList.add('inline-block', 'animate-spin');
         resetTone();
         renderProgress({
           percent: 7,
@@ -1198,8 +1216,15 @@ text-slate-500 dark:text-slate-400
             title: 'Data Explorer yenilenemedi',
             detail: (error && error.message) ? error.message : 'PSI veya CrUX akışı tamamlanamadı. Backend loglarını kontrol et.',
           });
-          refreshButton.textContent = 'Yenileme başarısız';
-          setTimeout(function () { refreshButton.textContent = original; refreshButton.disabled = false; }, 1500);
+          if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+          if (refreshLabel) refreshLabel.textContent = 'Yenileme başarısız';
+          else refreshButton.textContent = 'Yenileme başarısız';
+          // Hata mesajı görünür kalsın ama buton anında tekrar tıklanabilir olsun
+          refreshButton.disabled = false;
+          setTimeout(function () {
+            if (refreshLabel) refreshLabel.textContent = original;
+            else refreshButton.textContent = original;
+          }, 2500);
         }
       });
     }
