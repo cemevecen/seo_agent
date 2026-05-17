@@ -64,6 +64,34 @@ text-slate-500 dark:text-slate-400
   {% set period_tooltip = 'CrUX 28 günlük periyot: ' ~ period_first ~ ' → ' ~ period_last %}
 {% endif %}
 {% set is_zero_inp = (normalized == 'INP' and (metric.latest is none or metric.latest == 0)) %}
+{# CWV "iyi/geliştirilebilir/kötü" verdict — Google önerilen eşiklerine göre #}
+{% set verdict = '' %}
+{% set verdict_class = '' %}
+{% set verdict_help = '' %}
+{% if metric.latest is not none and metric.latest > 0 %}
+  {% set v = metric.latest|float %}
+  {% if normalized == 'LCP' %}
+    {% if v <= 2500 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'LCP ≤ 2.5sn (hedef)' %}
+    {% elif v <= 4000 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '2.5–4sn arası' %}
+    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 4sn (kötü)' %}{% endif %}
+  {% elif normalized == 'INP' %}
+    {% if v <= 200 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'INP ≤ 200ms (hedef)' %}
+    {% elif v <= 500 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '200–500ms arası' %}
+    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 500ms (kötü)' %}{% endif %}
+  {% elif normalized == 'CLS' %}
+    {% if v <= 0.1 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'CLS ≤ 0.1 (hedef)' %}
+    {% elif v <= 0.25 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.1–0.25 arası' %}
+    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 0.25 (kötü)' %}{% endif %}
+  {% elif normalized == 'FCP' %}
+    {% if v <= 1800 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'FCP ≤ 1.8sn (hedef)' %}
+    {% elif v <= 3000 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '1.8–3sn arası' %}
+    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 3sn (kötü)' %}{% endif %}
+  {% elif normalized == 'TTFB' %}
+    {% if v <= 800 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'TTFB ≤ 0.8sn (hedef)' %}
+    {% elif v <= 1800 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.8–1.8sn arası' %}
+    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 1.8sn (kötü)' %}{% endif %}
+  {% endif %}
+{% endif %}
 {% if normalized == 'CLS' %}
 {% set surface_class = 'border-sky-200 bg-gradient-to-b from-sky-50/70 to-white dark:border-sky-800/60 dark:from-slate-800/90 dark:to-slate-900' %}
 {% set fill_class = 'bg-sky-500' %}
@@ -96,6 +124,8 @@ text-slate-500 dark:text-slate-400
       >{{ metric.label }}</p>
       {% if is_zero_inp %}
       <span class="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="INP verisi PSI/CrUX'ten alınamadı. Audit fallback chain başarısız. Çok yeni veya az trafikli siteler için normal olabilir.">veri ?</span>
+      {% elif verdict %}
+      <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase {{ verdict_class }}" title="{{ verdict_help }}">{{ verdict }}</span>
       {% endif %}
     </div>
     <p
@@ -396,6 +426,7 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
@@ -459,6 +490,7 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
@@ -523,9 +555,9 @@ text-slate-500 dark:text-slate-400
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed Insights</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Resmi PSI ve Lighthouse Maddeleri</h4>
-        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Skorların veritabanına işlendiği zaman: {{ psi_lighthouse_last_updated|e }}</p>
+        <p class="text-sm uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Lab · PSI / Lighthouse tek koşum</p>
+        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Skor kartları ve audit bulguları</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son güncelleme: {{ psi_lighthouse_last_updated|e }}</p>
       </div>
     </div>
 
@@ -681,51 +713,11 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }} · Derin Analiz</p>
-          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">Field/Lab · Kategori · Önem · ROI · 3rd-Party</h4>
+          <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }}</p>
+          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">Trend & Bulgular</h4>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Kategori skoru, audit önem dağılımı, en yüksek ROI'li düzeltmeler ve 3rd-party scriptler</p>
         </div>
       </div>
-
-      {# Field vs Lab — açılır açıklamayla #}
-      {% if report.field_lab %}
-      <details class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40 open:shadow-sm">
-        <summary class="flex cursor-pointer items-center justify-between gap-2 p-4 list-none [&::-webkit-details-marker]:hidden">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Saha ↔ Lab karşılaştırma</p>
-            <p class="mt-0.5 text-[11px] text-slate-600 dark:text-slate-300">Gerçek kullanıcı verisi (28 gün CrUX) ile Lighthouse test koşumu sonucu yan yana</p>
-          </div>
-          <svg class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="border-t border-slate-200 px-4 py-3 dark:border-slate-700">
-          <div class="mb-3 rounded-lg bg-white p-2.5 text-[11px] leading-relaxed text-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
-            <p><strong class="text-sky-700 dark:text-sky-300">Saha (F)</strong>: Chrome kullanıcılarının son 28 günde gerçek tarayıcılarda yaşadığı performans (75. yüzdebirlik). Yeterli trafik olmazsa veri olmaz.</p>
-            <p class="mt-1"><strong class="text-rose-700 dark:text-rose-300">Lab (L)</strong>: PageSpeed Insights'ın test sunucusunda Lighthouse'u tek bir kez çalıştırıp aldığı sonuç (kısıtlanmış 4G + Moto G4 CPU simülasyonu).</p>
-            <p class="mt-1 text-slate-500 dark:text-slate-400">Lab değeri Saha'dan çok yüksekse: test ortamı daha kısıtlayıcı (normal). Saha değeri Lab'dan yüksekse: gerçek kullanıcıların ağı/cihazı test ortamından kötü, kullanıcı deneyimi ciddi optimizasyon ister.</p>
-          </div>
-          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {% for fl in report.field_lab %}
-            <div class="rounded-xl border border-slate-200 bg-white p-2.5 text-center dark:border-slate-600 dark:bg-slate-900/60">
-              <p class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">{{ fl.label }}</p>
-              <div class="mt-1 flex items-baseline justify-center gap-2">
-                <div title="Saha — gerçek kullanıcılar (28 gün CrUX p75)">
-                  <p class="text-[10px] font-semibold text-sky-700 dark:text-sky-300">Saha</p>
-                  <p class="text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ fl.field|round(0)|int if fl.field is not none else '—' }}{{ fl.unit }}</p>
-                </div>
-                <span class="text-slate-300 dark:text-slate-600">·</span>
-                <div title="Lab — Lighthouse tek koşum, sınırlı ortam">
-                  <p class="text-[10px] font-semibold text-rose-700 dark:text-rose-300">Lab</p>
-                  <p class="text-sm font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ fl.lab|round(0)|int if fl.lab is not none else '—' }}{{ fl.unit }}</p>
-                </div>
-              </div>
-              {% if fl.delta_pct is not none %}
-              <p class="mt-1 text-[10px] font-semibold {% if fl.delta_pct > 30 %}text-rose-600 dark:text-rose-400{% elif fl.delta_pct < -10 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-500 dark:text-slate-400{% endif %}" title="Lab Saha'dan {{ '%+.0f'|format(fl.delta_pct) }}% farklı">{{ '%+.0f'|format(fl.delta_pct) }}% fark</p>
-              {% endif %}
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-      </details>
-      {% endif %}
 
       {# Kategori skor trendi + Önem trendi yan yana #}
       <div class="mt-4 grid gap-3 lg:grid-cols-2">
