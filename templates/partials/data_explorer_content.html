@@ -291,7 +291,59 @@ text-slate-500 dark:text-slate-400
 </div>
 {% endmacro %}
 
-<div id="data-explorer-shell" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
+<style id="dex-mat-dark-styles">
+  /* Data Explorer — dark modda parlak renkleri matlaştır (light mode'a dokunma) */
+  html.dark .dex-mat-dark {
+    /* metin renkleri — emerald */
+    --dex-em-300: #6f9d85;
+    --dex-em-400: #5d8e74;
+    /* metin renkleri — rose */
+    --dex-rs-300: #b97c87;
+    --dex-rs-400: #a16b76;
+    /* metin renkleri — amber */
+    --dex-am-300: #c6a368;
+    --dex-am-400: #b3925a;
+    /* yumuşak vurgu/bar renkleri */
+    --dex-em-bar: #4f8770;
+    --dex-rs-bar: #95626d;
+    --dex-am-bar: #a37e4d;
+  }
+  /* TEXT — bright dark utility classes muted */
+  html.dark .dex-mat-dark .text-emerald-300 { color: var(--dex-em-300) !important; }
+  html.dark .dex-mat-dark .text-emerald-400 { color: var(--dex-em-400) !important; }
+  html.dark .dex-mat-dark .text-emerald-500 { color: var(--dex-em-400) !important; }
+  html.dark .dex-mat-dark .text-rose-300    { color: var(--dex-rs-300) !important; }
+  html.dark .dex-mat-dark .text-rose-400    { color: var(--dex-rs-400) !important; }
+  html.dark .dex-mat-dark .text-rose-500    { color: var(--dex-rs-400) !important; }
+  html.dark .dex-mat-dark .text-amber-300   { color: var(--dex-am-300) !important; }
+  html.dark .dex-mat-dark .text-amber-400   { color: var(--dex-am-400) !important; }
+  html.dark .dex-mat-dark .text-amber-500   { color: var(--dex-am-400) !important; }
+  html.dark .dex-mat-dark .text-sky-300     { color: #6e94ad !important; }
+  html.dark .dex-mat-dark .text-sky-400     { color: #618498 !important; }
+  html.dark .dex-mat-dark .text-violet-200,
+  html.dark .dex-mat-dark .text-violet-300  { color: #9b8fb6 !important; }
+  html.dark .dex-mat-dark .text-violet-400  { color: #897fa3 !important; }
+  html.dark .dex-mat-dark .text-violet-50   { color: #c8c2d6 !important; }
+  /* BAR / FILL — solid bright bg classes muted */
+  html.dark .dex-mat-dark .bg-emerald-500 { background-color: var(--dex-em-bar) !important; }
+  html.dark .dex-mat-dark .bg-rose-500    { background-color: var(--dex-rs-bar) !important; }
+  html.dark .dex-mat-dark .bg-amber-500   { background-color: var(--dex-am-bar) !important; }
+  /* Inline SVG ring stroke — desature filter (skor halkaları için) */
+  html.dark .dex-mat-dark svg circle[stroke="#10b981"],
+  html.dark .dex-mat-dark svg circle[stroke="#f59e0b"],
+  html.dark .dex-mat-dark svg circle[stroke="#f43f5e"],
+  html.dark .dex-mat-dark .dex-spark-good {
+    filter: saturate(0.55) brightness(0.82);
+  }
+  /* Gradient şeller — koyu modda daha mat görünsünler (opaklığı azaltarak) */
+  html.dark .dex-mat-dark [class*="from-emerald-950"],
+  html.dark .dex-mat-dark [class*="from-rose-950"],
+  html.dark .dex-mat-dark [class*="from-amber-950"] {
+    background-image: linear-gradient(to bottom, rgba(30,41,59,0.6), rgba(15,23,42,1)) !important;
+  }
+</style>
+
+<div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed</p>
@@ -481,7 +533,7 @@ text-slate-500 dark:text-slate-400
                 {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
                 {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
               {% endfor %}
-              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke" class="dex-spark-good"/>
               {% endif %}
             </svg>
             <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
@@ -545,7 +597,7 @@ text-slate-500 dark:text-slate-400
                 {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
                 {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
               {% endfor %}
-              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke" class="dex-spark-good"/>
               {% endif %}
             </svg>
             <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
