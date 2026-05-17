@@ -78,6 +78,14 @@ def any_platform_ready() -> bool:
     return platform_ready("ios") or platform_ready("android")
 
 
+def _effective_project(platform: str) -> str:
+    """BigQuery sorguları için kullanılacak GCP project_id'sini döndür.
+    Service account JSON'undaki project_id öncelikli (gerçek erişim sahibi orası);
+    yoksa _PLATFORM_PROJECTS fallback."""
+    info = _load_creds(platform) or {}
+    return str(info.get("project_id") or _PLATFORM_PROJECTS.get(platform, "")).strip()
+
+
 def _get_client(platform: str):
     from google.cloud import bigquery
     from google.oauth2 import service_account
@@ -86,7 +94,8 @@ def _get_client(platform: str):
     if not info:
         raise ValueError(f"CRASHLYTICS_{platform.upper()}_SERVICE_ACCOUNT_JSON tanımlı değil.")
     creds = service_account.Credentials.from_service_account_info(info, scopes=BIGQUERY_SCOPES)
-    return bigquery.Client(credentials=creds, project=_PLATFORM_PROJECTS[platform])
+    project = _effective_project(platform)
+    return bigquery.Client(credentials=creds, project=project)
 
 
 # ── Tablo keşfi (BigQuery'de gerçek tablo adını otomatik bul) ──────────────────
@@ -102,7 +111,7 @@ _TABLE_DISCOVERY_LOCK = threading.Lock()
 def _list_dataset_tables(platform: str) -> list[str]:
     try:
         client = _get_client(platform)
-        proj = _PLATFORM_PROJECTS[platform]
+        proj = _effective_project(platform)
         sql = f"SELECT table_id FROM `{proj}.{_DATASET}.__TABLES__`"
         return [str(r.table_id) for r in client.query(sql).result(timeout=10)]
     except Exception as exc:
@@ -167,11 +176,12 @@ def _discover_table_id(platform: str, bundle: str) -> str | None:
 
 def _table(platform: str, bundle: str) -> str:
     """Bundle için BigQuery tam tablo path'i. Discovery → standart pattern fallback."""
+    proj = _effective_project(platform)
     tid = _discover_table_id(platform, bundle)
     if tid:
-        return f"{_PLATFORM_PROJECTS[platform]}.{_DATASET}.{tid}"
+        return f"{proj}.{_DATASET}.{tid}"
     base = bundle.replace(".", "_")
-    return f"{_PLATFORM_PROJECTS[platform]}.{_DATASET}.{base}_{platform.upper()}"
+    return f"{proj}.{_DATASET}.{base}_{platform.upper()}"
 
 
 # ── Cache yardımcıları ────────────────────────────────────────────────────────
@@ -246,7 +256,7 @@ def get_storage_bytes(platform: str) -> int:
     """Dataset'in toplam byte boyutunu döndür (metadata sorgusu, byte taramaz)."""
     try:
         client = _get_client(platform)
-        proj = _PLATFORM_PROJECTS[platform]
+        proj = _effective_project(platform)
         sql = f"SELECT SUM(size_bytes) AS total FROM `{proj}.{_DATASET}.__TABLES__`"
         for row in client.query(sql).result(timeout=10):
             return int(row.total or 0)
@@ -299,7 +309,7 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
     except gexc.NotFound as exc:
         logger.warning("BQ tablo bulunamadı (%s): %s", platform, exc)
         # Datasette ne var, gerçekten yok mu yoksa adlandırma mı kaymış — kullanıcıya göster
-        proj = _PLATFORM_PROJECTS.get(platform, platform)
+        proj = _effective_project(platform) or platform
         available = _list_dataset_tables(platform)
         if not available:
             return [], (
@@ -317,7 +327,7 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
         )
     except gexc.Forbidden as exc:
         logger.warning("BQ erişim reddedildi (%s): %s", platform, exc)
-        proj = _PLATFORM_PROJECTS.get(platform, platform)
+        proj = _effective_project(platform) or platform
         email = _sa_email(platform) or "(service account)"
         raw = str(exc).strip()[:300]
         return [], (
