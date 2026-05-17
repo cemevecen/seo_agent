@@ -41,6 +41,13 @@ text-slate-500 dark:text-slate-400
 {% set width = good_share if good_share <= 100 else 100 %}
 {% set metric_color_class = crux_metric_color_class(metric.label)|trim %}
 {% set normalized = (metric.label or '')|upper %}
+{% set period_first = metric.latest_period_first or '' %}
+{% set period_last = metric.latest_period_last or '' %}
+{% set period_tooltip = '' %}
+{% if period_first and period_last %}
+  {% set period_tooltip = 'CrUX 28 günlük periyot: ' ~ period_first ~ ' → ' ~ period_last %}
+{% endif %}
+{% set is_zero_inp = (normalized == 'INP' and (metric.latest is none or metric.latest == 0)) %}
 {% if normalized == 'CLS' %}
 {% set surface_class = 'border-sky-200 bg-gradient-to-b from-sky-50/70 to-white dark:border-sky-800/60 dark:from-slate-800/90 dark:to-slate-900' %}
 {% set fill_class = 'bg-sky-500' %}
@@ -60,20 +67,26 @@ text-slate-500 dark:text-slate-400
 {% set surface_class = 'border-slate-200 dark:border-slate-700 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-800/90 dark:to-slate-900' %}
 {% set fill_class = 'bg-slate-50 dark:bg-slate-900/50' %}
 {% endif %}
-<div class="min-w-0 rounded-[1.15rem] border p-2.5 shadow-sm {{ surface_class }}">
+<div class="min-w-0 rounded-[1.15rem] border p-2.5 shadow-sm {{ surface_class }}"
+     {% if period_tooltip %}title="{{ period_tooltip }}"{% endif %}>
   <div>
-    <p
-      data-fit-text
-      data-fit-max="11"
-      data-fit-min="7.5"
-      class="text-[0.72rem] font-black uppercase tracking-[0.11em] {{ metric_color_class }}"
-      style="font-size: 11px;"
-    >{{ metric.label }}</p>
+    <div class="flex items-center justify-between gap-1">
+      <p
+        data-fit-text
+        data-fit-max="11"
+        data-fit-min="7.5"
+        class="text-[0.72rem] font-black uppercase tracking-[0.11em] {{ metric_color_class }}"
+        style="font-size: 11px;"
+      >{{ metric.label }}</p>
+      {% if is_zero_inp %}
+      <span class="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="INP verisi PSI/CrUX'ten alınamadı. Audit fallback chain başarısız. Çok yeni veya az trafikli siteler için normal olabilir.">veri ?</span>
+      {% endif %}
+    </div>
     <p
       data-fit-text
       data-fit-max="36"
       data-fit-min="18"
-      class="mt-2.5 text-[clamp(1.55rem,2.45vw,2.2rem)] font-black leading-none tracking-[-0.07em] {{ metric_color_class }}"
+      class="mt-2.5 text-[clamp(1.55rem,2.45vw,2.2rem)] font-black leading-none tracking-[-0.07em] {{ metric_color_class }}{% if is_zero_inp %} opacity-40{% endif %}"
       style="font-size: 36px;"
     >{{ metric.latest|exact if metric.latest is not none else "N/A" }}</p>
     <p
@@ -87,6 +100,9 @@ text-slate-500 dark:text-slate-400
   <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50 dark:bg-slate-800/90 dark:ring-slate-600/70">
     <div class="h-full rounded-full {{ fill_class }}" style="width: {{ width|max_two_decimals }}%"></div>
   </div>
+  {% if period_first and period_last %}
+  <p class="mt-1 text-[9px] leading-tight text-slate-400 dark:text-slate-500 truncate" title="{{ period_tooltip }}">{{ period_first[5:] }}→{{ period_last[5:] }}</p>
+  {% endif %}
 </div>
 {% endmacro %}
 
@@ -297,6 +313,69 @@ text-slate-500 dark:text-slate-400
     </div>
   </div>
 
+  {# ── Sağlık Özeti — Mobil/Masaüstü farkları + son 7 gün hata özeti ── #}
+  {% if mobile_desktop_delta or (error_widget and (error_widget.total_404 or error_widget.total_5xx)) %}
+  <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Sağlık Özeti</p>
+        <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">Hızlı bakış</h4>
+      </div>
+      <p class="text-[11px] text-slate-500 dark:text-slate-400">Mobil ↔ masaüstü farkları + son 7 gün hata özeti</p>
+    </div>
+
+    <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {# Mobil vs Masaüstü delta kart #}
+      {% if mobile_desktop_delta %}
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40 md:col-span-2">
+        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mobil ↔ Masaüstü</p>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {% for d in mobile_desktop_delta %}
+          <div class="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 {% if d.tone == 'negative' %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/30{% else %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/30{% endif %}">
+            <div class="min-w-0">
+              <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{{ d.label }}</p>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400">M: {{ d.mobile }} · D: {{ d.desktop }}</p>
+            </div>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold {% if d.tone == 'negative' %}bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300{% else %}bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300{% endif %}">{{ d.delta_text }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# 7 günlük hata özeti #}
+      {% if error_widget and (error_widget.total_404 or error_widget.total_5xx) %}
+      <div class="rounded-2xl border {% if error_widget.total_5xx > 0 %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/30{% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/30{% endif %} p-4">
+        <p class="text-[10px] font-bold uppercase tracking-wider {% if error_widget.total_5xx > 0 %}text-rose-700 dark:text-rose-300{% else %}text-amber-700 dark:text-amber-300{% endif %}">Son {{ error_widget.window_days }} gün hata</p>
+        <div class="mt-2 flex items-baseline gap-4">
+          <div>
+            <p class="text-2xl font-black tabular-nums {% if error_widget.total_404 > 100 %}text-rose-700 dark:text-rose-300{% else %}text-amber-700 dark:text-amber-300{% endif %}">{{ error_widget.total_404 }}</p>
+            <p class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">404</p>
+          </div>
+          <div>
+            <p class="text-2xl font-black tabular-nums {% if error_widget.total_5xx > 0 %}text-rose-700 dark:text-rose-300{% else %}text-slate-400 dark:text-slate-500{% endif %}">{{ error_widget.total_5xx }}</p>
+            <p class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">5xx</p>
+          </div>
+        </div>
+        {% if error_widget.top_404_urls %}
+        <details class="mt-2">
+          <summary class="cursor-pointer text-[11px] text-slate-600 dark:text-slate-300 hover:text-slate-900">En çok 404 alan URL'ler</summary>
+          <ul class="mt-1.5 space-y-1">
+            {% for u in error_widget.top_404_urls %}
+            <li class="flex items-center justify-between gap-2 text-[11px]">
+              <span class="truncate text-slate-600 dark:text-slate-300" title="{{ u.url }}">{{ u.url[:50] }}{% if u.url|length > 50 %}…{% endif %}</span>
+              <span class="shrink-0 font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ u.hits }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <div class="grid gap-5 xl:grid-cols-2">
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
@@ -318,6 +397,46 @@ text-slate-500 dark:text-slate-400
         <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil CrUX geçmiş kaydı yok.</div>
         {% endfor %}
       </div>
+      {# İyi oran trend mini grafikleri — her metrik için ayrı sparkline #}
+      {% set has_good_trend = namespace(v=false) %}
+      {% for m in crux_mobile_series.values() %}{% if (m.chart.good_share or [])|select|list|length > 1 %}{% set has_good_trend.v = true %}{% endif %}{% endfor %}
+      {% if has_good_trend.v %}
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İyi oran trendi · % kullanıcı (iyi deneyim)</p>
+        <div class="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
+          {% for key, m in crux_mobile_series.items() %}
+          {% set gs = m.chart.good_share or [] %}
+          {% set gs_clean = [] %}
+          {% for v in gs %}{% if v is not none %}{% set _ = gs_clean.append(v) %}{% endif %}{% endfor %}
+          {% if gs_clean|length > 1 %}
+          {% set last_gs = gs_clean[-1] %}
+          {% set first_gs = gs_clean[0] %}
+          {% set delta_gs = last_gs - first_gs %}
+          <div class="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-600 dark:bg-slate-900/60" title="{{ m.label }}: {{ first_gs|round(1) }}% → {{ last_gs|round(1) }}% · Δ {{ '%+.1f'|format(delta_gs) }}pp">
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300">{{ m.label }}</span>
+              <span class="text-[10px] font-bold tabular-nums {% if delta_gs > 1 %}text-emerald-600 dark:text-emerald-400{% elif delta_gs < -1 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.1f'|format(delta_gs) }}pp</span>
+            </div>
+            <svg viewBox="0 0 100 16" preserveAspectRatio="none" class="mt-1 h-4 w-full" style="overflow:visible">
+              {% set n = gs|length %}
+              {% if n > 1 %}
+              {% set step = (100 / (n - 1)) %}
+              {% set pts = [] %}
+              {% for v in gs %}
+                {% set x = (loop.index0 * step)|round(1) %}
+                {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
+                {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
+              {% endfor %}
+              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              {% endif %}
+            </svg>
+            <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
       <div id="crux-mobile-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_mobile_series|tojson }}'></div>
     </section>
 
@@ -341,6 +460,46 @@ text-slate-500 dark:text-slate-400
         <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü CrUX geçmiş kaydı yok.</div>
         {% endfor %}
       </div>
+      {# İyi oran trend mini grafikleri — masaüstü #}
+      {% set has_good_trend_d = namespace(v=false) %}
+      {% for m in crux_desktop_series.values() %}{% if (m.chart.good_share or [])|select|list|length > 1 %}{% set has_good_trend_d.v = true %}{% endif %}{% endfor %}
+      {% if has_good_trend_d.v %}
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İyi oran trendi · % kullanıcı (iyi deneyim)</p>
+        <div class="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
+          {% for key, m in crux_desktop_series.items() %}
+          {% set gs = m.chart.good_share or [] %}
+          {% set gs_clean = [] %}
+          {% for v in gs %}{% if v is not none %}{% set _ = gs_clean.append(v) %}{% endif %}{% endfor %}
+          {% if gs_clean|length > 1 %}
+          {% set last_gs = gs_clean[-1] %}
+          {% set first_gs = gs_clean[0] %}
+          {% set delta_gs = last_gs - first_gs %}
+          <div class="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-600 dark:bg-slate-900/60" title="{{ m.label }}: {{ first_gs|round(1) }}% → {{ last_gs|round(1) }}% · Δ {{ '%+.1f'|format(delta_gs) }}pp">
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300">{{ m.label }}</span>
+              <span class="text-[10px] font-bold tabular-nums {% if delta_gs > 1 %}text-emerald-600 dark:text-emerald-400{% elif delta_gs < -1 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.1f'|format(delta_gs) }}pp</span>
+            </div>
+            <svg viewBox="0 0 100 16" preserveAspectRatio="none" class="mt-1 h-4 w-full" style="overflow:visible">
+              {% set n = gs|length %}
+              {% if n > 1 %}
+              {% set step = (100 / (n - 1)) %}
+              {% set pts = [] %}
+              {% for v in gs %}
+                {% set x = (loop.index0 * step)|round(1) %}
+                {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
+                {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
+              {% endfor %}
+              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              {% endif %}
+            </svg>
+            <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
       <div id="crux-desktop-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_desktop_series|tojson }}'></div>
     </section>
   </div>
@@ -499,6 +658,194 @@ text-slate-500 dark:text-slate-400
       {% endfor %}
     </div>
   </section>
+
+  {# ── Derin analiz panelleri ── #}
+  {% for report in [pagespeed_report_mobile, pagespeed_report_desktop] %}
+    {% if report and report.has_data %}
+    <section class="rounded-3xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }} · Derin Analiz</p>
+          <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:text-xl">Field/Lab · Kategori · Önem · ROI · 3rd-Party</h4>
+        </div>
+      </div>
+
+      {# Field vs Lab #}
+      {% if report.field_lab %}
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Field (28-gün CrUX) ↔ Lab (Lighthouse tek koşum)</p>
+          <span class="text-[10px] text-slate-400 dark:text-slate-500" title="Field = gerçek kullanıcı verisi, Lab = test ortamı simülasyonu. Lab > Field ise test ortamı daha kısıtlayıcı (CPU/network throttle)">ℹ️</span>
+        </div>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {% for fl in report.field_lab %}
+          <div class="rounded-xl border border-slate-200 bg-white p-2.5 text-center dark:border-slate-600 dark:bg-slate-900/60">
+            <p class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">{{ fl.label }}</p>
+            <div class="mt-1 flex items-baseline justify-center gap-2">
+              <div>
+                <p class="text-xs text-sky-700 dark:text-sky-300" title="Gerçek kullanıcılar">F</p>
+                <p class="text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ fl.field|round(0)|int if fl.field is not none else '—' }}{{ fl.unit }}</p>
+              </div>
+              <span class="text-slate-300 dark:text-slate-600">·</span>
+              <div>
+                <p class="text-xs text-rose-700 dark:text-rose-300" title="Lighthouse lab">L</p>
+                <p class="text-sm font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ fl.lab|round(0)|int if fl.lab is not none else '—' }}{{ fl.unit }}</p>
+              </div>
+            </div>
+            {% if fl.delta_pct is not none %}
+            <p class="mt-1 text-[10px] font-semibold {% if fl.delta_pct > 30 %}text-rose-600 dark:text-rose-400{% elif fl.delta_pct < -10 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.0f'|format(fl.delta_pct) }}% lab/field fark</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Kategori skor trendi + Önem trendi yan yana #}
+      <div class="mt-4 grid gap-3 lg:grid-cols-2">
+        {# Kategori skor trendi #}
+        {% if report.category_trend and report.category_trend|length > 1 %}
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori skoru trendi (son {{ report.category_trend|length }} ölçüm)</p>
+          <div class="mt-3 space-y-2">
+            {% for cat_key, cat_label, cat_color in [('performance', 'Performance', '#0ea5e9'), ('accessibility', 'Accessibility', '#10b981'), ('best_practices', 'Best Practices', '#f59e0b'), ('seo', 'SEO', '#a855f7')] %}
+            {% set values = [] %}
+            {% for entry in report.category_trend %}{% set _ = values.append(entry.get(cat_key)) %}{% endfor %}
+            {% set last_val = values[-1] %}
+            {% set first_val = None %}
+            {% for v in values %}{% if first_val is none and v is not none %}{% set first_val = v %}{% endif %}{% endfor %}
+            {% set delta = (last_val - first_val) if (last_val is not none and first_val is not none) else None %}
+            <div class="flex items-center gap-2">
+              <span class="w-24 shrink-0 text-[11px] font-semibold" style="color: {{ cat_color }}">{{ cat_label }}</span>
+              <div class="flex-1">
+                <svg viewBox="0 0 100 18" preserveAspectRatio="none" class="h-5 w-full" style="overflow:visible">
+                  {% set n = values|length %}
+                  {% if n > 1 %}
+                  {% set step = (100 / (n - 1)) %}
+                  {% set pts = [] %}
+                  {% for v in values %}
+                    {% set x = (loop.index0 * step)|round(1) %}
+                    {% set y = (18 - (((v or 0) / 100.0) * 16))|round(1) %}
+                    {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
+                  {% endfor %}
+                  <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ cat_color }}" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+                  {% endif %}
+                </svg>
+              </div>
+              <span class="w-10 shrink-0 text-right text-xs font-bold tabular-nums" style="color: {{ cat_color }}">{{ last_val if last_val is not none else '—' }}</span>
+              {% if delta is not none and delta != 0 %}
+              <span class="w-10 shrink-0 text-right text-[10px] font-semibold tabular-nums {% if delta > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ '%+d'|format(delta) }}</span>
+              {% else %}
+              <span class="w-10 shrink-0"></span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# Önem (severity) trendi — CRITICAL/HIGH/MEDIUM/LOW yığılı çubuk #}
+        {% if report.severity_trend and report.severity_trend|length > 1 %}
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Audit önem trendi (CRITICAL/HIGH/MEDIUM)</p>
+          <div class="mt-3 flex h-24 items-end gap-1.5">
+            {% set max_total = namespace(v=1) %}
+            {% for e in report.severity_trend %}
+              {% set t = (e.CRITICAL or 0) + (e.HIGH or 0) + (e.MEDIUM or 0) + (e.LOW or 0) %}
+              {% if t > max_total.v %}{% set max_total.v = t %}{% endif %}
+            {% endfor %}
+            {% for e in report.severity_trend %}
+            {% set total = (e.CRITICAL or 0) + (e.HIGH or 0) + (e.MEDIUM or 0) + (e.LOW or 0) %}
+            {% set h_total = ((total / max_total.v) * 90)|round(1) %}
+            <div class="flex-1 flex flex-col items-center gap-1" title="{{ e.date }} · C:{{ e.CRITICAL }} H:{{ e.HIGH }} M:{{ e.MEDIUM }} L:{{ e.LOW }}">
+              <div class="w-full overflow-hidden rounded" style="height: {{ h_total }}px">
+                {% set c_pct = (e.CRITICAL / total * 100)|round(1) if total > 0 else 0 %}
+                {% set h_pct = (e.HIGH / total * 100)|round(1) if total > 0 else 0 %}
+                {% set m_pct = (e.MEDIUM / total * 100)|round(1) if total > 0 else 0 %}
+                {% set l_pct = 100 - c_pct - h_pct - m_pct %}
+                <div class="bg-rose-500" style="height: {{ c_pct }}%"></div>
+                <div class="bg-orange-500" style="height: {{ h_pct }}%"></div>
+                <div class="bg-amber-400" style="height: {{ m_pct }}%"></div>
+                <div class="bg-slate-300 dark:bg-slate-600" style="height: {{ l_pct }}%"></div>
+              </div>
+              <span class="text-[8px] text-slate-400 dark:text-slate-500">{{ e.date[5:] }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500 dark:text-slate-400">
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-rose-500"></span>CRITICAL</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-orange-500"></span>HIGH</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-amber-400"></span>MEDIUM</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-slate-300 dark:bg-slate-600"></span>LOW</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {# ROI matrisi — en yüksek savings_ms #}
+      {% if report.roi_top %}
+      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">ROI: En yüksek tasarruf potansiyeli</p>
+          <span class="text-[10px] text-slate-500 dark:text-slate-400">Lighthouse opportunity audit'leri · savings_ms büyükten küçüğe</span>
+        </div>
+        <div class="mt-3 space-y-1.5">
+          {% set roi_max = namespace(v=1) %}
+          {% for r in report.roi_top %}{% if r.savings_ms > roi_max.v %}{% set roi_max.v = r.savings_ms %}{% endif %}{% endfor %}
+          {% for r in report.roi_top[:10] %}
+          <div class="flex items-center gap-2">
+            <span class="w-7 shrink-0 text-right text-[10px] font-bold text-slate-500 dark:text-slate-400">#{{ loop.index }}</span>
+            <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 dark:text-slate-200" title="{{ r.title_tr or r.title_en }}">{{ r.title_tr or r.title_en }}</span>
+            <div class="hidden sm:block h-2 w-24 overflow-hidden rounded-full bg-emerald-200/60 dark:bg-emerald-900/50">
+              <div class="h-full rounded-full bg-emerald-500" style="width: {{ ((r.savings_ms / roi_max.v) * 100)|round(0) }}%"></div>
+            </div>
+            <span class="w-16 shrink-0 text-right text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ r.savings_ms|round(0)|int }}ms</span>
+            {% if r.savings_bytes > 0 %}
+            <span class="hidden md:inline w-16 shrink-0 text-right text-[10px] text-slate-500 dark:text-slate-400" title="{{ r.savings_bytes }} bayt">{{ (r.savings_bytes / 1024)|round(0)|int }}KB</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Third-party scripts paneli #}
+      {% if report.third_party and report.third_party.items %}
+      <div class="mt-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900/40 dark:bg-violet-950/30">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">3rd-Party scriptler · main thread bloklayan</p>
+            <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ report.third_party.entity_count }} servis · toplam {{ report.third_party.total_blocking_ms }}ms blocking · {{ report.third_party.total_transfer_kb }}KB transfer</p>
+          </div>
+        </div>
+        <div class="mt-3 overflow-hidden rounded-lg border border-violet-200/60 dark:border-violet-900/40">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-violet-100/50 text-[10px] uppercase text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+              <tr>
+                <th class="px-2 py-1.5 font-bold">Entity</th>
+                <th class="px-2 py-1.5 text-right font-bold">Blocking</th>
+                <th class="px-2 py-1.5 text-right font-bold hidden sm:table-cell">Main Thread</th>
+                <th class="px-2 py-1.5 text-right font-bold">Transfer</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-violet-100/60 dark:divide-violet-900/40">
+              {% for tp in report.third_party.items[:10] %}
+              <tr>
+                <td class="px-2 py-1.5 truncate max-w-[200px] font-semibold text-slate-700 dark:text-slate-200" title="{{ tp.entity }}">{{ tp.entity }}</td>
+                <td class="px-2 py-1.5 text-right font-bold tabular-nums {% if tp.blocking_ms > 250 %}text-rose-700 dark:text-rose-300{% elif tp.blocking_ms > 50 %}text-amber-700 dark:text-amber-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ tp.blocking_ms }}ms</td>
+                <td class="px-2 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400 hidden sm:table-cell">{{ tp.main_thread_ms }}ms</td>
+                <td class="px-2 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ tp.transfer_kb }}KB</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+    </section>
+    {% endif %}
+  {% endfor %}
 
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex items-center justify-between gap-3">
