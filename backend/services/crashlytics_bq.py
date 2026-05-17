@@ -29,7 +29,7 @@ from backend.services.app_intel import APP_PRODUCTS
 logger = logging.getLogger(__name__)
 
 # ── Sabitler ──────────────────────────────────────────────────────────────────
-BIGQUERY_SCOPES = ("https://www.googleapis.com/auth/bigquery.readonly",)
+BIGQUERY_SCOPES = ("https://www.googleapis.com/auth/bigquery",)
 QUERY_TIMEOUT_S = 25.0          # BigQuery job timeout (saniye)
 BYTES_BUDGET = 200_000_000      # Sorgu başına 200 MB limit
 MAX_CONCURRENT = 2              # Eş zamanlı max sorgu sayısı
