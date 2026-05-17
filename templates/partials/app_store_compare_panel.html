@@ -4,16 +4,9 @@
     position: relative;
     border-radius: 1.25rem;
     border: 1px solid rgb(199 210 254);
-    background:
-      radial-gradient(circle at 0% 0%, rgba(129, 140, 248, 0.14), transparent 45%),
-      radial-gradient(circle at 100% 0%, rgba(167, 139, 250, 0.14), transparent 45%),
-      linear-gradient(to bottom right, rgb(238 242 255), rgb(255 255 255), rgb(245 243 255));
+    background: rgb(255 255 255);
     padding: 1.1rem 1.35rem 1.4rem;
-    box-shadow:
-      0 4px 12px -2px rgba(99, 102, 241, 0.18),
-      0 2px 4px -2px rgba(15, 23, 42, 0.08),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   }
   .rt-viv-panel::before {
     content: '';
@@ -35,13 +28,8 @@
   }
   html.dark .rt-viv-panel {
     border-color: rgba(129, 140, 248, 0.35);
-    background:
-      radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.18), transparent 45%),
-      radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.18), transparent 45%),
-      linear-gradient(to bottom right, rgb(24 24 27), rgb(24 24 27), rgb(39 39 42 / 0.6));
-    box-shadow:
-      0 6px 18px -4px rgba(99, 102, 241, 0.35),
-      0 0 0 1px rgba(129, 140, 248, 0.12);
+    background: rgb(24 24 27);
+    box-shadow: none;
   }
   html.dark .rt-viv-panel::before {
     background: linear-gradient(135deg,
@@ -49,35 +37,6 @@
       rgba(192, 132, 252, 0.4),
       rgba(244, 114, 182, 0.45));
     opacity: 0.7;
-  }
-  .rt-viv-heading-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.3rem 0.7rem;
-    border-radius: 9999px;
-    background: linear-gradient(135deg, rgb(79 70 229), rgb(139 92 246), rgb(217 70 239));
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    box-shadow: 0 2px 6px -1px rgba(139, 92, 246, 0.5);
-    white-space: nowrap;
-  }
-  html.dark .rt-viv-heading-badge {
-    box-shadow: 0 2px 8px -1px rgba(139, 92, 246, 0.55);
-  }
-  .rt-viv-heading-badge svg {
-    width: 0.85rem;
-    height: 0.85rem;
-  }
-  @keyframes rt-viv-sparkle {
-    0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
-    50% { transform: scale(1.15) rotate(8deg); opacity: 0.85; }
-  }
-  .rt-viv-heading-badge svg {
-    animation: rt-viv-sparkle 2.4s ease-in-out infinite;
   }
   .rt-viv-tabs {
     display: inline-flex;
@@ -408,17 +367,9 @@
 
 <section class="rt-viv-panel mb-4 sm:mb-5" aria-labelledby="rt-viv-heading" data-rt-viv-root>
   <div class="flex items-center justify-between gap-3 flex-wrap">
-    <div class="flex items-center gap-2.5 min-w-0">
-      <span class="rt-viv-heading-badge">
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path d="M10 1.5l2.39 5.27 5.61.55-4.22 3.88 1.22 5.55L10 13.94l-5 2.81 1.22-5.55L2 7.32l5.61-.55L10 1.5z"/>
-        </svg>
-        Yeni
-      </span>
-      <h2 id="rt-viv-heading" class="text-base sm:text-lg font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-indigo-300 dark:via-violet-300 dark:to-fuchsia-300 truncate">
-        Mağaza keşif &amp; uygulama karşılaştırma
-      </h2>
-    </div>
+    <h2 id="rt-viv-heading" class="text-base sm:text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100 truncate">
+      Mağaza keşif &amp; uygulama karşılaştırma
+    </h2>
     <p class="hidden sm:block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
       Yorumları çek · Heuristic analiz · Karşılaştır
     </p>
