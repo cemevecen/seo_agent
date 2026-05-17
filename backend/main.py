@@ -8909,6 +8909,17 @@ def app_intel_page(request: Request):
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
 
 
+@app.get("/firebase")
+def firebase_page(request: Request):
+    """Firebase Crashlytics izleme sayfası."""
+    payload = {
+        "site_name": "Firebase",
+        "sites": get_sidebar_sites(),
+    }
+    template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
+    return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
+
+
 @app.get("/api/app/intel")
 def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0):
     from backend.services.app_intel import APP_PRODUCTS, build_intel_payload, intel_json_safe

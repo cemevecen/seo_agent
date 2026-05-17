@@ -1,0 +1,251 @@
+<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 px-1">
+
+  {# Sayfa başlığı #}
+  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h3 class="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 sm:text-2xl">Firebase</h3>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Crashlytics · Performance · BigQuery · iOS & Android</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span id="firebase-product-label" class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300">doviz.com</span>
+    </div>
+  </div>
+
+  {# ── Firebase Crashlytics tam panel ── #}
+  <section id="app-crashlytics-root" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
+
+    {# Başlık + Yenile #}
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="min-w-0">
+        <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">BigQuery · iOS + Android · crash, ANR, versiyon analizi</p>
+      </div>
+      <button id="crash-refresh-btn" type="button"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
+        <span id="crash-refresh-icon">↺</span> Manuel Yenile
+      </button>
+    </div>
+
+    {# Filtre bar #}
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2.5 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+      {# Platform #}
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Platform</span>
+        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+          {% for pv, pl in [("all","Tümü"),("android","Android"),("ios","iOS")] %}
+            <button type="button" data-crash-platform="{{ pv }}"
+              class="crash-platform-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
+                {% if pv == 'all' %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ pl }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# Dönem #}
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+          {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
+            <button type="button" data-crash-days="{{ dv }}"
+              class="crash-days-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
+                {% if dv == 7 %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# Tür #}
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
+        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+          {% for tv, tl in [("","Tümü"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
+            <button type="button" data-crash-type="{{ tv }}"
+              class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
+                {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# Progress bar #}
+    <div id="crash-progress-wrap" class="hidden border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
+      <div class="mb-1 flex items-center justify-between">
+        <span id="crash-progress-step" class="text-[11px] text-slate-500 dark:text-slate-400">Yükleniyor…</span>
+        <span id="crash-progress-pct" class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">0%</span>
+      </div>
+      <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div id="crash-progress-bar"
+          class="h-full rounded-full bg-rose-500/80 transition-all duration-300 dark:bg-rose-400/70"
+          style="width:0%"></div>
+      </div>
+    </div>
+
+    {# Tab bar #}
+    <div class="flex items-center gap-0 border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
+      {% for tid, tlabel in [("summary","Özet"),("crashes","Crash'ler"),("anr","ANR"),("versions","Versiyonlar")] %}
+        <button type="button" data-crash-tab="{{ tid }}"
+          class="crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition
+            {% if tid == 'summary' %}border-rose-500 text-rose-600 dark:border-rose-400 dark:text-rose-400
+            {% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
+      {% endfor %}
+    </div>
+
+    {# İçerik alanı #}
+    <div id="crash-content" class="min-h-[200px] p-4 sm:p-5">
+      <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500">
+        <span class="animate-spin inline-block">⟳</span> Veri yükleniyor…
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var crashRoot = document.getElementById("app-crashlytics-root");
+  if (!crashRoot || crashRoot.dataset.crashBound) return;
+  crashRoot.dataset.crashBound = "1";
+
+  var crashState = {
+    platform: "all", days: 7, type: "", tab: "summary",
+    product: "doviz", seq: 0, pollTimer: null
+  };
+
+  function activeCls(on) {
+    return on
+      ? "crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition border-rose-500 text-rose-600 dark:border-rose-400 dark:text-rose-400"
+      : "crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200";
+  }
+  function filterCls(on) {
+    return on
+      ? "rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+      : "rounded-md px-2.5 py-1 text-[11px] font-semibold transition text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100";
+  }
+
+  function syncBtns() {
+    crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
+      b.className = filterCls(b.dataset.crashPlatform === crashState.platform);
+    });
+    crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
+      b.className = filterCls(parseInt(b.dataset.crashDays) === crashState.days);
+    });
+    crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
+      b.className = filterCls(b.dataset.crashType === crashState.type);
+    });
+    crashRoot.querySelectorAll(".crash-tab-btn").forEach(function (b) {
+      b.className = activeCls(b.dataset.crashTab === crashState.tab);
+    });
+  }
+
+  function tabUrl() {
+    return "/api/app/crashlytics/" + crashState.tab
+      + "?product=" + encodeURIComponent(crashState.product)
+      + "&days=" + crashState.days
+      + "&platform=" + crashState.platform
+      + "&type=" + encodeURIComponent(crashState.type);
+  }
+
+  function showProgress(on) {
+    var w = document.getElementById("crash-progress-wrap");
+    if (w) w.classList.toggle("hidden", !on);
+  }
+  function setProgress(pct, step) {
+    var bar = document.getElementById("crash-progress-bar");
+    var pEl = document.getElementById("crash-progress-pct");
+    var sEl = document.getElementById("crash-progress-step");
+    if (bar) bar.style.width = pct + "%";
+    if (pEl) pEl.textContent = pct + "%";
+    if (sEl) sEl.textContent = step || "Yükleniyor…";
+  }
+  function stopPoll() {
+    if (crashState.pollTimer) { clearInterval(crashState.pollTimer); crashState.pollTimer = null; }
+  }
+
+  function startPoll() {
+    stopPoll();
+    showProgress(true);
+    setProgress(5, "BigQuery bağlantısı kuruluyor…");
+    crashState.pollTimer = setInterval(function () {
+      fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          setProgress(j.pct || 0, j.step || "");
+          if (j.done) { stopPoll(); showProgress(false); loadTab(); }
+        })
+        .catch(stopPoll);
+    }, 800);
+  }
+
+  function loadTab() {
+    var box = document.getElementById("crash-content");
+    if (!box) return;
+    crashState.seq += 1;
+    var seq = crashState.seq;
+    box.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 30000);
+    fetch(tabUrl(), { cache: "no-store", signal: ctrl.signal })
+      .then(function (r) {
+        clearTimeout(timer);
+        if (seq !== crashState.seq) return;
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        if (seq !== crashState.seq || !html) return;
+        box.innerHTML = html;
+      })
+      .catch(function (e) {
+        if (seq !== crashState.seq) return;
+        box.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">'
+          + (e.name === "AbortError" ? "Zaman aşımı (30s). Dönem daraltın veya tekrar deneyin." : "Veri yüklenemedi. Credential'ları ve BigQuery bağlantısını kontrol edin.")
+          + "</p>";
+      });
+  }
+
+  function triggerRefresh() {
+    var btn = document.getElementById("crash-refresh-btn");
+    var icon = document.getElementById("crash-refresh-icon");
+    if (btn) btn.disabled = true;
+    fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
+      { method: "POST", cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.already_running) { loadTab(); return; }
+        startPoll();
+      })
+      .catch(function () { loadTab(); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+        if (icon) icon.textContent = "↺";
+      });
+  }
+
+  // Filtre butonları
+  crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      crashState.platform = b.dataset.crashPlatform; syncBtns(); loadTab();
+    });
+  });
+  crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadTab();
+    });
+  });
+  crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      crashState.type = b.dataset.crashType; syncBtns(); loadTab();
+    });
+  });
+  crashRoot.querySelectorAll(".crash-tab-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      crashState.tab = b.dataset.crashTab; syncBtns(); loadTab();
+    });
+  });
+
+  var refreshBtn = document.getElementById("crash-refresh-btn");
+  if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
+
+  // İlk yükleme: sayfa açılınca hemen yükle
+  syncBtns();
+  loadTab();
+})();
+</script>
