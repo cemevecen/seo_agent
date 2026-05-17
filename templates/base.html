@@ -5,12 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ site_name or "SEO Agent Dashboard" }}</title>
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
-  {% set favicon_v = "11" %}
+  {% set favicon_v = "12" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
   {% set app_css_v = "11" %}
-  <link rel="icon" href="/static/favicon.ico?v={{ favicon_v }}" sizes="any" />
-  <link rel="shortcut icon" href="/static/favicon.ico?v={{ favicon_v }}" />
-  <link rel="icon" href="/static/favicon.svg?v={{ favicon_v }}" type="image/svg+xml" />
+  <link rel="icon" href="/static/favicon.png?v={{ favicon_v }}" sizes="any" type="image/png" />
+  <link rel="shortcut icon" href="/static/favicon.png?v={{ favicon_v }}" />
   <link rel="icon" href="/static/favicon-32.png?v={{ favicon_v }}" sizes="32x32" type="image/png" />
   <link rel="icon" href="/static/favicon-16.png?v={{ favicon_v }}" sizes="16x16" type="image/png" />
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ favicon_v }}" sizes="180x180" />
