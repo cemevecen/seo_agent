@@ -10756,14 +10756,15 @@ def settings_alert_thresholds(request: Request):
 
 @app.get("/search-console")
 def search_console_page(request: Request):
-    # Her tam sayfa yüklemesinde site listesi eager: tek /site-list yanıtı tüm kart verisini DB’den üretir
-    # (lazy + çoklu HTMX zinciri tarayıcı önbelleği / kısmi yüklenmeyle “yenile işe yaramıyor” hissi verebiliyordu).
+    # Lazy site-list: önce küçük iskelet HTML, sonra her kart kendi /search-console/site/{id}
+    # endpoint'inden yüklenir. Eager modda 90d eklendikten sonra HTML 3 MB+ ve render 2-3 sn
+    # sürüyordu; lazy'de ilk paint çok daha hızlı, kartlar paralel hidrate olur.
     payload = {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
-        "site_list_mode": "eager",
+        "site_list_mode": "lazy",
     }
     return templates.TemplateResponse(
         request,
