@@ -33,7 +33,7 @@
     {% endfor %}
     {% set last_y = (28 - (values[-1] / max_v.v) * 24)|round(2) %}
     {% set gid = 'sg-' ~ key %}
-    <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="h-9 w-full overflow-visible">
+    <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="h-9 w-full" style="overflow:visible">
       <defs>
         <linearGradient id="{{ gid }}" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stop-color="{{ color }}" stop-opacity="0.38"/>
@@ -45,7 +45,7 @@
         stroke="{{ color }}"
         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
         vector-effect="non-scaling-stroke"/>
-      <circle cx="100" cy="{{ last_y }}" r="1.8" fill="{{ color }}"/>
+      <circle cx="98" cy="{{ last_y }}" r="2" fill="{{ color }}" vector-effect="non-scaling-stroke"/>
     </svg>
   {% else %}
     <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="h-9 w-full">
@@ -61,13 +61,17 @@
 {% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" %}{% set sb_label = "Yüksek" %}
 {% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
 
-{# Daily series — total ve platform bazlı #}
-{% set fatal_series = trend|map(attribute='fatal')|list %}
-{% set anr_series = trend|map(attribute='anr')|list %}
-{% set non_fatal_series = trend|map(attribute='non_fatal')|list %}
-{# crash-free için günlük fatal+anr'ı ters çevir: az olan = istikrarlı #}
+{# Daily series — total ve platform bazlı. Eski cache satırları için güvenli erişim #}
+{% set fatal_series = [] %}
+{% set anr_series = [] %}
+{% set non_fatal_series = [] %}
 {% set stability_series = [] %}
-{% for d in trend %}{% set _ = stability_series.append((d.fatal or 0) + (d.anr or 0)) %}{% endfor %}
+{% for d in trend %}
+  {% set _ = fatal_series.append(d.get('fatal', 0) or 0) %}
+  {% set _ = anr_series.append(d.get('anr', 0) or 0) %}
+  {% set _ = non_fatal_series.append(d.get('non_fatal', 0) or 0) %}
+  {% set _ = stability_series.append((d.get('fatal', 0) or 0) + (d.get('anr', 0) or 0)) %}
+{% endfor %}
 
 <div class="space-y-4">
   {# Hata varsa göster (tekrarları dedupe et) #}
@@ -134,9 +138,14 @@
       {% for plat, s in data.summary_by_platform.items() %}
         {% set cf_p = data.crash_free_by_platform.get(plat) %}
         {% set plat_trend = trend_by_plat.get(plat) or [] %}
-        {% set p_fatal = plat_trend|map(attribute='fatal')|list %}
-        {% set p_anr = plat_trend|map(attribute='anr')|list %}
-        {% set p_nf = plat_trend|map(attribute='non_fatal')|list %}
+        {% set p_fatal = [] %}
+        {% set p_anr = [] %}
+        {% set p_nf = [] %}
+        {% for d in plat_trend %}
+          {% set _ = p_fatal.append(d.get('fatal', 0) or 0) %}
+          {% set _ = p_anr.append(d.get('anr', 0) or 0) %}
+          {% set _ = p_nf.append(d.get('non_fatal', 0) or 0) %}
+        {% endfor %}
         <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 dark:bg-slate-900/50">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat|upper }}</span>
