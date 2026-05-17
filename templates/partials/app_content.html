@@ -1,4 +1,67 @@
-<div id="app-intel-root" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5">
+<style id="app-mat-dark-styles">
+  /* /app sayfası dark mode — parlak grafik/metrik renklerini matlaştır.
+     Sadece html.dark + .app-mat-dark wrapper kapsamında çalışır; light mode korunur. */
+  html.dark .app-mat-dark {
+    --am-em-300: #6f9d85;
+    --am-em-400: #5d8e74;
+    --am-rs-300: #b97c87;
+    --am-rs-400: #a16b76;
+    --am-am-300: #c6a368;
+    --am-am-400: #b3925a;
+    --am-sky-300: #6e94ad;
+    --am-sky-400: #618498;
+    --am-vio-300: #9b8fb6;
+    --am-vio-400: #897fa3;
+  }
+  /* Text utility'leri */
+  html.dark .app-mat-dark .text-emerald-300,
+  html.dark .app-mat-dark .text-emerald-400 { color: var(--am-em-400) !important; }
+  html.dark .app-mat-dark .text-emerald-500 { color: var(--am-em-400) !important; }
+  html.dark .app-mat-dark .text-rose-300    { color: var(--am-rs-300) !important; }
+  html.dark .app-mat-dark .text-rose-400,
+  html.dark .app-mat-dark .text-rose-500    { color: var(--am-rs-400) !important; }
+  html.dark .app-mat-dark .text-amber-300   { color: var(--am-am-300) !important; }
+  html.dark .app-mat-dark .text-amber-400,
+  html.dark .app-mat-dark .text-amber-500   { color: var(--am-am-400) !important; }
+  html.dark .app-mat-dark .text-sky-300,
+  html.dark .app-mat-dark .text-sky-400     { color: var(--am-sky-400) !important; }
+  html.dark .app-mat-dark .text-violet-200,
+  html.dark .app-mat-dark .text-violet-300  { color: var(--am-vio-300) !important; }
+  html.dark .app-mat-dark .text-violet-400  { color: var(--am-vio-400) !important; }
+  /* Solid bar/fill renkleri */
+  html.dark .app-mat-dark .bg-emerald-500   { background-color: #4f8770 !important; }
+  html.dark .app-mat-dark .bg-rose-500      { background-color: #95626d !important; }
+  html.dark .app-mat-dark .bg-amber-500     { background-color: #a37e4d !important; }
+  html.dark .app-mat-dark .bg-sky-500       { background-color: #5a7e94 !important; }
+  html.dark .app-mat-dark .bg-violet-500    { background-color: #7a719a !important; }
+  /* SVG line/path/circle/rect strokes & fills — Chartist / Plotly / inline SVG için filter */
+  html.dark .app-mat-dark svg path[stroke],
+  html.dark .app-mat-dark svg line[stroke],
+  html.dark .app-mat-dark svg polyline[stroke],
+  html.dark .app-mat-dark svg circle[stroke],
+  html.dark .app-mat-dark svg rect[stroke],
+  html.dark .app-mat-dark svg path[fill],
+  html.dark .app-mat-dark svg rect[fill]:not([fill="none"]),
+  html.dark .app-mat-dark svg circle[fill]:not([fill="none"]),
+  html.dark .app-mat-dark canvas {
+    filter: saturate(0.6) brightness(0.85);
+  }
+  /* Plotly modebar/legend — sırf grafik şekilleri etkilensin diye .js-plotly-plot
+     altındaki tüm SVG'lere de filter */
+  html.dark .app-mat-dark .js-plotly-plot .main-svg {
+    filter: saturate(0.6) brightness(0.85);
+  }
+  /* Gradient şeller (from-rose-950/45, from-emerald-950/45 vb.) → düz mat slate */
+  html.dark .app-mat-dark [class*="from-emerald-950"],
+  html.dark .app-mat-dark [class*="from-rose-950"],
+  html.dark .app-mat-dark [class*="from-amber-950"],
+  html.dark .app-mat-dark [class*="from-sky-950"],
+  html.dark .app-mat-dark [class*="from-violet-950"] {
+    background-image: linear-gradient(to bottom, rgba(30,41,59,0.55), rgba(15,23,42,1)) !important;
+  }
+</style>
+
+<div id="app-intel-root" class="app-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5">
   {# JSON'u data-* içinde |e ile vermek bazı tarayıcılarda parse hatasına yol açabiliyor #}
   <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
   <style>
