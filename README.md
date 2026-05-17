@@ -1058,17 +1058,31 @@ Aynı dark mode matlaştırma `home-de-card` scope'unda uygulanır.
 
 ### 22.1 Üç Mod
 
-- **Light:** Varsayılan, slate-based palette
-- **Dark:** `html.dark` + `html.midnight` (kombine) — true black yakın koyu mod
-- **Midnight:** Dark'ın true-black varyantı, header'da extra koyu zemin
+- **Light:** `data-theme-value="light"` — Varsayılan, slate-based palette, açık zemin
+- **Dim:** `data-theme-value="dim"` → `html.dark` (yalnız) — Yumuşak koyu mod, zinc-800 ağırlıklı
+- **Midnight:** `data-theme-value="midnight"` → `html.dark` + `html.midnight` — True black, header'da extra koyu zemin
 
-### 22.2 UI Switcher
+### 22.2 UI Switcher (3 Buton)
 
-Header pill'inde 2 buton (Light / Dark). Dark seçildiğinde otomatik midnight de aktif olur (`applyTheme('dark')` her ikisini de set eder).
+Header pill'inde 3 buton var:
+- ☀ Light (güneş ikonu, amber)
+- ◐ Dim (yarım daire, slate)
+- ☾ Midnight (ay ikonu, indigo)
 
-Pill animasyonu CSS transition ile slide, butonlar mobile'da 32px touch target (sm+ ekranda 28px).
+Pill animasyonu CSS transition ile slide, butonlar mobile'da 32px touch target (sm+ ekranda 28px). Toplam switcher genişliği: mobile 100px, desktop 88px.
 
-### 22.3 Override Stilleri
+**Pill rengi mod'a göre değişir:**
+- Light → beyaz (`bg-white`)
+- Dim → zinc-600 (`bg-zinc-600`)
+- Midnight → zinc-900 + zinc-700 ring (`bg-zinc-900 ring-1 ring-zinc-700`)
+
+### 22.3 LocalStorage + Geriye Uyumluluk
+
+- Anahtar: `seo-theme` (`light` | `dim` | `midnight`)
+- **Legacy migration:** Eski `'dark'` değeri varsa otomatik `'midnight'` olarak okunur (eski kullanıcıların deneyimi değişmez)
+- Sistem tercihi (`prefers-color-scheme: dark`) varsayılan olarak **midnight** modunu uygular
+
+### 22.4 Override Stilleri
 
 Dark mode'da parlak Tailwind utility'lerini bastırmak için global override blokları:
 
@@ -1078,12 +1092,6 @@ Dark mode'da parlak Tailwind utility'lerini bastırmak için global override blo
 - **`seo-inbox-dark`:** Inbox-spesifik override'lar
 
 Sayfa-spesifik scope'lar (`dex-mat-dark` data explorer, `app-mat-dark` /app sayfası, `home-de-card` anasayfa CWV widget'ı): kendi sayfaları içinde parlak renkleri muted hex'lere çevirir.
-
-### 22.4 LocalStorage
-
-- Anahtar: `seo-theme` (`light` | `dark`)
-- Sayfa load'da `readStoredTheme()` ile okunur, `applyTheme()` ile uygulanır
-- Tema değişimi olayında `localStorage.setItem('seo-theme', theme)`
 
 ### 22.5 SVG Filter
 
@@ -1115,9 +1123,14 @@ Anasayfa dashboard split: `grid grid-cols-1 lg:grid-cols-2` — phone/tablet'te 
 
 Geniş tablolar (`site_list`, `settings`, `alert_thresholds`) `overflow-x-auto` wrapper içinde — mobile'da yatay scroll. Sticky thead ile başlık görünür kalır.
 
-### 23.4 Touch Target'lar
+### 23.4 Touch Target'lar (WCAG/Material)
 
-Tema switcher butonları mobilde 32px (`h-6 w-8`), sm+ ekranda 28px (`sm:w-7`). İcon boyutları benzer şekilde mobile'da 16px, sm+'da 14px.
+Mobil ekranda tüm interaktif elemanlar **minimum 32px yükseklik**:
+
+- Tema switcher butonları: mobilde 32px (`h-6 w-8`), sm+ ekranda 28px (`sm:w-7`)
+- Header nav pill'leri (`.header-nav-link`): mobilde CSS media query ile `min-height: 32px` zorlanır (`@media (max-width: 639px)`)
+- Alert thresholds tablo "Kaydet" butonu: `py-1.5` + `min-h-[32px]`
+- Icon boyutları: mobile 16px (`h-4 w-4`), sm+ 14px (`sm:h-3.5 sm:w-3.5`)
 
 ### 23.5 Sayfa Bazlı Mobile İyileştirmeler
 
