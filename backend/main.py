@@ -7903,18 +7903,125 @@ def api_refresh_site_metrics(request: Request, domain: str):
         )
 
 
+def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
+    """Threshold sekmesi için: GA4 Realtime alarmları + 404 hata logları (mail edilen eşik bazlı uyarılar)."""
+    from backend.models import RealtimeAlarmLog, SiteErrorLog, Site
+    from datetime import datetime as _dt, timedelta as _td
+
+    cutoff = _dt.utcnow() - _td(days=max(1, int(days)))
+    site_map = {s.id: s for s in db.query(Site).all()}
+
+    # GA4 Realtime alarmları
+    rt_rows = (
+        db.query(RealtimeAlarmLog)
+        .filter(RealtimeAlarmLog.triggered_at >= cutoff)
+        .order_by(RealtimeAlarmLog.triggered_at.desc())
+        .limit(200)
+        .all()
+    )
+    realtime_alerts: list[dict] = []
+    for r in rt_rows:
+        site = site_map.get(r.site_id)
+        if site is None:
+            continue
+        try:
+            from backend.services.timezone_utils import format_local_datetime as _fld
+            triggered_label = _fld(r.triggered_at)
+        except Exception:
+            triggered_label = r.triggered_at.strftime("%d.%m %H:%M") if r.triggered_at else ""
+        cur_v = float(r.current_value or 0.0)
+        prev_v = float(r.previous_value or 0.0)
+        pct = float(r.change_pct or 0.0)
+        if cur_v == int(cur_v):
+            cur_fmt = f"{int(cur_v)}"
+        else:
+            cur_fmt = f"{cur_v:.1f}"
+        if prev_v == int(prev_v):
+            prev_fmt = f"{int(prev_v)}"
+        else:
+            prev_fmt = f"{prev_v:.1f}"
+        realtime_alerts.append({
+            "id": r.id,
+            "domain": site.domain,
+            "display_name": site.display_name,
+            "rule_id": r.rule_id or "",
+            "metric": r.metric or "",
+            "severity": (r.severity or "warning").lower(),
+            "current_value": cur_v,
+            "previous_value": prev_v,
+            "current_fmt": cur_fmt,
+            "previous_fmt": prev_fmt,
+            "change_pct": pct,
+            "change_fmt": f"{pct:+.1f}%" if pct else "—",
+            "message": r.message or "",
+            "triggered_at": triggered_label,
+            "triggered_at_iso": r.triggered_at.isoformat() if r.triggered_at else "",
+        })
+
+    # 404 hata logları (mail edilen 404 raporlarının kaynak verisi)
+    err_rows = (
+        db.query(SiteErrorLog)
+        .filter(
+            SiteErrorLog.status_code == 404,
+            SiteErrorLog.last_seen >= cutoff,
+        )
+        .order_by(SiteErrorLog.hit_count.desc(), SiteErrorLog.last_seen.desc())
+        .limit(200)
+        .all()
+    )
+    error_alerts: list[dict] = []
+    seen_keys: set[tuple[int, str]] = set()
+    for e in err_rows:
+        site = site_map.get(e.site_id)
+        if site is None:
+            continue
+        key = (e.site_id, (e.url or "").lower())
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        try:
+            from backend.services.timezone_utils import format_local_datetime as _fld
+            last_seen_label = _fld(e.last_seen)
+        except Exception:
+            last_seen_label = e.last_seen.strftime("%d.%m %H:%M") if e.last_seen else ""
+        url_short = e.url or ""
+        if len(url_short) > 70:
+            url_short = url_short[:70] + "…"
+        error_alerts.append({
+            "id": e.id,
+            "domain": site.domain,
+            "display_name": site.display_name,
+            "url": e.url or "",
+            "url_short": url_short,
+            "status_code": int(e.status_code or 404),
+            "hit_count": int(e.hit_count or 0),
+            "source": e.source or "",
+            "error_type": e.error_type or "not_found",
+            "last_seen": last_seen_label,
+            "last_seen_iso": e.last_seen.isoformat() if e.last_seen else "",
+        })
+
+    return {
+        "threshold_realtime_alerts": realtime_alerts,
+        "threshold_error_alerts": error_alerts,
+        "threshold_window_days": days,
+    }
+
+
 @app.get("/alerts")
 def alerts_page(request: Request):
-    # Son alarm kayıtlarını listeler.
+    # Son alarm kayıtlarını listeler — Search Console + Threshold (Realtime + 404) iki sekmeli.
     with SessionLocal() as db:
         external_domains = _external_site_domains(db)
         alert_rows = get_recent_alerts(db, limit=100, include_external=True)
+        threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
             "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
             "has_external_sites": bool(external_domains),
+            **threshold_payload,
         }
     template_name = "partials/alerts_content.html" if request.headers.get("HX-Request") == "true" else "alerts.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})

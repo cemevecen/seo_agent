@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.models import SupportInboxThread, SupportInboxMessage
@@ -6,12 +7,23 @@ from backend.services import inbox_sync, mailer
 
 logger = logging.getLogger(__name__)
 
+
+def _inbox_summary_email_disabled() -> bool:
+    """Operator kararı: inbox özet mail'i varsayılan olarak kapalı.
+    INBOX_SUMMARY_EMAIL_ENABLED=true env'i set edilirse açılır."""
+    raw = (os.getenv("INBOX_SUMMARY_EMAIL_ENABLED") or "").strip().lower()
+    return raw not in ("1", "true", "yes", "on")
+
+
 def run_inbox_summary_job(db: Session):
     """
     1. Her saat başı inbox senkronize edilir.
     2. Okunmamış (gmail_unread=True) olan mesajlar toplanır.
     3. Özet rapor oluşturulur ve mail atılır.
     """
+    if _inbox_summary_email_disabled():
+        logger.info("Inbox summary email is disabled (INBOX_SUMMARY_EMAIL_ENABLED not set); skipping.")
+        return
     logger.info("Starting hourly inbox summary job...")
     
     # 1. Sync inbox (DB'nin güncel olduğundan emin olalım)
