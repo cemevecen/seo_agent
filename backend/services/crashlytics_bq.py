@@ -63,6 +63,13 @@ def _load_creds(platform: str) -> dict | None:
         return None
 
 
+def _sa_email(platform: str) -> str | None:
+    info = _load_creds(platform)
+    if not info:
+        return None
+    return info.get("client_email")
+
+
 def platform_ready(platform: str) -> bool:
     return bool(_load_creds(platform))
 
@@ -214,7 +221,13 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
         return [], "Tablo henüz oluşmamış. Firebase export başladıktan 24 saat bekleyin."
     except gexc.Forbidden as exc:
         logger.warning("BQ erişim reddedildi (%s): %s", platform, exc)
-        return [], "Erişim reddedildi. Service account'a BigQuery Data Viewer + Job User rolü verin."
+        proj = _PLATFORM_PROJECTS.get(platform, platform)
+        email = _sa_email(platform) or "(service account)"
+        return [], (
+            f"Erişim reddedildi · proje `{proj}` · {email}. "
+            f"GCP Console → IAM → bu service account'a şu iki rolü verin: "
+            f"`BigQuery Data Viewer` + `BigQuery Job User`."
+        )
     except Exception as exc:
         msg = str(exc).strip()
         if "Timeout" in msg or "deadline" in msg.lower():
@@ -526,11 +539,27 @@ def build_full_payload(
                     ver_all.append((plat, res["versions"]))
                 if res["trend"]:
                     trend_all.append((plat, res["trend"]))
+                # Her platform için aynı erişim/yapılandırma hatası birden fazla
+                # alanda tekrar ediyor; tek temsilci mesajı koruyalım.
+                seen_for_plat: set[str] = set()
                 for field in ("issues_err", "anr_err", "ver_err", "trend_err"):
-                    if res.get(field):
-                        errors.append(f"{plat}: {res[field]}")
+                    msg = res.get(field)
+                    if not msg or msg in seen_for_plat:
+                        continue
+                    seen_for_plat.add(msg)
+                    errors.append(f"{plat}: {msg}")
             except Exception as exc:
                 errors.append(str(exc)[:200])
+
+    # Aynı mesaj birden fazla platformda tekrar etmesin
+    if errors:
+        _seen: set[str] = set()
+        deduped: list[str] = []
+        for e in errors:
+            if e not in _seen:
+                _seen.add(e)
+                deduped.append(e)
+        errors = deduped
 
     _step(85, "Sonuçlar birleştiriliyor…")
 

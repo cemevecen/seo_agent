@@ -16,11 +16,16 @@
 {% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
 
 <div class="space-y-4">
-  {# Hata varsa göster #}
+  {# Hata varsa göster (tekrarları dedupe et) #}
   {% if data.errors %}
+    {% set _seen = [] %}
+    {% set _unique = [] %}
+    {% for e in data.errors %}
+      {% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}
+    {% endfor %}
     <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/60 dark:bg-amber-950/30">
-      {% for e in data.errors %}
-        <p class="text-xs text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>
+      {% for e in _unique %}
+        <p class="text-xs leading-snug text-amber-800 dark:text-amber-200">⚠ {{ e }}</p>
       {% endfor %}
     </div>
   {% endif %}
