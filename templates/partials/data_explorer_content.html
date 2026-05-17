@@ -307,6 +307,13 @@ text-slate-500 dark:text-slate-400
           <span>CrUX geçmişi:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
         </span>
+        {% if data_explorer_schedule %}
+        <span class="inline-flex items-center gap-1.5" title="Sunucu her gün bu saatte PSI + CrUX verilerini otomatik yeniler.">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+          <span>Otomatik yenileme:</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">her gün {{ data_explorer_schedule }} (TSİ)</span>
+        </span>
+        {% endif %}
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-3">

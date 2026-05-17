@@ -4804,6 +4804,126 @@ def _build_performance_budget(
     }
 
 
+def _data_explorer_nightly_schedule() -> str:
+    """Data Explorer'ı (PSI + CrUX) otomatik yenileyen cron'un HH:MM string'i."""
+    hour = max(0, min(23, int(settings.scheduled_refresh_hour)))
+    minute = max(0, min(59, int(settings.scheduled_refresh_minute)))
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _build_dashboard_data_explorer_summary(db) -> dict:
+    """Ana sayfa için Data Explorer özet kartı — her site için CrUX p75 + verdict + son güncelleme."""
+    from backend.models import CruxHistorySnapshot
+    from sqlalchemy import func as sqlfunc
+
+    external_ids = _external_site_ids(db)
+    sites = (
+        db.query(Site)
+        .filter(Site.is_active.is_(True))
+        .order_by(Site.created_at.desc())
+        .all()
+    )
+    sites = [s for s in sites if s.id not in external_ids]
+    sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+
+    # CWV "iyi" eşikleri — Google standardı
+    cwv_thresholds = {
+        "largest_contentful_paint": (2500, 4000),  # (good, ni)
+        "interaction_to_next_paint": (200, 500),
+        "cumulative_layout_shift": (0.1, 0.25),
+        "first_contentful_paint": (1800, 3000),
+        "experimental_time_to_first_byte": (800, 1800),
+    }
+    metric_short = {
+        "largest_contentful_paint": "LCP",
+        "interaction_to_next_paint": "INP",
+        "cumulative_layout_shift": "CLS",
+        "first_contentful_paint": "FCP",
+        "experimental_time_to_first_byte": "TTFB",
+    }
+
+    def _verdict(metric_key: str, value: float) -> str:
+        good, ni = cwv_thresholds.get(metric_key, (0, 0))
+        if value <= good:
+            return "good"
+        if value <= ni:
+            return "ni"
+        return "poor"
+
+    def _fmt(metric_key: str, value: float) -> str:
+        if metric_key == "cumulative_layout_shift":
+            return f"{value:.2f}"
+        if value >= 1000:
+            return f"{value / 1000:.1f}s"
+        return f"{int(round(value))}ms"
+
+    rows: list[dict] = []
+    for site in sites:
+        mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
+        desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        latest_collected = None
+        for snap in (mobile_crux, desktop_crux):
+            if snap and snap.get("collected_at"):
+                ts = snap.get("collected_at")
+                if latest_collected is None or ts > latest_collected:
+                    latest_collected = ts
+
+        # Sadece "saha" verisi olan 5 metrik için verdict üret (mobile öncelikli)
+        ff_metrics: dict[str, list[dict]] = {"mobile": [], "desktop": []}
+        for form_factor, snap in (("mobile", mobile_crux), ("desktop", desktop_crux)):
+            series = _format_crux_series(snap) if snap else {}
+            for metric_key, item in series.items():
+                latest = item.get("latest")
+                if latest is None:
+                    continue
+                try:
+                    v = float(latest)
+                except (TypeError, ValueError):
+                    continue
+                ff_metrics[form_factor].append({
+                    "key": metric_key,
+                    "label": metric_short.get(metric_key, item.get("label", "")),
+                    "value": v,
+                    "formatted": _fmt(metric_key, v),
+                    "verdict": _verdict(metric_key, v),
+                })
+
+        # Form-factor'ın hangisi varsa öncelikli — varsayılan mobile
+        primary_metrics = ff_metrics["mobile"] or ff_metrics["desktop"]
+        primary_form_factor = "mobile" if ff_metrics["mobile"] else ("desktop" if ff_metrics["desktop"] else "")
+
+        # Genel skor — verdict sayımı
+        good_count = sum(1 for m in primary_metrics if m["verdict"] == "good")
+        ni_count = sum(1 for m in primary_metrics if m["verdict"] == "ni")
+        poor_count = sum(1 for m in primary_metrics if m["verdict"] == "poor")
+        if poor_count > 0:
+            overall = "poor"
+        elif ni_count > 0:
+            overall = "ni"
+        elif good_count > 0:
+            overall = "good"
+        else:
+            overall = "no_data"
+
+        rows.append({
+            "domain": site.domain,
+            "display_name": site.display_name,
+            "form_factor": primary_form_factor,
+            "metrics": primary_metrics,
+            "overall": overall,
+            "good_count": good_count,
+            "ni_count": ni_count,
+            "poor_count": poor_count,
+            "last_updated": format_local_datetime(latest_collected, fallback="—"),
+            "has_data": bool(primary_metrics),
+            "href": f"/data-explorer/{site.domain}",
+        })
+    return {
+        "rows": rows,
+        "schedule": _data_explorer_nightly_schedule(),
+    }
+
+
 def _build_error_widget(db, site_id: int) -> dict:
     """Son 7 günde sitedeki hata kayıtlarının özetini döner (404, 5xx).
 
@@ -4870,6 +4990,8 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
         mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
         error_widget = _build_error_widget(db, site.id)
+        # Gece otomatik yenileme saati — `_run_daily_refresh_job` cron'u
+        schedule_str = _data_explorer_nightly_schedule()
 
         return {
             "site_name": f"PageSpeed - {site.display_name}",
@@ -4887,6 +5009,7 @@ def _data_explorer_context(domain: str) -> dict:
             "pagespeed_report_desktop": desktop_panel,
             "mobile_desktop_delta": mobile_desktop_delta,
             "error_widget": error_widget,
+            "data_explorer_schedule": schedule_str,
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",
@@ -6911,6 +7034,17 @@ def _home_seo_errors_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
             "problems": _home_seo_problem_summary(r),
         })
     return out
+
+
+@app.get("/api/home/data-explorer", response_class=HTMLResponse)
+def api_home_data_explorer(request: Request):
+    """Ana sayfa Data Explorer özet kartı — site bazlı CWV (CrUX) snapshot + verdict."""
+    with SessionLocal() as db:
+        payload = _build_dashboard_data_explorer_summary(db)
+    return templates.TemplateResponse(
+        request, "partials/home/data_explorer.html",
+        context={"request": request, **payload},
+    )
 
 
 @app.get("/api/home/seo-errors", response_class=HTMLResponse)

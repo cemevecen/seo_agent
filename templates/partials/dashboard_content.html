@@ -66,6 +66,16 @@
     <div class="mt-3 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
   </section>
 
+  {# Section — Data Explorer Özeti (CrUX p75 + verdict) #}
+  <section id="home-section-data-explorer"
+           hx-get="/api/home/data-explorer"
+           hx-trigger="load"
+           hx-swap="innerHTML"
+           class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">Data Explorer · Core Web Vitals</h4>
+    <div class="mt-3 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+  </section>
+
   {# Section 6 + 7 — 404s + SEO Errors #}
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
     <section id="home-section-404s"
