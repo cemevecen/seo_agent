@@ -89,9 +89,89 @@ def _get_client(platform: str):
     return bigquery.Client(credentials=creds, project=_PLATFORM_PROJECTS[platform])
 
 
+# ── Tablo keşfi (BigQuery'de gerçek tablo adını otomatik bul) ──────────────────
+# Firebase Crashlytics BigQuery export şablonu: {bundle_underscored}_{PLATFORM}
+#   ör. com.Doviz + android  →  com_Doviz_ANDROID
+# Realtime export ise:           {bundle_underscored}_REALTIME_{PLATFORM}
+# Bazı eski/elle kurulan datasetlerde sadece bundle_underscored da olabilir.
+# Tahmin etmek yerine __TABLES__ üzerinden gerçek adı keşfedip cache'liyoruz.
+_TABLE_DISCOVERY_CACHE: dict[str, str | None] = {}
+_TABLE_DISCOVERY_LOCK = threading.Lock()
+
+
+def _list_dataset_tables(platform: str) -> list[str]:
+    try:
+        client = _get_client(platform)
+        proj = _PLATFORM_PROJECTS[platform]
+        sql = f"SELECT table_id FROM `{proj}.{_DATASET}.__TABLES__`"
+        return [str(r.table_id) for r in client.query(sql).result(timeout=10)]
+    except Exception as exc:
+        logger.warning("BQ dataset listesi alınamadı (%s): %s", platform, exc)
+        return []
+
+
+def _discover_table_id(platform: str, bundle: str) -> str | None:
+    """Verilen bundle için datasette mevcut gerçek table_id'yi bul."""
+    key = f"{platform}:{bundle}"
+    with _TABLE_DISCOVERY_LOCK:
+        if key in _TABLE_DISCOVERY_CACHE:
+            return _TABLE_DISCOVERY_CACHE[key]
+    base = bundle.replace(".", "_")
+    plat_up = platform.upper()
+    # Olası adlandırmalar (öncelik sırasıyla)
+    candidates = [
+        f"{base}_{plat_up}",                    # com_Doviz_ANDROID  (standart)
+        f"{base}_REALTIME_{plat_up}",           # com_Doviz_REALTIME_ANDROID
+        base,                                    # com_Doviz (eski)
+        base.lower() + "_" + plat_up,
+        base.lower(),
+        base.lower() + "_realtime_" + plat_up.lower(),
+    ]
+    available = _list_dataset_tables(platform)
+    if not available:
+        with _TABLE_DISCOVERY_LOCK:
+            _TABLE_DISCOVERY_CACHE[key] = None
+        return None
+    available_lower = {t.lower(): t for t in available}
+    # 1) Exact (case-insensitive) match
+    for c in candidates:
+        match = available_lower.get(c.lower())
+        if match:
+            with _TABLE_DISCOVERY_LOCK:
+                _TABLE_DISCOVERY_CACHE[key] = match
+            logger.info("Crashlytics tablo keşfedildi: %s → %s", key, match)
+            return match
+    # 2) Substring match: bundle base + platform suffix tablo adında geçiyor mu?
+    base_lower = base.lower()
+    for t_lower, t_orig in available_lower.items():
+        if base_lower in t_lower and plat_up.lower() in t_lower:
+            with _TABLE_DISCOVERY_LOCK:
+                _TABLE_DISCOVERY_CACHE[key] = t_orig
+            logger.info("Crashlytics tablo (fuzzy) keşfedildi: %s → %s", key, t_orig)
+            return t_orig
+    # 3) Sadece base substring
+    for t_lower, t_orig in available_lower.items():
+        if base_lower in t_lower:
+            with _TABLE_DISCOVERY_LOCK:
+                _TABLE_DISCOVERY_CACHE[key] = t_orig
+            logger.info("Crashlytics tablo (base-only) keşfedildi: %s → %s", key, t_orig)
+            return t_orig
+    with _TABLE_DISCOVERY_LOCK:
+        _TABLE_DISCOVERY_CACHE[key] = None
+    logger.warning(
+        "Crashlytics tablosu bulunamadı: %s; datasette mevcut: %s",
+        key, ", ".join(available[:15]) or "(boş)",
+    )
+    return None
+
+
 def _table(platform: str, bundle: str) -> str:
-    tid = bundle.replace(".", "_")
-    return f"{_PLATFORM_PROJECTS[platform]}.{_DATASET}.{tid}"
+    """Bundle için BigQuery tam tablo path'i. Discovery → standart pattern fallback."""
+    tid = _discover_table_id(platform, bundle)
+    if tid:
+        return f"{_PLATFORM_PROJECTS[platform]}.{_DATASET}.{tid}"
+    base = bundle.replace(".", "_")
+    return f"{_PLATFORM_PROJECTS[platform]}.{_DATASET}.{base}_{platform.upper()}"
 
 
 # ── Cache yardımcıları ────────────────────────────────────────────────────────
@@ -218,7 +298,23 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
 
     except gexc.NotFound as exc:
         logger.warning("BQ tablo bulunamadı (%s): %s", platform, exc)
-        return [], "Tablo henüz oluşmamış. Firebase export başladıktan 24 saat bekleyin."
+        # Datasette ne var, gerçekten yok mu yoksa adlandırma mı kaymış — kullanıcıya göster
+        proj = _PLATFORM_PROJECTS.get(platform, platform)
+        available = _list_dataset_tables(platform)
+        if not available:
+            return [], (
+                f"`{proj}.{_DATASET}` datasetinde tablo yok. "
+                "Firebase Console → Project Settings → Integrations → BigQuery'den "
+                "Crashlytics export'unun aktif olduğunu doğrulayın; ilk tablo oluşması "
+                "için Firebase export başladıktan ~24 saat geçmesi gerekir."
+            )
+        shown = ", ".join(available[:8]) + ("…" if len(available) > 8 else "")
+        return [], (
+            f"Bundle ile eşleşen tablo bulunamadı (`{proj}.{_DATASET}`). "
+            f"Datasette mevcut tablolar: {shown}. "
+            "APP_PRODUCTS'taki bundle/package adı ile BigQuery tablo adı eşleşmiyor "
+            "olabilir — beklenen şablon: `<bundle>_ANDROID` / `<bundle>_IOS`."
+        )
     except gexc.Forbidden as exc:
         logger.warning("BQ erişim reddedildi (%s): %s", platform, exc)
         proj = _PLATFORM_PROJECTS.get(platform, platform)
