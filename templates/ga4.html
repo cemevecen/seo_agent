@@ -1115,11 +1115,13 @@
         buttons.forEach(function (button) {
           const isActive = ga4DataAttr(button, 'data-ga4-period-toggle') === pk;
           button.dataset.active = isActive ? 'true' : 'false';
-          button.classList.toggle('bg-violet-900', isActive);
-          button.classList.toggle('dark:bg-violet-600', isActive);
+          // Aktif görünüm: bg-violet-600 + text-white + shadow-sm (template ile aynı sınıflar)
+          button.classList.toggle('bg-violet-600', isActive);
           button.classList.toggle('text-white', isActive);
-          button.classList.toggle('text-slate-600', !isActive);
-          button.classList.toggle('dark:text-slate-300', !isActive);
+          button.classList.toggle('shadow-sm', isActive);
+          // Pasif görünüm
+          button.classList.toggle('text-slate-500', !isActive);
+          button.classList.toggle('dark:text-slate-400', !isActive);
         });
         if (card) {
           card.querySelectorAll('[data-ga4-period-panel]').forEach(function (panel) {
@@ -1278,11 +1280,15 @@
         buttons.forEach(function (button) {
           const isActive = ga4DataAttr(button, 'data-ga4-profile-toggle') === prk;
           button.dataset.active = isActive ? 'true' : 'false';
+          // Aktif: bg-slate-900 + text-white + dark:bg-slate-200 + dark:text-slate-900 + shadow-sm
           button.classList.toggle('bg-slate-900', isActive);
-          button.classList.toggle('dark:bg-slate-600', isActive);
           button.classList.toggle('text-white', isActive);
-          button.classList.toggle('text-slate-600', !isActive);
-          button.classList.toggle('dark:text-slate-300', !isActive);
+          button.classList.toggle('dark:bg-slate-200', isActive);
+          button.classList.toggle('dark:text-slate-900', isActive);
+          button.classList.toggle('shadow-sm', isActive);
+          // Pasif
+          button.classList.toggle('text-slate-500', !isActive);
+          button.classList.toggle('dark:text-slate-400', !isActive);
         });
         if (hostCard) {
           hostCard.querySelectorAll('[data-ga4-profile-panel]').forEach(function (panel) {
