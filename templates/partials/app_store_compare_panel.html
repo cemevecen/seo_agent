@@ -1042,23 +1042,21 @@
     var plat = it.platform === 'google_play' ? 'Google Play' : 'App Store';
     var rat = _rtVivFmtRating(it.rating);
     var rev = it.review_count != null ? String(it.review_count) : '—';
+    var icon = it.icon
+      ? '<img src="' + _esc(it.icon) + '" alt="" loading="lazy" class="h-10 w-10 rounded-lg object-cover shrink-0" />'
+      : '<span class="inline-block h-10 w-10 shrink-0 rounded-lg bg-slate-200 dark:bg-zinc-700"></span>';
     el.innerHTML =
-      '<strong>' +
-      _esc(it.name) +
-      '</strong><br/><span class="text-[11px] opacity-90">' +
-      dev +
-      ' · ' +
-      plat +
-      ' · ★ ' +
-      rat +
-      ' · yorum: ' +
-      rev +
-      ' · id: <code>' +
-      _esc(it.id) +
-      '</code></span><br/>' +
+      '<div class="flex items-start gap-2.5">' +
+      icon +
+      '<div class="min-w-0 flex-1">' +
+      '<strong class="block truncate">' + _esc(it.name) + '</strong>' +
+      '<span class="block text-[11px] opacity-90 truncate">' +
+      dev + ' · ' + plat + ' · ★ ' + rat + ' · yorum: ' + rev +
+      ' · id: <code>' + _esc(it.id) + '</code></span>' +
       '<a class="mt-1 inline-block text-indigo-600 underline dark:text-indigo-300" href="' +
       _esc(it.store_url) +
-      '" target="_blank" rel="noopener noreferrer">Mağaza sayfası</a>';
+      '" target="_blank" rel="noopener noreferrer">Mağaza sayfası</a>' +
+      '</div></div>';
     _rtVivRenderCompareTable();
   }
   window.rtVivSelectCompare = rtVivSelectCompare;
