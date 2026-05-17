@@ -1699,6 +1699,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             "previous_7d",
             "current_30d",
             "previous_30d",
+            "current_90d",
+            "previous_90d",
             "current_day",
             "previous_week_same_weekday",
             "current_1d_pages",
@@ -1713,6 +1715,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     previous_rows_7 = _sc_batch.get("previous_7d", [])
     current_rows_30 = _sc_batch.get("current_30d", [])
     previous_rows_30 = _sc_batch.get("previous_30d", [])
+    current_rows_90 = _sc_batch.get("current_90d", [])
+    previous_rows_90 = _sc_batch.get("previous_90d", [])
     current_rows_1 = _sc_batch.get("current_day", [])
     previous_rows_wow = _sc_batch.get("previous_week_same_weekday", [])
     current_pages_1 = _sc_batch.get("current_1d_pages", [])
@@ -1777,6 +1781,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     range_7_prev = _scope_range_from_rows(previous_rows_7)
     range_30_last = _scope_range_from_rows(current_rows_30)
     range_30_prev = _scope_range_from_rows(previous_rows_30)
+    range_90_last = _scope_range_from_rows(current_rows_90)
+    range_90_prev = _scope_range_from_rows(previous_rows_90)
     # 1g kartları: referans ve WoW tarihleri (özet JSON veya snapshot satırlarından)
     ref_d_global = str(sw_day.get("reference_date") or "").strip()
     if not ref_d_global:
@@ -1798,6 +1804,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
         ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
         ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
+        ("90", 90, "Son 90 gün", "Önceki 90 gün", 30),
     ):
         views: dict[str, dict] = {}
         for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
@@ -1849,7 +1856,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_7_last)
                 range_prev = _format_sc_tr_date_range(*range_7_prev)
-            else:
+            elif period_key == "30":
                 fc = _filter_search_console_rows_by_device(current_rows_30, device_code)
                 fp = _filter_search_console_rows_by_device(previous_rows_30, device_code)
                 summary_current = current_30d_by_device.get(device_code) or _summarize_search_console_rows(fc)
@@ -1860,6 +1867,17 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
+            else:
+                fc = _filter_search_console_rows_by_device(current_rows_90, device_code)
+                fp = _filter_search_console_rows_by_device(previous_rows_90, device_code)
+                summary_current = _summarize_search_console_rows(fc)
+                summary_previous = _summarize_search_console_rows(fp)
+                device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = []
+                pages_previous = []
+                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                range_last = _format_sc_tr_date_range(*range_90_last)
+                range_prev = _format_sc_tr_date_range(*range_90_prev)
 
             _cur = summary_current if isinstance(summary_current, dict) else {}
             _prev = summary_previous if isinstance(summary_previous, dict) else {}
@@ -1900,7 +1918,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
                     float(_cur.get("position") or 0),
                     float(_prev.get("position") or 0),
                 ),
-                "content_trending_down": content_trending_down if period_key == "30" else [],
+                "content_trending_down": content_trending_down if period_key in ("30", "90") else [],
             }
 
         mv = views.get("mobile") or {}
@@ -1927,7 +1945,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             "label_previous": _lp,
             "trend_caption": "Son 7 günün günlük trendi"
             if pd_days in (1, 7)
-            else "Son 30 günün günlük trendi",
+            else ("Son 90 günün trendi (son 30 günlük detay)" if pd_days == 90 else "Son 30 günün günlük trendi"),
             "views": views,
         }
 
@@ -1964,6 +1982,8 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         "range_previous_7d": _format_sc_tr_date_range(*range_7_prev),
         "range_current_30d": _format_sc_tr_date_range(*range_30_last),
         "range_previous_30d": _format_sc_tr_date_range(*range_30_prev),
+        "range_current_90d": _format_sc_tr_date_range(*range_90_last),
+        "range_previous_90d": _format_sc_tr_date_range(*range_90_prev),
     }
 
 

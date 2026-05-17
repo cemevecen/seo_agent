@@ -950,6 +950,9 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         current_30d_start = end_date - timedelta(days=29)
         previous_30d_end = current_30d_start - timedelta(days=1)
         previous_30d_start = previous_30d_end - timedelta(days=29)
+        current_90d_start = end_date - timedelta(days=89)
+        previous_90d_end = current_90d_start - timedelta(days=1)
+        previous_90d_start = previous_90d_end - timedelta(days=89)
         current_rows: list[dict] = []
         current_day_rows: list[dict] = []
         previous_rows: list[dict] = []
@@ -958,6 +961,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         previous_7d_rows: list[dict] = []
         current_30d_rows: list[dict] = []
         previous_30d_rows: list[dict] = []
+        current_90d_rows: list[dict] = []
+        previous_90d_rows: list[dict] = []
         current_1d_pages_rows: list[dict] = []
         previous_1d_pages_rows: list[dict] = []
         current_7d_pages_rows: list[dict] = []
@@ -979,6 +984,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             previous_7d_rows.extend(_fetch_search_console_rows(service, property_url, previous_7d_start, previous_7d_end, device=device))
             current_30d_rows.extend(_fetch_search_console_rows(service, property_url, current_30d_start, end_date, device=device))
             previous_30d_rows.extend(_fetch_search_console_rows(service, property_url, previous_30d_start, previous_30d_end, device=device))
+            current_90d_rows.extend(_fetch_search_console_rows(service, property_url, current_90d_start, end_date, device=device))
+            previous_90d_rows.extend(_fetch_search_console_rows(service, property_url, previous_90d_start, previous_90d_end, device=device))
             if settings.search_console_include_page_dimension:
                 page_cap = max(
                     100,
@@ -1064,6 +1071,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "previous_7d_rows": previous_7d_rows,
             "current_30d_rows": current_30d_rows,
             "previous_30d_rows": previous_30d_rows,
+            "current_90d_rows": current_90d_rows,
+            "previous_90d_rows": previous_90d_rows,
             "current_1d_pages_rows": current_1d_pages_rows,
             "previous_1d_pages_rows": previous_1d_pages_rows,
             "current_7d_pages_rows": current_7d_pages_rows,
@@ -1090,6 +1099,10 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "current_30d_end": end_date.isoformat(),
             "previous_30d_start": previous_30d_start.isoformat(),
             "previous_30d_end": previous_30d_end.isoformat(),
+            "current_90d_start": current_90d_start.isoformat(),
+            "current_90d_end": end_date.isoformat(),
+            "previous_90d_start": previous_90d_start.isoformat(),
+            "previous_90d_end": previous_90d_end.isoformat(),
         }
     except Exception as exc:
         LOGGER.warning("Search Console failed for %s due to credential/API error: %s", site.domain, exc)
@@ -1356,7 +1369,7 @@ def collect_search_console_metrics(
         db,
         site,
         provider="search_console",
-        units=8,
+        units=10,
         send_alert_emails=send_notifications,
     )
     if not decision.allowed:
@@ -1389,6 +1402,8 @@ def collect_search_console_metrics(
     previous_7d_rows = payload.get("previous_7d_rows", [])
     current_30d_rows = payload.get("current_30d_rows", [])
     previous_30d_rows = payload.get("previous_30d_rows", [])
+    current_90d_rows = payload.get("current_90d_rows", [])
+    previous_90d_rows = payload.get("previous_90d_rows", [])
     current_1d_pages_rows = payload.get("current_1d_pages_rows", [])
     previous_1d_pages_rows = payload.get("previous_1d_pages_rows", [])
     current_7d_pages_rows = payload.get("current_7d_pages_rows", [])
@@ -1610,6 +1625,28 @@ def collect_search_console_metrics(
             end_date=str(payload.get("previous_30d_end") or ""),
             collector_run_id=collector_run.id,
         )
+        current_90d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_90d",
+            rows=current_90d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_90d_start") or ""),
+            end_date=str(payload.get("current_90d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_90d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_90d",
+            rows=previous_90d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_90d_start") or ""),
+            end_date=str(payload.get("previous_90d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
         previous_week_same_weekday_row_count = save_search_console_query_rows(
             db,
             site_id=site.id,
@@ -1719,6 +1756,8 @@ def collect_search_console_metrics(
                 "previous_7d_pages_rows": previous_7d_pages_row_count,
                 "current_30d_pages_rows": current_30d_pages_row_count,
                 "previous_30d_pages_rows": previous_30d_pages_row_count,
+                "current_90d_rows": current_90d_row_count,
+                "previous_90d_rows": previous_90d_row_count,
                 "content_trending_down": content_trending_down,
                 "same_weekday_day": same_weekday_day_summary,
                 "trend_28d_summary": trend_summary,
@@ -1742,6 +1781,8 @@ def collect_search_console_metrics(
             + previous_7d_row_count
             + current_30d_row_count
             + previous_30d_row_count
+            + current_90d_row_count
+            + previous_90d_row_count
             + previous_week_same_weekday_row_count
             + current_1d_pages_row_count
             + previous_1d_pages_row_count
