@@ -411,27 +411,27 @@ text-slate-500 dark:text-slate-400
   {% if mobile_desktop_delta or (error_widget and (error_widget.total_404 or error_widget.total_5xx)) %}
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-5">
     <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sağlık Özeti · Mobil ↔ Masaüstü</p>
-    <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,10rem),1fr))]">
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {% for d in mobile_desktop_delta %}
       <div class="aspect-square flex flex-col justify-between rounded-2xl border p-3 {% if d.tone == 'negative' %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-slate-800/60{% endif %}">
         <p class="text-[11px] font-semibold leading-snug text-slate-700 dark:text-slate-200">{{ d.label }}</p>
         <div>
-          <span class="block rounded-lg px-1.5 py-0.5 text-sm font-black w-fit {% if d.tone == 'negative' %}text-rose-600 dark:text-rose-300{% else %}text-emerald-600 dark:text-emerald-300{% endif %}">{{ d.delta_text }}</span>
-          <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-400">M: {{ d.mobile }} · D: {{ d.desktop }}</p>
+          <p class="text-sm font-black {% if d.tone == 'negative' %}text-rose-600 dark:text-rose-300{% else %}text-emerald-600 dark:text-emerald-300{% endif %}">{{ d.delta_text }}</p>
+          <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">M: {{ d.mobile }} · D: {{ d.desktop }}</p>
         </div>
       </div>
       {% endfor %}
       {% if error_widget and (error_widget.total_404 or error_widget.total_5xx) %}
       <div class="aspect-square flex flex-col justify-between rounded-2xl border p-3 {% if error_widget.total_5xx > 0 %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-slate-800/60{% endif %}">
         <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Son {{ error_widget.window_days }}g hata</p>
-        <div class="grid grid-cols-2 gap-1.5">
-          <div class="rounded-lg border border-slate-200/70 bg-white/60 px-2 py-1 dark:border-slate-700/60 dark:bg-slate-900/40">
+        <div class="grid grid-cols-2 gap-1">
+          <div>
             <p class="text-[9px] font-bold uppercase text-slate-400">404</p>
-            <p class="text-base font-black tabular-nums leading-none {% if error_widget.total_404 > 100 %}text-rose-600 dark:text-rose-300{% else %}text-amber-600 dark:text-amber-300{% endif %}">{{ error_widget.total_404 }}</p>
+            <p class="text-base font-black tabular-nums {% if error_widget.total_404 > 100 %}text-rose-600 dark:text-rose-300{% else %}text-amber-600 dark:text-amber-300{% endif %}">{{ error_widget.total_404 }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200/70 bg-white/60 px-2 py-1 dark:border-slate-700/60 dark:bg-slate-900/40">
+          <div>
             <p class="text-[9px] font-bold uppercase text-slate-400">5xx</p>
-            <p class="text-base font-black tabular-nums leading-none {% if error_widget.total_5xx > 0 %}text-rose-600 dark:text-rose-300{% else %}text-slate-400 dark:text-slate-500{% endif %}">{{ error_widget.total_5xx }}</p>
+            <p class="text-base font-black tabular-nums {% if error_widget.total_5xx > 0 %}text-rose-600 dark:text-rose-300{% else %}text-slate-400 dark:text-slate-500{% endif %}">{{ error_widget.total_5xx }}</p>
           </div>
         </div>
       </div>
