@@ -570,7 +570,7 @@
       gap: 0.5rem;
     }
     #header-site-title {
-      flex: 1 1 0%;
+      flex: 0 0 auto;
       min-width: 0;
     }
     #theme-switcher {
@@ -654,8 +654,8 @@
         align-items: center;
         column-gap: 0.5rem;
         row-gap: 0;
-        grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
-        grid-template-areas: "headline nav theme";
+        grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+        grid-template-areas: "headline theme nav";
       }
       .header-top-row {
         display: contents;
@@ -664,7 +664,7 @@
         justify-content: flex-end;
       }
       #theme-switcher {
-        justify-self: end;
+        justify-self: start;
         width: fit-content;
         max-width: 100%;
       }
@@ -705,7 +705,7 @@
               </h2>
               <div
                 id="theme-switcher"
-                class="relative isolate ml-auto inline-flex h-7 shrink-0 items-center rounded-full border border-transparent bg-slate-200/70 p-0.5 [grid-area:theme] dark:border-transparent dark:bg-zinc-800/55"
+                class="relative isolate inline-flex h-7 shrink-0 items-center rounded-full border border-transparent bg-slate-200/70 p-0.5 [grid-area:theme] dark:border-transparent dark:bg-zinc-800/55"
                 role="radiogroup"
                 aria-label="Tema seçimi"
               >
