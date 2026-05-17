@@ -215,6 +215,149 @@
       border-color: #3f3f46 !important;
     }
   </style>
+  <style id="seo-dark-muted-accents">
+    /* Dim + midnight: parlak renkli metin/kenarlık/halka sınıflarını seo-audit'teki
+       zinc paletine indirgeyerek göz yormayan yumuşak bir okuma sağlar.
+       Sadece dark modda (html.dark) etkilidir; aydınlık tema dokunulmaz. */
+
+    /* Metin: zinc-300 (parlak primer), zinc-400 (vurgu), zinc-500 (etiket) */
+    html.dark [class*="dark:text-violet-"],
+    html.dark [class*="dark:text-purple-"],
+    html.dark [class*="dark:text-fuchsia-"],
+    html.dark [class*="dark:text-pink-"],
+    html.dark [class*="dark:text-rose-"],
+    html.dark [class*="dark:text-red-"],
+    html.dark [class*="dark:text-orange-"],
+    html.dark [class*="dark:text-amber-"],
+    html.dark [class*="dark:text-yellow-"],
+    html.dark [class*="dark:text-lime-"],
+    html.dark [class*="dark:text-green-"],
+    html.dark [class*="dark:text-emerald-"],
+    html.dark [class*="dark:text-teal-"],
+    html.dark [class*="dark:text-cyan-"],
+    html.dark [class*="dark:text-sky-"],
+    html.dark [class*="dark:text-blue-"],
+    html.dark [class*="dark:text-indigo-"] {
+      color: #d4d4d8 !important; /* zinc-300 */
+    }
+    /* 300 tonu genelde "etiket/üstyazı"dır → biraz daha soluk yapalım */
+    html.dark [class*="dark:text-violet-300"],
+    html.dark [class*="dark:text-purple-300"],
+    html.dark [class*="dark:text-fuchsia-300"],
+    html.dark [class*="dark:text-pink-300"],
+    html.dark [class*="dark:text-rose-300"],
+    html.dark [class*="dark:text-red-300"],
+    html.dark [class*="dark:text-orange-300"],
+    html.dark [class*="dark:text-amber-300"],
+    html.dark [class*="dark:text-yellow-300"],
+    html.dark [class*="dark:text-lime-300"],
+    html.dark [class*="dark:text-green-300"],
+    html.dark [class*="dark:text-emerald-300"],
+    html.dark [class*="dark:text-teal-300"],
+    html.dark [class*="dark:text-cyan-300"],
+    html.dark [class*="dark:text-sky-300"],
+    html.dark [class*="dark:text-blue-300"],
+    html.dark [class*="dark:text-indigo-300"] {
+      color: #a1a1aa !important; /* zinc-400 */
+    }
+    /* 500/600 → daha küçük etiketler genelde, zinc-500 */
+    html.dark [class*="dark:text-violet-500"],
+    html.dark [class*="dark:text-purple-500"],
+    html.dark [class*="dark:text-fuchsia-500"],
+    html.dark [class*="dark:text-pink-500"],
+    html.dark [class*="dark:text-rose-500"],
+    html.dark [class*="dark:text-red-500"],
+    html.dark [class*="dark:text-orange-500"],
+    html.dark [class*="dark:text-amber-500"],
+    html.dark [class*="dark:text-yellow-500"],
+    html.dark [class*="dark:text-lime-500"],
+    html.dark [class*="dark:text-green-500"],
+    html.dark [class*="dark:text-emerald-500"],
+    html.dark [class*="dark:text-teal-500"],
+    html.dark [class*="dark:text-cyan-500"],
+    html.dark [class*="dark:text-sky-500"],
+    html.dark [class*="dark:text-blue-500"],
+    html.dark [class*="dark:text-indigo-500"] {
+      color: #71717a !important; /* zinc-500 */
+    }
+
+    /* "Live", "Passed" gibi yeşil rozetlerin metni okunabilir kalsın
+       (zemin koyu yeşil; bu yüzden zinc-300 metin yeterli kontrast verir). */
+
+    /* Kenarlık, çerçeve halkaları ve ayraçlar: zinc-800 tonuna düşür */
+    html.dark [class*="dark:border-violet-"],
+    html.dark [class*="dark:border-purple-"],
+    html.dark [class*="dark:border-fuchsia-"],
+    html.dark [class*="dark:border-pink-"],
+    html.dark [class*="dark:border-rose-"],
+    html.dark [class*="dark:border-red-"],
+    html.dark [class*="dark:border-orange-"],
+    html.dark [class*="dark:border-amber-"],
+    html.dark [class*="dark:border-yellow-"],
+    html.dark [class*="dark:border-lime-"],
+    html.dark [class*="dark:border-green-"],
+    html.dark [class*="dark:border-emerald-"],
+    html.dark [class*="dark:border-teal-"],
+    html.dark [class*="dark:border-cyan-"] {
+      border-color: #27272a !important; /* zinc-800 */
+    }
+    html.dark [class*="dark:ring-violet-"],
+    html.dark [class*="dark:ring-purple-"],
+    html.dark [class*="dark:ring-fuchsia-"],
+    html.dark [class*="dark:ring-pink-"],
+    html.dark [class*="dark:ring-rose-"],
+    html.dark [class*="dark:ring-red-"],
+    html.dark [class*="dark:ring-orange-"],
+    html.dark [class*="dark:ring-amber-"],
+    html.dark [class*="dark:ring-yellow-"],
+    html.dark [class*="dark:ring-lime-"],
+    html.dark [class*="dark:ring-green-"],
+    html.dark [class*="dark:ring-emerald-"],
+    html.dark [class*="dark:ring-teal-"],
+    html.dark [class*="dark:ring-cyan-"] {
+      --tw-ring-color: rgba(39, 39, 42, 0.6) !important; /* zinc-800 */
+    }
+    html.dark [class*="dark:divide-violet-"] > * + *,
+    html.dark [class*="dark:divide-purple-"] > * + *,
+    html.dark [class*="dark:divide-fuchsia-"] > * + *,
+    html.dark [class*="dark:divide-pink-"] > * + *,
+    html.dark [class*="dark:divide-rose-"] > * + *,
+    html.dark [class*="dark:divide-red-"] > * + *,
+    html.dark [class*="dark:divide-orange-"] > * + *,
+    html.dark [class*="dark:divide-amber-"] > * + *,
+    html.dark [class*="dark:divide-emerald-"] > * + *,
+    html.dark [class*="dark:divide-teal-"] > * + *,
+    html.dark [class*="dark:divide-cyan-"] > * + *,
+    html.dark [class*="dark:divide-sky-"] > * + * {
+      border-color: #27272a !important;
+    }
+
+    /* Açık ton (50/100/200/300) renkli zeminler: dark moda göz yormayan zinc'e indir */
+    html.dark [class*="dark:bg-violet-"]:not([class*="dark:bg-violet-9"]),
+    html.dark [class*="dark:bg-purple-"]:not([class*="dark:bg-purple-9"]),
+    html.dark [class*="dark:bg-fuchsia-"]:not([class*="dark:bg-fuchsia-9"]),
+    html.dark [class*="dark:bg-pink-"]:not([class*="dark:bg-pink-9"]),
+    html.dark [class*="dark:bg-rose-"]:not([class*="dark:bg-rose-9"]):not([class*="dark:bg-rose-950"]),
+    html.dark [class*="dark:bg-red-"]:not([class*="dark:bg-red-9"]):not([class*="dark:bg-red-950"]),
+    html.dark [class*="dark:bg-orange-"]:not([class*="dark:bg-orange-9"]):not([class*="dark:bg-orange-950"]),
+    html.dark [class*="dark:bg-amber-"]:not([class*="dark:bg-amber-9"]):not([class*="dark:bg-amber-950"]),
+    html.dark [class*="dark:bg-yellow-"]:not([class*="dark:bg-yellow-9"]),
+    html.dark [class*="dark:bg-lime-"]:not([class*="dark:bg-lime-9"]),
+    html.dark [class*="dark:bg-green-"]:not([class*="dark:bg-green-9"]),
+    html.dark [class*="dark:bg-emerald-"]:not([class*="dark:bg-emerald-9"]):not([class*="dark:bg-emerald-950"]),
+    html.dark [class*="dark:bg-teal-"]:not([class*="dark:bg-teal-9"]),
+    html.dark [class*="dark:bg-cyan-"]:not([class*="dark:bg-cyan-9"]),
+    html.dark [class*="dark:bg-indigo-"]:not([class*="dark:bg-indigo-9"]),
+    html.dark [class*="dark:bg-blue-"]:not([class*="dark:bg-blue-9"]),
+    html.dark [class*="dark:bg-sky-"]:not([class*="dark:bg-sky-9"]) {
+      background-color: #18181b !important; /* zinc-900 */
+      background-image: none !important;
+    }
+    /* /seo-audit referansındaki yeşil/turuncu/kırmızı sayısal vurgular
+       (text-emerald-600 dark:text-emerald-600 gibi) hâlâ yansın diye
+       "değişim %" tipi metinlerde +/- gösterimi okunabilir kalmalı; bu yüzden
+       sadece dark: ile başlayan parlak tonları (300/400/500) bastık. */
+  </style>
   <style id="seo-midnight-overrides">
     html.midnight {
       color-scheme: dark;
