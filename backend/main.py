@@ -716,26 +716,26 @@ def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0
                 pass
             items = query.limit(50).all()
         else:
-            # Kaynak çeşitliliği: geniş pencere çek, kaynaklara göre sırayla dağıt
+            # Kaynak çeşitliliği: geniş pencere çek, ardışık aynı kaynağı engelle
             safe_limit = min(limit, 50)
-            pool = query.limit(max(safe_limit * 6, 200)).all()
-            # Round-robin interleave by source_name
+            pool = query.limit(max(safe_limit * 8, 300)).all()
             from collections import defaultdict
             buckets = defaultdict(list)
             for it in pool:
                 buckets[it.source_name].append(it)
             interleaved = []
-            source_keys = list(buckets.keys())
-            i = 0
-            while len(interleaved) < len(pool):
-                added = False
-                for key in source_keys:
-                    if i < len(buckets[key]):
-                        interleaved.append(buckets[key][i])
-                        added = True
-                if not added:
-                    break
-                i += 1
+            last_source = None
+            while True:
+                # 1) last_source dışındaki kaynaklar - en çok kalanı seç
+                pickable = [k for k, v in buckets.items() if v and k != last_source]
+                if not pickable:
+                    # Tüm diğer kaynaklar tükenmiş - kalan tek kaynak (varsa) varsa al
+                    pickable = [k for k, v in buckets.items() if v]
+                    if not pickable:
+                        break
+                best = max(pickable, key=lambda k: len(buckets[k]))
+                interleaved.append(buckets[best].pop(0))
+                last_source = best
             items = interleaved[offset: offset + safe_limit]
         return {
             "items": [
@@ -4943,6 +4943,7 @@ def _build_dashboard_data_explorer_summary(db) -> dict:
 
         # Sadece "saha" verisi olan 5 metrik için verdict üret (mobile öncelikli)
         ff_metrics: dict[str, list[dict]] = {"mobile": [], "desktop": []}
+        ff_periods: dict[str, tuple[str, str]] = {"mobile": ("", ""), "desktop": ("", "")}
         for form_factor, snap in (("mobile", mobile_crux), ("desktop", desktop_crux)):
             series = _format_crux_series(snap) if snap else {}
             for metric_key, item in series.items():
@@ -4953,17 +4954,39 @@ def _build_dashboard_data_explorer_summary(db) -> dict:
                     v = float(latest)
                 except (TypeError, ValueError):
                     continue
+                good_share_raw = item.get("good_share")
+                good_pct = _safe_pct(good_share_raw) if good_share_raw is not None else None
+                p_first = item.get("latest_period_first") or ""
+                p_last = item.get("latest_period_last") or ""
+                if p_first or p_last:
+                    ff_periods[form_factor] = (p_first, p_last)
                 ff_metrics[form_factor].append({
                     "key": metric_key,
                     "label": metric_short.get(metric_key, item.get("label", "")),
                     "value": v,
                     "formatted": _fmt(metric_key, v),
                     "verdict": _verdict(metric_key, v),
+                    "good_pct": good_pct,
+                    "period_first": p_first,
+                    "period_last": p_last,
                 })
 
         # Form-factor'ın hangisi varsa öncelikli — varsayılan mobile
         primary_metrics = ff_metrics["mobile"] or ff_metrics["desktop"]
         primary_form_factor = "mobile" if ff_metrics["mobile"] else ("desktop" if ff_metrics["desktop"] else "")
+        primary_period = ff_periods.get(primary_form_factor or "mobile", ("", ""))
+
+        def _short_date(s: str) -> str:
+            if not s:
+                return ""
+            try:
+                return s[5:10] if len(s) >= 10 else s
+            except Exception:
+                return s
+
+        period_label = ""
+        if primary_period[0] or primary_period[1]:
+            period_label = f"{_short_date(primary_period[0])}→{_short_date(primary_period[1])}"
 
         # Genel skor — verdict sayımı
         good_count = sum(1 for m in primary_metrics if m["verdict"] == "good")
@@ -4990,6 +5013,7 @@ def _build_dashboard_data_explorer_summary(db) -> dict:
             "last_updated": format_datetime_like(latest_collected, fallback="—"),
             "has_data": bool(primary_metrics),
             "href": f"/data-explorer/{site.domain}",
+            "period_label": period_label,
         })
     return {
         "rows": rows,

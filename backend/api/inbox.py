@@ -337,7 +337,6 @@ def inbox_threads_list(
 @router.get("/threads/{thread_id}")
 @limiter.limit("120/minute")
 def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(get_db)):
-    _require_inbox_action_auth(request)
     t = _thread_or_404(db, thread_id)
     msgs = (
         db.query(SupportInboxMessage)
@@ -378,8 +377,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
 @router.post("/threads/{thread_id}/refresh-bodies")
 @limiter.limit("30/minute")
 def inbox_thread_refresh_bodies(request: Request, thread_id: int, db: Session = Depends(get_db)):
-    """İleti gövdelerini Gmail'den tekrar çeker (attachmentId / büyük gövde)."""
-    _require_inbox_action_auth(request)
+    """İleti gövdelerini Gmail'den tekrar çeker (attachmentI / büyük gövde)."""
     try:
         out = inbox_sync.refresh_thread_bodies_from_gmail(db, thread_id=thread_id)
     except RuntimeError as exc:
@@ -421,7 +419,7 @@ async def inbox_thread_set_answered(
     thread_id: int,
     db: Session = Depends(get_db),
 ):
-    # Manual parse to avoid Pydantic forward ref issues
+    _require_inbox_action_auth(request)
     ans_val: bool = True
     try:
         raw = await request.body()

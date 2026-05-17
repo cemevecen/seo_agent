@@ -11,38 +11,59 @@
   {% endif %}
 </div>
 
+{# Metric brand colors (matches /data-explorer page) #}
+{% set _metric_colors = {
+  'largest_contentful_paint': {'num': 'text-violet-600 dark:text-violet-400', 'bar': 'bg-violet-500'},
+  'interaction_to_next_paint': {'num': 'text-rose-500 dark:text-rose-400', 'bar': 'bg-rose-500'},
+  'cumulative_layout_shift': {'num': 'text-sky-500 dark:text-sky-400', 'bar': 'bg-sky-500'},
+  'first_contentful_paint': {'num': 'text-emerald-500 dark:text-emerald-400', 'bar': 'bg-emerald-500'},
+  'experimental_time_to_first_byte': {'num': 'text-amber-500 dark:text-amber-400', 'bar': 'bg-amber-500'}
+} %}
+
 <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
   {% for row in rows %}
     {% set overall = row.overall %}
-    {% if overall == 'good' %}{% set ov_label = 'İyi' %}{% set ov_dot = 'bg-emerald-500' %}{% set ov_text = 'text-emerald-600 dark:text-emerald-400' %}
-    {% elif overall == 'ni' %}{% set ov_label = 'Geliştirilebilir' %}{% set ov_dot = 'bg-amber-500' %}{% set ov_text = 'text-amber-600 dark:text-amber-400' %}
-    {% elif overall == 'poor' %}{% set ov_label = 'Kötü' %}{% set ov_dot = 'bg-rose-500' %}{% set ov_text = 'text-rose-600 dark:text-rose-400' %}
-    {% else %}{% set ov_label = 'Veri yok' %}{% set ov_dot = 'bg-slate-400' %}{% set ov_text = 'text-slate-500 dark:text-slate-400' %}
+    {% if overall == 'good' %}{% set ov_label = 'İYİ' %}{% set ov_chip = 'border-emerald-300 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-300' %}
+    {% elif overall == 'ni' %}{% set ov_label = 'GELİŞTİRİLEBİLİR' %}{% set ov_chip = 'border-amber-300 text-amber-700 dark:border-amber-700/60 dark:text-amber-300' %}
+    {% elif overall == 'poor' %}{% set ov_label = 'KÖTÜ' %}{% set ov_chip = 'border-rose-300 text-rose-700 dark:border-rose-700/60 dark:text-rose-300' %}
+    {% else %}{% set ov_label = 'VERİ YOK' %}{% set ov_chip = 'border-slate-300 text-slate-500 dark:border-slate-700 dark:text-slate-400' %}
     {% endif %}
     <a href="{{ row.href }}" hx-get="{{ row.href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="block rounded-xl border border-slate-200 p-4 transition hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700">
+       class="block min-w-0 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{{ row.display_name }}</p>
-          <p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ row.domain }}{% if row.form_factor %} · {{ row.form_factor }}{% endif %}</p>
+          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400">Saha · CrUX 28 gün</p>
+          <p class="mt-0.5 truncate text-base font-semibold text-slate-900 dark:text-slate-100">{{ row.display_name }}</p>
+          <p class="truncate text-[11px] text-slate-500 dark:text-slate-400">{{ row.domain }}{% if row.form_factor %} · {{ row.form_factor }}{% endif %}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-1.5">
-          <span class="h-1.5 w-1.5 rounded-full {{ ov_dot }}"></span>
-          <span class="text-xs font-medium {{ ov_text }}">{{ ov_label }}</span>
-        </div>
+        <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wider {{ ov_chip }}">{{ ov_label }}</span>
       </div>
 
       {% if row.has_data %}
         <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {% for m in row.metrics %}
-            {% if m.verdict == 'good' %}{% set v_class = 'text-emerald-600 dark:text-emerald-400' %}{% set v_border = 'border-emerald-200 dark:border-emerald-900/50' %}
-            {% elif m.verdict == 'ni' %}{% set v_class = 'text-amber-600 dark:text-amber-400' %}{% set v_border = 'border-amber-200 dark:border-amber-900/50' %}
-            {% else %}{% set v_class = 'text-rose-600 dark:text-rose-400' %}{% set v_border = 'border-rose-200 dark:border-rose-900/50' %}
+            {% set mc = _metric_colors.get(m.key, {'num': 'text-slate-700 dark:text-slate-300', 'bar': 'bg-slate-500'}) %}
+            {% if m.verdict == 'good' %}{% set vlabel = 'İYİ' %}{% set vchip = 'border-emerald-300 text-emerald-700 bg-emerald-50/60 dark:border-emerald-700/60 dark:text-emerald-300 dark:bg-emerald-950/30' %}
+            {% elif m.verdict == 'ni' %}{% set vlabel = 'ORTA' %}{% set vchip = 'border-amber-300 text-amber-700 bg-amber-50/60 dark:border-amber-700/60 dark:text-amber-300 dark:bg-amber-950/30' %}
+            {% else %}{% set vlabel = 'KÖTÜ' %}{% set vchip = 'border-rose-300 text-rose-700 bg-rose-50/60 dark:border-rose-700/60 dark:text-rose-300 dark:bg-rose-950/30' %}
             {% endif %}
-            <div title="{{ m.label }} (p75): {{ m.formatted }} · {{ m.verdict|upper }}"
-                 class="min-w-0 overflow-hidden rounded-lg border bg-slate-50/60 px-2.5 py-2 dark:bg-slate-800/40 {{ v_border }}">
-              <p class="truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ m.label }}</p>
-              <p class="mt-1 truncate text-sm font-semibold tabular-nums {{ v_class }}">{{ m.formatted }}</p>
+            <div class="flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40 px-2.5 py-2.5 dark:border-slate-700/70 dark:bg-slate-800/40"
+                 title="{{ m.label }} (p75): {{ m.formatted }} · {{ m.verdict|upper }}">
+              <div class="flex items-start justify-between gap-1">
+                <span class="text-[10px] font-bold uppercase tracking-wider {{ mc.num }}">{{ m.label }}</span>
+                <span class="shrink-0 rounded-full border px-1.5 text-[9px] font-bold tracking-wide {{ vchip }}">{{ vlabel }}</span>
+              </div>
+              <p class="mt-2 truncate text-xl font-black tabular-nums leading-none {{ mc.num }}">{{ m.formatted }}</p>
+              {% if m.good_pct is not none %}
+                <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">iyi oran</p>
+                <p class="text-[11px] font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ '%.2f' % m.good_pct }}%</p>
+                <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700/60">
+                  <div class="h-full rounded-full {{ mc.bar }}" style="width: {{ m.good_pct }}%"></div>
+                </div>
+              {% endif %}
+              {% if row.period_label %}
+                <p class="mt-2 text-[9px] tabular-nums text-slate-400 dark:text-slate-500">{{ row.period_label }}</p>
+              {% endif %}
             </div>
           {% endfor %}
         </div>

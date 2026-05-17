@@ -164,17 +164,12 @@
     function _buildNewsCard(item, isNew) {
       const d = new Date(item.published_at);
       const now = new Date();
-      const diffMs = now - d;
-      const diffMin = Math.floor(diffMs / 60000);
       const hhmm = d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
       const isToday = d.toDateString() === now.toDateString();
       const isYesterday = d.toDateString() === new Date(now - 864e5).toDateString();
-      let timeStr;
-      if (isToday && diffMin < 60) timeStr = diffMin <= 1 ? 'şimdi' : `${diffMin}dk önce`;
-      else if (isToday) timeStr = hhmm;
-      else if (isYesterday) timeStr = 'dün ' + hhmm;
-      else timeStr = d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm;
-
+      const timeStr = isToday ? hhmm
+        : isYesterday ? ('dün ' + hhmm)
+        : (d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm);
       let faviconUrl = '/static/favicon.png';
       try {
         const rawUrl = item.source_url || item.url || '';
@@ -189,29 +184,26 @@
           }
         }
       } catch(e) {}
-
       const newBadge = isNew
-        ? `<span class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style="color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;">YENİ</span>`
+        ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
         : '';
-      const isRecent = isToday && diffMin < 120;
-      const ringClass = isNew ? ' ring-1 ring-emerald-700/30' : '';
-      const contentSnippet = item.content ? `<p class="mt-2 line-clamp-2 text-[12px] leading-relaxed text-slate-500 dark:text-zinc-500">${item.content.slice(0,200)}</p>` : '';
-      return `<a href="${item.url}" target="_blank" rel="noopener" class="group rt-intel-card flex flex-col gap-0 overflow-hidden rounded-2xl border transition-all duration-200${ringClass}" style="text-decoration:none;">
-        <div class="flex flex-col gap-2 p-4">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex min-w-0 items-center gap-2">
-              <div class="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100 dark:bg-zinc-800/60">
-                <img src="${faviconUrl}" class="h-full w-full object-contain" loading="lazy" onerror="this.src='/static/favicon.png'">
-              </div>
-              <span class="rt-source-name truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">${item.source_name}</span>
-              ${newBadge}
+      return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 p-0.5 dark:bg-zinc-800/60">
+              <img src="${faviconUrl}" class="h-full w-full object-contain" onerror="this.src='/static/favicon.png'">
             </div>
-            <span class="rt-time shrink-0 text-[10px] tabular-nums ${isRecent ? 'font-semibold text-emerald-600 dark:text-emerald-500' : 'text-slate-400 dark:text-zinc-600'}">${timeStr}</span>
+            <span class="rt-source-name text-[10px] font-bold text-slate-400 truncate uppercase tracking-wider">${item.source_name}</span>
+            ${newBadge}
           </div>
-          <h3 class="text-[13px] font-semibold leading-snug text-slate-800 line-clamp-3 dark:text-[#b0b0b8] group-hover:text-indigo-700 dark:group-hover:text-[#9090b8] transition-colors">${item.headline}</h3>
-          ${contentSnippet}
+          <span class="rt-time text-[10px] text-slate-300 dark:text-zinc-600 shrink-0">${timeStr}</span>
         </div>
-      </a>`;
+        <div class="min-w-0">
+          <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-5">
+            <a href="${item.url}" target="_blank" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${item.headline}</a>
+          </h3>
+        </div>
+      </div>`;
     }
 
     function rtFetchNewsIntelligence() {
