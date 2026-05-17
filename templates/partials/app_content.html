@@ -101,19 +101,12 @@
         left: 120%;
       }
     }
-    .app-asc-details summary {
-      list-style: none;
-    }
-    .app-asc-details summary::-webkit-details-marker {
-      display: none;
-    }
-    .app-asc-chevron {
-      display: inline-block;
-      transition: transform 0.2s ease;
-    }
-    .app-asc-details[open] .app-asc-chevron {
-      transform: rotate(180deg);
-    }
+    .app-asc-sortable-th { cursor: pointer; user-select: none; }
+    .app-asc-sortable-th .app-asc-sort-arrow { opacity: 0.35; margin-left: 0.25rem; font-size: 0.7em; }
+    .app-asc-sortable-th[data-sorted="asc"] .app-asc-sort-arrow,
+    .app-asc-sortable-th[data-sorted="desc"] .app-asc-sort-arrow { opacity: 1; }
+    @keyframes app-asc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .app-asc-spin { animation: app-asc-spin 1s linear infinite; display: inline-block; }
   </style>
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -310,55 +303,92 @@
     </div>
   </section>
 
-  <details
-    id="app-asc-details"
-    class="app-asc-details app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-sm ring-1 ring-slate-200 open:shadow-md dark:border-slate-800 dark:bg-[#0b0f19] dark:from-[#0b0f19] dark:to-[#0b0f19] dark:ring-slate-800/80 sm:rounded-2xl sm:p-6"
-    aria-label="App Store Connect özeti — aç / kapa"
+  <section
+    id="app-asc-root"
+    class="app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
+    aria-label="App Store Connect özeti"
   >
-    <summary
-      class="app-asc-details-summary flex cursor-pointer list-none items-start justify-between gap-3 text-left outline-none sm:items-center"
-    >
+    {# Başlık şeridi #}
+    <header class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div class="min-w-0">
-        <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">App Store Connect (özet)</h2>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Kazanım, satış ve abonelik kartları — App Store Analytics ekranına benzer yerleşim. Tıklayarak 1/7/30 gün detaylarını aç.
-        </p>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M17.05 20.28c-.98.95-2.05.86-3.08.39-1.09-.48-2.09-.5-3.24 0-1.44.62-2.2.44-3.06-.39C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+          </span>
+          <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">App Store Connect</h2>
+          <span id="app-asc-source-pill" class="hidden rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"></span>
+        </div>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kazanım · Satış · Abonelik · Etkileşim — App Store Analytics özet görünümü</p>
       </div>
-      <div
-        class="flex shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-1 py-0.5 text-slate-500 dark:text-slate-400"
-        aria-hidden="true"
-      >
-        <span class="text-[10px] font-medium opacity-80 max-sm:sr-only">Aç / kapa</span>
-        <span class="app-asc-chevron text-sm leading-none text-slate-500 dark:text-slate-300">▾</span>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="app-asc-meta" class="text-[10px] text-slate-400 dark:text-slate-500"></span>
+        <button id="app-asc-refresh-btn" type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
+          <span id="app-asc-refresh-icon">↺</span> Yenile
+        </button>
       </div>
-    </summary>
-    <div
-      class="app-asc-details-body mt-4 border-t border-slate-200/80 pt-4 dark:border-slate-800"
-    >
-      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div class="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-500">ASC dönemi</span>
-          <nav
-            id="app-asc-period-nav"
-            class="inline-flex w-max max-w-full flex-wrap rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900/80"
-            aria-label="App Store Connect gün aralığı"
-          >
-            <button type="button" data-app-asc-period="1" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1g</button>
-            <button type="button" data-app-asc-period="7" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
-            <button type="button" data-app-asc-period="30" class="app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
-          </nav>
+    </header>
+
+    {# Filtre bar #}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+      {# Dönem #}
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <div id="app-asc-period-nav" class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+          {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y")] %}
+            <button type="button" data-app-asc-period="{{ dv }}"
+              class="app-asc-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if dv == 30 %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+          {% endfor %}
         </div>
       </div>
-      <p id="app-asc-source-note" class="mb-3 text-[11px] text-amber-800/90 dark:text-amber-200/85"></p>
-      <div
-        id="app-asc-content"
-        class="space-y-8 text-slate-900 dark:text-slate-100"
-        style="overflow-anchor: none"
-      >
-        <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+
+      {# Ülke #}
+      <div class="flex items-center gap-1.5">
+        <label for="app-asc-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ülke</label>
+        <select id="app-asc-country" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <option value="all">Tüm ülkeler</option>
+        </select>
       </div>
+
+      {# Kaynak #}
+      <div class="flex items-center gap-1.5">
+        <label for="app-asc-source" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Kaynak</label>
+        <select id="app-asc-source" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <option value="all">Tüm kaynaklar</option>
+        </select>
+      </div>
+
+      {# Cihaz #}
+      <div class="flex items-center gap-1.5">
+        <label for="app-asc-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cihaz</label>
+        <select id="app-asc-device" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <option value="all">Tüm cihazlar</option>
+        </select>
+      </div>
+
+      <button type="button" id="app-asc-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Filtreleri sıfırla</button>
     </div>
-  </details>
+
+    {# Tab bar #}
+    <div class="flex items-center gap-0 overflow-x-auto border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
+      {% for tid, tlabel in [("overview","Genel Bakış"),("acquisition","Kazanım"),("sales","Satış"),("subscriptions","Abonelikler"),("engagement","Etkileşim"),("tops","Sıralamalar")] %}
+        <button type="button" data-app-asc-tab="{{ tid }}"
+          class="app-asc-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition {% if tid == 'overview' %}border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300{% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
+      {% endfor %}
+    </div>
+
+    {# Source note #}
+    <p id="app-asc-source-note" class="hidden border-b border-amber-200/60 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200/85 sm:px-5"></p>
+
+    {# Content area #}
+    <div
+      id="app-asc-content"
+      class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5"
+      style="overflow-anchor: none"
+    >
+      <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+    </div>
+  </section>
 
   {# ── Firebase Crashlytics ── #}
   <section id="app-crashlytics-root" class="mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
@@ -1082,335 +1112,592 @@
     });
   }
 
-  function renderAscPeriodNav() {
-    document.querySelectorAll(".app-asc-period-btn").forEach(function (b) {
-      var v = parseInt(b.getAttribute("data-app-asc-period"), 10);
-      var on = v === state.ascPeriod;
-      b.className = "app-asc-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
-      if (!b.dataset.bound) {
-        b.dataset.bound = "1";
-        b.addEventListener("click", function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          state.ascPeriod = v;
-          renderAscPeriodNav();
-          loadAscPreview();
-        });
-      }
-    });
-  }
+  // ─── App Store Connect: state + helpers ─────────────────────────────────
+  var ascState = {
+    period: 30,
+    country: "all",
+    source: "all",
+    device: "all",
+    tab: "overview",
+    seq: 0,
+    payload: null,
+    topCountriesSort: { key: "downloads", dir: "desc" },
+    topSourcesSort: { key: "downloads", dir: "desc" },
+    topVersionsSort: { key: "share_pct", dir: "desc" },
+  };
 
   function ascDeltaClass(n) {
-    if (!isFinite(n)) {
-      return "text-slate-500 dark:text-slate-500";
-    }
-    if (n > 0) {
-      return "text-emerald-600 dark:text-emerald-500";
-    }
-    if (n < 0) {
-      return "text-rose-600 dark:text-rose-500";
-    }
+    if (!isFinite(n)) return "text-slate-500 dark:text-slate-500";
+    if (n > 0.05) return "text-emerald-600 dark:text-emerald-400";
+    if (n < -0.05) return "text-rose-600 dark:text-rose-400";
     return "text-slate-500 dark:text-slate-500";
   }
-
+  function ascDeltaArrow(n) {
+    if (!isFinite(n) || Math.abs(n) < 0.05) return "→";
+    return n > 0 ? "▲" : "▼";
+  }
   function ascFormatDelta(n) {
-    if (!isFinite(n)) {
-      return "—";
-    }
+    if (!isFinite(n)) return "—";
     return (n > 0 ? "+" : "") + n.toFixed(1).replace(/\.0$/, "") + "%";
   }
+  function ascFmtNum(n) {
+    if (n == null || !isFinite(n)) return "—";
+    if (n >= 1000000) return (n / 1000000).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(Math.round(n));
+  }
+  function ascFmtMoney(n) {
+    if (n == null || !isFinite(n)) return "—";
+    if (n >= 1000000) return "$" + (n / 1000000).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if (n >= 1000) return "$" + (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    return "$" + n.toFixed(2);
+  }
 
-  function ascSparklineSvg(series, stroke) {
-    var s = series && series.length ? series : [0, 0];
+  function ascSparklineSvg(series, colorClass) {
+    var s = (series && series.length) ? series : [0, 0];
     var minV = Math.min.apply(null, s);
     var maxV = Math.max.apply(null, s);
     var span = maxV - minV || 1;
-    var pts = s
-      .map(function (v, i) {
-        var x = (i / (s.length - 1)) * 100;
-        var y = 32 - ((v - minV) / span) * 30 - 1;
-        return x + "," + y;
-      })
-      .join(" ");
+    var pts = s.map(function (v, i) {
+      var x = (i / Math.max(1, s.length - 1)) * 100;
+      var y = 32 - ((v - minV) / span) * 28 - 2;
+      return x + "," + y;
+    }).join(" ");
+    var areaPts = "0,32 " + pts + " 100,32";
+    var cls = colorClass || "text-indigo-500 dark:text-indigo-400";
     return (
-      '<svg class="h-8 w-full text-sky-600 dark:text-sky-600" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">' +
-      "<polyline fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" points=\"" +
-      pts +
-      '"></polyline></svg>'
+      '<svg class="h-8 w-full ' + cls + '" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polygon fill="currentColor" opacity="0.12" points="' + areaPts + '"></polygon>' +
+      '<polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="' + pts + '"></polyline>' +
+      '</svg>'
     );
   }
 
-  function renderAscPanel(j) {
-    var box = document.getElementById("app-asc-content");
-    var note = document.getElementById("app-asc-source-note");
-    if (note) {
-      if (j && j.source === "demo" && j.source_note) {
-        note.textContent = j.source_note;
-      } else {
-        note.textContent = "";
-      }
+  function ascKpiCard(title, metric, opts) {
+    opts = opts || {};
+    var color = opts.color || "indigo";
+    var sparkColor = "text-" + color + "-500 dark:text-" + color + "-400";
+    var val = (metric && metric.value_label) ? metric.value_label : "—";
+    var d = (metric && typeof metric.delta_pct === "number") ? metric.delta_pct : null;
+    return (
+      '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/70 sm:p-4">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
+      '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">' + esc(val) + '</p>' +
+      (d == null ? '' :
+        '<p class="mt-0.5 text-xs font-semibold ' + ascDeltaClass(d) + '"><span class="mr-0.5">' + ascDeltaArrow(d) + '</span>' + esc(ascFormatDelta(d)) + '</p>') +
+      ((metric && metric.series && metric.series.length) ?
+        '<div class="mt-2">' + ascSparklineSvg(metric.series, sparkColor) + '</div>' : '') +
+      '</div>'
+    );
+  }
+
+  function ascMiniCard(title, valueLabel, deltaPct) {
+    var d = (typeof deltaPct === "number") ? deltaPct : null;
+    return (
+      '<div class="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-700/60 dark:bg-slate-900/60">' +
+      '<p class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
+      '<p class="mt-0.5 text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">' + esc(valueLabel || "—") + '</p>' +
+      (d == null ? '' :
+        '<p class="text-[11px] font-semibold ' + ascDeltaClass(d) + '">' + esc(ascFormatDelta(d)) + '</p>') +
+      '</div>'
+    );
+  }
+
+  function ascSectionTitle(text, subtitle) {
+    return (
+      '<div class="mb-3 flex items-baseline justify-between gap-2">' +
+      '<h3 class="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">' + esc(text) + '</h3>' +
+      (subtitle ? '<p class="text-[10px] text-slate-400 dark:text-slate-500">' + esc(subtitle) + '</p>' : '') +
+      '</div>'
+    );
+  }
+
+  function ascRenderOverview(j) {
+    var K = j.kpis || {};
+    var R = j.ratings || {};
+    var E = j.engagement || {};
+    var html = '<section>' + ascSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+      ascKpiCard('Gösterimler (Impressions)', K.impressions, { color: 'sky' }) +
+      ascKpiCard('Ürün sayfası görüntüleme', K.product_page_views, { color: 'cyan' }) +
+      ascKpiCard('Toplam indirme', K.total_downloads, { color: 'indigo' }) +
+      ascKpiCard('Dönüşüm oranı', K.conversion_rate, { color: 'violet' }) +
+      ascKpiCard('Gelir (Proceeds)', K.proceeds, { color: 'emerald' }) +
+      ascKpiCard('Aktif cihaz', K.active_devices, { color: 'fuchsia' }) +
+      '</div></section>';
+
+    var trend = (j.trend_daily || []);
+    if (trend.length) {
+      var dlSeries = trend.map(function (r) { return r.downloads; });
+      var prSeries = trend.map(function (r) { return r.proceeds; });
+      html += '<section class="mt-6">' + ascSectionTitle('Günlük Trend', 'İndirme · Gelir') +
+        '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+        '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">İndirme (toplam)</p>' +
+        '<p class="text-xl font-extrabold tabular-nums">' + ascFmtNum(dlSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
+        ascSparklineSvg(dlSeries, 'text-indigo-500 dark:text-indigo-400') + '</div>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Gelir (toplam)</p>' +
+        '<p class="text-xl font-extrabold tabular-nums">' + ascFmtMoney(prSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
+        ascSparklineSvg(prSeries, 'text-emerald-500 dark:text-emerald-400') + '</div>' +
+        '</div></div></section>';
     }
-    if (!box) {
-      return;
-    }
-    if (!j || j.error) {
-      box.innerHTML =
-        '<p class="text-sm text-rose-600 dark:text-rose-400">App Store Connect özeti yüklenemedi.</p>';
-      return;
-    }
+
+    var ratingDist = R.distribution || {};
+    var maxRating = 0;
+    ["1", "2", "3", "4", "5"].forEach(function (k) {
+      maxRating = Math.max(maxRating, ratingDist[k] || 0);
+    });
+    var rbar = '';
+    [5, 4, 3, 2, 1].forEach(function (k) {
+      var v = ratingDist[String(k)] || 0;
+      var w = maxRating > 0 ? Math.round(v / maxRating * 100) : 0;
+      rbar += '<div class="flex items-center gap-2 text-[11px]">' +
+        '<span class="w-3 text-right font-bold text-slate-500 dark:text-slate-400">' + k + '</span>' +
+        '<svg class="h-3 w-3 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>' +
+        '<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-full rounded-full bg-amber-400" style="width:' + w + '%"></div></div>' +
+        '<span class="w-12 text-right tabular-nums text-slate-500 dark:text-slate-400">' + ascFmtNum(v) + '</span>' +
+        '</div>';
+    });
+
+    html += '<section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Puanlama</p>' +
+      '<div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><span class="text-sm text-slate-400">/ 5</span></div>' +
+      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + ascFmtNum(R.total) + ' puan ' + (R.delta_avg != null ? '<span class="' + ascDeltaClass(R.delta_avg * 100) + '">(' + (R.delta_avg > 0 ? '+' : '') + R.delta_avg.toFixed(2) + ')</span>' : '') + '</p>' +
+      '<div class="mt-3 space-y-1">' + rbar + '</div></div>' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Etkileşim özeti</p>' +
+      '<div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">' +
+      ascMiniCard('Oturum', E.sessions ? E.sessions.value_label : '—', E.sessions ? E.sessions.delta_pct : null) +
+      ascMiniCard('Cihaz başına oturum', E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—', null) +
+      ascMiniCard('Çökme oranı', E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—', null) +
+      ascMiniCard('Ort. oturum süresi', E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—', null) +
+      '</div>' +
+      '<div class="mt-3 grid grid-cols-3 gap-2 text-center">' +
+      '<div class="rounded-lg bg-emerald-50 px-2 py-2 dark:bg-emerald-950/30"><p class="text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Retention D1</p><p class="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">' + (E.retention_d1 != null ? E.retention_d1 + '%' : '—') + '</p></div>' +
+      '<div class="rounded-lg bg-sky-50 px-2 py-2 dark:bg-sky-950/30"><p class="text-[9px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">Retention D7</p><p class="text-lg font-bold tabular-nums text-sky-700 dark:text-sky-300">' + (E.retention_d7 != null ? E.retention_d7 + '%' : '—') + '</p></div>' +
+      '<div class="rounded-lg bg-indigo-50 px-2 py-2 dark:bg-indigo-950/30"><p class="text-[9px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Retention D28</p><p class="text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-300">' + (E.retention_d28 != null ? E.retention_d28 + '%' : '—') + '</p></div>' +
+      '</div></div>' +
+      '</section>';
+    return html;
+  }
+
+  function ascRenderAcquisition(j) {
     var A = j.acquisition || {};
+    return '<section>' + ascSectionTitle('Kazanım (Acquisition)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+      ascKpiCard('Gösterimler', A.impressions, { color: 'sky' }) +
+      ascKpiCard('Ürün sayfası görüntüleme', A.product_page_views, { color: 'cyan' }) +
+      ascKpiCard('İlk indirme', A.first_time_downloads, { color: 'indigo' }) +
+      ascKpiCard('Yeniden indirme', A.redownloads, { color: 'violet' }) +
+      ascKpiCard('Toplam indirme', A.total_downloads, { color: 'fuchsia' }) +
+      ascKpiCard('Dönüşüm oranı', A.conversion_rate, { color: 'emerald' }) +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('Yan metrikler') +
+      '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
+      ascMiniCard('Güncelleme', A.updates ? A.updates.value_label : '—', A.updates ? A.updates.delta_pct : null) +
+      '</div></section>';
+  }
+
+  function ascRenderSales(j) {
     var S = j.sales || {};
+    return '<section>' + ascSectionTitle('Satış (Sales)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+      ascKpiCard('Gelir (Proceeds)', S.proceeds, { color: 'emerald' }) +
+      ascKpiCard('Ödeme yapan kullanıcı', S.paying_users, { color: 'teal' }) +
+      ascKpiCard('Uygulama içi satın alma', S.in_app_purchases, { color: 'cyan' }) +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('Dönüşüm kohortları (Download → Paid)') +
+      '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
+      ascMiniCard('Gün 1', (S.d1_download_to_paid != null ? S.d1_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('Gün 7', (S.d7_download_to_paid != null ? S.d7_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('Gün 35', (S.d35_download_to_paid != null ? S.d35_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('İade oranı', (S.refund_rate_pct != null ? S.refund_rate_pct + '%' : '—'), null) +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('ARPU') +
+      '<div class="grid grid-cols-1 gap-3 sm:max-w-sm">' +
+      ascKpiCard('Kullanıcı başına ortalama gelir (ARPU)', S.arpu, { color: 'emerald' }) +
+      '</div></section>';
+  }
+
+  function ascRenderSubscriptions(j) {
     var U = j.subscriptions || {};
-    var cardPri =
-      "rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/80 sm:p-4 dark:border-slate-200/10 dark:bg-white dark:shadow-lg dark:shadow-slate-950/50 dark:ring-0";
-    var titlePri = "text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-500";
-    var valPri = "mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-900 sm:text-2xl";
-    var big3 = function (t, a) {
-      return (
-        '<div class="' +
-        cardPri +
-        '">' +
-        '<p class="' +
-        titlePri +
-        '">' +
-        t +
-        "</p>" +
-        '<p class="' +
-        valPri +
-        '">' +
-        esc(a && a.value_label) +
-        "</p>" +
-        '<p class="mt-0.5 text-sm font-semibold ' +
-        ascDeltaClass((a && a.delta_pct) || 0) +
-        '">' +
-        esc(ascFormatDelta((a && a.delta_pct) || 0)) +
-        "</p>" +
-        '<div class="mt-2 opacity-95">' +
-        ascSparklineSvg((a && a.series) || [], "sky") +
-        "</div></div>"
-      );
-    };
-    var cardSec =
-      "rounded-lg border border-slate-200 bg-slate-50/95 px-3 py-2.5 dark:border-slate-700/80 dark:bg-slate-900/80 dark:ring-1 dark:ring-slate-700/20";
-    var titleSec = "text-[9px] font-semibold uppercase text-slate-500 dark:text-slate-400";
-    var valSec = "text-base font-bold tabular-nums text-slate-900 dark:text-slate-100";
-    var small1 = function (t, a) {
-      if (!a) {
-        return "";
-      }
-      return (
-        '<div class="' +
-        cardSec +
-        '">' +
-        '<p class="' +
-        titleSec +
-        '">' +
-        t +
-        "</p>" +
-        '<p class="' +
-        valSec +
-        '">' +
-        esc(a.value_label) +
-        "</p>" +
-        '<p class="text-xs font-medium ' +
-        ascDeltaClass((a && a.delta_pct) || 0) +
-        '">' +
-        esc(ascFormatDelta((a && a.delta_pct) || 0)) +
-        "</p></div>"
-      );
-    };
     var dBars = (U.net_paid_plans && U.net_paid_plans.daily_bars) || [];
     var mAbs = 1;
-    dBars.forEach(function (v) {
-      mAbs = Math.max(mAbs, Math.abs(v));
-    });
-    var barHtml =
-      '<div class="relative h-32 w-full rounded-lg bg-slate-100/90 dark:bg-slate-950/80">' +
-      '<div class="absolute left-0 right-0 top-1/2 h-px bg-slate-300/90 dark:bg-slate-600/80" aria-hidden="true"></div>';
-    var bw = 100 / Math.max(1, dBars.length);
-    dBars.forEach(function (v, i) {
-      var hP = (Math.abs(v) / mAbs) * 48;
-      var le = (i * bw + bw * 0.1) + "%";
-      var wd = (bw * 0.7) + "%";
-      if (v >= 0) {
-        barHtml +=
-          '<div class="absolute rounded-t-sm bg-sky-500" style="left:' + le + ";width:" + wd + ";bottom:50%;height:" + hP + '%"></div>';
-      } else {
-        barHtml +=
-          '<div class="absolute rounded-b-sm bg-rose-500" style="left:' + le + ";width:" + wd + ";top:50%;height:" + hP + '%"></div>';
-      }
-    });
-    barHtml += "</div>";
-    if (!dBars.length) {
+    dBars.forEach(function (v) { mAbs = Math.max(mAbs, Math.abs(v)); });
+    var barHtml = '';
+    if (dBars.length) {
+      barHtml = '<div class="relative h-32 w-full rounded-lg bg-slate-100/90 dark:bg-slate-950/60">' +
+        '<div class="absolute left-0 right-0 top-1/2 h-px bg-slate-300/90 dark:bg-slate-600/80"></div>';
+      var bw = 100 / Math.max(1, dBars.length);
+      dBars.forEach(function (v, i) {
+        var hP = (Math.abs(v) / mAbs) * 48;
+        var le = (i * bw + bw * 0.1) + "%";
+        var wd = (bw * 0.7) + "%";
+        if (v >= 0) {
+          barHtml += '<div class="absolute rounded-t-sm bg-emerald-500" style="left:' + le + ";width:" + wd + ";bottom:50%;height:" + hP + '%" title="+' + v + '"></div>';
+        } else {
+          barHtml += '<div class="absolute rounded-b-sm bg-rose-500" style="left:' + le + ";width:" + wd + ";top:50%;height:" + hP + '%" title="' + v + '"></div>';
+        }
+      });
+      barHtml += '</div>';
+    } else {
       barHtml = '<p class="text-sm text-slate-500 dark:text-slate-400">Günlük seri yok.</p>';
     }
-    var secH =
-      "text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-500";
-    var html = "";
-    html += '<h3 class="' + secH + '">Kazanım (Acquisition)</h3>';
-    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
-    html += big3("İlk indirmeler (First-time downloads)", A.first_time_downloads);
-    html += big3("Yeniden indirmeler", A.redownloads);
-    html += big3("Dönüşüm oranı (Product page → App)", A.conversion_rate);
-    html += "</div>";
-    html += '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">';
-    html += small1("Gösterimler (Impressions)", A.impressions);
-    html += small1("Ürün sayfası görüntülemesi", A.product_page_views);
-    html += small1("Güncellemeler (Updates)", A.updates);
-    html += "</div>";
-    html += '<h3 class="mt-8 ' + secH + '">Satış (Sales)</h3>';
-    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
-    html += big3("Gelir (Proceeds)", S.proceeds);
-    html += big3("Ödeme yapan kullanıcı", S.paying_users);
-    html += big3("Uygulama içi satın alma (adet)", S.in_app_purchases);
-    html += "</div>";
-    html += '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">';
-    html +=
-      '<div class="' +
-      cardSec +
-      '"><p class="' +
-      titleSec +
-      '">Gün 1: İndirme → satın alma</p><p class="' +
-      valSec +
-      '">' +
-      (S.d1_download_to_paid != null ? esc(String(S.d1_download_to_paid) + "%") : "—") +
-      "</p></div>";
-    html +=
-      '<div class="' +
-      cardSec +
-      '"><p class="' +
-      titleSec +
-      '">Gün 7: İndirme → satın alma</p><p class="' +
-      valSec +
-      '">' +
-      (S.d7_download_to_paid != null ? esc(String(S.d7_download_to_paid) + "%") : "—") +
-      "</p></div>";
-    html +=
-      '<div class="' +
-      cardSec +
-      '"><p class="' +
-      titleSec +
-      '">Gün 35: İndirme → satın alma</p><p class="' +
-      valSec +
-      '">' +
-      (S.d35_download_to_paid != null ? esc(String(S.d35_download_to_paid) + "%") : "—") +
-      "</p></div>";
-    html += "</div>";
-    html += '<h3 class="mt-8 ' + secH + '">Abonelikler (Subscriptions)</h3>';
-    html += '<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">';
-    html +=
-      '<div class="' +
-      cardPri +
-      ' sm:p-4"><p class="' +
-      titlePri +
-      '">Aktif plan</p><p class="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-900">' +
-      esc((U.active_plans && U.active_plans.value_label) || "—") +
-      '</p><p class="mt-0.5 text-sm font-semibold ' +
-      ascDeltaClass((U.active_plans && U.active_plans.delta_pct) || 0) +
-      '">' +
-      esc(ascFormatDelta((U.active_plans && U.active_plans.delta_pct) || 0)) +
-      "</p></div>";
-    html +=
-      '<div class="' +
-      cardPri +
-      ' sm:p-4"><p class="' +
-      titlePri +
-      '">Ücretli plan</p><p class="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-900">' +
-      esc((U.paid_plans && U.paid_plans.value_label) || "—") +
-      '</p><p class="mt-0.5 text-sm font-semibold ' +
-      ascDeltaClass((U.paid_plans && U.paid_plans.delta_pct) || 0) +
-      '">' +
-      esc(ascFormatDelta((U.paid_plans && U.paid_plans.delta_pct) || 0)) +
-      "</p></div>";
-    html +=
-      '<div class="' +
-      cardPri +
-      ' sm:p-4"><p class="' +
-      titlePri +
-      '">Aylık tekrarlayan gelir (MRR)</p><p class="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-900">' +
-      esc((U.mrr && U.mrr.value_label) || "—") +
-      '</p><p class="mt-0.5 text-sm font-semibold ' +
-      ascDeltaClass((U.mrr && U.mrr.delta_pct) || 0) +
-      '">' +
-      esc(ascFormatDelta((U.mrr && U.mrr.delta_pct) || 0)) +
-      "</p></div>";
-    html += "</div>";
-    html += '<div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch">';
-    html +=
-      '<div class="rounded-xl border border-slate-200 bg-slate-50/95 p-4 dark:border-slate-700/80 dark:bg-slate-900/75 dark:ring-1 dark:ring-slate-700/30 lg:col-span-8"><p class="' +
-      titleSec +
-      '">Net ücretli plan (günlük)</p><p class="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">' +
-      esc((U.net_paid_plans && U.net_paid_plans.value_label) || "—") +
-      '</p><div class="mt-2">' +
-      barHtml +
-      "</div></div>";
-    html +=
-      '<div class="flex flex-col gap-2 lg:col-span-4"><div class="' +
-      cardPri +
-      ' p-4 sm:p-5"><p class="' +
-      titlePri +
-      '">Yeni abonelik başlangıcı</p><p class="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-900">' +
-      (U.plan_starts != null ? esc(String(U.plan_starts)) : "—") +
-      '</p></div><div class="' +
-      cardPri +
-      ' p-4 sm:p-5"><p class="' +
-      titlePri +
-      '">Churn (düşenler)</p><p class="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-900">' +
-      (U.churned != null ? esc(String(U.churned)) : "—") +
-      "</p></div></div>";
-    html += "</div>";
+    return '<section>' + ascSectionTitle('Abonelikler (Subscriptions)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">' +
+      ascKpiCard('Aktif plan', U.active_plans, { color: 'indigo' }) +
+      ascKpiCard('Ücretli plan', U.paid_plans, { color: 'violet' }) +
+      ascKpiCard('Ücretsiz deneme', U.free_trials, { color: 'amber' }) +
+      ascKpiCard('Aylık tekrarlayan gelir (MRR)', U.mrr, { color: 'emerald' }) +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('Net ücretli plan (günlük)') +
+      '<div class="grid grid-cols-1 gap-3 lg:grid-cols-12">' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-8">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Net abonelik değişimi</p>' +
+      '<p class="mt-1 text-2xl font-extrabold tabular-nums">' + esc((U.net_paid_plans && U.net_paid_plans.value_label) || '—') + '</p>' +
+      '<div class="mt-3">' + barHtml + '</div></div>' +
+      '<div class="flex flex-col gap-2 lg:col-span-4">' +
+      ascMiniCard('Yeni başlangıç', (U.plan_starts != null ? String(U.plan_starts) : '—'), null) +
+      ascMiniCard('Churn (düşenler)', (U.churned != null ? String(U.churned) : '—'), null) +
+      ascMiniCard('Deneme dönüşümü', (U.trial_conversion_pct != null ? U.trial_conversion_pct + '%' : '—'), null) +
+      '</div></div></section>';
+  }
+
+  function ascRenderEngagement(j) {
+    var E = j.engagement || {};
+    return '<section>' + ascSectionTitle('Etkileşim (Engagement)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+      ascKpiCard('Oturum (Sessions)', E.sessions, { color: 'indigo' }) +
+      ascKpiCard('Aktif cihaz', E.active_devices, { color: 'sky' }) +
+      ascKpiCard('Çökme (Crashes)', E.crashes, { color: 'rose' }) +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('Kullanıcı tutma (Retention)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
+      '<div class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Retention D1</p>' +
+      '<p class="mt-1 text-3xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">' + (E.retention_d1 != null ? E.retention_d1 + '%' : '—') + '</p></div>' +
+      '<div class="rounded-xl border border-sky-200 bg-sky-50/70 p-4 text-center dark:border-sky-900/50 dark:bg-sky-950/30">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">Retention D7</p>' +
+      '<p class="mt-1 text-3xl font-black tabular-nums text-sky-700 dark:text-sky-300">' + (E.retention_d7 != null ? E.retention_d7 + '%' : '—') + '</p></div>' +
+      '<div class="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 text-center dark:border-indigo-900/50 dark:bg-indigo-950/30">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Retention D28</p>' +
+      '<p class="mt-1 text-3xl font-black tabular-nums text-indigo-700 dark:text-indigo-300">' + (E.retention_d28 != null ? E.retention_d28 + '%' : '—') + '</p></div>' +
+      '</div></section>' +
+      '<section class="mt-5">' + ascSectionTitle('Sağlık göstergeleri') +
+      '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
+      ascMiniCard('Çökme oranı', (E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—'), null) +
+      ascMiniCard('Cihaz başına oturum', (E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—'), null) +
+      ascMiniCard('Ort. oturum süresi', (E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—'), null) +
+      '</div></section>';
+  }
+
+  function ascSortRows(rows, sortKey, dir) {
+    var copy = rows.slice();
+    copy.sort(function (a, b) {
+      var va = a[sortKey], vb = b[sortKey];
+      if (va == null) va = (typeof vb === 'number') ? -Infinity : '';
+      if (vb == null) vb = (typeof va === 'number') ? -Infinity : '';
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return dir === 'asc' ? va - vb : vb - va;
+      }
+      var sa = String(va).toLocaleLowerCase('tr');
+      var sb = String(vb).toLocaleLowerCase('tr');
+      return dir === 'asc' ? sa.localeCompare(sb, 'tr') : sb.localeCompare(sa, 'tr');
+    });
+    return copy;
+  }
+  function ascSortArrow(sortState, key) {
+    if (sortState.key !== key) return '<span class="app-asc-sort-arrow">↕</span>';
+    return '<span class="app-asc-sort-arrow">' + (sortState.dir === 'asc' ? '↑' : '↓') + '</span>';
+  }
+
+  function ascRenderTops(j) {
+    var sortC = ascState.topCountriesSort;
+    var sortS = ascState.topSourcesSort;
+    var sortV = ascState.topVersionsSort;
+    var countries = ascSortRows(j.top_countries || [], sortC.key, sortC.dir);
+    var sources = ascSortRows(j.top_sources || [], sortS.key, sortS.dir);
+    var versions = ascSortRows(j.top_versions || [], sortV.key, sortV.dir);
+
+    var thBase = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 py-2 px-3 border-b border-slate-200 dark:border-slate-700';
+    var tdBase = 'py-2 px-3 text-sm align-middle';
+    var rowBase = 'border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-800/40';
+
+    var html = '<section>' + ascSectionTitle('En çok indirme: Ülkeler') +
+      '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
+      '<table class="w-full min-w-[500px] border-collapse">' +
+      '<thead><tr>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="name" data-sorted="' + (sortC.key === 'name' ? sortC.dir : '') + '">Ülke ' + ascSortArrow(sortC, 'name') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="downloads" data-sorted="' + (sortC.key === 'downloads' ? sortC.dir : '') + '">İndirme ' + ascSortArrow(sortC, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="share_pct" data-sorted="' + (sortC.key === 'share_pct' ? sortC.dir : '') + '">Pay ' + ascSortArrow(sortC, 'share_pct') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="delta_pct" data-sorted="' + (sortC.key === 'delta_pct' ? sortC.dir : '') + '">Δ ' + ascSortArrow(sortC, 'delta_pct') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="proceeds" data-sorted="' + (sortC.key === 'proceeds' ? sortC.dir : '') + '">Gelir ' + ascSortArrow(sortC, 'proceeds') + '</th>' +
+      '</tr></thead><tbody>';
+    countries.forEach(function (r) {
+      html += '<tr class="' + rowBase + '">' +
+        '<td class="' + tdBase + ' font-medium text-slate-900 dark:text-slate-100"><span class="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300 mr-2">' + esc(r.code) + '</span>' + esc(r.name) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.downloads) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-500 dark:text-slate-400">' + (r.share_pct != null ? r.share_pct + '%' : '—') + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums font-semibold ' + ascDeltaClass(r.delta_pct) + '">' + ascFormatDelta(r.delta_pct) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtMoney(r.proceeds) + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></section>';
+
+    html += '<section class="mt-5">' + ascSectionTitle('Kaynaklar (Sources)') +
+      '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
+      '<table class="w-full min-w-[500px] border-collapse">' +
+      '<thead><tr>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="name" data-sorted="' + (sortS.key === 'name' ? sortS.dir : '') + '">Kaynak ' + ascSortArrow(sortS, 'name') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="impressions" data-sorted="' + (sortS.key === 'impressions' ? sortS.dir : '') + '">Gösterim ' + ascSortArrow(sortS, 'impressions') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="product_page_views" data-sorted="' + (sortS.key === 'product_page_views' ? sortS.dir : '') + '">PV ' + ascSortArrow(sortS, 'product_page_views') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="downloads" data-sorted="' + (sortS.key === 'downloads' ? sortS.dir : '') + '">İndirme ' + ascSortArrow(sortS, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="conversion_pct" data-sorted="' + (sortS.key === 'conversion_pct' ? sortS.dir : '') + '">Dönüşüm ' + ascSortArrow(sortS, 'conversion_pct') + '</th>' +
+      '</tr></thead><tbody>';
+    sources.forEach(function (r) {
+      html += '<tr class="' + rowBase + '">' +
+        '<td class="' + tdBase + ' font-medium text-slate-900 dark:text-slate-100">' + esc(r.name) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.impressions) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.product_page_views) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100">' + ascFmtNum(r.downloads) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-500 dark:text-slate-400">' + (r.conversion_pct != null ? r.conversion_pct + '%' : '—') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></section>';
+
+    html += '<section class="mt-5">' + ascSectionTitle('Sürümler (Versions)') +
+      '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
+      '<table class="w-full min-w-[480px] border-collapse">' +
+      '<thead><tr>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="version" data-sorted="' + (sortV.key === 'version' ? sortV.dir : '') + '">Sürüm ' + ascSortArrow(sortV, 'version') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="downloads" data-sorted="' + (sortV.key === 'downloads' ? sortV.dir : '') + '">İndirme ' + ascSortArrow(sortV, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="active_devices" data-sorted="' + (sortV.key === 'active_devices' ? sortV.dir : '') + '">Aktif cihaz ' + ascSortArrow(sortV, 'active_devices') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="share_pct" data-sorted="' + (sortV.key === 'share_pct' ? sortV.dir : '') + '">Pay ' + ascSortArrow(sortV, 'share_pct') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="crash_rate_pct" data-sorted="' + (sortV.key === 'crash_rate_pct' ? sortV.dir : '') + '">Çökme % ' + ascSortArrow(sortV, 'crash_rate_pct') + '</th>' +
+      '</tr></thead><tbody>';
+    versions.forEach(function (r) {
+      html += '<tr class="' + rowBase + '">' +
+        '<td class="' + tdBase + ' font-medium text-slate-900 dark:text-slate-100">' +
+        (r.is_latest ? '<span class="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 mr-2">Güncel</span>' : '') +
+        '<code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-800 dark:text-slate-300">' + esc(r.version) + '</code></td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.downloads) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.active_devices) + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums text-slate-500 dark:text-slate-400">' + (r.share_pct != null ? r.share_pct + '%' : '—') + '</td>' +
+        '<td class="' + tdBase + ' text-right tabular-nums ' + (r.crash_rate_pct > 0.5 ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-600 dark:text-slate-300') + '">' + (r.crash_rate_pct != null ? r.crash_rate_pct + '%' : '—') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></section>';
+    return html;
+  }
+
+  function ascRenderActiveTab() {
+    var box = document.getElementById('app-asc-content');
+    var j = ascState.payload;
+    if (!box || !j) return;
+    var html;
+    switch (ascState.tab) {
+      case 'acquisition': html = ascRenderAcquisition(j); break;
+      case 'sales': html = ascRenderSales(j); break;
+      case 'subscriptions': html = ascRenderSubscriptions(j); break;
+      case 'engagement': html = ascRenderEngagement(j); break;
+      case 'tops': html = ascRenderTops(j); break;
+      default: html = ascRenderOverview(j);
+    }
     box.innerHTML = html;
+    ascBindTableSorts();
+  }
+
+  function ascBindTableSorts() {
+    document.querySelectorAll('.app-asc-sortable-th').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var group = th.getAttribute('data-asc-sort-group');
+        var key = th.getAttribute('data-asc-sort-key');
+        var st = null;
+        if (group === 'countries') st = ascState.topCountriesSort;
+        else if (group === 'sources') st = ascState.topSourcesSort;
+        else if (group === 'versions') st = ascState.topVersionsSort;
+        if (!st) return;
+        if (st.key === key) { st.dir = st.dir === 'asc' ? 'desc' : 'asc'; }
+        else { st.key = key; st.dir = 'desc'; }
+        ascRenderActiveTab();
+      });
+    });
+  }
+
+  function ascRenderTabsNav() {
+    document.querySelectorAll('.app-asc-tab-btn').forEach(function (b) {
+      var on = b.getAttribute('data-app-asc-tab') === ascState.tab;
+      b.className = 'app-asc-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition ' +
+        (on ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300'
+            : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200');
+    });
+  }
+
+  function ascRenderPeriodNav() {
+    document.querySelectorAll('.app-asc-period-btn').forEach(function (b) {
+      var v = parseInt(b.getAttribute('data-app-asc-period'), 10);
+      var on = v === ascState.period;
+      b.className = 'app-asc-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition ' +
+        (on ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100');
+    });
+  }
+
+  function ascPopulateFilterOptions(j) {
+    var af = j.available_filters || {};
+    var sCountry = document.getElementById('app-asc-country');
+    var sSource = document.getElementById('app-asc-source');
+    var sDevice = document.getElementById('app-asc-device');
+    if (sCountry && !sCountry.dataset.populated) {
+      sCountry.innerHTML = (af.countries || []).map(function (c) {
+        return '<option value="' + esc(c.code) + '">' + esc(c.name) + '</option>';
+      }).join('');
+      sCountry.value = ascState.country;
+      sCountry.dataset.populated = '1';
+    }
+    if (sSource && !sSource.dataset.populated) {
+      sSource.innerHTML = (af.sources || []).map(function (s) {
+        return '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>';
+      }).join('');
+      sSource.value = ascState.source;
+      sSource.dataset.populated = '1';
+    }
+    if (sDevice && !sDevice.dataset.populated) {
+      sDevice.innerHTML = (af.devices || []).map(function (d) {
+        return '<option value="' + esc(d.id) + '">' + esc(d.name) + '</option>';
+      }).join('');
+      sDevice.value = ascState.device;
+      sDevice.dataset.populated = '1';
+    }
+  }
+
+  function ascRenderSourcePill(j) {
+    var pill = document.getElementById('app-asc-source-pill');
+    var note = document.getElementById('app-asc-source-note');
+    var meta = document.getElementById('app-asc-meta');
+    if (pill) {
+      if (j && j.source === 'demo') {
+        pill.className = 'rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+        pill.textContent = 'Demo';
+        pill.classList.remove('hidden');
+      } else if (j && j.source) {
+        pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
+        pill.textContent = 'Canlı';
+        pill.classList.remove('hidden');
+      } else {
+        pill.classList.add('hidden');
+      }
+    }
+    if (note) {
+      if (j && j.source === 'demo' && j.source_note) {
+        note.textContent = j.source_note;
+        note.classList.remove('hidden');
+      } else {
+        note.textContent = '';
+        note.classList.add('hidden');
+      }
+    }
+    if (meta) {
+      var parts = [];
+      if (j && j.product_label) parts.push(j.product_label);
+      if (j && j.period_days) parts.push('Son ' + j.period_days + 'g');
+      meta.textContent = parts.join(' · ');
+    }
   }
 
   function loadAscPreview() {
-    var box = document.getElementById("app-asc-content");
-    if (!box) {
-      return;
-    }
-    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var box = document.getElementById('app-asc-content');
+    if (!box) return;
+    ascState.seq += 1;
+    var req = ascState.seq;
+    var url = '/api/app/asc-preview?product=' + encodeURIComponent(state.product) +
+      '&period=' + encodeURIComponent(String(ascState.period)) +
+      '&country=' + encodeURIComponent(ascState.country) +
+      '&source=' + encodeURIComponent(ascState.source) +
+      '&device=' + encodeURIComponent(ascState.device);
     var prevH = box.offsetHeight;
-    if (prevH > 64) {
-      box.style.minHeight = prevH + "px";
-    }
-    state.ascRequestSeq += 1;
-    var req = state.ascRequestSeq;
-    var url = "/api/app/asc-preview?product=" + encodeURIComponent(state.product) + "&period=" + encodeURIComponent(String(state.ascPeriod));
-    function restoreScroll() {
-      box.style.minHeight = "";
-      requestAnimationFrame(function () {
-        window.scrollTo(0, scrollY);
-        requestAnimationFrame(function () {
-          window.scrollTo(0, scrollY);
-        });
-      });
-    }
-    box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">App Store metrikleri yükleniyor…</p>';
-    fetch(url, { cache: "no-store" })
-      .then(function (r) {
-        return r.json().then(function (j) {
-          return { ok: r.ok, j: j };
-        });
-      })
+    if (prevH > 64) box.style.minHeight = prevH + 'px';
+    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-asc-spin">⟳</span> App Store Connect verileri yükleniyor…</div>';
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
-        if (req !== state.ascRequestSeq) {
+        if (req !== ascState.seq) return;
+        box.style.minHeight = '';
+        if (!x.ok || !x.j) {
+          box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">App Store Connect özeti yüklenemedi.</p>';
           return;
         }
-        if (!x.ok) {
-          renderAscPanel(null);
-          restoreScroll();
-          return;
-        }
-        renderAscPanel(x.j);
-        restoreScroll();
+        ascState.payload = x.j;
+        ascPopulateFilterOptions(x.j);
+        ascRenderSourcePill(x.j);
+        ascRenderActiveTab();
       })
       .catch(function () {
-        if (req !== state.ascRequestSeq) {
-          return;
-        }
-        renderAscPanel(null);
-        restoreScroll();
+        if (req !== ascState.seq) return;
+        box.style.minHeight = '';
+        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — App Store Connect verisi alınamadı.</p>';
       });
   }
+
+  function ascBindControls() {
+    var root = document.getElementById('app-asc-root');
+    if (!root || root.dataset.ascBound) return;
+    root.dataset.ascBound = '1';
+    root.querySelectorAll('.app-asc-period-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var v = parseInt(b.getAttribute('data-app-asc-period'), 10);
+        if (!v || v === ascState.period) return;
+        ascState.period = v;
+        state.ascPeriod = v;
+        ascRenderPeriodNav();
+        loadAscPreview();
+      });
+    });
+    root.querySelectorAll('.app-asc-tab-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = b.getAttribute('data-app-asc-tab');
+        if (!t || t === ascState.tab) return;
+        ascState.tab = t;
+        ascRenderTabsNav();
+        ascRenderActiveTab();
+      });
+    });
+    ['country', 'source', 'device'].forEach(function (k) {
+      var el = document.getElementById('app-asc-' + k);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        ascState[k] = el.value || 'all';
+        loadAscPreview();
+      });
+    });
+    var rb = document.getElementById('app-asc-reset-btn');
+    if (rb) {
+      rb.addEventListener('click', function () {
+        ascState.country = 'all'; ascState.source = 'all'; ascState.device = 'all'; ascState.period = 30;
+        ['country', 'source', 'device'].forEach(function (k) {
+          var el = document.getElementById('app-asc-' + k);
+          if (el) el.value = 'all';
+        });
+        ascRenderPeriodNav();
+        loadAscPreview();
+      });
+    }
+    var refresh = document.getElementById('app-asc-refresh-btn');
+    if (refresh) {
+      refresh.addEventListener('click', function () {
+        var icon = document.getElementById('app-asc-refresh-icon');
+        if (icon) icon.classList.add('app-asc-spin');
+        refresh.disabled = true;
+        loadAscPreview();
+        setTimeout(function () {
+          if (icon) icon.classList.remove('app-asc-spin');
+          refresh.disabled = false;
+        }, 600);
+      });
+    }
+  }
+  function renderAscPeriodNav() { ascRenderPeriodNav(); }
 
   function renderCrashlyticsPanel(j) {
     var box = document.getElementById("app-crashlytics-content");
@@ -3194,6 +3481,8 @@
     renderProductNav();
     renderPeriodNav();
     renderAscPeriodNav();
+    ascRenderTabsNav();
+    ascBindControls();
     renderCrashPeriodNav();
     bindCrashlyticsDetails();
     applyHeroShellFromState();

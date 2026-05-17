@@ -9699,8 +9699,14 @@ def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0)
 
 
 @app.get("/api/app/asc-preview")
-def api_app_asc_preview(product: str = "doviz", period: int = 30):
-    """App Store Connect benzeri kazanım / satış / abonelik özeti (şu an demo seriler)."""
+def api_app_asc_preview(
+    product: str = "doviz",
+    period: int = 30,
+    country: str = "all",
+    source: str = "all",
+    device: str = "all",
+):
+    """App Store Connect benzeri kazanım / satış / abonelik / etkileşim özeti."""
     from backend.services.app_asc_preview import build_asc_connect_preview_payload
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
 
@@ -9711,9 +9717,9 @@ def api_app_asc_preview(product: str = "doviz", period: int = 30):
         p = int(period)
     except (TypeError, ValueError):
         p = 30
-    if p not in (1, 7, 30):
+    if p not in (1, 7, 14, 30, 90, 365):
         p = 30
-    payload = build_asc_connect_preview_payload(pid, p)
+    payload = build_asc_connect_preview_payload(pid, p, country=country, source=source, device=device)
     if payload.get("error"):
         return JSONResponse(intel_json_safe(payload), status_code=400)
     return JSONResponse(intel_json_safe(payload))
