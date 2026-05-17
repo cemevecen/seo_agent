@@ -35,24 +35,23 @@
 {% set sessions_diff = p.last_total - p.prev_total %}
 {% set users_diff = p.users_last - p.users_prev %}
 {% set engaged_diff = p.engaged_last - p.engaged_prev %}
-{% set sessions_class = 'text-emerald-600 dark:text-emerald-400' if sessions_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
-{% set users_class = 'text-emerald-600 dark:text-emerald-400' if users_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
-{% set engaged_class = 'text-emerald-600 dark:text-emerald-400' if engaged_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
+{% set sessions_class = 'text-emerald-700 dark:text-emerald-400' if sessions_diff >= 0 else 'text-rose-600 dark:text-rose-500' %}
+{% set users_class = 'text-emerald-700 dark:text-emerald-400' if users_diff >= 0 else 'text-rose-600 dark:text-rose-500' %}
+{% set engaged_class = 'text-emerald-700 dark:text-emerald-400' if engaged_diff >= 0 else 'text-rose-600 dark:text-rose-500' %}
 {% set sp = (p.sessions_pct_change | default(0)) | float %}
 {% set up = (p.users_pct_change | default(0)) | float %}
 {% set ep = (p.engaged_pct_change | default(0)) | float %}
 {% set nup = (p.new_users_pct_change | default(0)) | float %}
 {% set asp = (p.avg_session_pct_change | default(0)) | float %}
 {% set pvp = (p.pageviews_pct_change | default(0)) | float %}
-{% set pct_pos = 'text-emerald-600 dark:text-emerald-400' %}
-{% set pct_neg = 'text-rose-600 dark:text-rose-400' %}
 {% set pct_zero = 'text-slate-500 dark:text-slate-400' %}
-{% set sessions_pct_class = pct_pos if sp > 0 else (pct_neg if sp < 0 else pct_zero) %}
-{% set users_pct_class = pct_pos if up > 0 else (pct_neg if up < 0 else pct_zero) %}
-{% set engaged_pct_class = pct_pos if ep > 0 else (pct_neg if ep < 0 else pct_zero) %}
-{% set new_users_pct_class = pct_pos if nup > 0 else (pct_neg if nup < 0 else pct_zero) %}
-{% set avg_session_pct_class = pct_pos if asp > 0 else (pct_neg if asp < 0 else pct_zero) %}
-{% set pageviews_pct_class = pct_pos if pvp > 0 else (pct_neg if pvp < 0 else pct_zero) %}
+{% macro pct_cls(v) %}{% if v >= 5 %}text-emerald-700 dark:text-emerald-400{% elif v > 0 %}text-emerald-500 dark:text-emerald-300{% elif v > -5 %}text-orange-500 dark:text-orange-400{% elif v < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-500 dark:text-slate-400{% endif %}{% endmacro %}
+{% set sessions_pct_class = pct_cls(sp) | trim %}
+{% set users_pct_class = pct_cls(up) | trim %}
+{% set engaged_pct_class = pct_cls(ep) | trim %}
+{% set new_users_pct_class = pct_cls(nup) | trim %}
+{% set avg_session_pct_class = pct_cls(asp) | trim %}
+{% set pageviews_pct_class = pct_cls(pvp) | trim %}
 
 {# GA4 KPI: SC kartlarına benzer dikey blok; auto-fit ile sarmalanır, truncate yok #}
 {% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
@@ -108,7 +107,7 @@
   <div class="mt-2 grid gap-2 sm:grid-cols-2">
     {% for row in p.top_channels %}
       {% set rcp = (row['pct_change'] | default(0)) | float %}
-      {% set row_pct_class = pct_pos if rcp > 0 else (pct_neg if rcp < 0 else pct_zero) %}
+      {% set row_pct_class = pct_cls(rcp) | trim %}
       <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
         <span class="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{{ row.label }}</span>
         <div class="flex shrink-0 items-center gap-2">
@@ -118,7 +117,7 @@
       </div>
     {% endfor %}
     {% set osp = (p['organic_share_pct_change'] | default(0)) | float %}
-    {% set org_pct_class = pct_pos if osp > 0 else (pct_neg if osp < 0 else pct_zero) %}
+    {% set org_pct_class = pct_cls(osp) | trim %}
     <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 sm:col-span-2">
       <span class="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{{ org_l }}</span>
       <div class="flex shrink-0 items-center gap-2">

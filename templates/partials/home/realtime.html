@@ -18,7 +18,7 @@
             <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
             <p class="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ prof.value_fmt }}</p>
             {% if prof.delta_fmt %}
-              <p class="text-[10px] {% if prof.delta_tone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif prof.delta_tone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-400{% endif %}">{{ prof.delta_fmt }}</p>
+              <p class="text-[10px] {% set _p = prof.delta_pct | default(0) | float %}{% if _p >= 5 %}text-emerald-700 dark:text-emerald-400{% elif _p > 0 %}text-emerald-500 dark:text-emerald-300{% elif _p > -5 %}text-orange-500 dark:text-orange-400{% elif _p < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-400{% endif %}">{{ prof.delta_fmt }}</p>
             {% else %}
               <p class="text-[10px] text-slate-400">—</p>
             {% endif %}

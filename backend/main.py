@@ -6067,19 +6067,19 @@ def _home_format_int(n: float) -> str:
     return str(n)
 
 
-def _home_pct_delta(cur: float, prev: float) -> tuple[str, str]:
+def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
     try:
         c = float(cur); p = float(prev)
     except (TypeError, ValueError):
-        return ("—", "flat")
+        return ("—", "flat", 0.0)
     if p <= 0:
         if c > 0:
-            return ("+∞", "up")
-        return ("0%", "flat")
+            return ("+∞", "up", 999.0)
+        return ("0%", "flat", 0.0)
     pct = (c - p) / p * 100.0
     tone = "up" if pct > 0.5 else ("down" if pct < -0.5 else "flat")
     sign = "+" if pct > 0 else ""
-    return (f"{sign}{pct:.1f}%", tone)
+    return (f"{sign}{pct:.1f}%", tone, round(pct, 2))
 
 
 def _home_get_site(db, site_id: int):
@@ -6097,12 +6097,12 @@ def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str
             .first()
         )
         if row is None:
-            out.append({"label": prof_label, "value_fmt": "—", "delta_fmt": None, "delta_tone": "flat"})
+            out.append({"label": prof_label, "value_fmt": "—", "delta_fmt": None, "delta_tone": "flat", "delta_pct": 0.0})
             continue
         cur = float(row.active_users_current or 0)
         prev = float(row.active_users_previous or 0)
-        delta_fmt, tone = _home_pct_delta(cur, prev)
-        out.append({"label": prof_label, "value_fmt": _home_format_int(cur), "delta_fmt": delta_fmt, "delta_tone": tone})
+        delta_fmt, tone, delta_pct = _home_pct_delta(cur, prev)
+        out.append({"label": prof_label, "value_fmt": _home_format_int(cur), "delta_fmt": delta_fmt, "delta_tone": tone, "delta_pct": delta_pct})
     return out
 
 
@@ -6173,13 +6173,14 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
                     last_v = v
                     prev_v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_prev{pd}d_total") or 0.0)
                     break
-        delta_fmt, tone = _home_pct_delta(last_v, prev_v)
+        delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
         out.append({
             "label": prof_label,
             "last_fmt": _home_format_int(last_v),
             "prev_fmt": _home_format_int(prev_v),
             "delta_fmt": delta_fmt,
             "tone": tone,
+            "delta_pct": delta_pct,
         })
     return out
 
@@ -6231,17 +6232,19 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
 
     c_clicks, c_impr = _sum("current_7d")
     p_clicks, p_impr = _sum("previous_7d")
-    clicks_delta, clicks_tone = _home_pct_delta(c_clicks, p_clicks)
-    impr_delta, impr_tone = _home_pct_delta(c_impr, p_impr)
+    clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
+    impr_delta, impr_tone, impr_delta_pct = _home_pct_delta(c_impr, p_impr)
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
         "clicks_delta_fmt": clicks_delta,
         "clicks_tone": clicks_tone,
+        "clicks_delta_pct": clicks_delta_pct,
         "impr_last_fmt": _home_format_int(c_impr),
         "impr_prev_fmt": _home_format_int(p_impr),
         "impr_delta_fmt": impr_delta,
         "impr_tone": impr_tone,
+        "impr_delta_pct": impr_delta_pct,
     }
 
 

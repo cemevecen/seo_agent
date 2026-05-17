@@ -80,8 +80,8 @@
             </td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">{{ row.last_total | tr_int }}</td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">{{ row.prev_total | tr_int }}</td>
-            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">{{ row.delta | tr_int }}</td>
-            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.delta_pct > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.delta_pct < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ row.delta_pct | signed_max_two_decimals }}%</td>
+            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.delta > 0 %}text-emerald-700 dark:text-emerald-400{% elif row.delta < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ row.delta | tr_int }}</td>
+            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.delta_pct >= 5 %}text-emerald-700 dark:text-emerald-400{% elif row.delta_pct > 0 %}text-emerald-500 dark:text-emerald-300{% elif row.delta_pct > -5 %}text-orange-500 dark:text-orange-400{% elif row.delta_pct < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ row.delta_pct | signed_max_two_decimals }}%</td>
           </tr>
         {% else %}
           <tr>

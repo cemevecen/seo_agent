@@ -157,9 +157,9 @@
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
               {% set tp = (view.ctr_pct_change | default(0)) | float %}
               {% set pd = (view.position_delta | default(0)) | float %}
-              {% set clicks_pct_class = 'text-emerald-600 dark:text-emerald-400' if cp > 0 else ('text-rose-600 dark:text-rose-400' if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
-              {% set impressions_pct_class = 'text-emerald-600 dark:text-emerald-400' if ip > 0 else ('text-rose-600 dark:text-rose-400' if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
-              {% set ctr_pct_class = 'text-emerald-600 dark:text-emerald-400' if tp > 0 else ('text-rose-600 dark:text-rose-400' if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set clicks_pct_class = ('text-emerald-700 dark:text-emerald-400' if cp >= 5 else 'text-emerald-500 dark:text-emerald-300') if cp > 0 else (('text-orange-500 dark:text-orange-400' if cp > -5 else 'text-rose-600 dark:text-rose-500') if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set impressions_pct_class = ('text-emerald-700 dark:text-emerald-400' if ip >= 5 else 'text-emerald-500 dark:text-emerald-300') if ip > 0 else (('text-orange-500 dark:text-orange-400' if ip > -5 else 'text-rose-600 dark:text-rose-500') if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
+              {% set ctr_pct_class = ('text-emerald-700 dark:text-emerald-400' if tp >= 5 else 'text-emerald-500 dark:text-emerald-300') if tp > 0 else (('text-orange-500 dark:text-orange-400' if tp > -5 else 'text-rose-600 dark:text-rose-500') if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set position_delta_class = 'text-emerald-600 dark:text-emerald-400' if pd > 0 else ('text-rose-600 dark:text-rose-400' if pd < 0 else 'text-slate-500 dark:text-slate-400') %}
 
               <article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0">
