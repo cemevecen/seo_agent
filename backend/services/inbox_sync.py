@@ -241,13 +241,13 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
         "pct": 5,
     }
     service = _gmail_service(creds)
-    # is:unread ekleyerek tam güncelliği sağlıyoruz
+    # newer_than filtresi ile okunmuş/okunmamış fark etmeksizin son 60 günü çek
     q = (settings.inbox_gmail_query or "").strip()
     if not q:
         q = "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com)"
-    
-    if "is:unread" not in q.lower():
-        q = f"is:unread {q}"
+
+    if "newer_than:" not in q.lower() and "after:" not in q.lower():
+        q = f"newer_than:60d {q}"
         
     yield {
         "type": "phase",

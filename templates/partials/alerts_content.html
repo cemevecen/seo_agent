@@ -392,7 +392,6 @@
   {# ────────────────────────────────────────────────────────────────── #}
   <div data-alerts-panel="threshold" class="hidden space-y-3"
        hx-get="/alerts/threshold-panel"
-       hx-trigger="every 2m"
        hx-swap="innerHTML"
        hx-indicator="#threshold-poll-indicator">
     {% include 'partials/alerts_threshold_body.html' %}
@@ -455,3 +454,22 @@
 </script>
 
 {# JS: /static/alerts_page.js (base.html) — HTMX swap sonrası da çalışır #}
+<script>
+  (function() {
+    var THRESHOLD_POLL_SEC = 300;
+    var _sec = THRESHOLD_POLL_SEC;
+    var _timer = null;
+    function _tick() {
+      if (document.hidden) return;
+      _sec -= 1;
+      if (_sec <= 0) {
+        var el = document.querySelector('[data-alerts-panel="threshold"]');
+        if (el && window.htmx) {
+          htmx.ajax('GET', '/alerts/threshold-panel', {target: el, swap: 'innerHTML'});
+        }
+        _sec = THRESHOLD_POLL_SEC;
+      }
+    }
+    _timer = setInterval(_tick, 1000);
+  })();
+</script>
