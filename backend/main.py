@@ -10205,7 +10205,17 @@ def api_ga4_realtime_top_events(
         return JSONResponse(result)
     except Exception as exc:
         LOGGER.exception("Top events hatası [site=%s, profile=%s]", site_id, profile)
-        return JSONResponse({"error": "api_error", "message": str(exc)}, status_code=500)
+        # GA4 Standard property'lerde belirli pencere/dim kombinasyonları desteklenmez;
+        # frontend 500 yerine boş veriyi sorunsuz işleyebilsin.
+        return JSONResponse({
+            "site_id": site_id,
+            "profile": profile,
+            "events": [],
+            "window_minutes": min(window, 30),
+            "total_event_count": 0,
+            "error": "api_error",
+            "message": str(exc),
+        })
 
 
 @app.post("/api/ga4/realtime/check-all")

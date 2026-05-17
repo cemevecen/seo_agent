@@ -9,3 +9,6 @@ builder = "nixpacks"
 startCommand = "sh -lc \"exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}\""
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
+# Healthcheck: deploy sırasında /health 200 dönmezse rollback. Startup migration ~10s.
+healthcheckPath = "/health"
+healthcheckTimeout = 60

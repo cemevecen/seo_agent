@@ -1,8 +1,16 @@
+{# Servis konfigüre değilse / hata varsa: kullanıcı dostu fallback #}
+{% if not data or data.ok is sameas false or data.configured is sameas false %}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+    <p class="text-sm font-semibold">Crashlytics özetini gösteremiyoruz.</p>
+    <p class="mt-1 text-xs">{{ data.message if data and data.message else "Servis henüz tamamlanmadı veya credential eksik." }}</p>
+  </div>
+{% else %}
 {% set cf = data.crash_free_pct %}
-{% set T = data.totals %}
+{% set T = data.totals or {} %}
 
-{# Storage badge #}
-{% set total_mb = data.storage_mb.values()|sum %}
+{# Storage badge — storage_mb yoksa Normal varsay #}
+{% set _storage = data.storage_mb or {} %}
+{% set total_mb = _storage.values()|sum if _storage else 0 %}
 {% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200" %}{% set sb_label = "Kritik" %}
 {% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" %}{% set sb_label = "Yüksek" %}
 {% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
@@ -84,16 +92,19 @@
     </div>
   {% endif %}
 
-  {# Storage bilgisi #}
+  {# Storage bilgisi — yalnız veri varsa #}
+  {% if _storage %}
   <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-800/40">
     <span class="text-[11px] text-slate-500 dark:text-slate-400">BigQuery Storage (10 GB limit)</span>
     <div class="flex items-center gap-2">
-      {% for plat, mb in data.storage_mb.items() %}
+      {% for plat, mb in _storage.items() %}
         <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">{{ plat }}: {{ mb }} MB</span>
       {% endfor %}
       <span class="rounded-full px-2 py-0.5 text-[10px] font-bold {{ sb_cls }}">{{ sb_label }}</span>
     </div>
   </div>
+  {% endif %}
 
-  <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ data.fetched_at[:16]|replace("T", " ") }} UTC</p>
+  <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ (data.fetched_at or "")[:16]|replace("T", " ") }} UTC</p>
 </div>
+{% endif %}

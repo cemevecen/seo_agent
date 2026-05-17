@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ site_name or "SEO Agent Dashboard" }}</title>
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
-  {% set favicon_v = "10" %}
+  {% set favicon_v = "11" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
   {% set app_css_v = "11" %}
   <link rel="icon" href="/static/favicon.ico?v={{ favicon_v }}" sizes="any" />
@@ -684,6 +684,47 @@
             window.seoInitAiBriefVisualCharts(0);
           }, 0);
         }
+      });
+
+      /* HTMX hata yakalayıcı: skeleton sonsuz dönmesin diye widget alanına
+         küçük bir hata bloğu ve "Tekrar Dene" butonu yerleştirir. */
+      function renderHtmxErrorState(target, status) {
+        if (!target || !target.id) return;
+        try {
+          var msg = status ? ('Yüklenemedi (HTTP ' + status + ').') : 'Yüklenemedi.';
+          var skel = target.querySelector('.animate-pulse');
+          if (skel) skel.remove();
+          var errBox = target.querySelector('[data-htmx-error]');
+          if (errBox) errBox.remove();
+          var div = document.createElement('div');
+          div.setAttribute('data-htmx-error', '1');
+          div.className = 'mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200';
+          div.innerHTML =
+            '<span>' + msg + '</span>' +
+            '<button type="button" class="rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-900/40 dark:text-amber-200">Tekrar Dene</button>';
+          div.querySelector('button').addEventListener('click', function () {
+            div.remove();
+            if (window.htmx && typeof window.htmx.trigger === 'function') {
+              window.htmx.trigger(target, 'load');
+            } else {
+              target.dispatchEvent(new CustomEvent('load'));
+            }
+          });
+          target.appendChild(div);
+        } catch (e) {}
+      }
+      document.body.addEventListener('htmx:responseError', function (ev) {
+        var t = (ev && ev.detail && ev.detail.target) || ev.target;
+        var status = ev && ev.detail && ev.detail.xhr ? ev.detail.xhr.status : 0;
+        renderHtmxErrorState(t, status);
+      });
+      document.body.addEventListener('htmx:sendError', function (ev) {
+        var t = (ev && ev.detail && ev.detail.target) || ev.target;
+        renderHtmxErrorState(t, 0);
+      });
+      document.body.addEventListener('htmx:timeout', function (ev) {
+        var t = (ev && ev.detail && ev.detail.target) || ev.target;
+        renderHtmxErrorState(t, 408);
       });
 
       syncHeaderFromContent();
