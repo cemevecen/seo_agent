@@ -1,3 +1,22 @@
+<style id="home-site-borders">
+  /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo) ince çerçeve.
+     Tailwind ring-1 zaten 1px box-shadow yapıyor; sadece rengini override ediyoruz. */
+  section[hx-get*="site=doviz"],
+  section[hx-get="/api/home/app-release"] {
+    --tw-ring-color: rgba(59, 130, 246, 0.55) !important;   /* blue-500 @ 55% */
+  }
+  section[hx-get*="site=sinemalar"] {
+    --tw-ring-color: rgba(159, 18, 57, 0.60) !important;    /* rose-800 (bordo) @ 60% */
+  }
+  html.dark section[hx-get*="site=doviz"],
+  html.dark section[hx-get="/api/home/app-release"] {
+    --tw-ring-color: rgba(96, 165, 250, 0.40) !important;   /* blue-400 @ 40% */
+  }
+  html.dark section[hx-get*="site=sinemalar"] {
+    --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
+  }
+</style>
+
 <div class="mx-auto w-full min-w-0 max-w-[1600px]">
   <div class="flex flex-col gap-3 rounded-2xl bg-white px-6 py-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:flex-row sm:items-end sm:justify-between">
     <div>
