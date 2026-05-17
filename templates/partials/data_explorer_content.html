@@ -803,20 +803,20 @@ text-slate-500 dark:text-slate-400
                 {% set h_pct = (e.HIGH / total * 100)|round(1) if total > 0 else 0 %}
                 {% set m_pct = (e.MEDIUM / total * 100)|round(1) if total > 0 else 0 %}
                 {% set l_pct = 100 - c_pct - h_pct - m_pct %}
-                <div class="bg-rose-500" style="height: {{ c_pct }}%"></div>
-                <div class="bg-orange-500" style="height: {{ h_pct }}%"></div>
-                <div class="bg-amber-400" style="height: {{ m_pct }}%"></div>
-                <div class="bg-slate-300 dark:bg-slate-600" style="height: {{ l_pct }}%"></div>
+                <div style="height: {{ c_pct }}%; background-color: #f43f5e"></div>
+                <div style="height: {{ h_pct }}%; background-color: #f97316"></div>
+                <div style="height: {{ m_pct }}%; background-color: #fbbf24"></div>
+                <div style="height: {{ l_pct }}%; background-color: #cbd5e1"></div>
               </div>
               <span class="text-[8px] text-slate-400 dark:text-slate-500">{{ e.date[5:] }}</span>
             </div>
             {% endfor %}
           </div>
           <div class="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500 dark:text-slate-400">
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-rose-500"></span>CRITICAL</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-orange-500"></span>HIGH</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-amber-400"></span>MEDIUM</span>
-            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-slate-300 dark:bg-slate-600"></span>LOW</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #f43f5e"></span>CRITICAL</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #f97316"></span>HIGH</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #fbbf24"></span>MEDIUM</span>
+            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm" style="background-color: #cbd5e1"></span>LOW</span>
           </div>
         </div>
         {% endif %}
