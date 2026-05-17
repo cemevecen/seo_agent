@@ -122,11 +122,6 @@ text-slate-500 dark:text-slate-400
         class="text-[0.72rem] font-black uppercase tracking-[0.11em] text-slate-600 dark:text-slate-300"
         style="font-size: 11px;"
       >{{ metric.label }}</p>
-      {% if is_zero_inp %}
-      <span class="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="INP verisi PSI/CrUX'ten alınamadı. Audit fallback chain başarısız. Çok yeni veya az trafikli siteler için normal olabilir.">veri ?</span>
-      {% elif verdict %}
-      <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase {{ verdict_class }}" title="{{ verdict_help }}">{{ verdict }}</span>
-      {% endif %}
     </div>
     <p
       data-fit-text
@@ -143,12 +138,6 @@ text-slate-500 dark:text-slate-400
       style="font-size: 14px;"
     >iyi oran {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
   </div>
-  <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/90 ring-1 ring-slate-300/50 dark:bg-slate-800/90 dark:ring-slate-600/70">
-    <div class="h-full rounded-full {{ fill_class }}" style="width: {{ width|max_two_decimals }}%"></div>
-  </div>
-  {% if period_first and period_last %}
-  <p class="mt-1 text-[9px] leading-tight text-slate-400 dark:text-slate-500 truncate" title="{{ period_tooltip }}">{{ period_first[5:] }}→{{ period_last[5:] }}</p>
-  {% endif %}
 </div>
 {% endmacro %}
 
