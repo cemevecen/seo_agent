@@ -1,3 +1,17 @@
+<style id="home-de-mat-styles">
+  /* Anasayfa Data Explorer kartı dark mode'da parlak renkleri matlaştır */
+  html.dark .home-de-card .text-violet-400  { color: #897fa3 !important; }
+  html.dark .home-de-card .text-rose-400    { color: #a16b76 !important; }
+  html.dark .home-de-card .text-sky-400     { color: #618498 !important; }
+  html.dark .home-de-card .text-emerald-400 { color: #5d8e74 !important; }
+  html.dark .home-de-card .text-amber-400   { color: #b3925a !important; }
+  html.dark .home-de-card .bg-violet-500    { background-color: #7a719a !important; }
+  html.dark .home-de-card .bg-rose-500      { background-color: #95626d !important; }
+  html.dark .home-de-card .bg-sky-500       { background-color: #5a7e94 !important; }
+  html.dark .home-de-card .bg-emerald-500   { background-color: #4f8770 !important; }
+  html.dark .home-de-card .bg-amber-500     { background-color: #a37e4d !important; }
+</style>
+
 <div class="flex items-start justify-between gap-3">
   <div>
     <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
@@ -20,7 +34,9 @@
   'experimental_time_to_first_byte': {'num': 'text-amber-500 dark:text-amber-400', 'bar': 'bg-amber-500'}
 } %}
 
-<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+{# Tek site filtreli geldiği için outer grid sadece 1 sütun — md:grid-cols-2 kaldırıldı,
+   yoksa kart half-width column içinde tekrar yarıya bölünüp ızgara karakter karakter sarılıyordu. #}
+<div class="mt-4 space-y-3">
   {% for row in rows %}
     {% set overall = row.overall %}
     {% if overall == 'good' %}{% set ov_label = 'İYİ' %}{% set ov_chip = 'border-emerald-300 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-300' %}
@@ -29,7 +45,7 @@
     {% else %}{% set ov_label = 'VERİ YOK' %}{% set ov_chip = 'border-slate-300 text-slate-500 dark:border-slate-700 dark:text-slate-400' %}
     {% endif %}
     <a href="{{ row.href }}" hx-get="{{ row.href }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="block min-w-0 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+       class="home-de-card block min-w-0 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400">Saha · CrUX 28 gün</p>
@@ -41,7 +57,7 @@
       </div>
 
       {% if row.has_data %}
-        <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {% for m in row.metrics %}
             {% set mc = _metric_colors.get(m.key, {'num': 'text-slate-700 dark:text-slate-300', 'bar': 'bg-slate-500'}) %}
             {% if m.verdict == 'good' %}{% set vlabel = 'İYİ' %}{% set vchip = 'border-emerald-300 text-emerald-700 bg-emerald-50/60 dark:border-emerald-700/60 dark:text-emerald-300 dark:bg-emerald-950/30' %}
@@ -50,14 +66,13 @@
             {% endif %}
             <div class="flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40 px-2.5 py-2.5 dark:border-slate-700/70 dark:bg-slate-800/40"
                  title="{{ m.label }} (p75): {{ m.formatted }} · {{ m.verdict|upper }}">
-              <div class="flex items-start justify-between gap-1">
+              <div class="flex items-center justify-between gap-1">
                 <span class="text-[10px] font-bold uppercase tracking-wider {{ mc.num }}">{{ m.label }}</span>
                 <span class="shrink-0 rounded-full border px-1.5 text-[9px] font-bold tracking-wide {{ vchip }}">{{ vlabel }}</span>
               </div>
               <p class="mt-2 truncate text-xl font-black tabular-nums leading-none {{ mc.num }}">{{ m.formatted }}</p>
               {% if m.good_pct is not none %}
-                <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">iyi oran</p>
-                <p class="text-[11px] font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ '%.2f' % m.good_pct }}%</p>
+                <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">iyi oran · <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-300">{{ '%.1f' % m.good_pct }}%</span></p>
                 <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700/60">
                   <div class="h-full rounded-full {{ mc.bar }}" style="width: {{ m.good_pct }}%"></div>
                 </div>
@@ -74,6 +89,6 @@
       {% endif %}
     </a>
   {% else %}
-    <p class="col-span-full text-center text-xs text-slate-400 dark:text-slate-500">Henüz site verisi yok.</p>
+    <p class="text-center text-xs text-slate-400 dark:text-slate-500">Henüz site verisi yok.</p>
   {% endfor %}
 </div>
