@@ -8,7 +8,7 @@ from datetime import datetime
 
 LOGGER = logging.getLogger(__name__)
 
-from sqlalchemy import func, text
+from sqlalchemy import func, insert, text
 from sqlalchemy.orm import Session
 
 from backend.models import (
@@ -146,27 +146,28 @@ def save_search_console_query_rows(
     end_date: str,
     collector_run_id: int | None = None,
 ) -> int:
-    count = 0
-    for row in rows:
-        db.add(
-            SearchConsoleQuerySnapshot(
-                site_id=site_id,
-                collector_run_id=collector_run_id,
-                property_url=str(row.get("property_url") or property_url),
-                data_scope=data_scope,
-                query=str(row.get("query") or ""),
-                device=str(row.get("device") or "ALL"),
-                clicks=float(row.get("clicks") or 0.0),
-                impressions=float(row.get("impressions") or 0.0),
-                ctr=float(row.get("ctr") or 0.0),
-                position=float(row.get("position") or 0.0),
-                start_date=start_date,
-                end_date=end_date,
-                collected_at=collected_at,
-            )
-        )
-        count += 1
-    return count
+    if not rows:
+        return 0
+    mappings = [
+        {
+            "site_id": site_id,
+            "collector_run_id": collector_run_id,
+            "property_url": str(row.get("property_url") or property_url),
+            "data_scope": data_scope,
+            "query": str(row.get("query") or ""),
+            "device": str(row.get("device") or "ALL"),
+            "clicks": float(row.get("clicks") or 0.0),
+            "impressions": float(row.get("impressions") or 0.0),
+            "ctr": float(row.get("ctr") or 0.0),
+            "position": float(row.get("position") or 0.0),
+            "start_date": start_date,
+            "end_date": end_date,
+            "collected_at": collected_at,
+        }
+        for row in rows
+    ]
+    db.execute(insert(SearchConsoleQuerySnapshot), mappings)
+    return len(mappings)
 
 
 def delete_search_console_snapshots_for_site(db: Session, *, site_id: int) -> int:

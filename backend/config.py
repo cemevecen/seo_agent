@@ -127,7 +127,8 @@ class Settings(BaseSettings):
     search_console_monthly_limit: int = 1500
     # Storage/DB güvenliği: çok büyük SC snapshot'ları diski hızla şişiriyor.
     # Gerekirse .env ile yükseltilebilir.
-    search_console_row_batch_size: int = 1000
+    # batch_size >= max_rows → tek API çağrısıyla tüm sayfayı çeker (pagination yok).
+    search_console_row_batch_size: int = 2500
     search_console_max_rows: int = 2500
     # Tam yenilemede "page" boyutlu raporlar çok fazla API çağrısı / süre üretir (Railway timeout).
     search_console_include_page_dimension: bool = True
