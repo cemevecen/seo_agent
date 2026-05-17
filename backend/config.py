@@ -57,8 +57,11 @@ class Settings(BaseSettings):
     # GA4 (Google Analytics Data API) - Service Account JSON (string veya dosya yolu)
     ga4_service_account_json: str = ""
     ga4_service_account_file: str = ""
-    # Firebase Crashlytics → BigQuery: GA4 ile aynı service account; IAM’da BigQuery Data Viewer + BigQuery Job User gerekir.
-    # Boş bırakılırsa proje id, GA4 service account JSON içindeki project_id alınır.
+    # Firebase Crashlytics → BigQuery: platform başına ayrı service account JSON.
+    # Railway’de CRASHLYTICS_IOS_SERVICE_ACCOUNT_JSON ve CRASHLYTICS_ANDROID_SERVICE_ACCOUNT_JSON olarak tanımlanır.
+    crashlytics_ios_service_account_json: str = ""
+    crashlytics_android_service_account_json: str = ""
+    # Eski tek-proje ayarı (geriye uyumluluk için bırakıldı).
     firebase_crashlytics_bigquery_project: str = ""
     firebase_crashlytics_bigquery_dataset: str = "firebase_crashlytics"
 
