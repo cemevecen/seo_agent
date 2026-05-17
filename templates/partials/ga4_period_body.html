@@ -35,17 +35,17 @@
 {% set sessions_diff = p.last_total - p.prev_total %}
 {% set users_diff = p.users_last - p.users_prev %}
 {% set engaged_diff = p.engaged_last - p.engaged_prev %}
-{% set sessions_class = 'text-emerald-600' if sessions_diff >= 0 else 'text-rose-600' %}
-{% set users_class = 'text-emerald-600' if users_diff >= 0 else 'text-rose-600' %}
-{% set engaged_class = 'text-emerald-600' if engaged_diff >= 0 else 'text-rose-600' %}
+{% set sessions_class = 'text-emerald-600 dark:text-emerald-400' if sessions_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
+{% set users_class = 'text-emerald-600 dark:text-emerald-400' if users_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
+{% set engaged_class = 'text-emerald-600 dark:text-emerald-400' if engaged_diff >= 0 else 'text-rose-600 dark:text-rose-400' %}
 {% set sp = (p.sessions_pct_change | default(0)) | float %}
 {% set up = (p.users_pct_change | default(0)) | float %}
 {% set ep = (p.engaged_pct_change | default(0)) | float %}
 {% set nup = (p.new_users_pct_change | default(0)) | float %}
 {% set asp = (p.avg_session_pct_change | default(0)) | float %}
 {% set pvp = (p.pageviews_pct_change | default(0)) | float %}
-{% set pct_pos = 'text-emerald-600' %}
-{% set pct_neg = 'text-rose-600' %}
+{% set pct_pos = 'text-emerald-600 dark:text-emerald-400' %}
+{% set pct_neg = 'text-rose-600 dark:text-rose-400' %}
 {% set pct_zero = 'text-slate-500 dark:text-slate-400' %}
 {% set sessions_pct_class = pct_pos if sp > 0 else (pct_neg if sp < 0 else pct_zero) %}
 {% set users_pct_class = pct_pos if up > 0 else (pct_neg if up < 0 else pct_zero) %}
