@@ -192,23 +192,44 @@ def diagnose_platform(platform: str) -> dict:
         return out
 
     proj = _effective_project(platform)
-    # 1) Projedeki tüm dataset'leri listele
     try:
         client = _get_client(platform)
+        from google.cloud import bigquery as _bq
+        # 1) Projedeki tüm dataset'leri listele
         try:
             datasets = [ds.dataset_id for ds in client.list_datasets(max_results=50)]
             out["all_datasets_in_project"] = datasets
         except Exception as exc:
             out["list_datasets_error"] = str(exc)[:300]
-        # 2) firebase_crashlytics dataset'i var mı?
-        from google.cloud import bigquery as _bq
+            datasets = []
+        # 2) HER dataset için tablo sayısı (smoking gun: hangi dataset'e veri akıyor?)
+        all_dataset_status: dict[str, dict] = {}
+        for ds_id in datasets:
+            ds_info: dict = {}
+            try:
+                ref = _bq.DatasetReference(proj, ds_id)
+                ds = client.get_dataset(ref)
+                ds_info["location"] = ds.location
+                ds_info["created"] = ds.created.isoformat() if ds.created else None
+                ds_info["modified"] = ds.modified.isoformat() if ds.modified else None
+            except Exception as exc:
+                ds_info["meta_error"] = str(exc)[:200]
+            try:
+                tables = list(client.list_tables(f"{proj}.{ds_id}", max_results=20))
+                ds_info["table_count"] = len(tables)
+                ds_info["tables"] = [t.table_id for t in tables[:10]]
+            except Exception as exc:
+                ds_info["tables_error"] = str(exc)[:200]
+            all_dataset_status[ds_id] = ds_info
+        out["all_datasets_status"] = all_dataset_status
+        # 3) firebase_crashlytics dataset'i var mı? (geriye uyumluluk için)
         try:
             client.get_dataset(_bq.DatasetReference(proj, _DATASET))
             out["dataset_exists"] = True
         except Exception as exc:
             out["dataset_exists"] = False
             out["dataset_check_error"] = str(exc)[:300]
-        # 3) Varsa içindeki tabloları getir
+        # 4) Crashlytics dataset'inde tablo getir (eski alan, korunuyor)
         if out.get("dataset_exists"):
             try:
                 tables = [t.table_id for t in client.list_tables(f"{proj}.{_DATASET}")]
