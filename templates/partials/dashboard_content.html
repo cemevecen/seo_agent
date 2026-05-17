@@ -12,18 +12,28 @@
     </div>
   </div>
 
-  {# Section 1 — Realtime (60s polling) #}
-  <section id="home-section-realtime"
-           hx-get="/api/home/realtime"
-           hx-trigger="load, every 60s"
-           hx-swap="innerHTML"
-           class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-    <div class="flex items-center gap-2">
-      <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+  {# Section 1 — Realtime (60s polling) — split per site #}
+  <div id="home-section-realtime"
+       hx-get="/api/home/realtime"
+       hx-trigger="load, every 60s"
+       hx-swap="innerHTML">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <section class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+        </div>
+        <div class="mt-4 h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+      </section>
+      <section class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+        </div>
+        <div class="mt-4 h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+      </section>
     </div>
-    <div class="mt-4 h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
-  </section>
+  </div>
 
   {# Section 2 + 3 — GA4 Sessions + Search Console #}
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">

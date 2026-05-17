@@ -6837,7 +6837,7 @@ def api_home_position_drops(request: Request):
                 "site_id": site_id,
                 "domain": site.domain,
                 "display_name": site.display_name,
-                "drops": _home_position_drops_for_site(db, site_id, limit=5),
+                "drops": _home_position_drops_for_site(db, site_id, limit=8),
             })
     return templates.TemplateResponse(
         request, "partials/home/position_drops.html",
@@ -6966,6 +6966,10 @@ def _home_top_404s_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
     yday_start = yday_start.replace(hour=0, minute=0, second=0, microsecond=0)
     today_start = yday_start + timedelta(days=1)
 
+    def _short_key(u: str) -> str:
+        """Dedupe key: url_short kullanılır; aynı kısaltma birden fazla URL'yi temsil edebilir."""
+        return _home_shorten_url(u or "").strip().lower()
+
     try:
         from backend.models import SiteErrorLog
         rows = (
@@ -6977,19 +6981,28 @@ def _home_top_404s_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
                 SiteErrorLog.last_seen < today_start,
             )
             .order_by(SiteErrorLog.hit_count.desc())
-            .limit(limit)
+            .limit(limit * 5)
             .all()
         )
         if rows:
-            return [{
-                "url": r.url,
-                "url_short": _home_shorten_url(r.url),
-                "hit_label": f"{_home_format_int(r.hit_count)} hit",
-            } for r in rows]
+            out: list[dict] = []
+            seen: set[str] = set()
+            for r in rows:
+                k = _short_key(r.url)
+                if k in seen:
+                    continue
+                seen.add(k)
+                out.append({
+                    "url": r.url,
+                    "url_short": _home_shorten_url(r.url),
+                    "hit_label": f"{_home_format_int(r.hit_count)} hit",
+                })
+                if len(out) >= limit:
+                    break
+            return out
     except Exception:
         pass
 
-    # Fallback: UrlAuditRecord'dan 404'leri çek
     try:
         rows = (
             db.query(UrlAuditRecord.url, UrlAuditRecord.status_code)
@@ -6999,14 +7012,24 @@ def _home_top_404s_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
                 UrlAuditRecord.collected_at >= yday_start,
             )
             .order_by(UrlAuditRecord.collected_at.desc())
-            .limit(limit)
+            .limit(limit * 5)
             .all()
         )
-        return [{
-            "url": r[0],
-            "url_short": _home_shorten_url(r[0]),
-            "hit_label": "404",
-        } for r in rows]
+        out: list[dict] = []
+        seen: set[str] = set()
+        for r in rows:
+            k = _short_key(r[0])
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append({
+                "url": r[0],
+                "url_short": _home_shorten_url(r[0]),
+                "hit_label": "404",
+            })
+            if len(out) >= limit:
+                break
+        return out
     except Exception:
         return []
 
@@ -7023,7 +7046,7 @@ def api_home_top_404s(request: Request):
                 "site_id": site_id,
                 "domain": site.domain,
                 "display_name": site.display_name,
-                "rows": _home_top_404s_for_site(db, site_id, limit=5),
+                "rows": _home_top_404s_for_site(db, site_id, limit=7),
             })
     return templates.TemplateResponse(
         request, "partials/home/top_404s.html",

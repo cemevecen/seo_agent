@@ -33,15 +33,16 @@
       </div>
 
       {% if row.has_data %}
-        <div class="mt-4 grid grid-cols-5 gap-2">
+        <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {% for m in row.metrics %}
-            {% if m.verdict == 'good' %}{% set v_class = 'text-emerald-600 dark:text-emerald-400' %}
-            {% elif m.verdict == 'ni' %}{% set v_class = 'text-amber-600 dark:text-amber-400' %}
-            {% else %}{% set v_class = 'text-rose-600 dark:text-rose-400' %}
+            {% if m.verdict == 'good' %}{% set v_class = 'text-emerald-600 dark:text-emerald-400' %}{% set v_border = 'border-emerald-200 dark:border-emerald-900/50' %}
+            {% elif m.verdict == 'ni' %}{% set v_class = 'text-amber-600 dark:text-amber-400' %}{% set v_border = 'border-amber-200 dark:border-amber-900/50' %}
+            {% else %}{% set v_class = 'text-rose-600 dark:text-rose-400' %}{% set v_border = 'border-rose-200 dark:border-rose-900/50' %}
             {% endif %}
-            <div title="{{ m.label }} (p75): {{ m.formatted }} · {{ m.verdict|upper }}">
-              <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ m.label }}</p>
-              <p class="mt-1 text-sm font-semibold tabular-nums {{ v_class }}">{{ m.formatted }}</p>
+            <div title="{{ m.label }} (p75): {{ m.formatted }} · {{ m.verdict|upper }}"
+                 class="min-w-0 overflow-hidden rounded-lg border bg-slate-50/60 px-2.5 py-2 dark:bg-slate-800/40 {{ v_border }}">
+              <p class="truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ m.label }}</p>
+              <p class="mt-1 truncate text-sm font-semibold tabular-nums {{ v_class }}">{{ m.formatted }}</p>
             </div>
           {% endfor %}
         </div>
