@@ -717,11 +717,11 @@
                 role="radiogroup"
                 aria-label="Tema seçimi"
               >
-                <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90" style="left:2px;width:28px"></span>
-                <button type="button" role="radio" aria-checked="false" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors text-amber-500 dark:text-amber-400/70 sm:w-7" title="Açık" aria-label="Açık tema">
+                <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90" style="top:2px;left:2px;width:28px"></span>
+                <button type="button" role="radio" aria-checked="false" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none text-amber-500 dark:text-amber-400/70 sm:w-7" title="Açık" aria-label="Açık tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
                 </button>
-<button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors text-slate-400 dark:text-indigo-300 sm:w-7" title="Midnight — true black" aria-label="Midnight tema">
+                <button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none text-slate-400 dark:text-slate-300 sm:w-7" title="Midnight — true black" aria-label="Midnight tema">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
                 </button>
               </div>
@@ -946,10 +946,11 @@
         // Touch hedeflerini mobilde büyüttük (w-8 = 32px); sm+ ekranda w-7 = 28px.
         var btnWidth = window.matchMedia('(min-width: 640px)').matches ? 28 : 32;
         var offset = 2 + idx * btnWidth;
+        pill.style.top = '2px';
         pill.style.left = offset + 'px';
         pill.style.width = btnWidth + 'px';
         if (theme === 'midnight') {
-          pill.className = 'absolute h-6 rounded-full bg-zinc-900 shadow-md transition-all duration-300 ease-out ring-1 ring-zinc-700';
+          pill.className = 'absolute h-6 rounded-full bg-zinc-700 shadow-sm transition-all duration-300 ease-out';
         } else {
           pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90';
         }
