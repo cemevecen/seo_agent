@@ -4115,6 +4115,189 @@ def _latest_pagespeed_category_scores(db, site_id: int, strategy: str) -> dict[s
     return output
 
 
+def _pagespeed_category_score_trend(db, site_id: int, strategy: str, limit: int = 12) -> list[dict]:
+    """Son N adet PSI snapshot için 4 kategori skor serisini döner (haftalık trend için).
+
+    Format: [{"date": "2026-04-12", "performance": 78, "accessibility": 85, "best_practices": 60, "seo": 92}, ...]
+    En eskiden yeniye doğru sıralı.
+    """
+    rows = (
+        db.query(PageSpeedPayloadSnapshot)
+        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
+        .order_by(PageSpeedPayloadSnapshot.collected_at.desc())
+        .limit(limit * 3)  # gün başı dedup için biraz fazla çek
+        .all()
+    )
+    by_date: dict[str, dict] = {}
+    for row in rows:
+        try:
+            payload = json.loads(row.payload_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        categories = ((payload.get("lighthouseResult") or {}).get("categories") or {})
+        date_key = (row.collected_at or datetime.utcnow()).strftime("%Y-%m-%d")
+        entry = {
+            "date": date_key,
+            "performance": None,
+            "accessibility": None,
+            "best_practices": None,
+            "seo": None,
+        }
+        for src, dst in (("performance", "performance"), ("accessibility", "accessibility"),
+                         ("best-practices", "best_practices"), ("seo", "seo")):
+            sc = (categories.get(src) or {}).get("score")
+            if sc is not None:
+                entry[dst] = round(float(sc) * 100.0)
+        # Aynı tarih için en yenisi tutulur (DB desc sıralı, ilk gelen en yeni)
+        if date_key not in by_date:
+            by_date[date_key] = entry
+    series = sorted(by_date.values(), key=lambda e: e["date"])[-limit:]
+    return series
+
+
+def _pagespeed_audit_priority_trend(db, site_id: int, strategy: str, limit: int = 12) -> list[dict]:
+    """Lighthouse analysis_json içindeki audit önem sayılarını tarih bazlı seri olarak döner.
+
+    Format: [{"date": "2026-04-12", "CRITICAL": 2, "HIGH": 5, "MEDIUM": 12, "LOW": 8}, ...]
+    """
+    rows = (
+        db.query(PageSpeedAuditSnapshot)
+        .filter(PageSpeedAuditSnapshot.site_id == site_id, PageSpeedAuditSnapshot.strategy == strategy)
+        .order_by(PageSpeedAuditSnapshot.collected_at.desc())
+        .limit(limit * 3)
+        .all()
+    )
+    by_date: dict[str, dict] = {}
+    for row in rows:
+        try:
+            analysis = json.loads(row.analysis_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        date_key = (row.collected_at or datetime.utcnow()).strftime("%Y-%m-%d")
+        # Önce pre-computed priority_counts varsa kullan, yoksa issues'ı say
+        counts = analysis.get("priority_counts")
+        if not isinstance(counts, dict):
+            counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+            for iss in (analysis.get("issues") or []):
+                p = str(iss.get("priority") or "").upper()
+                if p in counts:
+                    counts[p] += 1
+        if date_key not in by_date:
+            by_date[date_key] = {
+                "date": date_key,
+                "CRITICAL": int(counts.get("CRITICAL", 0) or 0),
+                "HIGH": int(counts.get("HIGH", 0) or 0),
+                "MEDIUM": int(counts.get("MEDIUM", 0) or 0),
+                "LOW": int(counts.get("LOW", 0) or 0),
+            }
+    return sorted(by_date.values(), key=lambda e: e["date"])[-limit:]
+
+
+def _pagespeed_field_lab_comparison(db, site_id: int, strategy: str) -> list[dict]:
+    """Mevcut snapshot'tan field vs lab değerlerini çıkarır.
+
+    Format: [{"key": "lcp", "label": "LCP", "field": 2400, "lab": 3200, "delta_pct": 33.3, "unit": "ms"}, ...]
+    """
+    payload, _ = _latest_pagespeed_payload_snapshot(db, site_id, strategy)
+    if not payload:
+        return []
+    from backend.collectors.pagespeed import _extract_lighthouse_metrics
+    try:
+        m = _extract_lighthouse_metrics(payload)
+    except Exception:
+        return []
+    rows: list[dict] = []
+    metric_defs = [
+        ("lcp", "LCP", "ms"),
+        ("fcp", "FCP", "ms"),
+        ("ttfb", "TTFB", "ms"),
+        ("inp", "INP", "ms"),
+        ("cls", "CLS", ""),
+    ]
+    for key, label, unit in metric_defs:
+        field_v = float(m.get(f"{key}_field", 0) or 0)
+        lab_v = float(m.get(f"{key}_lab", 0) or 0)
+        if field_v == 0 and lab_v == 0:
+            continue
+        # CLS hariç delta_pct hesapla (CLS oran, 0'a yakın)
+        if field_v > 0 and lab_v > 0 and key != "cls":
+            delta_pct = round(((lab_v - field_v) / field_v) * 100, 1)
+        else:
+            delta_pct = None
+        rows.append({
+            "key": key,
+            "label": label,
+            "field": field_v if field_v > 0 else None,
+            "lab": lab_v if lab_v > 0 else None,
+            "delta_pct": delta_pct,
+            "unit": unit,
+        })
+    return rows
+
+
+def _pagespeed_mobile_desktop_delta(mobile_panel: dict, desktop_panel: dict) -> list[dict]:
+    """Mobil ve masaüstü metrik kartlarını karşılaştırıp delta üretir.
+
+    Format: [{"label": "LCP", "mobile": "2.4s", "desktop": "1.6s", "delta_text": "+0.8s mobil daha yavaş", "tone": "negative"}, ...]
+    """
+    if not mobile_panel or not desktop_panel:
+        return []
+    mobile_tiles = {t.get("key"): t for t in (mobile_panel.get("metric_tiles") or [])}
+    desktop_tiles = {t.get("key"): t for t in (desktop_panel.get("metric_tiles") or [])}
+    rows: list[dict] = []
+    for key in ("fcp", "lcp", "tbt", "cls", "speed_index"):
+        m = mobile_tiles.get(key) or {}
+        d = desktop_tiles.get(key) or {}
+        m_num = _pagespeed_extract_numeric_from_display(str(m.get("value", "")))
+        d_num = _pagespeed_extract_numeric_from_display(str(d.get("value", "")))
+        if m_num is None or d_num is None:
+            continue
+        diff = m_num - d_num
+        if abs(diff) < 1e-9:
+            continue
+        # Pozitif diff = mobil daha kötü (yavaş veya yüksek skor değil, ms cinsinden büyük)
+        is_negative = diff > 0  # mobil kötü
+        rows.append({
+            "key": key,
+            "label": m.get("label") or key.upper(),
+            "mobile": m.get("value"),
+            "desktop": d.get("value"),
+            "delta_pct": round((diff / d_num * 100), 1) if d_num > 0 else None,
+            "delta_text": _format_pagespeed_delta_text(diff, key),
+            "tone": "negative" if is_negative else "positive",
+        })
+    return rows
+
+
+def _pagespeed_extract_numeric_from_display(text: str) -> float | None:
+    """'2.4 s', '300 ms', '0.05' → numerik ms değeri (s → ms çevrilir)."""
+    if not text:
+        return None
+    m = re.search(r"([-+]?\d*\.?\d+)\s*(ms|s)?", text.strip())
+    if not m:
+        return None
+    try:
+        v = float(m.group(1))
+    except ValueError:
+        return None
+    unit = (m.group(2) or "").lower()
+    if unit == "s":
+        return v * 1000.0
+    return v
+
+
+def _format_pagespeed_delta_text(diff_ms: float, metric_key: str) -> str:
+    """Delta için kullanıcı dostu açıklama. Pozitif = mobil daha kötü."""
+    sign = "+" if diff_ms > 0 else "-"
+    abs_v = abs(diff_ms)
+    if metric_key == "cls":
+        # CLS unitsiz; diff_ms aslında oran farkı
+        return f"{sign}{abs_v / 1000:.3f} mobil {'kötü' if diff_ms > 0 else 'iyi'}"
+    if abs_v >= 1000:
+        return f"{sign}{abs_v / 1000:.2f}s mobil {'yavaş' if diff_ms > 0 else 'hızlı'}"
+    return f"{sign}{abs_v:.0f}ms mobil {'yavaş' if diff_ms > 0 else 'hızlı'}"
+
+
 def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple[dict, datetime | None]:
     row = (
         db.query(PageSpeedPayloadSnapshot)
@@ -4355,6 +4538,14 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
             }
         )
 
+    # Yeni zenginleştirmeler — analysis json'unda yeni alanlar mevcutsa al, yoksa boş
+    third_party = (analysis or {}).get("third_party") or {}
+    priority_counts = (analysis or {}).get("priority_counts") or {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    roi_top = (analysis or {}).get("roi_top") or []
+    category_trend = _pagespeed_category_score_trend(db, site_id, strategy, limit=12)
+    severity_trend = _pagespeed_audit_priority_trend(db, site_id, strategy, limit=12)
+    field_lab = _pagespeed_field_lab_comparison(db, site_id, strategy)
+
     return {
         "has_data": bool(payload),
         "strategy": strategy,
@@ -4368,6 +4559,12 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         "cwv_badge_class": cwv_badge_class,
         "metric_tiles": metric_tiles,
         "score_tiles": score_tiles,
+        "third_party": third_party,
+        "priority_counts": priority_counts,
+        "roi_top": roi_top,
+        "category_trend": category_trend,
+        "severity_trend": severity_trend,
+        "field_lab": field_lab,
         "sections": sections,
     }
 
@@ -4401,13 +4598,29 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
         good_share = override_item.get("good_share")
         if good_share is None:
             good_share = current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share")
+        # Son dönem dolu bir noktanın metadata'sı (collection period bilgisi için)
+        latest_period_first = ""
+        latest_period_last = ""
+        for p in reversed(points):
+            if p.get("value") is not None:
+                latest_period_first = p.get("period_first", "")
+                latest_period_last = p.get("period_last", "")
+                break
         formatted[metric_key] = {
             "label": current_item.get("label") or item.get("label") or metric_key.upper(),
             "latest": latest_value,
             "good_share": good_share,
+            "latest_period_first": latest_period_first,
+            "latest_period_last": latest_period_last,
             "chart": {
                 "x": [point.get("label") for point in points],
                 "y": [point.get("value") for point in points],
+                "p25": [point.get("p25") for point in points],
+                "p50": [point.get("p50") for point in points],
+                "p90": [point.get("p90") for point in points],
+                "good_share": [point.get("good_share") for point in points],
+                "ni_share": [point.get("ni_share") for point in points],
+                "poor_share": [point.get("poor_share") for point in points],
             },
         }
     return formatted
@@ -4533,6 +4746,38 @@ def _build_crux_cwv_chart(payload: dict) -> dict | None:
     }
 
 
+def _build_error_widget(db, site_id: int) -> dict:
+    """Son 7 günde sitedeki hata kayıtlarının özetini döner (404, 5xx).
+
+    Format: {"total_404": 12, "total_5xx": 3, "top_404_urls": [{"url": "...", "hits": 42}, ...]}
+    """
+    from sqlalchemy import func as sqlfunc
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    rows = (
+        db.query(SiteErrorLog)
+        .filter(SiteErrorLog.site_id == site_id, SiteErrorLog.last_seen >= cutoff)
+        .all()
+    )
+    total_404 = 0
+    total_5xx = 0
+    by_url_404: dict[str, int] = {}
+    for r in rows:
+        sc = int(r.status_code or 0)
+        hits = int(r.hit_count or 0)
+        if sc == 404:
+            total_404 += hits
+            by_url_404[r.url] = by_url_404.get(r.url, 0) + hits
+        elif 500 <= sc < 600:
+            total_5xx += hits
+    top_404 = sorted(by_url_404.items(), key=lambda kv: -kv[1])[:5]
+    return {
+        "total_404": total_404,
+        "total_5xx": total_5xx,
+        "top_404_urls": [{"url": u, "hits": h} for u, h in top_404],
+        "window_days": 7,
+    }
+
+
 def _data_explorer_context(domain: str) -> dict:
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.domain == domain).first()
@@ -4563,6 +4808,10 @@ def _data_explorer_context(domain: str) -> dict:
         )
         mobile_cwv  = _build_crux_cwv_chart(mobile_crux.get("payload") or {})  if mobile_crux  else None
         desktop_cwv = _build_crux_cwv_chart(desktop_crux.get("payload") or {}) if desktop_crux else None
+        mobile_panel = _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis)
+        desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
+        mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
+        error_widget = _build_error_widget(db, site.id)
 
         return {
             "site_name": f"PageSpeed - {site.display_name}",
@@ -4576,8 +4825,10 @@ def _data_explorer_context(domain: str) -> dict:
             "crux_desktop_series": _format_crux_series(desktop_crux, desktop_pagespeed_current),
             "cwv_mobile": mobile_cwv,
             "cwv_desktop": desktop_cwv,
-            "pagespeed_report_mobile": _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis),
-            "pagespeed_report_desktop": _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis),
+            "pagespeed_report_mobile": mobile_panel,
+            "pagespeed_report_desktop": desktop_panel,
+            "mobile_desktop_delta": mobile_desktop_delta,
+            "error_widget": error_widget,
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",

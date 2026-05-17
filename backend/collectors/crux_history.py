@@ -133,15 +133,20 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
         periods = [periods]
 
     labels: list[str] = []
+    period_ranges: list[dict[str, str]] = []  # her dönem için {first_date, last_date}
     for period in periods:
         if not isinstance(period, dict):
             labels.append("")
+            period_ranges.append({"first_date": "", "last_date": ""})
             continue
         last_date = period.get("lastDate") or {}
-        year = last_date.get("year")
-        month = last_date.get("month")
-        day = last_date.get("day")
-        labels.append(f"{year:04d}-{month:02d}-{day:02d}" if year and month and day else "")
+        first_date = period.get("firstDate") or {}
+        ly, lm, ld = last_date.get("year"), last_date.get("month"), last_date.get("day")
+        fy, fm, fd = first_date.get("year"), first_date.get("month"), first_date.get("day")
+        last_iso = f"{ly:04d}-{lm:02d}-{ld:02d}" if ly and lm and ld else ""
+        first_iso = f"{fy:04d}-{fm:02d}-{fd:02d}" if fy and fm and fd else ""
+        labels.append(last_iso)
+        period_ranges.append({"first_date": first_iso, "last_date": last_iso})
 
     series: dict[str, list[dict]] = {}
     for metric_key, short_label in METRIC_LABELS.items():
@@ -162,16 +167,35 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
                 metric_payload = alt
         percentile_payload = metric_payload.get("percentilesTimeseries") or {}
         values = percentile_payload.get("p75s") or percentile_payload.get("p75") or []
+        # Ek yüzdebirlikler — CrUX p25/p50/p90 da döner (varsa). API stabil değil; opsiyonel.
+        p25_values = percentile_payload.get("p25s") or percentile_payload.get("p25") or []
+        p50_values = percentile_payload.get("p50s") or percentile_payload.get("p50") or []
+        p90_values = percentile_payload.get("p90s") or percentile_payload.get("p90") or []
         if not isinstance(values, list):
             values = []
+        if not isinstance(p25_values, list):
+            p25_values = []
+        if not isinstance(p50_values, list):
+            p50_values = []
+        if not isinstance(p90_values, list):
+            p90_values = []
         histogram_payload = metric_payload.get("histogramTimeseries") or []
+        # densities yapısı: histogramTimeseries[0] = good bin, [1] = ni, [2] = poor; her birinin densities[] dönem dizisi
+        good_densities: list = []
+        ni_densities: list = []
+        poor_densities: list = []
+        if isinstance(histogram_payload, list):
+            if len(histogram_payload) > 0:
+                good_densities = (histogram_payload[0] or {}).get("densities") or []
+            if len(histogram_payload) > 1:
+                ni_densities = (histogram_payload[1] or {}).get("densities") or []
+            if len(histogram_payload) > 2:
+                poor_densities = (histogram_payload[2] or {}).get("densities") or []
+        # Latest good_share (geriye dönük uyumluluk — eski summary alanı)
         good_share = None
-        if isinstance(histogram_payload, list) and histogram_payload:
-            first_bin = histogram_payload[0] or {}
-            densities = first_bin.get("densities") or []
-            if densities and isinstance(densities, list):
-                density_value = _safe_number(densities[-1])
-                good_share = density_value * 100.0 if density_value is not None else None
+        if good_densities and isinstance(good_densities, list):
+            density_value = _safe_number(good_densities[-1])
+            good_share = density_value * 100.0 if density_value is not None else None
 
         # CrUX bazı koleksiyon dönemleri için p75 döndürmez (örneklem yetersiz) → null.
         # Bu indeksleri atlamak tarih eksenini sıkıştırır (Şub→Nisan düz çizgi). Etiketi koru, value=None.
@@ -183,7 +207,28 @@ def _extract_crux_points(record: dict) -> dict[str, list[dict]]:
                 continue
             raw_value = values[idx] if idx < len(values) else None
             value = _safe_number(raw_value)
-            points.append({"label": label, "value": value})
+            raw_p25 = p25_values[idx] if idx < len(p25_values) else None
+            raw_p50 = p50_values[idx] if idx < len(p50_values) else None
+            raw_p90 = p90_values[idx] if idx < len(p90_values) else None
+            raw_good = good_densities[idx] if idx < len(good_densities) else None
+            raw_ni = ni_densities[idx] if idx < len(ni_densities) else None
+            raw_poor = poor_densities[idx] if idx < len(poor_densities) else None
+            g = _safe_number(raw_good)
+            n = _safe_number(raw_ni)
+            p = _safe_number(raw_poor)
+            period_info = period_ranges[idx] if idx < len(period_ranges) else {"first_date": "", "last_date": ""}
+            points.append({
+                "label": label,
+                "value": value,
+                "p25": _safe_number(raw_p25),
+                "p50": _safe_number(raw_p50),
+                "p90": _safe_number(raw_p90),
+                "good_share": g * 100.0 if g is not None else None,
+                "ni_share": n * 100.0 if n is not None else None,
+                "poor_share": p * 100.0 if p is not None else None,
+                "period_first": period_info.get("first_date", ""),
+                "period_last": period_info.get("last_date", ""),
+            })
         latest_val = None
         for p in reversed(points):
             if p.get("value") is not None:

@@ -267,6 +267,17 @@ def _extract_lighthouse_metrics(payload: dict) -> dict[str, float]:
         "ttfb": float(field_ttfb or ttfb),
         "cls": float(field_cls or cls),
         "inp": float(field_inp or inp),
+        # Field/Lab değerleri ayrı saklanır — UI'da yan yana karşılaştırma için
+        "lcp_field": float(field_lcp or 0),
+        "fcp_field": float(field_fcp or 0),
+        "ttfb_field": float(field_ttfb or 0),
+        "cls_field": float(field_cls or 0),
+        "inp_field": float(field_inp or 0),
+        "lcp_lab": float(lcp or 0),
+        "fcp_lab": float(fcp or 0),
+        "ttfb_lab": float(ttfb or 0),
+        "cls_lab": float(cls or 0),
+        "inp_lab": float(inp or 0),
     }
 
 
@@ -747,6 +758,15 @@ def _build_lighthouse_analysis(payload: dict, strategy: str) -> dict:
                 "examples": examples,
                 "source_strategy": strategy,
                 "group_id": ref.get("group"),
+                # ROI metrikleri — Lighthouse opportunity audit'leri overallSavingsMs/overallSavingsBytes döner
+                "savings_ms": float(
+                    ((audit.get("details") or {}).get("overallSavingsMs") or 0)
+                ),
+                "savings_bytes": int(
+                    ((audit.get("details") or {}).get("overallSavingsBytes") or 0)
+                ),
+                "numeric_value": float(audit.get("numericValue") or 0),
+                "numeric_unit": str(audit.get("numericUnit") or ""),
             }
             if state == "failed":
                 category_issues.append(item)
@@ -876,12 +896,65 @@ def _build_lighthouse_analysis(payload: dict, strategy: str) -> dict:
         }
         analysis_sections[key.replace("-", "_")] = ordered_sections
 
+    # Third-party scripts özeti — Lighthouse third-party-summary audit'inden
+    third_party = _extract_third_party_summary(audits)
+    # Audit önem dağılımı — CRITICAL/HIGH/MEDIUM/LOW sayıları
+    priority_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for iss in issues:
+        p = str(iss.get("priority") or "").upper()
+        if p in priority_counts:
+            priority_counts[p] += 1
+    # En yüksek ROI'li audit'ler (savings_ms > 0) — diagnostic ROI matrisi için
+    roi_candidates = [
+        i for i in issues
+        if float(i.get("savings_ms") or 0) > 0
+    ]
+    roi_candidates.sort(key=lambda x: -float(x.get("savings_ms") or 0))
     return {
         "strategy": strategy,
         "categories": category_summary,
         "issues": issues,
         "sections": analysis_sections,
         "summary": f"{strategy} icin {len(issues)} audit bulgusu bulundu",
+        "third_party": third_party,
+        "priority_counts": priority_counts,
+        "roi_top": roi_candidates[:10],
+    }
+
+
+def _extract_third_party_summary(audits: dict) -> dict:
+    """Lighthouse third-party-summary audit'inden entity bazlı özet çıkarır."""
+    audit = audits.get("third-party-summary") or {}
+    details = audit.get("details") or {}
+    items = details.get("items") or []
+    if not isinstance(items, list):
+        return {"items": [], "total_blocking_ms": 0, "total_transfer_kb": 0}
+    parsed: list[dict] = []
+    total_blocking = 0.0
+    total_bytes = 0
+    for it in items[:25]:
+        if not isinstance(it, dict):
+            continue
+        entity_raw = it.get("entity") or ""
+        entity = entity_raw.get("text") if isinstance(entity_raw, dict) else str(entity_raw)
+        blocking = float(it.get("blockingTime") or 0)
+        main_thread = float(it.get("mainThreadTime") or 0)
+        transfer = int(it.get("transferSize") or 0)
+        parsed.append({
+            "entity": str(entity or "—")[:60],
+            "blocking_ms": round(blocking),
+            "main_thread_ms": round(main_thread),
+            "transfer_bytes": transfer,
+            "transfer_kb": round(transfer / 1024, 1),
+        })
+        total_blocking += blocking
+        total_bytes += transfer
+    parsed.sort(key=lambda x: -x["blocking_ms"])
+    return {
+        "items": parsed,
+        "total_blocking_ms": round(total_blocking),
+        "total_transfer_kb": round(total_bytes / 1024, 1),
+        "entity_count": len(parsed),
     }
 
 
