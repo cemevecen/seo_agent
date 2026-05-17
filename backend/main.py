@@ -2469,43 +2469,75 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
             )
 
 
+def _collect_sc_for_site_in_own_session(site_id: int) -> tuple[int, dict]:
+    """Nightly refresh için tek site — kendi DB session'ında collect çağrısı."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return (site_id, {"state": "failed", "error": "Site bulunamadı."})
+        try:
+            result = collect_search_console_metrics(db, site)
+            db.commit()
+            return (site_id, result)
+        except Exception as exc:  # noqa: BLE001
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            LOGGER.warning("Daily Search Console refresh failed for site_id=%s: %s", site_id, exc)
+            return (site_id, {"state": "failed", "error": str(exc)})
+
+
 def _run_daily_search_console_refresh_job() -> None:
     if not DAILY_REFRESH_LOCK.acquire(blocking=False):
         LOGGER.info("Daily Search Console refresh skipped because another scheduled job is still in progress.")
         return
 
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     try:
         LOGGER.info("Daily Search Console refresh started.")
         with SessionLocal() as db:
             external = _external_site_ids(db)
-            connected_sites = [
-                site
+            connected_site_ids = [
+                site.id
                 for site in _active_sites(db)
                 if site.id not in external and get_search_console_connection_status(db, site.id).get("connected")
             ]
-            sc_batch: list[tuple[Site, dict]] = []
 
-            for index, site in enumerate(connected_sites):
-                LOGGER.info("Daily Search Console refresh processing site=%s", site.domain)
-                try:
-                    result = collect_search_console_metrics(db, site)
-                    db.commit()
-                    sc_batch.append((site, result))
-                except Exception as exc:  # noqa: BLE001
-                    db.rollback()
-                    LOGGER.warning("Daily Search Console refresh failed for %s: %s", site.domain, exc)
-                    sc_batch.append((site, {"state": "failed", "error": str(exc)}))
+        results_by_site: dict[int, dict] = {}
+        if connected_site_ids:
+            max_workers = min(4, len(connected_site_ids))
+            LOGGER.info(
+                "Daily Search Console refresh: %s site paralel çekiliyor (max_workers=%s)",
+                len(connected_site_ids), max_workers,
+            )
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="sc-nightly") as pool:
+                futures = {pool.submit(_collect_sc_for_site_in_own_session, sid): sid for sid in connected_site_ids}
+                for fut in as_completed(futures):
+                    sid = futures[fut]
+                    try:
+                        sid, result = fut.result()
+                    except Exception as exc:  # noqa: BLE001
+                        result = {"state": "failed", "error": str(exc)}
+                    results_by_site[sid] = result
 
-                if index < len(connected_sites) - 1:
-                    time.sleep(max(0, int(settings.search_console_scheduled_refresh_site_spacing_seconds)))
-
-            if sc_batch:
-                send_consolidated_system_email(
-                    system_key="search_console",
-                    trigger_source="system",
-                    action_label="Günlük Search Console yenilemesi",
-                    items=sc_batch,
-                )
+        if results_by_site:
+            with SessionLocal() as db:
+                sites_by_id = {
+                    s.id: s
+                    for s in db.query(Site).filter(Site.id.in_(list(results_by_site.keys()))).all()
+                }
+                sc_batch: list[tuple[Site, dict]] = [
+                    (sites_by_id[sid], result) for sid, result in results_by_site.items() if sid in sites_by_id
+                ]
+                if sc_batch:
+                    send_consolidated_system_email(
+                        system_key="search_console",
+                        trigger_source="system",
+                        action_label="Günlük Search Console yenilemesi",
+                        items=sc_batch,
+                    )
 
         LOGGER.info("Daily Search Console refresh completed.")
     finally:
@@ -11012,14 +11044,46 @@ def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant
     return search_console_single_site_card(request, site_id)
 
 
+def _refresh_one_site_for_sc_batch(site_id: int) -> tuple[int, dict]:
+    """Tek bir sitenin SC verisini kendi DB session'ında yeniler (thread-safe)."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return (site_id, {"state": "failed", "error": "Site bulunamadı."})
+        try:
+            results = _refresh_site_detail_measurements(
+                db,
+                site,
+                include_pagespeed=False,
+                include_crawler=False,
+                include_search_console=True,
+                force=True,
+                send_notifications=True,
+            )
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            sc = results.get("search_console")
+            if isinstance(sc, dict):
+                return (site_id, sc)
+            return (site_id, {"state": "failed", "error": "Search Console ölçümü dönmedi (içerik yok veya boş)."})
+        except Exception as exc:  # noqa: BLE001
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return (site_id, {"state": "failed", "error": str(exc)})
+
+
 def _compute_search_console_refresh_all_payload() -> dict:
-    """LIVE_REFRESH açıkken toplu GSC çekimi; JSON gövdesi (live_refresh_enabled=True)."""
+    """LIVE_REFRESH açıkken toplu GSC çekimi; JSON gövdesi (live_refresh_enabled=True).
+
+    Site bazlı çekimler paralel çalıştırılır (her thread kendi DB session'ında).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     with SessionLocal() as db:
         external = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
-        sc_batch: list[tuple[Site, dict]] = []
-        refreshed_ok = 0
-        failed = 0
+        eligible: list[int] = []
         not_connected = 0
         for site in sites:
             if site.id in external:
@@ -11028,33 +11092,36 @@ def _compute_search_console_refresh_all_payload() -> dict:
             if not connection.get("connected"):
                 not_connected += 1
                 continue
-            try:
-                results = _refresh_site_detail_measurements(
-                    db,
-                    site,
-                    include_pagespeed=False,
-                    include_crawler=False,
-                    include_search_console=True,
-                    force=True,
-                    send_notifications=True,
-                )
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-                sc = results.get("search_console")
-                if isinstance(sc, dict):
-                    if str(sc.get("state") or "").lower() == "failed":
-                        failed += 1
-                    else:
-                        refreshed_ok += 1
-                    sc_batch.append((site, sc))
-                else:
-                    failed += 1
-                    sc_batch.append(
-                        (site, {"state": "failed", "error": "Search Console ölçümü dönmedi (içerik yok veya boş)."}),
-                    )
-            except Exception as exc:  # noqa: BLE001
-                db.rollback()
-                failed += 1
-                sc_batch.append((site, {"state": "failed", "error": str(exc)}))
+            eligible.append(site.id)
+        n_active_non_external = len([s for s in sites if s.id not in external])
+
+    # Paralel çekim — her site kendi session'ında, max 4 eşzamanlı (Google API kotası ve
+    # DB lock'ları için makul bir tavan; tipik kurulumda site sayısı zaten <4).
+    site_results: dict[int, dict] = {}
+    if eligible:
+        max_workers = min(4, len(eligible))
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="sc-refresh-all") as pool:
+            futures = {pool.submit(_refresh_one_site_for_sc_batch, sid): sid for sid in eligible}
+            for fut in as_completed(futures):
+                try:
+                    sid, result = fut.result()
+                except Exception as exc:  # noqa: BLE001
+                    sid = futures[fut]
+                    result = {"state": "failed", "error": str(exc)}
+                site_results[sid] = result
+
+    refreshed_ok = sum(1 for r in site_results.values() if str(r.get("state") or "").lower() != "failed")
+    failed = sum(1 for r in site_results.values() if str(r.get("state") or "").lower() == "failed")
+
+    # Email için sc_batch — fresh session ile Site objelerini topla
+    with SessionLocal() as db:
+        sites_by_id = {
+            s.id: s
+            for s in db.query(Site).filter(Site.id.in_(list(site_results.keys()) or [0])).all()
+        }
+        sc_batch: list[tuple[Site, dict]] = [
+            (sites_by_id[sid], result) for sid, result in site_results.items() if sid in sites_by_id
+        ]
         if sc_batch:
             try:
                 send_consolidated_system_email(
@@ -11066,40 +11133,40 @@ def _compute_search_console_refresh_all_payload() -> dict:
                 )
             except Exception:
                 logging.warning("SC refresh-all: bildirim maili gönderilemedi, atlanıyor.")
-        n_active_non_external = len([s for s in sites if s.id not in external])
-        if refreshed_ok == 0 and failed == 0:
-            if n_active_non_external == 0:
-                title, detail = "Yenilenecek site yok", "Aktif, internal (external olmayan) site bulunamadı."
-            elif not_connected > 0:
-                title, detail = (
-                    "API çağrılmadı",
-                    f"Bağlı GSC (OAuth) sitesi yok: {not_connected} aktif site Search Console property’si ile eşleşmiyor.",
-                )
-            else:
-                title, detail = (
-                    "API sonucu yok",
-                    "Search Console ölçümü dönmedi; ayrıntı için uygulama loglarına bakın.",
-                )
-        elif failed and refreshed_ok:
-            title = "Kısmi yenileme"
-            detail = f"{refreshed_ok} site güncellendi, {failed} sitede hata."
-        elif failed and not refreshed_ok:
-            title = "Yenileme başarısız"
-            detail = f"{failed} site için Search Console verisi alınamadı."
+
+    if refreshed_ok == 0 and failed == 0:
+        if n_active_non_external == 0:
+            title, detail = "Yenilenecek site yok", "Aktif, internal (external olmayan) site bulunamadı."
+        elif not_connected > 0:
+            title, detail = (
+                "API çağrılmadı",
+                f"Bağlı GSC (OAuth) sitesi yok: {not_connected} aktif site Search Console property’si ile eşleşmiyor.",
+            )
         else:
-            title = "Tüm siteler güncellendi"
-            detail = f"{refreshed_ok} site Search Console API verisiyle güncellendi."
-            if not_connected:
-                detail += f" {not_connected} site GSC’ye bağlı olmadığı için atlandı."
-        return {
-            "ok": True,
-            "live_refresh_enabled": True,
-            "refreshed": refreshed_ok,
-            "failed": failed,
-            "not_connected": not_connected,
-            "title": title,
-            "detail": detail,
-        }
+            title, detail = (
+                "API sonucu yok",
+                "Search Console ölçümü dönmedi; ayrıntı için uygulama loglarına bakın.",
+            )
+    elif failed and refreshed_ok:
+        title = "Kısmi yenileme"
+        detail = f"{refreshed_ok} site güncellendi, {failed} sitede hata."
+    elif failed and not refreshed_ok:
+        title = "Yenileme başarısız"
+        detail = f"{failed} site için Search Console verisi alınamadı."
+    else:
+        title = "Tüm siteler güncellendi"
+        detail = f"{refreshed_ok} site Search Console API verisiyle güncellendi."
+        if not_connected:
+            detail += f" {not_connected} site GSC’ye bağlı olmadığı için atlandı."
+    return {
+        "ok": True,
+        "live_refresh_enabled": True,
+        "refreshed": refreshed_ok,
+        "failed": failed,
+        "not_connected": not_connected,
+        "title": title,
+        "detail": detail,
+    }
 
 
 def _search_console_refresh_all_job_finish(job_id: str) -> None:
