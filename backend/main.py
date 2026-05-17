@@ -4914,7 +4914,7 @@ def _build_dashboard_data_explorer_summary(db) -> dict:
             "good_count": good_count,
             "ni_count": ni_count,
             "poor_count": poor_count,
-            "last_updated": format_local_datetime(latest_collected, fallback="—"),
+            "last_updated": format_datetime_like(latest_collected, fallback="—"),
             "has_data": bool(primary_metrics),
             "href": f"/data-explorer/{site.domain}",
         })
