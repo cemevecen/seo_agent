@@ -146,32 +146,22 @@ text-slate-500 dark:text-slate-400
 {% set metric_parts = metric_value.rsplit(' ', 1) %}
 {% set tone = metric.tone or {} %}
 {% set status_label = tone.status_label|default('N/A') %}
+{% set shell_class = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90' %}
+{% set label_class = 'text-slate-600 dark:text-slate-300' %}
 {% if status_label == 'Iyi' %}
-{% set shell_class = 'border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white dark:border-emerald-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-{% set label_class = 'text-emerald-700 dark:text-emerald-400' %}
 {% set value_class = 'text-emerald-700 dark:text-emerald-300' %}
-{% set badge_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}
 {% set bar_class = 'bg-emerald-500' %}
 {% set bar_width = '90%' %}
 {% elif status_label == 'Izlenmeli' %}
-{% set shell_class = 'border-amber-200 bg-gradient-to-b from-amber-50/70 to-white dark:border-amber-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-{% set label_class = 'text-amber-700 dark:text-amber-400' %}
 {% set value_class = 'text-amber-700 dark:text-amber-300' %}
-{% set badge_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}
 {% set bar_class = 'bg-amber-500' %}
 {% set bar_width = '68%' %}
 {% elif status_label == 'Zayif' %}
-{% set shell_class = 'border-rose-200 bg-gradient-to-b from-rose-50/70 to-white dark:border-rose-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-{% set label_class = 'text-rose-700 dark:text-rose-400' %}
 {% set value_class = 'text-rose-700 dark:text-rose-300' %}
-{% set badge_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}
 {% set bar_class = 'bg-rose-500' %}
 {% set bar_width = '42%' %}
 {% else %}
-{% set shell_class = 'border-slate-200 dark:border-slate-700 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-800/90 dark:to-slate-900' %}
-{% set label_class = 'text-slate-600 dark:text-slate-300' %}
 {% set value_class = 'text-slate-900 dark:text-slate-100' %}
-{% set badge_class = 'bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300' %}
 {% set bar_class = 'bg-slate-400' %}
 {% set bar_width = '50%' %}
 {% endif %}
@@ -214,8 +204,8 @@ text-slate-500 dark:text-slate-400
   {% endif %}
   {% set bench_line = (metric.benchmark_tr or ps_lab_benchmarks.get(metric.key, ''))|trim %}
   {% if bench_line %}
-  <div class="mt-2 rounded-lg border border-violet-300/90 bg-violet-50/95 px-2 py-1.5 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45" data-ps-benchmark="1">
-    <p class="text-[11px] font-semibold leading-snug text-violet-950 dark:text-violet-50">{{ bench_line }}</p>
+  <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 shadow-sm dark:border-slate-700 dark:bg-slate-700/40" data-ps-benchmark="1">
+    <p class="text-[11px] font-semibold leading-snug text-slate-700 dark:text-slate-300">{{ bench_line }}</p>
   </div>
   {% endif %}
   <p
@@ -614,18 +604,14 @@ text-slate-500 dark:text-slate-400
           {% set score_value = score.value|int %}
           {% set ring_circumference = 232 %}
           {% set ring_dash = (ring_circumference * (score_value / 100))|round(0, 'common')|int %}
+          {% set score_shell = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90' %}
+          {% set score_label = 'text-slate-600 dark:text-slate-300' %}
           {% if score_value >= 90 %}
           {% set ring_stroke = '#10b981' %}
-          {% set score_shell = 'border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white dark:border-emerald-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-          {% set score_label = 'text-emerald-700 dark:text-emerald-400' %}
           {% elif score_value >= 50 %}
           {% set ring_stroke = '#f59e0b' %}
-          {% set score_shell = 'border-amber-200 bg-gradient-to-b from-amber-50/70 to-white dark:border-amber-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-          {% set score_label = 'text-amber-700 dark:text-amber-400' %}
           {% else %}
           {% set ring_stroke = '#f43f5e' %}
-          {% set score_shell = 'border-rose-200 bg-gradient-to-b from-rose-50/70 to-white dark:border-rose-900/45 dark:from-slate-800/90 dark:to-slate-900' %}
-          {% set score_label = 'text-rose-700 dark:text-rose-400' %}
           {% endif %}
           <div class="flex h-full min-h-[10.5rem] min-w-0 flex-col items-center justify-center gap-4 rounded-[1.8rem] border px-4 py-5 text-center shadow-sm {{ score_shell }}">
             <div class="relative flex h-24 w-24 items-center justify-center text-slate-200 dark:text-slate-600">
@@ -661,7 +647,7 @@ text-slate-500 dark:text-slate-400
             >{{ score.label }}</p>
             {% set sc_bench = (score.benchmark_tr or ps_category_benchmark_tr)|trim %}
             {% if sc_bench %}
-            <p class="mt-1 max-w-[12rem] px-1 text-center text-[9px] font-semibold leading-tight text-violet-800 dark:text-violet-200">{{ sc_bench }}</p>
+            <p class="mt-1 max-w-[12rem] px-1 text-center text-[9px] font-semibold leading-tight text-slate-500 dark:text-slate-400">{{ sc_bench }}</p>
             {% endif %}
           </div>
           {% endfor %}
