@@ -951,7 +951,8 @@ def _extract_third_party_summary(audits: dict) -> dict:
         total_bytes += transfer
     parsed.sort(key=lambda x: -x["blocking_ms"])
     return {
-        "items": parsed,
+        # NOT: anahtar adı "items" değil — Jinja'da dict.items() method'u ile çakışır.
+        "entries": parsed,
         "total_blocking_ms": round(total_blocking),
         "total_transfer_kb": round(total_bytes / 1024, 1),
         "entity_count": len(parsed),

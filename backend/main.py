@@ -4762,7 +4762,7 @@ def _build_performance_budget(
         "first_contentful_paint": {"label": "FCP", "threshold": 1800, "unit": "ms"},
         "experimental_time_to_first_byte": {"label": "TTFB", "threshold": 800, "unit": "ms"},
     }
-    items: list[dict] = []
+    entries: list[dict] = []
     summary = {"total": 0, "exceeded": 0, "warning": 0, "ok": 0}
     for form_factor, series in (("mobile", crux_mobile_series or {}), ("desktop", crux_desktop_series or {})):
         for metric_key, budget in budgets.items():
@@ -4785,7 +4785,7 @@ def _build_performance_budget(
                 state = "ok"
             summary["total"] += 1
             summary[state] += 1
-            items.append({
+            entries.append({
                 "metric": budget["label"],
                 "metric_key": metric_key,
                 "form_factor": form_factor,
@@ -4796,10 +4796,11 @@ def _build_performance_budget(
                 "delta_pct": round(delta_pct, 1),
                 "unit": budget["unit"],
             })
+    # NOT: "items" anahtar adı Jinja'da dict.items() method'u ile çakışır — "entries" kullanılıyor.
     return {
-        "items": items,
+        "entries": entries,
         "summary": summary,
-        "has_data": bool(items),
+        "has_data": bool(entries),
     }
 
 
