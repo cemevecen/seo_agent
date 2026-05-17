@@ -23,7 +23,7 @@
 
 {% set _has_period = p.has_period_data if p.has_period_data is defined else p.has_snapshot %}
 {% if not _has_period %}
-  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-400">
     {% if pd == 1 %}
       No same-weekday KPI yet. Run <strong>Refresh GA4</strong> so a snapshot includes last full day vs same weekday last week.
     {% else %}
@@ -44,15 +44,13 @@
 {% set nup = (p.new_users_pct_change | default(0)) | float %}
 {% set asp = (p.avg_session_pct_change | default(0)) | float %}
 {% set pvp = (p.pageviews_pct_change | default(0)) | float %}
-{% set pct_pos = 'text-emerald-600' %}
-{% set pct_neg = 'text-rose-600' %}
-{% set pct_zero = 'text-slate-500 dark:text-slate-400' %}
-{% set sessions_pct_class = pct_pos if sp > 0 else (pct_neg if sp < 0 else pct_zero) %}
-{% set users_pct_class = pct_pos if up > 0 else (pct_neg if up < 0 else pct_zero) %}
-{% set engaged_pct_class = pct_pos if ep > 0 else (pct_neg if ep < 0 else pct_zero) %}
-{% set new_users_pct_class = pct_pos if nup > 0 else (pct_neg if nup < 0 else pct_zero) %}
-{% set avg_session_pct_class = pct_pos if asp > 0 else (pct_neg if asp < 0 else pct_zero) %}
-{% set pageviews_pct_class = pct_pos if pvp > 0 else (pct_neg if pvp < 0 else pct_zero) %}
+{%- macro _pct_cls(v) -%}{%- set _v = v | float -%}{%- if _v >= 20 -%}text-emerald-700 dark:text-emerald-400{%- elif _v >= 5 -%}text-emerald-600 dark:text-emerald-500{%- elif _v > 0.5 -%}text-emerald-500 dark:text-emerald-600{%- elif _v > -0.5 -%}text-slate-400 dark:text-slate-500{%- elif _v > -5 -%}text-amber-600 dark:text-amber-500{%- elif _v > -20 -%}text-orange-600 dark:text-orange-500{%- else -%}text-rose-600 dark:text-rose-500{%- endif -%}{%- endmacro -%}
+{% set sessions_pct_class = _pct_cls(sp) | trim %}
+{% set users_pct_class = _pct_cls(up) | trim %}
+{% set engaged_pct_class = _pct_cls(ep) | trim %}
+{% set new_users_pct_class = _pct_cls(nup) | trim %}
+{% set avg_session_pct_class = _pct_cls(asp) | trim %}
+{% set pageviews_pct_class = _pct_cls(pvp) | trim %}
 
 {# GA4 KPI: SC kartlarına benzer dikey blok; auto-fit ile sarmalanır, truncate yok #}
 {% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
@@ -108,7 +106,7 @@
   <div class="mt-2 grid gap-2 sm:grid-cols-2">
     {% for row in p.top_channels %}
       {% set rcp = (row['pct_change'] | default(0)) | float %}
-      {% set row_pct_class = pct_pos if rcp > 0 else (pct_neg if rcp < 0 else pct_zero) %}
+      {% set row_pct_class = _pct_cls(rcp) | trim %}
       <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
         <span class="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{{ row.label }}</span>
         <div class="flex shrink-0 items-center gap-2">
@@ -118,7 +116,7 @@
       </div>
     {% endfor %}
     {% set osp = (p['organic_share_pct_change'] | default(0)) | float %}
-    {% set org_pct_class = pct_pos if osp > 0 else (pct_neg if osp < 0 else pct_zero) %}
+    {% set org_pct_class = _pct_cls(osp) | trim %}
     <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 sm:col-span-2">
       <span class="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{{ org_l }}</span>
       <div class="flex shrink-0 items-center gap-2">
