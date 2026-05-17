@@ -15,52 +15,78 @@ logger = logging.getLogger(__name__)
 # Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu
 CATEGORY_SOURCES = {
     "Türkiye": [
-        "https://www.cnnturk.com/feed/rss/all/news",
+        # Ajanslar
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
+        "https://www.trthaber.com/anasayfa.rss",
+        # Gazeteler
+        "https://www.cnnturk.com/feed/rss/all/news",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
-        "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
         "https://www.hurriyet.com.tr/rss/anasayfa",
+        "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
         "https://www.haberturk.com/rss",
-        "https://news.google.com/rss/search?q=türkiye+gündem+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=ankara+siyaset+meclis+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.sozcu.com.tr/rss.xml",
+        "https://www.cumhuriyet.com.tr/rss/son_dakika.xml",
+        "https://www.ntv.com.tr/gundem.rss",
+        # Google News
+        "https://news.google.com/rss/search?q=türkiye+gündem+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=ankara+siyaset+meclis+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=erdoğan+hükümet+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Genel": [
-        "https://www.ekonomim.com/rss",
-        "https://www.dunya.com/rss",
-        "https://www.bloomberght.com/rss",
-        "https://www.cnnturk.com/feed/rss/all/news",
+        # Ekonomi/Haber ajansları
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
+        "https://www.trthaber.com/anasayfa.rss",
         "https://www.ntv.com.tr/gundem.rss",
+        "https://www.cnnturk.com/feed/rss/all/news",
+        "https://www.bloomberght.com/rss",
+        "https://www.dunya.com/rss",
+        "https://www.ekonomim.com/rss",
+        "https://www.sozcu.com.tr/rss.xml",
+        # Google News
         "https://news.google.com/rss/headlines/section/topic/TOP_STORIES?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=türkiye+ekonomi+dünya+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=son+dakika+türkiye+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=türkiye+ekonomi+dünya+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "İş Dünyası": [
         "https://www.dunya.com/rss",
         "https://www.ekonomim.com/rss",
         "https://www.bloomberght.com/rss",
         "https://www.paraanaliz.com/rss",
-        "https://news.google.com/news/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=şirket+ihracat+yatırım+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=startup+girişim+teknoloji+şirketi+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.trthaber.com/ekonomi.rss",
+        # Google News
+        "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=şirket+ihracat+yatırım+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=startup+girişim+inovasyon+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=ipo+halka+arz+özelleştirme+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=ihracat+ithalat+ticaret+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
-        "https://www.foreks.com/rss",
         "https://www.ekonomim.com/rss",
         "https://www.paraanaliz.com/rss",
-        "https://news.google.com/rss/search?q=borsa+istanbul+bist+hisse+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=merkez+bankası+faiz+enflasyon+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=dolar+euro+kur+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://www.dunya.com/rss",
+        # Google News — piyasa odaklı
+        "https://news.google.com/rss/search?q=borsa+istanbul+bist100+hisse+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=merkez+bankası+faiz+enflasyon+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dolar+euro+kur+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=altın+ons+fiyat+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=kripto+bitcoin+ethereum+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=fed+ecb+para+politikası+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
+        # Türk ajanslar — dünya
         "https://www.aa.com.tr/tr/rss/default?cat=dunya",
+        "https://www.trthaber.com/dunya.rss",
         "https://www.cnnturk.com/feed/rss/all/news",
-        "https://news.google.com/news/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=avrupa+abd+rusya+çin+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=nato+g7+bm+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        # Uluslararası
         "https://feeds.bbci.co.uk/news/world/rss.xml",
         "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+        "https://feeds.bbci.co.uk/news/business/rss.xml",
+        # Google News
+        "https://news.google.com/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=avrupa+abd+rusya+çin+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=nato+g7+bm+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=ukrayna+orta+doğu+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     # Yahoo Finance — RSS önce denenir, başarısız olursa JSON API fallback.
     "Yahoo Finance": [
@@ -69,13 +95,27 @@ CATEGORY_SOURCES = {
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD&region=US&lang=en-US",
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EIXIC&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=USDTRY%3DX&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EDJI&region=US&lang=en-US",
         "https://finance.yahoo.com/",  # sentinel → JSON API fallback
     ],
-    "Bilim ve Teknoloji": [
-        "https://news.google.com/news/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/news/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr",
+    "Teknoloji": [
+        # Google News TR
+        "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=yapay+zeka+ai+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        "https://news.google.com/rss/search?q=uzay+nasa+esa+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=teknoloji+yazılım+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=siber+güvenlik+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        # Google News EN (çeviri gerekiyor)
+        "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en&gl=US&ceid=US:en",
+        # Tech medya
+        "https://techcrunch.com/feed/",
+        "https://feeds.arstechnica.com/arstechnica/index",
+        "https://www.theverge.com/rss/index.xml",
+        "https://www.wired.com/feed/rss",
+        # Türkçe tech
+        "https://www.trthaber.com/teknoloji.rss",
+        "https://news.google.com/rss/search?q=openai+google+microsoft+apple+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=uzay+nasa+spacex+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
 }
 
@@ -168,7 +208,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         if title.endswith(suffix):
                             title = title[:-len(suffix)].strip()
 
-                    if len(title) < 50:
+                    if len(title) < 25:
                         continue
                     lower_title = title.lower()
                     if lower_title == source_name.lower() or lower_title == category.lower():
@@ -197,14 +237,23 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     pending_items.append((title, link, source_name, source_url, description,
                                           display_topic, published_at, image_url))
 
-                # --- Adım 2: Yahoo için toplu çeviri (tek API çağrısı) ---
-                if category == "Yahoo Finance" and pending_items:
+                # --- Adım 2: İngilizce kaynaklar için toplu çeviri ---
+                # Yahoo Finance + İngilizce Teknoloji kaynaklarını çevir
+                _en_domains = ("techcrunch.com", "arstechnica.com", "theverge.com",
+                               "wired.com", "bbc.co.uk", "nytimes.com")
+                _needs_translation = (
+                    category == "Yahoo Finance"
+                    or (category == "Teknoloji" and any(d in rss_url for d in _en_domains))
+                    or (category == "Dünya" and ("bbc.co.uk" in rss_url or "nytimes.com" in rss_url))
+                    or (category == "Genel" and ("hl=en" in rss_url or "gl=US" in rss_url))
+                )
+                if _needs_translation and pending_items:
                     SEP = " ||| "
                     raw_titles = [p[0] for p in pending_items]
                     try:
                         from deep_translator import GoogleTranslator
                         joined = SEP.join(raw_titles)
-                        translated_joined = GoogleTranslator(source="en", target="tr").translate(joined)
+                        translated_joined = GoogleTranslator(source="auto", target="tr").translate(joined)
                         translated_parts = [t.strip() for t in (translated_joined or "").split(SEP.strip())]
                         if len(translated_parts) == len(raw_titles):
                             pending_items = [
@@ -212,7 +261,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                                 for i in range(len(pending_items))
                             ]
                     except Exception as te:
-                        logger.warning("Yahoo toplu çeviri başarısız, orijinal başlıklar kullanılacak: %s", te)
+                        logger.warning("Toplu çeviri başarısız (%s), orijinal başlıklar kullanılacak: %s", rss_url[:40], te)
 
                 # --- Adım 3: Kaydet ---
                 new_count = 0

@@ -3099,15 +3099,15 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    # NEWS (07:01 - 23:59 arası her 10 dakikada bir: 07:01, 07:11, ...)
+    # NEWS (07:00 - 23:55 arası her 5 dakikada bir)
     scheduler.add_job(
         _run_news_intelligence_job,
-        trigger=CronTrigger(hour='7-23', minute='1,11,21,31,41,51', timezone=timezone),
+        trigger=CronTrigger(hour='7-23', minute='*/5', timezone=timezone),
         id="news-intelligence-sync",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
-        misfire_grace_time=600,
+        misfire_grace_time=300,
     )
     job_count += 1
 

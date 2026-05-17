@@ -22,6 +22,7 @@
       <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Dünya</button>
       <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">İş Dünyası</button>
       <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Türkiye</button>
+      <button type="button" onclick="rtSwitchIntelTab('Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Teknoloji</button>
       <button type="button" onclick="rtSwitchIntelTab('Yahoo Finance')" id="rt-intel-tab-yahoo" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Yahoo</button>
     </div>
 
@@ -273,6 +274,7 @@
       else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
+      else if(cat === 'Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
       else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
 
       document.getElementById('rt-intel-list').innerHTML = '';
