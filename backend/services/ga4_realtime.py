@@ -2875,7 +2875,11 @@ def check_news_alarms_for_site(
 
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
-    property_id = properties.get(profile) or properties.get("web")
+    # ios/android için web fallback YANLIŞ olur (app ≠ web property); sadece web/mweb için izinli.
+    if profile in ("ios", "android"):
+        property_id = properties.get(profile)
+    else:
+        property_id = properties.get(profile) or properties.get("web")
     if not property_id:
         return []
 
