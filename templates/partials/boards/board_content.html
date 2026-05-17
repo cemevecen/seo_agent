@@ -3,6 +3,11 @@
   <p class="font-medium">GitLab Hatası: {{ data.error }}</p>
   <p class="text-sm mt-2">API anahtarınızı (.env) ve projenin mevcut olduğunu kontrol edin.</p>
 </div>
+{% elif not data.board or not data.board.lists %}
+<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+  <p class="font-medium">Bu projede board listesi alınamadı.</p>
+  <p class="text-sm mt-2">GitLab board API'si <code>lists</code> alanını döndürmedi. <a href="/boards" class="underline">Boards sayfası</a> client-side çekim yapar ve kanban'ı düzgün gösterir.</p>
+</div>
 {% else %}
 <div class="flex h-full items-start gap-4 overflow-x-auto pb-4">
   {% for lst in data.board.lists %}
