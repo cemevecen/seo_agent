@@ -610,7 +610,7 @@
       '<div class="bg-amber-400" style="width:' + neuW + '%" title="Nötr ' + neuW + '%"></div>' +
       '<div class="bg-rose-500" style="width:' + negW + '%" title="Negatif ' + negW + '%"></div>' +
       '</div>' +
-      '<div class="flex gap-3 text-slate-500 dark:text-slate-400">' +
+      '<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-500 dark:text-slate-400">' +
       '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">▲ Pozitif ' + posW + '%</span>' +
       '<span class="text-amber-600 dark:text-amber-400 font-semibold">– Nötr ' + neuW + '%</span>' +
       '<span class="text-rose-600 dark:text-rose-400 font-semibold">▼ Negatif ' + negW + '%</span>' +
@@ -630,7 +630,7 @@
 
   function _rtVivSampleReviews(samples, cls) {
     if (!samples || !samples.length) return '';
-    cls = cls || 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700';
+    cls = cls || 'bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700';
     return samples.map(function(rv) {
       var stars = ['', '★', '★★', '★★★', '★★★★', '★★★★★'][rv.score] || rv.score;
       var scoreClass = rv.score >= 4 ? 'text-emerald-600 dark:text-emerald-400' :
@@ -658,7 +658,7 @@
     var platLabel = platform === 'google_play' ? 'Google Play' : 'App Store';
     if (a.error || n === 0) {
       return (
-        '<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">' +
+        '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
         '<p class="text-xs font-bold text-slate-800 dark:text-slate-100">' + _esc(appName) + ' — ' + platLabel + '</p>' +
         '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || 'Son ' + days + ' günde yorum bulunamadı.') + '</p>' +
         '</div>'
@@ -666,7 +666,7 @@
     }
 
     return (
-      '<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-4">' +
+      '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">' +
       // Başlık
       '<div class="flex flex-wrap items-center justify-between gap-2">' +
       '<div>' +
