@@ -573,6 +573,21 @@ class RealtimeNewsSnapshot(Base):
     site: Mapped["Site"] = relationship("Site")
 
 
+class RealtimeAppEventSnapshot(Base):
+    """Uygulama (android/ios) realtime event count snapshot — zirve karşılaştırması için."""
+
+    __tablename__ = "realtime_app_event_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile: Mapped[str] = mapped_column(String(20), nullable=False, default="android")
+    event_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_count: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
 class AppIntelRawCache(Base):
     """App mağaza ham yorum payload'ı — Railway gibi ephemeral disk + çoklu dyno için Postgres önbellek."""
 

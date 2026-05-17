@@ -3252,12 +3252,71 @@ def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
 
 APP_EVENT_SPIKE_THRESHOLD_PCT = 40
 APP_EVENT_MIN_COUNT = 50  # min eventCount eşiği — düşük trafikli event'leri filtrele
+APP_EVENT_PEAK_DROP_PCT = 55  # zirveden %55+ düşüş alarm tetikler
+APP_EVENT_PEAK_MIN_COUNT = 80  # zirvede en az bu kadar event olmalı
 
 # Gürültü oluşturan teknik event'ler
 _APP_EVENT_BLACKLIST = {
     "session_start", "first_open", "user_engagement", "screen_view",
     "app_remove", "app_clear_data", "app_update", "os_update",
 }
+
+
+def save_app_event_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+    events: list[dict[str, Any]],
+) -> None:
+    """Şu anki event sayımlarını DB'ye yazar (zirve karşılaştırması için)."""
+    from backend.models import RealtimeAppEventSnapshot
+
+    for e in events[:200]:
+        name = str(e.get("eventName") or "").strip()[:200]
+        if not name or name.lower() in _APP_EVENT_BLACKLIST:
+            continue
+        cnt = float(e.get("eventCount") or 0)
+        if cnt <= 0:
+            continue
+        snap = RealtimeAppEventSnapshot(
+            site_id=site_id,
+            profile=profile,
+            event_name=name,
+            event_count=cnt,
+        )
+        db.add(snap)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("RealtimeAppEventSnapshot kayıt hatası (site_id=%s)", site_id)
+
+
+def get_peak_app_event_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+    window_minutes: int = 90,
+) -> dict[str, int]:
+    """Son `window_minutes` dakikadaki her event için maksimum eventCount değerini döner."""
+    from backend.models import RealtimeAppEventSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+    rows = (
+        db.query(
+            RealtimeAppEventSnapshot.event_name,
+            sqlfunc.max(RealtimeAppEventSnapshot.event_count).label("peak_count"),
+        )
+        .filter(
+            RealtimeAppEventSnapshot.site_id == site_id,
+            RealtimeAppEventSnapshot.profile == profile,
+            RealtimeAppEventSnapshot.collected_at >= cutoff,
+        )
+        .group_by(RealtimeAppEventSnapshot.event_name)
+        .all()
+    )
+    return {row.event_name: int(row.peak_count or 0) for row in rows}
 
 
 def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
@@ -3271,23 +3330,39 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
         evt = html.escape(str(a.get("event_name", "")))
         curr = int(a.get("current_count", 0))
         prev = int(a.get("previous_count", 0))
-        delta = curr - prev
-        pct = a.get("change_pct", 0)
-        is_drop = delta < 0
+        rid = str(a.get("rule_id", ""))
+        is_peak_drop = rid == "app_event_peak_drop"
+        is_drop = is_peak_drop or (curr - prev) < 0
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
         num_c = "#dc2626" if is_drop else "#16a34a"
-        sign = "+" if delta >= 0 else ""
-        pct_sign = "+" if pct >= 0 else ""
+
+        if is_peak_drop:
+            peak = int(a.get("peak_count", prev))
+            drop_pct = int(a.get("drop_pct", 0))
+            metric_html = (
+                f'<span style="font-size:14px;font-weight:700;color:#94a3b8;">zirve</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;margin:0 6px;">{peak}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin-right:6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
+                f'<span style="font-size:13px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · zirveden düştü</span>'
+            )
+        else:
+            delta = curr - prev
+            sign = "+" if delta >= 0 else ""
+            pct = a.get("change_pct", 0)
+            pct_sign = "+" if pct >= 0 else ""
+            metric_html = (
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%)</span>'
+            )
+
         cards.append(
             f'<div style="margin:10px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
             f'<p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#0f172a;font-family:monospace;">{evt}</p>'
-            f'<div>'
-            f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
-            f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
-            f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-            f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%)</span>'
-            f'</div></div>'
+            f'<div>{metric_html}</div></div>'
         )
 
     pre_parts = [f"{a.get('event_name','')[:18]}:{int(a.get('current_count',0))}" for a in alarms[:5]]
@@ -3333,7 +3408,14 @@ def check_app_event_spike_for_site(
         return {}
 
     events = result.get("events", []) or []
+
+    # Zirve karşılaştırması için DB snapshot'larından son 90 dk'nın zirve değerlerini al
+    peak_events = get_peak_app_event_snapshots(db, site.id, profile, window_minutes=90)
+    # Mevcut event'leri DB'ye yaz (sonraki check'lerde zirve karşılaştırması için)
+    save_app_event_snapshots(db, site.id, profile, events)
+
     alarms = []
+    seen_event_names: set[str] = set()
     for e in events:
         name = str(e.get("eventName") or "").strip()
         if not name or name.lower() in _APP_EVENT_BLACKLIST:
@@ -3354,6 +3436,32 @@ def check_app_event_spike_for_site(
             "change_pct": round(pct, 1),
             "rule_id": "app_event_spike" if pct > 0 else "app_event_drop",
         })
+        seen_event_names.add(name)
+
+    # Zirve düşüş kontrolü — son 90 dk'da zirve yapıp şimdi belirgin düşen event'ler
+    curr_map: dict[str, int] = {
+        str(e.get("eventName") or "").strip(): int(e.get("eventCount") or 0)
+        for e in events
+    }
+    for event_name, peak_count in peak_events.items():
+        if event_name in seen_event_names:
+            continue  # spike/drop zaten tetiklendi, çift alarm verme
+        if peak_count < APP_EVENT_PEAK_MIN_COUNT:
+            continue
+        if event_name.lower() in _APP_EVENT_BLACKLIST:
+            continue
+        curr_count = curr_map.get(event_name, 0)
+        drop_pct = ((peak_count - curr_count) / peak_count) * 100
+        if drop_pct >= APP_EVENT_PEAK_DROP_PCT:
+            alarms.append({
+                "event_name": event_name,
+                "current_count": curr_count,
+                "previous_count": peak_count,
+                "peak_count": peak_count,
+                "drop_pct": round(drop_pct),
+                "change_pct": -round(drop_pct, 1),
+                "rule_id": "app_event_peak_drop",
+            })
 
     if not alarms:
         return {"alarms": []}
@@ -3368,7 +3476,13 @@ def check_app_event_spike_for_site(
             profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
             html_body = _html_app_event_alarm_body(site.domain, profile_label, alarms)
             top_a = sorted(alarms, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:3]
-            chips = [f"{a['event_name'][:14]} {('+' if a['change_pct']>=0 else '')}{a['change_pct']:.0f}%" for a in top_a]
+            chips = []
+            for a in top_a:
+                evt_short = a['event_name'][:14]
+                if a.get("rule_id") == "app_event_peak_drop":
+                    chips.append(f"{evt_short} ↓{int(a.get('current_count', 0))} (zirve {int(a.get('peak_count', 0))})")
+                else:
+                    chips.append(f"{evt_short} {('+' if a['change_pct']>=0 else '')}{a['change_pct']:.0f}%")
             subject = f"{_email_site_short_label(site.domain)} — {' · '.join(chips)} [{profile}]"
             thread_key = _realtime_email_thread_key(site.domain, profile)
             send_realtime_email(subject, html_body, thread_kind="app_event", thread_key=thread_key)
