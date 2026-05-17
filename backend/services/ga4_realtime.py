@@ -1146,7 +1146,7 @@ def fetch_realtime_top_news_pages(
                 "link_url": _news_row_link(site_domain, title),
             }
         )
-        if len(out) >= max(1, min(int(limit), 25)):
+        if len(out) >= max(1, min(int(limit), 250)):
             break
 
     return {
@@ -2320,6 +2320,14 @@ def evaluate_page_alarms(
     prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
 
+    # Floor-safety: top listenin alt sınırı; bu sınırın altındaki sayfalar liste dışı olabilir.
+    floor_users_page = 0
+    if curr_map:
+        try:
+            floor_users_page = int(min((c.get("activeUsers", 0) or 0) for c in curr_map.values()))
+        except (ValueError, TypeError):
+            floor_users_page = 0
+
     for page_path, curr in curr_map.items():
         title = _rt_alarm_screen_title_one_line(page_path)
         if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
@@ -2386,19 +2394,30 @@ def evaluate_page_alarms(
             if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
                 continue
             prev_users = prev.get("activeUsers", 0)
-            if prev_users >= rule["min_prev_users"]:
-                triggered.append({
-                    "rule_id": "page_disappeared",
-                    "severity": rule["severity"],
-                    "page": page_path,
-                    "page_paths": prev.get("page_paths", []),
-                    "profile": profile,
-                    "domain": site_domain,
-                    "current_users": 0,
-                    "previous_users": prev_users,
-                    "change_pct": -100.0,
-                    "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
-                })
+            if prev_users < rule["min_prev_users"]:
+                continue
+            # Floor-safety: sayfa top listeden düşmüş olabilir ama hâlâ kullanıcısı olabilir.
+            if floor_users_page <= 2:
+                assumed_curr = 0
+                is_confident = True
+            elif prev_users >= floor_users_page * 4:
+                assumed_curr = max(0, floor_users_page - 1)
+                is_confident = True
+            else:
+                # Belirsiz — alarm verme
+                continue
+            triggered.append({
+                "rule_id": "page_disappeared",
+                "severity": rule["severity"],
+                "page": page_path,
+                "page_paths": prev.get("page_paths", []),
+                "profile": profile,
+                "domain": site_domain,
+                "current_users": assumed_curr,
+                "previous_users": prev_users,
+                "change_pct": -100.0 if assumed_curr == 0 else round(((assumed_curr - prev_users) / prev_users) * 100, 1),
+                "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
+            })
 
     return triggered
 
@@ -2688,6 +2707,31 @@ def evaluate_news_alarms(
     prev_map: dict[str, dict[str, Any]] = {p["page"]: p for p in previous_pages}
     curr_map: dict[str, dict[str, Any]] = {p["page"]: p for p in current_pages}
 
+    # Floor: mevcut listede görünen en düşük kullanıcı sayısı. Top-N listemizden düşmüş
+    # ama gerçekte hâlâ N+1 sırasında olabilen sayfalar için tampon — "0'a düştü"
+    # iddiasını sadece floor çok düşükse (≤2) güvenle yapabiliriz.
+    floor_users = 0
+    if curr_map:
+        try:
+            floor_users = int(min((c.get("activeUsers", 0) or 0) for c in curr_map.values()))
+        except (ValueError, TypeError):
+            floor_users = 0
+
+    def _safe_curr_when_missing(prev_or_peak: float) -> tuple[int, bool]:
+        """Top listeden düşen sayfa için 'gerçek değer 0' yerine konservatif tahmin.
+        Dönen: (assumed_curr, is_confident_zero).
+        floor_users ≤ 2: liste alt sınırı çok düşük → 0 varsaymak güvenli (is_confident=True)
+        floor_users > 2: alt sınır anlamlı → curr ≈ floor_users-1 (kötümser) ve confidence=False
+        Eğer prev/peak >= floor*4 ise floor'a göre kayıp yine de eşiği aşıyor olabilir → confident=True.
+        """
+        if floor_users <= 2:
+            return 0, True
+        if prev_or_peak >= floor_users * 4:
+            # Çok büyük bir düşüş zaten — floor-1 olsa bile drop hâlâ belirgin
+            return max(0, floor_users - 1), True
+        # Belirsiz — alarm verme
+        return max(0, floor_users - 1), False
+
     for page_path, curr in curr_map.items():
         title = _rt_alarm_screen_title_one_line(page_path)
         if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
@@ -2751,18 +2795,24 @@ def evaluate_news_alarms(
             if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
                 continue
             prev_users = prev.get("activeUsers", 0)
-            if prev_users >= rule["min_prev_users"]:
-                triggered.append({
-                    "rule_id": "news_disappeared",
-                    "severity": rule["severity"],
-                    "page": page_path,
-                    "profile": profile,
-                    "domain": site_domain,
-                    "current_users": 0,
-                    "previous_users": prev_users,
-                    "change_pct": -100.0,
-                    "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
-                })
+            if prev_users < rule["min_prev_users"]:
+                continue
+            # Floor-safety: sayfa top listeden düşmüş olabilir ama hâlâ kullanıcısı olabilir.
+            assumed_curr, is_confident = _safe_curr_when_missing(prev_users)
+            if not is_confident:
+                # Belirsiz — alarm verme (false positive önleme)
+                continue
+            triggered.append({
+                "rule_id": "news_disappeared",
+                "severity": rule["severity"],
+                "page": page_path,
+                "profile": profile,
+                "domain": site_domain,
+                "current_users": assumed_curr,
+                "previous_users": prev_users,
+                "change_pct": -100.0 if assumed_curr == 0 else round(((assumed_curr - prev_users) / prev_users) * 100, 1),
+                "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
+            })
 
     # Zirve düşüş kontrolü — son 90 dak içinde zirve yapıp şimdi belirgin düşen haberler
     if peak_pages:
@@ -2780,7 +2830,15 @@ def evaluate_news_alarms(
             if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
                 continue
             curr = curr_map.get(page_path)
-            curr_users = int(curr.get("activeUsers", 0)) if curr else 0
+            if curr is not None:
+                curr_users = int(curr.get("activeUsers", 0))
+            else:
+                # Sayfa top listede yok — floor-safety ile konservatif tahmin yap
+                assumed_curr, is_confident = _safe_curr_when_missing(peak_users)
+                if not is_confident:
+                    # Belirsiz — alarm verme (sayfa hâlâ floor düzeyinde olabilir)
+                    continue
+                curr_users = assumed_curr
             drop_pct = ((peak_users - curr_users) / peak_users) * 100
             if drop_pct >= drop_threshold_pct:
                 triggered.append({
