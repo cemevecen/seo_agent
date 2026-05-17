@@ -189,9 +189,17 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
         sign = "+" if delta >= 0 else ""
         return f"{title} {sign}{delta}"
 
-    sorted_alarms = _sort_news_alarms(alarms)
-    chips = [_alarm_chip(a) for a in sorted_alarms[:15]]
-    rest = f" +{len(sorted_alarms) - 15}" if len(sorted_alarms) > 15 else ""
+    # Negatifleri (drop/disappeared/peak_drop) ayır, ikisinin de konuda kesinlikle görünmesini garantile
+    neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
+    pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
+    pos_sorted = _sort_news_alarms(pos_alarms)
+    neg_sorted = _sort_news_alarms(neg_alarms)
+    # Pozitif slot: max 8, Negatif slot: max 7 — toplam 15
+    chosen = pos_sorted[:8] + neg_sorted[:7]
+    sorted_chosen = _sort_news_alarms(chosen)
+    chips = [_alarm_chip(a) for a in sorted_chosen]
+    remainder = max(0, len(alarms) - len(chosen))
+    rest = f" +{remainder}" if remainder > 0 else ""
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
@@ -385,8 +393,13 @@ def _preheader(text: str) -> str:
 def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
-    # Sırala + ilk 15
-    alarms = _sort_news_alarms(alarms)[:15]
+    # Negatif (düşüş/kaybolma/zirveden düşüş) ve pozitif alarmları ayır — her ikisinin de
+    # mailde kesinlikle yer alması için ayrı kotalarla seç: max 8 pozitif + max 7 negatif
+    neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
+    pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
+    pos_sorted = _sort_news_alarms(pos_alarms)[:8]
+    neg_sorted = _sort_news_alarms(neg_alarms)[:7]
+    alarms = _sort_news_alarms(pos_sorted + neg_sorted)
     cards: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
@@ -632,6 +645,34 @@ NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "warning",
     },
 }
+
+
+# Negatif (düşüş yönlü) alarm kural ID'leri — cooldown ve render için ayrı sınıf.
+NEGATIVE_ALARM_RULE_IDS: frozenset[str] = frozenset({
+    "news_traffic_drop",
+    "news_disappeared",
+    "news_peak_drop",
+    "page_traffic_drop",
+    "page_disappeared",
+    "app_event_drop",
+    "app_event_peak_drop",
+})
+
+
+def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Alarmları (negatif, pozitif) olarak iki gruba böler.
+
+    Cooldown'un negatif alarmları (düşüş, kaybolma, zirveden düşüş) gizlememesi için kullanılır.
+    """
+    negatives: list[dict[str, Any]] = []
+    positives: list[dict[str, Any]] = []
+    for a in alarms:
+        rid = str(a.get("rule_id", ""))
+        if rid in NEGATIVE_ALARM_RULE_IDS:
+            negatives.append(a)
+        else:
+            positives.append(a)
+    return negatives, positives
 
 # sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 50
 _SINEMALAR_REALTIME_ALARM_PCT = 35
@@ -2409,11 +2450,20 @@ def check_page_alarms_for_site(
     if alarms:
         _save_page_alarm_logs(db, site.id, alarms)
         if not skip_emails:
-            rule_ids = [a["rule_id"] for a in alarms]
-            if _alarm_email_suppressed(db, site.id, rule_ids):
-                logger.info("Sayfa alarmı e-posta cooldown aktif, atlandı (site=%s).", site.domain)
-            else:
-                _send_page_alarm_email(site.domain, profile, alarms)
+            negatives, positives = _split_alarms_by_sentiment(alarms)
+            to_send: list[dict[str, Any]] = []
+            if positives:
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
+                    logger.info("Sayfa pozitif cooldown — atlandı (site=%s).", site.domain)
+                else:
+                    to_send.extend(positives)
+            if negatives:
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
+                    logger.info("Sayfa negatif cooldown — atlandı (site=%s).", site.domain)
+                else:
+                    to_send.extend(negatives)
+            if to_send:
+                _send_page_alarm_email(site.domain, profile, to_send)
 
     return alarms
 
@@ -2856,13 +2906,22 @@ def check_news_alarms_for_site(
     if alarms:
         _save_news_alarm_logs(db, site.id, alarms)
         if not skip_emails:
-            rule_ids = [a["rule_id"] for a in alarms]
-            if _alarm_email_suppressed(db, site.id, rule_ids):
-                logger.info("Haber alarmı e-posta cooldown aktif, atlandı (site=%s).", site.domain)
-            else:
-                # Son site-geneli KPI snapshot'ından genel trafik özetini al
+            # Negatif (düşüş) ve pozitif (artış) alarmları ayrı ayrı cooldown'la — negatifler bastırılmasın
+            negatives, positives = _split_alarms_by_sentiment(alarms)
+            to_send: list[dict[str, Any]] = []
+            if positives:
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
+                    logger.info("Haber pozitif alarmları cooldown — atlandı (site=%s).", site.domain)
+                else:
+                    to_send.extend(positives)
+            if negatives:
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
+                    logger.info("Haber negatif alarmları cooldown — atlandı (site=%s).", site.domain)
+                else:
+                    to_send.extend(negatives)
+            if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                _send_news_alarm_email(site.domain, profile, alarms, site_kpi=site_kpi)
+                _send_news_alarm_email(site.domain, profile, to_send, site_kpi=site_kpi)
 
     return alarms
 
@@ -3322,8 +3381,12 @@ def get_peak_app_event_snapshots(
 def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
-    # Sırala
-    alarms = sorted(alarms, key=lambda a: int(a.get("current_count", 0)), reverse=True)[:10]
+    # Negatif (drop + peak_drop) ve pozitif (spike) ayrı kotalarla — her ikisi de görünsün
+    neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
+    pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
+    neg_sorted = sorted(neg_alarms, key=lambda a: int(a.get("current_count", a.get("peak_count", 0))), reverse=True)[:5]
+    pos_sorted = sorted(pos_alarms, key=lambda a: int(a.get("current_count", 0)), reverse=True)[:5]
+    alarms = sorted(pos_sorted + neg_sorted, key=lambda a: int(a.get("current_count", a.get("peak_count", 0))), reverse=True)
 
     cards = []
     for a in alarms:
@@ -3466,16 +3529,30 @@ def check_app_event_spike_for_site(
     if not alarms:
         return {"alarms": []}
 
-    # Cooldown — RealtimeAlarmLog üzerinden
+    # Cooldown — RealtimeAlarmLog üzerinden; negatif ve pozitif ayrı değerlendirilir
     if not skip_emails:
-        rule_ids = [a["rule_id"] for a in alarms]
-        if _alarm_email_suppressed(db, site.id, rule_ids):
-            logger.info("App event e-posta cooldown aktif (site=%s/%s).", site.domain, profile)
-        else:
+        negatives, positives = _split_alarms_by_sentiment(alarms)
+        to_send: list[dict[str, Any]] = []
+        if positives:
+            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
+                logger.info("App event pozitif cooldown — atlandı (site=%s/%s).", site.domain, profile)
+            else:
+                to_send.extend(positives)
+        if negatives:
+            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
+                logger.info("App event negatif cooldown — atlandı (site=%s/%s).", site.domain, profile)
+            else:
+                to_send.extend(negatives)
+
+        if to_send:
             from backend.services.mailer import send_realtime_email
             profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
-            html_body = _html_app_event_alarm_body(site.domain, profile_label, alarms)
-            top_a = sorted(alarms, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:3]
+            html_body = _html_app_event_alarm_body(site.domain, profile_label, to_send)
+            # Konuda negatifi de garantile: 2 pozitif + 1 negatif (varsa) — max 3 chip
+            negs_to_send, poss_to_send = _split_alarms_by_sentiment(to_send)
+            top_pos = sorted(poss_to_send, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:2]
+            top_neg = sorted(negs_to_send, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:2]
+            top_a = (top_pos + top_neg)[:3] if (top_pos or top_neg) else to_send[:3]
             chips = []
             for a in top_a:
                 evt_short = a['event_name'][:14]
@@ -3490,7 +3567,7 @@ def check_app_event_spike_for_site(
             # Cooldown için log
             _save_alarm_logs(db, site.id, [
                 {"rule_id": a["rule_id"], "message": a["event_name"], "page": "", "profile": profile}
-                for a in alarms
+                for a in to_send
             ])
 
     return {"alarms": alarms}
