@@ -337,6 +337,7 @@ def inbox_threads_list(
 @router.get("/threads/{thread_id}")
 @limiter.limit("120/minute")
 def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(get_db)):
+    _require_inbox_action_auth(request)
     t = _thread_or_404(db, thread_id)
     msgs = (
         db.query(SupportInboxMessage)
