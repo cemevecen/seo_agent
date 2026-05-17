@@ -45,6 +45,29 @@ _CACHE: dict[str, tuple[float, Any]] = {}           # key → (ts, data)
 _JOB_LOCK = threading.Lock()
 _JOBS: dict[str, dict[str, Any]] = {}               # job_id → progress state
 
+# Circuit breaker: bir platform için "dataset boş" tespit edilirse 1 saat boyunca
+# yeni sorgu deneme — BQ free-tier'ı tüketmesin ve audit log'u kirlemesin.
+_EMPTY_DATASET_TTL_S = 60 * 60   # 1 saat
+_EMPTY_DATASET_LOCK = threading.Lock()
+_EMPTY_DATASET_UNTIL: dict[str, float] = {}        # platform → expiry timestamp
+
+
+def _circuit_open(platform: str) -> bool:
+    """True ise: bu platform için kısa süre içinde 'dataset boş' tespit edilmiş; sorgu atlanmalı."""
+    with _EMPTY_DATASET_LOCK:
+        until = _EMPTY_DATASET_UNTIL.get(platform, 0.0)
+        return time.time() < until
+
+
+def _circuit_trip(platform: str) -> None:
+    with _EMPTY_DATASET_LOCK:
+        _EMPTY_DATASET_UNTIL[platform] = time.time() + _EMPTY_DATASET_TTL_S
+
+
+def _circuit_reset(platform: str) -> None:
+    with _EMPTY_DATASET_LOCK:
+        _EMPTY_DATASET_UNTIL.pop(platform, None)
+
 
 # ── Credential yükleme ────────────────────────────────────────────────────────
 
@@ -331,6 +354,15 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
     if not platform_ready(platform):
         return [], f"CRASHLYTICS_{platform.upper()}_SERVICE_ACCOUNT_JSON tanımlı değil."
 
+    # Circuit breaker: bu platform için yakın zamanda 'boş dataset' tespit ettiysek
+    # tekrar denemeye gerek yok — kullanıcıya net mesaj göster, BQ kotasını tüketme.
+    if _circuit_open(platform):
+        return [], (
+            "Firebase Crashlytics tablosu yok ve son 1 saat içinde bu tespit edildi "
+            "(query yağmurunu engellemek için bekleniyor). Firebase Console → BigQuery "
+            "integration'da Crashlytics toggle'ını açıp Save yaptıktan sonra ~6-24 saat bekleyin."
+        )
+
     acquired = _BQ_SEMAPHORE.acquire(timeout=5)
     if not acquired:
         return [], "Çok fazla eş zamanlı sorgu. Lütfen bekleyin."
@@ -359,11 +391,14 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
         proj = _effective_project(platform) or platform
         available = _list_dataset_tables(platform)
         if not available:
+            # Dataset boş — circuit breaker'ı 1 saat tetikle; gereksiz query atma
+            _circuit_trip(platform)
             return [], (
                 f"`{proj}.{_DATASET}` datasetinde tablo yok. "
                 "Firebase Console → Project Settings → Integrations → BigQuery'den "
                 "Crashlytics export'unun aktif olduğunu doğrulayın; ilk tablo oluşması "
-                "için Firebase export başladıktan ~24 saat geçmesi gerekir."
+                "için Firebase export başladıktan ~24 saat geçmesi gerekir. "
+                "(Tekrar denemek 1 saat boyunca atlandı — BQ kotasını korumak için.)"
             )
         shown = ", ".join(available[:8]) + ("…" if len(available) > 8 else "")
         return [], (
@@ -817,6 +852,11 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
         if _REFRESH_RUNNING:
             return "already_running"
         _REFRESH_RUNNING = True
+
+    # Manuel refresh: circuit breaker'ı sıfırla (kullanıcı bilinçli olarak yeniden
+    # denemek istiyor — belki Firebase tarafında ayar düzeltildi).
+    for plat in ("ios", "android"):
+        _circuit_reset(plat)
 
     jid = _job_new(product_id)
 
