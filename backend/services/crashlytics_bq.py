@@ -223,10 +223,12 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
         logger.warning("BQ erişim reddedildi (%s): %s", platform, exc)
         proj = _PLATFORM_PROJECTS.get(platform, platform)
         email = _sa_email(platform) or "(service account)"
+        raw = str(exc).strip()[:300]
         return [], (
             f"Erişim reddedildi · proje `{proj}` · {email}. "
             f"GCP Console → IAM → bu service account'a şu iki rolü verin: "
-            f"`BigQuery Data Viewer` + `BigQuery Job User`."
+            f"`BigQuery Data Viewer` + `BigQuery Job User`. "
+            f"[Detay: {raw}]"
         )
     except Exception as exc:
         msg = str(exc).strip()
