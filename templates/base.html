@@ -358,6 +358,17 @@
        "değişim %" tipi metinlerde +/- gösterimi okunabilir kalmalı; bu yüzden
        sadece dark: ile başlayan parlak tonları (300/400/500) bastık. */
   </style>
+  <style id="seo-dark-delta-tones">
+    /* Delta / değişim göstergeleri: yukarıdaki monochrome zinc bastırmasını
+       geri alarak artan/azalan değerleri 4 renkli (açık yeşil, koyu yeşil,
+       turuncu, kırmızı) tutar. Light mode davranışına denk gelir. */
+    html.dark .dark\:text-emerald-400 { color: #34d399 !important; }
+    html.dark .dark\:text-emerald-300 { color: #6ee7b7 !important; }
+    html.dark .dark\:text-emerald-500 { color: #10b981 !important; }
+    html.dark .dark\:text-rose-400 { color: #fb7185 !important; }
+    html.dark .dark\:text-rose-500 { color: #f43f5e !important; }
+    html.dark .dark\:text-orange-400 { color: #fb923c !important; }
+  </style>
   <style id="seo-midnight-overrides">
     html.midnight {
       color-scheme: dark;
