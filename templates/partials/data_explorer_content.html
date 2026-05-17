@@ -1,4 +1,19 @@
-{% macro metric_tile(title, value, subtitle, description='') %}
+{% macro metric_tile(title, value, subtitle, description='', detail_id='', detail_label='') %}
+{% if detail_id %}
+<button type="button" data-detail-target="{{ detail_id }}"
+  class="group block w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-400 dark:hover:border-sky-700"
+  title="{{ detail_label or 'Detay için tıkla' }}">
+  <div class="flex items-start justify-between gap-2">
+    <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ title }}</p>
+    <span class="text-[10px] text-slate-400 group-hover:text-sky-500 dark:text-slate-500 dark:group-hover:text-sky-400">▼</span>
+  </div>
+  <p class="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">{{ value }}</p>
+  <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ subtitle }}</p>
+  {% if description %}
+  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ description }}</p>
+  {% endif %}
+</button>
+{% else %}
 <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
   <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ title }}</p>
   <p class="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">{{ value }}</p>
@@ -7,6 +22,7 @@
   <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ description }}</p>
   {% endif %}
 </div>
+{% endif %}
 {% endmacro %}
 
 {# Lab eşikleri: backend benchmark_tr ile uyumlu; sadece şablon güncell olsa bile kutu görünür #}
@@ -710,35 +726,45 @@ text-slate-500 dark:text-slate-400
         </div>
       </div>
 
-      {# Field vs Lab #}
+      {# Field vs Lab — açılır açıklamayla #}
       {% if report.field_lab %}
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Field (28-gün CrUX) ↔ Lab (Lighthouse tek koşum)</p>
-          <span class="text-[10px] text-slate-400 dark:text-slate-500" title="Field = gerçek kullanıcı verisi, Lab = test ortamı simülasyonu. Lab > Field ise test ortamı daha kısıtlayıcı (CPU/network throttle)">ℹ️</span>
-        </div>
-        <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {% for fl in report.field_lab %}
-          <div class="rounded-xl border border-slate-200 bg-white p-2.5 text-center dark:border-slate-600 dark:bg-slate-900/60">
-            <p class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">{{ fl.label }}</p>
-            <div class="mt-1 flex items-baseline justify-center gap-2">
-              <div>
-                <p class="text-xs text-sky-700 dark:text-sky-300" title="Gerçek kullanıcılar">F</p>
-                <p class="text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ fl.field|round(0)|int if fl.field is not none else '—' }}{{ fl.unit }}</p>
-              </div>
-              <span class="text-slate-300 dark:text-slate-600">·</span>
-              <div>
-                <p class="text-xs text-rose-700 dark:text-rose-300" title="Lighthouse lab">L</p>
-                <p class="text-sm font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ fl.lab|round(0)|int if fl.lab is not none else '—' }}{{ fl.unit }}</p>
-              </div>
-            </div>
-            {% if fl.delta_pct is not none %}
-            <p class="mt-1 text-[10px] font-semibold {% if fl.delta_pct > 30 %}text-rose-600 dark:text-rose-400{% elif fl.delta_pct < -10 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.0f'|format(fl.delta_pct) }}% lab/field fark</p>
-            {% endif %}
+      <details class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40 open:shadow-sm">
+        <summary class="flex cursor-pointer items-center justify-between gap-2 p-4 list-none [&::-webkit-details-marker]:hidden">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Saha ↔ Lab karşılaştırma</p>
+            <p class="mt-0.5 text-[11px] text-slate-600 dark:text-slate-300">Gerçek kullanıcı verisi (28 gün CrUX) ile Lighthouse test koşumu sonucu yan yana</p>
           </div>
-          {% endfor %}
+          <svg class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="border-t border-slate-200 px-4 py-3 dark:border-slate-700">
+          <div class="mb-3 rounded-lg bg-white p-2.5 text-[11px] leading-relaxed text-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
+            <p><strong class="text-sky-700 dark:text-sky-300">Saha (F)</strong>: Chrome kullanıcılarının son 28 günde gerçek tarayıcılarda yaşadığı performans (75. yüzdebirlik). Yeterli trafik olmazsa veri olmaz.</p>
+            <p class="mt-1"><strong class="text-rose-700 dark:text-rose-300">Lab (L)</strong>: PageSpeed Insights'ın test sunucusunda Lighthouse'u tek bir kez çalıştırıp aldığı sonuç (kısıtlanmış 4G + Moto G4 CPU simülasyonu).</p>
+            <p class="mt-1 text-slate-500 dark:text-slate-400">Lab değeri Saha'dan çok yüksekse: test ortamı daha kısıtlayıcı (normal). Saha değeri Lab'dan yüksekse: gerçek kullanıcıların ağı/cihazı test ortamından kötü, kullanıcı deneyimi ciddi optimizasyon ister.</p>
+          </div>
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {% for fl in report.field_lab %}
+            <div class="rounded-xl border border-slate-200 bg-white p-2.5 text-center dark:border-slate-600 dark:bg-slate-900/60">
+              <p class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">{{ fl.label }}</p>
+              <div class="mt-1 flex items-baseline justify-center gap-2">
+                <div title="Saha — gerçek kullanıcılar (28 gün CrUX p75)">
+                  <p class="text-[10px] font-semibold text-sky-700 dark:text-sky-300">Saha</p>
+                  <p class="text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ fl.field|round(0)|int if fl.field is not none else '—' }}{{ fl.unit }}</p>
+                </div>
+                <span class="text-slate-300 dark:text-slate-600">·</span>
+                <div title="Lab — Lighthouse tek koşum, sınırlı ortam">
+                  <p class="text-[10px] font-semibold text-rose-700 dark:text-rose-300">Lab</p>
+                  <p class="text-sm font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ fl.lab|round(0)|int if fl.lab is not none else '—' }}{{ fl.unit }}</p>
+                </div>
+              </div>
+              {% if fl.delta_pct is not none %}
+              <p class="mt-1 text-[10px] font-semibold {% if fl.delta_pct > 30 %}text-rose-600 dark:text-rose-400{% elif fl.delta_pct < -10 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-500 dark:text-slate-400{% endif %}" title="Lab Saha'dan {{ '%+.0f'|format(fl.delta_pct) }}% farklı">{{ '%+.0f'|format(fl.delta_pct) }}% fark</p>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
         </div>
-      </div>
+      </details>
       {% endif %}
 
       {# Kategori skor trendi + Önem trendi yan yana #}
@@ -887,7 +913,7 @@ text-slate-500 dark:text-slate-400
     {% endif %}
   {% endfor %}
 
-  <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+  <section id="warehouse-runs-section" class="scroll-mt-20 rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-all duration-300">
     <div class="flex items-center justify-between gap-3">
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Collector Günlüğü</p>
@@ -934,11 +960,11 @@ text-slate-500 dark:text-slate-400
       </div>
     </div>
     <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.") }}
-      {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.") }}
-      {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.") }}
-      {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.") }}
-      {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.") }}
+      {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.", "warehouse-runs-section", "Son çalışma kayıtlarına git") }}
+      {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.", "warehouse-runs-section", "Son PSI çalışmalarına git") }}
+      {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.", "warehouse-runs-section", "Lighthouse audit çalışmalarına git") }}
+      {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.", "warehouse-runs-section", "Search Console toplama kayıtlarına git") }}
+      {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.", "warehouse-runs-section", "CrUX toplama kayıtlarına git") }}
     </div>
   </section>
 
@@ -962,14 +988,14 @@ text-slate-500 dark:text-slate-400
     <div class="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-6 xl:grid-cols-3">
       {{ metric_tile("Kaynak Sayfa", crawler_link_audit.source_pages, "Başlangıç URL", "İç linkleri çıkarılan kaynak sayfa sayısıdır.") }}
       {{ metric_tile("Taranan URL", crawler_link_audit.audited_urls, "Final durum kontrolü", "Durumu tek tek kontrol edilen benzersiz hedef URL sayısıdır.") }}
-      {{ metric_tile("301", crawler_link_audit.redirect_301_links, "Kalıcı yönlendirme", "Dahili linklerin kaç tanesi 301 ile başka adrese gidiyor.") }}
-      {{ metric_tile("302", crawler_link_audit.redirect_302_links, "Geçici yönlendirme", "Dahili linklerin kaç tanesi 302 ile yönleniyor.") }}
-      {{ metric_tile("Zincir", crawler_link_audit.redirect_chains, "Birden fazla hop", "İki veya daha fazla yönlendirme adımı kullanan hedef sayısıdır.") }}
-      {{ metric_tile("Kırık", crawler_link_audit.broken_links, "404 / 5xx / erişilemeyen", "Açılmayan veya hata dönen hedef URL sayısıdır.") }}
+      {{ metric_tile("301", crawler_link_audit.redirect_301_links, "Kalıcı yönlendirme", "Dahili linklerin kaç tanesi 301 ile başka adrese gidiyor.", ("crawler-redirects-section" if crawler_link_audit.redirect_301_links > 0 else ""), "301 örneklerini gör") }}
+      {{ metric_tile("302", crawler_link_audit.redirect_302_links, "Geçici yönlendirme", "Dahili linklerin kaç tanesi 302 ile yönleniyor.", ("crawler-redirects-section" if crawler_link_audit.redirect_302_links > 0 else ""), "302 örneklerini gör") }}
+      {{ metric_tile("Zincir", crawler_link_audit.redirect_chains, "Birden fazla hop", "İki veya daha fazla yönlendirme adımı kullanan hedef sayısıdır.", ("crawler-redirects-section" if crawler_link_audit.redirect_chains > 0 else ""), "Yönlendirme zincirlerini gör") }}
+      {{ metric_tile("Kırık", crawler_link_audit.broken_links, "404 / 5xx / erişilemeyen", "Açılmayan veya hata dönen hedef URL sayısıdır.", ("crawler-broken-section" if crawler_link_audit.broken_links > 0 else ""), "Kırık link örneklerini gör") }}
     </div>
 
     <div class="mt-5 grid gap-4 xl:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
+      <div id="crawler-broken-section" class="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 transition-all duration-300">
         <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Kırık Link Örnekleri</p>
         {% if crawler_link_audit.broken_samples %}
         <div class="mt-3 space-y-2">
@@ -995,7 +1021,7 @@ text-slate-500 dark:text-slate-400
         {% endif %}
       </div>
 
-      <details class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 group">
+      <details id="crawler-redirects-section" class="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 group transition-all duration-300">
         <summary class="flex cursor-pointer list-none items-center justify-between">
           <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Yönlendirme ve Zincir Örnekleri</p>
           <svg class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -1035,6 +1061,30 @@ text-slate-500 dark:text-slate-400
 
 <script>
   (function () {
+    // Detay hedeflerine atlama — tıklanır metrik kartları için scroll + flash highlight
+    function wireDetailJumps() {
+      document.querySelectorAll('[data-detail-target]').forEach(function (btn) {
+        if (btn.dataset.jumpBound === '1') return;
+        btn.dataset.jumpBound = '1';
+        btn.addEventListener('click', function () {
+          const targetId = btn.getAttribute('data-detail-target');
+          if (!targetId) return;
+          const el = document.getElementById(targetId);
+          if (!el) return;
+          // <details> ise aç
+          if (el.tagName.toLowerCase() === 'details') {
+            el.open = true;
+          }
+          // Sayfa içinde scroll + highlight
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          el.classList.add('ring-2', 'ring-sky-400', 'dark:ring-sky-500');
+          window.setTimeout(function () {
+            el.classList.remove('ring-2', 'ring-sky-400', 'dark:ring-sky-500');
+          }, 1800);
+        });
+      });
+    }
+
     function applyPreferredGridLayout(selector) {
       document.querySelectorAll(selector).forEach(function (grid) {
         const width = grid.clientWidth || 0;
@@ -1387,6 +1437,7 @@ text-slate-500 dark:text-slate-400
     applyCruxGridLayout();
     applyPagespeedMetricGridLayout();
     applyResponsiveFits();
+    wireDetailJumps();
 
     if (typeof ResizeObserver !== 'undefined') {
       const shell = document.getElementById('data-explorer-shell');
