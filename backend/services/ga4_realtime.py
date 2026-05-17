@@ -158,8 +158,8 @@ def _sort_news_alarms(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Alarmları öncelik+kullanıcı sayısına göre sırala (yeni girişler önce, en yüksek trafik üstte)."""
     def _key(a):
         rid = str(a.get("rule_id", ""))
-        # Yeni giriş > spike > drop > disappeared
-        priority = {"news_new_entry": 0, "news_traffic_spike": 1, "news_traffic_drop": 2, "news_disappeared": 3}.get(rid, 9)
+        # Yeni giriş > spike > drop > peak_drop > disappeared
+        priority = {"news_new_entry": 0, "news_traffic_spike": 1, "news_traffic_drop": 2, "news_peak_drop": 2, "news_disappeared": 3}.get(rid, 9)
         curr = int(a.get("current_users", 0))
         prev = int(a.get("previous_users", 0))
         users = max(curr, prev)
@@ -182,6 +182,9 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
             return f"{title} ↑{curr}"
         if rid == "news_disappeared":
             return f"{title} ↓{prev}"
+        if rid == "news_peak_drop":
+            peak = int(a.get("peak_users", prev))
+            return f"{title} ↓{curr} (zirve {peak})"
         delta = curr - prev
         sign = "+" if delta >= 0 else ""
         return f"{title} {sign}{delta}"
@@ -393,7 +396,7 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         curr = int(alarm.get("current_users", 0))
         prev = int(alarm.get("previous_users", 0))
         rid = str(alarm.get("rule_id", ""))
-        is_drop = rid in ("news_traffic_drop", "news_disappeared")
+        is_drop = rid in ("news_traffic_drop", "news_disappeared", "news_peak_drop")
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
         num_c = "#dc2626" if is_drop else "#16a34a"
@@ -408,6 +411,16 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             metric_html = (
                 f'<span style="font-size:28px;font-weight:900;color:{num_c};">{prev}</span>'
                 f'<span style="font-size:13px;color:#64748b;margin-left:6px;">kul. vardı · listeden çıktı</span>'
+            )
+        elif rid == "news_peak_drop":
+            peak = int(alarm.get("peak_users", prev))
+            drop_pct = int(alarm.get("drop_pct", 0))
+            metric_html = (
+                f'<span style="font-size:16px;font-weight:700;color:#94a3b8;">zirve</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;margin:0 6px;">{peak}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin-right:6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · zirveden düştü</span>'
             )
         else:
             delta = curr - prev
@@ -611,6 +624,13 @@ NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
         "min_users": 40,
         "severity": "info",
     },
+    "news_peak_drop": {
+        "label": "Haber zirveden düştü",
+        "direction": "peak_drop",
+        "drop_pct": 55,       # zirveden en az %55 düşüş
+        "min_peak_users": 30, # zirvede en az bu kadar kullanıcı olmalı
+        "severity": "warning",
+    },
 }
 
 # sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 50
@@ -649,7 +669,7 @@ def _realtime_rules_threshold_pct_for_domain(
     for _rid, rule in out.items():
         if "threshold_pct" in rule:
             rule["threshold_pct"] = target_pct
-        for key in ("min_users", "min_prev_users", "min_baseline"):
+        for key in ("min_users", "min_prev_users", "min_baseline", "min_peak_users"):
             if key in rule and isinstance(rule[key], (int, float)):
                 rule[key] = max(1, int(round(float(rule[key]) * scale)))
     return out
@@ -2527,6 +2547,36 @@ def save_news_snapshots(
         logger.exception("RealtimeNewsSnapshot kayıt hatası (site_id=%s)", site_id)
 
 
+def get_peak_news_snapshots(
+    db: Session,
+    site_id: int,
+    profile: str,
+    window_minutes: int = 90,
+) -> dict[str, int]:
+    """Son `window_minutes` dakikadaki her haber başlığı için maksimum active_users değerini döner.
+
+    Dönen dict: {screen_title: peak_active_users}
+    """
+    from backend.models import RealtimeNewsSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+    rows = (
+        db.query(
+            RealtimeNewsSnapshot.screen_title,
+            sqlfunc.max(RealtimeNewsSnapshot.active_users).label("peak_users"),
+        )
+        .filter(
+            RealtimeNewsSnapshot.site_id == site_id,
+            RealtimeNewsSnapshot.profile == profile,
+            RealtimeNewsSnapshot.collected_at >= cutoff,
+        )
+        .group_by(RealtimeNewsSnapshot.screen_title)
+        .all()
+    )
+    return {row.screen_title: int(row.peak_users or 0) for row in rows}
+
+
 def get_previous_news_snapshots(
     db: Session,
     site_id: int,
@@ -2573,8 +2623,9 @@ def evaluate_news_alarms(
     *,
     site_domain: str = "",
     profile: str = "web",
+    peak_pages: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
-    if not previous_pages:
+    if not previous_pages and not peak_pages:
         return []
 
     news_rules = _realtime_rules_threshold_pct_for_domain(NEWS_ALARM_RULES, site_domain)
@@ -2658,6 +2709,39 @@ def evaluate_news_alarms(
                     "previous_users": prev_users,
                     "change_pct": -100.0,
                     "message": f"{title} — listeden çıktı (önceki: {prev_users:.0f})",
+                })
+
+    # Zirve düşüş kontrolü — son 90 dak içinde zirve yapıp şimdi belirgin düşen haberler
+    if peak_pages:
+        peak_rule = news_rules.get("news_peak_drop", NEWS_ALARM_RULES["news_peak_drop"])
+        drop_threshold_pct = float(peak_rule.get("drop_pct", 55))
+        min_peak = float(peak_rule.get("min_peak_users", 30))
+        # Zaten drop/disappeared olarak tetiklenmiş sayfaları atla (duplicate önleme)
+        already_triggered = {a["page"] for a in triggered if a["rule_id"] in ("news_traffic_drop", "news_disappeared")}
+        for page_path, peak_users in peak_pages.items():
+            if page_path in already_triggered:
+                continue
+            if peak_users < min_peak:
+                continue
+            title = _rt_alarm_screen_title_one_line(page_path)
+            if not title or title == "—" or title.lower() in ("(other)", "(not set)", "(blank)", "not set"):
+                continue
+            curr = curr_map.get(page_path)
+            curr_users = int(curr.get("activeUsers", 0)) if curr else 0
+            drop_pct = ((peak_users - curr_users) / peak_users) * 100
+            if drop_pct >= drop_threshold_pct:
+                triggered.append({
+                    "rule_id": "news_peak_drop",
+                    "severity": peak_rule.get("severity", "warning"),
+                    "page": page_path,
+                    "profile": profile,
+                    "domain": site_domain,
+                    "current_users": curr_users,
+                    "previous_users": peak_users,
+                    "peak_users": peak_users,
+                    "drop_pct": round(drop_pct),
+                    "change_pct": -round(drop_pct, 1),
+                    "message": f"{title} — zirveden düştü: {peak_users:.0f} → {curr_users:.0f} (−{drop_pct:.0f}%)",
                 })
 
     return triggered
@@ -2746,6 +2830,7 @@ def check_news_alarms_for_site(
         return []
 
     previous_pages = get_previous_news_snapshots(db, site.id, profile)
+    peak_pages = get_peak_news_snapshots(db, site.id, profile, window_minutes=90)
 
     try:
         result = fetch_realtime_top_news_pages(
@@ -2762,12 +2847,10 @@ def check_news_alarms_for_site(
     current_pages = result.get("pages", [])
     save_news_snapshots(db, site.id, profile, current_pages)
 
-    if not previous_pages:
-        return []
-
     alarms = evaluate_news_alarms(
         current_pages, previous_pages,
         site_domain=site.domain, profile=profile,
+        peak_pages=peak_pages,
     )
 
     if alarms:
