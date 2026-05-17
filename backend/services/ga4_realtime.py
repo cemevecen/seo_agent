@@ -293,6 +293,14 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         title = _rt_alarm_screen_title_one_line(page, max_len=70) or page
         title_e = html.escape(title)
         row_url = _alarm_row_public_url(domain, "page:" + str(page))
+        # Başlık tıklanabilir olsun — row_url varsa <a> ile sar
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            title_html = (
+                f'<a href="{ru}" style="color:#0f172a;text-decoration:none;border-bottom:1px solid rgba(15,23,42,0.18);">{title_e}</a>'
+            )
+        else:
+            title_html = title_e
         curr = int(alarm.get("current_users", 0))
         prev = int(alarm.get("previous_users", 0))
         pct = float(alarm.get("change_pct", 0.0))
@@ -331,11 +339,6 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
                 f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı</span>'
             )
 
-        link_part = ""
-        if row_url:
-            ru = html.escape(row_url, quote=True)
-            link_part = f'<a href="{ru}" style="font-size:11px;color:#2563eb;margin-top:4px;display:inline-block;">aç ↗</a>'
-
         # URL listesi — pagePath varsa başlığın altında göster
         paths_html = ""
         page_paths = alarm.get("page_paths") or []
@@ -352,10 +355,9 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
 
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
-            f'<p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0f172a;line-height:1.3;">{title_e}</p>'
+            f'<p style="margin:0 0 6px;font-size:14px;font-weight:800;line-height:1.3;">{title_html}</p>'
             f'{paths_html}'
             f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;margin-top:6px;">{metric_html}</div>'
-            f'{link_part}'
             f'</div>'
         )
 
@@ -406,6 +408,13 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         title = _rt_alarm_screen_title_one_line(page, max_len=80)
         title_e = html.escape(title or page)
         row_url = _alarm_row_public_url(domain, "news:" + str(page))
+        if row_url:
+            ru = html.escape(row_url, quote=True)
+            title_html = (
+                f'<a href="{ru}" style="color:#0f172a;text-decoration:none;border-bottom:1px solid rgba(15,23,42,0.18);">{title_e}</a>'
+            )
+        else:
+            title_html = title_e
         curr = int(alarm.get("current_users", 0))
         prev = int(alarm.get("previous_users", 0))
         rid = str(alarm.get("rule_id", ""))
@@ -445,16 +454,10 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
                 f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta}</span>'
             )
 
-        link_part = ""
-        if row_url:
-            ru = html.escape(row_url, quote=True)
-            link_part = f'<a href="{ru}" style="font-size:11px;color:#2563eb;margin-top:4px;display:inline-block;">aç ↗</a>'
-
         cards.append(
             f'<div style="margin:10px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
-            f'<p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#0f172a;line-height:1.3;">{title_e}</p>'
+            f'<p style="margin:0 0 6px;font-size:15px;font-weight:800;line-height:1.3;">{title_html}</p>'
             f'<div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">{metric_html}</div>'
-            f'{link_part}'
             f'</div>'
         )
 

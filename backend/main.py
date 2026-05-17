@@ -7906,6 +7906,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
 def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
     """Threshold sekmesi için: GA4 Realtime alarmları + 404 hata logları (mail edilen eşik bazlı uyarılar)."""
     from backend.models import RealtimeAlarmLog, SiteErrorLog, Site
+    from backend.services.ga4_realtime import _alarm_row_public_url
     from datetime import datetime as _dt, timedelta as _td
 
     cutoff = _dt.utcnow() - _td(days=max(1, int(days)))
@@ -7940,6 +7941,27 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
             prev_fmt = f"{int(prev_v)}"
         else:
             prev_fmt = f"{prev_v:.1f}"
+        # Tıklanabilir URL — metric "news:/..." veya "page:/..." formatındaysa
+        metric_raw = r.metric or ""
+        public_url = ""
+        try:
+            public_url = _alarm_row_public_url(site.domain, metric_raw)
+        except Exception:
+            public_url = ""
+        # Mesajdan başlığı çıkar (ör: "Delikanlı Oyuncuları — zirveden düştü: 56 → 12 (−79%)")
+        # Önce em dash, sonra normal dash ile böl
+        message_raw = r.message or ""
+        title_text = ""
+        if message_raw:
+            for sep in (" — ", " - ", " · "):
+                if sep in message_raw:
+                    title_text = message_raw.split(sep, 1)[0].strip()
+                    break
+            if not title_text:
+                title_text = message_raw.strip()
+        # Title 80 karakterden uzunsa kes
+        if len(title_text) > 80:
+            title_text = title_text[:80] + "…"
         realtime_alerts.append({
             "id": r.id,
             "domain": site.domain,
@@ -7954,6 +7976,8 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
             "change_pct": pct,
             "change_fmt": f"{pct:+.1f}%" if pct else "—",
             "message": r.message or "",
+            "title_text": title_text or (r.metric or r.rule_id or "GA4 alarm"),
+            "public_url": public_url,
             "triggered_at": triggered_label,
             "triggered_at_iso": r.triggered_at.isoformat() if r.triggered_at else "",
         })
@@ -7987,12 +8011,21 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
         url_short = e.url or ""
         if len(url_short) > 70:
             url_short = url_short[:70] + "…"
+        # 404 URL'leri için tam URL inşa et
+        raw_path = (e.url or "").strip()
+        if raw_path.startswith(("http://", "https://")):
+            full_url = raw_path
+        elif raw_path.startswith("/"):
+            full_url = f"https://{site.domain}{raw_path}"
+        else:
+            full_url = ""
         error_alerts.append({
             "id": e.id,
             "domain": site.domain,
             "display_name": site.display_name,
             "url": e.url or "",
             "url_short": url_short,
+            "public_url": full_url,
             "status_code": int(e.status_code or 404),
             "hit_count": int(e.hit_count or 0),
             "source": e.source or "",

@@ -450,14 +450,20 @@
                 <span class="alert-metric-badge rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" title="GA4 Realtime alarm">Realtime</span>
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[12px] font-bold leading-5 text-slate-900 dark:text-slate-100" title="{{ a.rule_id }} · {{ a.metric }}">{{ a.metric or a.rule_id or 'GA4 alarm' }}</p>
+                {% if a.public_url %}
+                  <a href="{{ a.public_url }}" target="_blank" rel="noopener"
+                     class="block truncate text-[12px] font-bold leading-5 text-slate-900 underline decoration-slate-300 underline-offset-2 transition hover:text-sky-700 hover:decoration-sky-400 dark:text-slate-100 dark:decoration-slate-600 dark:hover:text-sky-300"
+                     title="{{ a.public_url }}">{{ a.title_text }}</a>
+                {% else %}
+                  <p class="truncate text-[12px] font-bold leading-5 text-slate-900 dark:text-slate-100" title="{{ a.rule_id }} · {{ a.metric }}">{{ a.title_text }}</p>
+                {% endif %}
                 <p class="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 dark:text-slate-400 [overflow-wrap:anywhere]">
                   <span class="tabular-nums font-semibold text-slate-700 dark:text-slate-200">{{ a.previous_fmt }} → {{ a.current_fmt }}</span>
                   {% if a.change_fmt and a.change_fmt != '—' %}
                     <span class="ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold {{ _sev_cls }}">{{ a.change_fmt }}</span>
                   {% endif %}
-                  {% if a.message %}
-                    <span class="ml-1 text-slate-500 dark:text-slate-400">· {{ a.message }}</span>
+                  {% if a.metric %}
+                    <span class="ml-1 text-slate-400 dark:text-slate-500 font-mono">· {{ a.metric }}</span>
                   {% endif %}
                 </p>
               </div>
@@ -493,9 +499,9 @@
                 <span class="alert-metric-badge rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300" title="HTTP 404 — sayfa bulunamadı">404</span>
               </div>
               <div class="min-w-0 flex-1">
-                <a href="https://{{ e.domain }}{{ e.url }}" target="_blank" rel="noopener"
-                   class="block truncate font-mono text-[12px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 dark:text-slate-100 dark:hover:text-sky-300"
-                   title="{{ e.url }}">{{ e.url_short }}</a>
+                <a href="{{ e.public_url or ('https://' + e.domain + e.url) }}" target="_blank" rel="noopener"
+                   class="block truncate font-mono text-[12px] font-bold leading-5 text-slate-900 underline decoration-rose-300 underline-offset-2 transition hover:text-sky-700 hover:decoration-sky-400 dark:text-slate-100 dark:decoration-rose-700 dark:hover:text-sky-300"
+                   title="{{ e.public_url or ('https://' + e.domain + e.url) }}">{{ e.url_short }}</a>
                 <p class="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 dark:text-slate-400">
                   <span class="rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums {{ _hit_cls }}">{{ e.hit_count }} kullanıcı</span>
                   {% if e.source %}
