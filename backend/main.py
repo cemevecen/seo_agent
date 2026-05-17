@@ -4870,10 +4870,6 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
         mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
         error_widget = _build_error_widget(db, site.id)
-        budget_status = _build_performance_budget(
-            crux_mobile_series=_format_crux_series(mobile_crux, mobile_pagespeed_current),
-            crux_desktop_series=_format_crux_series(desktop_crux, desktop_pagespeed_current),
-        )
 
         return {
             "site_name": f"PageSpeed - {site.display_name}",
@@ -4891,7 +4887,6 @@ def _data_explorer_context(domain: str) -> dict:
             "pagespeed_report_desktop": desktop_panel,
             "mobile_desktop_delta": mobile_desktop_delta,
             "error_widget": error_widget,
-            "performance_budget": budget_status,
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",
