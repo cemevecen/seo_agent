@@ -698,10 +698,10 @@
             <div class="header-top-row">
               <h2
                 id="header-site-title"
-                class="flex min-w-0 items-center gap-2 truncate text-base font-extrabold leading-tight tracking-tight text-slate-900 [grid-area:headline] sm:text-lg lg:max-w-[min(100%,22rem)] xl:max-w-md dark:text-slate-100"
+                class="flex min-w-0 items-center gap-2 leading-tight [grid-area:headline]"
               >
                 <img src="/static/favicon.png?v={{ favicon_v }}" class="h-6 w-6 shrink-0 rounded-md shadow-sm" alt="Logo" />
-                <span id="header-site-title-text" class="truncate">{{ site_name or "SEO Agent" }}</span>
+                <span id="header-site-title-text" class="sr-only">{{ site_name or "SEO Agent" }}</span>
               </h2>
               <div
                 id="theme-switcher"
