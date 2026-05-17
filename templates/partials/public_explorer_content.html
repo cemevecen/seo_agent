@@ -1,12 +1,12 @@
 <div class="space-y-6" data-site-domain="{{ domain }}" data-site-profile="public" data-site-title="{{ site_name|e }}">
   {% set ps_lab_benchmarks = {
-    'fcp': 'Hedef (lab): iyi ≤1,8 sn · geliştirilebilir ≤3 sn',
-    'lcp': 'Hedef (lab): iyi ≤2,5 sn · geliştirilebilir ≤4 sn',
-    'tbt': 'Hedef (lab): iyi ≤200 ms · geliştirilebilir ≤600 ms',
-    'cls': 'Hedef (lab): iyi ≤0,10 · geliştirilebilir ≤0,25',
-    'speed_index': 'Hedef (Lighthouse SI): iyi ≤3,4 sn · geliştirilebilir ≤5,8 sn',
+    'fcp': 'ideal: ≤1,8sn · hedef ≤3sn',
+    'lcp': 'ideal: ≤2,5sn · hedef ≤4sn',
+    'tbt': 'ideal: ≤200ms · hedef ≤600ms',
+    'cls': 'ideal: ≤0,10 · hedef ≤0,25',
+    'speed_index': 'ideal: ≤3,4sn · hedef ≤5,8sn',
   } %}
-  {% set ps_category_benchmark_tr = 'Kategori skoru: iyi ≥90 · geliştirilebilir 50–89 · zayıf <50' %}
+  {% set ps_category_benchmark_tr = 'ideal ≥90 · hedef 50–89 · zayıf <50' %}
   <section class="rounded-[2rem] border border-cyan-200 bg-[linear-gradient(125deg,rgba(236,254,255,0.95),rgba(255,255,255,0.98)_48%,rgba(254,242,242,0.86))] p-6 shadow-[0_28px_70px_-46px_rgba(8,145,178,0.55)] ring-1 ring-white/70">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
