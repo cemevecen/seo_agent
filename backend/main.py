@@ -6104,29 +6104,52 @@ def api_home_realtime(request: Request):
     )
 
 
+def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: int) -> tuple[float, float]:
+    """Snapshot'tan (last, prev) session değerlerini çek. Sıfırsa None döner."""
+    snap = (
+        db.query(Ga4ReportSnapshot)
+        .filter(
+            Ga4ReportSnapshot.site_id == site_id,
+            Ga4ReportSnapshot.profile == prof_key,
+            Ga4ReportSnapshot.period_days == period_days,
+        )
+        .order_by(Ga4ReportSnapshot.collected_at.desc())
+        .first()
+    )
+    if snap is None:
+        return (0.0, 0.0)
+    try:
+        payload = json.loads(snap.payload_json or "{}")
+    except Exception:
+        return (0.0, 0.0)
+    summary = payload.get("summary") or {}
+    last_v = float(summary.get("last", {}).get("sessions") or 0.0)
+    prev_v = float(summary.get("prev", {}).get("sessions") or 0.0)
+    return (last_v, prev_v)
+
+
 def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
+    # Metrik tablosundan fallback için
+    try:
+        latest_metrics = get_latest_metrics(db, site_id=site_id)
+    except Exception:
+        latest_metrics = {}
+
     out = []
     for prof_key, prof_label in profiles:
-        snap = (
-            db.query(Ga4ReportSnapshot)
-            .filter(
-                Ga4ReportSnapshot.site_id == site_id,
-                Ga4ReportSnapshot.profile == prof_key,
-                Ga4ReportSnapshot.period_days == 7,
-            )
-            .order_by(Ga4ReportSnapshot.collected_at.desc())
-            .first()
-        )
-        last_v = 0.0
-        prev_v = 0.0
-        if snap is not None:
-            try:
-                payload = json.loads(snap.payload_json or "{}")
-            except Exception:
-                payload = {}
-            summary = payload.get("summary") or {}
-            last_v = float(summary.get("last", {}).get("sessions") or 0.0)
-            prev_v = float(summary.get("prev", {}).get("sessions") or 0.0)
+        # 1. period_days=7 snapshot dene
+        last_v, prev_v = _home_ga4_sessions_from_snap(db, site_id, prof_key, 7)
+        # 2. Sıfırsa period_days=30 dene
+        if last_v <= 0 and prev_v <= 0:
+            last_v, prev_v = _home_ga4_sessions_from_snap(db, site_id, prof_key, 30)
+        # 3. Hâlâ sıfırsa metrik tablosu fallback (collector'ın yazdığı flat key)
+        if last_v <= 0:
+            for pd in (7, 30):
+                v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_last{pd}d_total") or 0.0)
+                if v > 0:
+                    last_v = v
+                    prev_v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_prev{pd}d_total") or 0.0)
+                    break
         delta_fmt, tone = _home_pct_delta(last_v, prev_v)
         out.append({
             "label": prof_label,
@@ -6302,78 +6325,86 @@ def _home_parse_iso_date(s: str | None) -> datetime | None:
         return None
 
 
+def _home_app_raw_from_db(db, product_id: str) -> dict | None:
+    """AppIntelRawCache tablosundan ham payload'ı direkt oku — cache_only fallback."""
+    try:
+        row = db.query(AppIntelRawCache).filter(AppIntelRawCache.product_id == product_id).first()
+        if row and row.payload_json:
+            raw = json.loads(row.payload_json)
+            if isinstance(raw, dict) and raw.get("product_id") == product_id:
+                return raw
+    except Exception:
+        pass
+    return None
+
+
+def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, date_key: str) -> dict:
+    meta = (raw.get(key) or {}).get("meta") or {}
+    tz_utc = ZoneInfo("UTC")
+    tz_ist = ZoneInfo("Europe/Istanbul")
+    now = datetime.now(tz_utc)
+    ver = meta.get(version_key)
+    updated_raw = meta.get(date_key)
+    updated_dt = _home_parse_iso_date(updated_raw)
+    updated_label = None
+    is_recent = False
+    if updated_dt is not None:
+        try:
+            if updated_dt.tzinfo is None:
+                updated_dt = updated_dt.replace(tzinfo=tz_utc)
+            updated_label = updated_dt.astimezone(tz_ist).strftime("%d %b %Y")
+            is_recent = (now - updated_dt).days <= 7
+        except Exception:
+            updated_label = str(updated_raw)
+    score = meta.get("score")
+    score_fmt = f"{float(score):.2f}" if isinstance(score, (int, float)) else "—"
+    ratings_val = meta.get("ratings") if key == "android" else meta.get("ratings_count")
+    ratings_fmt = _home_format_int(ratings_val) if ratings_val else "—"
+    rank = (meta.get("category_rank") or {}).get("rank") if isinstance(meta.get("category_rank"), dict) else None
+    rank_fmt = f"#{rank}" if rank else "—"
+    return {
+        "key": key,
+        "label": label,
+        "subtitle": meta.get("genre") or meta.get("primary_genre_name") or "—",
+        "version": ver or None,
+        "updated_label": updated_label,
+        "is_recent": is_recent,
+        "score_fmt": score_fmt,
+        "ratings_fmt": ratings_fmt,
+        "rank_fmt": rank_fmt,
+    }
+
+
 @app.get("/api/home/app-release", response_class=HTMLResponse)
 def api_home_app_release(request: Request):
-    from backend.services.app_intel import build_intel_payload
-    import threading
-    
     product_id = "doviz"
     platforms = []
+    raw = None
+
+    # 1. In-memory / disk / DB cache zinciri
     try:
-        payload = build_intel_payload(product_id, 7, cache_only=True)
+        from backend.services.app_intel import get_raw_product_data
+        result = get_raw_product_data(product_id, force_refresh=False, cache_only=True)
+        if not result.get("error"):
+            raw = result
     except Exception:
-        payload = {"error": "no_cache"}
+        pass
 
-    if payload.get("error") == "no_cached_data" or payload.get("error") == "no_cache":
-        # Arkaplanda çekimi başlat
-        def _bg_refresh():
-            try:
-                build_intel_payload(product_id, 30, force_refresh=True)
-            except Exception:
-                pass
-        threading.Thread(target=_bg_refresh, daemon=True).start()
-        
-        # Fallback state
-        for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
-            platforms.append({
-                "key": key, "label": label, "subtitle": "Veri bekleniyor...",
-                "version": None, "updated_label": None, "is_recent": False,
-                "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
-            })
-    elif not payload.get("error"):
-        and_meta = (payload.get("meta") or {}).get("android") or {}
-        ios_meta = (payload.get("meta") or {}).get("ios") or {}
-        now = datetime.now(timezone_utc := ZoneInfo("UTC"))
+    # 2. Cache yoksa doğrudan AppIntelRawCache tablosundan oku
+    if raw is None:
+        with SessionLocal() as db:
+            raw = _home_app_raw_from_db(db, product_id)
 
-        for key, label, meta, version_key, date_key in [
-            ("android", "Android · Play", and_meta, "play_version", "play_last_updated_at"),
-            ("ios", "iOS · App Store", ios_meta, "version", "currentVersionReleaseDate"),
+    if raw and not raw.get("error"):
+        for key, label, version_key, date_key in [
+            ("android", "Android · Play", "play_version", "play_last_updated_at"),
+            ("ios", "iOS · App Store", "version", "currentVersionReleaseDate"),
         ]:
-            ver = meta.get(version_key) or "—"
-            updated_raw = meta.get(date_key)
-            updated_dt = _home_parse_iso_date(updated_raw)
-            updated_label = "—"
-            is_recent = False
-            if updated_dt is not None:
-                try:
-                    if updated_dt.tzinfo is None:
-                        updated_dt = updated_dt.replace(tzinfo=timezone_utc)
-                    updated_label = updated_dt.astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d %b %Y")
-                    is_recent = (now - updated_dt).days <= 7
-                except Exception:
-                    updated_label = str(updated_raw)
-            score = meta.get("score")
-            score_fmt = f"{float(score):.2f}" if isinstance(score, (int, float)) else "—"
-            ratings_val = meta.get("ratings") if key == "android" else meta.get("ratings_count")
-            ratings_fmt = _home_format_int(ratings_val) if ratings_val else "—"
-            rank = (meta.get("category_rank") or {}).get("rank") if isinstance(meta.get("category_rank"), dict) else None
-            rank_fmt = f"#{rank}" if rank else "—"
-            platforms.append({
-                "key": key,
-                "label": label,
-                "subtitle": meta.get("genre") or meta.get("primary_genre_name") or "—",
-                "version": ver,
-                "updated_label": updated_label,
-                "is_recent": is_recent,
-                "score_fmt": score_fmt,
-                "ratings_fmt": ratings_fmt,
-                "rank_fmt": rank_fmt,
-            })
+            platforms.append(_home_build_app_platform(raw, key, label, version_key, date_key))
     else:
-        # Other errors
         for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
             platforms.append({
-                "key": key, "label": label, "subtitle": "Bağlantı hatası",
+                "key": key, "label": label, "subtitle": "Veri henüz toplanmadı",
                 "version": None, "updated_label": None, "is_recent": False,
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
             })
