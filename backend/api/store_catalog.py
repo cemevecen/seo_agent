@@ -1,15 +1,18 @@
-"""Mağaza katalog araması API — Realtime sayfasındaki Vivindis-tarzı panel için."""
+"""Mağaza katalog araması + yorum analizi API — /app sayfası Vivindis-tarzı panel için."""
 
 from __future__ import annotations
 
 import logging
 import re
-from typing import Annotated, Literal
+from concurrent.futures import ThreadPoolExecutor
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backend.services import store_catalog_search
+from backend.services import store_review_analysis as sra
 
 router = APIRouter(prefix="/store", tags=["store-catalog"])
 logger = logging.getLogger(__name__)
@@ -66,3 +69,61 @@ async def search_stores(
 
     items = [StoreSearchResultItem.model_validate(r) for r in rows]
     return StoreSearchResponse(results=items, has_more=has_more, offset=off)
+
+
+# ─── Yorum analizi endpoint'i ──────────────────────────────────────────────────
+
+_PLATFORM_SINGLE_RE = re.compile(r"^(google_play|app_store)$")
+
+
+class ReviewAnalysisRequest(BaseModel):
+    app_id: str
+    platform: str
+    days: int = 30
+    lang: str = "tr"
+    country: str = "tr"
+    limit: int = 300
+
+
+class ReviewAnalysisResponse(BaseModel):
+    app_id: str
+    platform: str
+    days: int
+    reviews_fetched: int
+    app_meta: dict[str, Any] = {}
+    analysis: dict[str, Any]
+
+
+@router.post("/review-analysis", response_model=ReviewAnalysisResponse)
+async def store_review_analysis(body: ReviewAnalysisRequest) -> ReviewAnalysisResponse:
+    """Belirtilen mağaza uygulamasının yorumlarını çeker ve heuristic analiz yapar."""
+    app_id = (body.app_id or "").strip()
+    if not app_id:
+        raise HTTPException(status_code=400, detail="app_id boş olamaz.")
+    if not _PLATFORM_SINGLE_RE.match(body.platform):
+        raise HTTPException(status_code=400, detail="platform google_play veya app_store olmalı.")
+    days = max(1, min(body.days, 730))
+    limit = max(50, min(body.limit, 500))
+
+    try:
+        result = await run_in_threadpool(
+            sra.analyze_store_app,
+            app_id,
+            body.platform,
+            days=days,
+            lang=body.lang,
+            country=body.country,
+            limit=limit,
+        )
+    except Exception as exc:
+        logger.warning("store review analysis failed (%s/%s): %s", body.platform, app_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Yorum analizi başarısız: {exc}") from exc
+
+    return ReviewAnalysisResponse(
+        app_id=app_id,
+        platform=body.platform,
+        days=days,
+        reviews_fetched=result["reviews_fetched"],
+        app_meta=result.get("app_meta") or {},
+        analysis=result["analysis"],
+    )
