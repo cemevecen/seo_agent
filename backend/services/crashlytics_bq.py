@@ -69,6 +69,35 @@ def _circuit_reset(platform: str) -> None:
         _EMPTY_DATASET_UNTIL.pop(platform, None)
 
 
+# Dataset location cache — Firebase EU'da kuruluyor genelde, sorgular default US'e gidiyor.
+# Lokasyonu bir kez tespit edip cache'liyoruz, sonraki sorgular doğru bölgeye gidiyor.
+_DATASET_LOCATION_LOCK = threading.Lock()
+_DATASET_LOCATION_CACHE: dict[str, str] = {}    # platform → "EU" / "europe-west1" / "US" vb.
+
+
+def _get_dataset_location(platform: str) -> str | None:
+    """Dataset'in BigQuery lokasyonunu öğren (cache'li). Bulunamazsa None."""
+    with _DATASET_LOCATION_LOCK:
+        if platform in _DATASET_LOCATION_CACHE:
+            return _DATASET_LOCATION_CACHE[platform] or None
+    try:
+        from google.cloud import bigquery as _bq
+        client = _get_client(platform)
+        proj = _effective_project(platform)
+        ref = _bq.DatasetReference(proj, _DATASET)
+        ds = client.get_dataset(ref)
+        loc = (ds.location or "").strip()
+        with _DATASET_LOCATION_LOCK:
+            _DATASET_LOCATION_CACHE[platform] = loc
+        logger.info("Dataset lokasyonu tespit edildi: %s → %s", platform, loc or "(bilinmiyor)")
+        return loc or None
+    except Exception as exc:
+        logger.warning("Dataset lokasyonu alınamadı (%s): %s", platform, exc)
+        with _DATASET_LOCATION_LOCK:
+            _DATASET_LOCATION_CACHE[platform] = ""
+        return None
+
+
 # ── Credential yükleme ────────────────────────────────────────────────────────
 
 def _load_creds(platform: str) -> dict | None:
@@ -135,8 +164,10 @@ def _list_dataset_tables(platform: str) -> list[str]:
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
+        loc = _get_dataset_location(platform)
         sql = f"SELECT table_id FROM `{proj}.{_DATASET}.__TABLES__`"
-        return [str(r.table_id) for r in client.query(sql).result(timeout=10)]
+        query_job = client.query(sql, location=loc) if loc else client.query(sql)
+        return [str(r.table_id) for r in query_job.result(timeout=10)]
     except Exception as exc:
         logger.warning("BQ dataset listesi alınamadı (%s): %s", platform, exc)
         return []
@@ -155,6 +186,7 @@ def diagnose_platform(platform: str) -> dict:
         "effective_project_id": _effective_project(platform),
         "hardcoded_project_id": _PLATFORM_PROJECTS.get(platform),
         "dataset_target": _DATASET,
+        "dataset_location": _get_dataset_location(platform),
     }
     if not info:
         return out
@@ -309,12 +341,12 @@ def get_job_state(product: str) -> dict | None:
 
 # ── Byte tahmini (dry-run) ────────────────────────────────────────────────────
 
-def _dry_run_bytes(client, sql: str) -> int:
+def _dry_run_bytes(client, sql: str, location: str | None = None) -> int:
     """Sorgunun kaç byte işleyeceğini tahmin et (ağ trafiği yok, ücretsiz)."""
     try:
         from google.cloud import bigquery
         cfg = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
-        job = client.query(sql, job_config=cfg)
+        job = client.query(sql, job_config=cfg, location=location) if location else client.query(sql, job_config=cfg)
         return int(job.total_bytes_processed or 0)
     except Exception:
         return 0
@@ -327,8 +359,10 @@ def get_storage_bytes(platform: str) -> int:
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
+        loc = _get_dataset_location(platform)
         sql = f"SELECT SUM(size_bytes) AS total FROM `{proj}.{_DATASET}.__TABLES__`"
-        for row in client.query(sql).result(timeout=10):
+        query_job = client.query(sql, location=loc) if loc else client.query(sql)
+        for row in query_job.result(timeout=10):
             return int(row.total or 0)
     except Exception as exc:
         logger.debug("Storage byte sorgusu başarısız (%s): %s", platform, exc)
@@ -370,16 +404,19 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
     try:
         client = _get_client(platform)
 
+        # Dataset lokasyonu (EU/US vb.) — sorguları doğru bölgeye yolla
+        loc = _get_dataset_location(platform)
+
         # Budget kontrolü
         if not skip_budget:
-            est = _dry_run_bytes(client, sql)
+            est = _dry_run_bytes(client, sql, location=loc)
             if est > BYTES_BUDGET:
                 mb = round(est / 1_000_000, 1)
                 return [], f"Sorgu tahmini çok büyük ({mb} MB > {BYTES_BUDGET//1_000_000} MB). Dönem filtresi daraltın."
 
         from google.cloud import bigquery
         cfg = bigquery.QueryJobConfig(use_query_cache=True)
-        job = client.query(sql, job_config=cfg)
+        job = client.query(sql, job_config=cfg, location=loc) if loc else client.query(sql, job_config=cfg)
         rows = []
         for r in job.result(timeout=QUERY_TIMEOUT_S):
             rows.append(dict(r))
@@ -853,10 +890,12 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
             return "already_running"
         _REFRESH_RUNNING = True
 
-    # Manuel refresh: circuit breaker'ı sıfırla (kullanıcı bilinçli olarak yeniden
-    # denemek istiyor — belki Firebase tarafında ayar düzeltildi).
+    # Manuel refresh: circuit breaker'ı + location cache'i sıfırla (kullanıcı bilinçli
+    # olarak yeniden deniyor — belki Firebase tarafında ayar düzeltildi).
     for plat in ("ios", "android"):
         _circuit_reset(plat)
+    with _DATASET_LOCATION_LOCK:
+        _DATASET_LOCATION_CACHE.clear()
 
     jid = _job_new(product_id)
 
