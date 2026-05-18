@@ -131,7 +131,7 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
 def _poll_operation(svc, op_name: str, timeout_s: int = 120) -> None:
     """Operation done olana kadar bekle."""
     if not op_name:
-        time.sleep(5)
+        time.sleep(8)  # operation adı yoksa sadece bekle
         return
     deadline = time.time() + timeout_s
     interval = 3
@@ -142,12 +142,15 @@ def _poll_operation(svc, op_name: str, timeout_s: int = 120) -> None:
                 if "error" in op:
                     raise RuntimeError(f"Operation hata: {op['error']}")
                 return
+        except RuntimeError:
+            raise
         except Exception as exc:
-            if "operations" in str(exc).lower() or "not found" in str(exc).lower():
-                # Operation API desteklenmiyorsa bekleyip devam et
+            code = getattr(getattr(exc, "resp", None), "status", None)
+            # 404 veya 501: operation endpoint desteklenmiyorsa bekleyip devam et
+            if code in (404, 501) or "HttpError 404" in str(exc) or "HttpError 501" in str(exc):
                 time.sleep(interval)
                 return
-            raise
+            # Diğer HTTP hataları: yeniden dene
         time.sleep(interval)
         interval = min(interval * 1.5, 15)
     raise TimeoutError(f"Ad Manager raporu {timeout_s}s içinde tamamlanmadı.")

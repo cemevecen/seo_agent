@@ -13020,20 +13020,37 @@ def policy_page(
     return templates.TemplateResponse("policy.html", ctx)
 
 
+_POLICY_REFRESH_RUNNING = False
+
 @app.post("/api/policy/refresh")
-def api_policy_refresh(db: Session = Depends(get_db)):
+def api_policy_refresh():
+    """Ad Manager policy verilerini arka planda çek. Hemen döner."""
     from backend.services import admanager_policy as adp
+    global _POLICY_REFRESH_RUNNING
     if not adp.is_configured():
         return JSONResponse({"ok": False, "error": "ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil."}, status_code=400)
-    try:
-        rows, err = adp.fetch_policy_violations(days=7)
-        if err:
-            return JSONResponse({"ok": False, "error": err})
-        new_count = adp.sync_to_db(db, rows)
-        return JSONResponse({"ok": True, "fetched": len(rows), "new": new_count})
-    except Exception as exc:
-        LOGGER.exception("Policy refresh hatası")
-        return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=500)
+    if _POLICY_REFRESH_RUNNING:
+        return JSONResponse({"ok": True, "already_running": True})
+    _POLICY_REFRESH_RUNNING = True
+
+    def _worker():
+        global _POLICY_REFRESH_RUNNING
+        db = SessionLocal()
+        try:
+            rows, err = adp.fetch_policy_violations(days=7)
+            if err:
+                LOGGER.warning("Policy refresh hatası: %s", err)
+                return
+            adp.sync_to_db(db, rows)
+            LOGGER.info("Policy refresh tamamlandı: %d satır", len(rows))
+        except Exception:
+            LOGGER.exception("Policy refresh başarısız")
+        finally:
+            db.close()
+            _POLICY_REFRESH_RUNNING = False
+
+    threading.Thread(target=_worker, daemon=True, name="policy-refresh").start()
+    return JSONResponse({"ok": True, "started": True})
 
 
 @app.post("/api/policy/violations/{vid}/status")

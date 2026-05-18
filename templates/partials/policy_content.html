@@ -6,10 +6,11 @@
       <h3 class="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 sm:text-2xl">Ad Manager Policy</h3>
       <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Google Ad Manager · Policy Center · sinemalar.com</p>
     </div>
-    <div class="flex items-center gap-2">
-      {% if stats.last_fetch %}
-      <span class="text-xs text-slate-400 dark:text-slate-500">Son çekim: {{ stats.last_fetch[:16] | replace("T", " ") }} UTC</span>
+    <div class="flex flex-wrap items-center gap-2">
+      {% if configured and stats and stats.get("last_fetch") %}
+      <span class="text-xs text-slate-400 dark:text-slate-500">Son çekim: {{ stats.get("last_fetch", "")[:16] | replace("T", " ") }} UTC</span>
       {% endif %}
+      <div id="policy-refresh-status" class="hidden text-xs font-medium text-blue-600 dark:text-blue-400">Yenileniyor…</div>
       <button id="policy-refresh-btn" type="button"
         onclick="triggerPolicyRefresh()"
         class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
@@ -25,37 +26,39 @@
     <p class="mb-3 text-sm text-amber-700 dark:text-amber-400">Ad Manager Policy Center verilerini otomatik çekmek için bir service account gerekiyor.</p>
     <ol class="list-decimal space-y-1.5 pl-5 text-sm text-amber-700 dark:text-amber-400">
       <li>Google Cloud Console'da bir service account oluştur (veya mevcut birini kullan)</li>
-      <li>Ad Manager → <strong>Admin → API erişimi</strong> → service account'u "API erişimi olan kullanıcılar" listesine ekle</li>
+      <li>Ad Manager → <strong>Admin → API erişimi</strong> → service account'u "API erişimine sahip kullanıcılar" listesine ekle</li>
       <li>Service account JSON'unu Railway'de <code class="rounded bg-amber-100 px-1 dark:bg-amber-900/40">ADMANAGER_SERVICE_ACCOUNT_JSON</code> env var olarak kaydet</li>
       <li>Sayfayı yenile → Manuel Yenile butonuna bas</li>
     </ol>
   </div>
+
   {% else %}
 
   {# Özet kartlar #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
     <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam İhlal</div>
-      <div class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.total | default(0) }}</div>
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam</div>
+      <div class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.get("total", 0) }}</div>
     </div>
     <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Yeni</div>
-      <div class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.new | default(0) }}</div>
+      <div class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.get("new", 0) }}</div>
     </div>
     <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">İncelendi</div>
-      <div class="mt-1 text-2xl font-bold text-amber-500 dark:text-amber-400">{{ stats.by_status.get("reviewed", 0) }}</div>
+      <div class="mt-1 text-2xl font-bold text-amber-500 dark:text-amber-400">{{ stats.get("by_status", {}).get("reviewed", 0) }}</div>
     </div>
     <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Düzeltildi</div>
-      <div class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.by_status.get("fixed", 0) }}</div>
+      <div class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.get("by_status", {}).get("fixed", 0) }}</div>
     </div>
   </div>
 
-  {# Kategori dağılımı #}
-  {% if stats.by_category %}
+  {# Kategori chip'leri #}
+  {% set by_cat = stats.get("by_category", {}) %}
+  {% if by_cat %}
   <div class="flex flex-wrap gap-2">
-    {% for cat, cnt in stats.by_category.items() %}
+    {% for cat, cnt in by_cat.items() %}
     <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
       {{ cat }} <span class="font-bold text-slate-800 dark:text-slate-100">{{ cnt }}</span>
     </span>
@@ -64,92 +67,101 @@
   {% endif %}
 
   {# Filtreler #}
-  <div class="flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-1.5">
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div class="flex flex-wrap items-center gap-1.5">
       <span class="text-xs font-medium text-slate-500 dark:text-slate-400">DURUM</span>
       {% for val, label in [("all","Tümü"),("new","Yeni"),("reviewed","İncelendi"),("fixed","Düzeltildi"),("ignored","Görmezden")] %}
       <button type="button"
         onclick="filterPolicy('status', '{{ val }}')"
-        class="policy-status-btn rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+        class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
           {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
-          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300{% endif %}"
-        data-val="{{ val }}">{{ label }}</button>
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">
+        {{ label }}
+      </button>
       {% endfor %}
     </div>
-    <div class="flex items-center gap-1.5">
+    <div class="flex flex-wrap items-center gap-1.5">
       <span class="text-xs font-medium text-slate-500 dark:text-slate-400">SIRA</span>
       {% for val, label in [("ad_requests","Reklam İsteği"),("date","Tarih")] %}
       <button type="button"
         onclick="filterPolicy('order', '{{ val }}')"
-        class="policy-order-btn rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+        class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
           {% if current_order == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
-          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300{% endif %}"
-        data-val="{{ val }}">{{ label }}</button>
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">
+        {{ label }}
+      </button>
       {% endfor %}
     </div>
   </div>
 
   {# Tablo #}
-  <div id="policy-table-wrap" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     {% if violations %}
     <div class="overflow-x-auto">
-      <table class="w-full text-sm">
+      <table class="w-full min-w-[640px] text-sm">
         <thead>
           <tr class="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">URL</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sorun</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reklam İsteği (7g)</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Uygulama</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 hidden sm:table-cell">Rek. İsteği</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Durum</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Not</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 hidden md:table-cell">Not</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aksiyon</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
           {% for v in violations %}
-          <tr id="policy-row-{{ v.id }}" class="group transition hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-            <td class="max-w-[280px] px-4 py-3">
-              <span class="block truncate text-xs text-slate-600 dark:text-slate-400" title="{{ v.url }}">{{ v.url }}</span>
+          {% set vid = v.id %}
+          <tr class="group transition hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+            {# URL #}
+            <td class="max-w-[240px] px-4 py-3">
+              <span class="block truncate text-xs font-medium text-slate-700 dark:text-slate-300" title="{{ v.url }}">{{ v.url }}</span>
               {% if v.last_reported %}
               <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ v.last_reported }}</span>
               {% endif %}
+              {# Mobilde reklam isteği burada göster #}
+              <span class="mt-0.5 block font-mono text-[10px] font-semibold text-slate-500 dark:text-slate-400 sm:hidden">
+                {{ "{:,}".format(v.ad_requests_7d) }} istek
+              </span>
             </td>
+            {# Sorun #}
             <td class="px-4 py-3">
-              <span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold
-                {% if 'cinsel' in v.category.lower() or 'yetişkin' in v.category.lower() %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
-                {% elif 'şok' in v.category.lower() %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
+              <span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap
+                {% if 'yetişkin' in v.category.lower() or 'cinsel' in v.category.lower() or 'adult' in v.category.lower() or 'sexual' in v.category.lower() %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                {% elif 'şok' in v.category.lower() or 'shock' in v.category.lower() %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
                 {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
                 {{ v.category }}
               </span>
-              <div class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{{ v.issue_type }}</div>
+              <div class="mt-0.5 max-w-[180px] truncate text-[10px] text-slate-500 dark:text-slate-400" title="{{ v.issue_type }}">{{ v.issue_type }}</div>
             </td>
-            <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+            {# Reklam isteği — sadece sm+ #}
+            <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 hidden sm:table-cell">
               {{ "{:,}".format(v.ad_requests_7d) }}
             </td>
-            <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{{ v.enforcement or "—" }}</td>
+            {# Durum #}
             <td class="px-4 py-3">
-              <select onchange="updateStatus({{ v.id }}, this.value)"
-                class="rounded-lg border px-2 py-1 text-xs font-semibold transition focus:outline-none
-                  {% if v.our_status == 'new' %}border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400
-                  {% elif v.our_status == 'reviewed' %}border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400
-                  {% elif v.our_status == 'fixed' %}border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400
-                  {% else %}border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300{% endif %}">
-                <option value="new" {% if v.our_status == 'new' %}selected{% endif %}>🔴 Yeni</option>
+              <select id="status-sel-{{ vid }}"
+                onchange="updateStatus({{ vid }}, this.value)"
+                class="rounded-lg border px-2 py-1 text-xs font-semibold transition focus:outline-none cursor-pointer">
+                <option value="new"      {% if v.our_status == 'new'      %}selected{% endif %}>🔴 Yeni</option>
                 <option value="reviewed" {% if v.our_status == 'reviewed' %}selected{% endif %}>🟡 İncelendi</option>
-                <option value="fixed" {% if v.our_status == 'fixed' %}selected{% endif %}>🟢 Düzeltildi</option>
-                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>⚫ Görmezden</option>
+                <option value="fixed"    {% if v.our_status == 'fixed'    %}selected{% endif %}>🟢 Düzeltildi</option>
+                <option value="ignored"  {% if v.our_status == 'ignored'  %}selected{% endif %}>⚫ Görmezden</option>
               </select>
             </td>
-            <td class="px-4 py-3">
-              <input type="text" value="{{ v.our_notes }}"
+            {# Not — sadece md+ #}
+            <td class="px-4 py-3 hidden md:table-cell">
+              <input type="text" value="{{ v.our_notes | e }}"
                 placeholder="not ekle…"
-                onblur="saveNote({{ v.id }}, this.value)"
-                class="w-full rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-xs text-slate-600 placeholder-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600 dark:focus:border-slate-500">
+                onblur="saveNote({{ vid }}, this.value)"
+                onkeydown="if(event.key==='Enter'){this.blur();}"
+                class="w-full min-w-[120px] rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-xs text-slate-600 placeholder-slate-300 transition focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600 dark:focus:border-slate-500">
             </td>
+            {# Aksiyon #}
             <td class="px-4 py-3">
               {% if v.admin_link %}
               <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
-                class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40">
+                class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40 whitespace-nowrap">
                 Admin →
               </a>
               {% else %}
@@ -161,11 +173,15 @@
         </tbody>
       </table>
     </div>
+    <div class="border-t border-slate-100 px-4 py-2 text-right text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">
+      {{ violations | length }} kayıt
+      {% if current_status != 'all' %} · "{{ current_status }}" filtresi aktif{% endif %}
+    </div>
     {% else %}
     <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      <div class="text-3xl text-slate-300 dark:text-slate-600">✓</div>
+      <div class="text-3xl text-slate-200 dark:text-slate-700">✓</div>
       <div class="text-sm font-medium text-slate-500 dark:text-slate-400">
-        {% if current_status != 'all' %}Seçili filtrede ihlal yok{% else %}Henüz ihlal verisi yok. Manuel Yenile butonuna bas.{% endif %}
+        {% if current_status != 'all' %}Bu filtrede ihlal yok.{% else %}Henüz veri yok — Manuel Yenile butonuna bas.{% endif %}
       </div>
     </div>
     {% endif %}
@@ -176,49 +192,89 @@
 </div>
 
 <script>
-let _policyStatus = "{{ current_status }}";
-let _policyOrder  = "{{ current_order }}";
+(function () {
+  // Filtre state — server'dan oku
+  var _status = "{{ current_status }}";
+  var _order  = "{{ current_order }}";
 
-function filterPolicy(key, val) {
-  if (key === "status") _policyStatus = val;
-  else _policyOrder = val;
-  window.location.href = `/policy?status=${_policyStatus}&order=${_policyOrder}`;
-}
+  window.filterPolicy = function (key, val) {
+    if (key === "status") _status = val;
+    else _order = val;
+    window.location.href = "/policy?status=" + encodeURIComponent(_status) + "&order=" + encodeURIComponent(_order);
+  };
 
-function updateStatus(id, status) {
-  fetch(`/api/policy/violations/${id}/status`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({status})
-  }).then(r => r.json()).then(d => {
-    if (!d.ok) console.error("Status güncellenemedi:", d);
+  // Select renk sınıfları
+  var STATUS_CLS = {
+    new:      "border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400",
+    reviewed: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400",
+    fixed:    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400",
+    ignored:  "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  };
+  var ALL_CLS = Object.values(STATUS_CLS).join(" ").split(" ");
+
+  function applyStatusClass(sel, status) {
+    // Önce hepsini kaldır, sonra yeni ekle
+    ALL_CLS.forEach(function (c) { if (c) sel.classList.remove(c); });
+    var cls = STATUS_CLS[status] || STATUS_CLS.ignored;
+    cls.split(" ").forEach(function (c) { if (c) sel.classList.add(c); });
+  }
+
+  // Sayfa yüklenince mevcut select'lere renk uygula
+  document.querySelectorAll("[id^='status-sel-']").forEach(function (sel) {
+    applyStatusClass(sel, sel.value);
   });
-}
 
-function saveNote(id, note) {
-  fetch(`/api/policy/violations/${id}/note`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({note})
-  });
-}
+  window.updateStatus = function (id, status) {
+    var sel = document.getElementById("status-sel-" + id);
+    if (sel) applyStatusClass(sel, status);
+    fetch("/api/policy/violations/" + id + "/status", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({status: status})
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) {
+        console.error("Status güncellenemedi:", d);
+        // Hata varsa eski değere dön — sayfayı yenile
+        location.reload();
+      }
+    }).catch(function () { location.reload(); });
+  };
 
-function triggerPolicyRefresh() {
-  const btn = document.getElementById("policy-refresh-btn");
-  const icon = document.getElementById("policy-refresh-icon");
-  btn.disabled = true;
-  icon.textContent = "…";
-  fetch("/api/policy/refresh", {method: "POST"})
-    .then(r => r.json())
-    .then(d => {
-      if (d.ok) {
-        setTimeout(() => window.location.reload(), 2000);
-      } else {
-        alert("Hata: " + (d.error || "bilinmiyor"));
+  window.saveNote = function (id, note) {
+    fetch("/api/policy/violations/" + id + "/note", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({note: note})
+    });
+  };
+
+  window.triggerPolicyRefresh = function () {
+    var btn  = document.getElementById("policy-refresh-btn");
+    var icon = document.getElementById("policy-refresh-icon");
+    var msg  = document.getElementById("policy-refresh-status");
+    btn.disabled = true;
+    icon.textContent = "…";
+    if (msg) msg.classList.remove("hidden");
+
+    fetch("/api/policy/refresh", {method: "POST"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          alert("Hata: " + (d.error || "bilinmiyor"));
+          btn.disabled = false;
+          icon.textContent = "↺";
+          if (msg) msg.classList.add("hidden");
+          return;
+        }
+        // Arka planda başladı — 8 sn sonra yenile (API genelde 5-30 sn sürer)
+        if (msg) msg.textContent = "Yenileniyor… (8 sn)";
+        setTimeout(function () { window.location.reload(); }, 8000);
+      })
+      .catch(function () {
         btn.disabled = false;
         icon.textContent = "↺";
-      }
-    })
-    .catch(() => { btn.disabled = false; icon.textContent = "↺"; });
-}
+        if (msg) msg.classList.add("hidden");
+      });
+  };
+}());
 </script>
