@@ -19,7 +19,7 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-ADMANAGER_SCOPES = ["https://www.googleapis.com/auth/dfp"]
+ADMANAGER_SCOPES = ["https://www.googleapis.com/auth/admanager"]
 NETWORK_CODE = settings.admanager_network_code
 
 _PQL_ENDPOINT = "https://ads.google.com/apis/ads/publisher/v202605/PublisherQueryLanguageService"
