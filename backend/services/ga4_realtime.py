@@ -587,28 +587,30 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
 
 PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
     "page_traffic_drop": {
-        "label": "Sayfa Aktif Kullanıcı",
-        "metric": "activeUsers",
+        "label": "Sayfa trafiği düşüşü",
         "direction": "drop",
         "threshold_pct": 40,
-        "min_users": 5,
+        "min_users": 15,
+        "severity": "warning",
     },
-}
-
-NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
-    "news_traffic_drop": {
-        "label": "Haber Aktif Kullanıcı",
-        "metric": "activeUsers",
-        "direction": "drop",
-        "threshold_pct": 40,
-        "min_users": 5,
-    },
-    "news_traffic_spike": {
-        "label": "Haber Aktif Kullanıcı",
-        "metric": "activeUsers",
+    "page_traffic_spike": {
+        "label": "Sayfa trafiği artışı",
         "direction": "spike",
-        "threshold_pct": 40,
-        "min_users": 5,
+        "threshold_pct": 60,
+        "min_users": 15,
+        "severity": "warning",
+    },
+    "page_disappeared": {
+        "label": "Sayfa top listeden düştü",
+        "direction": "disappeared",
+        "min_prev_users": 20,
+        "severity": "warning",
+    },
+    "page_new_entry": {
+        "label": "Yeni sayfa top listeye girdi",
+        "direction": "new_entry",
+        "min_users": 30,
+        "severity": "info",
     },
 }
 
@@ -933,7 +935,10 @@ def fetch_realtime_top_pages(
         client = _build_client()
 
     property_id = _normalize_ga4_property_id(property_id)
-    w = max(1, min(window_minutes, 30))
+    # GA4 Standard property realtime: max 29 dakika geri.
+    # compare_previous=True iken iki pencere arka arkaya: 2*w-1 ≤ 29 olmalı → w ≤ 15.
+    max_w = 15 if compare_previous else 29
+    w = max(1, min(window_minutes, max_w))
 
     minute_ranges = [
         MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
@@ -1268,7 +1273,10 @@ def fetch_realtime_top_event_names(
         client = _build_client()
 
     property_id = _normalize_ga4_property_id(property_id)
-    w = max(1, min(window_minutes, 30))
+    # GA4 Standard property realtime: max 29 dakika geri.
+    # compare_previous=True iken iki pencere arka arkaya: 2*w-1 ≤ 29 olmalı → w ≤ 15.
+    max_w = 15 if compare_previous else 29
+    w = max(1, min(window_minutes, max_w))
     fetch_cap = min(250, max(limit * 8, 40))
 
     minute_ranges = [
@@ -1448,7 +1456,8 @@ def fetch_realtime_top_events_fallback_active_users(
     if client is None:
         client = _build_client()
     property_id = _normalize_ga4_property_id(property_id)
-    w = max(1, min(window_minutes, 30))
+    # GA4 Standard property realtime: max 29 dakika geri.
+    w = max(1, min(window_minutes, 29))
     fetch_limit = max(1, min(limit, 250))
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
@@ -1516,7 +1525,10 @@ def fetch_realtime_top_events(
         client = _build_client()
 
     property_id = _normalize_ga4_property_id(property_id)
-    w = max(1, min(window_minutes, 30))
+    # GA4 Standard property realtime: max 29 dakika geri.
+    # compare_previous=True iken iki pencere arka arkaya: 2*w-1 ≤ 29 olmalı → w ≤ 15.
+    max_w = 15 if compare_previous else 29
+    w = max(1, min(window_minutes, max_w))
     fetch_limit = max(1, min(limit, 250))
 
     total_event_count = 0.0
