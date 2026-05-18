@@ -716,27 +716,10 @@ def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0
                 pass
             items = query.limit(50).all()
         else:
-            # Kaynak çeşitliliği: geniş pencere çek, ardışık aynı kaynağı engelle
+            # Saf kronolojik sıralama: en güncel önce. Kaynak çeşitliliği interleave'i
+            # kullanıcı isteği üzerine kaldırıldı (zaman sırasını bozuyordu).
             safe_limit = min(limit, 50)
-            pool = query.limit(max(safe_limit * 8, 300)).all()
-            from collections import defaultdict
-            buckets = defaultdict(list)
-            for it in pool:
-                buckets[it.source_name].append(it)
-            interleaved = []
-            last_source = None
-            while True:
-                # 1) last_source dışındaki kaynaklar - en çok kalanı seç
-                pickable = [k for k, v in buckets.items() if v and k != last_source]
-                if not pickable:
-                    # Tüm diğer kaynaklar tükenmiş - kalan tek kaynak (varsa) varsa al
-                    pickable = [k for k, v in buckets.items() if v]
-                    if not pickable:
-                        break
-                best = max(pickable, key=lambda k: len(buckets[k]))
-                interleaved.append(buckets[best].pop(0))
-                last_source = best
-            items = interleaved[offset: offset + safe_limit]
+            items = query.offset(offset).limit(safe_limit).all()
         return {
             "items": [
                 {
