@@ -278,15 +278,47 @@
           if (msg) msg.classList.add("hidden");
           return;
         }
-        // Arka planda başladı — 8 sn sonra yenile (API genelde 5-30 sn sürer)
-        if (msg) msg.textContent = "Yenileniyor… (8 sn)";
-        setTimeout(function () { window.location.reload(); }, 8000);
+        // Arka planda başladı — status endpoint'ini poll et
+        if (msg) msg.textContent = "Yenileniyor…";
+        pollRefreshStatus(0);
       })
       .catch(function () {
         btn.disabled = false;
         icon.textContent = "↺";
         if (msg) msg.classList.add("hidden");
       });
+  };
+
+  function pollRefreshStatus(attempt) {
+    var btn  = document.getElementById("policy-refresh-btn");
+    var icon = document.getElementById("policy-refresh-icon");
+    var msg  = document.getElementById("policy-refresh-status");
+    if (attempt > 30) { // 30 * 3sn = 90sn max
+      window.location.reload();
+      return;
+    }
+    setTimeout(function () {
+      fetch("/api/policy/refresh/status")
+        .then(function (r) { return r.json(); })
+        .then(function (s) {
+          if (s.last_error) {
+            if (msg) { msg.textContent = "Hata: " + s.last_error; msg.classList.remove("hidden"); msg.classList.add("text-red-500"); }
+            btn.disabled = false;
+            icon.textContent = "↺";
+            return;
+          }
+          if (!s.running) {
+            window.location.reload();
+            return;
+          }
+          pollRefreshStatus(attempt + 1);
+        })
+        .catch(function () { window.location.reload(); });
+    }, 3000);
+  }
+
+  // dummy closing for the outer function — kept here so linter doesn't complain
+  void 0;
   };
 }());
 </script>

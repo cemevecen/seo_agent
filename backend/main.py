@@ -13021,29 +13021,35 @@ def policy_page(
 
 
 _POLICY_REFRESH_RUNNING = False
+_POLICY_LAST_ERROR: str | None = None
+_POLICY_LAST_OK: str | None = None
 
 @app.post("/api/policy/refresh")
 def api_policy_refresh():
     """Ad Manager policy verilerini arka planda çek. Hemen döner."""
     from backend.services import admanager_policy as adp
-    global _POLICY_REFRESH_RUNNING
+    global _POLICY_REFRESH_RUNNING, _POLICY_LAST_ERROR, _POLICY_LAST_OK
     if not adp.is_configured():
         return JSONResponse({"ok": False, "error": "ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil."}, status_code=400)
     if _POLICY_REFRESH_RUNNING:
         return JSONResponse({"ok": True, "already_running": True})
     _POLICY_REFRESH_RUNNING = True
+    _POLICY_LAST_ERROR = None
 
     def _worker():
-        global _POLICY_REFRESH_RUNNING
+        global _POLICY_REFRESH_RUNNING, _POLICY_LAST_ERROR, _POLICY_LAST_OK
         db = SessionLocal()
         try:
             rows, err = adp.fetch_policy_violations(days=7)
             if err:
                 LOGGER.warning("Policy refresh hatası: %s", err)
+                _POLICY_LAST_ERROR = err
                 return
             adp.sync_to_db(db, rows)
+            _POLICY_LAST_OK = f"{len(rows)} satır çekildi"
             LOGGER.info("Policy refresh tamamlandı: %d satır", len(rows))
-        except Exception:
+        except Exception as exc:
+            _POLICY_LAST_ERROR = str(exc)[:500]
             LOGGER.exception("Policy refresh başarısız")
         finally:
             db.close()
@@ -13051,6 +13057,15 @@ def api_policy_refresh():
 
     threading.Thread(target=_worker, daemon=True, name="policy-refresh").start()
     return JSONResponse({"ok": True, "started": True})
+
+
+@app.get("/api/policy/refresh/status")
+def api_policy_refresh_status():
+    return JSONResponse({
+        "running": _POLICY_REFRESH_RUNNING,
+        "last_error": _POLICY_LAST_ERROR,
+        "last_ok": _POLICY_LAST_OK,
+    })
 
 
 @app.post("/api/policy/violations/{vid}/status")
