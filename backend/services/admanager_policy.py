@@ -143,8 +143,8 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
 
         # Tanısal sorgular — PolicyViolation erişimini anlamak için
         for test_q in [
-            "SELECT * FROM Publisher_Query_Language_Tables LIMIT 20",
-            "SELECT * FROM Publisher_Query_Language_Columns WHERE TableName = 'PolicyViolation' LIMIT 20",
+            "SELECT Name FROM Publisher_Query_Language_Tables LIMIT 100",
+            "SELECT TableName, ColumnName, Selectable, Filterable FROM Publisher_Query_Language_Columns WHERE TableName = 'PolicyViolation' LIMIT 50",
             "SELECT Url, ViolationType FROM PolicyViolation LIMIT 1",
         ]:
             try:
