@@ -51,6 +51,11 @@ _EMPTY_DATASET_TTL_S = 60 * 60   # 1 saat
 _EMPTY_DATASET_LOCK = threading.Lock()
 _EMPTY_DATASET_UNTIL: dict[str, float] = {}        # platform → expiry timestamp
 
+# Aynı cache key için eş zamanlı build_full_payload çağrılarını engelle.
+# İlk çağrı BQ sorgularını başlatır; sonrakiler cache dolana dek bekler.
+_BUILD_LOCKS_LOCK = threading.Lock()
+_BUILD_LOCKS: dict[str, threading.Lock] = {}
+
 
 def _circuit_open(platform: str) -> bool:
     """True ise: bu platform için kısa süre içinde 'dataset boş' tespit edilmiş; sorgu atlanmalı."""
@@ -759,124 +764,129 @@ def build_full_payload(
     if cached:
         return cached
 
-    platforms = _platforms_for(pid, platform_filter)
-    if not platforms:
-        return {"ok": False, "message": "Seçili platform için credential bulunamadı."}
+    # Per-key lock: aynı cache key için eş zamanlı iki BQ sorgu seti başlamasın.
+    # İlk çağrı build'i tamamlayıp cache'e yazar; bekleyen ikinci çağrı kilidi alınca
+    # cache'den okuyup döner — BQ sorguları tekrar çalışmaz.
+    with _BUILD_LOCKS_LOCK:
+        if cache_key not in _BUILD_LOCKS:
+            _BUILD_LOCKS[cache_key] = threading.Lock()
+        build_lock = _BUILD_LOCKS[cache_key]
 
-    def _step(pct: int, msg: str) -> None:
-        if jid:
-            _job_update(jid, pct, msg)
+    with build_lock:
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
 
-    _step(5, "BigQuery bağlantısı kuruluyor…")
+        platforms = _platforms_for(pid, platform_filter)
+        if not platforms:
+            return {"ok": False, "message": "Seçili platform için credential bulunamadı."}
 
-    # Paralel sorgular platform başına
-    summary_by_plat: dict[str, dict] = {}
-    crash_free_by_plat: dict[str, Any] = {}
-    issues_all: list[tuple[str, list[dict]]] = []
-    anr_all: list[tuple[str, list[dict]]] = []
-    ver_all: list[tuple[str, list[dict]]] = []
-    trend_all: list[tuple[str, list[dict]]] = []
-    errors: list[str] = []
+        def _step(pct: int, msg: str) -> None:
+            if jid:
+                _job_update(jid, pct, msg)
 
-    def _fetch_platform(plat: str, tbl: str) -> dict:
-        out: dict[str, Any] = {"platform": plat}
-        out["summary"] = query_summary(plat, tbl, days)
-        out["crash_free"] = query_crash_free(plat, tbl, days)
-        out["issues"], out["issues_err"] = query_top_issues(plat, tbl, days, error_type, version)
-        out["anr"], out["anr_err"] = query_anr_list(plat, tbl, days, version)
-        out["versions"], out["ver_err"] = query_version_breakdown(plat, tbl, days)
-        out["trend"], out["trend_err"] = query_daily_trend(plat, tbl, days)
-        return out
+        _step(5, "BigQuery bağlantısı kuruluyor…")
 
-    _step(15, "Crash verileri sorgulanıyor…")
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futs = {pool.submit(_fetch_platform, p, t): p for p, t in platforms}
-        completed = 0
-        for fut in as_completed(futs):
-            completed += 1
-            pct = 15 + int(completed / len(futs) * 65)
-            _step(pct, f"Platform verisi işleniyor… ({completed}/{len(futs)})")
-            try:
-                res = fut.result()
-                plat = res["platform"]
-                summary_by_plat[plat] = res["summary"]
-                if res["crash_free"]:
-                    crash_free_by_plat[plat] = res["crash_free"]
-                if res["issues"]:
-                    issues_all.append((plat, res["issues"]))
-                if res["anr"]:
-                    anr_all.append((plat, res["anr"]))
-                if res["versions"]:
-                    ver_all.append((plat, res["versions"]))
-                if res["trend"]:
-                    trend_all.append((plat, res["trend"]))
-                # Her platform için aynı erişim/yapılandırma hatası birden fazla
-                # alanda tekrar ediyor; tek temsilci mesajı koruyalım.
-                seen_for_plat: set[str] = set()
-                for field in ("issues_err", "anr_err", "ver_err", "trend_err"):
-                    msg = res.get(field)
-                    if not msg or msg in seen_for_plat:
-                        continue
-                    seen_for_plat.add(msg)
-                    errors.append(f"{plat}: {msg}")
-            except Exception as exc:
-                errors.append(str(exc)[:200])
+        summary_by_plat: dict[str, dict] = {}
+        crash_free_by_plat: dict[str, Any] = {}
+        issues_all: list[tuple[str, list[dict]]] = []
+        anr_all: list[tuple[str, list[dict]]] = []
+        ver_all: list[tuple[str, list[dict]]] = []
+        trend_all: list[tuple[str, list[dict]]] = []
+        errors: list[str] = []
 
-    # Aynı mesaj birden fazla platformda tekrar etmesin
-    if errors:
-        _seen: set[str] = set()
-        deduped: list[str] = []
-        for e in errors:
-            if e not in _seen:
-                _seen.add(e)
-                deduped.append(e)
-        errors = deduped
+        def _fetch_platform(plat: str, tbl: str) -> dict:
+            out: dict[str, Any] = {"platform": plat}
+            out["summary"] = query_summary(plat, tbl, days)
+            out["crash_free"] = query_crash_free(plat, tbl, days)
+            out["issues"], out["issues_err"] = query_top_issues(plat, tbl, days, error_type, version)
+            out["anr"], out["anr_err"] = query_anr_list(plat, tbl, days, version)
+            out["versions"], out["ver_err"] = query_version_breakdown(plat, tbl, days)
+            out["trend"], out["trend_err"] = query_daily_trend(plat, tbl, days)
+            return out
 
-    _step(85, "Sonuçlar birleştiriliyor…")
+        _step(15, "Crash verileri sorgulanıyor…")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futs = {pool.submit(_fetch_platform, p, t): p for p, t in platforms}
+            completed = 0
+            for fut in as_completed(futs):
+                completed += 1
+                pct = 15 + int(completed / len(futs) * 65)
+                _step(pct, f"Platform verisi işleniyor… ({completed}/{len(futs)})")
+                try:
+                    res = fut.result()
+                    plat = res["platform"]
+                    summary_by_plat[plat] = res["summary"]
+                    if res["crash_free"]:
+                        crash_free_by_plat[plat] = res["crash_free"]
+                    if res["issues"]:
+                        issues_all.append((plat, res["issues"]))
+                    if res["anr"]:
+                        anr_all.append((plat, res["anr"]))
+                    if res["versions"]:
+                        ver_all.append((plat, res["versions"]))
+                    if res["trend"]:
+                        trend_all.append((plat, res["trend"]))
+                    seen_for_plat: set[str] = set()
+                    for field in ("issues_err", "anr_err", "ver_err", "trend_err"):
+                        msg = res.get(field)
+                        if not msg or msg in seen_for_plat:
+                            continue
+                        seen_for_plat.add(msg)
+                        errors.append(f"{plat}: {msg}")
+                except Exception as exc:
+                    errors.append(str(exc)[:200])
 
-    # Toplam hesapla
-    totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
-    for s in summary_by_plat.values():
-        totals["fatal"] += s.get("fatal", 0)
-        totals["anr"] += s.get("anr", 0)
-        totals["non_fatal"] += s.get("non_fatal", 0)
-        totals["affected_users"] += s.get("affected_users", 0)
+        if errors:
+            _seen: set[str] = set()
+            deduped: list[str] = []
+            for e in errors:
+                if e not in _seen:
+                    _seen.add(e)
+                    deduped.append(e)
+            errors = deduped
 
-    # Crash-free birleştir (ağırlıklı ortalama)
-    cf_total_users = sum(v.get("total_users", 0) for v in crash_free_by_plat.values())
-    cf_crashed = sum(v.get("crashed_users", 0) for v in crash_free_by_plat.values())
-    crash_free_pct = round((1 - cf_crashed / cf_total_users) * 100, 2) if cf_total_users > 0 else None
+        _step(85, "Sonuçlar birleştiriliyor…")
 
-    # Storage
-    storage_mb = get_all_storage_mb()
+        totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
+        for s in summary_by_plat.values():
+            totals["fatal"] += s.get("fatal", 0)
+            totals["anr"] += s.get("anr", 0)
+            totals["non_fatal"] += s.get("non_fatal", 0)
+            totals["affected_users"] += s.get("affected_users", 0)
 
-    result = {
-        "ok": True,
-        "configured": True,
-        "product": pid,
-        "days": days,
-        "platform_filter": platform_filter,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "totals": totals,
-        "crash_free_pct": crash_free_pct,
-        "crash_free_by_platform": crash_free_by_plat,
-        "summary_by_platform": summary_by_plat,
-        "issues": _merge_issues(issues_all),
-        "anr": _merge_issues(anr_all),
-        "versions": _merge_versions(ver_all),
-        "trend": _merge_trend(trend_all),
-        "trend_by_platform": {plat: rows for plat, rows in trend_all},
-        "storage_mb": storage_mb,
-        "errors": errors,
-    }
+        cf_total_users = sum(v.get("total_users", 0) for v in crash_free_by_plat.values())
+        cf_crashed = sum(v.get("crashed_users", 0) for v in crash_free_by_plat.values())
+        crash_free_pct = round((1 - cf_crashed / cf_total_users) * 100, 2) if cf_total_users > 0 else None
 
-    # Erişim hatası içeren sonuçları cache'leme; izinler düzeltilince hemen yansısın.
-    has_access_error = any(
-        "reddedildi" in e.lower() or "forbidden" in e.lower() or "access denied" in e.lower()
-        for e in errors
-    )
-    if not has_access_error:
-        _cache_set(cache_key, result)
+        storage_mb = get_all_storage_mb()
+
+        result = {
+            "ok": True,
+            "configured": True,
+            "product": pid,
+            "days": days,
+            "platform_filter": platform_filter,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "totals": totals,
+            "crash_free_pct": crash_free_pct,
+            "crash_free_by_platform": crash_free_by_plat,
+            "summary_by_platform": summary_by_plat,
+            "issues": _merge_issues(issues_all),
+            "anr": _merge_issues(anr_all),
+            "versions": _merge_versions(ver_all),
+            "trend": _merge_trend(trend_all),
+            "trend_by_platform": {plat: rows for plat, rows in trend_all},
+            "storage_mb": storage_mb,
+            "errors": errors,
+        }
+
+        has_access_error = any(
+            "reddedildi" in e.lower() or "forbidden" in e.lower() or "access denied" in e.lower()
+            for e in errors
+        )
+        if not has_access_error:
+            _cache_set(cache_key, result)
     _step(100, "Tamamlandı")
     return result
 
@@ -932,13 +942,16 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
             return "already_running"
         _REFRESH_RUNNING = True
 
-    # Manuel refresh: location/tablo cache'ini sıfırla.
-    # Circuit breaker'ı sıfırlama — tablolar yoksa her refreshte BQ kotası tükenir.
-    # Tablolar oluşturulduktan sonra uygulama yeniden başlatılırsa zaten sıfırlanır.
+    # Manuel refresh: tüm cache'leri ve circuit breaker'ı sıfırla.
+    # Kullanıcı "Yenile" butonuna bastığında tablolar artık mevcut olabilir;
+    # circuit breaker sıfırlanmazsa tablolar oluştuktan sonra bile 1 saat beklenir.
+    # _REFRESH_RUNNING kilidi zaten art arda refresh'i engeller.
     with _DATASET_LOCATION_LOCK:
         _DATASET_LOCATION_CACHE.clear()
     with _TABLE_DISCOVERY_LOCK:
         _TABLE_DISCOVERY_CACHE.clear()
+    for plat in ("ios", "android"):
+        _circuit_reset(plat)
 
     jid = _job_new(product_id)
 
