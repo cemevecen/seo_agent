@@ -561,30 +561,42 @@ def start_title_job(session_factory, *, only_missing: bool = True) -> bool:
         _TITLE_JOB_STATE["error"] = None
 
     def _worker():
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from backend.models import AdPolicyViolation
         db = session_factory()
         try:
             q = db.query(AdPolicyViolation)
             if only_missing:
                 q = q.filter(AdPolicyViolation.page_title == "")
-            # Unique URL listesi (aynı URL birden fazla ihlalde olabilir)
             urls = [u for (u,) in q.with_entities(AdPolicyViolation.url).distinct().all()]
             with _TITLE_JOB_LOCK:
                 _TITLE_JOB_STATE["total"] = len(urls)
 
-            for url in urls:
-                title = fetch_title(url) or "[başlık yok]"
-                now = datetime.utcnow()
-                # Aynı URL'ye sahip tüm satırları güncelle
-                db.query(AdPolicyViolation).filter(
-                    AdPolicyViolation.url == url
-                ).update({
-                    AdPolicyViolation.page_title: title,
-                    AdPolicyViolation.page_title_fetched_at: now,
-                }, synchronize_session=False)
-                db.commit()
-                with _TITLE_JOB_LOCK:
-                    _TITLE_JOB_STATE["done"] += 1
+            if not urls:
+                return
+
+            # 20 paralel worker — 558 URL ~30-60s sürer
+            results: dict[str, str] = {}
+            with ThreadPoolExecutor(max_workers=20, thread_name_prefix="title-fetch") as ex:
+                futures = {ex.submit(fetch_title, u): u for u in urls}
+                for fut in as_completed(futures):
+                    url = futures[fut]
+                    try:
+                        title = fut.result() or "[başlık yok]"
+                    except Exception as fe:
+                        title = f"[hata: {str(fe)[:60]}]"
+                    results[url] = title
+                    with _TITLE_JOB_LOCK:
+                        _TITLE_JOB_STATE["done"] += 1
+
+                    # Her 25 satırda bir commit (DB trafiğini azalt)
+                    if len(results) % 25 == 0:
+                        _flush_titles(db, results)
+                        results = {}
+
+            # Kalanları yaz
+            if results:
+                _flush_titles(db, results)
         except Exception as exc:
             logger.exception("Title fetch job hatası")
             with _TITLE_JOB_LOCK:
@@ -597,6 +609,26 @@ def start_title_job(session_factory, *, only_missing: bool = True) -> bool:
 
     threading.Thread(target=_worker, daemon=True, name="policy-title-fetch").start()
     return True
+
+
+def _flush_titles(db, url_to_title: dict[str, str]) -> None:
+    """Toplu update — her URL için page_title alanını yaz."""
+    from backend.models import AdPolicyViolation
+    if not url_to_title:
+        return
+    now = datetime.utcnow()
+    try:
+        for url, title in url_to_title.items():
+            db.query(AdPolicyViolation).filter(
+                AdPolicyViolation.url == url
+            ).update({
+                AdPolicyViolation.page_title: title,
+                AdPolicyViolation.page_title_fetched_at: now,
+            }, synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def refresh_single_title(db, vid: int) -> str | None:
