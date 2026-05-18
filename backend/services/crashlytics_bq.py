@@ -932,9 +932,9 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
             return "already_running"
         _REFRESH_RUNNING = True
 
-    # Manuel refresh: tüm cache'leri sıfırla (kullanıcı bilinçli deniyor).
-    for plat in ("ios", "android"):
-        _circuit_reset(plat)
+    # Manuel refresh: location/tablo cache'ini sıfırla.
+    # Circuit breaker'ı sıfırlama — tablolar yoksa her refreshte BQ kotası tükenir.
+    # Tablolar oluşturulduktan sonra uygulama yeniden başlatılırsa zaten sıfırlanır.
     with _DATASET_LOCATION_LOCK:
         _DATASET_LOCATION_CACHE.clear()
     with _TABLE_DISCOVERY_LOCK:
