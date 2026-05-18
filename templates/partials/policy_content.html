@@ -7,7 +7,7 @@
       <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
         Policy Center · CSV import · sinemalar.com
         {% if last_upload %}
-          · son yükleme: <span class="font-medium text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+          · son yükleme: <span class="font-medium text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at }} UTC</span>
           · {{ last_upload.row_count }} satır ({{ last_upload.new_count }} yeni, {{ last_upload.updated_count }} güncellendi)
         {% endif %}
       </p>
