@@ -1156,28 +1156,28 @@ async def ip_allowlist_middleware(request: Request, call_next):
 @app.on_event("startup")
 def on_startup() -> None:
     """Uygulama başlarken gerekli kontrolleri yapar."""
-    # NewsIntelligenceItem tablosu için kolon yaması
+    # Her migration statement ayrı bağlantıda çalışır — önceki hata sonrakini etkilemez
     try:
         from sqlalchemy import text
         from backend.database import engine
-        with engine.connect() as conn:
-            for stmt in [
-                "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
-                "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
-                # published_at index — sorgular hızlanır (IF NOT EXISTS Postgres'te desteklenir)
-                "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
-                "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
-                # AdPolicyViolation: CSV import için eklenen kolonlar
-                "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
-                "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
-                "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
-                # Tekil (url, issue_type) — duplicate engelle
-                "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
-            ]:
-                try:
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except: pass
+        for stmt in [
+            "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
+            "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
+            "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
+            "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
+            # AdPolicyViolation: CSV import için eklenen kolonlar
+            "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
+            "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
+            "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
+            # Unique constraint — duplicate engelle (mevcut duplicate varsa hata verir, pas geçilir)
+            "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
+        ]:
+            try:
+                with engine.connect() as _conn:
+                    _conn.execute(text(stmt))
+                    _conn.commit()
+            except Exception:
+                pass
     except Exception as e:
         LOGGER.warning("Startup migration hatası: %s", e)
 
@@ -12983,10 +12983,29 @@ def policy_page(
 ):
     from backend.services import policy_csv as pcsv
 
-    stats = pcsv.get_stats(db)
-    violations = pcsv.get_violations(db, status=status, category=category, order_by=order)
-    last_upload = pcsv.get_latest_upload(db)
-    title_job = pcsv.get_title_job_state()
+    try:
+        stats = pcsv.get_stats(db)
+        violations = pcsv.get_violations(db, status=status, category=category, order_by=order)
+        last_upload = pcsv.get_latest_upload(db)
+        title_job = pcsv.get_title_job_state()
+    except Exception as _e:
+        LOGGER.exception("policy_page hata: %s", _e)
+        stats = {"total": 0, "new": 0, "with_title": 0, "without_title": 0,
+                 "total_ad_requests_7d": 0, "last_fetch": None, "by_category": {}, "by_status": {}}
+        violations = []
+        last_upload = None
+        title_job = {"running": False, "done": 0, "total": 0}
+
+    last_upload_info = None
+    if last_upload:
+        last_upload_info = {
+            "filename": last_upload.filename,
+            "row_count": last_upload.row_count,
+            "new_count": last_upload.new_count,
+            "updated_count": last_upload.updated_count,
+            "uploaded_at": last_upload.uploaded_at.strftime("%Y-%m-%d %H:%M") if last_upload.uploaded_at else "",
+        }
+
     ctx = {
         "request": request,
         "stats": stats,
@@ -12994,7 +13013,7 @@ def policy_page(
         "current_status": status,
         "current_category": category,
         "current_order": order,
-        "last_upload": last_upload,
+        "last_upload": last_upload_info,
         "title_job": title_job,
     }
     if request.headers.get("HX-Request") == "true":

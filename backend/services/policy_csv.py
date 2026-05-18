@@ -361,9 +361,13 @@ def get_stats(db) -> dict:
     ).scalar() or 0
     total_requests = db.query(func.sum(AdPolicyViolation.ad_requests_7d)).scalar() or 0
     last_fetch = db.query(func.max(AdPolicyViolation.fetched_at)).scalar()
-    with_title = db.query(func.count(AdPolicyViolation.id)).filter(
-        AdPolicyViolation.page_title != ""
-    ).scalar() or 0
+    try:
+        with_title = db.query(func.count(AdPolicyViolation.id)).filter(
+            AdPolicyViolation.page_title != ""
+        ).scalar() or 0
+    except Exception:
+        db.rollback()
+        with_title = 0
 
     by_category: dict[str, int] = {}
     for row in db.query(AdPolicyViolation.category, func.count(AdPolicyViolation.id)).group_by(
