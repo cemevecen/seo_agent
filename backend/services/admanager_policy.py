@@ -141,7 +141,22 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        query = "SELECT Url, ViolationType, EnforcementStatus, WeeklyAdRequestCount FROM PolicyViolation ORDER BY WeeklyAdRequestCount DESC LIMIT 500"
+        # Önce mevcut PQL tablolarını keşfet
+        try:
+            disc_xml = _pql_select("SELECT * FROM Publisher_Query_Language_Tables LIMIT 100", 0)
+            disc_resp = session.post(_PQL_ENDPOINT, data=disc_xml.encode("utf-8"),
+                                     headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
+                                     timeout=30)
+            if disc_resp.status_code == 200:
+                disc_rows, disc_cols, _ = _parse_pql_response(disc_resp.text)
+                tables = [r[0] for r in disc_rows if r] if disc_rows else []
+                logger.info("Mevcut PQL tabloları: %s", tables)
+                policy_tables = [t for t in tables if "policy" in t.lower() or "violation" in t.lower()]
+                logger.info("Policy/Violation tabloları: %s", policy_tables)
+        except Exception as disc_exc:
+            logger.warning("PQL tablo keşfi başarısız: %s", disc_exc)
+
+        query = "SELECT Url, ViolationType, EnforcementStatus FROM PolicyViolation LIMIT 500"
 
         all_rows: list[dict] = []
         offset = 0
@@ -188,8 +203,8 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
             return [], f"Ad Manager erişim reddedildi. Service account'un network'te 'Reporter-Service-Account' rolü var mı? Detay: {msg[:300]}"
         if "404" in msg:
             return [], f"Ad Manager SOAP endpoint bulunamadı. Network code doğru mu? ({NETWORK_CODE})"
-        if "PolicyViolation" in msg or "no such table" in msg.lower():
-            return [], f"PolicyViolation tablosu bu network'te kullanılamıyor. Detay: {msg[:300]}"
+        if "UNEXECUTABLE" in msg or "PolicyViolation" in msg or "no such table" in msg.lower():
+            return [], f"PQL sorgu hatası (tablo/kolon adı yanlış olabilir). Detay: {msg[:400]}"
         return [], f"Ad Manager API hatası: {msg[:400]}"
 
 
