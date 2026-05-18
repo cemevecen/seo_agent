@@ -246,6 +246,11 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
     if not q:
         q = "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com)"
 
+    # is:unread filtresini kaldır — okunmuş mailler de (bugün açılanlar dahil) çekilsin
+    import re as _re
+    q = _re.sub(r'\bis:unread\b', '', q, flags=_re.IGNORECASE).strip()
+    q = _re.sub(r'\s{2,}', ' ', q).strip()
+
     if "newer_than:" not in q.lower() and "after:" not in q.lower():
         q = f"newer_than:60d {q}"
         
