@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile, Depends
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, Response, UploadFile, Depends
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
@@ -1167,6 +1167,12 @@ def on_startup() -> None:
                 # published_at index — sorgular hızlanır (IF NOT EXISTS Postgres'te desteklenir)
                 "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
                 "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
+                # AdPolicyViolation: CSV import için eklenen kolonlar
+                "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
+                "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
+                "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
+                # Tekil (url, issue_type) — duplicate engelle
+                "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
             ]:
                 try:
                     conn.execute(text(stmt))
@@ -3044,35 +3050,6 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         _run_scheduled_db_cleanup_job,
         trigger=CronTrigger(hour=3, minute=30, timezone=timezone),
         id="daily-db-retention-cleanup",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=3600,
-    )
-    job_count += 1
-
-    # Ad Manager Policy Center — her gün 08:00
-    def _run_policy_refresh_job():
-        from backend.services import admanager_policy as adp
-        if not adp.is_configured():
-            return
-        db = SessionLocal()
-        try:
-            rows, err = adp.fetch_policy_violations(days=7)
-            if err:
-                LOGGER.warning("Ad Manager policy refresh hatası: %s", err)
-                return
-            new_count = adp.sync_to_db(db, rows)
-            LOGGER.info("Ad Manager policy refresh: %d satır, %d yeni", len(rows), new_count)
-        except Exception:
-            LOGGER.exception("Ad Manager policy refresh başarısız")
-        finally:
-            db.close()
-
-    scheduler.add_job(
-        _run_policy_refresh_job,
-        trigger=CronTrigger(hour=8, minute=0, timezone=timezone),
-        id="admanager-policy-daily",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -12994,78 +12971,93 @@ async def api_boards_move(request: Request):
 
 
 
-# ── Ad Manager Policy Center ──────────────────────────────────────────────────
+# ── Policy Center CSV Import ──────────────────────────────────────────────────
 
 @app.get("/policy", response_class=HTMLResponse)
 def policy_page(
     request: Request,
     status: str = "all",
+    category: str = "all",
     order: str = "ad_requests",
     db: Session = Depends(get_db),
 ):
-    from backend.services import admanager_policy as adp
-    configured = adp.is_configured()
-    stats = adp.get_stats(db) if configured else {}
-    violations = adp.get_violations(db, status=status, order_by=order) if configured else []
+    from backend.services import policy_csv as pcsv
+
+    stats = pcsv.get_stats(db)
+    violations = pcsv.get_violations(db, status=status, category=category, order_by=order)
+    last_upload = pcsv.get_latest_upload(db)
+    title_job = pcsv.get_title_job_state()
     ctx = {
         "request": request,
-        "configured": configured,
         "stats": stats,
         "violations": violations,
         "current_status": status,
+        "current_category": category,
         "current_order": order,
+        "last_upload": last_upload,
+        "title_job": title_job,
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)
     return templates.TemplateResponse("policy.html", ctx)
 
 
-_POLICY_REFRESH_RUNNING = False
-_POLICY_LAST_ERROR: str | None = None
-_POLICY_LAST_OK: str | None = None
+@app.post("/api/policy/upload")
+async def api_policy_upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """CSV yükle → DB'ye UPSERT et → arka planda sayfa başlıklarını çek."""
+    from backend.services import policy_csv as pcsv
 
-@app.post("/api/policy/refresh")
-def api_policy_refresh():
-    """Ad Manager policy verilerini arka planda çek. Hemen döner."""
-    from backend.services import admanager_policy as adp
-    global _POLICY_REFRESH_RUNNING, _POLICY_LAST_ERROR, _POLICY_LAST_OK
-    if not adp.is_configured():
-        return JSONResponse({"ok": False, "error": "ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil."}, status_code=400)
-    if _POLICY_REFRESH_RUNNING:
-        return JSONResponse({"ok": True, "already_running": True})
-    _POLICY_REFRESH_RUNNING = True
-    _POLICY_LAST_ERROR = None
+    content = await file.read()
+    if not content:
+        return JSONResponse({"ok": False, "error": "Boş dosya."}, status_code=400)
+    if len(content) > 20 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "Dosya 20MB'dan büyük."}, status_code=400)
 
-    def _worker():
-        global _POLICY_REFRESH_RUNNING, _POLICY_LAST_ERROR, _POLICY_LAST_OK
-        db = SessionLocal()
-        try:
-            rows, err = adp.fetch_policy_violations(days=7)
-            if err:
-                LOGGER.warning("Policy refresh hatası: %s", err)
-                _POLICY_LAST_ERROR = err
-                return
-            adp.sync_to_db(db, rows)
-            _POLICY_LAST_OK = f"{len(rows)} satır çekildi"
-            LOGGER.info("Policy refresh tamamlandı: %d satır", len(rows))
-        except Exception as exc:
-            _POLICY_LAST_ERROR = str(exc)[:500]
-            LOGGER.exception("Policy refresh başarısız")
-        finally:
-            db.close()
-            _POLICY_REFRESH_RUNNING = False
+    rows, headers, err = pcsv.parse_csv(content)
+    if err:
+        return JSONResponse({"ok": False, "error": err, "headers": headers}, status_code=400)
+    if not rows:
+        return JSONResponse({"ok": False, "error": "CSV'de işlenebilir satır yok."}, status_code=400)
 
-    threading.Thread(target=_worker, daemon=True, name="policy-refresh").start()
-    return JSONResponse({"ok": True, "started": True})
+    new_count, upd_count = pcsv.import_rows(db, rows)
+    pcsv.save_csv_blob(
+        db, filename=file.filename or "policy.csv", content=content,
+        row_count=len(rows), new_count=new_count, updated_count=upd_count,
+    )
 
+    # Arka planda eksik sayfa başlıklarını çek
+    pcsv.start_title_job(SessionLocal, only_missing=True)
 
-@app.get("/api/policy/refresh/status")
-def api_policy_refresh_status():
     return JSONResponse({
-        "running": _POLICY_REFRESH_RUNNING,
-        "last_error": _POLICY_LAST_ERROR,
-        "last_ok": _POLICY_LAST_OK,
+        "ok": True,
+        "row_count": len(rows),
+        "new_count": new_count,
+        "updated_count": upd_count,
+        "title_job_started": True,
     })
+
+
+@app.post("/api/policy/fetch-titles")
+def api_policy_fetch_titles(only_missing: bool = True):
+    """Tüm satırlar için sayfa başlıklarını arka planda yeniden çek."""
+    from backend.services import policy_csv as pcsv
+    started = pcsv.start_title_job(SessionLocal, only_missing=only_missing)
+    return JSONResponse({"ok": True, "started": started, "state": pcsv.get_title_job_state()})
+
+
+@app.get("/api/policy/fetch-titles/status")
+def api_policy_fetch_titles_status():
+    from backend.services import policy_csv as pcsv
+    return JSONResponse(pcsv.get_title_job_state())
+
+
+@app.post("/api/policy/violations/{vid}/fetch-title")
+def api_policy_fetch_single_title(vid: int, db: Session = Depends(get_db)):
+    from backend.services import policy_csv as pcsv
+    title = pcsv.refresh_single_title(db, vid)
+    if title is None:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    return JSONResponse({"ok": True, "page_title": title})
 
 
 @app.post("/api/policy/violations/{vid}/status")
@@ -13092,3 +13084,39 @@ async def api_policy_note(vid: int, request: Request, db: Session = Depends(get_
     row.updated_at = datetime.utcnow()
     db.commit()
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/policy/export.xlsx")
+def api_policy_export(
+    status: str = "all",
+    category: str = "all",
+    order: str = "ad_requests",
+    db: Session = Depends(get_db),
+):
+    from backend.services import policy_csv as pcsv
+    violations = pcsv.get_violations(db, status=status, category=category, order_by=order, limit=10000)
+    blob = pcsv.build_xlsx(violations)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        content=blob,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="policy_ihlalleri_{today}.xlsx"',
+        },
+    )
+
+
+@app.get("/api/policy/last-csv")
+def api_policy_last_csv(db: Session = Depends(get_db)):
+    """Son yüklenen CSV'yi indir."""
+    from backend.services import policy_csv as pcsv
+    upload = pcsv.get_latest_upload(db)
+    if not upload:
+        return JSONResponse({"ok": False, "error": "Henüz CSV yüklenmemiş."}, status_code=404)
+    return Response(
+        content=upload.content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{upload.filename}"',
+        },
+    )

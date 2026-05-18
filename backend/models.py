@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -741,7 +741,7 @@ class MetaTagSnapshot(Base):
 
 
 class AdPolicyViolation(Base):
-    """Google Ad Manager Policy Center'dan çekilen ihlaller."""
+    """Ad Manager Policy Center'dan CSV ile import edilen ihlaller."""
     __tablename__ = "ad_policy_violations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -752,6 +752,9 @@ class AdPolicyViolation(Base):
     enforcement: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     first_reported: Mapped[date] = mapped_column(Date, nullable=True)
     last_reported: Mapped[date] = mapped_column(Date, nullable=True)
+    page_title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    page_title_fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    extra_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     our_status: Mapped[str] = mapped_column(String(30), nullable=False, default="new")
     our_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -761,4 +764,18 @@ class AdPolicyViolation(Base):
         Index("ix_adpolicy_url", "url"),
         Index("ix_adpolicy_status", "our_status"),
         Index("ix_adpolicy_issue_type", "issue_type"),
+        UniqueConstraint("url", "issue_type", name="uq_adpolicy_url_issue"),
     )
+
+
+class PolicyCSVUpload(Base):
+    """En son yüklenen Policy Center CSV'si — geriye dönük kontrol için."""
+    __tablename__ = "policy_csv_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    new_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

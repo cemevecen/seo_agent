@@ -1,41 +1,71 @@
-<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 px-1">
+<div class="mx-auto w-full min-w-0 max-w-[1500px] space-y-5 px-1">
 
-  {# Başlık #}
-  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
+  {# ── Başlık ── #}
+  <div class="flex flex-col gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>
       <h3 class="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 sm:text-2xl">Ad Manager Policy</h3>
-      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Google Ad Manager · Policy Center · sinemalar.com</p>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+        Policy Center · CSV import · sinemalar.com
+        {% if last_upload %}
+          · son yükleme: <span class="font-medium text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+          · {{ last_upload.row_count }} satır ({{ last_upload.new_count }} yeni, {{ last_upload.updated_count }} güncellendi)
+        {% endif %}
+      </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      {% if configured and stats and stats.get("last_fetch") %}
-      <span class="text-xs text-slate-400 dark:text-slate-500">Son çekim: {{ stats.get("last_fetch", "")[:16] | replace("T", " ") }} UTC</span>
-      {% endif %}
-      <div id="policy-refresh-status" class="hidden text-xs font-medium text-blue-600 dark:text-blue-400">Yenileniyor…</div>
-      <button id="policy-refresh-btn" type="button"
-        onclick="triggerPolicyRefresh()"
+      <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-500 hover:bg-blue-100 dark:border-blue-700/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:border-blue-500">
+        <span>⬆</span> CSV Yükle
+        <input id="policy-csv-input" type="file" accept=".csv,text/csv" class="hidden" onchange="uploadPolicyCSV(this)">
+      </label>
+      {% if stats and stats.get("total", 0) > 0 %}
+      <a href="/api/policy/export.xlsx?status={{ current_status }}&category={{ current_category }}&order={{ current_order }}"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-500 hover:bg-emerald-100 dark:border-emerald-700/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:border-emerald-500">
+        <span>⬇</span> Excel İndir
+      </a>
+      <button type="button" onclick="triggerTitleFetch(false)"
         class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
-        <span id="policy-refresh-icon">↺</span> Manuel Yenile
+        <span id="title-fetch-icon">↺</span> Başlıkları Yenile
       </button>
+      {% if last_upload %}
+      <a href="/api/policy/last-csv" class="text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" title="Son yüklenen CSV'yi indir">son.csv</a>
+      {% endif %}
+      {% endif %}
     </div>
   </div>
 
-  {% if not configured %}
-  {# Kurulum yönlendirmesi #}
+  {# Title fetch progress bar #}
+  <div id="title-fetch-bar" class="{% if not title_job.running %}hidden{% endif %} rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300">
+    <div class="flex items-center justify-between gap-3">
+      <span><span class="inline-block animate-pulse">●</span> Sayfa başlıkları çekiliyor: <span id="title-fetch-done">{{ title_job.done }}</span> / <span id="title-fetch-total">{{ title_job.total }}</span></span>
+      <span id="title-fetch-pct" class="font-mono text-[10px] opacity-70">0%</span>
+    </div>
+    <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-blue-200/50 dark:bg-blue-900/40">
+      <div id="title-fetch-progress" class="h-full bg-blue-500 transition-all" style="width: 0%"></div>
+    </div>
+  </div>
+
+  {# Upload error/success banner #}
+  <div id="upload-banner" class="hidden rounded-xl border px-4 py-2.5 text-xs"></div>
+
+  {% if not stats or stats.get("total", 0) == 0 %}
+  {# ── Boş durum: CSV nasıl indirilir rehberi ── #}
   <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 dark:border-amber-800/40 dark:bg-amber-950/30">
-    <h4 class="mb-2 font-semibold text-amber-800 dark:text-amber-300">API Bağlantısı Kurulmamış</h4>
-    <p class="mb-3 text-sm text-amber-700 dark:text-amber-400">Ad Manager Policy Center verilerini otomatik çekmek için bir service account gerekiyor.</p>
+    <h4 class="mb-2 font-semibold text-amber-800 dark:text-amber-300">Henüz veri yok</h4>
+    <p class="mb-3 text-sm text-amber-700 dark:text-amber-400">
+      Google Ad Manager Policy Center sayfasından CSV indirip yukarıdan yükle.
+    </p>
     <ol class="list-decimal space-y-1.5 pl-5 text-sm text-amber-700 dark:text-amber-400">
-      <li>Google Cloud Console'da bir service account oluştur (veya mevcut birini kullan)</li>
-      <li>Ad Manager → <strong>Admin → API erişimi</strong> → service account'u "API erişimine sahip kullanıcılar" listesine ekle</li>
-      <li>Service account JSON'unu Railway'de <code class="rounded bg-amber-100 px-1 dark:bg-amber-900/40">ADMANAGER_SERVICE_ACCOUNT_JSON</code> env var olarak kaydet</li>
-      <li>Sayfayı yenile → Manuel Yenile butonuna bas</li>
+      <li><a href="https://admanager.google.com/" target="_blank" rel="noopener" class="font-medium underline">Ad Manager'a gir</a> → <strong>Inventory → Policy Center</strong></li>
+      <li>Sağ üstten <strong>"İndir"</strong> / <strong>"Export"</strong> butonu ile CSV indir</li>
+      <li>Yukarıdaki <strong>CSV Yükle</strong> butonuna bas, dosyayı seç</li>
+      <li>Yüklendikten sonra sayfa başlıkları arka planda otomatik çekilecek</li>
     </ol>
   </div>
 
   {% else %}
 
-  {# Özet kartlar #}
-  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  {# ── Özet kartlar ── #}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
     <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam</div>
       <div class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.get("total", 0) }}</div>
@@ -52,96 +82,124 @@
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Düzeltildi</div>
       <div class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.get("by_status", {}).get("fixed", 0) }}</div>
     </div>
-  </div>
-
-  {# Kategori chip'leri #}
-  {% set by_cat = stats.get("by_category", {}) %}
-  {% if by_cat %}
-  <div class="flex flex-wrap gap-2">
-    {% for cat, cnt in by_cat.items() %}
-    <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-      {{ cat }} <span class="font-bold text-slate-800 dark:text-slate-100">{{ cnt }}</span>
-    </span>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {# Filtreler #}
-  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-    <div class="flex flex-wrap items-center gap-1.5">
-      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">DURUM</span>
-      {% for val, label in [("all","Tümü"),("new","Yeni"),("reviewed","İncelendi"),("fixed","Düzeltildi"),("ignored","Görmezden")] %}
-      <button type="button"
-        onclick="filterPolicy('status', '{{ val }}')"
-        class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
-          {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
-          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">
-        {{ label }}
-      </button>
-      {% endfor %}
-    </div>
-    <div class="flex flex-wrap items-center gap-1.5">
-      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">SIRA</span>
-      {% for val, label in [("ad_requests","Reklam İsteği"),("date","Tarih")] %}
-      <button type="button"
-        onclick="filterPolicy('order', '{{ val }}')"
-        class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
-          {% if current_order == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
-          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">
-        {{ label }}
-      </button>
-      {% endfor %}
+    <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlık</div>
+      <div class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.get("with_title", 0) }}<span class="text-sm font-medium text-slate-400">/{{ stats.get("total", 0) }}</span></div>
     </div>
   </div>
 
-  {# Tablo #}
+  {# ── Filtreler ── #}
+  <div class="space-y-2 rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-900/50">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">DURUM</span>
+        {% for val, label in [("all","Tümü"),("new","Yeni"),("reviewed","İncelendi"),("fixed","Düzeltildi"),("ignored","Görmezden")] %}
+        <button type="button" onclick="filterPolicy('status', '{{ val }}')"
+          class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+            {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+            {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">{{ label }}</button>
+        {% endfor %}
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">SIRA</span>
+        {% for val, label in [("ad_requests","Reklam İsteği"),("date","Tarih"),("url","URL")] %}
+        <button type="button" onclick="filterPolicy('order', '{{ val }}')"
+          class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+            {% if current_order == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+            {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">{{ label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    {% set by_cat = stats.get("by_category", {}) %}
+    {% if by_cat %}
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">KATEGORİ</span>
+      <button type="button" onclick="filterPolicy('category', 'all')"
+        class="rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+          {% if current_category == 'all' %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">Tümü</button>
+      {% for cat, cnt in by_cat.items() %}
+      <button type="button" onclick="filterPolicy('category', '{{ cat }}')"
+        class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+          {% if current_category == cat %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500{% endif %}">
+        {{ cat }} <span class="opacity-70">{{ cnt }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Tablo (Excel benzeri) ── #}
   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     {% if violations %}
-    {# Sağ kenarda scroll olduğunu gösteren gradient — JS ile yönetilir #}
     <div class="relative">
       <div id="policy-scroll-hint" class="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 rounded-r-2xl bg-gradient-to-l from-white dark:from-slate-900 transition-opacity"></div>
       <div id="policy-table-scroll" class="overflow-x-auto" onscroll="updateScrollHint()">
-        <table class="w-full text-sm" style="min-width:700px">
+        <table class="w-full text-sm" style="min-width:1300px">
           <thead>
             <tr class="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-              {# URL kolonu sticky #}
-              <th class="sticky left-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] dark:bg-slate-800/50 dark:text-slate-400 dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">URL</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sorun</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">Rek. İsteği</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Durum</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Not</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aksiyon</th>
+              <th class="sticky left-0 z-10 bg-slate-50 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] dark:bg-slate-800/50 dark:text-slate-400 dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">Sayfa</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">İhlal</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Yaptırım</th>
+              <th class="px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Rek. (7g)</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">İlk</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Son</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durum</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not</th>
+              <th class="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aksiyon</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for v in violations %}
             {% set vid = v.id %}
-            <tr class="group transition hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-              {# URL — sticky #}
-              <td class="sticky left-0 z-10 w-[200px] max-w-[200px] bg-white px-4 py-3 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] transition group-hover:bg-slate-50/60 dark:bg-slate-900 dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] dark:group-hover:bg-slate-800/30">
-                <span class="block truncate text-xs font-medium text-slate-700 dark:text-slate-300" title="{{ v.url }}">{{ v.url }}</span>
-                {% if v.last_reported %}
-                <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ v.last_reported }}</span>
+            <tr id="row-{{ vid }}" class="group transition hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+              {# Sayfa (başlık + URL) — sticky #}
+              <td class="sticky left-0 z-10 w-[300px] max-w-[300px] bg-white px-4 py-3 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] transition group-hover:bg-slate-50/60 dark:bg-slate-900 dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] dark:group-hover:bg-slate-800/30">
+                {% if v.page_title %}
+                <div class="truncate text-xs font-semibold text-slate-800 dark:text-slate-100" id="title-{{ vid }}" title="{{ v.page_title }}">{{ v.page_title }}</div>
+                {% else %}
+                <div class="truncate text-xs font-medium italic text-slate-400 dark:text-slate-500" id="title-{{ vid }}">—</div>
                 {% endif %}
+                <a href="{{ v.url }}" target="_blank" rel="noopener" class="mt-0.5 block truncate text-[10px] text-blue-600 hover:underline dark:text-blue-400" title="{{ v.url }}">{{ v.url }}</a>
               </td>
-              {# Sorun #}
-              <td class="px-4 py-3">
-                <span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap
-                  {% if 'yetişkin' in v.category.lower() or 'cinsel' in v.category.lower() or 'adult' in v.category.lower() or 'sexual' in v.category.lower() %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
-                  {% elif 'şok' in v.category.lower() or 'shock' in v.category.lower() %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
+              {# İhlal #}
+              <td class="px-3 py-3">
+                <div class="max-w-[200px] truncate text-xs text-slate-700 dark:text-slate-300" title="{{ v.issue_type }}">{{ v.issue_type }}</div>
+              </td>
+              {# Kategori #}
+              <td class="px-3 py-3">
+                <span class="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold
+                  {% set cl = v.category.lower() %}
+                  {% if 'yetişkin' in cl or 'cinsel' in cl %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                  {% elif 'şok' in cl or 'şiddet' in cl or 'tehlikeli' in cl %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
+                  {% elif 'güvenlik' in cl %}bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400
+                  {% elif 'telif' in cl or 'marka' in cl %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
+                  {% elif 'yanıltıcı' in cl %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
                   {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
                   {{ v.category }}
                 </span>
-                <div class="mt-0.5 w-[160px] truncate text-[10px] text-slate-500 dark:text-slate-400" title="{{ v.issue_type }}">{{ v.issue_type }}</div>
+              </td>
+              {# Yaptırım #}
+              <td class="px-3 py-3">
+                {% if v.enforcement %}
+                <span class="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">{{ v.enforcement }}</span>
+                {% else %}
+                <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+                {% endif %}
               </td>
               {# Reklam isteği #}
-              <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              <td class="px-3 py-3 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                 {{ "{:,}".format(v.ad_requests_7d) }}
               </td>
+              {# İlk #}
+              <td class="px-3 py-3 whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">{{ v.first_reported or '—' }}</td>
+              {# Son #}
+              <td class="px-3 py-3 whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">{{ v.last_reported or '—' }}</td>
               {# Durum #}
-              <td class="px-4 py-3">
-                <select id="status-sel-{{ vid }}"
-                  onchange="updateStatus({{ vid }}, this.value)"
+              <td class="px-3 py-3">
+                <select id="status-sel-{{ vid }}" onchange="updateStatus({{ vid }}, this.value)"
                   class="rounded-lg border px-2 py-1 text-xs font-semibold transition focus:outline-none cursor-pointer">
                   <option value="new"      {% if v.our_status == 'new'      %}selected{% endif %}>🔴 Yeni</option>
                   <option value="reviewed" {% if v.our_status == 'reviewed' %}selected{% endif %}>🟡 İncelendi</option>
@@ -150,51 +208,53 @@
                 </select>
               </td>
               {# Not #}
-              <td class="px-4 py-3">
-                <input type="text" value="{{ v.our_notes | e }}"
-                  placeholder="not ekle…"
+              <td class="px-3 py-3">
+                <input type="text" value="{{ v.our_notes | e }}" placeholder="not…"
                   onblur="saveNote({{ vid }}, this.value)"
                   onkeydown="if(event.key==='Enter'){this.blur();}"
                   class="w-full min-w-[120px] rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-xs text-slate-600 placeholder-slate-300 transition focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600 dark:focus:border-slate-500">
               </td>
-              {# Aksiyon #}
-              <td class="px-4 py-3">
-                {% if v.admin_link %}
-                <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
-                  class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40 whitespace-nowrap">
-                  Admin →
-                </a>
-                {% else %}
-                <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
-                {% endif %}
+              {# Aksiyon: Admin + Başlık yenile #}
+              <td class="px-3 py-3">
+                <div class="flex items-center gap-1">
+                  {% if v.admin_link %}
+                  <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
+                    class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40 whitespace-nowrap" title="Admin paneli">
+                    Admin
+                  </a>
+                  {% endif %}
+                  <button type="button" onclick="fetchSingleTitle({{ vid }}, this)"
+                    class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300" title="Sayfa başlığını yeniden çek">
+                    ↺
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
-      </div>{# /overflow-x-auto #}
-    </div>{# /relative #}
+      </div>
+    </div>
     <div class="border-t border-slate-100 px-4 py-2 text-right text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">
       {{ violations | length }} kayıt
-      {% if current_status != 'all' %} · "{{ current_status }}" filtresi aktif{% endif %}
+      {% if current_status != 'all' %} · "{{ current_status }}"{% endif %}
+      {% if current_category != 'all' %} · {{ current_category }}{% endif %}
     </div>
     {% else %}
     <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
       <div class="text-3xl text-slate-200 dark:text-slate-700">✓</div>
-      <div class="text-sm font-medium text-slate-500 dark:text-slate-400">
-        {% if current_status != 'all' %}Bu filtrede ihlal yok.{% else %}Henüz veri yok — Manuel Yenile butonuna bas.{% endif %}
-      </div>
+      <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Bu filtrede kayıt yok.</div>
     </div>
     {% endif %}
   </div>
 
-  {% endif %}{# configured #}
+  {% endif %}{# has data #}
 
 </div>
 
 <script>
 (function () {
-  // Scroll hint gradient — sağda scroll varsa göster
+  // ── Scroll hint ──
   window.updateScrollHint = function () {
     var el   = document.getElementById("policy-table-scroll");
     var hint = document.getElementById("policy-scroll-hint");
@@ -202,20 +262,24 @@
     var atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
     hint.style.opacity = atEnd ? "0" : "1";
   };
-  // İlk yükleme
   setTimeout(window.updateScrollHint, 50);
 
-  // Filtre state — server'dan oku
-  var _status = "{{ current_status }}";
-  var _order  = "{{ current_order }}";
+  // ── Filter state ──
+  var _status   = "{{ current_status }}";
+  var _category = "{{ current_category }}";
+  var _order    = "{{ current_order }}";
 
   window.filterPolicy = function (key, val) {
-    if (key === "status") _status = val;
-    else _order = val;
-    window.location.href = "/policy?status=" + encodeURIComponent(_status) + "&order=" + encodeURIComponent(_order);
+    if (key === "status")   _status   = val;
+    if (key === "category") _category = val;
+    if (key === "order")    _order    = val;
+    var qs = "status=" + encodeURIComponent(_status) +
+             "&category=" + encodeURIComponent(_category) +
+             "&order=" + encodeURIComponent(_order);
+    window.location.href = "/policy?" + qs;
   };
 
-  // Select renk sınıfları
+  // ── Durum select renkleri ──
   var STATUS_CLS = {
     new:      "border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400",
     reviewed: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400",
@@ -223,15 +287,11 @@
     ignored:  "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
   var ALL_CLS = Object.values(STATUS_CLS).join(" ").split(" ");
-
   function applyStatusClass(sel, status) {
-    // Önce hepsini kaldır, sonra yeni ekle
     ALL_CLS.forEach(function (c) { if (c) sel.classList.remove(c); });
     var cls = STATUS_CLS[status] || STATUS_CLS.ignored;
     cls.split(" ").forEach(function (c) { if (c) sel.classList.add(c); });
   }
-
-  // Sayfa yüklenince mevcut select'lere renk uygula
   document.querySelectorAll("[id^='status-sel-']").forEach(function (sel) {
     applyStatusClass(sel, sel.value);
   });
@@ -244,11 +304,7 @@
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({status: status})
     }).then(function (r) { return r.json(); }).then(function (d) {
-      if (!d.ok) {
-        console.error("Status güncellenemedi:", d);
-        // Hata varsa eski değere dön — sayfayı yenile
-        location.reload();
-      }
+      if (!d.ok) location.reload();
     }).catch(function () { location.reload(); });
   };
 
@@ -260,62 +316,107 @@
     });
   };
 
-  window.triggerPolicyRefresh = function () {
-    var btn  = document.getElementById("policy-refresh-btn");
-    var icon = document.getElementById("policy-refresh-icon");
-    var msg  = document.getElementById("policy-refresh-status");
-    btn.disabled = true;
-    icon.textContent = "…";
-    if (msg) msg.classList.remove("hidden");
+  // ── CSV upload ──
+  window.uploadPolicyCSV = function (input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    var banner = document.getElementById("upload-banner");
+    banner.className = "rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300";
+    banner.textContent = "Yükleniyor: " + file.name + " (" + Math.round(file.size / 1024) + " KB)...";
 
-    fetch("/api/policy/refresh", {method: "POST"})
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
+    var fd = new FormData();
+    fd.append("file", file);
+    fetch("/api/policy/upload", {method: "POST", body: fd})
+      .then(function (r) { return r.json().then(function (d) { return {status: r.status, body: d}; }); })
+      .then(function (res) {
+        var d = res.body;
         if (!d.ok) {
-          alert("Hata: " + (d.error || "bilinmiyor"));
-          btn.disabled = false;
-          icon.textContent = "↺";
-          if (msg) msg.classList.add("hidden");
+          banner.className = "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300";
+          banner.textContent = "Hata: " + (d.error || "bilinmiyor");
+          if (d.headers) banner.textContent += " (CSV başlıkları: " + d.headers.join(", ") + ")";
+          input.value = "";
           return;
         }
-        // Arka planda başladı — status endpoint'ini poll et
-        if (msg) msg.textContent = "Yenileniyor…";
-        pollRefreshStatus(0);
+        banner.className = "rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-300";
+        banner.textContent = "✓ " + d.row_count + " satır işlendi: " + d.new_count + " yeni, " + d.updated_count + " güncellendi. Sayfa başlıkları arka planda çekiliyor.";
+        // Title bar göster
+        var bar = document.getElementById("title-fetch-bar");
+        if (bar) bar.classList.remove("hidden");
+        // Sayfayı 2 saniye sonra yenile (yeni satırlar görünsün)
+        setTimeout(function () { location.reload(); }, 1500);
       })
-      .catch(function () {
-        btn.disabled = false;
-        icon.textContent = "↺";
-        if (msg) msg.classList.add("hidden");
+      .catch(function (e) {
+        banner.className = "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300";
+        banner.textContent = "Ağ hatası: " + e;
+        input.value = "";
       });
   };
 
-  function pollRefreshStatus(attempt) {
-    var btn  = document.getElementById("policy-refresh-btn");
-    var icon = document.getElementById("policy-refresh-icon");
-    var msg  = document.getElementById("policy-refresh-status");
-    if (attempt > 30) { // 30 * 3sn = 90sn max
-      window.location.reload();
-      return;
-    }
-    setTimeout(function () {
-      fetch("/api/policy/refresh/status")
-        .then(function (r) { return r.json(); })
-        .then(function (s) {
-          if (s.last_error) {
-            if (msg) { msg.textContent = "Hata: " + s.last_error; msg.classList.remove("hidden"); msg.classList.add("text-red-500"); }
-            btn.disabled = false;
-            icon.textContent = "↺";
-            return;
+  // ── Title fetch (batch) ──
+  window.triggerTitleFetch = function (onlyMissing) {
+    var url = "/api/policy/fetch-titles" + (onlyMissing ? "?only_missing=true" : "?only_missing=false");
+    fetch(url, {method: "POST"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var bar = document.getElementById("title-fetch-bar");
+        if (bar) bar.classList.remove("hidden");
+        pollTitleStatus();
+      });
+  };
+
+  function pollTitleStatus() {
+    fetch("/api/policy/fetch-titles/status")
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        var bar   = document.getElementById("title-fetch-bar");
+        var done  = document.getElementById("title-fetch-done");
+        var total = document.getElementById("title-fetch-total");
+        var prog  = document.getElementById("title-fetch-progress");
+        var pct   = document.getElementById("title-fetch-pct");
+        if (done)  done.textContent  = s.done;
+        if (total) total.textContent = s.total;
+        var p = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+        if (prog) prog.style.width = p + "%";
+        if (pct)  pct.textContent  = p + "%";
+        if (s.running) {
+          setTimeout(pollTitleStatus, 2000);
+        } else {
+          if (s.done > 0) {
+            setTimeout(function () { location.reload(); }, 800);
+          } else if (bar) {
+            bar.classList.add("hidden");
           }
-          if (!s.running) {
-            window.location.reload();
-            return;
-          }
-          pollRefreshStatus(attempt + 1);
-        })
-        .catch(function () { window.location.reload(); });
-    }, 3000);
+        }
+      })
+      .catch(function () {});
   }
 
+  // İlk yüklemede job çalışıyorsa polling başlat
+  {% if title_job.running %}
+  pollTitleStatus();
+  {% endif %}
+
+  // ── Tek satır title fetch ──
+  window.fetchSingleTitle = function (id, btn) {
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = "…";
+    fetch("/api/policy/violations/" + id + "/fetch-title", {method: "POST"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        if (d.ok) {
+          var t = document.getElementById("title-" + id);
+          if (t) {
+            t.textContent = d.page_title || "—";
+            t.classList.remove("italic", "text-slate-400", "dark:text-slate-500");
+            t.classList.add("font-semibold", "text-slate-800", "dark:text-slate-100");
+            t.title = d.page_title || "";
+          }
+        }
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = orig; });
+  };
 }());
 </script>
