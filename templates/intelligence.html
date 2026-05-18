@@ -149,7 +149,7 @@
           if (text.length > 110) text = text.slice(0, 110).replace(/\s+\S*$/, '') + '…';
           // Güvenlik: textContent ile DOM'a yazdığımız için XSS yok; metinden HTML üretiyoruz.
           const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          excerptHtml = `<p class="rt-excerpt mt-1 text-[9.5px] text-slate-500 dark:text-zinc-500 leading-snug line-clamp-2">${esc}</p>`;
+          excerptHtml = `<p class="rt-excerpt text-slate-500 dark:text-zinc-500 line-clamp-2" style="font-size:9px;line-height:1.35;margin-top:4px;">${esc}</p>`;
         }
       }
 
