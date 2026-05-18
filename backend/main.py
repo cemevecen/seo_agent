@@ -7932,6 +7932,9 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
             triggered_label = r.triggered_at.strftime("%d.%m %H:%M") if r.triggered_at else ""
         cur_v = float(r.current_value or 0.0)
         prev_v = float(r.previous_value or 0.0)
+        # 0 → XX geçişleri anlamsız görünür, gizle
+        if prev_v == 0:
+            continue
         pct = float(r.change_pct or 0.0)
         if cur_v == int(cur_v):
             cur_fmt = f"{int(cur_v)}"
