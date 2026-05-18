@@ -141,19 +141,19 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        # Basit Order sorgusuyla PQL bağlantısını test et
+        # PQL bağlantı testi + tablo keşfi
         for test_q in [
-            "SELECT Id, name FROM Order LIMIT 1 OFFSET 0",
-            "SELECT Id, name FROM AdUnit LIMIT 1 OFFSET 0",
+            "SELECT Id, Name FROM Order LIMIT 1",
+            "SELECT TableName FROM Publisher_Query_Language_Tables LIMIT 200",
         ]:
             try:
-                t_xml = _pql_select(test_q.replace(" OFFSET 0", ""), 0)
+                t_xml = _pql_select(test_q, 0)
                 t_resp = session.post(_PQL_ENDPOINT, data=t_xml.encode("utf-8"),
                                       headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
                                       timeout=30)
-                logger.warning("PQL test [%s] status=%d snippet=%s", test_q[:40], t_resp.status_code, t_resp.text[200:400])
+                logger.warning("PQL test [%s] status=%d body=%s", test_q[:50], t_resp.status_code, t_resp.text[150:500])
             except Exception as te:
-                logger.warning("PQL test [%s] exception=%s", test_q[:40], te)
+                logger.warning("PQL test [%s] exception=%s", test_q[:50], te)
 
         query = "SELECT Url, ViolationType, EnforcementStatus FROM PolicyViolation LIMIT 500"
 
