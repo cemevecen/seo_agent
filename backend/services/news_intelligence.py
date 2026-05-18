@@ -176,7 +176,21 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         source_name = ch_title or "Bilinmiyor"
                         source_url  = ch_link or None
 
-                    description = (item.find("description").text or "") if item.find("description") is not None else ""
+                    # Description için 3 kaynak: <description>, <content:encoded>, <summary>
+                    # Bazı kaynaklar (TechCrunch, ArsTechnica, Wired vb.) description yerine
+                    # content:encoded kullanır; bazı atom-style RSS'lerde summary olur.
+                    description = ""
+                    for _tag in (
+                        "description",
+                        "{http://purl.org/rss/1.0/modules/content/}encoded",
+                        "{http://www.w3.org/2005/Atom}summary",
+                        "summary",
+                    ):
+                        _el = item.find(_tag)
+                        if _el is not None and _el.text:
+                            description = _el.text or ""
+                            if description.strip():
+                                break
                     image_url = None
 
                     title = title.strip()
