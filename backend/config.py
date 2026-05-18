@@ -66,9 +66,12 @@ class Settings(BaseSettings):
     firebase_crashlytics_bigquery_dataset: str = "firebase_crashlytics"
 
     # Google Ad Manager Policy Center
-    # Railway'de ADMANAGER_SERVICE_ACCOUNT_JSON olarak tanımlanır.
     admanager_service_account_json: str = ""
     admanager_network_code: str = "21728129623"
+    # OAuth2 refresh token (service account yerine kullanıcı kimlik bilgisi)
+    admanager_oauth_client_id: str = ""
+    admanager_oauth_client_secret: str = ""
+    admanager_oauth_refresh_token: str = ""
 
     # GA4, Search Console, mağaza analitiği: rapor takvim günü (sunucu UTC olsa bile dün/son N gün TSİ).
     report_calendar_timezone: str = "Europe/Istanbul"

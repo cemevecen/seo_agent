@@ -35,14 +35,35 @@ def _admin_link(url: str) -> str | None:
 
 
 def is_configured() -> bool:
-    return bool((settings.admanager_service_account_json or "").strip())
+    has_oauth = bool(
+        (settings.admanager_oauth_refresh_token or "").strip()
+        and (settings.admanager_oauth_client_id or "").strip()
+        and (settings.admanager_oauth_client_secret or "").strip()
+    )
+    has_sa = bool((settings.admanager_service_account_json or "").strip())
+    return has_oauth or has_sa
 
 
 def _get_credentials():
+    # OAuth2 refresh token öncelikli
+    rt = (settings.admanager_oauth_refresh_token or "").strip()
+    cid = (settings.admanager_oauth_client_id or "").strip()
+    csecret = (settings.admanager_oauth_client_secret or "").strip()
+    if rt and cid and csecret:
+        from google.oauth2.credentials import Credentials
+        return Credentials(
+            token=None,
+            refresh_token=rt,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=cid,
+            client_secret=csecret,
+            scopes=ADMANAGER_SCOPES,
+        )
+    # Fallback: service account
     from google.oauth2 import service_account
     raw = (settings.admanager_service_account_json or "").strip()
     if not raw:
-        raise ValueError("ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil.")
+        raise ValueError("Ne OAuth2 token ne de ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı.")
     info = json.loads(raw)
     return service_account.Credentials.from_service_account_info(info, scopes=ADMANAGER_SCOPES)
 
