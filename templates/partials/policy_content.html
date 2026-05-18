@@ -59,7 +59,6 @@
     {% set new_import_count = violations | selectattr("is_new_import") | list | length %}
     {% for label, val, color in [
       ("Toplam", stats.get("total",0), "text-slate-800 dark:text-slate-100"),
-      ("Yeni", stats.get("new",0), "text-red-600 dark:text-red-400"),
       ("Son Import", new_import_count, "text-emerald-600 dark:text-emerald-400"),
       ("Başlık", stats.get("with_title",0), "text-blue-600 dark:text-blue-400"),
     ] %}
@@ -84,7 +83,7 @@
 
   <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div class="overflow-x-auto">
-      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:980px">
+      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:900px">
         <colgroup>
           <col style="width:36px">      {# # #}
           <col style="width:30px">      {# Kopya #}
@@ -93,9 +92,7 @@
           <col style="width:140px">     {# Kategori #}
           <col style="width:140px">     {# Yaptırım #}
           <col style="width:90px">      {# Rek. İstek #}
-          <col style="width:82px">      {# İlk Tarih #}
-          <col style="width:82px">      {# Son Tarih #}
-          <col style="width:110px">     {# Durum #}
+          <col style="width:95px">      {# Tarih (İlk üst / Son alt) #}
           <col style="width:60px">      {# Aksiyon #}
         </colgroup>
         <thead>
@@ -107,9 +104,7 @@
             <th data-sort="cat" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Kategori<span class="sort-ind"></span></th>
             <th data-sort="enf" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Yaptırım<span class="sort-ind"></span></th>
             <th data-sort="req" data-sort-type="num" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Rek. İstek<span class="sort-ind"></span></th>
-            <th data-sort="first" data-sort-type="date" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">İlk<span class="sort-ind"></span></th>
-            <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Son<span class="sort-ind"></span></th>
-            <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Durum<span class="sort-ind"></span></th>
+            <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">İlk / Son<span class="sort-ind"></span></th>
             <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Admin</th>
           </tr>
         </thead>
@@ -126,7 +121,6 @@
               data-req="{{ v.ad_requests_7d }}"
               data-first="{{ v.first_reported or '' }}"
               data-last="{{ v.last_reported or '' }}"
-              data-status="{{ v.our_status }}"
               data-new-import="{{ '1' if v.is_new_import else '0' }}"
               class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row bg-emerald-50/40 dark:bg-emerald-950/10{% endif %}">
 
@@ -195,19 +189,12 @@
               {{ "{:,}".format(v.ad_requests_7d) }}
             </td>
 
-            {# İlk Tarih #}
-            <td class="px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400">{{ v.first_reported or '—' }}</td>
-
-            {# Son Tarih #}
-            <td class="px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400">{{ v.last_reported or '—' }}</td>
-
-            {# Durum select #}
-            <td class="px-2 py-2">
-              <select id="status-sel-{{ vid }}" onchange="updateStatus({{ vid }}, this.value)"
-                class="w-full rounded border px-1.5 py-1 text-[11px] font-semibold transition focus:outline-none cursor-pointer">
-                <option value="new"     {% if v.our_status == 'new'     %}selected{% endif %}>Yeni</option>
-                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>Görmezden</option>
-              </select>
+            {# Tarih — İlk üstte, Son altta #}
+            <td class="px-2 py-2 align-middle">
+              <div class="flex flex-col gap-0.5 font-mono tabular-nums whitespace-nowrap leading-tight">
+                <span class="text-[10.5px] text-slate-400 dark:text-slate-500" title="İlk tespit">{{ v.first_reported or '—' }}</span>
+                <span class="text-[10.5px] font-semibold text-slate-600 dark:text-slate-300" title="Son tespit">{{ v.last_reported or '—' }}</span>
+              </div>
             </td>
 
             {# Aksiyon — Admin linki #}
@@ -339,27 +326,6 @@
       th.addEventListener("click", function () { sortBy(th); });
     });
   })();
-
-  // ── Status select colors ──
-  var SC = {
-    new:     "border-red-300 bg-red-50 text-red-700 dark:border-red-700/50 dark:bg-red-950/30 dark:text-red-400",
-    ignored: "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400",
-  };
-  var ALL_SC = Object.values(SC).join(" ").split(" ");
-  function applyStatusClass(sel, status) {
-    ALL_SC.forEach(function (c) { if (c) sel.classList.remove(c); });
-    (SC[status] || SC.ignored).split(" ").forEach(function (c) { if (c) sel.classList.add(c); });
-  }
-  document.querySelectorAll("[id^='status-sel-']").forEach(function (s) { applyStatusClass(s, s.value); });
-
-  window.updateStatus = function (id, status) {
-    var sel = document.getElementById("status-sel-" + id);
-    if (sel) applyStatusClass(sel, status);
-    fetch("/api/policy/violations/" + id + "/status", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({status: status})
-    }).catch(function () { location.reload(); });
-  };
 
   // ── CSV upload ──
   window.uploadPolicyCSV = function (input) {

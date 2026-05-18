@@ -690,7 +690,7 @@ def build_xlsx(violations: list[dict]) -> bytes:
     headers = [
         "URL", "Sayfa Başlığı", "İhlal Türü", "Kategori",
         "Yaptırım", "Reklam İsteği (7g)", "İlk Tespit", "Son Tespit",
-        "Durum", "Admin Link", "Güncellendi",
+        "Admin Link", "Güncellendi",
     ]
     ws.append(headers)
 
@@ -702,8 +702,6 @@ def build_xlsx(violations: list[dict]) -> bytes:
         cell.font = header_font
         cell.alignment = Alignment(horizontal="left", vertical="center")
 
-    status_label = {"new": "Yeni", "ignored": "Görmezden"}
-
     for v in violations:
         ws.append([
             v.get("url", ""),
@@ -714,12 +712,11 @@ def build_xlsx(violations: list[dict]) -> bytes:
             v.get("ad_requests_7d", 0),
             v.get("first_reported") or "",
             v.get("last_reported") or "",
-            status_label.get(v.get("our_status", ""), v.get("our_status", "")),
             v.get("admin_link") or "",
             (v.get("updated_at") or "")[:19],
         ])
 
-    widths = [55, 50, 40, 22, 18, 14, 12, 12, 14, 60, 19]
+    widths = [55, 50, 40, 22, 18, 14, 12, 12, 60, 19]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 

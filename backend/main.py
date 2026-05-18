@@ -13089,19 +13089,6 @@ def api_policy_fetch_single_title(vid: int, db: Session = Depends(get_db)):
     return JSONResponse({"ok": True, "page_title": title})
 
 
-@app.post("/api/policy/violations/{vid}/status")
-async def api_policy_status(vid: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
-    from backend.models import AdPolicyViolation
-    row = db.query(AdPolicyViolation).filter(AdPolicyViolation.id == vid).first()
-    if not row:
-        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
-    row.our_status = body.get("status", row.our_status)
-    row.updated_at = datetime.utcnow()
-    db.commit()
-    return JSONResponse({"ok": True})
-
-
 @app.get("/api/policy/export.xlsx")
 def api_policy_export(db: Session = Depends(get_db)):
     from backend.services import policy_csv as pcsv
