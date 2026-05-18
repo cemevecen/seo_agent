@@ -131,7 +131,7 @@
             <td class="px-3 py-2">
               <div class="flex items-center gap-1.5">
                 {% if v.is_new_import %}
-                <span class="shrink-0 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white" title="Son CSV import'unda eklendi">YENİ</span>
+                <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.25)]" title="Son CSV import'unda eklendi" aria-label="Yeni"></span>
                 {% endif %}
                 {% if v.page_title and not v.page_title.startswith('[') %}
                 <a href="{{ v.url }}" target="_blank" rel="noopener"
