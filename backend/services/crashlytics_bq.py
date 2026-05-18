@@ -76,10 +76,11 @@ _DATASET_LOCATION_CACHE: dict[str, str] = {}    # platform → "EU" / "europe-we
 
 
 def _get_dataset_location(platform: str) -> str | None:
-    """Dataset'in BigQuery lokasyonunu öğren (cache'li). Bulunamazsa None."""
+    """Dataset'in BigQuery lokasyonunu öğren (cache'li). Bulunamazsa EU/US probe."""
     with _DATASET_LOCATION_LOCK:
         if platform in _DATASET_LOCATION_CACHE:
             return _DATASET_LOCATION_CACHE[platform] or None
+    # 1) Önce dataset metadata API'si ile dene (en ucuz yol)
     try:
         from google.cloud import bigquery as _bq
         client = _get_client(platform)
@@ -92,10 +93,29 @@ def _get_dataset_location(platform: str) -> str | None:
         logger.info("Dataset lokasyonu tespit edildi: %s → %s", platform, loc or "(bilinmiyor)")
         return loc or None
     except Exception as exc:
-        logger.warning("Dataset lokasyonu alınamadı (%s): %s", platform, exc)
-        with _DATASET_LOCATION_LOCK:
-            _DATASET_LOCATION_CACHE[platform] = ""
-        return None
+        logger.warning("Dataset lokasyonu get_dataset ile alınamadı (%s): %s — lokasyon probe başlıyor", platform, exc)
+    # 2) Metadata API başarısız olduysa yaygın Firebase konumlarını probe et.
+    #    Firebase Crashlytics EU/Avrupa projeleri için varsayılan EU olur.
+    _PROBE_LOCS = ("EU", "US", "europe-west1", "us-central1")
+    try:
+        client = _get_client(platform)
+        proj = _effective_project(platform)
+        sql = f"SELECT 1 FROM `{proj}.{_DATASET}.__TABLES__` LIMIT 1"
+        for loc_try in _PROBE_LOCS:
+            try:
+                job = client.query(sql, location=loc_try)
+                job.result(timeout=12)
+                logger.info("Dataset lokasyonu probe ile tespit edildi: %s → %s", platform, loc_try)
+                with _DATASET_LOCATION_LOCK:
+                    _DATASET_LOCATION_CACHE[platform] = loc_try
+                return loc_try
+            except Exception:
+                continue
+    except Exception as exc2:
+        logger.warning("Dataset lokasyonu probe da başarısız (%s): %s", platform, exc2)
+    with _DATASET_LOCATION_LOCK:
+        _DATASET_LOCATION_CACHE[platform] = ""
+    return None
 
 
 # ── Credential yükleme ────────────────────────────────────────────────────────
@@ -164,10 +184,11 @@ def _list_dataset_tables(platform: str) -> list[str]:
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
-        loc = _get_dataset_location(platform)
+        # _get_dataset_location zaten EU/US probe yapıyor; None dönerse EU'dan başla
+        loc = _get_dataset_location(platform) or "EU"
         sql = f"SELECT table_id FROM `{proj}.{_DATASET}.__TABLES__`"
-        query_job = client.query(sql, location=loc) if loc else client.query(sql)
-        return [str(r.table_id) for r in query_job.result(timeout=10)]
+        query_job = client.query(sql, location=loc)
+        return [str(r.table_id) for r in query_job.result(timeout=12)]
     except Exception as exc:
         logger.warning("BQ dataset listesi alınamadı (%s): %s", platform, exc)
         return []
@@ -911,12 +932,13 @@ def run_daily_refresh(product_id: str = "doviz") -> str:
             return "already_running"
         _REFRESH_RUNNING = True
 
-    # Manuel refresh: circuit breaker'ı + location cache'i sıfırla (kullanıcı bilinçli
-    # olarak yeniden deniyor — belki Firebase tarafında ayar düzeltildi).
+    # Manuel refresh: tüm cache'leri sıfırla (kullanıcı bilinçli deniyor).
     for plat in ("ios", "android"):
         _circuit_reset(plat)
     with _DATASET_LOCATION_LOCK:
         _DATASET_LOCATION_CACHE.clear()
+    with _TABLE_DISCOVERY_LOCK:
+        _TABLE_DISCOVERY_CACHE.clear()
 
     jid = _job_new(product_id)
 
