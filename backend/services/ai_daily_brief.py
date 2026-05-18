@@ -791,13 +791,28 @@ def parse_stored_brief_section_for_ui(text: str | None) -> dict:
     return {"mode": "legacy", "items": [], "text": t}
 
 
+def _slim_context_for_groq(context: dict) -> dict:
+    """Groq’un token limiti için context’i küçült: büyük dizileri kırp."""
+    import copy
+    ctx = copy.deepcopy(context)
+    for site in ctx.get("siteler") or []:
+        ps = site.get("pagespeed") or {}
+        for key in ("mobil_son_olcumler", "masaustu_son_olcumler"):
+            if isinstance(ps.get(key), list):
+                ps[key] = ps[key][-3:]
+        site["one_cikan_sorgular_7g"] = (site.get("one_cikan_sorgular_7g") or [])[:5]
+        site["bu_projeye_ozel_uyarilar"] = (site.get("bu_projeye_ozel_uyarilar") or [])[:5]
+    ctx["tum_son_uyarilar"] = (ctx.get("tum_son_uyarilar") or [])[:10]
+    return ctx
+
+
 def generate_brief_sections(
     context: dict, *, provider: str, model_name: str
 ) -> tuple[dict[str, str], float]:
-    ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
-    prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın. Aşağıdaki JSON verisi gerçek izleme özetidir.
-
-{ctx_json}
+    ctx_to_use = _slim_context_for_groq(context) if provider == "groq" else context
+    ctx_json = json.dumps(ctx_to_use, ensure_ascii=False, indent=2)
+    # Kurallar ÖNCE, veri SONRA — kırpılınca veri kesilir, kurallar sağlam kalır
+    prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın.
 {_BRIEF_DATA_FIRST_RULES_TR}
 YAPILANDIRMA: Girdi JSON içindeki "siteler" dizisindeki her proje için ayrı değerlendirme yaz. Siteleri asla tek metinde birleştirme. "domain" birebir (küçük harf). "baslik" = "alan_adi".
 
@@ -815,12 +830,10 @@ GÖREV: Dört ana başlık (ga4, pagespeed, search_console, alerts) için her pr
   "alerts": [ {{"domain": "...", "baslik": "...", "metin": "..."}} ]
 }}
 
-Kurallar:
-- Markdown yok; UTF-8 Türkçe (ı, ş, ğ, ü, ö, ç, İ).
-- Veride olmayan metrik uydurma; "veri setinde görünmüyor" de.
-- Her dizi, girdideki sitelerle aynı projeleri içersin (sıra aynı olsun).
-- ASCII kısaltmaları koru (GA4, CTR, URL).
-"""
+Kurallar: Markdown yok; UTF-8 Türkçe; uydurma veri yok; ASCII kısaltmaları koru (GA4, CTR, URL).
+
+VERİ:
+{ctx_json}"""
     data, delta_try = _llm_json(prompt, provider=provider, model_name=model_name)
     return _finalize_brief_payload(data, context), delta_try
 
@@ -829,10 +842,10 @@ def generate_brief_single_pass(
     context: dict, *, provider: str, model_name: str
 ) -> tuple[dict[str, str], bool, str, float]:
     """Tek LLM çağrısı: dört bölüm (proje bazlı) + Türkçe öz değerlendirme (tamam)."""
-    ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
-    prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın. Aşağıdaki JSON verisi gerçek izleme özetidir.
-
-{ctx_json}
+    ctx_to_use = _slim_context_for_groq(context) if provider == "groq" else context
+    ctx_json = json.dumps(ctx_to_use, ensure_ascii=False, indent=2)
+    # Kurallar ÖNCE, veri SONRA — kırpılınca veri kesilir, kurallar sağlam kalır
+    prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın.
 {_BRIEF_DATA_FIRST_RULES_TR}
 YAPILANDIRMA: "siteler" içindeki her proje için ayrı metin üret; projeleri tek paragrafta birleştirme. "domain" birebir eşleşsin. "baslik" = "alan_adi".
 
@@ -844,11 +857,10 @@ Her projede ve her başlıkta (ga4, pagespeed, search_console, alerts) "metin" �
 - "ga4", "pagespeed", "search_console", "alerts": her biri [{{"domain","baslik","metin"}}] dizisi (girdideki tüm siteler, aynı sıra).
 - "tamam": boolean — Türkçe, iskelet doğru ve metinler şablon dolgu değilse true.
 
-Kurallar:
-- Markdown yok; metin içinde \\n\\n ile paragraflar.
-- Uydurma veri yok; eksikte "veri setinde görünmüyor" de.
-- ASCII kısaltmaları koru (GA4, CTR, URL).
-"""
+Kurallar: Markdown yok; \\n\\n ile paragraflar; uydurma veri yok; ASCII kısaltmaları koru.
+
+VERİ:
+{ctx_json}"""
     data, delta_try = _llm_json(prompt, provider=provider, model_name=model_name)
     ok = bool(data.get("tamam", True))
     detail = "single_pass_self_qc_ok" if ok else "single_pass_self_qc_flagged"
