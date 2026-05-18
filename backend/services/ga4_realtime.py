@@ -679,6 +679,30 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
             positives.append(a)
     return negatives, positives
 
+
+# Bir maile dahil edilecek azami pozitif/negatif alarm sayısı — istek üzerine 10+10.
+ALARM_EMAIL_TOP_N = 10
+
+
+def _cap_top_n_each_side(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alarmları artan/düşen olarak ayırıp her gruptan en çok değişeni 10'ar tane döner.
+
+    Her grup change_pct mutlak değerine göre azalan sıralı. Önce pozitifler (en çok artan
+    önce), sonra negatifler (en çok düşen önce). Maile gönderilecek listenin uzunluğunu
+    sınırlamak için kullanılır.
+    """
+    negatives, positives = _split_alarms_by_sentiment(alarms)
+
+    def _abs_pct(a: dict[str, Any]) -> float:
+        try:
+            return abs(float(a.get("change_pct", 0) or 0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    positives_sorted = sorted(positives, key=_abs_pct, reverse=True)[:ALARM_EMAIL_TOP_N]
+    negatives_sorted = sorted(negatives, key=_abs_pct, reverse=True)[:ALARM_EMAIL_TOP_N]
+    return positives_sorted + negatives_sorted
+
 # sinemalar.com (www dahil): Realtime yüzde eşikleri — istek üzerine tüm threshold_pct = 50
 _SINEMALAR_REALTIME_ALARM_PCT = 35
 
@@ -2013,7 +2037,7 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=alarm["rule_id"],
-            metric=alarm["metric"],
+            metric=str(alarm["metric"])[:50],
             severity=alarm.get("severity", "warning"),
             current_value=alarm["current_value"],
             previous_value=alarm["previous_value"],
@@ -2497,7 +2521,7 @@ def check_page_alarms_for_site(
                 else:
                     to_send.extend(negatives)
             if to_send:
-                _send_page_alarm_email(site.domain, profile, to_send)
+                _send_page_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send))
 
     return alarms
 
@@ -2510,7 +2534,7 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=a["rule_id"],
-            metric="page:" + a.get("page", "")[:200],
+            metric=("page:" + a.get("page", ""))[:50],
             severity=a.get("severity", "warning"),
             current_value=a.get("current_users", 0),
             previous_value=a.get("previous_users", 0),
@@ -2877,7 +2901,7 @@ def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=a["rule_id"],
-            metric="news:" + a.get("page", "")[:200],
+            metric=("news:" + a.get("page", ""))[:50],
             severity=a.get("severity", "warning"),
             current_value=a.get("current_users", 0),
             previous_value=a.get("previous_users", 0),
@@ -2998,7 +3022,7 @@ def check_news_alarms_for_site(
                     to_send.extend(negatives)
             if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                _send_news_alarm_email(site.domain, profile, to_send, site_kpi=site_kpi)
+                _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi)
 
     return alarms
 
@@ -3623,6 +3647,8 @@ def check_app_event_spike_for_site(
 
         if to_send:
             from backend.services.mailer import send_realtime_email
+            # 10 en çok artan + 10 en çok düşen ile sınırla (istek üzerine).
+            to_send = _cap_top_n_each_side(to_send)
             profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
             html_body = _html_app_event_alarm_body(site.domain, profile_label, to_send)
             # Konuda negatifi de garantile: 2 pozitif + 1 negatif (varsa) — max 3 chip
