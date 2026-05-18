@@ -241,10 +241,19 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
         "pct": 5,
     }
     service = _gmail_service(creds)
-    # newer_than filtresi ile okunmuş/okunmamış fark etmeksizin son 60 günü çek
+    # Forwarding setup'ları için to: ve deliveredto: birlikte kullanılıyor:
+    # - to:   → mailin orijinal To header'ına bakar (doğrudan gelenler)
+    # - deliveredto: → forward sonrası Delivered-To header'ına bakar
+    # Bu sayede info@doviz.com → cemevecen@nokta.com forward zincirleri de yakalanır.
     q = (settings.inbox_gmail_query or "").strip()
     if not q:
-        q = "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com)"
+        q = (
+            "("
+            "to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
+            "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
+            "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com"
+            ")"
+        )
 
     # is:unread filtresini kaldır — okunmuş mailler de (bugün açılanlar dahil) çekilsin
     import re as _re

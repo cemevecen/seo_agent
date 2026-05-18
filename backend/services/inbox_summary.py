@@ -17,23 +17,24 @@ def _inbox_summary_email_disabled() -> bool:
 
 def run_inbox_summary_job(db: Session):
     """
-    1. Her saat başı inbox senkronize edilir.
-    2. Okunmamış (gmail_unread=True) olan mesajlar toplanır.
-    3. Özet rapor oluşturulur ve mail atılır.
+    1. Her 30 dakikada inbox senkronize edilir (env'den bağımsız, her zaman çalışır).
+    2. INBOX_SUMMARY_EMAIL_ENABLED=true ise okunmamış özeti maille gönderilir.
     """
-    if _inbox_summary_email_disabled():
-        logger.info("Inbox summary email is disabled (INBOX_SUMMARY_EMAIL_ENABLED not set); skipping.")
-        return
-    logger.info("Starting hourly inbox summary job...")
-    
-    # 1. Sync inbox (DB'nin güncel olduğundan emin olalım)
+    # 1. Sync inbox — env'e bakmadan her zaman çalışır.
+    #    Kullanıcı /inbox sayfasında güncel veriyi görmek için bu sync'e bağlı.
+    logger.info("Starting scheduled inbox sync...")
     try:
         # Senkronizasyon yaparken max_threads'i yüksek tutalım (100) ki güncelliği kaçırmasın
         inbox_sync.sync_inbox_threads(db, max_threads=100)
     except Exception as exc:
-        logger.warning("Inbox summary sync failed (continuing with local data): %s", exc)
+        logger.warning("Inbox sync failed (continuing with local data): %s", exc)
 
-    # 2. Okunmamış mesajları sorgula
+    # 2. Özet maili sadece env enable'sa gönder.
+    if _inbox_summary_email_disabled():
+        logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED not set); sync done, email skipped.")
+        return
+
+    # 3. Okunmamış mesajları sorgula
     unread_threads = (
         db.query(SupportInboxThread)
         .filter(SupportInboxThread.gmail_unread == True)
