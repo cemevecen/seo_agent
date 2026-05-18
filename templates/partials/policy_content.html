@@ -61,8 +61,6 @@
     {% for label, val, color in [
       ("Toplam", stats.get("total",0), "text-slate-800 dark:text-slate-100"),
       ("Yeni", stats.get("new",0), "text-red-600 dark:text-red-400"),
-      ("İncelendi", stats.get("by_status",{}).get("reviewed",0), "text-amber-600 dark:text-amber-400"),
-      ("Düzeltildi", stats.get("by_status",{}).get("fixed",0), "text-emerald-600 dark:text-emerald-400"),
       ("Başlık", stats.get("with_title",0), "text-blue-600 dark:text-blue-400"),
     ] %}
     <div class="rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
@@ -76,7 +74,7 @@
   <div class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs dark:bg-slate-900/50">
     <div class="flex items-center gap-1.5">
       <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Durum</span>
-      {% for val, lbl in [("all","Tümü"),("new","Yeni"),("reviewed","İncelendi"),("fixed","Düzeltildi"),("ignored","Görmezden")] %}
+      {% for val, lbl in [("all","Tümü"),("new","Yeni"),("ignored","Görmezden")] %}
       <button onclick="filterPolicy('status','{{ val }}')"
         class="rounded-full border px-2.5 py-0.5 font-semibold transition
           {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white
@@ -221,10 +219,8 @@
             <td class="px-2 py-2">
               <select id="status-sel-{{ vid }}" onchange="updateStatus({{ vid }}, this.value)"
                 class="w-full rounded border px-1.5 py-1 text-[11px] font-semibold transition focus:outline-none cursor-pointer">
-                <option value="new"      {% if v.our_status == 'new'      %}selected{% endif %}>🔴 Yeni</option>
-                <option value="reviewed" {% if v.our_status == 'reviewed' %}selected{% endif %}>🟡 İncelendi</option>
-                <option value="fixed"    {% if v.our_status == 'fixed'    %}selected{% endif %}>🟢 Düzeltildi</option>
-                <option value="ignored"  {% if v.our_status == 'ignored'  %}selected{% endif %}>⚫ Görmezden</option>
+                <option value="new"     {% if v.our_status == 'new'     %}selected{% endif %}>🔴 Yeni</option>
+                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>⚫ Görmezden</option>
               </select>
             </td>
 
@@ -372,10 +368,8 @@
 
   // ── Status select colors ──
   var SC = {
-    new:      "border-red-300 bg-red-50 text-red-700 dark:border-red-700/50 dark:bg-red-950/30 dark:text-red-400",
-    reviewed: "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-400",
-    fixed:    "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-950/30 dark:text-emerald-400",
-    ignored:  "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400",
+    new:     "border-red-300 bg-red-50 text-red-700 dark:border-red-700/50 dark:bg-red-950/30 dark:text-red-400",
+    ignored: "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400",
   };
   var ALL_SC = Object.values(SC).join(" ").split(" ");
   function applyStatusClass(sel, status) {

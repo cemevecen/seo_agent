@@ -645,10 +645,7 @@ def build_xlsx(violations: list[dict]) -> bytes:
         cell.font = header_font
         cell.alignment = Alignment(horizontal="left", vertical="center")
 
-    status_label = {
-        "new": "Yeni", "reviewed": "İncelendi",
-        "fixed": "Düzeltildi", "ignored": "Görmezden",
-    }
+    status_label = {"new": "Yeni", "ignored": "Görmezden"}
 
     for v in violations:
         ws.append([
