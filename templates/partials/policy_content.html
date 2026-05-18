@@ -1,14 +1,18 @@
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2">
 
   {# ── Başlık + Araçlar ── #}
+  {% set _total = stats.get("total", 0) if stats else 0 %}
+  {% set _new_import = (violations | selectattr("is_new_import") | list | length) if violations else 0 %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>
       <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Ad Manager Policy</h3>
       <p class="text-[11px] text-slate-400 dark:text-slate-500">
-        Policy Center · CSV import · sinemalar.com
+        <span>Toplam <b class="text-slate-700 dark:text-slate-200">{{ _total }}</b></span>
+        <span class="px-1">·</span>
+        <span>Yeni <b class="text-emerald-600 dark:text-emerald-400">{{ _new_import }}</b></span>
         {% if last_upload %}
-          · <b class="text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at }} UTC</b>
-          · {{ last_upload.row_count }} satır
+          <span class="px-1">·</span>
+          <span>Son yükleme: <b class="text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at }} UTC</b></span>
         {% endif %}
       </p>
     </div>
@@ -53,21 +57,6 @@
   </div>
 
   {% else %}
-
-  {# ── Özet şerit ── #}
-  <div class="flex flex-wrap gap-2">
-    {% set new_import_count = violations | selectattr("is_new_import") | list | length %}
-    {% for label, val, color in [
-      ("Toplam", stats.get("total",0), "text-slate-800 dark:text-slate-100"),
-      ("Son Import", new_import_count, "text-emerald-600 dark:text-emerald-400"),
-      ("Başlık", stats.get("with_title",0), "text-blue-600 dark:text-blue-400"),
-    ] %}
-    <div class="rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-      <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{{ label }}</div>
-      <div class="text-xl font-bold {{ color }}">{{ val }}{% if label == "Başlık" %}<span class="text-xs font-medium text-slate-400">/{{ stats.get("total",0) }}</span>{% endif %}{% if label == "Son Import" %}<span class="text-xs font-medium text-slate-400">/{{ stats.get("total",0) }}</span>{% endif %}</div>
-    </div>
-    {% endfor %}
-  </div>
 
   {# ── Tablo ── #}
   {% if violations %}
