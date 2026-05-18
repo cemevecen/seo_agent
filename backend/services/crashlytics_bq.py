@@ -527,7 +527,7 @@ def _type_filter(error_type: str | None) -> str:
 def _version_filter(version: str | None) -> str:
     if version and version.strip():
         safe = version.replace("'", "''")
-        return f"AND app_info.app_version = '{safe}'"
+        return f"AND application.display_version = '{safe}'"
     return ""
 
 
@@ -586,17 +586,17 @@ def query_top_issues(platform: str, table: str, days: int,
                      limit: int = 30) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
-  COALESCE(issue.issue_id, '') AS issue_id,
-  COALESCE(issue.title, '') AS issue_title,
+  COALESCE(issue_id, '') AS issue_id,
+  COALESCE(issue_title, '') AS issue_title,
   COALESCE(error_type, '') AS error_type,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users,
-  MAX(app_info.app_version) AS latest_version
+  MAX(application.display_version) AS latest_version
 FROM `{table}`
 WHERE {_ts_filter(days)}
   {_type_filter(error_type)}
   {_version_filter(version)}
-GROUP BY issue.issue_id, issue.title, error_type
+GROUP BY issue_id, issue_title, error_type
 ORDER BY event_count DESC
 LIMIT {limit}
 """
@@ -618,16 +618,16 @@ def query_anr_list(platform: str, table: str, days: int,
                    version: str | None = None, limit: int = 30) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
-  COALESCE(issue.issue_id, '') AS issue_id,
-  COALESCE(issue.title, '') AS issue_title,
-  app_info.app_version AS app_version,
+  COALESCE(issue_id, '') AS issue_id,
+  COALESCE(issue_title, '') AS issue_title,
+  application.display_version AS app_version,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM `{table}`
 WHERE {_ts_filter(days)}
   AND error_type = 'ANR'
   {_version_filter(version)}
-GROUP BY issue.issue_id, issue.title, app_info.app_version
+GROUP BY issue_id, issue_title, application.display_version
 ORDER BY event_count DESC
 LIMIT {limit}
 """
@@ -648,7 +648,7 @@ def query_version_breakdown(platform: str, table: str, days: int,
                             limit: int = 20) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
-  COALESCE(app_info.app_version, 'bilinmiyor') AS app_version,
+  COALESCE(application.display_version, 'bilinmiyor') AS app_version,
   COUNTIF(error_type = 'FATAL') AS fatal_count,
   COUNTIF(error_type = 'ANR') AS anr_count,
   COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count,
@@ -656,7 +656,7 @@ SELECT
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM `{table}`
 WHERE {_ts_filter(days)}
-GROUP BY app_info.app_version
+GROUP BY application.display_version
 ORDER BY total_events DESC
 LIMIT {limit}
 """
@@ -701,9 +701,9 @@ LIMIT {days + 5}
 
 def query_available_versions(platform: str, table: str, days: int) -> list[str]:
     sql = f"""
-SELECT DISTINCT app_info.app_version AS v
+SELECT DISTINCT application.display_version AS v
 FROM `{table}`
-WHERE {_ts_filter(days)} AND app_info.app_version IS NOT NULL
+WHERE {_ts_filter(days)} AND application.display_version IS NOT NULL
 ORDER BY v DESC
 LIMIT 30
 """
