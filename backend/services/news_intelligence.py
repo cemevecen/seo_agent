@@ -17,7 +17,6 @@ CATEGORY_SOURCES = {
     "Türkiye": [
         # Ajanslar
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-        "https://www.trthaber.com/anasayfa.rss",
         # Gazeteler
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
@@ -35,7 +34,6 @@ CATEGORY_SOURCES = {
     "Genel": [
         # Ekonomi/Haber ajansları
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-        "https://www.trthaber.com/anasayfa.rss",
         "https://www.ntv.com.tr/gundem.rss",
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://www.bloomberght.com/rss",
@@ -51,8 +49,6 @@ CATEGORY_SOURCES = {
         "https://www.dunya.com/rss",
         "https://www.ekonomim.com/rss",
         "https://www.bloomberght.com/rss",
-        "https://www.paraanaliz.com/rss",
-        "https://www.trthaber.com/ekonomi.rss",
         # Google News
         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=şirket+ihracat+yatırım+when:3h&hl=tr&gl=TR&ceid=TR:tr",
@@ -63,7 +59,6 @@ CATEGORY_SOURCES = {
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
         "https://www.ekonomim.com/rss",
-        "https://www.paraanaliz.com/rss",
         "https://www.dunya.com/rss",
         # Google News — piyasa odaklı
         "https://news.google.com/rss/search?q=borsa+istanbul+bist100+hisse+when:3h&hl=tr&gl=TR&ceid=TR:tr",
@@ -76,7 +71,6 @@ CATEGORY_SOURCES = {
     "Dünya": [
         # Türk ajanslar — dünya
         "https://www.aa.com.tr/tr/rss/default?cat=dunya",
-        "https://www.trthaber.com/dunya.rss",
         "https://www.cnnturk.com/feed/rss/all/news",
         # Uluslararası
         "https://feeds.bbci.co.uk/news/world/rss.xml",
@@ -113,7 +107,6 @@ CATEGORY_SOURCES = {
         "https://www.theverge.com/rss/index.xml",
         "https://www.wired.com/feed/rss",
         # Türkçe tech
-        "https://www.trthaber.com/teknoloji.rss",
         "https://news.google.com/rss/search?q=openai+google+microsoft+apple+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=uzay+nasa+spacex+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
@@ -184,13 +177,13 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 # --- Adım 1: Ham parse (çeviri öncesi) ---
                 pending_items = []  # (title, link, source_name, source_url, description, display_topic, published_at)
                 for item in items:
-                    title = item.find("title").text if item.find("title") is not None else ""
-                    link = item.find("link").text if item.find("link") is not None else ""
+                    title = (item.find("title").text or "") if item.find("title") is not None else ""
+                    link = (item.find("link").text or "") if item.find("link") is not None else ""
 
                     if category == "Yahoo Finance" and "/personal-finance/" in link.lower():
                         continue
 
-                    pub_date_str = item.find("pubDate").text if item.find("pubDate") is not None else ""
+                    pub_date_str = (item.find("pubDate").text or "") if item.find("pubDate") is not None else ""
 
                     source_el = item.find("source")
                     if source_el is not None:
@@ -200,7 +193,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                         source_name = ch_title or "Bilinmiyor"
                         source_url  = ch_link or None
 
-                    description = item.find("description").text if item.find("description") is not None else ""
+                    description = (item.find("description").text or "") if item.find("description") is not None else ""
                     image_url = None
 
                     title = title.strip()

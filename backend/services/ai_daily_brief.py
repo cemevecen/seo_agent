@@ -216,7 +216,7 @@ def _resolve_brief_llm() -> tuple[str, str] | None:
     oai_k = (settings.openai_api_key or "").strip()
     pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
-    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
     om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
 
     if pref == "gemini":
@@ -243,7 +243,7 @@ def _resolve_brief_llm_with_override(provider_override: str | None) -> tuple[str
     gem_k = (settings.gemini_api_key or "").strip()
     oai_k = (settings.openai_api_key or "").strip()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
-    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
     om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     if o == "groq":
         return ("groq", gq) if groq_k else None
@@ -262,7 +262,7 @@ def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str
     oai_k = bool((settings.openai_api_key or "").strip())
     if not groq_k and not gem_k and not oai_k:
         return []
-    gq = (settings.ai_daily_brief_groq_model or "openai/gpt-oss-120b").strip()
+    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
     om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))

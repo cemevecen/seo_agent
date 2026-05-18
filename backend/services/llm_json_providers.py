@@ -30,8 +30,8 @@ def _parse_json_object(raw: str) -> dict:
 
 
 _GEMINI_MAX_PROMPT_CHARS = 300_000
-_GROQ_MAX_PROMPT_CHARS = 300_000
-_GROQ_FALLBACK_PROMPT_CHARS = 180_000
+_GROQ_MAX_PROMPT_CHARS = 70_000
+_GROQ_FALLBACK_PROMPT_CHARS = 50_000
 
 
 def _truncate_prompt(prompt: str, max_chars: int) -> str:
