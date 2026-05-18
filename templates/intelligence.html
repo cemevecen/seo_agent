@@ -136,6 +136,23 @@
       const newBadge = isNew
         ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
         : '';
+
+      // Açıklama (description): HTML tag'lerini sıyır, &nbsp; vb. kodları normalize et,
+      // ~110 karaktere kırp ve sonuna … ekle. Boşsa veya başlıkla aynıysa gösterme.
+      let excerptHtml = '';
+      const rawContent = (item.content || '').toString();
+      if (rawContent) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = rawContent;
+        let text = (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
+        if (text && text.toLowerCase() !== (item.headline || '').toLowerCase()) {
+          if (text.length > 110) text = text.slice(0, 110).replace(/\s+\S*$/, '') + '…';
+          // Güvenlik: textContent ile DOM'a yazdığımız için XSS yok; metinden HTML üretiyoruz.
+          const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          excerptHtml = `<p class="rt-excerpt mt-1 text-[11.5px] text-slate-500 dark:text-zinc-500 leading-snug line-clamp-2">${esc}</p>`;
+        }
+      }
+
       return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}">
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0">
@@ -151,6 +168,7 @@
           <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-5">
             <a href="${item.url}" target="_blank" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${item.headline}</a>
           </h3>
+          ${excerptHtml}
         </div>
       </div>`;
     }
