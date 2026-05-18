@@ -1,22 +1,18 @@
 """Google Ad Manager Policy Center servis katmanı.
 
 Kimlik doğrulama: service account JSON → ADMANAGER_SERVICE_ACCOUNT_JSON env var
-API: Google Ad Manager REST API v1 (google-api-python-client üzerinden)
+API: Google Ad Manager SOAP API v202502 — PublisherQueryLanguageService
 Network code: settings.admanager_network_code (varsayılan: 21728129623)
 
-Akış:
-  1. Rapor oluştur (create)
-  2. Raporu çalıştır (run) → operation adı al
-  3. Operation tamamlanana kadar poll et
-  4. Sonuçları indir (fetchReportResultRows)
-  5. DB'ye kaydet (upsert by url+issue_type)
+REST API v1'de PolicyViolation boyutu mevcut değil; Policy Center verisi
+yalnızca SOAP PQL ile çekilebilir.
 """
 from __future__ import annotations
 
 import json
 import logging
-import time
-from datetime import date, datetime, timedelta, timezone
+import xml.etree.ElementTree as ET
+from datetime import date, datetime
 from typing import Any
 
 from backend.config import settings
@@ -26,182 +22,177 @@ logger = logging.getLogger(__name__)
 ADMANAGER_SCOPES = ["https://www.googleapis.com/auth/admanager"]
 NETWORK_CODE = settings.admanager_network_code
 
-# Sinemalar.com admin URL şablonu: URL path'inden content ID çıkarıp admin linki üret
-# Örn: /mobileweb/movieCast/837 → admin.sinemalar.com/contents/837
+_PQL_ENDPOINT = "https://ads.google.com/apis/ads/publisher/v202502/PublisherQueryLanguageService"
+_PQL_NS = "https://www.google.com/apis/ads/publisher/v202502"
+
+# Sinemalar.com admin URL şablonu
 def _admin_link(url: str) -> str | None:
     import re
     m = re.search(r"/(\d+)(?:/amp)?/?$", url)
     if not m:
         return None
-    cid = m.group(1)
-    return f"https://www.sinemalar.com/admin/contents/{cid}/edit"
+    return f"https://www.sinemalar.com/admin/contents/{m.group(1)}/edit"
 
 
 def is_configured() -> bool:
     return bool((settings.admanager_service_account_json or "").strip())
 
 
-def _get_service():
+def _get_credentials():
     from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-
     raw = (settings.admanager_service_account_json or "").strip()
     if not raw:
         raise ValueError("ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil.")
     info = json.loads(raw)
-    creds = service_account.Credentials.from_service_account_info(info, scopes=ADMANAGER_SCOPES)
-    return build(
-        "admanager", "v1", credentials=creds, cache_discovery=False,
-        discoveryServiceUrl="https://admanager.googleapis.com/$discovery/rest?version=v1",
-    )
+    return service_account.Credentials.from_service_account_info(info, scopes=ADMANAGER_SCOPES)
 
 
-def _date_str(d: date) -> str:
-    return d.isoformat()
+def _pql_select(query: str, offset: int = 0) -> str:
+    """SOAP PQL select isteği XML'i oluştur."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <RequestHeader xmlns="{_PQL_NS}">
+      <networkCode>{NETWORK_CODE}</networkCode>
+      <applicationName>seo_agent</applicationName>
+    </RequestHeader>
+  </soapenv:Header>
+  <soapenv:Body>
+    <select xmlns="{_PQL_NS}">
+      <selectStatement>
+        <query>{query} OFFSET {offset}</query>
+      </selectStatement>
+    </select>
+  </soapenv:Body>
+</soapenv:Envelope>"""
+
+
+def _parse_pql_response(xml_text: str) -> tuple[list[list[str]], list[str], int]:
+    """SOAP PQL yanıtını ayrıştır. (rows, columns, totalSize) döner."""
+    root = ET.fromstring(xml_text)
+
+    # Namespace'i XML'den otomatik bul
+    # Body → selectResponse → rval
+    body = root.find(".//{http://schemas.xmlsoap.org/soap/envelope/}Body")
+    if body is None:
+        # Fault kontrolü
+        fault = root.find(".//{http://schemas.xmlsoap.org/soap/envelope/}Fault")
+        if fault is not None:
+            fstr = fault.find("faultstring")
+            raise RuntimeError(f"SOAP Fault: {fstr.text if fstr is not None else ET.tostring(fault)}")
+        raise RuntimeError(f"SOAP Body bulunamadı: {xml_text[:500]}")
+
+    # Tüm alt elementleri düz gez
+    ns_map = {"ns": _PQL_NS}
+
+    total_el = root.find(f".//{{{_PQL_NS}}}totalResultSetSize")
+    total = int(total_el.text) if total_el is not None else 0
+
+    # Kolon isimleri
+    columns: list[str] = []
+    for col in root.findall(f".//{{{_PQL_NS}}}columnTypes"):
+        label = col.find(f"{{{_PQL_NS}}}labelName")
+        if label is not None:
+            columns.append(label.text or "")
+
+    # Satırlar
+    rows: list[list[str]] = []
+    for row_el in root.findall(f".//{{{_PQL_NS}}}rows"):
+        cells: list[str] = []
+        for val_el in row_el.findall(f"{{{_PQL_NS}}}values"):
+            v = val_el.find(f"{{{_PQL_NS}}}value")
+            cells.append((v.text or "").strip() if v is not None else "")
+        rows.append(cells)
+
+    return rows, columns, total
 
 
 def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
-    """Ad Manager API'den policy ihlallerini çek.
+    """Ad Manager SOAP PQL'den policy ihlallerini çek.
 
     Döner: (rows, error_message | None)
-    Her row: {"url", "issue_type", "category", "ad_requests_7d", "enforcement",
-               "first_reported", "last_reported"}
     """
     if not is_configured():
         return [], "ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil."
 
     try:
-        svc = _get_service()
-        network_name = f"networks/{NETWORK_CODE}"
+        from google.auth.transport.requests import AuthorizedSession
+        creds = _get_credentials()
+        session = AuthorizedSession(creds)
 
-        end_date = date.today()
-        start_date = end_date - timedelta(days=days - 1)
+        query = "SELECT Url, ViolationType, EnforcementStatus, WeeklyAdRequestCount FROM PolicyViolation ORDER BY WeeklyAdRequestCount DESC LIMIT 500"
 
-        # Rapor tanımı — Policy Center boyutları
-        report_body = {
-            "displayName": f"policy_violations_{end_date.isoformat()}",
-            "reportDefinition": {
-                "dimensions": ["URL_CHANNEL", "POLICY_VIOLATION_TYPE", "POLICY_VIOLATION_ENFORCEMENT_STATUS"],
-                "metrics": ["AD_REQUESTS"],
-                "dateRange": {
-                    "startDate": {
-                        "year": start_date.year,
-                        "month": start_date.month,
-                        "day": start_date.day,
-                    },
-                    "endDate": {
-                        "year": end_date.year,
-                        "month": end_date.month,
-                        "day": end_date.day,
-                    },
+        all_rows: list[dict] = []
+        offset = 0
+        page_size = 500
+
+        while True:
+            soap_xml = _pql_select(query.replace("LIMIT 500", f"LIMIT {page_size}"), offset)
+            resp = session.post(
+                _PQL_ENDPOINT,
+                data=soap_xml.encode("utf-8"),
+                headers={
+                    "Content-Type": "text/xml; charset=utf-8",
+                    "SOAPAction": "",
                 },
-            },
-        }
+                timeout=60,
+            )
 
-        # 1) Rapor oluştur
-        report = svc.networks().reports().create(
-            parent=network_name, body=report_body
-        ).execute()
-        report_name = report["name"]
-        logger.info("Ad Manager rapor oluşturuldu: %s", report_name)
+            if resp.status_code != 200:
+                raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:400]}")
 
-        # 2) Raporu çalıştır
-        op = svc.networks().reports().run(name=report_name, body={}).execute()
-        op_name = op.get("name", "")
-        logger.info("Ad Manager rapor çalıştırıldı, operation: %s", op_name)
+            rows, columns, total = _parse_pql_response(resp.text)
+            logger.info("PQL sayfa offset=%d → %d satır / toplam %d", offset, len(rows), total)
 
-        # 3) Operation tamamlanana kadar poll et (max 120 saniye)
-        _poll_operation(svc, op_name, timeout_s=120)
+            if not columns:
+                # Kolon ismi gelmemişse varsayılan sıra kullan
+                columns = ["Url", "ViolationType", "EnforcementStatus", "WeeklyAdRequestCount"]
 
-        # 4) Sonuçları al
-        rows = _fetch_all_rows(svc, report_name)
-        logger.info("Ad Manager rapor %d satır döndü", len(rows))
-        return rows, None
+            for cells in rows:
+                parsed = _parse_pql_row(cells, columns)
+                if parsed:
+                    all_rows.append(parsed)
+
+            offset += len(rows)
+            if offset >= total or not rows:
+                break
+
+        logger.info("Ad Manager Policy ihlali toplam %d satır", len(all_rows))
+        return all_rows, None
 
     except Exception as exc:
         msg = str(exc)
         logger.error("Ad Manager policy fetch hatası: %s", msg)
-        # API boyut adları yanlışsa anlamlı hata ver
-        if "400" in msg or "INVALID_ARGUMENT" in msg:
-            return [], f"Ad Manager API rapor parametresi hatası: {msg[:300]}"
-        if "403" in msg or "PERMISSION_DENIED" in msg:
-            return [], f"Ad Manager API erişim reddedildi. Service account'un network'e API erişimi var mı? Detay: {msg[:200]}"
+        if "403" in msg or "PERMISSION_DENIED" in msg or "Forbidden" in msg:
+            return [], f"Ad Manager erişim reddedildi. Service account'un network'te 'Reporter-Service-Account' rolü var mı? Detay: {msg[:300]}"
         if "404" in msg:
-            return [], f"Ad Manager API endpoint bulunamadı. Network code doğru mu? ({NETWORK_CODE})"
-        return [], f"Ad Manager API hatası: {msg[:300]}"
+            return [], f"Ad Manager SOAP endpoint bulunamadı. Network code doğru mu? ({NETWORK_CODE})"
+        if "PolicyViolation" in msg or "no such table" in msg.lower():
+            return [], f"PolicyViolation tablosu bu network'te kullanılamıyor. Detay: {msg[:300]}"
+        return [], f"Ad Manager API hatası: {msg[:400]}"
 
 
-def _poll_operation(svc, op_name: str, timeout_s: int = 120) -> None:
-    """Operation done olana kadar bekle."""
-    if not op_name:
-        time.sleep(8)  # operation adı yoksa sadece bekle
-        return
-    deadline = time.time() + timeout_s
-    interval = 3
-    while time.time() < deadline:
-        try:
-            op = svc.networks().reports().operations().get(name=op_name).execute()
-            if op.get("done"):
-                if "error" in op:
-                    raise RuntimeError(f"Operation hata: {op['error']}")
-                return
-        except RuntimeError:
-            raise
-        except Exception as exc:
-            code = getattr(getattr(exc, "resp", None), "status", None)
-            # 404 veya 501: operation endpoint desteklenmiyorsa bekleyip devam et
-            if code in (404, 501) or "HttpError 404" in str(exc) or "HttpError 501" in str(exc):
-                time.sleep(interval)
-                return
-            # Diğer HTTP hataları: yeniden dene
-        time.sleep(interval)
-        interval = min(interval * 1.5, 15)
-    raise TimeoutError(f"Ad Manager raporu {timeout_s}s içinde tamamlanmadı.")
+def _parse_pql_row(cells: list[str], columns: list[str]) -> dict | None:
+    col_map = {c.lower(): i for i, c in enumerate(columns)}
 
+    def get(name: str) -> str:
+        i = col_map.get(name.lower())
+        return cells[i].strip() if i is not None and i < len(cells) else ""
 
-def _fetch_all_rows(svc, report_name: str) -> list[dict]:
-    """Tüm rapor satırlarını sayfalayarak çek."""
-    results = []
-    page_token = None
-    while True:
-        kwargs: dict[str, Any] = {"name": report_name}
-        if page_token:
-            kwargs["pageToken"] = page_token
-        resp = svc.networks().reports().fetchReportResultRows(**kwargs).execute()
-        for row in resp.get("rows", []):
-            parsed = _parse_row(row)
-            if parsed:
-                results.append(parsed)
-        page_token = resp.get("nextPageToken")
-        if not page_token:
-            break
-    return results
-
-
-def _parse_row(row: dict) -> dict | None:
-    """API satırını standart dict'e dönüştür."""
-    cells = row.get("dimensionValues", [])
-    metrics = row.get("metricValues", [])
-
-    def cell(i: int) -> str:
-        if i < len(cells):
-            v = cells[i]
-            return str(v.get("value") or v.get("displayValue") or "").strip()
-        return ""
-
-    url = cell(0)
-    issue_type = cell(1)
-    enforcement = cell(2)
+    url = get("Url") or get("url")
+    issue_type = get("ViolationType") or get("violationtype")
 
     if not url or not issue_type:
         return None
 
     ad_requests = 0
-    if metrics:
-        try:
-            ad_requests = int(float(metrics[0].get("value", 0)))
-        except (TypeError, ValueError):
-            pass
+    raw_req = get("WeeklyAdRequestCount") or get("weeklyadrequestcount")
+    try:
+        ad_requests = int(float(raw_req))
+    except (TypeError, ValueError):
+        pass
+
+    enforcement = get("EnforcementStatus") or get("enforcementstatus")
 
     return {
         "url": url,
@@ -215,7 +206,6 @@ def _parse_row(row: dict) -> dict | None:
 
 
 def _categorize(issue_type: str) -> str:
-    """İhlal tipine göre kategori ata."""
     t = issue_type.lower()
     if any(k in t for k in ("sexual", "adult", "cinsel", "yetişkin")):
         return "Yetişkinlere özel"
@@ -231,7 +221,6 @@ def _categorize(issue_type: str) -> str:
 # ── Veritabanı işlemleri ──────────────────────────────────────────────────────
 
 def sync_to_db(db, rows: list[dict]) -> int:
-    """Çekilen satırları DB'ye upsert et. Güncellenen kayıt sayısını döner."""
     from backend.models import AdPolicyViolation
 
     if not rows:
@@ -278,7 +267,6 @@ def sync_to_db(db, rows: list[dict]) -> int:
 
 def get_violations(db, *, status: str | None = None, issue_type: str | None = None,
                    order_by: str = "ad_requests") -> list[dict]:
-    """DB'den ihlalleri filtreli çek."""
     from backend.models import AdPolicyViolation
     from sqlalchemy import desc
 
@@ -293,12 +281,10 @@ def get_violations(db, *, status: str | None = None, issue_type: str | None = No
     else:
         q = q.order_by(desc(AdPolicyViolation.ad_requests_7d))
 
-    rows = q.limit(1000).all()
-    return [_violation_to_dict(r) for r in rows]
+    return [_violation_to_dict(r) for r in q.limit(1000).all()]
 
 
 def get_stats(db) -> dict:
-    """Özet istatistikler."""
     from backend.models import AdPolicyViolation
     from sqlalchemy import func
 
@@ -309,13 +295,13 @@ def get_stats(db) -> dict:
     total_requests = db.query(func.sum(AdPolicyViolation.ad_requests_7d)).scalar() or 0
     last_fetch = db.query(func.max(AdPolicyViolation.fetched_at)).scalar()
 
-    by_category = {}
+    by_category: dict[str, int] = {}
     for row in db.query(AdPolicyViolation.category, func.count(AdPolicyViolation.id)).group_by(
         AdPolicyViolation.category
     ).all():
         by_category[row[0] or "Diğer"] = row[1]
 
-    by_status = {}
+    by_status: dict[str, int] = {}
     for row in db.query(AdPolicyViolation.our_status, func.count(AdPolicyViolation.id)).group_by(
         AdPolicyViolation.our_status
     ).all():
