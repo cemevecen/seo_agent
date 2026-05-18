@@ -9916,6 +9916,38 @@ def api_crash_progress(product: str = "doviz"):
     })
 
 
+@app.get("/api/app/crashlytics/issue-detail")
+def api_crash_issue_detail(
+    product: str = "doviz",
+    platform: str = "android",
+    issue_id: str = "",
+    days: int = 7,
+):
+    """Tek bir issue için drill-down: trend, versiyon, OS, cihaz, stack frame.
+
+    Frontend modal'ı bu endpoint'i çağırır. Tablolar yokken/credential eksikken
+    JSON ok=false döner; frontend hata mesajını gösterir.
+    """
+    from backend.services import crashlytics_bq as cbq
+
+    plat = (platform or "").strip().lower()
+    if plat not in ("ios", "android"):
+        return JSONResponse({"ok": False, "error": "invalid_platform"}, status_code=400)
+    try:
+        d = int(days)
+    except (TypeError, ValueError):
+        d = 7
+    if d not in (1, 7, 14, 30, 90):
+        d = 7
+
+    iid = (issue_id or "").strip()
+    if not iid:
+        return JSONResponse({"ok": False, "error": "missing_issue_id"}, status_code=400)
+
+    data = cbq.get_issue_detail_for_product(product, plat, iid, d)
+    return JSONResponse(data)
+
+
 @app.post("/api/app/crashlytics/refresh")
 def api_crash_refresh(product: str = "doviz"):
     from backend.services import crashlytics_bq as cbq

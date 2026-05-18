@@ -711,6 +711,168 @@ LIMIT 30
     return [str(r.get("v", "")) for r in rows if r.get("v")]
 
 
+# ── Issue derinlik sorgusu (drill-down) ───────────────────────────────────────
+
+def query_issue_detail(platform: str, table: str, issue_id: str, days: int) -> dict[str, Any]:
+    """Tek bir issue için: trend + version/OS/device kırılımı + ilk/son görülme + stack frame.
+
+    Frontend modal'ı bu çıktıyı kullanır. Tüm sorgular tek tablodan, küçük veri.
+    """
+    if not issue_id:
+        return {"ok": False, "error": "missing_issue_id"}
+
+    safe_id = issue_id.replace("'", "''")
+    where = f"{_ts_filter(days)} AND issue_id = '{safe_id}'"
+
+    # 1) Özet + ilk/son görülme + başlık
+    sql_summary = f"""
+SELECT
+  COUNT(*) AS total_events,
+  COUNT(DISTINCT installation_uuid) AS affected_users,
+  MIN(event_timestamp) AS first_seen,
+  MAX(event_timestamp) AS last_seen,
+  ANY_VALUE(issue_title) AS issue_title,
+  ANY_VALUE(error_type) AS error_type
+FROM `{table}`
+WHERE {where}
+"""
+    # 2) Günlük trend
+    sql_trend = f"""
+SELECT DATE(event_timestamp) AS d, COUNT(*) AS c
+FROM `{table}`
+WHERE {where}
+GROUP BY d
+ORDER BY d ASC
+"""
+    # 3) Versiyon
+    sql_versions = f"""
+SELECT
+  COALESCE(application.display_version, 'bilinmiyor') AS app_version,
+  COUNT(*) AS event_count,
+  COUNT(DISTINCT installation_uuid) AS affected_users
+FROM `{table}`
+WHERE {where}
+GROUP BY app_version
+ORDER BY event_count DESC
+LIMIT 10
+"""
+    # 4) OS
+    sql_os = f"""
+SELECT
+  COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
+  COUNT(*) AS event_count
+FROM `{table}`
+WHERE {where}
+GROUP BY os_version
+ORDER BY event_count DESC
+LIMIT 10
+"""
+    # 5) Cihaz
+    sql_devices = f"""
+SELECT
+  COALESCE(device.model, 'bilinmiyor') AS model,
+  COALESCE(device.manufacturer, '') AS manufacturer,
+  COUNT(*) AS event_count
+FROM `{table}`
+WHERE {where}
+GROUP BY model, manufacturer
+ORDER BY event_count DESC
+LIMIT 10
+"""
+    # 6) Blame frame (kabaca neresi crash etti)
+    sql_blame = f"""
+SELECT
+  blame_frame.file AS file,
+  blame_frame.symbol AS symbol,
+  blame_frame.line AS line,
+  COUNT(*) AS occurrences
+FROM `{table}`
+WHERE {where}
+GROUP BY file, symbol, line
+ORDER BY occurrences DESC
+LIMIT 5
+"""
+
+    summary_rows, sum_err = _run_query(platform, sql_summary, skip_budget=True)
+    trend_rows, _ = _run_query(platform, sql_trend, skip_budget=True)
+    version_rows, _ = _run_query(platform, sql_versions, skip_budget=True)
+    os_rows, _ = _run_query(platform, sql_os, skip_budget=True)
+    device_rows, _ = _run_query(platform, sql_devices, skip_budget=True)
+    blame_rows, _ = _run_query(platform, sql_blame, skip_budget=True)
+
+    summary = summary_rows[0] if summary_rows else {}
+    first_seen = summary.get("first_seen")
+    last_seen = summary.get("last_seen")
+    return {
+        "ok": True,
+        "platform": platform,
+        "issue_id": issue_id,
+        "error": sum_err,
+        "summary": {
+            "issue_title": summary.get("issue_title") or "",
+            "error_type": (summary.get("error_type") or "").upper(),
+            "total_events": int(summary.get("total_events") or 0),
+            "affected_users": int(summary.get("affected_users") or 0),
+            "first_seen": first_seen.isoformat() if hasattr(first_seen, "isoformat") else (str(first_seen) if first_seen else None),
+            "last_seen": last_seen.isoformat() if hasattr(last_seen, "isoformat") else (str(last_seen) if last_seen else None),
+        },
+        "trend": [
+            {"date": str(r.get("d") or ""), "count": int(r.get("c") or 0)}
+            for r in trend_rows
+        ],
+        "versions": [
+            {
+                "app_version": r.get("app_version") or "—",
+                "event_count": int(r.get("event_count") or 0),
+                "affected_users": int(r.get("affected_users") or 0),
+            }
+            for r in version_rows
+        ],
+        "os_versions": [
+            {
+                "os_version": r.get("os_version") or "—",
+                "event_count": int(r.get("event_count") or 0),
+            }
+            for r in os_rows
+        ],
+        "devices": [
+            {
+                "model": r.get("model") or "—",
+                "manufacturer": r.get("manufacturer") or "",
+                "event_count": int(r.get("event_count") or 0),
+            }
+            for r in device_rows
+        ],
+        "blame_frames": [
+            {
+                "file": r.get("file") or "",
+                "symbol": r.get("symbol") or "",
+                "line": int(r.get("line") or 0) if r.get("line") is not None else None,
+                "occurrences": int(r.get("occurrences") or 0),
+            }
+            for r in blame_rows
+        ],
+    }
+
+
+def get_issue_detail_for_product(product_id: str, platform: str, issue_id: str, days: int) -> dict[str, Any]:
+    """Wrapper: product+platform'dan tablo adresini çözüp query_issue_detail'i çalıştırır."""
+    pid = (product_id or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return {"ok": False, "error": "unknown_product"}
+    if platform not in ("ios", "android"):
+        return {"ok": False, "error": "invalid_platform"}
+    if not platform_ready(platform):
+        return {"ok": False, "error": "credential_missing"}
+
+    meta = APP_PRODUCTS[pid]
+    bundle = (meta.get("android_package") if platform == "android" else meta.get("ios_bundle_id")) or ""
+    if not bundle:
+        return {"ok": False, "error": "bundle_missing"}
+    table = _table(platform, bundle)
+    return query_issue_detail(platform, table, issue_id, days)
+
+
 # ── Platform birleştirici ─────────────────────────────────────────────────────
 
 def _platforms_for(pid: str, platform_filter: str) -> list[tuple[str, str]]:

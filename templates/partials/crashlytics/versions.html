@@ -17,22 +17,36 @@
     {% set max_events = namespace(v=1) %}
     {% for r in rows %}{% if r.total_events > max_events.v %}{% set max_events.v = r.total_events %}{% endif %}{% endfor %}
 
+    <div class="flex items-center justify-between gap-2">
+      <input type="text" data-crash-search class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
+        placeholder="Versiyon ara..." />
+      <span data-crash-count class="text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} versiyon</span>
+    </div>
+
     <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">
-      <table class="w-full min-w-[540px] border-collapse text-left">
+      <table data-crash-sortable class="w-full min-w-[540px] border-collapse text-left">
         <thead>
           <tr class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
-            <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon</th>
-            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'FATAL' %}bg-rose-100/60 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300{% else %}text-rose-500 dark:text-rose-400{% endif %}">Fatal{% if active_type == 'FATAL' %} ↓{% endif %}</th>
-            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'ANR' %}bg-amber-100/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300{% else %}text-amber-600 dark:text-amber-500{% endif %}">ANR{% if active_type == 'ANR' %} ↓{% endif %}</th>
-            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'NON_FATAL' %}bg-slate-200/60 dark:bg-slate-700/40 text-slate-700 dark:text-slate-200{% else %}text-slate-500 dark:text-slate-400{% endif %}">Non-Fatal{% if active_type == 'NON_FATAL' %} ↓{% endif %}</th>
-            <th class="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kullanıcı</th>
-            <th class="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım</th>
+            <th data-sort-key="app_version" data-sort-type="ver" class="cursor-pointer select-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Versiyon <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="fatal_count" data-sort-type="num" data-default-desc="1" class="cursor-pointer select-none px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'FATAL' %}bg-rose-100/60 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300{% else %}text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300{% endif %}">Fatal <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="anr_count" data-sort-type="num" data-default-desc="1" class="cursor-pointer select-none px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'ANR' %}bg-amber-100/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300{% else %}text-amber-600 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-300{% endif %}">ANR <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="non_fatal_count" data-sort-type="num" data-default-desc="1" class="cursor-pointer select-none px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide {% if active_type == 'NON_FATAL' %}bg-slate-200/60 dark:bg-slate-700/40 text-slate-700 dark:text-slate-200{% else %}text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">Non-Fatal <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="affected_users" data-sort-type="num" data-default-desc="1" class="cursor-pointer select-none px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Kullanıcı <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="total_events" data-sort-type="num" data-default-desc="1" class="cursor-pointer select-none px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Dağılım <span class="sort-arrow ml-1 opacity-100">↓</span></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
           {% for r in rows %}
             {% set bar_w = ((r.total_events / max_events.v) * 100)|int %}
-            <tr class="transition hover:bg-slate-50 dark:hover:bg-slate-800/40">
+            <tr class="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              data-crash-row-noclick
+              data-app-version="{{ r.app_version }}"
+              data-app-version-lc="{{ r.app_version|lower }}"
+              data-fatal-count="{{ r.fatal_count }}"
+              data-anr-count="{{ r.anr_count }}"
+              data-non-fatal-count="{{ r.non_fatal_count }}"
+              data-total-events="{{ r.total_events }}"
+              data-affected-users="{{ r.affected_users }}">
               <td class="px-3 py-2.5">
                 <span class="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-200">{{ r.app_version }}</span>
               </td>
@@ -58,6 +72,6 @@
         </tbody>
       </table>
     </div>
-    <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} versiyon · toplam olaya göre sıralı</p>
+    <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} versiyon · sütun başlığına tıklayarak sırala</p>
   {% endif %}
 </div>
