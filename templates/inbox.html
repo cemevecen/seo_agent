@@ -542,6 +542,7 @@
   }
 
   async function consumeInboxSyncStream() {
+    await _ensureInboxActionAuth();
     var wrap = document.getElementById("inbox-sync-progress");
     var btn = document.getElementById("inbox-sync-btn");
     if (wrap) wrap.classList.remove("hidden");
