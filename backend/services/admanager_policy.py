@@ -141,10 +141,10 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        # PQL bağlantı testi + tablo keşfi
+        # PQL bağlantı testi
         for test_q in [
-            "SELECT Id, Name FROM Order LIMIT 1",
-            "SELECT TableName FROM Publisher_Query_Language_Tables LIMIT 200",
+            "SELECT Id, Name FROM LineItem LIMIT 1",
+            "SELECT Id, Name FROM Creative LIMIT 1",
         ]:
             try:
                 t_xml = _pql_select(test_q, 0)
