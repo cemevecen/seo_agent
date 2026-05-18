@@ -13,18 +13,18 @@
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <label class="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
-        ⬆ CSV Yükle
+      <label class="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+        CSV Yükle
         <input id="policy-csv-input" type="file" accept=".csv,text/csv" class="hidden" onchange="uploadPolicyCSV(this)">
       </label>
       {% if stats and stats.get("total", 0) > 0 %}
       <a href="/api/policy/export.xlsx?status={{ current_status }}&category={{ current_category }}&order={{ current_order }}"
-        class="inline-flex items-center gap-1 rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
-        ⬇ Excel
+        class="inline-flex items-center rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
+        Excel İndir
       </a>
       <button type="button" onclick="triggerTitleFetch(true)"
-        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-        <span id="title-fetch-icon">↺</span> Başlıklar
+        class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+        Başlıkları Yenile
       </button>
       {% if last_upload %}
       <a href="/api/policy/last-csv" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">son.csv</a>
@@ -38,7 +38,6 @@
 
   {# ── Title fetch bar ── #}
   <div id="title-fetch-bar" class="{% if not title_job.running %}hidden{% endif %} flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300">
-    <span class="animate-pulse">●</span>
     <span>Başlıklar çekiliyor: <b id="title-fetch-done">{{ title_job.done }}</b> / <b id="title-fetch-total">{{ title_job.total }}</b></span>
     <div class="flex-1 h-1.5 rounded-full bg-blue-200/60 dark:bg-blue-900/40">
       <div id="title-fetch-progress" class="h-full rounded-full bg-blue-500 transition-all" style="width:0%"></div>
@@ -49,9 +48,8 @@
   {% if not stats or stats.get("total", 0) == 0 %}
   {# ── Boş durum ── #}
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
-    <div class="mb-3 text-4xl">📋</div>
     <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Henüz veri yok</h4>
-    <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Ad Manager → <b>Inventory → Policy Center</b> → sağ üstten CSV indir, yukarıdan yükle.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Ad Manager → <b>Inventory → Policy Center</b> → sağ üstten CSV indir, yukarıdan yükle.</p>
   </div>
 
   {% else %}
@@ -110,28 +108,38 @@
 
   {# ── Tablo ── #}
   {% if violations %}
+  {# Arama: çoklu kelime (boşlukla ayır, hepsi eşleşmeli) #}
+  <div class="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="policy-search" type="text" placeholder="ara… (çoklu kelime: 'theatre cinsel' gibi boşlukla ayır)"
+      class="flex-1 bg-transparent text-xs text-slate-700 placeholder-slate-400 focus:outline-none dark:text-slate-200 dark:placeholder-slate-500"
+      oninput="filterRows()" autocomplete="off">
+    <span id="policy-search-count" class="text-[10px] font-mono text-slate-400"></span>
+    <button type="button" onclick="clearSearch()" class="rounded px-2 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">temizle</button>
+  </div>
+
   <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div class="overflow-x-auto">
-      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:1100px">
+      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:1150px">
         <colgroup>
           <col style="width:36px">      {# # #}
-          <col style="width:260px">     {# Başlık #}
-          <col style="width:190px">     {# URL #}
-          <col style="width:200px">     {# Sebep #}
-          <col style="width:110px">     {# Kategori #}
-          <col style="width:90px">      {# Yaptırım #}
-          <col style="width:76px">      {# Rek. İstek #}
+          <col style="width:30px">      {# Kopya #}
+          <col style="width:360px">     {# Sayfa Başlığı (link) #}
+          <col style="width:240px">     {# Sebep #}
+          <col style="width:130px">     {# Kategori #}
+          <col style="width:130px">     {# Yaptırım #}
+          <col style="width:82px">      {# Rek. İstek #}
           <col style="width:82px">      {# İlk Tarih #}
           <col style="width:82px">      {# Son Tarih #}
-          <col style="width:106px">     {# Durum #}
-          <col style="width:160px">     {# Not #}
-          <col style="width:68px">      {# Aksiyon #}
+          <col style="width:110px">     {# Durum #}
+          <col style="width:180px">     {# Not #}
+          <col style="width:60px">      {# Aksiyon #}
         </colgroup>
         <thead>
           <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
             <th class="px-2 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">#</th>
-            <th data-sort="title" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Başlığı<span class="sort-ind"></span></th>
-            <th data-sort="url" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">URL<span class="sort-ind"></span></th>
+            <th class="px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400"></th>
+            <th data-sort="title" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa<span class="sort-ind"></span></th>
             <th data-sort="issue" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sebep<span class="sort-ind"></span></th>
             <th data-sort="cat" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori<span class="sort-ind"></span></th>
             <th data-sort="enf" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Yaptırım<span class="sort-ind"></span></th>
@@ -140,7 +148,7 @@
             <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Son<span class="sort-ind"></span></th>
             <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durum<span class="sort-ind"></span></th>
             <th data-sort="note" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not<span class="sort-ind"></span></th>
-            <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">—</th>
+            <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Admin</th>
           </tr>
         </thead>
         <tbody>
@@ -163,19 +171,27 @@
             {# # #}
             <td class="row-num px-2 py-2 text-right text-[10px] text-slate-300 dark:text-slate-600 select-none">{{ rn }}</td>
 
-            {# Sayfa Başlığı #}
-            <td class="px-3 py-2">
-              {% if v.page_title and not v.page_title.startswith('[') %}
-              <div class="truncate font-semibold text-slate-800 dark:text-slate-100" id="title-{{ vid }}" title="{{ v.page_title }}">{{ v.page_title }}</div>
-              {% else %}
-              <div class="truncate italic text-slate-400 dark:text-slate-600" id="title-{{ vid }}">{{ v.page_title or '—' }}</div>
-              {% endif %}
+            {# Kopya butonu — URL'i panoya kopyalar #}
+            <td class="px-1 py-2 text-center">
+              <button type="button" onclick="copyURL(this, '{{ v.url | e }}')" title="URL'i kopyala"
+                class="copy-btn rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
             </td>
 
-            {# URL #}
+            {# Sayfa Başlığı (tıklanabilir → URL) #}
             <td class="px-3 py-2">
+              {% if v.page_title and not v.page_title.startswith('[') %}
               <a href="{{ v.url }}" target="_blank" rel="noopener"
-                class="block truncate text-blue-600 hover:underline dark:text-blue-400" title="{{ v.url }}">{{ v.url | replace("https://","") | replace("http://","") }}</a>
+                id="title-{{ vid }}"
+                class="block truncate font-semibold text-slate-800 hover:text-blue-600 hover:underline dark:text-slate-100 dark:hover:text-blue-400"
+                title="{{ v.page_title }} — {{ v.url }}">{{ v.page_title }}</a>
+              {% else %}
+              <a href="{{ v.url }}" target="_blank" rel="noopener"
+                id="title-{{ vid }}"
+                class="block truncate italic text-slate-400 hover:text-blue-600 hover:underline dark:text-slate-600 dark:hover:text-blue-400"
+                title="{{ v.url }}">{{ v.page_title or v.url | replace("https://","") | replace("http://","") }}</a>
+              {% endif %}
             </td>
 
             {# Sebep #}
@@ -219,8 +235,8 @@
             <td class="px-2 py-2">
               <select id="status-sel-{{ vid }}" onchange="updateStatus({{ vid }}, this.value)"
                 class="w-full rounded border px-1.5 py-1 text-[11px] font-semibold transition focus:outline-none cursor-pointer">
-                <option value="new"     {% if v.our_status == 'new'     %}selected{% endif %}>🔴 Yeni</option>
-                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>⚫ Görmezden</option>
+                <option value="new"     {% if v.our_status == 'new'     %}selected{% endif %}>Yeni</option>
+                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>Görmezden</option>
               </select>
             </td>
 
@@ -232,18 +248,18 @@
                 class="w-full rounded border border-slate-200 bg-transparent px-2 py-1 text-[11px] text-slate-600 placeholder-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600">
             </td>
 
-            {# Aksiyon #}
+            {# Aksiyon — Admin linki #}
             <td class="px-2 py-2 text-center">
               <div class="flex items-center justify-center gap-1">
                 {% if v.admin_link %}
                 <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
-                  class="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400">
-                  ↗
+                  class="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400">
+                  Aç
                 </a>
                 {% endif %}
-                <button onclick="fetchSingleTitle({{ vid }}, this)" title="Başlığı yenile"
-                  class="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-500 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                  ↺
+                <button type="button" onclick="fetchSingleTitle({{ vid }}, this)" title="Başlığı yenile"
+                  class="refresh-title-btn rounded border border-slate-200 bg-white p-1 text-slate-500 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 </button>
               </div>
             </td>
@@ -273,16 +289,30 @@
   .sortable-th:hover { color: #1e293b; }
   .dark .sortable-th:hover { color: #f1f5f9; }
   .sort-ind::after {
-    content: "↕";
+    content: "";
     display: inline-block;
-    margin-left: 4px;
-    opacity: 0.25;
-    font-weight: 700;
+    width: 0;
+    height: 0;
+    margin-left: 5px;
+    vertical-align: middle;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-bottom: 5px solid currentColor;
+    border-top: 5px solid currentColor;
+    opacity: 0.18;
   }
-  .sortable-th.sort-asc  .sort-ind::after { content: "▲"; opacity: 1; color: #2563eb; }
-  .sortable-th.sort-desc .sort-ind::after { content: "▼"; opacity: 1; color: #2563eb; }
-  .dark .sortable-th.sort-asc  .sort-ind::after,
-  .dark .sortable-th.sort-desc .sort-ind::after { color: #60a5fa; }
+  .sortable-th.sort-asc  .sort-ind::after {
+    border-top-color: transparent;
+    border-bottom-color: #2563eb;
+    opacity: 1;
+  }
+  .sortable-th.sort-desc .sort-ind::after {
+    border-top-color: #2563eb;
+    border-bottom-color: transparent;
+    opacity: 1;
+  }
+  .dark .sortable-th.sort-asc  .sort-ind::after { border-bottom-color: #60a5fa; }
+  .dark .sortable-th.sort-desc .sort-ind::after { border-top-color: #60a5fa; }
 </style>
 
 <script>
@@ -415,7 +445,7 @@
           return;
         }
         banner.className = "rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700";
-        banner.textContent = "✓ " + d.row_count + " satır: " + d.new_count + " yeni, " + d.updated_count + " güncellendi. Başlıklar çekiliyor…";
+        banner.textContent = d.row_count + " satır: " + d.new_count + " yeni, " + d.updated_count + " güncellendi. Başlıklar çekiliyor…";
         document.getElementById("title-fetch-bar").classList.remove("hidden");
         setTimeout(function () { location.reload(); }, 1200);
       })
@@ -456,6 +486,69 @@
   }
 
   {% if title_job.running %}pollTitleStatus();{% endif %}
+
+  // ── URL kopyalama ──
+  window.copyURL = function (btn, url) {
+    function flash(ok) {
+      var orig = btn.innerHTML;
+      btn.innerHTML = ok
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        : '<span style="color:#dc2626;font-size:11px">!</span>';
+      setTimeout(function () { btn.innerHTML = orig; }, 1100);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { flash(true); }, function () { flash(false); });
+    } else {
+      // Fallback
+      var ta = document.createElement("textarea");
+      ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); flash(true); } catch (e) { flash(false); }
+      document.body.removeChild(ta);
+    }
+  };
+
+  // ── Tabloda çoklu kelime arama ──
+  function rowMatchesText(tr, terms) {
+    if (!terms.length) return true;
+    // Tüm data-* attribute'lar + görünür metin (title hücresi text)
+    var hay = "";
+    for (var i = 0; i < tr.attributes.length; i++) {
+      var a = tr.attributes[i];
+      if (a.name.indexOf("data-") === 0) hay += " " + a.value;
+    }
+    // Görünür metin de eklensin (page_title link içeriği vs.)
+    hay = (hay + " " + (tr.textContent || "")).toLowerCase();
+    for (var j = 0; j < terms.length; j++) {
+      if (hay.indexOf(terms[j]) === -1) return false;
+    }
+    return true;
+  }
+
+  window.filterRows = function () {
+    var q = (document.getElementById("policy-search").value || "").trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var tbody = document.querySelector("#policy-table tbody");
+    if (!tbody) return;
+    var shown = 0, visIdx = 0;
+    Array.prototype.forEach.call(tbody.rows, function (tr) {
+      var ok = rowMatchesText(tr, terms);
+      tr.style.display = ok ? "" : "none";
+      if (ok) {
+        visIdx++;
+        var nc = tr.querySelector(".row-num");
+        if (nc) nc.textContent = visIdx;
+        shown++;
+      }
+    });
+    var c = document.getElementById("policy-search-count");
+    if (c) c.textContent = terms.length ? (shown + " eşleşme") : "";
+  };
+
+  window.clearSearch = function () {
+    var inp = document.getElementById("policy-search");
+    if (inp) { inp.value = ""; filterRows(); inp.focus(); }
+  };
 
   // ── Single title fetch ──
   window.fetchSingleTitle = function (id, btn) {
