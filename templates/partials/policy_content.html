@@ -111,7 +111,7 @@
               data-first="{{ v.first_reported or '' }}"
               data-last="{{ v.last_reported or '' }}"
               data-new-import="{{ '1' if v.is_new_import else '0' }}"
-              class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row bg-emerald-50/40 dark:bg-emerald-950/10{% endif %}">
+              class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row{% endif %}">
 
             {# # — yeni satırlarda sol kenar yeşil aksent + YENİ rozeti #}
             <td class="row-num relative px-2 py-2 text-right text-[10px] text-slate-300 dark:text-slate-600 select-none">
