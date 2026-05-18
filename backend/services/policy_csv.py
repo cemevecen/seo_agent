@@ -34,33 +34,54 @@ _HEADER_ALIASES: dict[str, list[str]] = {
     "url": [
         "url", "page url", "page", "sayfa", "site url", "site", "destination url",
         "landing page", "domain", "page_url",
+        # Ad Manager TR export
+        "sorunun konumu",
     ],
     "issue_type": [
         "violation type", "violation", "ihlal türü", "ihlal", "issue", "issue type",
         "policy", "policy violation", "policy issue", "reason", "neden",
+        # Ad Manager TR export: "Sorunlar" = detaylı ihlal açıklaması
+        "sorunlar", "sorun",
     ],
-    "category": [
-        "category", "kategori", "violation category", "policy category", "topic",
+    "policy_topic": [
+        # Ad Manager TR: "Sorun türü" = üst-kategori (Politika sorunu / Reklamveren tercihi / Yayıncı politikası)
+        "sorun türü", "policy topic", "policy_topic",
     ],
     "enforcement": [
         "enforcement", "enforcement status", "status", "yaptırım", "uygulama",
         "action taken", "enforcement_status",
+        # Ad Manager TR: "Durum" = "Kısıtlanmış reklam sunumu" vb.
+        "durum",
     ],
     "ad_requests_7d": [
         "ad requests", "ad requests (7 days)", "ad_requests_7d", "ad requests 7d",
         "reklam istekleri", "reklam isteği", "weekly ad requests",
         "weekly_ad_request_count", "weeklyadrequestcount", "ad request count",
         "ad requests (last 7 days)", "ad requests (7d)", "requests",
+        # Ad Manager TR export
+        "reklam istekleri: son 7 gün", "reklam istekleri son 7 gün",
     ],
     "first_reported": [
         "first detected", "first reported", "first seen", "ilk tespit",
         "ilk bildirim", "first_detected_date", "detected on", "ilk_görülme",
         "ilk görülme",
+        # Ad Manager TR: "Bildirim tarihi" = ilk tespit
+        "bildirim tarihi",
     ],
     "last_reported": [
         "last detected", "last reported", "last seen", "son tespit",
         "son bildirim", "last_detected_date", "last updated", "son güncelleme",
         "son_görülme", "son görülme",
+        # Ad Manager TR
+        "son bulunma tarihi",
+    ],
+    "asset_type": [
+        # Ad Manager TR: "Varlık" = Sayfa / Uygulama
+        "varlık", "asset", "asset type",
+    ],
+    "property_codes": [
+        # Ad Manager TR: "Mülk kodları" = ca-pub-XXX;ca-video-pub-XXX
+        "mülk kodları", "property codes", "ad unit codes",
     ],
 }
 
@@ -125,20 +146,26 @@ def _parse_date(v: Any) -> date | None:
 
 def _categorize(issue_type: str) -> str:
     t = (issue_type or "").lower()
-    if any(k in t for k in ("sexual", "adult", "cinsel", "yetişkin", "porn")):
+    if any(k in t for k in ("sexual", "adult", "cinsel", "yetişkin", "porn", "çıplak")):
         return "Yetişkinlere özel"
-    if any(k in t for k in ("shocking", "şok", "violence", "şiddet", "graphic")):
+    if any(k in t for k in ("shocking", "şok", "violence", "şiddet", "graphic", "kanlı")):
         return "Şok edici içerik"
-    if any(k in t for k in ("malware", "phishing", "güvenlik", "security", "harmful")):
+    if any(k in t for k in ("malware", "phishing", "güvenlik", "security", "harmful", "kötü amaçlı")):
         return "Güvenlik"
     if any(k in t for k in ("copyright", "telif", "trademark", "marka")):
         return "Telif/Marka"
-    if any(k in t for k in ("publisher", "yayıncı", "no content", "low value")):
+    if any(k in t for k in ("yayıncı içeriği olmayan", "no content", "low value", "düşük değer")):
         return "Yayıncı içeriği yok"
-    if any(k in t for k in ("dangerous", "tehlikeli", "weapons", "silah")):
+    if any(k in t for k in ("dangerous", "tehlikeli", "weapons", "silah", "uyuşturucu", "drug")):
         return "Tehlikeli içerik"
-    if any(k in t for k in ("misleading", "yanıltıcı", "deceptive")):
+    if any(k in t for k in ("misleading", "yanıltıcı", "deceptive", "aldatıcı")):
         return "Yanıltıcı içerik"
+    if any(k in t for k in ("nefret", "hate", "ırk", "ayrımcılık", "discrimination")):
+        return "Nefret/Ayrımcılık"
+    if any(k in t for k in ("siyasi", "political", "seçim", "election")):
+        return "Siyasi içerik"
+    if any(k in t for k in ("hassas", "sensitive", "trajedi", "tragedy")):
+        return "Hassas içerik"
     return "Politika sorunu"
 
 
@@ -205,17 +232,29 @@ def parse_csv(content: bytes) -> tuple[list[dict], list[str], str | None]:
         if not url or not issue_type:
             continue
 
-        # Bilinmeyen kolonları extra_json olarak topla
+        # URL eğer http(s) yoksa ekle — Ad Manager "m.sinemalar.com/..." şeklinde verir
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url.lstrip("/")
+
+        # Bilinmeyen + bilinen ek bilgiler extras'a
         extras: dict[str, str] = {}
         for i in skipped_columns:
             if i < len(raw) and raw[i]:
                 col_name = headers[i] if i < len(headers) else f"col_{i}"
                 extras[col_name] = raw[i].strip()
+        # Bilinen ama ana alanlarda yer almayan bilgiler
+        for key in ("policy_topic", "asset_type", "property_codes"):
+            v = get(key)
+            if v:
+                extras[key] = v
+
+        # Category her zaman issue_type'tan otomatik üretilir (chip renkleri buna bağlı)
+        category = _categorize(issue_type)
 
         rows.append({
             "url": url,
             "issue_type": issue_type,
-            "category": get("category") or _categorize(issue_type),
+            "category": category,
             "enforcement": get("enforcement"),
             "ad_requests_7d": _parse_int(get("ad_requests_7d")),
             "first_reported": _parse_date(get("first_reported")),
