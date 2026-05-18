@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 ADMANAGER_SCOPES = ["https://www.googleapis.com/auth/admanager"]
 NETWORK_CODE = settings.admanager_network_code
 
-_PQL_ENDPOINT = "https://ads.google.com/apis/ads/publisher/v202502/PublisherQueryLanguageService"
-_PQL_NS = "https://www.google.com/apis/ads/publisher/v202502"
+_PQL_ENDPOINT = "https://ads.google.com/apis/ads/publisher/v202605/PublisherQueryLanguageService"
+_PQL_NS = "https://www.google.com/apis/ads/publisher/v202605"
 
 # Sinemalar.com admin URL şablonu
 def _admin_link(url: str) -> str | None:
