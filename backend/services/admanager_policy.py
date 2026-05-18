@@ -50,7 +50,10 @@ def _get_service():
         raise ValueError("ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil.")
     info = json.loads(raw)
     creds = service_account.Credentials.from_service_account_info(info, scopes=ADMANAGER_SCOPES)
-    return build("admanager", "v1", credentials=creds, cache_discovery=False)
+    return build(
+        "admanager", "v1", credentials=creds, cache_discovery=False,
+        discoveryServiceUrl="https://admanager.googleapis.com/$discovery/rest?version=v1",
+    )
 
 
 def _date_str(d: date) -> str:
