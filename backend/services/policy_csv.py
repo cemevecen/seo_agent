@@ -321,6 +321,7 @@ def import_rows(db, rows: list[dict]) -> tuple[int, int]:
                 our_notes="",
                 fetched_at=now,
                 updated_at=now,
+                first_seen_at=now,
             ))
             new_count += 1
 
@@ -370,7 +371,10 @@ def get_latest_upload(db):
 # ── Sorgular ──────────────────────────────────────────────────────────────────
 
 def get_violations(db, *, status: str | None = None, category: str | None = None,
-                   order_by: str = "ad_requests", limit: int = 2000) -> list[dict]:
+                   order_by: str = "ad_requests", limit: int = 2000,
+                   new_threshold: datetime | None = None) -> list[dict]:
+    """`new_threshold` verilirse, first_seen_at >= threshold olan satırlar
+    `is_new_import = True` olarak döner (son CSV import'unda eklenenler)."""
     from backend.models import AdPolicyViolation
     from sqlalchemy import desc
 
@@ -387,7 +391,14 @@ def get_violations(db, *, status: str | None = None, category: str | None = None
     else:
         q = q.order_by(desc(AdPolicyViolation.ad_requests_7d))
 
-    return [_violation_to_dict(r) for r in q.limit(limit).all()]
+    results = []
+    for r in q.limit(limit).all():
+        d = _violation_to_dict(r)
+        d["is_new_import"] = bool(
+            new_threshold and r.first_seen_at and r.first_seen_at >= new_threshold
+        )
+        results.append(d)
+    return results
 
 
 def get_stats(db) -> dict:
@@ -474,6 +485,7 @@ def _violation_to_dict(r) -> dict:
         "our_notes": r.our_notes,
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None,
+        "first_seen_at": r.first_seen_at.isoformat() if r.first_seen_at else None,
         "admin_link": _admin_link(r.url),
         "extras": extras,
     }

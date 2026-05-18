@@ -1169,6 +1169,9 @@ def on_startup() -> None:
             "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
             "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
             "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE ad_policy_violations ADD COLUMN first_seen_at TIMESTAMP",
+            # Eski satırlar için first_seen_at boşsa fetched_at'i geriye yaz (geriye dönük olarak hiçbiri "yeni" sayılmasın)
+            "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
             # Unique constraint — duplicate engelle (mevcut duplicate varsa hata verir, pas geçilir)
             "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
         ]:
@@ -12982,8 +12985,16 @@ def policy_page(
 
     try:
         stats = pcsv.get_stats(db)
-        violations = pcsv.get_violations(db, status="all", category="all", order_by="ad_requests")
         last_upload = pcsv.get_latest_upload(db)
+        # Son CSV upload'ından önce eklenmiş satırları belirlemek için 60 sn tolerans
+        # (import_rows save_csv_blob'dan birkaç ms önce çalışır).
+        new_threshold = None
+        if last_upload and last_upload.uploaded_at:
+            new_threshold = last_upload.uploaded_at - timedelta(seconds=60)
+        violations = pcsv.get_violations(
+            db, status="all", category="all", order_by="ad_requests",
+            new_threshold=new_threshold,
+        )
         title_job = pcsv.get_title_job_state()
     except Exception as _e:
         LOGGER.exception("policy_page hata: %s", _e)
@@ -12994,6 +13005,7 @@ def policy_page(
         title_job = {"running": False, "done": 0, "total": 0}
 
     last_upload_info = None
+    last_upload_iso = None
     if last_upload:
         last_upload_info = {
             "filename": last_upload.filename,
@@ -13002,12 +13014,16 @@ def policy_page(
             "updated_count": last_upload.updated_count,
             "uploaded_at": last_upload.uploaded_at.strftime("%Y-%m-%d %H:%M") if last_upload.uploaded_at else "",
         }
+        if last_upload.uploaded_at:
+            # Yeni satırları işaretlemek için ISO timestamp (template karşılaştırmasında kullanılır)
+            last_upload_iso = last_upload.uploaded_at.isoformat()
 
     ctx = {
         "request": request,
         "stats": stats,
         "violations": violations,
         "last_upload": last_upload_info,
+        "last_upload_iso": last_upload_iso,
         "title_job": title_job,
     }
     if request.headers.get("HX-Request") == "true":
