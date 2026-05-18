@@ -8,6 +8,8 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from urllib.parse import urlparse
+
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
@@ -114,19 +116,28 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
         return {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "total_issues": 0,
                 "duplicate_title_groups": 0, "duplicate_desc_groups": 0, "last_crawled": None}
 
-    # Duplicate grup sayısı — subquery ile verimli
-    title_dup_count = (
-        db.query(func.count()).select_from(
-            db.query(M.title).filter(M.site_id == site_id, M.has_title.is_(True))
-            .group_by(M.title).having(func.count(M.title) > 1).subquery()
-        ).scalar() or 0
+    # Duplicate grup sayısı — subdomain ayrımıyla Python'da hesapla
+    _dup_rows = (
+        db.query(M.url, M.title, M.meta_description, M.has_title, M.has_meta_description)
+        .filter(M.site_id == site_id)
+        .limit(5000)
+        .all()
     )
-    desc_dup_count = (
-        db.query(func.count()).select_from(
-            db.query(M.meta_description).filter(M.site_id == site_id, M.has_meta_description.is_(True))
-            .group_by(M.meta_description).having(func.count(M.meta_description) > 1).subquery()
-        ).scalar() or 0
-    )
+
+    def _count_dup_groups(value_attr, has_attr):
+        buckets: dict[tuple[str, str], set[str]] = {}
+        for r in _dup_rows:
+            val = getattr(r, value_attr) or ""
+            has = getattr(r, has_attr)
+            if not has or not val:
+                continue
+            host = _url_host(r.url)
+            norm = _normalize_url(r.url)
+            buckets.setdefault((host, val), set()).add(norm)
+        return sum(1 for urls in buckets.values() if len(urls) > 1)
+
+    title_dup_count = _count_dup_groups("title", "has_title")
+    desc_dup_count = _count_dup_groups("meta_description", "has_meta_description")
 
     issue_counts = {
         "missing_title": row.missing_title or 0,
@@ -240,29 +251,57 @@ def get_audit_issues_count(db: Session, site_id: int, filter_key: str = "all") -
         return 0
 
 
+def _url_host(url: str) -> str:
+    """URL'den host (subdomain dahil) döndür: m.doviz.com, haber.doviz.com vb."""
+    try:
+        return urlparse(url).netloc.lower().split(":")[0]
+    except Exception:
+        return url
+
+
+def _normalize_url(url: str) -> str:
+    """AMP suffix'ini silerek URL'yi normalize et."""
+    u = url.rstrip("/")
+    if u.endswith("/amp"):
+        u = u[:-4].rstrip("/")
+    return u
+
+
 def get_duplicates(db: Session, site_id: int) -> dict[str, Any]:
-    """Aynı title veya meta description paylaşan URL gruplarını döner."""
+    """Aynı subdomain içinde aynı title/description paylaşan URL gruplarını döner.
+
+    m.doviz.com/xxx ile haber.doviz.com/xxx aynı title taşısa da farklı
+    subdomain oldukları için duplicate sayılmaz. Aynı subdomain'de aynı
+    title/description varsa duplicate'tir.
+    """
     from backend.models import UrlAuditRecord
 
     rows = (
         db.query(UrlAuditRecord.url, UrlAuditRecord.title, UrlAuditRecord.meta_description,
                  UrlAuditRecord.has_title, UrlAuditRecord.has_meta_description)
         .filter(UrlAuditRecord.site_id == site_id)
-        .limit(5000)  # bellek koruması
+        .limit(5000)
         .all()
     )
 
     def _dup_groups(value_attr, has_attr):
-        groups: dict[str, list[str]] = {}
+        # key: (host, value) → normalized unique URL listesi
+        groups: dict[tuple[str, str], list[str]] = {}
         for r in rows:
             val = getattr(r, value_attr) or ""
             has = getattr(r, has_attr)
             if not has or not val:
                 continue
-            groups.setdefault(val, []).append(r.url)
+            host = _url_host(r.url)
+            norm = _normalize_url(r.url)
+            key = (host, val)
+            bucket = groups.setdefault(key, [])
+            if norm not in bucket:
+                bucket.append(norm)
+
         result = [
             {"value": val, "count": len(urls), "urls": urls[:10]}
-            for val, urls in groups.items()
+            for (host, val), urls in groups.items()
             if len(urls) > 1
         ]
         result.sort(key=lambda x: x["count"], reverse=True)
