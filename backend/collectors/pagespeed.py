@@ -239,11 +239,6 @@ def _extract_lighthouse_metrics(payload: dict) -> dict[str, float]:
             item = metrics_items[0] or {}
             ttfb = float(item.get("observedTimeToFirstByte") or item.get("observedTtfb") or 0)
 
-    if inp == 0:
-        # If still zero, log all audit names for debugging
-        available_audits = list(audits.keys())
-        LOGGER.warning(f"INP value is 0. Available audits: {available_audits}")
-
     # Field data takes precedence for the user-facing CWV values because
     # PageSpeed's main panel shows CrUX 28-day percentiles, not lab numbers.
     field_metrics = (payload.get("loadingExperience") or {}).get("metrics") or {}
