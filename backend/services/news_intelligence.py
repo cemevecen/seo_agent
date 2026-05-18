@@ -156,7 +156,11 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     logger.error("Failed to fetch RSS for %s from %s: HTTP %d", category, rss_url, response.status_code)
                     continue
 
-                root = ET.fromstring(response.content)
+                try:
+                    root = ET.fromstring(response.content)
+                except ET.ParseError:
+                    logger.warning("RSS XML parse hatası (muhtemelen HTML döndü): %s", rss_url[:80])
+                    continue
                 items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
 
                 # Channel-level kaynak bilgisi — item'da <source> yoksa fallback
@@ -280,7 +284,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 if new_count > 0:
                     logger.info("Synced %d new items for category: %s from source: %s", new_count, category, rss_url[:40])
             except Exception as e:
-                logger.error("Error syncing news for category %s from %s: %s", category, rss_url, e)
+                logger.warning("RSS sync hatası (%s / %s): %s", category, rss_url[:60], e)
                 db.rollback()
 
     # 7 Günlük Temizlik

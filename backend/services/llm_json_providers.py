@@ -30,8 +30,8 @@ def _parse_json_object(raw: str) -> dict:
 
 
 _GEMINI_MAX_PROMPT_CHARS = 300_000
-_GROQ_MAX_PROMPT_CHARS = 70_000
-_GROQ_FALLBACK_PROMPT_CHARS = 50_000
+_GROQ_MAX_PROMPT_CHARS = 35_000
+_GROQ_FALLBACK_PROMPT_CHARS = 25_000
 
 
 def _truncate_prompt(prompt: str, max_chars: int) -> str:
@@ -85,8 +85,7 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
     for cand in (
         str(model or "").strip(),
         "llama-3.3-70b-versatile",
-        "llama3-70b-8192",
-        "llama3-8b-8192",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
     ):
         if cand and cand not in model_candidates:
             model_candidates.append(cand)
