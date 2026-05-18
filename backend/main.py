@@ -7965,10 +7965,20 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
         # Title 80 karakterden uzunsa kes
         if len(title_text) > 80:
             title_text = title_text[:80] + "…"
+        # Profil bilgisini mesajdan çıkar: "doviz.com Desktop — ..." → "web"
+        _pmap = {"Desktop": "web", "Mobile Web": "mweb", "Android": "android", "iOS": "ios"}
+        profile_key = ""
+        if " — " in message_raw:
+            _prefix = message_raw.split(" — ", 1)[0].strip()
+            for _lbl, _key in _pmap.items():
+                if _prefix.endswith(" " + _lbl):
+                    profile_key = _key
+                    break
         realtime_alerts.append({
             "id": r.id,
             "domain": site.domain,
             "display_name": site.display_name,
+            "profile": profile_key,
             "rule_id": r.rule_id or "",
             "metric": r.metric or "",
             "severity": (r.severity or "warning").lower(),

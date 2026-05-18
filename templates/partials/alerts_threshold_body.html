@@ -15,20 +15,35 @@
   </div>
 </div>
 
-{# Threshold tip filtresi #}
-<div id="threshold-type-filter-row" class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">
-  <button type="button"
-    class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
-    data-threshold-filter="all"
-    data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Tümü</button>
-  <button type="button"
-    class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
-    data-threshold-filter="realtime"
-    data-inactive-cls="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50">GA4 Realtime</button>
-  <button type="button"
-    class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
-    data-threshold-filter="404"
-    data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50">404 Hata</button>
+{# Filtre satırı: tip chip'leri + domain/platform dropdown #}
+<div class="flex flex-wrap items-center gap-2">
+  <div id="threshold-type-filter-row" class="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+    <button type="button"
+      class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+      data-threshold-filter="all"
+      data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Tümü</button>
+    <button type="button"
+      class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+      data-threshold-filter="realtime"
+      data-inactive-cls="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50">GA4 Realtime</button>
+    <button type="button"
+      class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+      data-threshold-filter="404"
+      data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50">404 Hata</button>
+  </div>
+
+  <div class="ml-auto">
+    <select id="threshold-domain-select"
+      class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600">
+      <option value="all">Tüm siteler</option>
+      <option value="doviz-web">doviz.com · Web</option>
+      <option value="doviz-mweb">doviz.com · Mobil</option>
+      <option value="doviz-ios">doviz.com · iOS</option>
+      <option value="doviz-android">doviz.com · Android</option>
+      <option value="sinemalar-web">sinemalar.com · Web</option>
+      <option value="sinemalar-mweb">sinemalar.com · Mobil</option>
+    </select>
+  </div>
 </div>
 
 <div id="threshold-container-wrap" class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 p-2 sm:p-3">
@@ -37,10 +52,13 @@
       {% set _dk = (a.domain or '')|lower %}
       {% set _doviz = 'doviz.com' in _dk %}
       {% set _sin = 'sinemalar.com' in _dk %}
+      {% set _base = 'doviz' if _doviz else ('sinemalar' if _sin else a.domain) %}
       {% set _sev = a.severity %}
       {% set _sev_cls = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' if _sev == 'critical' else ('bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300' if _sev == 'warning' else 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300') %}
       <div class="threshold-card alert-card group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 transition hover:bg-white dark:border-slate-700/70 dark:bg-slate-800/30 dark:hover:bg-slate-800/50{% if _doviz or _sin %} alert-has-stripe pl-[3px]{% endif %}"
            data-threshold-kind="realtime"
+           data-site-base="{{ _base }}"
+           data-profile="{{ a.profile }}"
            data-domain="{{ a.domain }}"
            data-triggered-at="{{ a.triggered_at_iso }}">
         {% if _doviz %}
@@ -68,6 +86,10 @@
               {% if a.metric %}
                 <span class="ml-1 text-slate-400 dark:text-slate-500 font-mono">· {{ a.metric }}</span>
               {% endif %}
+              {% if a.profile %}
+                {% set _prof_label = {'web': 'Desktop', 'mweb': 'Mobil', 'android': 'Android', 'ios': 'iOS'} %}
+                <span class="ml-1 rounded bg-slate-100 dark:bg-slate-700 px-1 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">{{ _prof_label.get(a.profile, a.profile) }}</span>
+              {% endif %}
             </p>
           </div>
           <div class="flex shrink-0 flex-col items-end gap-1.5">
@@ -85,10 +107,13 @@
       {% set _dk = (e.domain or '')|lower %}
       {% set _doviz = 'doviz.com' in _dk %}
       {% set _sin = 'sinemalar.com' in _dk %}
+      {% set _base = 'doviz' if _doviz else ('sinemalar' if _sin else e.domain) %}
       {% set _hit = e.hit_count %}
       {% set _hit_cls = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' if _hit >= 20 else ('bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300' if _hit >= 5 else 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300') %}
       <div class="threshold-card alert-card group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 transition hover:bg-white dark:border-slate-700/70 dark:bg-slate-800/30 dark:hover:bg-slate-800/50{% if _doviz or _sin %} alert-has-stripe pl-[3px]{% endif %}"
            data-threshold-kind="404"
+           data-site-base="{{ _base }}"
+           data-profile=""
            data-domain="{{ e.domain }}"
            data-triggered-at="{{ e.last_seen_iso }}">
         {% if _doviz %}
@@ -129,3 +154,87 @@
     {% endif %}
   </div>
 </div>
+
+<div id="threshold-no-results" class="hidden rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+  Seçilen filtreye uyan kayıt yok.
+</div>
+
+<script>
+(function() {
+  var panel = document.querySelector('[data-alerts-panel="threshold"]');
+  if (!panel) return;
+
+  // Filtre state — panel dataset'ten restore et (HTMX reload sonrası)
+  var _kindFilter    = panel.dataset.thrKind   || 'all';
+  var _domainFilter  = panel.dataset.thrDomain || 'all';
+
+  function _cardVisible(c) {
+    var kind    = c.getAttribute('data-threshold-kind') || '';
+    var base    = c.getAttribute('data-site-base')      || '';
+    var profile = c.getAttribute('data-profile')        || '';
+
+    // Kind filtresi
+    if (_kindFilter !== 'all' && kind !== _kindFilter) return false;
+
+    // Domain/platform filtresi
+    if (_domainFilter !== 'all') {
+      var parts         = _domainFilter.split('-');
+      var filterBase    = parts[0];
+      var filterProfile = parts[1] || '';
+      if (base !== filterBase) return false;
+      // 404 kartlar profil bilgisi taşımaz — site bazında eşleşince göster
+      if (kind !== '404' && profile !== filterProfile) return false;
+    }
+    return true;
+  }
+
+  function applyFilters() {
+    var cards    = panel.querySelectorAll('.threshold-card');
+    var anyShown = false;
+    cards.forEach(function(c) {
+      var show = _cardVisible(c);
+      c.classList.toggle('hidden', !show);
+      if (show) anyShown = true;
+    });
+    var noRes = document.getElementById('threshold-no-results');
+    if (noRes) noRes.classList.toggle('hidden', anyShown);
+  }
+
+  // Tip chip'lerini güncelle
+  function _renderKindTabs() {
+    panel.querySelectorAll('.threshold-type-tab').forEach(function(b) {
+      var isActive = b.getAttribute('data-threshold-filter') === _kindFilter;
+      if (isActive) {
+        b.className = 'threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900';
+      } else {
+        var cls = b.getAttribute('data-inactive-cls') || '';
+        b.className = 'threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors ' + cls;
+      }
+    });
+  }
+
+  // Tip chip tıklamaları
+  panel.querySelectorAll('.threshold-type-tab').forEach(function(b) {
+    b.addEventListener('click', function() {
+      _kindFilter = b.getAttribute('data-threshold-filter');
+      panel.dataset.thrKind = _kindFilter;
+      _renderKindTabs();
+      applyFilters();
+    });
+  });
+
+  // Domain/platform dropdown
+  var dpSel = panel.querySelector('#threshold-domain-select');
+  if (dpSel) {
+    dpSel.value = _domainFilter;
+    dpSel.addEventListener('change', function() {
+      _domainFilter = dpSel.value;
+      panel.dataset.thrDomain = _domainFilter;
+      applyFilters();
+    });
+  }
+
+  _renderKindTabs();
+  applyFilters();
+})();
+</script>

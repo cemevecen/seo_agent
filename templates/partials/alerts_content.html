@@ -422,34 +422,8 @@
       });
     });
 
-    // Threshold tip filtresi
-    var thrTabs = view.querySelectorAll('.threshold-type-tab');
-    function activateThresholdFilter(filter) {
-      thrTabs.forEach(function(b) {
-        var isActive = b.getAttribute('data-threshold-filter') === filter;
-        if (isActive) {
-          b.className = 'threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900';
-        } else {
-          var inactiveCls = b.getAttribute('data-inactive-cls') || '';
-          b.className = 'threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors ' + inactiveCls;
-        }
-      });
-      var cards = view.querySelectorAll('.threshold-card');
-      cards.forEach(function(c) {
-        if (filter === 'all') {
-          c.classList.remove('hidden');
-        } else {
-          c.classList.toggle('hidden', c.getAttribute('data-threshold-kind') !== filter);
-        }
-      });
-    }
-    thrTabs.forEach(function(b) {
-      b.addEventListener('click', function() {
-        activateThresholdFilter(b.getAttribute('data-threshold-filter'));
-      });
-    });
-    // İlk yüklemede tip filtresi başlangıç stilleri
-    activateThresholdFilter('all');
+    // Threshold tip filtresi ve domain/platform filtresi alerts_threshold_body.html
+    // içinde inline script olarak yönetiliyor (HTMX reload sonrası da çalışsın diye).
   })();
 </script>
 
