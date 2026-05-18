@@ -141,20 +141,20 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        # PolicyViolation farklı varyasyonlar
+        # Tanısal sorgular — PolicyViolation erişimini anlamak için
         for test_q in [
-            "SELECT Url, ViolationType FROM PolicyViolation WHERE Date >= '2026-01-01' LIMIT 5",
-            "SELECT Url, ViolationType FROM PolicyViolation WHERE Week >= '2026-01-01' LIMIT 5",
-            "SELECT * FROM PolicyViolation LIMIT 5",
+            "SELECT * FROM Publisher_Query_Language_Tables LIMIT 20",
+            "SELECT * FROM Publisher_Query_Language_Columns WHERE TableName = 'PolicyViolation' LIMIT 20",
+            "SELECT Url, ViolationType FROM PolicyViolation LIMIT 1",
         ]:
             try:
                 t_xml = _pql_select(test_q, 0)
                 t_resp = session.post(_PQL_ENDPOINT, data=t_xml.encode("utf-8"),
                                       headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
                                       timeout=30)
-                logger.warning("PQL test [%s] status=%d body=%s", test_q[:60], t_resp.status_code, t_resp.text[100:600])
+                logger.warning("PQL diag [%s] status=%d body=%s", test_q[:80], t_resp.status_code, t_resp.text[:800])
             except Exception as te:
-                logger.warning("PQL test [%s] exception=%s", test_q[:60], te)
+                logger.warning("PQL diag [%s] exception=%s", test_q[:80], te)
 
         query = "SELECT Url, ViolationType, EnforcementStatus FROM PolicyViolation LIMIT 500"
 
@@ -203,7 +203,14 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
             return [], f"Ad Manager erişim reddedildi. Service account'un network'te 'Reporter-Service-Account' rolü var mı? Detay: {msg[:300]}"
         if "404" in msg:
             return [], f"Ad Manager SOAP endpoint bulunamadı. Network code doğru mu? ({NETWORK_CODE})"
-        if "UNEXECUTABLE" in msg or "PolicyViolation" in msg or "no such table" in msg.lower():
+        if "UNEXECUTABLE" in msg:
+            return [], (
+                "PolicyViolation PQL tablosu bu ağda çalıştırılamıyor (UNEXECUTABLE). "
+                "Bu tablo yalnızca Ad Manager 360 ağlarında ve Policy Center erişimi olan hesaplarda "
+                "kullanılabilir. Ad Manager → Raporlama → Policy Center'a erişebiliyorsanız "
+                "CSV olarak indirip manuel yükleyebilirsiniz. Detay: " + msg[:300]
+            )
+        if "PolicyViolation" in msg or "no such table" in msg.lower():
             return [], f"PQL sorgu hatası (tablo/kolon adı yanlış olabilir). Detay: {msg[:400]}"
         return [], f"Ad Manager API hatası: {msg[:400]}"
 
