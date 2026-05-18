@@ -48,7 +48,7 @@ def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]
         raise RuntimeError("GEMINI_API_KEY tanımlı değil.")
     try:
         import google.genai as genai  # yeni SDK: google-genai
-        client = genai.Client(api_key=key)
+        client = genai.Client(api_key=key, http_options={"timeout": 300})
         response = client.models.generate_content(
             model=model_name,
             contents=prompt,
@@ -66,7 +66,7 @@ def _gemini_json(prompt: str, *, model_name: str) -> tuple[dict, tuple[int, int]
             model_name,
             generation_config={"temperature": 0.35, "response_mime_type": "application/json"},
         )
-        resp = model_obj.generate_content(prompt)
+        resp = model_obj.generate_content(prompt, request_options={"timeout": 300})
         text = resp.text or ""
         um = getattr(resp, "usage_metadata", None)
         pt = int(getattr(um, "prompt_token_count", None) or 0) if um else 0
@@ -91,7 +91,7 @@ def _groq_chat_json(prompt: str, *, model: str) -> tuple[dict, tuple[int, int]]:
         if cand and cand not in model_candidates:
             model_candidates.append(cand)
     last_err: Exception | None = None
-    with httpx.Client(timeout=55.0) as client:
+    with httpx.Client(timeout=180.0) as client:
         for model_name in model_candidates:
             for json_mode in (True, False):
                 req_body: dict[str, Any] = {

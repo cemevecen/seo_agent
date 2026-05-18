@@ -130,8 +130,8 @@ YASAK ÖRNEKLER (bunları yazarsan çıktı tamamen hatalıdır):
 ✗ "İzlenmektedir ki, mobil skor 28’dir."               → HAYIR: hem boş kalıp hem tekrar
 ✗ "Veriler takip edilmektedir."                         → HAYIR: kesinlikle yasak
 
-DOĞRU ÖRNEK — PageSpeed 28 mobil için NE ANLAMA GELİYOR şöyle yazılır:
-"Mobil skor 28, Google’ın ‘Zayıf’ (<50) bandına giriyor; bu eşiğin altındaki siteler Core Web Vitals sinyallerinde ranking cezasına maruz kalma riski taşıyor.\\n\\nYedi günlük değişim sıfır — skor ne düşüyor ne yükseliyor; bu sabit bir performans tavanının varlığına işaret eder, çoğunlukla sunucu kaynaklı gecikme (TTFB) veya render-blocking JavaScript’ten kaynaklanır.\\n\\nMasaüstü skoru 69 ile ‘Orta’ bandında kalıyor; mobil-masaüstü farkı 41 puan. Bu büyüklükteki makas genellikle mobilde indirilmeyen resim optimizasyonu, lazy-load eksikliği veya 3. taraf script ağırlığından kaynaklanır.\\n\\nSearch Console organik düşüşü varsa bu skorun doğrudan katkısı olabilir; yoksa şimdilik gizli bir risk olarak not edilmeli."
+DOĞRU ÖRNEK — PageSpeed 28 mobil skoru için:
+"Mobil skor 28, Google’ın Zayıf (<50) bandında; CWV kırmızı bölge, ranking sinyali riski var.\\n\\nYedi günlük değişim sıfır: skor sabit bir tavan altında kalmış, TTFB veya render-blocking JS kaynaklı olabilir.\\n\\nMasaüstü-mobil farkı 41 puan; bu fark genellikle mobilde eksik resim optimizasyonu, lazy-load yokluğu veya 3. taraf script ağırlığından kaynaklanır."
 
 ━━━ YORUM REHBER — her metrik için uzmanca değerlendirme ━━━
 
