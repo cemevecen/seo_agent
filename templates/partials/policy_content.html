@@ -114,7 +114,7 @@
   {% if violations %}
   <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:1100px">
+      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:1100px">
         <colgroup>
           <col style="width:36px">      {# # #}
           <col style="width:260px">     {# Başlık #}
@@ -132,16 +132,16 @@
         <thead>
           <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
             <th class="px-2 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">#</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Başlığı</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">URL</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sebep</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Yaptırım</th>
-            <th class="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Rek.İstek</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İlk</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Son</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durum</th>
-            <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not</th>
+            <th data-sort="title" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Başlığı<span class="sort-ind"></span></th>
+            <th data-sort="url" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">URL<span class="sort-ind"></span></th>
+            <th data-sort="issue" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sebep<span class="sort-ind"></span></th>
+            <th data-sort="cat" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori<span class="sort-ind"></span></th>
+            <th data-sort="enf" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Yaptırım<span class="sort-ind"></span></th>
+            <th data-sort="req" data-sort-type="num" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Rek.İstek<span class="sort-ind"></span></th>
+            <th data-sort="first" data-sort-type="date" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İlk<span class="sort-ind"></span></th>
+            <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Son<span class="sort-ind"></span></th>
+            <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durum<span class="sort-ind"></span></th>
+            <th data-sort="note" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not<span class="sort-ind"></span></th>
             <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">—</th>
           </tr>
         </thead>
@@ -149,10 +149,21 @@
           {% for v in violations %}
           {% set vid = v.id %}
           {% set rn = loop.index %}
-          <tr id="row-{{ vid }}" class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40">
+          <tr id="row-{{ vid }}"
+              data-title="{{ (v.page_title or '') | e }}"
+              data-url="{{ v.url | e }}"
+              data-issue="{{ v.issue_type | e }}"
+              data-cat="{{ v.category | e }}"
+              data-enf="{{ v.enforcement | e }}"
+              data-req="{{ v.ad_requests_7d }}"
+              data-first="{{ v.first_reported or '' }}"
+              data-last="{{ v.last_reported or '' }}"
+              data-status="{{ v.our_status }}"
+              data-note="{{ v.our_notes | e }}"
+              class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40">
 
             {# # #}
-            <td class="px-2 py-2 text-right text-[10px] text-slate-300 dark:text-slate-600 select-none">{{ rn }}</td>
+            <td class="row-num px-2 py-2 text-right text-[10px] text-slate-300 dark:text-slate-600 select-none">{{ rn }}</td>
 
             {# Sayfa Başlığı #}
             <td class="px-3 py-2">
@@ -261,11 +272,94 @@
 
 </div>
 
+<style>
+  .sortable-th { cursor: pointer; user-select: none; position: relative; }
+  .sortable-th:hover { color: #1e293b; }
+  .dark .sortable-th:hover { color: #f1f5f9; }
+  .sort-ind::after {
+    content: "↕";
+    display: inline-block;
+    margin-left: 4px;
+    opacity: 0.25;
+    font-weight: 700;
+  }
+  .sortable-th.sort-asc  .sort-ind::after { content: "▲"; opacity: 1; color: #2563eb; }
+  .sortable-th.sort-desc .sort-ind::after { content: "▼"; opacity: 1; color: #2563eb; }
+  .dark .sortable-th.sort-asc  .sort-ind::after,
+  .dark .sortable-th.sort-desc .sort-ind::after { color: #60a5fa; }
+</style>
+
 <script>
 (function () {
   var _status   = "{{ current_status }}";
   var _category = "{{ current_category }}";
   var _order    = "{{ current_order }}";
+
+  // ── Client-side column sort ──
+  (function setupSort() {
+    var table = document.getElementById("policy-table");
+    if (!table) return;
+    var ths = table.querySelectorAll("thead th.sortable-th");
+
+    function renumber() {
+      var tbody = table.tBodies[0];
+      Array.prototype.forEach.call(tbody.rows, function (tr, i) {
+        var nc = tr.querySelector(".row-num");
+        if (nc) nc.textContent = i + 1;
+      });
+    }
+
+    function compare(a, b, key, type) {
+      var av = a.getAttribute("data-" + key) || "";
+      var bv = b.getAttribute("data-" + key) || "";
+      if (type === "num") {
+        var an = parseFloat(av) || 0;
+        var bn = parseFloat(bv) || 0;
+        return an - bn;
+      }
+      if (type === "date") {
+        // Boş tarihler sona
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return av.localeCompare(bv);
+      }
+      // text: locale-aware, case-insensitive, boş sona
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return av.localeCompare(bv, "tr", {sensitivity: "base", numeric: true});
+    }
+
+    function sortBy(th) {
+      var key  = th.getAttribute("data-sort");
+      var type = th.getAttribute("data-sort-type") || "text";
+      var cur  = th.classList.contains("sort-asc") ? "asc"
+               : th.classList.contains("sort-desc") ? "desc" : null;
+      var def  = th.getAttribute("data-sort-default") || "asc";
+      var next = cur === null ? def : (cur === "asc" ? "desc" : "asc");
+
+      // Diğer th'lerden indicator'ı kaldır
+      ths.forEach(function (x) { x.classList.remove("sort-asc", "sort-desc"); });
+      th.classList.add(next === "asc" ? "sort-asc" : "sort-desc");
+
+      var tbody = table.tBodies[0];
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function (a, b) {
+        var c = compare(a, b, key, type);
+        return next === "asc" ? c : -c;
+      });
+      // DOM'a yeniden ekle
+      var frag = document.createDocumentFragment();
+      rows.forEach(function (r) { frag.appendChild(r); });
+      tbody.appendChild(frag);
+      renumber();
+    }
+
+    ths.forEach(function (th) {
+      th.addEventListener("click", function () { sortBy(th); });
+    });
+  })();
 
   window.filterPolicy = function (key, val) {
     if (key === "status")   _status   = val;
