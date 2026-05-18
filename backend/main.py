@@ -12976,16 +12976,13 @@ async def api_boards_move(request: Request):
 @app.get("/policy", response_class=HTMLResponse)
 def policy_page(
     request: Request,
-    status: str = "all",
-    category: str = "all",
-    order: str = "ad_requests",
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
 
     try:
         stats = pcsv.get_stats(db)
-        violations = pcsv.get_violations(db, status=status, category=category, order_by=order)
+        violations = pcsv.get_violations(db, status="all", category="all", order_by="ad_requests")
         last_upload = pcsv.get_latest_upload(db)
         title_job = pcsv.get_title_job_state()
     except Exception as _e:
@@ -13010,9 +13007,6 @@ def policy_page(
         "request": request,
         "stats": stats,
         "violations": violations,
-        "current_status": status,
-        "current_category": category,
-        "current_order": order,
         "last_upload": last_upload_info,
         "title_job": title_job,
     }
@@ -13106,14 +13100,9 @@ async def api_policy_note(vid: int, request: Request, db: Session = Depends(get_
 
 
 @app.get("/api/policy/export.xlsx")
-def api_policy_export(
-    status: str = "all",
-    category: str = "all",
-    order: str = "ad_requests",
-    db: Session = Depends(get_db),
-):
+def api_policy_export(db: Session = Depends(get_db)):
     from backend.services import policy_csv as pcsv
-    violations = pcsv.get_violations(db, status=status, category=category, order_by=order, limit=10000)
+    violations = pcsv.get_violations(db, status="all", category="all", order_by="ad_requests", limit=10000)
     blob = pcsv.build_xlsx(violations)
     today = datetime.utcnow().strftime("%Y-%m-%d")
     return Response(

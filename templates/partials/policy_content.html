@@ -18,7 +18,7 @@
         <input id="policy-csv-input" type="file" accept=".csv,text/csv" class="hidden" onchange="uploadPolicyCSV(this)">
       </label>
       {% if stats and stats.get("total", 0) > 0 %}
-      <a href="/api/policy/export.xlsx?status={{ current_status }}&category={{ current_category }}&order={{ current_order }}"
+      <a href="/api/policy/export.xlsx"
         class="inline-flex items-center rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
         Excel İndir
       </a>
@@ -68,44 +68,6 @@
     {% endfor %}
   </div>
 
-  {# ── Filtreler ── #}
-  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs dark:bg-slate-900/50">
-    <div class="flex items-center gap-1.5">
-      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Durum</span>
-      {% for val, lbl in [("all","Tümü"),("new","Yeni"),("ignored","Görmezden")] %}
-      <button onclick="filterPolicy('status','{{ val }}')"
-        class="rounded-full border px-2.5 py-0.5 font-semibold transition
-          {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white
-          {% else %}border-slate-300 text-slate-600 hover:border-slate-500 dark:border-slate-700 dark:text-slate-300{% endif %}">{{ lbl }}</button>
-      {% endfor %}
-    </div>
-    <div class="flex items-center gap-1.5">
-      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sıra</span>
-      {% for val, lbl in [("ad_requests","Reklam"),("date","Tarih"),("url","URL")] %}
-      <button onclick="filterPolicy('order','{{ val }}')"
-        class="rounded-full border px-2.5 py-0.5 font-semibold transition
-          {% if current_order == val %}bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white
-          {% else %}border-slate-300 text-slate-600 hover:border-slate-500 dark:border-slate-700 dark:text-slate-300{% endif %}">{{ lbl }}</button>
-      {% endfor %}
-    </div>
-    {% set by_cat = stats.get("by_category",{}) %}
-    {% if by_cat %}
-    <div class="flex flex-wrap items-center gap-1.5">
-      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kategori</span>
-      <button onclick="filterPolicy('category','all')"
-        class="rounded-full border px-2.5 py-0.5 font-semibold transition
-          {% if current_category == 'all' %}bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white
-          {% else %}border-slate-300 text-slate-600 hover:border-slate-500 dark:border-slate-700 dark:text-slate-300{% endif %}">Tümü</button>
-      {% for cat, cnt in by_cat.items() %}
-      <button onclick="filterPolicy('category','{{ cat }}')"
-        class="rounded-full border px-2.5 py-0.5 font-semibold transition
-          {% if current_category == cat %}bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-white
-          {% else %}border-slate-300 text-slate-600 hover:border-slate-500 dark:border-slate-700 dark:text-slate-300{% endif %}">{{ cat }} <span class="opacity-60">{{ cnt }}</span></button>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </div>
-
   {# ── Tablo ── #}
   {% if violations %}
   {# Arama: çoklu kelime (boşlukla ayır, hepsi eşleşmeli) #}
@@ -128,7 +90,7 @@
           <col style="width:240px">     {# Sebep #}
           <col style="width:130px">     {# Kategori #}
           <col style="width:130px">     {# Yaptırım #}
-          <col style="width:82px">      {# Rek. İstek #}
+          <col style="width:90px">      {# Rek. İstek #}
           <col style="width:82px">      {# İlk Tarih #}
           <col style="width:82px">      {# Son Tarih #}
           <col style="width:110px">     {# Durum #}
@@ -137,18 +99,18 @@
         </colgroup>
         <thead>
           <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
-            <th class="px-2 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">#</th>
-            <th class="px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400"></th>
-            <th data-sort="title" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa<span class="sort-ind"></span></th>
-            <th data-sort="issue" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sebep<span class="sort-ind"></span></th>
-            <th data-sort="cat" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kategori<span class="sort-ind"></span></th>
-            <th data-sort="enf" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Yaptırım<span class="sort-ind"></span></th>
-            <th data-sort="req" data-sort-type="num" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Rek.İstek<span class="sort-ind"></span></th>
-            <th data-sort="first" data-sort-type="date" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İlk<span class="sort-ind"></span></th>
-            <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Son<span class="sort-ind"></span></th>
-            <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durum<span class="sort-ind"></span></th>
-            <th data-sort="note" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not<span class="sort-ind"></span></th>
-            <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Admin</th>
+            <th class="px-2 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">#</th>
+            <th class="px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap"></th>
+            <th data-sort="title" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Sayfa<span class="sort-ind"></span></th>
+            <th data-sort="issue" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Sebep<span class="sort-ind"></span></th>
+            <th data-sort="cat" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Kategori<span class="sort-ind"></span></th>
+            <th data-sort="enf" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Yaptırım<span class="sort-ind"></span></th>
+            <th data-sort="req" data-sort-type="num" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Rek. İstek<span class="sort-ind"></span></th>
+            <th data-sort="first" data-sort-type="date" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">İlk<span class="sort-ind"></span></th>
+            <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Son<span class="sort-ind"></span></th>
+            <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Durum<span class="sort-ind"></span></th>
+            <th data-sort="note" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Not<span class="sort-ind"></span></th>
+            <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Admin</th>
           </tr>
         </thead>
         <tbody>
@@ -270,13 +232,11 @@
     </div>
     <div class="border-t border-slate-100 px-4 py-1.5 text-right text-[11px] text-slate-400 dark:border-slate-800">
       {{ violations | length }} kayıt
-      {% if current_status != 'all' %} · {{ current_status }}{% endif %}
-      {% if current_category != 'all' %} · {{ current_category }}{% endif %}
     </div>
   </div>
   {% else %}
   <div class="rounded-xl border border-slate-200 py-12 text-center text-sm text-slate-400 dark:border-slate-800">
-    Bu filtrede kayıt yok.
+    Kayıt yok.
   </div>
   {% endif %}
 
@@ -317,9 +277,6 @@
 
 <script>
 (function () {
-  var _status   = "{{ current_status }}";
-  var _category = "{{ current_category }}";
-  var _order    = "{{ current_order }}";
 
   // ── Client-side column sort ──
   (function setupSort() {
@@ -344,13 +301,11 @@
         return an - bn;
       }
       if (type === "date") {
-        // Boş tarihler sona
         if (!av && !bv) return 0;
         if (!av) return 1;
         if (!bv) return -1;
         return av.localeCompare(bv);
       }
-      // text: locale-aware, case-insensitive, boş sona
       if (!av && !bv) return 0;
       if (!av) return 1;
       if (!bv) return -1;
@@ -365,7 +320,6 @@
       var def  = th.getAttribute("data-sort-default") || "asc";
       var next = cur === null ? def : (cur === "asc" ? "desc" : "asc");
 
-      // Diğer th'lerden indicator'ı kaldır
       ths.forEach(function (x) { x.classList.remove("sort-asc", "sort-desc"); });
       th.classList.add(next === "asc" ? "sort-asc" : "sort-desc");
 
@@ -375,7 +329,6 @@
         var c = compare(a, b, key, type);
         return next === "asc" ? c : -c;
       });
-      // DOM'a yeniden ekle
       var frag = document.createDocumentFragment();
       rows.forEach(function (r) { frag.appendChild(r); });
       tbody.appendChild(frag);
@@ -386,15 +339,6 @@
       th.addEventListener("click", function () { sortBy(th); });
     });
   })();
-
-  window.filterPolicy = function (key, val) {
-    if (key === "status")   _status   = val;
-    if (key === "category") _category = val;
-    if (key === "order")    _order    = val;
-    location.href = "/policy?status=" + encodeURIComponent(_status) +
-                    "&category=" + encodeURIComponent(_category) +
-                    "&order=" + encodeURIComponent(_order);
-  };
 
   // ── Status select colors ──
   var SC = {
@@ -499,7 +443,6 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(function () { flash(true); }, function () { flash(false); });
     } else {
-      // Fallback
       var ta = document.createElement("textarea");
       ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
@@ -511,13 +454,11 @@
   // ── Tabloda çoklu kelime arama ──
   function rowMatchesText(tr, terms) {
     if (!terms.length) return true;
-    // Tüm data-* attribute'lar + görünür metin (title hücresi text)
     var hay = "";
     for (var i = 0; i < tr.attributes.length; i++) {
       var a = tr.attributes[i];
       if (a.name.indexOf("data-") === 0) hay += " " + a.value;
     }
-    // Görünür metin de eklensin (page_title link içeriği vs.)
     hay = (hay + " " + (tr.textContent || "")).toLowerCase();
     for (var j = 0; j < terms.length; j++) {
       if (hay.indexOf(terms[j]) === -1) return false;

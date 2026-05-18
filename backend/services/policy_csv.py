@@ -433,10 +433,23 @@ def get_stats(db) -> dict:
 
 
 def _admin_link(url: str) -> str | None:
-    m = re.search(r"/(\d+)(?:/amp)?/?$", url)
-    if not m:
-        return None
-    return f"https://www.sinemalar.com/admin/contents/{m.group(1)}/edit"
+    # Person pages: mobileweb/person/, mobileweb/personMovies/, or /sanatci/.../id
+    m_person = re.search(r"mobileweb/person(?:Movies)?/(\d+)", url)
+    if m_person:
+        return f"https://www.sinemalar.com/management/person/{m_person.group(1)}"
+    m_person2 = re.search(r"/sanatci/[^/]+/(\d+)", url)
+    if m_person2:
+        return f"https://www.sinemalar.com/management/person/{m_person2.group(1)}"
+
+    # Movie pages: mobileweb/movieInfo/ or /film/.../id
+    m_movie = re.search(r"mobileweb/movieInfo/(\d+)", url)
+    if m_movie:
+        return f"https://www.sinemalar.com/management/movie/{m_movie.group(1)}"
+    m_movie2 = re.search(r"/film/[^/]+/(\d+)", url)
+    if m_movie2:
+        return f"https://www.sinemalar.com/management/movie/{m_movie2.group(1)}"
+
+    return None
 
 
 def _violation_to_dict(r) -> dict:
