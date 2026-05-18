@@ -276,14 +276,17 @@ def _discover_table_id(platform: str, bundle: str) -> str | None:
             return _TABLE_DISCOVERY_CACHE[key]
     base = bundle.replace(".", "_")
     plat_up = platform.upper()
-    # Olası adlandırmalar (öncelik sırasıyla)
+    # Olası adlandırmalar (öncelik sırasıyla). Firebase _REALTIME suffix'ini
+    # hem önde hem arkada koyabiliyor (streaming export'ta sona, batch'te yok).
     candidates = [
         f"{base}_{plat_up}",                    # com_Doviz_ANDROID  (standart)
+        f"{base}_{plat_up}_REALTIME",           # com_nokta_Finans_Takip_IOS_REALTIME (streaming)
         f"{base}_REALTIME_{plat_up}",           # com_Doviz_REALTIME_ANDROID
         base,                                    # com_Doviz (eski)
         base.lower() + "_" + plat_up,
         base.lower(),
         base.lower() + "_realtime_" + plat_up.lower(),
+        base.lower() + "_" + plat_up.lower() + "_realtime",
     ]
     available = _list_dataset_tables(platform)
     if not available:
@@ -484,12 +487,15 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
                 "için Firebase export başladıktan ~24 saat geçmesi gerekir. "
                 "(Tekrar denemek 1 saat boyunca atlandı — BQ kotasını korumak için.)"
             )
+        # Bundle ile eşleşen tablo yok — circuit breaker'ı tetikle ki aynı build'in
+        # geri kalan 5 sorgusu (ve sonraki manuel yenilemeler) BQ kotasını tüketmesin.
+        _circuit_trip(platform)
         shown = ", ".join(available[:8]) + ("…" if len(available) > 8 else "")
         return [], (
             f"Bundle ile eşleşen tablo bulunamadı (`{proj}.{_DATASET}`). "
             f"Datasette mevcut tablolar: {shown}. "
             "APP_PRODUCTS'taki bundle/package adı ile BigQuery tablo adı eşleşmiyor "
-            "olabilir — beklenen şablon: `<bundle>_ANDROID` / `<bundle>_IOS`."
+            "olabilir — beklenen şablon: `<bundle>_ANDROID` / `<bundle>_IOS` / `<bundle>_IOS_REALTIME`."
         )
     except gexc.Forbidden as exc:
         logger.warning("BQ erişim reddedildi (%s): %s", platform, exc)

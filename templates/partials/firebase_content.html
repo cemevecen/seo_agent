@@ -154,8 +154,19 @@
 
   var crashState = {
     platform: "all", days: 7, type: "", tab: "summary",
-    product: "doviz", seq: 0, pollTimer: null
+    product: "doviz", seq: 0, pollTimer: null, debounceTimer: null
   };
+
+  // Filtre chip'lerine birden fazla art arda tıklandığında her birinin BQ
+  // sorgusu başlamasın diye 250 ms debounce. Sadece UI butonu güncellenip
+  // son seçim sonra tek isteğe dönüşür.
+  function loadTabDebounced() {
+    if (crashState.debounceTimer) clearTimeout(crashState.debounceTimer);
+    crashState.debounceTimer = setTimeout(function () {
+      crashState.debounceTimer = null;
+      loadTab();
+    }, 250);
+  }
 
   function activeCls(on) {
     return on
@@ -443,7 +454,7 @@
     var trendBars = trend.map(function (t) {
       var h = Math.max(2, Math.round((t.count / maxC) * 36));
       return '<div class="flex flex-col items-center justify-end gap-1" title="' + escapeHtml(t.date) + ': ' + t.count + ' olay">'
-        + '<div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-500/60" style="height:' + h + 'px"></div>'
+        + '<div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-700/55" style="height:' + h + 'px"></div>'
         + '<span class="text-[8px] tabular-nums text-slate-400">' + escapeHtml((t.date || "").slice(5)) + '</span>'
         + '</div>';
     }).join("");
@@ -519,22 +530,23 @@
       });
   }
 
-  // Filtre butonları
+  // Filtre butonları — debounce kullanılır ki ardışık tıklamalar tek isteğe düşsün.
   crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
     b.addEventListener("click", function () {
-      crashState.platform = b.dataset.crashPlatform; syncBtns(); loadTab();
+      crashState.platform = b.dataset.crashPlatform; syncBtns(); loadTabDebounced();
     });
   });
   crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
     b.addEventListener("click", function () {
-      crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadTab();
+      crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadTabDebounced();
     });
   });
   crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
     b.addEventListener("click", function () {
-      crashState.type = b.dataset.crashType; syncBtns(); loadTab();
+      crashState.type = b.dataset.crashType; syncBtns(); loadTabDebounced();
     });
   });
+  // Tab geçişleri debounce kullanmadan anında çağrılır (tek tıklama, beklenen davranış).
   crashRoot.querySelectorAll(".crash-tab-btn").forEach(function (b) {
     b.addEventListener("click", function () {
       crashState.tab = b.dataset.crashTab; syncBtns(); loadTab();

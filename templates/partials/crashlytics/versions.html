@@ -51,10 +51,10 @@
                 <span class="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-200">{{ r.app_version }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
-                <span class="text-sm font-bold tabular-nums {% if r.fatal_count > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.fatal_count }}</span>
+                <span class="text-sm font-bold tabular-nums {% if r.fatal_count > 0 %}text-rose-600 dark:text-rose-300/80{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.fatal_count }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
-                <span class="text-sm font-bold tabular-nums {% if r.anr_count > 0 %}text-amber-600 dark:text-amber-500{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.anr_count }}</span>
+                <span class="text-sm font-bold tabular-nums {% if r.anr_count > 0 %}text-amber-600 dark:text-amber-300/80{% else %}text-slate-400 dark:text-slate-600{% endif %}">{{ r.anr_count }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
                 <span class="text-sm tabular-nums text-slate-500 dark:text-slate-400">{{ r.non_fatal_count }}</span>
