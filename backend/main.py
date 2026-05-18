@@ -9130,9 +9130,38 @@ def ai_daily_brief_page(request: Request):
         get_last_ai_brief_run_label_tr,
         get_latest_brief_for_ui,
     )
+    from backend.services.alert_engine import get_recent_alerts
 
     with SessionLocal() as db:
         brief = get_latest_brief_for_ui(db)
+        visual = build_ai_brief_visual_context(db)
+
+        # Policy özet
+        try:
+            from backend.services import policy_csv as _pcsv
+            policy_stats = _pcsv.get_stats(db)
+        except Exception:
+            policy_stats = {}
+
+        # Site bazında hata özeti (7g)
+        try:
+            all_sites = db.query(Site).filter(Site.is_active.is_(True)).all()
+            error_by_site: dict[int, dict] = {}
+            for _s in all_sites:
+                error_by_site[_s.id] = _build_error_widget(db, _s.id)
+        except Exception:
+            error_by_site = {}
+
+        # Son uyarılar
+        try:
+            recent_alerts_raw = get_recent_alerts(db, limit=30, include_external=False)
+        except Exception:
+            recent_alerts_raw = []
+
+        # Site listesi + toplam 404/5xx
+        total_404 = sum(v.get("total_404", 0) for v in error_by_site.values())
+        total_5xx = sum(v.get("total_5xx", 0) for v in error_by_site.values())
+
         payload = {
             "site_name": "AI",
             "sites": get_sidebar_sites(),
@@ -9140,7 +9169,13 @@ def ai_daily_brief_page(request: Request):
             "ai_brief_llm": _ai_brief_llm_availability(),
             "ai_brief_run_stats": get_ai_brief_run_stats(db),
             "ai_brief_last_run_at": get_last_ai_brief_run_label_tr(db),
-            "ai_brief_visual": build_ai_brief_visual_context(db),
+            "ai_brief_visual": visual,
+            "policy_stats": policy_stats,
+            "error_by_site": error_by_site,
+            "total_404": total_404,
+            "total_5xx": total_5xx,
+            "recent_alerts_data": recent_alerts_raw[:10],
+            "recent_alerts_total": len(recent_alerts_raw),
         }
     template_name = "partials/ai_content.html" if request.headers.get("HX-Request") == "true" else "ai.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
