@@ -3051,6 +3051,35 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Ad Manager Policy Center — her gün 08:00
+    def _run_policy_refresh_job():
+        from backend.services import admanager_policy as adp
+        if not adp.is_configured():
+            return
+        db = SessionLocal()
+        try:
+            rows, err = adp.fetch_policy_violations(days=7)
+            if err:
+                LOGGER.warning("Ad Manager policy refresh hatası: %s", err)
+                return
+            new_count = adp.sync_to_db(db, rows)
+            LOGGER.info("Ad Manager policy refresh: %d satır, %d yeni", len(rows), new_count)
+        except Exception:
+            LOGGER.exception("Ad Manager policy refresh başarısız")
+        finally:
+            db.close()
+
+    scheduler.add_job(
+        _run_policy_refresh_job,
+        trigger=CronTrigger(hour=8, minute=0, timezone=timezone),
+        id="admanager-policy-daily",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 1
+
     # Inbox Özeti — 06:00–00:00 arası 1,5 saatte bir
     # :00'lı saatler: 0,6,9,12,15,18,20,22  |  :30'lu saatler: 7,10,13,16
     scheduler.add_job(
@@ -12963,3 +12992,71 @@ async def api_boards_move(request: Request):
     # Başarılıysa sadece 200 döneriz, UI zaten SortableJS ile güncellendi
     return Response(status_code=200 if success else 400)
 
+
+
+# ── Ad Manager Policy Center ──────────────────────────────────────────────────
+
+@app.get("/policy", response_class=HTMLResponse)
+def policy_page(
+    request: Request,
+    status: str = "all",
+    order: str = "ad_requests",
+    db: Session = Depends(get_db),
+):
+    from backend.services import admanager_policy as adp
+    configured = adp.is_configured()
+    stats = adp.get_stats(db) if configured else {}
+    violations = adp.get_violations(db, status=status, order_by=order) if configured else []
+    ctx = {
+        "request": request,
+        "configured": configured,
+        "stats": stats,
+        "violations": violations,
+        "current_status": status,
+        "current_order": order,
+    }
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse("partials/policy_content.html", ctx)
+    return templates.TemplateResponse("policy.html", ctx)
+
+
+@app.post("/api/policy/refresh")
+def api_policy_refresh(db: Session = Depends(get_db)):
+    from backend.services import admanager_policy as adp
+    if not adp.is_configured():
+        return JSONResponse({"ok": False, "error": "ADMANAGER_SERVICE_ACCOUNT_JSON tanımlı değil."}, status_code=400)
+    try:
+        rows, err = adp.fetch_policy_violations(days=7)
+        if err:
+            return JSONResponse({"ok": False, "error": err})
+        new_count = adp.sync_to_db(db, rows)
+        return JSONResponse({"ok": True, "fetched": len(rows), "new": new_count})
+    except Exception as exc:
+        LOGGER.exception("Policy refresh hatası")
+        return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=500)
+
+
+@app.post("/api/policy/violations/{vid}/status")
+async def api_policy_status(vid: int, request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    from backend.models import AdPolicyViolation
+    row = db.query(AdPolicyViolation).filter(AdPolicyViolation.id == vid).first()
+    if not row:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    row.our_status = body.get("status", row.our_status)
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/policy/violations/{vid}/note")
+async def api_policy_note(vid: int, request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    from backend.models import AdPolicyViolation
+    row = db.query(AdPolicyViolation).filter(AdPolicyViolation.id == vid).first()
+    if not row:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    row.our_notes = body.get("note", "")
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return JSONResponse({"ok": True})

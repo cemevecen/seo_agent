@@ -1,0 +1,224 @@
+<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 px-1">
+
+  {# Başlık #}
+  <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h3 class="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 sm:text-2xl">Ad Manager Policy</h3>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Google Ad Manager · Policy Center · sinemalar.com</p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if stats.last_fetch %}
+      <span class="text-xs text-slate-400 dark:text-slate-500">Son çekim: {{ stats.last_fetch[:16] | replace("T", " ") }} UTC</span>
+      {% endif %}
+      <button id="policy-refresh-btn" type="button"
+        onclick="triggerPolicyRefresh()"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
+        <span id="policy-refresh-icon">↺</span> Manuel Yenile
+      </button>
+    </div>
+  </div>
+
+  {% if not configured %}
+  {# Kurulum yönlendirmesi #}
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 dark:border-amber-800/40 dark:bg-amber-950/30">
+    <h4 class="mb-2 font-semibold text-amber-800 dark:text-amber-300">API Bağlantısı Kurulmamış</h4>
+    <p class="mb-3 text-sm text-amber-700 dark:text-amber-400">Ad Manager Policy Center verilerini otomatik çekmek için bir service account gerekiyor.</p>
+    <ol class="list-decimal space-y-1.5 pl-5 text-sm text-amber-700 dark:text-amber-400">
+      <li>Google Cloud Console'da bir service account oluştur (veya mevcut birini kullan)</li>
+      <li>Ad Manager → <strong>Admin → API erişimi</strong> → service account'u "API erişimi olan kullanıcılar" listesine ekle</li>
+      <li>Service account JSON'unu Railway'de <code class="rounded bg-amber-100 px-1 dark:bg-amber-900/40">ADMANAGER_SERVICE_ACCOUNT_JSON</code> env var olarak kaydet</li>
+      <li>Sayfayı yenile → Manuel Yenile butonuna bas</li>
+    </ol>
+  </div>
+  {% else %}
+
+  {# Özet kartlar #}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam İhlal</div>
+      <div class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.total | default(0) }}</div>
+    </div>
+    <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Yeni</div>
+      <div class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.new | default(0) }}</div>
+    </div>
+    <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">İncelendi</div>
+      <div class="mt-1 text-2xl font-bold text-amber-500 dark:text-amber-400">{{ stats.by_status.get("reviewed", 0) }}</div>
+    </div>
+    <div class="rounded-xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Düzeltildi</div>
+      <div class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.by_status.get("fixed", 0) }}</div>
+    </div>
+  </div>
+
+  {# Kategori dağılımı #}
+  {% if stats.by_category %}
+  <div class="flex flex-wrap gap-2">
+    {% for cat, cnt in stats.by_category.items() %}
+    <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+      {{ cat }} <span class="font-bold text-slate-800 dark:text-slate-100">{{ cnt }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Filtreler #}
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">DURUM</span>
+      {% for val, label in [("all","Tümü"),("new","Yeni"),("reviewed","İncelendi"),("fixed","Düzeltildi"),("ignored","Görmezden")] %}
+      <button type="button"
+        onclick="filterPolicy('status', '{{ val }}')"
+        class="policy-status-btn rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+          {% if current_status == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300{% endif %}"
+        data-val="{{ val }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">SIRA</span>
+      {% for val, label in [("ad_requests","Reklam İsteği"),("date","Tarih")] %}
+      <button type="button"
+        onclick="filterPolicy('order', '{{ val }}')"
+        class="policy-order-btn rounded-full border px-2.5 py-0.5 text-xs font-semibold transition
+          {% if current_order == val %}bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200
+          {% else %}border-slate-200 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:text-slate-300{% endif %}"
+        data-val="{{ val }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Tablo #}
+  <div id="policy-table-wrap" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    {% if violations %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">URL</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sorun</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reklam İsteği (7g)</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Uygulama</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Durum</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Not</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aksiyon</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for v in violations %}
+          <tr id="policy-row-{{ v.id }}" class="group transition hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+            <td class="max-w-[280px] px-4 py-3">
+              <span class="block truncate text-xs text-slate-600 dark:text-slate-400" title="{{ v.url }}">{{ v.url }}</span>
+              {% if v.last_reported %}
+              <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ v.last_reported }}</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold
+                {% if 'cinsel' in v.category.lower() or 'yetişkin' in v.category.lower() %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                {% elif 'şok' in v.category.lower() %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
+                {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                {{ v.category }}
+              </span>
+              <div class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{{ v.issue_type }}</div>
+            </td>
+            <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+              {{ "{:,}".format(v.ad_requests_7d) }}
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{{ v.enforcement or "—" }}</td>
+            <td class="px-4 py-3">
+              <select onchange="updateStatus({{ v.id }}, this.value)"
+                class="rounded-lg border px-2 py-1 text-xs font-semibold transition focus:outline-none
+                  {% if v.our_status == 'new' %}border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400
+                  {% elif v.our_status == 'reviewed' %}border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400
+                  {% elif v.our_status == 'fixed' %}border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400
+                  {% else %}border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300{% endif %}">
+                <option value="new" {% if v.our_status == 'new' %}selected{% endif %}>🔴 Yeni</option>
+                <option value="reviewed" {% if v.our_status == 'reviewed' %}selected{% endif %}>🟡 İncelendi</option>
+                <option value="fixed" {% if v.our_status == 'fixed' %}selected{% endif %}>🟢 Düzeltildi</option>
+                <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>⚫ Görmezden</option>
+              </select>
+            </td>
+            <td class="px-4 py-3">
+              <input type="text" value="{{ v.our_notes }}"
+                placeholder="not ekle…"
+                onblur="saveNote({{ v.id }}, this.value)"
+                class="w-full rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-xs text-slate-600 placeholder-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600 dark:focus:border-slate-500">
+            </td>
+            <td class="px-4 py-3">
+              {% if v.admin_link %}
+              <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
+                class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40">
+                Admin →
+              </a>
+              {% else %}
+              <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
+      <div class="text-3xl text-slate-300 dark:text-slate-600">✓</div>
+      <div class="text-sm font-medium text-slate-500 dark:text-slate-400">
+        {% if current_status != 'all' %}Seçili filtrede ihlal yok{% else %}Henüz ihlal verisi yok. Manuel Yenile butonuna bas.{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% endif %}{# configured #}
+
+</div>
+
+<script>
+let _policyStatus = "{{ current_status }}";
+let _policyOrder  = "{{ current_order }}";
+
+function filterPolicy(key, val) {
+  if (key === "status") _policyStatus = val;
+  else _policyOrder = val;
+  window.location.href = `/policy?status=${_policyStatus}&order=${_policyOrder}`;
+}
+
+function updateStatus(id, status) {
+  fetch(`/api/policy/violations/${id}/status`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status})
+  }).then(r => r.json()).then(d => {
+    if (!d.ok) console.error("Status güncellenemedi:", d);
+  });
+}
+
+function saveNote(id, note) {
+  fetch(`/api/policy/violations/${id}/note`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({note})
+  });
+}
+
+function triggerPolicyRefresh() {
+  const btn = document.getElementById("policy-refresh-btn");
+  const icon = document.getElementById("policy-refresh-icon");
+  btn.disabled = true;
+  icon.textContent = "…";
+  fetch("/api/policy/refresh", {method: "POST"})
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        alert("Hata: " + (d.error || "bilinmiyor"));
+        btn.disabled = false;
+        icon.textContent = "↺";
+      }
+    })
+    .catch(() => { btn.disabled = false; icon.textContent = "↺"; });
+}
+</script>

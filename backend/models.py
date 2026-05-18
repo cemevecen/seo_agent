@@ -738,3 +738,27 @@ class MetaTagSnapshot(Base):
     )
 
     site: Mapped["Site"] = relationship("Site")
+
+
+class AdPolicyViolation(Base):
+    """Google Ad Manager Policy Center'dan çekilen ihlaller."""
+    __tablename__ = "ad_policy_violations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    issue_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    ad_requests_7d: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    enforcement: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    first_reported: Mapped[date] = mapped_column(Date, nullable=True)
+    last_reported: Mapped[date] = mapped_column(Date, nullable=True)
+    our_status: Mapped[str] = mapped_column(String(30), nullable=False, default="new")
+    our_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_adpolicy_url", "url"),
+        Index("ix_adpolicy_status", "our_status"),
+        Index("ix_adpolicy_issue_type", "issue_type"),
+    )
