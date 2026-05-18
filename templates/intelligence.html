@@ -104,7 +104,7 @@
       _intelFinished = false;
       _latestPublishedAt = null;
       document.getElementById('rt-intel-list').innerHTML = '';
-      rtFetchNewsIntelligence();
+      rtAutoFillInitial();
 
       btn.disabled = false;
       btn.innerHTML = _syncSvg + ' Güncelle';
@@ -161,7 +161,7 @@
         document.getElementById('rt-intel-loading').classList.remove('hidden');
 
         // Tek karma feed: category parametresi gönderilmiyor → tüm kategoriler kronolojik karışır.
-        fetch(`/api/admin/news-intelligence/list?offset=${_intelOffset}&limit=${_intelLimit}`)
+        return fetch(`/api/admin/news-intelligence/list?offset=${_intelOffset}&limit=${_intelLimit}`)
         .then(r => r.json())
         .then(data => {
           _intelLoading = false;
@@ -169,7 +169,7 @@
           const items = data.items || [];
           if(items.length < _intelLimit) _intelFinished = true;
           if(items.length === 0 && _intelOffset === 0) {
-            document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Henüz haber bulunamadı.</div>';
+            document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Son 24 saatte haber bulunamadı.</div>';
             return;
           }
           if(_intelOffset === 0 && items.length > 0 && items[0].published_at) {
@@ -177,7 +177,23 @@
           }
           document.getElementById('rt-intel-list').insertAdjacentHTML('beforeend', items.map(i => _buildNewsCard(i, false)).join(''));
           _intelOffset += items.length;
-        });
+        })
+        .catch(() => { _intelLoading = false; document.getElementById('rt-intel-loading').classList.add('hidden'); });
+    }
+
+    // Sayfa scroll edilebilir hale gelene kadar (ya da haber tükenene kadar) sırayla fetch et.
+    // Bu sayede kısa ekranlarda kullanıcı 24'lük ilk sayfaya takılı kalmıyor; otomatik
+    // olarak son 24 saatin tüm haberleri yükleniyor.
+    async function rtAutoFillInitial() {
+      let guard = 20; // sonsuz döngüden korunma
+      while (!_intelFinished && guard-- > 0) {
+        const before = _intelOffset;
+        await rtFetchNewsIntelligence();
+        if (_intelOffset === before) break; // ilerleme yok → bitir
+        // Sayfa scrollable mı?
+        if (document.body.offsetHeight > window.innerHeight + 400) break;
+        await new Promise(r => setTimeout(r, 80));
+      }
     }
 
     function rtAutoRefreshNews() {
@@ -211,7 +227,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-      rtFetchNewsIntelligence();
+      rtAutoFillInitial();
       _startAutoRefresh();
     });
 </script>
