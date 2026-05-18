@@ -16,20 +16,10 @@
   </div>
 
   <div class="mt-4 rt-intel-container rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#09090b]">
-    <div class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200/60 pb-1 scrollbar-hide dark:border-white/5">
-      <button type="button" onclick="rtSwitchIntelTab('Genel')" id="rt-intel-tab-genel" class="rt-alarm-tab-active whitespace-nowrap flex-shrink-0">Genel</button>
-      <button type="button" onclick="rtSwitchIntelTab('Finans & Borsa')" id="rt-intel-tab-fin" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Finans & Borsa</button>
-      <button type="button" onclick="rtSwitchIntelTab('Dünya')" id="rt-intel-tab-dunya" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Dünya</button>
-      <button type="button" onclick="rtSwitchIntelTab('İş Dünyası')" id="rt-intel-tab-is" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">İş Dünyası</button>
-      <button type="button" onclick="rtSwitchIntelTab('Türkiye')" id="rt-intel-tab-tr" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Türkiye</button>
-      <button type="button" onclick="rtSwitchIntelTab('Teknoloji')" id="rt-intel-tab-tech" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Teknoloji</button>
-      <button type="button" onclick="rtSwitchIntelTab('Yahoo Finance')" id="rt-intel-tab-yahoo" class="rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0">Yahoo</button>
-    </div>
-
     <div id="rt-intel-list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       <!-- Dynamic list items -->
     </div>
-    
+
     <!-- Loading state -->
     <div id="rt-intel-loading" class="hidden mt-8 flex justify-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
@@ -60,7 +50,7 @@
     border-color: #f1f5f9 !important;
   }
   html.dark .rt-intel-card {
-    background-color: #1c1c1f !important;          /* #111 yerine daha yumuşak */
+    background-color: #1c1c1f !important;
     border-color: rgba(255,255,255,0.07) !important;
   }
   html.dark .rt-intel-card:hover {
@@ -86,47 +76,9 @@
   html.dark .rt-intel-card .rt-time {
     color: #46464e !important;
   }
-
-  .scrollbar-hide::-webkit-scrollbar { display: none; }
-  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-  .rt-alarm-tab-active {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.8125rem;
-    font-weight: 700;
-    color: #4f46e5;
-    border-bottom: 2px solid #4f46e5;
-    background: transparent;
-    transition: all 0.2s;
-  }
-  html.dark .rt-alarm-tab-active {
-    color: #7c7cad;                 /* indigo yerine mat mor-gri */
-    border-bottom-color: #7c7cad;
-  }
-  .rt-alarm-tab-inactive {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: #64748b;
-    background: transparent;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-  }
-  html.dark .rt-alarm-tab-inactive {
-    color: #52525b;
-  }
-  .rt-alarm-tab-inactive:hover {
-    color: #475569;
-    background: #f8fafc;
-  }
-  html.dark .rt-alarm-tab-inactive:hover {
-    color: #a1a1aa;
-    background: rgba(255,255,255,0.03);
-  }
 </style>
 
 <script>
-    let _activeIntelCategory = 'Genel';
     let _intelOffset = 0;
     const _intelLimit = 24;
     let _intelLoading = false;
@@ -142,16 +94,12 @@
       btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Çekiliyor...';
 
       try {
-        // Sync'i tetikle — backend background'da çalışır, hemen döner
         await fetch('/api/admin/news-intelligence/sync', { method: 'POST' });
       } catch(e) { console.error(e); }
 
-      // Sync başladı; kaynakların çekilmesi ~10-15 sn sürer.
-      // 12 saniye sonra listeyi yenile — yeni haberler o zaman DB'de olur.
       btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Bekleniyor...';
       await new Promise(r => setTimeout(r, 12000));
 
-      // Listeyi sıfırdan yükle
       _intelOffset = 0;
       _intelFinished = false;
       _latestPublishedAt = null;
@@ -161,7 +109,7 @@
       btn.disabled = false;
       btn.innerHTML = _syncSvg + ' Güncelle';
     }
-    
+
     function _buildNewsCard(item, isNew) {
       const d = new Date(item.published_at);
       const now = new Date();
@@ -212,7 +160,8 @@
         _intelLoading = true;
         document.getElementById('rt-intel-loading').classList.remove('hidden');
 
-        fetch(`/api/admin/news-intelligence/list?category=${encodeURIComponent(_activeIntelCategory)}&offset=${_intelOffset}&limit=${_intelLimit}`)
+        // Tek karma feed: category parametresi gönderilmiyor → tüm kategoriler kronolojik karışır.
+        fetch(`/api/admin/news-intelligence/list?offset=${_intelOffset}&limit=${_intelLimit}`)
         .then(r => r.json())
         .then(data => {
           _intelLoading = false;
@@ -223,7 +172,6 @@
             document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Henüz haber bulunamadı.</div>';
             return;
           }
-          // İlk yüklemede en yeni haberin zamanını sakla
           if(_intelOffset === 0 && items.length > 0 && items[0].published_at) {
             _latestPublishedAt = items[0].published_at;
           }
@@ -234,19 +182,16 @@
 
     function rtAutoRefreshNews() {
         if(!_latestPublishedAt) return;
-        const url = `/api/admin/news-intelligence/list?category=${encodeURIComponent(_activeIntelCategory)}&limit=20&since=${encodeURIComponent(_latestPublishedAt)}`;
+        const url = `/api/admin/news-intelligence/list?limit=20&since=${encodeURIComponent(_latestPublishedAt)}`;
         fetch(url)
         .then(r => r.json())
         .then(data => {
           const items = data.items || [];
           if(items.length === 0) return;
-          // Yeni haberleri üste ekle
           const listEl = document.getElementById('rt-intel-list');
           const html = items.map(i => _buildNewsCard(i, true)).join('');
           listEl.insertAdjacentHTML('afterbegin', html);
           _latestPublishedAt = items[0].published_at;
-          // _intelOffset intentionally NOT updated — offset is for pagination scroll, not prepends
-          // Son güncelleme zamanını göster
           const ts = document.getElementById('rt-intel-last-update');
           if(ts) ts.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) + ' güncellendi · ' + items.length + ' yeni';
         })
@@ -256,30 +201,6 @@
     function _startAutoRefresh() {
         if(_autoRefreshTimer) clearInterval(_autoRefreshTimer);
         _autoRefreshTimer = setInterval(rtAutoRefreshNews, 5 * 60 * 1000);  // 5 dakika
-    }
-
-    // Tab değişince timer'ı sıfırla
-    function rtSwitchIntelTab(cat) {
-      if(_activeIntelCategory === cat) return;
-      _activeIntelCategory = cat;
-      _intelOffset = 0;
-      _intelFinished = false;
-      _latestPublishedAt = null;
-
-      document.querySelectorAll('[id^="rt-intel-tab-"]').forEach(btn => {
-          btn.className = 'rt-alarm-tab-inactive whitespace-nowrap flex-shrink-0';
-      });
-      if(cat === 'Genel') document.getElementById('rt-intel-tab-genel').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Finans & Borsa') document.getElementById('rt-intel-tab-fin').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Dünya') document.getElementById('rt-intel-tab-dunya').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'İş Dünyası') document.getElementById('rt-intel-tab-is').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Türkiye') document.getElementById('rt-intel-tab-tr').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Teknoloji') document.getElementById('rt-intel-tab-tech').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-      else if(cat === 'Yahoo Finance') document.getElementById('rt-intel-tab-yahoo').className = 'rt-alarm-tab-active whitespace-nowrap flex-shrink-0';
-
-      document.getElementById('rt-intel-list').innerHTML = '';
-      rtFetchNewsIntelligence();
-      _startAutoRefresh();
     }
 
     // Infinite Scroll
