@@ -141,32 +141,19 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        # Önce Network sorgusu ile PQL bağlantısını doğrula
-        try:
-            net_xml = _pql_select("SELECT Id, displayName FROM Network LIMIT 1", 0)
-            net_resp = session.post(_PQL_ENDPOINT, data=net_xml.encode("utf-8"),
-                                    headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
-                                    timeout=30)
-            logger.info("Network PQL test status=%d body=%s", net_resp.status_code, net_resp.text[:300])
-        except Exception as net_exc:
-            logger.warning("Network PQL test başarısız: %s", net_exc)
-
-        # Mevcut PQL tablolarını keşfet
-        try:
-            disc_xml = _pql_select("SELECT * FROM Publisher_Query_Language_Tables LIMIT 50", 0)
-            disc_resp = session.post(_PQL_ENDPOINT, data=disc_xml.encode("utf-8"),
-                                     headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
-                                     timeout=30)
-            if disc_resp.status_code == 200:
-                disc_rows, disc_cols, _ = _parse_pql_response(disc_resp.text)
-                tables = [r[0] for r in disc_rows if r] if disc_rows else []
-                policy_tables = [t for t in tables if "policy" in t.lower() or "violation" in t.lower()]
-                logger.info("PQL tabloları: %s", tables)
-                logger.info("Policy tabloları: %s", policy_tables)
-            else:
-                logger.warning("Publisher_Query_Language_Tables status=%d", disc_resp.status_code)
-        except Exception as disc_exc:
-            logger.warning("PQL tablo keşfi başarısız: %s", disc_exc)
+        # Basit Order sorgusuyla PQL bağlantısını test et
+        for test_q in [
+            "SELECT Id, name FROM Order LIMIT 1 OFFSET 0",
+            "SELECT Id, name FROM AdUnit LIMIT 1 OFFSET 0",
+        ]:
+            try:
+                t_xml = _pql_select(test_q.replace(" OFFSET 0", ""), 0)
+                t_resp = session.post(_PQL_ENDPOINT, data=t_xml.encode("utf-8"),
+                                      headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
+                                      timeout=30)
+                logger.warning("PQL test [%s] status=%d snippet=%s", test_q[:40], t_resp.status_code, t_resp.text[200:400])
+            except Exception as te:
+                logger.warning("PQL test [%s] exception=%s", test_q[:40], te)
 
         query = "SELECT Url, ViolationType, EnforcementStatus FROM PolicyViolation LIMIT 500"
 
