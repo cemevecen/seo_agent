@@ -141,18 +141,30 @@ def fetch_policy_violations(days: int = 7) -> tuple[list[dict], str | None]:
         creds = _get_credentials()
         session = AuthorizedSession(creds)
 
-        # Önce mevcut PQL tablolarını keşfet
+        # Önce Network sorgusu ile PQL bağlantısını doğrula
         try:
-            disc_xml = _pql_select("SELECT * FROM Publisher_Query_Language_Tables LIMIT 100", 0)
+            net_xml = _pql_select("SELECT Id, displayName FROM Network LIMIT 1", 0)
+            net_resp = session.post(_PQL_ENDPOINT, data=net_xml.encode("utf-8"),
+                                    headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
+                                    timeout=30)
+            logger.info("Network PQL test status=%d body=%s", net_resp.status_code, net_resp.text[:300])
+        except Exception as net_exc:
+            logger.warning("Network PQL test başarısız: %s", net_exc)
+
+        # Mevcut PQL tablolarını keşfet
+        try:
+            disc_xml = _pql_select("SELECT * FROM Publisher_Query_Language_Tables LIMIT 50", 0)
             disc_resp = session.post(_PQL_ENDPOINT, data=disc_xml.encode("utf-8"),
                                      headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""},
                                      timeout=30)
             if disc_resp.status_code == 200:
                 disc_rows, disc_cols, _ = _parse_pql_response(disc_resp.text)
                 tables = [r[0] for r in disc_rows if r] if disc_rows else []
-                logger.info("Mevcut PQL tabloları: %s", tables)
                 policy_tables = [t for t in tables if "policy" in t.lower() or "violation" in t.lower()]
-                logger.info("Policy/Violation tabloları: %s", policy_tables)
+                logger.info("PQL tabloları: %s", tables)
+                logger.info("Policy tabloları: %s", policy_tables)
+            else:
+                logger.warning("Publisher_Query_Language_Tables status=%d", disc_resp.status_code)
         except Exception as disc_exc:
             logger.warning("PQL tablo keşfi başarısız: %s", disc_exc)
 
