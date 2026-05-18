@@ -84,19 +84,18 @@
 
   <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div class="overflow-x-auto">
-      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:1150px">
+      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:980px">
         <colgroup>
           <col style="width:36px">      {# # #}
           <col style="width:30px">      {# Kopya #}
-          <col style="width:360px">     {# Sayfa Başlığı (link) #}
-          <col style="width:240px">     {# Sebep #}
-          <col style="width:130px">     {# Kategori #}
-          <col style="width:130px">     {# Yaptırım #}
+          <col style="width:380px">     {# Sayfa Başlığı (link) #}
+          <col style="width:260px">     {# Sebep #}
+          <col style="width:140px">     {# Kategori #}
+          <col style="width:140px">     {# Yaptırım #}
           <col style="width:90px">      {# Rek. İstek #}
           <col style="width:82px">      {# İlk Tarih #}
           <col style="width:82px">      {# Son Tarih #}
           <col style="width:110px">     {# Durum #}
-          <col style="width:180px">     {# Not #}
           <col style="width:60px">      {# Aksiyon #}
         </colgroup>
         <thead>
@@ -111,7 +110,6 @@
             <th data-sort="first" data-sort-type="date" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">İlk<span class="sort-ind"></span></th>
             <th data-sort="last" data-sort-type="date" data-sort-default="desc" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Son<span class="sort-ind"></span></th>
             <th data-sort="status" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Durum<span class="sort-ind"></span></th>
-            <th data-sort="note" data-sort-type="text" class="sortable-th px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Not<span class="sort-ind"></span></th>
             <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">Admin</th>
           </tr>
         </thead>
@@ -129,7 +127,6 @@
               data-first="{{ v.first_reported or '' }}"
               data-last="{{ v.last_reported or '' }}"
               data-status="{{ v.our_status }}"
-              data-note="{{ v.our_notes | e }}"
               data-new-import="{{ '1' if v.is_new_import else '0' }}"
               class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row bg-emerald-50/40 dark:bg-emerald-950/10{% endif %}">
 
@@ -172,18 +169,18 @@
               <div class="truncate text-slate-700 dark:text-slate-300" title="{{ v.issue_type }}">{{ v.issue_type }}</div>
             </td>
 
-            {# Kategori chip #}
+            {# Kategori chip — dark mode için belirgin kontrast #}
             <td class="px-3 py-2">
               {% set cl = (v.category or '').lower() %}
-              <span class="inline-block truncate rounded-full px-2 py-0.5 text-[10px] font-semibold
-                {% if 'yetişkin' in cl or 'cinsel' in cl %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
-                {% elif 'şok' in cl or 'şiddet' in cl %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
-                {% elif 'güvenlik' in cl %}bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400
-                {% elif 'telif' in cl or 'marka' in cl %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
-                {% elif 'tehlikeli' in cl %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400
-                {% elif 'yanıltıcı' in cl %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
-                {% elif 'yayıncı' in cl %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300
-                {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+              <span class="inline-block truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold
+                {% if 'yetişkin' in cl or 'cinsel' in cl %}bg-red-100 border-red-200 text-red-700 dark:bg-red-500/15 dark:border-red-500/30 dark:text-red-300
+                {% elif 'şok' in cl or 'şiddet' in cl %}bg-orange-100 border-orange-200 text-orange-700 dark:bg-orange-500/15 dark:border-orange-500/30 dark:text-orange-300
+                {% elif 'güvenlik' in cl %}bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300
+                {% elif 'telif' in cl or 'marka' in cl %}bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-300
+                {% elif 'tehlikeli' in cl %}bg-orange-100 border-orange-200 text-orange-700 dark:bg-orange-500/15 dark:border-orange-500/30 dark:text-orange-300
+                {% elif 'yanıltıcı' in cl %}bg-yellow-100 border-yellow-200 text-yellow-700 dark:bg-yellow-500/15 dark:border-yellow-500/30 dark:text-yellow-300
+                {% elif 'yayıncı' in cl %}bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-500/15 dark:border-slate-500/30 dark:text-slate-300
+                {% else %}bg-amber-100 border-amber-200 text-amber-700 dark:bg-amber-500/15 dark:border-amber-500/30 dark:text-amber-300{% endif %}">
                 {{ v.category }}
               </span>
             </td>
@@ -211,14 +208,6 @@
                 <option value="new"     {% if v.our_status == 'new'     %}selected{% endif %}>Yeni</option>
                 <option value="ignored" {% if v.our_status == 'ignored' %}selected{% endif %}>Görmezden</option>
               </select>
-            </td>
-
-            {# Not #}
-            <td class="px-2 py-2">
-              <input type="text" value="{{ v.our_notes | e }}" placeholder="not…"
-                onblur="saveNote({{ vid }}, this.value)"
-                onkeydown="if(event.key==='Enter'){this.blur();}"
-                class="w-full rounded border border-slate-200 bg-transparent px-2 py-1 text-[11px] text-slate-600 placeholder-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-300 dark:placeholder-slate-600">
             </td>
 
             {# Aksiyon — Admin linki #}
@@ -370,13 +359,6 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({status: status})
     }).catch(function () { location.reload(); });
-  };
-
-  window.saveNote = function (id, note) {
-    fetch("/api/policy/violations/" + id + "/note", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({note: note})
-    });
   };
 
   // ── CSV upload ──
