@@ -1,8 +1,7 @@
 {% set _llm = ai_brief_llm if ai_brief_llm is defined and ai_brief_llm else {} %}
-{% set llm_groq = _llm.get('groq', false) if _llm else false %}
 {% set llm_gemini = _llm.get('gemini', false) if _llm else false %}
 {% set llm_openai = _llm.get('openai', false) if _llm else false %}
-{% set llm_default = 'gemini' if llm_gemini else ('groq' if llm_groq else ('openai' if llm_openai else 'gemini')) %}
+{% set llm_default = 'gemini' if llm_gemini else ('openai' if llm_openai else 'gemini') %}
 {% set _vis = ai_brief_visual if ai_brief_visual is defined and ai_brief_visual else {'by_domain': {}} %}
 {% set _by_domain = _vis.get('by_domain', {}) %}
 {% set _pstats = policy_stats if policy_stats is defined else {} %}
@@ -14,7 +13,6 @@
 {% set _al_list = recent_alerts_data if recent_alerts_data is defined else [] %}
 
 <div id="ai-brief-view" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-5"
-  data-groq-available="{{ 1 if llm_groq else 0 }}"
   data-gemini-available="{{ 1 if llm_gemini else 0 }}"
   data-openai-available="{{ 1 if llm_openai else 0 }}"
 >
@@ -158,7 +156,7 @@ html.dark .ab-section-hd h3 { color: #71717a; }
 /* ── LLM chips (preserved from original) ─────────────────────────────── */
 #ai-brief-view .ai-brief-toolbar-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.12fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.12fr);
   gap: 0.45rem; align-items: stretch; width: 100%; max-width: 100%;
 }
 @media (max-width: 520px) {
@@ -354,10 +352,6 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     <form id="ai-brief-generate-form" class="ai-brief-toolbar-form" action="/ai/generate" method="post" style="max-width:480px">
       <input type="hidden" name="llm_provider" id="ai-brief-llm-value" value="{{ llm_default }}" />
       <div class="llm-chip-group" role="group" aria-label="LLM sağlayıcı">
-        <button type="button" class="ai-brief-llm-btn llm-chip" data-ai-brief-llm="groq" data-llm="groq" aria-pressed="false" {% if not llm_groq %}disabled aria-disabled="true"{% endif %}>
-          <span class="llm-chip-halo" aria-hidden="true"></span>
-          <span class="llm-chip-inner"><span class="llm-chip-title">Groq</span></span>
-        </button>
         <button type="button" class="ai-brief-llm-btn llm-chip" data-ai-brief-llm="gemini" data-llm="gemini" aria-pressed="false" {% if not llm_gemini %}disabled aria-disabled="true"{% endif %}>
           <span class="llm-chip-halo" aria-hidden="true"></span>
           <span class="llm-chip-inner"><span class="llm-chip-icon" aria-hidden="true">✦</span><span class="llm-chip-title">Gemini</span></span>
@@ -367,7 +361,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
           <span class="llm-chip-inner"><span class="llm-chip-icon" aria-hidden="true">◎</span><span class="llm-chip-title">OpenAI</span></span>
         </button>
       </div>
-      <button type="submit" class="ai-brief-submit-btn" {% if not llm_groq and not llm_gemini and not llm_openai %}disabled{% endif %}>
+      <button type="submit" class="ai-brief-submit-btn" {% if not llm_gemini and not llm_openai %}disabled{% endif %}>
         <span class="ai-brief-submit-label">Analiz yap</span>
       </button>
     </form>
@@ -656,10 +650,10 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-600 mb-2">Model Kullanımı</p>
     <div class="flex flex-wrap gap-2">
       {% for m in st.models_all_time %}
-      <div style="display:flex;align-items:center;gap:.4rem;padding:.3rem .65rem;border-radius:999px;border:1px solid rgba(148,163,184,.2);background:rgba(248,250,252,.8);" class="dark:bg-zinc-900/50 dark:border-zinc-800">
-        <span style="font-size:.72rem;font-weight:700;color:#1e293b" class="dark:text-zinc-200">{{ ai_hist_model_title(m.model) }}</span>
-        <span style="font-size:.68rem;font-variant-numeric:tabular-nums;font-weight:800;color:#6366f1" class="dark:text-indigo-400">{{ m.count }}×</span>
-        <span style="font-size:.63rem;color:#94a3b8">~{{ (m.approx_try | default(0)) | round(2) }} TRY</span>
+      <div class="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-zinc-700 dark:bg-zinc-800">
+        <span class="text-[11.5px] font-bold text-slate-800 dark:text-zinc-200">{{ ai_hist_model_title(m.model) }}</span>
+        <span class="tabular-nums text-[11px] font-extrabold text-indigo-500 dark:text-indigo-400">{{ m.count }}×</span>
+        <span class="text-[10px] text-slate-400 dark:text-zinc-500">~{{ (m.approx_try | default(0)) | round(2) }} TRY</span>
       </div>
       {% endfor %}
     </div>
@@ -670,7 +664,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
   <div class="overflow-x-auto">
     <table class="w-full min-w-[44rem] text-left text-[11px] text-slate-700 dark:text-zinc-200" style="border-collapse:collapse">
       <thead>
-        <tr style="border-bottom:1px solid rgba(148,163,184,.15);background:rgba(248,250,252,.8);" class="dark:bg-zinc-900/50">
+        <tr class="border-b border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900">
           <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Zaman</th>
           <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Gün</th>
           <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Kaynak</th>
@@ -681,7 +675,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
       </thead>
       <tbody>
         {% for row in st.runs_ledger %}
-        <tr style="border-bottom:1px solid rgba(148,163,184,.08);" class="dark:border-zinc-800/80">
+        <tr class="border-b border-slate-100 dark:border-zinc-800/80">
           <td class="whitespace-nowrap px-3 py-2 font-mono text-slate-500 dark:text-zinc-400">{{ row.when_tr | e }}</td>
           <td class="whitespace-nowrap px-3 py-2 font-mono">{{ row.day_key | e }}</td>
           <td class="whitespace-nowrap px-3 py-2">{{ row.source_label | e }}</td>
@@ -703,9 +697,8 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 (function () {
   function aiBriefLlmAvailability() {
     var root = document.getElementById("ai-brief-view");
-    if (!root) return { groq: false, gemini: false, openai: false };
+    if (!root) return { gemini: false, openai: false };
     return {
-      groq:   root.getAttribute("data-groq-available")   === "1",
       gemini: root.getAttribute("data-gemini-available") === "1",
       openai: root.getAttribute("data-openai-available") === "1",
     };
@@ -716,10 +709,9 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     var hid  = document.getElementById("ai-brief-llm-value");
     if (!root || !hid) return;
     var av = aiBriefLlmAvailability();
-    var w = (which === "groq" || which === "gemini" || which === "openai") ? which : "gemini";
-    if (w === "gemini" && !av.gemini) w = av.groq ? "groq" : (av.openai ? "openai" : "gemini");
-    if (w === "groq"   && !av.groq)   w = av.gemini ? "gemini" : (av.openai ? "openai" : "groq");
-    if (w === "openai" && !av.openai) w = av.gemini ? "gemini" : (av.groq ? "groq" : "openai");
+    var w = (which === "gemini" || which === "openai") ? which : "gemini";
+    if (w === "gemini" && !av.gemini) w = av.openai ? "openai" : "gemini";
+    if (w === "openai" && !av.openai) w = av.gemini ? "gemini" : "openai";
     hid.value = w;
     try { localStorage.setItem("seo-ai-llm-provider", w); } catch(e) {}
     root.querySelectorAll(".ai-brief-llm-btn").forEach(function(b) {
@@ -735,11 +727,10 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     try {
       var s = localStorage.getItem("seo-ai-llm-provider");
       if (s === "gemini" && av.gemini) applyAiBriefLlm("gemini");
-      else if (s === "groq" && av.groq) applyAiBriefLlm("groq");
       else if (s === "openai" && av.openai) applyAiBriefLlm("openai");
-      else applyAiBriefLlm(av.gemini ? "gemini" : (av.groq ? "groq" : "openai"));
+      else applyAiBriefLlm(av.gemini ? "gemini" : "openai");
     } catch(e) {
-      applyAiBriefLlm(av.gemini ? "gemini" : (av.groq ? "groq" : "openai"));
+      applyAiBriefLlm(av.gemini ? "gemini" : "openai");
     }
     if (typeof window.seoInitAiBriefVisualCharts === "function") {
       window.seoInitAiBriefVisualCharts(0);

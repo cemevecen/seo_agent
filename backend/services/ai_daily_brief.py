@@ -74,7 +74,7 @@ def _format_brief_run_detail(
     bits: list[str] = []
     if force:
         req = (provider_override or "").strip().lower()
-        if req in ("groq", "gemini", "openai"):
+        if req in ("gemini", "openai"):
             bits.append(f'Manuel "Analiz yap" · seçilen {req}')
         else:
             bits.append('Manuel "Analiz yap" · yapılandırma sırası')
@@ -253,88 +253,29 @@ def _resolve_brief_llm_with_override(provider_override: str | None) -> tuple[str
 
 
 def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str, str]]:
-    """Özet üretimi için sıra: önce tercih, sonra (failover açıksa) diğer sağlayıcı.
+    """Özet üretimi için sıra: Gemini önce, OpenAI fallback. Groq devre dışı.
 
-    Zamanlanmış iş `provider_override=None` ile çağrılır; `AI_DAILY_BRIEF_PROVIDER` ve failover buna göre sıralar.
+    Zamanlanmış iş `provider_override=None` ile çağrılır.
     """
-    groq_k = bool((settings.groq_api_key or "").strip())
     gem_k = bool((settings.gemini_api_key or "").strip())
     oai_k = bool((settings.openai_api_key or "").strip())
-    if not groq_k and not gem_k and not oai_k:
+    if not gem_k and not oai_k:
         return []
-    gq = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
     gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
     om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
     failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
 
     ovr = (provider_override or "").strip().lower()
-    if ovr in {"groq", "gemini", "openai"}:
-        primary: list[tuple[str, str]] = []
-        if ovr == "groq" and groq_k:
-            primary = [("groq", gq)]
-        elif ovr == "gemini" and gem_k:
-            primary = [("gemini", gm)]
-        elif ovr == "openai" and oai_k:
-            primary = [("openai", om)]
-        if not primary:
-            return []
-        if not failover:
-            return primary
-        # Seçilen model önce; başarısız olursa (429, zaman aşımı vb.) diğer anahtarlı sağlayıcılar devreye girer.
-        seen = {primary[0][0]}
-        tail: list[tuple[str, str]] = []
-        for p in ("gemini", "groq", "openai"):
-            if p in seen:
-                continue
-            if p == "groq" and groq_k:
-                tail.append(("groq", gq))
-                seen.add("groq")
-            elif p == "gemini" and gem_k:
-                tail.append(("gemini", gm))
-                seen.add("gemini")
-            elif p == "openai" and oai_k:
-                tail.append(("openai", om))
-                seen.add("openai")
-        return primary + tail
-
-    order_slug: list[str] = []
-    if ovr:
-        order_slug = []
-    else:
-        pref = (settings.ai_daily_brief_provider or "auto").strip().lower()
-        if pref == "groq":
-            order_slug = ["groq"] + (["gemini", "openai"] if failover else [])
-        elif pref == "gemini":
-            order_slug = ["gemini"] + (["groq", "openai"] if failover else [])
-        elif pref == "openai":
-            order_slug = ["openai"] + (["gemini", "groq"] if failover else [])
-        else:
-            # auto: ücretsiz Gemini öncelikli; olmazsa veya failover ile Groq.
-            if failover:
-                order_slug = ["gemini", "groq", "openai"]
-            else:
-                if gem_k:
-                    order_slug = ["gemini"]
-                elif groq_k:
-                    order_slug = ["groq"]
-                else:
-                    order_slug = ["openai"]
-
-    out: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for p in order_slug:
-        if p in seen:
-            continue
-        if p == "groq" and groq_k:
-            out.append(("groq", gq))
-            seen.add("groq")
-        elif p == "gemini" and gem_k:
-            out.append(("gemini", gm))
-            seen.add("gemini")
-        elif p == "openai" and oai_k:
-            out.append(("openai", om))
-            seen.add("openai")
-    return out
+    if ovr == "openai" and oai_k:
+        primary: list[tuple[str, str]] = [("openai", om)]
+        return primary + ([("gemini", gm)] if failover and gem_k else [])
+    # gemini veya bilinmeyen seçim → gemini önce
+    if gem_k:
+        primary = [("gemini", gm)]
+        return primary + ([("openai", om)] if failover and oai_k else [])
+    if oai_k:
+        return [("openai", om)]
+    return []
 
 
 def _try_reserve_llm_calls(n: int) -> bool:
@@ -809,8 +750,7 @@ def _slim_context_for_groq(context: dict) -> dict:
 def generate_brief_sections(
     context: dict, *, provider: str, model_name: str
 ) -> tuple[dict[str, str], float]:
-    ctx_to_use = _slim_context_for_groq(context) if provider == "groq" else context
-    ctx_json = json.dumps(ctx_to_use, ensure_ascii=False, indent=2)
+    ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
     # Kurallar ÖNCE, veri SONRA — kırpılınca veri kesilir, kurallar sağlam kalır
     prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın.
 {_BRIEF_DATA_FIRST_RULES_TR}
@@ -842,8 +782,7 @@ def generate_brief_single_pass(
     context: dict, *, provider: str, model_name: str
 ) -> tuple[dict[str, str], bool, str, float]:
     """Tek LLM çağrısı: dört bölüm (proje bazlı) + Türkçe öz değerlendirme (tamam)."""
-    ctx_to_use = _slim_context_for_groq(context) if provider == "groq" else context
-    ctx_json = json.dumps(ctx_to_use, ensure_ascii=False, indent=2)
+    ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
     # Kurallar ÖNCE, veri SONRA — kırpılınca veri kesilir, kurallar sağlam kalır
     prompt = f"""Sen kıdemli bir Türkçe SEO ve analitik danışmanısın.
 {_BRIEF_DATA_FIRST_RULES_TR}
@@ -988,10 +927,10 @@ def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None
 def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str | None = None) -> AiBriefRunOutcome:
     try_chain = brief_provider_try_chain(provider_override=provider_override)
     if not try_chain:
-        LOGGER.warning("AI günlük özet atlandı: GROQ_API_KEY veya GEMINI_API_KEY yapılandırılmadı.")
+        LOGGER.warning("AI günlük özet atlandı: GEMINI_API_KEY veya OPENAI_API_KEY yapılandırılmadı.")
         return AiBriefRunOutcome(
             False,
-            "Yapılandırılmış LLM API anahtarı yok. Railway ortamında GEMINI_API_KEY, GROQ_API_KEY veya OPENAI_API_KEY tanımlı mı kontrol edin.",
+            "Yapılandırılmış LLM API anahtarı yok. Railway ortamında GEMINI_API_KEY veya OPENAI_API_KEY tanımlı mı kontrol edin.",
         )
 
     single = bool(settings.ai_daily_brief_single_llm_call)
@@ -1139,7 +1078,7 @@ def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str 
             return AiBriefRunOutcome(
                 False,
                 "Seçilen ve yedek modeller yanıt veremedi (zaman aşımı, kota veya ağ). "
-                f"Denenen zincir: {tried}. Biraz sonra tekrar deneyin; Groq veya OpenAI ile de test edin. "
+                f"Denenen zincir: {tried}. Biraz sonra tekrar deneyin; OpenAI ile de test edin. "
                 "Ayrıntı için Railway uygulama günlüklerine bakın.",
             )
 
