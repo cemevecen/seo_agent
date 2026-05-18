@@ -153,7 +153,12 @@
         {% endfor %}
         <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 dark:bg-slate-900/50">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat|upper }}</span>
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">
+              <span class="plat-badge plat-badge--lg {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}">
+                <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+              </span>
+              {{ plat|upper }}
+            </span>
             {% if cf_p %}
               <span class="text-xs font-semibold {% if cf_p.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-400{% elif cf_p.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ "%.1f"|format(cf_p.crash_free_pct) }}% crash-free</span>
             {% endif %}
