@@ -696,8 +696,17 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence/list")
-def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0, since: str = None):
-    """Veritabanındaki haber istihbaratı verilerini döner (Paginasyon + since destekli)."""
+def get_news_intelligence(
+    category: str = None,
+    limit: int = 24,
+    offset: int = 0,
+    since: str = None,
+    hours: int = 24,
+):
+    """Veritabanındaki haber istihbaratı verilerini döner.
+    Varsayılan: son `hours` saatlik haberler (zaman bazlı), offset/limit ile lazyload.
+    `since` parametresi auto-refresh için kullanılır (sadece bu zamandan sonrasını döner).
+    """
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from sqlalchemy import desc
@@ -716,6 +725,14 @@ def get_news_intelligence(category: str = None, limit: int = 24, offset: int = 0
                 pass
             items = query.limit(50).all()
         else:
+            # Zaman bazlı pencere — varsayılan son 24 saat. 0 veya negatif verilirse limit yok.
+            try:
+                hours_int = int(hours)
+            except (TypeError, ValueError):
+                hours_int = 24
+            if hours_int > 0:
+                cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
+                query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
             # Saf kronolojik sıralama: en güncel önce. Kaynak çeşitliliği interleave'i
             # kullanıcı isteği üzerine kaldırıldı (zaman sırasını bozuyordu).
             safe_limit = min(limit, 50)
