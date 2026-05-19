@@ -2589,6 +2589,10 @@ def run_page_alarm_check_all_sites(
             prop_id = str(properties.get(profile, "")).strip()
             if not prop_id:
                 continue
+            # App profilleri (ios/android) için sayfa bazlı SEO alarmı anlamsız;
+            # bunların kendi alarm mekanizması var: run_app_event_spike_check_all_sites
+            if profile in ("ios", "android"):
+                continue
             try:
                 alarms = check_page_alarms_for_site(
                     db, site, profile=profile, window_minutes=window_minutes,

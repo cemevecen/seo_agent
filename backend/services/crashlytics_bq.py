@@ -1142,23 +1142,28 @@ def build_full_payload(
         issues_all: list[tuple[str, list[dict]]] = []
         anr_all: list[tuple[str, list[dict]]] = []
         ver_all: list[tuple[str, list[dict]]] = []
+        chip_ver_all: list[tuple[str, list[dict]]] = []
         trend_all: list[tuple[str, list[dict]]] = []
         oldest_days_all: list[int] = []
         errors: list[str] = []
 
         def _fetch_platform(plat: str, tbl: str) -> dict:
-            """Platform için 6 BQ sorgusunu paralel çalıştır."""
+            """Platform için BQ sorgularını paralel çalıştır."""
             out: dict[str, Any] = {"platform": plat}
+            # chip_days: version chip'leri için en az 30 gün — iOS gibi az crash'li platformlarda
+            # seçili dönemde event olmayabilir; 30 günlük pencere her zaman versiyon gösterir.
+            chip_days = max(days, 30)
             sub_tasks = {
-                "summary":      lambda: ("summary",      query_summary(plat, tbl, days),            None),
-                "crash_free":   lambda: ("crash_free",   query_crash_free(plat, tbl, days),         None),
+                "summary":      lambda: ("summary",      query_summary(plat, tbl, days),              None),
+                "crash_free":   lambda: ("crash_free",   query_crash_free(plat, tbl, days),           None),
                 "issues":       lambda: ("issues",       *query_top_issues(plat, tbl, days, None, None)),
                 "anr":          lambda: ("anr",          *query_anr_list(plat, tbl, days, None)),
                 "versions":     lambda: ("versions",     *query_version_breakdown(plat, tbl, days)),
                 "trend":        lambda: ("trend",        *query_daily_trend(plat, tbl, days)),
-                "oldest_date":  lambda: ("oldest_date",  query_oldest_date(plat, tbl, days),        None),
+                "oldest_date":  lambda: ("oldest_date",  query_oldest_date(plat, tbl, days),          None),
+                "chip_versions": lambda: ("chip_versions", *query_version_breakdown(plat, tbl, chip_days)),
             }
-            with ThreadPoolExecutor(max_workers=7) as sub_pool:
+            with ThreadPoolExecutor(max_workers=8) as sub_pool:
                 sub_futs = {sub_pool.submit(fn): name for name, fn in sub_tasks.items()}
                 for fut in as_completed(sub_futs):
                     try:
@@ -1195,6 +1200,9 @@ def build_full_payload(
                         anr_all.append((plat, res["anr"]))
                     if res["versions"]:
                         ver_all.append((plat, res["versions"]))
+                    chip_rows = res.get("chip_versions") or res.get("versions") or []
+                    if chip_rows:
+                        chip_ver_all.append((plat, chip_rows))
                     if res["trend"]:
                         trend_all.append((plat, res["trend"]))
                     if res.get("oldest_date") is not None:
@@ -1250,7 +1258,7 @@ def build_full_payload(
             "issues": _merge_issues(issues_all),
             "anr": _merge_issues(anr_all),
             "versions": _merge_versions(ver_all),
-            "versions_by_platform": {plat: rows for plat, rows in ver_all},
+            "versions_by_platform": {plat: rows for plat, rows in chip_ver_all},
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
             "storage_mb": storage_mb,
