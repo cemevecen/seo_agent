@@ -95,12 +95,29 @@
 
   {# Crash-free + Fatal/ANR/Non-Fatal kartları (sparkline ile) #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    {# CRASH-FREE #}
+    {# CRASH-FREE — iOS ve Android breakdown ile #}
     <div class="col-span-2 flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 sm:col-span-1 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         {% if cf is not none %}
           <p class="text-3xl font-black tabular-nums {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ "%.1f"|format(cf) }}%</p>
           <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
+          {# Per-platform crash-free breakdown #}
+          {% set cfbp = data.crash_free_by_platform or {} %}
+          {% if cfbp %}
+          <div class="mt-2 flex items-center gap-3">
+            {% for pkey in ['ios', 'android'] %}
+              {% set pdata = cfbp.get(pkey) %}
+              {% if pdata and pdata.crash_free_pct is not none %}
+                <div class="flex items-center gap-1">
+                  <span class="plat-badge {% if pkey == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}" style="width:0.9rem;height:0.9rem">
+                    <svg aria-hidden="true"><use href="{% if pkey == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+                  </span>
+                  <span class="text-[10px] font-semibold tabular-nums {% if pdata.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif pdata.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ "%.1f"|format(pdata.crash_free_pct) }}%</span>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
         {% else %}
           <p class="text-xl font-bold text-slate-400 dark:text-slate-500">—</p>
           <p class="mt-1 text-[10px] uppercase text-slate-400">Crash-Free</p>

@@ -106,21 +106,46 @@
       </div>
     </div>
 
-    {# Tab bar #}
-    <div class="flex items-center gap-0 border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
-      {% for tid, tlabel in [("summary","Özet"),("crashes","Crash'ler"),("anr","ANR"),("versions","Versiyonlar")] %}
-        <button type="button" data-crash-tab="{{ tid }}"
-          class="crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition
-            {% if tid == 'summary' %}border-rose-500 text-rose-600 dark:border-rose-400 dark:text-rose-400
-            {% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
-      {% endfor %}
+    {# Versiyon filtresi — Versiyonlar yüklendikten sonra JS tarafından doldurulur #}
+    <div id="crash-version-bar" class="hidden items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+      <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
+      <div id="crash-version-chips" class="flex flex-wrap gap-1.5"></div>
     </div>
 
-    {# İçerik alanı #}
-    <div id="crash-content" class="min-h-[200px] p-4 sm:p-5">
-      <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500">
-        <span class="animate-spin inline-block">⟳</span> Veri yükleniyor…
+    {# Tüm içerik: Özet + Crash'ler + ANR + Versiyonlar dikey sıralı #}
+    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+      {# Özet #}
+      <div class="p-4 sm:p-5">
+        <div id="crash-sec-summary" class="min-h-[120px]">
+          <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        </div>
       </div>
+
+      {# Crash'ler #}
+      <div class="p-4 sm:p-5">
+        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash'ler</p>
+        <div id="crash-sec-crashes" class="min-h-[80px]">
+          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        </div>
+      </div>
+
+      {# ANR #}
+      <div class="p-4 sm:p-5">
+        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ANR</p>
+        <div id="crash-sec-anr" class="min-h-[80px]">
+          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        </div>
+      </div>
+
+      {# Versiyonlar #}
+      <div class="p-4 sm:p-5">
+        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyonlar</p>
+        <div id="crash-sec-versions" class="min-h-[80px]">
+          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -153,26 +178,14 @@
   crashRoot.dataset.crashBound = "1";
 
   var crashState = {
-    platform: "all", days: 7, type: "", tab: "summary",
-    product: "doviz", seq: 0, pollTimer: null, debounceTimer: null
+    platform: "all", days: 7, type: "", version: "",
+    product: "doviz", pollTimer: null, debounceTimer: null,
+    seqs: { summary: 0, crashes: 0, anr: 0, versions: 0 }
   };
 
-  // Filtre chip'lerine birden fazla art arda tıklandığında her birinin BQ
-  // sorgusu başlamasın diye 250 ms debounce. Sadece UI butonu güncellenip
-  // son seçim sonra tek isteğe dönüşür.
-  function loadTabDebounced() {
-    if (crashState.debounceTimer) clearTimeout(crashState.debounceTimer);
-    crashState.debounceTimer = setTimeout(function () {
-      crashState.debounceTimer = null;
-      loadTab();
-    }, 250);
-  }
+  var SECTIONS = ["summary", "crashes", "anr", "versions"];
+  var SEC_IDS  = { summary: "crash-sec-summary", crashes: "crash-sec-crashes", anr: "crash-sec-anr", versions: "crash-sec-versions" };
 
-  function activeCls(on) {
-    return on
-      ? "crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition border-rose-500 text-rose-600 dark:border-rose-400 dark:text-rose-400"
-      : "crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200";
-  }
   function filterCls(on) {
     return on
       ? "rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100"
@@ -189,19 +202,107 @@
     crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
       b.className = filterCls(b.dataset.crashType === crashState.type);
     });
-    crashRoot.querySelectorAll(".crash-tab-btn").forEach(function (b) {
-      b.className = activeCls(b.dataset.crashTab === crashState.tab);
-    });
   }
 
-  function tabUrl() {
-    return "/api/app/crashlytics/" + crashState.tab
+  function sectionUrl(name) {
+    return "/api/app/crashlytics/" + name
       + "?product=" + encodeURIComponent(crashState.product)
       + "&days=" + crashState.days
       + "&platform=" + crashState.platform
-      + "&type=" + encodeURIComponent(crashState.type);
+      + "&type=" + encodeURIComponent(crashState.type)
+      + (crashState.version ? "&version=" + encodeURIComponent(crashState.version) : "");
   }
 
+  function setSecLoading(name) {
+    var box = document.getElementById(SEC_IDS[name]);
+    if (box) box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
+  }
+
+  function loadSection(name) {
+    var box = document.getElementById(SEC_IDS[name]);
+    if (!box) return;
+    crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
+    var seq = crashState.seqs[name];
+    setSecLoading(name);
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 35000);
+    fetch(sectionUrl(name), { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
+      .then(function (r) {
+        clearTimeout(timer);
+        if (crashState.seqs[name] !== seq) return null;
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        if (!html || crashState.seqs[name] !== seq) return;
+        box.innerHTML = html;
+        wireTableEnhancements(box);
+        if (name === "versions") populateVersionChips(box);
+      })
+      .catch(function (e) {
+        if (!box || crashState.seqs[name] !== seq) return;
+        box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">'
+          + (e.name === "AbortError" ? "Zaman aşımı. Dönem daraltın veya tekrar deneyin." : "Veri yüklenemedi.")
+          + '</p>';
+      });
+  }
+
+  function loadAllSections() {
+    SECTIONS.forEach(loadSection);
+  }
+
+  function loadAllDebounced() {
+    if (crashState.debounceTimer) clearTimeout(crashState.debounceTimer);
+    crashState.debounceTimer = setTimeout(function () {
+      crashState.debounceTimer = null;
+      loadAllSections();
+    }, 250);
+  }
+
+  // ── Versiyon filtresi — Versiyonlar bölümü yüklendikten sonra doldurulur ──
+  function populateVersionChips(versionsBox) {
+    var bar = document.getElementById("crash-version-bar");
+    var chipsEl = document.getElementById("crash-version-chips");
+    if (!bar || !chipsEl) return;
+    var rows = versionsBox.querySelectorAll("tr[data-app-version]");
+    if (!rows.length) { bar.classList.add("hidden"); bar.classList.remove("flex"); return; }
+    var versions = [];
+    rows.forEach(function (r) {
+      var v = r.getAttribute("data-app-version");
+      if (v && versions.indexOf(v) === -1) versions.push(v);
+    });
+    // Semver sıralaması (en yenisi önce)
+    versions.sort(function (a, b) {
+      var av = a.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
+      var bv = b.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
+      for (var i = 0; i < Math.max(av.length, bv.length); i++) {
+        if ((bv[i] || 0) !== (av[i] || 0)) return (bv[i] || 0) - (av[i] || 0);
+      }
+      return 0;
+    });
+    // Chip'leri oluştur — "Tümü" + en fazla 6 versiyon
+    var shown = versions.slice(0, 6);
+    chipsEl.innerHTML = "";
+    [""].concat(shown).forEach(function (v) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = v ? v : "Tümü";
+      btn.className = filterCls(crashState.version === v);
+      btn.addEventListener("click", function () {
+        crashState.version = v;
+        chipsEl.querySelectorAll("button").forEach(function (b) {
+          b.className = filterCls(b.textContent === (v ? v : "Tümü") && crashState.version === v
+            || b.textContent === "Tümü" && !v && crashState.version === "");
+        });
+        loadAllSections();
+      });
+      chipsEl.appendChild(btn);
+    });
+    bar.classList.remove("hidden");
+    bar.classList.add("flex");
+  }
+
+  // ── Progress bar ──
   function showProgress(on) {
     var w = document.getElementById("crash-progress-wrap");
     if (w) w.classList.toggle("hidden", !on);
@@ -227,101 +328,61 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           setProgress(j.pct || 0, j.step || "");
-          if (j.done) { stopPoll(); showProgress(false); loadTab(); }
+          if (j.done) { stopPoll(); showProgress(false); loadAllSections(); }
         })
         .catch(stopPoll);
     }, 800);
   }
 
-  function loadTab() {
-    var box = document.getElementById("crash-content");
-    if (!box) return;
-    crashState.seq += 1;
-    var seq = crashState.seq;
-    box.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
-    var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, 30000);
-    fetch(tabUrl(), { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
-      .then(function (r) {
-        clearTimeout(timer);
-        if (seq !== crashState.seq) return;
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.text();
-      })
-      .then(function (html) {
-        if (seq !== crashState.seq || !html) return;
-        box.innerHTML = html;
-        wireTableEnhancements(box);
-      })
-      .catch(function (e) {
-        if (seq !== crashState.seq) return;
-        box.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">'
-          + (e.name === "AbortError" ? "Zaman aşımı (30s). Dönem daraltın veya tekrar deneyin." : "Veri yüklenemedi. Credential'ları ve BigQuery bağlantısını kontrol edin.")
-          + "</p>";
-      });
-  }
-
   // ── Sütun sıralama + arama + drill-down satır tıklaması ──
   function wireTableEnhancements(root) {
-    var tbl = root.querySelector("table[data-crash-sortable]");
-    if (!tbl) return;
-
-    // 1) Sütun başlığına tıklama → tbody'yi sırala.
-    var sortState = { key: null, desc: true };
-    tbl.querySelectorAll("th[data-sort-key]").forEach(function (th) {
-      th.addEventListener("click", function () {
-        var key = th.getAttribute("data-sort-key");
-        var type = th.getAttribute("data-sort-type") || "str";
-        var defaultDesc = th.getAttribute("data-default-desc") === "1";
-        if (sortState.key === key) {
-          sortState.desc = !sortState.desc;
-        } else {
+    root.querySelectorAll("table[data-crash-sortable]").forEach(function (tbl) {
+      var sortState = { key: null, desc: true };
+      tbl.querySelectorAll("th[data-sort-key]").forEach(function (th) {
+        th.addEventListener("click", function () {
+          var key = th.getAttribute("data-sort-key");
+          var type = th.getAttribute("data-sort-type") || "str";
+          var defaultDesc = th.getAttribute("data-default-desc") === "1";
+          sortState.desc = sortState.key === key ? !sortState.desc : defaultDesc;
           sortState.key = key;
-          sortState.desc = defaultDesc;
-        }
-        sortTableBy(tbl, key, type, sortState.desc);
-        // Arrow göstergelerini güncelle
-        tbl.querySelectorAll("th[data-sort-key] .sort-arrow").forEach(function (s) {
-          s.textContent = "↕"; s.classList.remove("opacity-100"); s.classList.add("opacity-40");
+          sortTableBy(tbl, key, type, sortState.desc);
+          tbl.querySelectorAll("th[data-sort-key] .sort-arrow").forEach(function (s) {
+            s.textContent = "↕"; s.classList.remove("opacity-100"); s.classList.add("opacity-40");
+          });
+          var arrow = th.querySelector(".sort-arrow");
+          if (arrow) { arrow.textContent = sortState.desc ? "↓" : "↑"; arrow.classList.remove("opacity-40"); arrow.classList.add("opacity-100"); }
         });
-        var arrow = th.querySelector(".sort-arrow");
-        if (arrow) {
-          arrow.textContent = sortState.desc ? "↓" : "↑";
-          arrow.classList.remove("opacity-40"); arrow.classList.add("opacity-100");
-        }
       });
-    });
 
-    // 2) Arama input → filtre.
-    var searchEl = root.querySelector("[data-crash-search]");
-    var countEl = root.querySelector("[data-crash-count]");
-    if (searchEl) {
-      searchEl.addEventListener("input", function () {
-        var q = (searchEl.value || "").trim().toLowerCase();
-        var rows = tbl.tBodies[0] ? tbl.tBodies[0].rows : [];
-        var visible = 0;
-        for (var i = 0; i < rows.length; i++) {
-          var row = rows[i];
-          var hay = (row.getAttribute("data-issue-title-lc") || row.getAttribute("data-app-version-lc") || row.textContent || "").toLowerCase();
-          var show = !q || hay.indexOf(q) !== -1;
-          row.style.display = show ? "" : "none";
-          if (show) visible++;
-        }
-        if (countEl) countEl.textContent = visible + " sonuç";
-      });
-    }
+      var searchEl = root.querySelector("[data-crash-search]");
+      var countEl = root.querySelector("[data-crash-count]");
+      if (searchEl) {
+        searchEl.addEventListener("input", function () {
+          var q = (searchEl.value || "").trim().toLowerCase();
+          var rows = tbl.tBodies[0] ? tbl.tBodies[0].rows : [];
+          var visible = 0;
+          for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var hay = (row.getAttribute("data-issue-title-lc") || row.getAttribute("data-app-version-lc") || row.textContent || "").toLowerCase();
+            var show = !q || hay.indexOf(q) !== -1;
+            row.style.display = show ? "" : "none";
+            if (show) visible++;
+          }
+          if (countEl) countEl.textContent = visible + " sonuç";
+        });
+      }
 
-    // 3) Issue satırına tıklama → drill-down modal.
-    tbl.querySelectorAll("tr[data-crash-row]").forEach(function (tr) {
-      tr.addEventListener("click", function () {
-        openIssueDetail({
-          issue_id: tr.getAttribute("data-issue-id"),
-          platform: tr.getAttribute("data-platform"),
-          issue_title: tr.getAttribute("data-issue-title"),
-          error_type: tr.getAttribute("data-error-type"),
-          event_count: tr.getAttribute("data-event-count"),
-          affected_users: tr.getAttribute("data-affected-users"),
-          latest_version: tr.getAttribute("data-latest-version"),
+      tbl.querySelectorAll("tr[data-crash-row]").forEach(function (tr) {
+        tr.addEventListener("click", function () {
+          openIssueDetail({
+            issue_id: tr.getAttribute("data-issue-id"),
+            platform: tr.getAttribute("data-platform"),
+            issue_title: tr.getAttribute("data-issue-title"),
+            error_type: tr.getAttribute("data-error-type"),
+            event_count: tr.getAttribute("data-event-count"),
+            affected_users: tr.getAttribute("data-affected-users"),
+            latest_version: tr.getAttribute("data-latest-version"),
+          });
         });
       });
     });
@@ -330,16 +391,12 @@
   function sortTableBy(tbl, key, type, desc) {
     if (!tbl.tBodies[0]) return;
     var rows = Array.prototype.slice.call(tbl.tBodies[0].rows);
-    // İlgili data-attribute adını üret: event_count → data-event-count
     var attr = "data-" + key.replace(/_/g, "-");
     function val(row) {
       var v = row.getAttribute(attr);
       if (v === null) v = "";
       if (type === "num") return parseFloat(v) || 0;
-      if (type === "ver") {
-        // semver-ish — sayısal parçalara böl, eksikleri 0 yap
-        return v.split(/[.\-_]/).map(function (p) { return parseInt(p, 10) || 0; });
-      }
+      if (type === "ver") return v.split(/[.\-_]/).map(function (p) { return parseInt(p, 10) || 0; });
       return v.toString().toLowerCase();
     }
     rows.sort(function (a, b) {
@@ -355,34 +412,27 @@
       if (va > vb) return desc ? -1 : 1;
       return 0;
     });
-    var tb = tbl.tBodies[0];
-    rows.forEach(function (r) { tb.appendChild(r); });
+    rows.forEach(function (r) { tbl.tBodies[0].appendChild(r); });
   }
 
   // ── Issue detay modal ──
   var detailModal = document.getElementById("crash-detail-modal");
   var detailClose = document.getElementById("crash-detail-close");
   if (detailClose) detailClose.addEventListener("click", closeIssueDetail);
-  if (detailModal) {
-    detailModal.addEventListener("click", function (e) {
-      if (e.target === detailModal) closeIssueDetail();
-    });
-  }
+  if (detailModal) detailModal.addEventListener("click", function (e) { if (e.target === detailModal) closeIssueDetail(); });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && detailModal && detailModal.getAttribute("data-modal-state") === "open") closeIssueDetail();
   });
 
   function closeIssueDetail() {
     if (!detailModal) return;
-    detailModal.classList.add("hidden");
-    detailModal.classList.remove("flex");
+    detailModal.classList.add("hidden"); detailModal.classList.remove("flex");
     detailModal.setAttribute("data-modal-state", "closed");
   }
 
   function openIssueDetail(info) {
     if (!detailModal || !info || !info.issue_id) return;
-    detailModal.classList.remove("hidden");
-    detailModal.classList.add("flex");
+    detailModal.classList.remove("hidden"); detailModal.classList.add("flex");
     detailModal.setAttribute("data-modal-state", "open");
     var titleEl = document.getElementById("crash-detail-title");
     var metaEl = document.getElementById("crash-detail-meta");
@@ -390,32 +440,23 @@
     if (titleEl) titleEl.textContent = info.issue_title || "(başlıksız)";
     if (metaEl) {
       var platLower = (info.platform || "").toLowerCase();
-      var badge = "";
-      if (platLower === "android") {
-        badge = '<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>';
-      } else if (platLower === "ios") {
-        badge = '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>';
-      }
-      metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">'
-        + badge + escapeHtml((info.platform || "").toUpperCase())
+      var badge = platLower === "android"
+        ? '<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>'
+        : platLower === "ios" ? '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>' : "";
+      metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">' + badge + escapeHtml((info.platform || "").toUpperCase())
         + "</span> · " + escapeHtml(info.error_type || "")
-        + " · " + (info.event_count || 0) + " olay"
-        + " · " + (info.affected_users || 0) + " kullanıcı"
+        + " · " + (info.event_count || 0) + " olay · " + (info.affected_users || 0) + " kullanıcı"
         + (info.latest_version ? " · v" + escapeHtml(info.latest_version) : "");
     }
     if (bodyEl) bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Detay yükleniyor…</div>';
-
-    var url = "/api/app/crashlytics/issue-detail"
-      + "?product=" + encodeURIComponent(crashState.product)
+    var url = "/api/app/crashlytics/issue-detail?product=" + encodeURIComponent(crashState.product)
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
       + "&days=" + crashState.days;
     fetch(url, { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
       .then(function (j) { if (bodyEl) bodyEl.innerHTML = renderIssueDetail(j); })
-      .catch(function () {
-        if (bodyEl) bodyEl.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">Detay yüklenemedi.</p>';
-      });
+      .catch(function () { if (bodyEl) bodyEl.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">Detay yüklenemedi.</p>'; });
   }
 
   function escapeHtml(s) {
@@ -425,93 +466,45 @@
   }
 
   function renderIssueDetail(j) {
-    if (!j || j.ok === false) {
-      return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">'
-        + escapeHtml((j && (j.error || j.message)) || "Detay alınamadı.") + '</p>';
-    }
+    if (!j || j.ok === false) return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">' + escapeHtml((j && (j.error || j.message)) || "Detay alınamadı.") + '</p>';
     var s = j.summary || {};
     var firstSeen = (s.first_seen || "").replace("T", " ").slice(0, 16);
     var lastSeen = (s.last_seen || "").replace("T", " ").slice(0, 16);
-
     function table(rows, headers, getCells, emptyMsg) {
-      if (!rows || !rows.length) {
-        return '<p class="py-3 text-[11px] text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
-      }
-      var th = headers.map(function (h) {
-        return '<th class="px-2 py-1.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">' + escapeHtml(h) + '</th>';
-      }).join("");
-      var trs = rows.map(function (r) {
-        return '<tr class="border-t border-slate-100 dark:border-slate-800">' + getCells(r).map(function (c) {
-          return '<td class="px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200">' + c + '</td>';
-        }).join("") + '</tr>';
-      }).join("");
+      if (!rows || !rows.length) return '<p class="py-3 text-[11px] text-slate-400 dark:text-slate-500">' + emptyMsg + '</p>';
+      var th = headers.map(function (h) { return '<th class="px-2 py-1.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">' + escapeHtml(h) + '</th>'; }).join("");
+      var trs = rows.map(function (r) { return '<tr class="border-t border-slate-100 dark:border-slate-800">' + getCells(r).map(function (c) { return '<td class="px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200">' + c + '</td>'; }).join("") + '</tr>'; }).join("");
       return '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/60"><table class="w-full text-left"><thead class="bg-slate-50 dark:bg-slate-800/60"><tr>' + th + '</tr></thead><tbody>' + trs + '</tbody></table></div>';
     }
-
     var trend = j.trend || [];
     var maxC = 1;
     trend.forEach(function (t) { if (t.count > maxC) maxC = t.count; });
     var trendBars = trend.map(function (t) {
       var h = Math.max(2, Math.round((t.count / maxC) * 36));
-      return '<div class="flex flex-col items-center justify-end gap-1" title="' + escapeHtml(t.date) + ': ' + t.count + ' olay">'
-        + '<div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-700/55" style="height:' + h + 'px"></div>'
-        + '<span class="text-[8px] tabular-nums text-slate-400">' + escapeHtml((t.date || "").slice(5)) + '</span>'
-        + '</div>';
+      return '<div class="flex flex-col items-center justify-end gap-1" title="' + escapeHtml(t.date) + ': ' + t.count + ' olay"><div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-700/55" style="height:' + h + 'px"></div><span class="text-[8px] tabular-nums text-slate-400">' + escapeHtml((t.date || "").slice(5)) + '</span></div>';
     }).join("");
-
-    var html = ""
-      + '<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">'
-      + '  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Olay</p><p class="mt-0.5 text-lg font-black tabular-nums text-slate-800 dark:text-slate-100">' + (s.total_events || 0) + '</p></div>'
-      + '  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Kullanıcı</p><p class="mt-0.5 text-lg font-black tabular-nums text-slate-800 dark:text-slate-100">' + (s.affected_users || 0) + '</p></div>'
-      + '  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">İlk görüldü</p><p class="mt-0.5 text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200">' + escapeHtml(firstSeen || "—") + '</p></div>'
-      + '  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Son görüldü</p><p class="mt-0.5 text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200">' + escapeHtml(lastSeen || "—") + '</p></div>'
-      + '</div>'
-      + '<div class="mt-4">'
-      + '  <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük trend</p>'
+    var html = '<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">'
+      + ['Olay|' + (s.total_events || 0), 'Kullanıcı|' + (s.affected_users || 0), 'İlk görüldü|' + escapeHtml(firstSeen || "—"), 'Son görüldü|' + escapeHtml(lastSeen || "—")].map(function (x) {
+          var p = x.split("|"); return '<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + p[0] + '</p><p class="mt-0.5 text-base font-black tabular-nums text-slate-800 dark:text-slate-100">' + p[1] + '</p></div>';
+        }).join("") + '</div>'
+      + '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük trend</p>'
       + (trend.length ? '<div class="flex items-end gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">' + trendBars + '</div>' : '<p class="py-2 text-[11px] text-slate-400">Trend verisi yok.</p>')
-      + '</div>'
-      + '<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
-      + '  <div>'
-      + '    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon kırılımı</p>'
-      + table(j.versions, ["Versiyon", "Olay", "Kullanıcı"], function (r) {
-        return [
-          '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono dark:bg-slate-800">' + escapeHtml(r.app_version) + '</span>',
-          '<span class="tabular-nums font-semibold">' + r.event_count + '</span>',
-          '<span class="tabular-nums">' + r.affected_users + '</span>',
-        ];
-      }, "Versiyon verisi yok.")
-      + '  </div>'
-      + '  <div>'
-      + '    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">OS kırılımı</p>'
-      + table(j.os_versions, ["OS Versiyon", "Olay"], function (r) {
-        return [escapeHtml(r.os_version), '<span class="tabular-nums">' + r.event_count + '</span>'];
-      }, "OS verisi yok.")
-      + '  </div>'
-      + '</div>'
-      + '<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
-      + '  <div>'
-      + '    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cihaz kırılımı</p>'
-      + table(j.devices, ["Cihaz", "Olay"], function (r) {
-        var name = r.manufacturer ? (r.manufacturer + " " + r.model) : r.model;
-        return [escapeHtml(name), '<span class="tabular-nums">' + r.event_count + '</span>'];
-      }, "Cihaz verisi yok.")
-      + '  </div>'
-      + '  <div>'
-      + '    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stack frame (blame)</p>'
-      + table(j.blame_frames, ["Dosya / Sembol", "Adet"], function (r) {
-        var loc = r.file ? (r.file + (r.line ? ":" + r.line : "")) : "";
-        var sym = r.symbol || "";
-        var disp = (loc || sym) ? (escapeHtml(loc) + (sym ? '<br><span class="font-mono text-[10px] text-slate-500">' + escapeHtml(sym) + '</span>' : '')) : '<span class="text-slate-400">—</span>';
-        return [disp, '<span class="tabular-nums">' + r.occurrences + '</span>'];
-      }, "Stack frame verisi yok.")
-      + '  </div>'
-      + '</div>';
-    if (j.error) {
-      html += '<p class="mt-3 text-[11px] text-amber-700 dark:text-amber-400">⚠ ' + escapeHtml(j.error) + '</p>';
-    }
+      + '</div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
+      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon kırılımı</p>'
+      + table(j.versions, ["Versiyon", "Olay", "Kullanıcı"], function (r) { return ['<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono dark:bg-slate-800">' + escapeHtml(r.app_version) + '</span>', '<span class="tabular-nums font-semibold">' + r.event_count + '</span>', '<span class="tabular-nums">' + r.affected_users + '</span>']; }, "Versiyon verisi yok.")
+      + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">OS kırılımı</p>'
+      + table(j.os_versions, ["OS Versiyon", "Olay"], function (r) { return [escapeHtml(r.os_version), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "OS verisi yok.")
+      + '</div></div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
+      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cihaz kırılımı</p>'
+      + table(j.devices, ["Cihaz", "Olay"], function (r) { var n = r.manufacturer ? (r.manufacturer + " " + r.model) : r.model; return [escapeHtml(n), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "Cihaz verisi yok.")
+      + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stack frame (blame)</p>'
+      + table(j.blame_frames, ["Dosya / Sembol", "Adet"], function (r) { var loc = r.file ? (r.file + (r.line ? ":" + r.line : "")) : ""; var sym = r.symbol || ""; var disp = (loc || sym) ? (escapeHtml(loc) + (sym ? '<br><span class="font-mono text-[10px] text-slate-500">' + escapeHtml(sym) + '</span>' : '')) : '<span class="text-slate-400">—</span>'; return [disp, '<span class="tabular-nums">' + r.occurrences + '</span>']; }, "Stack frame verisi yok.")
+      + '</div></div>';
+    if (j.error) html += '<p class="mt-3 text-[11px] text-amber-700 dark:text-amber-400">⚠ ' + escapeHtml(j.error) + '</p>';
     return html;
   }
 
+  // ── Manuel Yenile ──
   function triggerRefresh() {
     var btn = document.getElementById("crash-refresh-btn");
     var icon = document.getElementById("crash-refresh-icon");
@@ -519,62 +512,41 @@
     fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
       { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j.already_running) { loadTab(); return; }
-        startPoll();
-      })
-      .catch(function () { loadTab(); })
-      .finally(function () {
-        if (btn) btn.disabled = false;
-        if (icon) icon.textContent = "↺";
-      });
+      .then(function (j) { if (j.already_running) { loadAllSections(); return; } startPoll(); })
+      .catch(function () { loadAllSections(); })
+      .finally(function () { if (btn) btn.disabled = false; if (icon) icon.textContent = "↺"; });
   }
 
-  // Filtre butonları — debounce kullanılır ki ardışık tıklamalar tek isteğe düşsün.
+  // ── Filtre butonları ──
   crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
-    b.addEventListener("click", function () {
-      crashState.platform = b.dataset.crashPlatform; syncBtns(); loadTabDebounced();
-    });
+    b.addEventListener("click", function () { crashState.platform = b.dataset.crashPlatform; syncBtns(); loadAllDebounced(); });
   });
   crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
-    b.addEventListener("click", function () {
-      crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadTabDebounced();
-    });
+    b.addEventListener("click", function () { crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadAllDebounced(); });
   });
   crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
-    b.addEventListener("click", function () {
-      crashState.type = b.dataset.crashType; syncBtns(); loadTabDebounced();
-    });
-  });
-  // Tab geçişleri debounce kullanmadan anında çağrılır (tek tıklama, beklenen davranış).
-  crashRoot.querySelectorAll(".crash-tab-btn").forEach(function (b) {
-    b.addEventListener("click", function () {
-      crashState.tab = b.dataset.crashTab; syncBtns(); loadTab();
-    });
+    b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadAllDebounced(); });
   });
 
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // İlk yükleme: cache sıcaksa anında yükle; soğuksa arka planda başlat + progress bar.
+  // ── İlk yükleme ──
   syncBtns();
   fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
     .then(function (r) { return r.json(); })
     .then(function (j) {
       if (j.cache_warm) {
-        // Cache hazır → direkt yükle (anlık)
-        loadTab();
+        loadAllSections();
       } else if (j.running) {
-        // Zaten bir job çalışıyor → sadece poll et
         startPoll();
       } else {
-        // Cache soğuk, job yok → arka planda başlat + poll
         fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
           { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
           .then(function () { startPoll(); })
-          .catch(function () { loadTab(); });
+          .catch(function () { loadAllSections(); });
       }
     })
-    .catch(function () { loadTab(); });
+    .catch(function () { loadAllSections(); });
 })();
 </script>
