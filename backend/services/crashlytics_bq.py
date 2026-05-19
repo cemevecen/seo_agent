@@ -604,6 +604,26 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
         msg = str(exc).strip()
         if "Timeout" in msg or "deadline" in msg.lower():
             return [], f"Sorgu zaman aşımı ({QUERY_TIMEOUT_S}s). Dönem filtresini daraltın veya tekrar deneyin."
+        # Batch ve realtime tablo şemaları farklı olduğunda UNION ALL patlar (BOOL vs STRING vb.)
+        # Fallback: subquery'den sadece batch tablosunu kullan, realtime'ı atla.
+        if "UNION ALL" in msg and "incompatible types" in msg:
+            import re as _re2
+            fixed_sql = _re2.sub(
+                r"\(SELECT \* FROM (`[^`]+`) UNION ALL SELECT \* FROM `[^`]+`\)",
+                r"\1",
+                sql,
+            )
+            if fixed_sql != sql:
+                logger.warning("UNION ALL şema uyumsuzluğu (%s), batch tablosuna fallback: %s", platform, msg[:120])
+                try:
+                    from google.cloud import bigquery as _bq2
+                    cfg2 = _bq2.QueryJobConfig(use_query_cache=True)
+                    loc2 = _get_dataset_location(platform)
+                    job2 = client.query(fixed_sql, job_config=cfg2, location=loc2) if loc2 else client.query(fixed_sql, job_config=cfg2)
+                    rows2 = [dict(r) for r in job2.result(timeout=QUERY_TIMEOUT_S)]
+                    return rows2, None
+                except Exception as exc2:
+                    return [], f"BigQuery hatası: {str(exc2).strip()[:200]}"
         logger.exception("BQ sorgu hatası (%s)", platform)
         return [], f"BigQuery hatası: {msg[:200]}"
     finally:
