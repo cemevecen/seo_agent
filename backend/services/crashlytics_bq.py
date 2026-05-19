@@ -327,13 +327,59 @@ def _discover_table_id(platform: str, bundle: str) -> str | None:
 
 
 def _table(platform: str, bundle: str) -> str:
-    """Bundle için BigQuery tam tablo path'i. Discovery → standart pattern fallback."""
+    """Bundle için BigQuery FROM kaynağı.
+
+    Hem standart (batch) hem de _REALTIME (streaming) tablosu varsa ikisini
+    UNION ALL ile birleştiren bir subquery döner — eski + yeni veri tek sorguda.
+    Sadece biri varsa o tablonun backtick'li path'ini döner.
+    """
     proj = _effective_project(platform)
-    tid = _discover_table_id(platform, bundle)
-    if tid:
-        return f"{proj}.{_DATASET}.{tid}"
     base = bundle.replace(".", "_")
-    return f"{proj}.{_DATASET}.{base}_{platform.upper()}"
+    plat_up = platform.upper()
+
+    available = _list_dataset_tables(platform)
+    available_lower = {t.lower(): t for t in available} if available else {}
+
+    # Standart (batch) ve streaming (REALTIME) tablolarını bağımsız keşfet
+    batch_candidates = [
+        f"{base}_{plat_up}",
+        base,
+        base.lower() + "_" + plat_up.lower(),
+    ]
+    realtime_candidates = [
+        f"{base}_{plat_up}_REALTIME",
+        f"{base}_REALTIME_{plat_up}",
+        base.lower() + "_" + plat_up.lower() + "_realtime",
+        base.lower() + "_realtime_" + plat_up.lower(),
+    ]
+
+    def _find(candidates: list[str]) -> str | None:
+        for c in candidates:
+            m = available_lower.get(c.lower())
+            if m:
+                return m
+        return None
+
+    batch_tid   = _find(batch_candidates)
+    realtime_tid = _find(realtime_candidates)
+
+    # Her iki tablo varsa UNION ALL subquery; yoksa tek tablo; hiçbiri yoksa fallback
+    if batch_tid and realtime_tid:
+        b_path = f"`{proj}.{_DATASET}.{batch_tid}`"
+        r_path = f"`{proj}.{_DATASET}.{realtime_tid}`"
+        logger.info("Crashlytics çift tablo (UNION): %s + %s", batch_tid, realtime_tid)
+        return f"(SELECT * FROM {b_path} UNION ALL SELECT * FROM {r_path})"
+    if batch_tid:
+        logger.info("Crashlytics tablo (batch): %s", batch_tid)
+        return f"`{proj}.{_DATASET}.{batch_tid}`"
+    if realtime_tid:
+        logger.info("Crashlytics tablo (realtime): %s", realtime_tid)
+        return f"`{proj}.{_DATASET}.{realtime_tid}`"
+
+    # Discovery başarısız → fallback pattern
+    fallback = f"{base}_{plat_up}"
+    logger.warning("Crashlytics tablo keşfedilemedi, fallback: %s", fallback)
+    return f"`{proj}.{_DATASET}.{fallback}`"
 
 
 # ── Cache yardımcıları ────────────────────────────────────────────────────────
@@ -545,7 +591,7 @@ SELECT
   error_type,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
 GROUP BY error_type
 """
@@ -572,7 +618,7 @@ def query_crash_free(platform: str, table: str, days: int) -> dict[str, Any] | N
 SELECT
   COUNT(DISTINCT installation_uuid) AS total_users,
   COUNT(DISTINCT IF(error_type = 'FATAL', installation_uuid, NULL)) AS crashed_users
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
 """
     rows, err = _run_query(platform, sql, skip_budget=True)
@@ -598,7 +644,7 @@ SELECT
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users,
   MAX(application.display_version) AS latest_version
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
   {_type_filter(error_type)}
   {_version_filter(version)}
@@ -629,7 +675,7 @@ SELECT
   application.display_version AS app_version,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
   AND error_type = 'ANR'
   {_version_filter(version)}
@@ -660,7 +706,7 @@ SELECT
   COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count,
   COUNT(*) AS total_events,
   COUNT(DISTINCT installation_uuid) AS affected_users
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
 GROUP BY application.display_version
 ORDER BY total_events DESC
@@ -687,7 +733,7 @@ SELECT
   COUNTIF(error_type = 'FATAL') AS fatal_count,
   COUNTIF(error_type = 'ANR') AS anr_count,
   COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)}
 GROUP BY crash_date
 ORDER BY crash_date ASC
@@ -708,7 +754,7 @@ LIMIT {days + 5}
 def query_available_versions(platform: str, table: str, days: int) -> list[str]:
     sql = f"""
 SELECT DISTINCT application.display_version AS v
-FROM `{table}`
+FROM {table}
 WHERE {_ts_filter(days)} AND application.display_version IS NOT NULL
 ORDER BY v DESC
 LIMIT 30
@@ -739,13 +785,13 @@ SELECT
   MAX(event_timestamp) AS last_seen,
   ANY_VALUE(issue_title) AS issue_title,
   ANY_VALUE(error_type) AS error_type
-FROM `{table}`
+FROM {table}
 WHERE {where}
 """
     # 2) Günlük trend
     sql_trend = f"""
 SELECT DATE(event_timestamp) AS d, COUNT(*) AS c
-FROM `{table}`
+FROM {table}
 WHERE {where}
 GROUP BY d
 ORDER BY d ASC
@@ -756,7 +802,7 @@ SELECT
   COALESCE(application.display_version, 'bilinmiyor') AS app_version,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users
-FROM `{table}`
+FROM {table}
 WHERE {where}
 GROUP BY app_version
 ORDER BY event_count DESC
@@ -767,7 +813,7 @@ LIMIT 10
 SELECT
   COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
   COUNT(*) AS event_count
-FROM `{table}`
+FROM {table}
 WHERE {where}
 GROUP BY os_version
 ORDER BY event_count DESC
@@ -779,7 +825,7 @@ SELECT
   COALESCE(device.model, 'bilinmiyor') AS model,
   COALESCE(device.manufacturer, '') AS manufacturer,
   COUNT(*) AS event_count
-FROM `{table}`
+FROM {table}
 WHERE {where}
 GROUP BY model, manufacturer
 ORDER BY event_count DESC
@@ -792,7 +838,7 @@ SELECT
   blame_frame.symbol AS symbol,
   blame_frame.line AS line,
   COUNT(*) AS occurrences
-FROM `{table}`
+FROM {table}
 WHERE {where}
 GROUP BY file, symbol, line
 ORDER BY occurrences DESC
