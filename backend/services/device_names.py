@@ -46,7 +46,9 @@ DEVICE_NAMES: dict[str, str] = {
     "SM-S938B": "Galaxy S25 Ultra",
 
     # ── Samsung Galaxy A serisi ──────────────────────────────────────────────
+    "SM-A015F": "Galaxy A01",
     "SM-A025F": "Galaxy A02s",
+    "SM-A025G": "Galaxy A02s",
     "SM-A032F": "Galaxy A03 Core",
     "SM-A035F": "Galaxy A03",
     "SM-A037F": "Galaxy A03s",
@@ -66,8 +68,13 @@ DEVICE_NAMES: dict[str, str] = {
     "SM-A165F": "Galaxy A16",
     "SM-A166B": "Galaxy A16 5G",
     "SM-A205F": "Galaxy A20",
+    "SM-A205G": "Galaxy A20",
+    "SM-A207F": "Galaxy A20s",
+    "SM-A207G": "Galaxy A20s",
     "SM-A215F": "Galaxy A21",
+    "SM-A215U": "Galaxy A21",
     "SM-A217F": "Galaxy A21s",
+    "SM-A217M": "Galaxy A21s",
     "SM-A225F": "Galaxy A22",
     "SM-A226B": "Galaxy A22 5G",
     "SM-A235F": "Galaxy A23",
@@ -106,11 +113,21 @@ DEVICE_NAMES: dict[str, str] = {
 
     # ── Samsung Galaxy M serisi ──────────────────────────────────────────────
     "SM-M105F": "Galaxy M10",
+    "SM-M105G": "Galaxy M10",
     "SM-M205F": "Galaxy M20",
+    "SM-M215F": "Galaxy M21",
+    "SM-M215G": "Galaxy M21",
+    "SM-M225F": "Galaxy M22",
+    "SM-M225FV": "Galaxy M22",
     "SM-M305F": "Galaxy M30",
+    "SM-M305G": "Galaxy M30",
     "SM-M315F": "Galaxy M31",
+    "SM-M315G": "Galaxy M31",
     "SM-M325F": "Galaxy M32",
+    "SM-M325FV": "Galaxy M32",
+    "SM-M325G": "Galaxy M32",
     "SM-M336B": "Galaxy M33 5G",
+    "SM-M336BU": "Galaxy M33 5G",
     "SM-M346B": "Galaxy M34 5G",
     "SM-M356B": "Galaxy M35 5G",
     "SM-M405F": "Galaxy M40",
@@ -125,9 +142,13 @@ DEVICE_NAMES: dict[str, str] = {
     "SM-N960F": "Galaxy Note 9",
     "SM-N970F": "Galaxy Note 10",
     "SM-N975F": "Galaxy Note 10+",
+    "SM-N976B": "Galaxy Note 10+ 5G",
+    "SM-N976N": "Galaxy Note 10+ 5G",
     "SM-N980F": "Galaxy Note 20",
+    "SM-N981B": "Galaxy Note 20 5G",
     "SM-N985F": "Galaxy Note 20+",
     "SM-N986B": "Galaxy Note 20 Ultra 5G",
+    "SM-N986N": "Galaxy Note 20 Ultra 5G",
 
     # ── Samsung Galaxy Z serisi (katlanabilir) ───────────────────────────────
     "SM-F700F": "Galaxy Z Flip",
@@ -164,36 +185,105 @@ DEVICE_NAMES: dict[str, str] = {
     "Pixel 9 Pro XL": "Pixel 9 Pro XL",
 
     # ── Xiaomi / Redmi / POCO ────────────────────────────────────────────────
+    # Xiaomi ana serisi
     "2201116TG": "Xiaomi 12",
     "2201116TI": "Xiaomi 12",
+    "2201116SR": "Xiaomi 12",
+    "2209116AG": "Xiaomi 12S",
+    "2206123SC": "Xiaomi 12S Pro",
+    "2210132G":  "Xiaomi 12T",
+    "22081212UG": "Xiaomi 12T Pro",
     "23049PCD8G": "Xiaomi 13",
     "23049PCD8I": "Xiaomi 13",
-    "2210132G":  "Xiaomi 12T",
-    "22071212AG": "Redmi Note 11",
-    "2201116SG": "Redmi Note 11 Pro",
-    "22111317G": "Redmi Note 12",
-    "23013RK75C": "Redmi Note 12 Pro",
-    "23090RA98G": "Redmi Note 13",
-    "24069R21G": "Redmi Note 14",
-    "M2004J19C": "Redmi Note 9",
-    "M2101K7BG": "Redmi Note 10",
+    "2210133C":  "Xiaomi 13 Lite",
+    "23049RAD8G": "Xiaomi 13 Pro",
+    "23116PN5BC": "Xiaomi 14",
+    "23116PN5BI": "Xiaomi 14",
+    "2311AAA05C": "Xiaomi 14 Pro",
+    "24031PN0DC": "Xiaomi 14T",
+    "2405CPX3DG": "Xiaomi 15",
+    # Redmi Note serisi
+    "M1908C3JGG": "Redmi Note 8",
+    "M2004J19C":  "Redmi Note 9",
+    "M2003J15SC": "Redmi Note 9 Pro",
+    "M2101K7BG":  "Redmi Note 10",
     "M2101K7BNY": "Redmi Note 10 Pro",
-    "22041219G": "Redmi 10C",
-    "220333QNY": "Redmi 10A",
+    "M2101K7BNI": "Redmi Note 10 Pro",
+    "22071212AG": "Redmi Note 11",
+    "22071219AG": "Redmi Note 11S",
+    "2201116SG":  "Redmi Note 11 Pro",
+    "2201116SI":  "Redmi Note 11 Pro",
+    "22111317G":  "Redmi Note 12",
+    "22111317I":  "Redmi Note 12",
+    "23013RK75C": "Redmi Note 12 Pro",
+    "22101316C":  "Redmi Note 12 Pro+",
+    "23090RA98G": "Redmi Note 13",
+    "23090RA98I": "Redmi Note 13",
+    "23116RN86C": "Redmi Note 13 Pro",
+    "23116RN86G": "Redmi Note 13 Pro+",
+    "24069R21G":  "Redmi Note 14",
+    "24116RA7EG": "Redmi Note 14 Pro",
+    # Redmi düz serisi
+    "22041219G":  "Redmi 10C",
+    "220333QNY":  "Redmi 10A",
     "23106RN0DA": "Redmi 13C",
     "2407FPN8EG": "Redmi 14C",
+    "23129RAA4G": "Redmi 13",
+    # POCO serisi
     "M2004J15SC": "POCO M2",
     "M2007J20CG": "POCO X3",
     "M2102J20SG": "POCO X3 Pro",
     "21061110AG": "POCO X3 GT",
-    "2201116PG": "POCO X4 Pro 5G",
-    "22041216G": "POCO M4 Pro",
+    "2201116PG":  "POCO X4 Pro 5G",
+    "22041216G":  "POCO M4 Pro",
     "22021211RG": "POCO M4 Pro 5G",
     "22071219CG": "POCO X5",
-    "22101320G": "POCO X5 Pro",
+    "22101320G":  "POCO X5 Pro",
     "23013PC75G": "POCO X6",
     "23013PC75I": "POCO X6 Pro",
     "23078PND5G": "POCO M6 Pro",
+    "24072PX70G": "POCO X7",
+    "24072PX70I": "POCO X7 Pro",
+
+    # ── vivo ─────────────────────────────────────────────────────────────────
+    "V2036": "vivo Y20",
+    "V2037": "vivo Y20s",
+    "V2044": "vivo Y20G",
+    "V2038": "vivo Y20s G",
+    "V2109": "vivo Y33s",
+    "V2111": "vivo Y72 5G",
+    "V2115": "vivo Y21",
+    "V2120": "vivo Y21s",
+    "V2130": "vivo Y33T",
+    "V2143": "vivo Y35",
+    "V2157": "vivo Y22s",
+    "V2165": "vivo Y21",
+    "V2166": "vivo Y15s",
+    "V2168": "vivo Y01",
+    "V2181": "vivo Y16",
+    "V2204": "vivo Y76 5G",
+    "V2207": "vivo Y35+",
+    "V2209": "vivo Y55 5G",
+    "V2211": "vivo Y30 5G",
+    "V2218": "vivo Y22",
+    "V2219": "vivo Y02s",
+    "V2231": "vivo Y36",
+    "V2235": "vivo Y27",
+    "V2253": "vivo Y17s",
+    "V2254": "vivo Y28 5G",
+    "V2311": "vivo Y100",
+    "V2342": "vivo Y200",
+    "V2401": "vivo Y03",
+    "V2318": "vivo V27e",
+    "V2306": "vivo V27",
+    "V2238": "vivo V25e",
+    "V2158": "vivo V23e",
+    "V2039": "vivo V21",
+    "V2040": "vivo V21 5G",
+    "V2108": "vivo V23 5G",
+    "V2110": "vivo X70",
+    "V2135": "vivo X80",
+    "V2227": "vivo X90",
 
     # ── OnePlus ──────────────────────────────────────────────────────────────
     "IN2013": "OnePlus 8",
@@ -243,15 +333,33 @@ DEVICE_NAMES: dict[str, str] = {
     "RMX3939": "Realme C53",
 
     # ── Huawei / Honor ───────────────────────────────────────────────────────
-    "ELE-L29": "Huawei P30",
+    "CLT-L09": "Huawei P20 Pro",
     "CLT-L29": "Huawei P20 Pro",
+    "ELE-L09": "Huawei P30",
+    "ELE-L29": "Huawei P30",
+    "VOG-L09": "Huawei P30 Pro",
     "VOG-L29": "Huawei P30 Pro",
+    "VOG-TL00": "Huawei P30 Pro",
+    "VOG-AL00": "Huawei P30 Pro",
+    "ANA-LX4": "Huawei P40",
     "ANA-NX9": "Huawei P40",
     "ELS-NX9": "Huawei P40 Pro",
-    "NTH-NX9": "Huawei Mate 40 Pro",
+    "ELS-AN00": "Huawei P40 Pro",
+    "ELS-TN00": "Huawei P40 Pro",
+    "OCE-AN10": "Huawei Mate 10",
+    "BLA-L09": "Huawei Mate 10 Pro",
+    "INE-LX1": "Huawei P Smart 2019",
+    "POT-LX1": "Huawei P Smart 2019",
+    "JKM-LX1": "Huawei P Smart Z",
     "STK-LX1": "Honor 9X",
     "DUA-LX9": "Honor 9A",
     "NEN-LX1": "Honor X8",
+    "PPA-LX2": "Honor X8",
+    "CMA-LX2": "Honor X6",
+    "VNE-LX1": "Honor X7",
+    "ANY-LX1": "Honor X7a",
+    "NTH-NX9": "Huawei Mate 40 Pro",
+    "JEF-NX9": "Huawei Mate 40",
 
     # ── Motorola ─────────────────────────────────────────────────────────────
     "XT2041-4": "Moto G8 Power",
@@ -274,9 +382,23 @@ DEVICE_NAMES: dict[str, str] = {
 def get_display_name(manufacturer: str, model: str) -> str:
     """Cihaz kodunu pazarlama adına çevir. Bulunamazsa boş string döner."""
     model_clean = (model or "").strip()
-    name = DEVICE_NAMES.get(model_clean, "")
+    if not model_clean:
+        return ""
+
+    # 1) Doğrudan eşleşme
+    name = DEVICE_NAMES.get(model_clean) or DEVICE_NAMES.get(model_clean.upper(), "")
     if name:
         return name
-    # Büyük/küçük harf farkını dene (bazı cihazlar küçük harfle gelir)
-    name = DEVICE_NAMES.get(model_clean.upper(), "")
-    return name
+
+    # 2) Samsung SM-XXXXXSUFFIX → SM-XXXXXF / SM-XXXXXB dene (bölgesel suffix farklılıkları)
+    #    Örn. SM-M325FV → SM-M325F, SM-A336BU → SM-A336B, SM-G991N → SM-G991B
+    import re
+    m = re.match(r"(SM-[A-Z]\d{3}[A-Z])([A-Z0-9]*)$", model_clean.upper())
+    if m:
+        base = m.group(1)  # SM-M325F kısmı
+        for candidate in (base + "F", base + "B", base + "G", base):
+            name = DEVICE_NAMES.get(candidate, "")
+            if name:
+                return name
+
+    return ""
