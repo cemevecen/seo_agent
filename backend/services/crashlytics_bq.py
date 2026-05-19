@@ -391,15 +391,11 @@ def _table(platform: str, bundle: str) -> str:
     batch_tid   = _find(batch_candidates)
     realtime_tid = _find(realtime_candidates)
 
-    # Her iki tablo varsa UNION ALL subquery — şema uyumsuzluğu biliniyorsa batch only
+    # Her iki tablo varsa batch öncelikli — SELECT * UNION ALL şema uyumsuzluğuna yol açıyor.
+    # Batch tablo tüm historical datayı içeriyor; realtime sadece son birkaç saatin streaming export'u.
     if batch_tid and realtime_tid:
-        b_path = f"`{proj}.{_DATASET}.{batch_tid}`"
-        r_path = f"`{proj}.{_DATASET}.{realtime_tid}`"
-        if _union_incompat(platform):
-            logger.debug("Crashlytics UNION ALL atlandı (şema uyumsuz), batch: %s", batch_tid)
-            return f"`{proj}.{_DATASET}.{batch_tid}`"
-        logger.info("Crashlytics çift tablo (UNION): %s + %s", batch_tid, realtime_tid)
-        return f"(SELECT * FROM {b_path} UNION ALL SELECT * FROM {r_path})"
+        logger.debug("Crashlytics batch+realtime mevcut, batch kullanılıyor: %s", batch_tid)
+        return f"`{proj}.{_DATASET}.{batch_tid}`"
     if batch_tid:
         logger.info("Crashlytics tablo (batch): %s", batch_tid)
         return f"`{proj}.{_DATASET}.{batch_tid}`"
