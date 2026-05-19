@@ -70,6 +70,20 @@ _BUILD_LOCKS: dict[str, threading.Lock] = {}
 _BGREFRESH_LOCK = threading.Lock()
 _BGREFRESH_ACTIVE: set[str] = set()
 
+# UNION ALL şema uyumsuzluğu olan platformlar — _table() direkt batch tablosunu döner
+_UNION_INCOMPAT_LOCK = threading.Lock()
+_UNION_INCOMPAT: set[str] = set()  # platform keys
+
+
+def _mark_union_incompat(platform: str) -> None:
+    with _UNION_INCOMPAT_LOCK:
+        _UNION_INCOMPAT.add(platform)
+
+
+def _union_incompat(platform: str) -> bool:
+    with _UNION_INCOMPAT_LOCK:
+        return platform in _UNION_INCOMPAT
+
 
 def _circuit_open(platform: str) -> bool:
     """True ise: bu platform için kısa süre içinde 'dataset boş' tespit edilmiş; sorgu atlanmalı."""
@@ -377,10 +391,13 @@ def _table(platform: str, bundle: str) -> str:
     batch_tid   = _find(batch_candidates)
     realtime_tid = _find(realtime_candidates)
 
-    # Her iki tablo varsa UNION ALL subquery; yoksa tek tablo; hiçbiri yoksa fallback
+    # Her iki tablo varsa UNION ALL subquery — şema uyumsuzluğu biliniyorsa batch only
     if batch_tid and realtime_tid:
         b_path = f"`{proj}.{_DATASET}.{batch_tid}`"
         r_path = f"`{proj}.{_DATASET}.{realtime_tid}`"
+        if _union_incompat(platform):
+            logger.debug("Crashlytics UNION ALL atlandı (şema uyumsuz), batch: %s", batch_tid)
+            return f"`{proj}.{_DATASET}.{batch_tid}`"
         logger.info("Crashlytics çift tablo (UNION): %s + %s", batch_tid, realtime_tid)
         return f"(SELECT * FROM {b_path} UNION ALL SELECT * FROM {r_path})"
     if batch_tid:
@@ -614,6 +631,7 @@ def _run_query(platform: str, sql: str, *, skip_budget: bool = False) -> tuple[l
                 sql,
             )
             if fixed_sql != sql:
+                _mark_union_incompat(platform)  # sonraki sorgular UNION ALL oluşturmaz
                 logger.warning("UNION ALL şema uyumsuzluğu (%s), batch tablosuna fallback: %s", platform, msg[:120])
                 try:
                     from google.cloud import bigquery as _bq2
@@ -884,6 +902,7 @@ def _run_detail_query(platform: str, sql: str) -> tuple[list[dict], str | None]:
                 sql,
             )
             if fixed_sql != sql:
+                _mark_union_incompat(platform)  # sonraki sorgular UNION ALL oluşturmaz
                 logger.warning("Detail UNION ALL şema uyumsuzluğu (%s), batch'e fallback", platform)
                 try:
                     job2 = client.query(fixed_sql, location=loc) if loc else client.query(fixed_sql)
