@@ -1971,8 +1971,8 @@ def check_site_realtime(
     _save_snapshot(db, site.id, profile, result)
 
     if alarms:
-        _save_alarm_logs(db, site.id, alarms)
-        
+        _save_alarm_logs(db, site.id, alarms, profile=profile)
+
         # Sürücü Analizi (Korelasyon)
         # Sadece activeUsers alarmı varsa veya en büyük alarm oysa analiz yap
         active_users_alarm = next((a for a in alarms if a["metric"] == "activeUsers"), None)
@@ -1986,8 +1986,8 @@ def check_site_realtime(
         logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
         if not skip_emails:
             rule_ids = [a["rule_id"] for a in alarms]
-            if _alarm_email_suppressed(db, site.id, rule_ids):
-                logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s).", site.domain)
+            if _alarm_email_suppressed(db, site.id, rule_ids, profile=profile):
+                logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s, profile=%s).", site.domain, profile)
             else:
                 _send_site_alarm_emails(site.domain, profile, alarms)
         logger.warning(
@@ -2029,7 +2029,7 @@ def _save_snapshot(db: Session, site_id: int, profile: str, result: dict[str, An
         logger.exception("RealtimeSnapshot kayıt hatası (site_id=%s)", site_id)
 
 
-def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) -> None:
+def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
     """Tetiklenen alarmları DB'ye kaydeder."""
     from backend.models import RealtimeAlarmLog
 
@@ -2037,7 +2037,7 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=alarm["rule_id"],
-            metric=str(alarm["metric"])[:50],
+            metric=(f"{profile}:{alarm['metric']}")[:50],
             severity=alarm.get("severity", "warning"),
             current_value=alarm["current_value"],
             previous_value=alarm["previous_value"],
@@ -2052,8 +2052,13 @@ def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) ->
         logger.exception("RealtimeAlarmLog kayıt hatası (site_id=%s)", site_id)
 
 
-def _alarm_email_suppressed(db: Session, site_id: int, rule_ids: list[str]) -> bool:
-    """Cooldown kontrolü: aynı site için son N dakika içinde aynı kural tetiklendiyse True döner."""
+def _alarm_email_suppressed(
+    db: Session, site_id: int, rule_ids: list[str], profile: str | None = None
+) -> bool:
+    """Cooldown kontrolü: aynı site+profil için son N dakikada aynı kural tetiklendiyse True döner.
+
+    profile verilirse yalnızca o profil için kontrol yapar — farklı profiller birbirini bastırmaz.
+    """
     from backend.config import settings
     from backend.models import RealtimeAlarmLog
 
@@ -2061,16 +2066,17 @@ def _alarm_email_suppressed(db: Session, site_id: int, rule_ids: list[str]) -> b
     if cooldown <= 0 or not rule_ids:
         return False
     cutoff = datetime.utcnow() - timedelta(minutes=cooldown)
-    recent = (
+    q = (
         db.query(RealtimeAlarmLog.rule_id)
         .filter(
             RealtimeAlarmLog.site_id == site_id,
             RealtimeAlarmLog.rule_id.in_(rule_ids),
             RealtimeAlarmLog.triggered_at > cutoff,
         )
-        .first()
     )
-    return recent is not None
+    if profile:
+        q = q.filter(RealtimeAlarmLog.metric.like(f"{profile}:%"))
+    return q.first() is not None
 
 
 def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
@@ -2495,6 +2501,13 @@ def check_page_alarms_for_site(
         return []
 
     current_pages = result.get("pages", [])
+
+    # Android/iOS profilleri: dinamik ID'li ekran isimlerini filtrele (notification_news_:1540 gibi)
+    if profile in ("android", "ios"):
+        import re as _re
+        _dynamic = _re.compile(r".*[:\-_]\d{3,}$")
+        current_pages = [p for p in current_pages if not _dynamic.match(p.get("page", "") or "")]
+
     save_page_snapshots(db, site.id, profile, current_pages)
 
     if not previous_pages:
@@ -2506,18 +2519,18 @@ def check_page_alarms_for_site(
     )
 
     if alarms:
-        _save_page_alarm_logs(db, site.id, alarms)
+        _save_page_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             negatives, positives = _split_alarms_by_sentiment(alarms)
             to_send: list[dict[str, Any]] = []
             if positives:
-                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
-                    logger.info("Sayfa pozitif cooldown — atlandı (site=%s).", site.domain)
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives], profile=profile):
+                    logger.info("Sayfa pozitif cooldown — atlandı (site=%s, profile=%s).", site.domain, profile)
                 else:
                     to_send.extend(positives)
             if negatives:
-                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
-                    logger.info("Sayfa negatif cooldown — atlandı (site=%s).", site.domain)
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives], profile=profile):
+                    logger.info("Sayfa negatif cooldown — atlandı (site=%s, profile=%s).", site.domain, profile)
                 else:
                     to_send.extend(negatives)
             if to_send:
@@ -2526,7 +2539,7 @@ def check_page_alarms_for_site(
     return alarms
 
 
-def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) -> None:
+def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
     """Sayfa bazlı alarmları RealtimeAlarmLog'a kaydeder."""
     from backend.models import RealtimeAlarmLog
 
@@ -2534,7 +2547,7 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=a["rule_id"],
-            metric=("page:" + a.get("page", ""))[:50],
+            metric=(f"{profile}:p:" + a.get("page", ""))[:50],
             severity=a.get("severity", "warning"),
             current_value=a.get("current_users", 0),
             previous_value=a.get("previous_users", 0),
@@ -2588,10 +2601,6 @@ def run_page_alarm_check_all_sites(
         for profile in ("web", "mweb", "ios", "android"):
             prop_id = str(properties.get(profile, "")).strip()
             if not prop_id:
-                continue
-            # App profilleri (ios/android) için sayfa bazlı SEO alarmı anlamsız;
-            # bunların kendi alarm mekanizması var: run_app_event_spike_check_all_sites
-            if profile in ("ios", "android"):
                 continue
             try:
                 alarms = check_page_alarms_for_site(
@@ -2898,14 +2907,14 @@ def evaluate_news_alarms(
     return triggered
 
 
-def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]]) -> None:
+def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
     from backend.models import RealtimeAlarmLog
 
     for a in alarms:
         log = RealtimeAlarmLog(
             site_id=site_id,
             rule_id=a["rule_id"],
-            metric=("news:" + a.get("page", ""))[:50],
+            metric=(f"{profile}:news:" + a.get("page", ""))[:50],
             severity=a.get("severity", "warning"),
             current_value=a.get("current_users", 0),
             previous_value=a.get("previous_users", 0),
@@ -3009,19 +3018,19 @@ def check_news_alarms_for_site(
     )
 
     if alarms:
-        _save_news_alarm_logs(db, site.id, alarms)
+        _save_news_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             # Negatif (düşüş) ve pozitif (artış) alarmları ayrı ayrı cooldown'la — negatifler bastırılmasın
             negatives, positives = _split_alarms_by_sentiment(alarms)
             to_send: list[dict[str, Any]] = []
             if positives:
-                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
-                    logger.info("Haber pozitif alarmları cooldown — atlandı (site=%s).", site.domain)
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives], profile=profile):
+                    logger.info("Haber pozitif alarmları cooldown — atlandı (site=%s, profile=%s).", site.domain, profile)
                 else:
                     to_send.extend(positives)
             if negatives:
-                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
-                    logger.info("Haber negatif alarmları cooldown — atlandı (site=%s).", site.domain)
+                if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives], profile=profile):
+                    logger.info("Haber negatif alarmları cooldown — atlandı (site=%s, profile=%s).", site.domain, profile)
                 else:
                     to_send.extend(negatives)
             if to_send:
@@ -3325,7 +3334,7 @@ def check_realtime_404_for_site(
     log = RealtimeAlarmLog(
         site_id=site.id,
         rule_id=rule_id,
-        metric="active_404_users",
+        metric=f"{profile}:active_404_users",
         severity=severity,
         current_value=float(total),
         previous_value=0.0,
@@ -3342,8 +3351,8 @@ def check_realtime_404_for_site(
         return result
 
     # Cooldown kontrolü
-    if _alarm_email_suppressed(db, site.id, [rule_id, "rt_404_warning", "rt_404_critical"]):
-        logger.info("404 spike cooldown aktif, mail atlandı (site=%s).", site.domain)
+    if _alarm_email_suppressed(db, site.id, [rule_id, "rt_404_warning", "rt_404_critical"], profile=profile):
+        logger.info("404 spike cooldown aktif, mail atlandı (site=%s, profile=%s).", site.domain, profile)
         return result
 
     # Mail gönder
@@ -3639,12 +3648,12 @@ def check_app_event_spike_for_site(
         negatives, positives = _split_alarms_by_sentiment(alarms)
         to_send: list[dict[str, Any]] = []
         if positives:
-            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives]):
+            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in positives], profile=profile):
                 logger.info("App event pozitif cooldown — atlandı (site=%s/%s).", site.domain, profile)
             else:
                 to_send.extend(positives)
         if negatives:
-            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives]):
+            if _alarm_email_suppressed(db, site.id, [a["rule_id"] for a in negatives], profile=profile):
                 logger.info("App event negatif cooldown — atlandı (site=%s/%s).", site.domain, profile)
             else:
                 to_send.extend(negatives)
