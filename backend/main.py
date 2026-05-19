@@ -9601,6 +9601,91 @@ def api_errors_refresh_all():
         return {"status": "error", "message": str(exc)}
 
 
+# --- Hata izleme: arka plan job + progress ----------------------------------
+
+_err_refresh_job: dict = {"running": False, "steps": [], "current": "", "total": 0, "done": 0, "total_found": 0, "error": ""}
+_err_refresh_lock = threading.Lock()
+
+
+@app.post("/api/errors/refresh-all/start")
+def api_errors_refresh_start():
+    """Arka planda tüm siteler için GA4 hata çekimini başlatır."""
+    with _err_refresh_lock:
+        if _err_refresh_job.get("running"):
+            return {"status": "already_running"}
+        _err_refresh_job.update({"running": True, "steps": [], "current": "", "total": 0, "done": 0, "total_found": 0, "error": ""})
+
+    def _worker():
+        try:
+            from backend.services.error_monitor import run_error_detection_for_site, _GA4_PERIODS
+            from backend.services.ga4_auth import get_ga4_credentials_record, ga4_is_configured
+
+            with SessionLocal() as db:
+                if not ga4_is_configured():
+                    _err_refresh_job["error"] = "GA4 yapılandırılmamış"
+                    return
+                sites = [s for s in db.query(Site).all() if get_ga4_credentials_record(db, s.id)]
+
+            total_steps = len(sites) * len(_GA4_PERIODS)
+            _err_refresh_job["total"] = total_steps
+
+            done = 0
+            total_found = 0
+            for site in sites:
+                for days in _GA4_PERIODS:
+                    _err_refresh_job["current"] = f"{site.display_name or site.domain} · {days}g"
+                    try:
+                        with SessionLocal() as db:
+                            result = run_error_detection_for_site(db, site.id, days=days)
+                        found = result.get("found", 0)
+                        total_found += found
+                        _err_refresh_job["steps"].append({
+                            "domain": site.display_name or site.domain,
+                            "days": days,
+                            "found": found,
+                            "status": result.get("status", "ok"),
+                        })
+                    except Exception as exc:
+                        _err_refresh_job["steps"].append({
+                            "domain": site.display_name or site.domain,
+                            "days": days,
+                            "found": 0,
+                            "status": "error",
+                            "msg": str(exc)[:80],
+                        })
+                    done += 1
+                    _err_refresh_job["done"] = done
+                    _err_refresh_job["total_found"] = total_found
+        except Exception as exc:
+            _err_refresh_job["error"] = str(exc)
+        finally:
+            _err_refresh_job["running"] = False
+            _err_refresh_job["current"] = ""
+
+    threading.Thread(target=_worker, daemon=True, name="err-refresh-all").start()
+    return {"status": "started"}
+
+
+@app.get("/api/errors/refresh-all/progress")
+def api_errors_refresh_progress():
+    """Arka plan hata çekimi progress durumu."""
+    j = _err_refresh_job
+    steps = list(j.get("steps") or [])
+    total = j.get("total") or 0
+    done = j.get("done", 0)
+    pct = int(done * 100 / total) if total > 0 else (100 if not j.get("running") else 0)
+    return {
+        "running": bool(j.get("running")),
+        "current": j.get("current", ""),
+        "total": total,
+        "done": done,
+        "pct": pct,
+        "total_found": j.get("total_found", 0),
+        "error": j.get("error", ""),
+        "recent_steps": steps[-8:],
+    }
+
+
 @app.get("/api/errors/{site_id}/debug-pages")
 def api_errors_debug(site_id: int, days: int = 7, limit: int = 50):
     """Debug: GA4'teki düşük trafikli sayfaları filtre olmadan listeler.
