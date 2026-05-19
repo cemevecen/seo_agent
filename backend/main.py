@@ -1278,30 +1278,30 @@ def get_sidebar_sites() -> list[dict]:
     if _sidebar_cache["data"] is not None and (now - _sidebar_cache["ts"]) < _SIDEBAR_CACHE_TTL:
         return _sidebar_cache["data"]
     with SessionLocal() as db:
-        external_site_ids = {
-            int(row.site_id)
-            for row in db.query(ExternalSite.site_id).all()
-        }
-        sites = (
-            db.query(Site)
-            .filter(Site.is_active.is_(True))
-            .order_by(Site.created_at.desc())
+        from backend.services.search_console_auth import OAUTH_CREDENTIAL_TYPE, SERVICE_ACCOUNT_CREDENTIAL_TYPE
+
+        external_site_ids = {int(row.site_id) for row in db.query(ExternalSite.site_id).all()}
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
+
+        # Tek sorguda tüm SC credential'ları yükle (N+1 yerine 1 sorgu)
+        sc_creds = (
+            db.query(SiteCredential.site_id, SiteCredential.credential_type)
+            .filter(SiteCredential.credential_type.in_([OAUTH_CREDENTIAL_TYPE, SERVICE_ACCOUNT_CREDENTIAL_TYPE]))
             .all()
         )
+        sc_connected: set[int] = {row.site_id for row in sc_creds}
+
         rows = []
         for site in sites:
             if site.id in external_site_ids:
                 continue
-            connection = get_search_console_connection_status(db, site.id)
-            is_public = not bool(connection.get("connected"))
-            rows.append(
-                {
-                    "domain": site.domain,
-                    "label": site.display_name,
-                    "profile": "public" if is_public else "verified",
-                    "href": f"/external-explorer/{site.domain}" if is_public else f"/data-explorer/{site.domain}",
-                }
-            )
+            is_public = site.id not in sc_connected
+            rows.append({
+                "domain": site.domain,
+                "label": site.display_name,
+                "profile": "public" if is_public else "verified",
+                "href": f"/external-explorer/{site.domain}" if is_public else f"/data-explorer/{site.domain}",
+            })
         rows.sort(key=lambda site: _preferred_site_order_key(site.get("domain"), site.get("label")))
         _sidebar_cache["data"] = rows
         _sidebar_cache["ts"] = now
@@ -9261,6 +9261,12 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
 
     sidebar_sites = get_sidebar_sites()
 
+    limit = 100
+    offset = (page - 1) * limit
+    summary: dict = {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "last_crawled": None}
+    issues: list = []
+    total_count = 0
+
     with SessionLocal() as db:
         external_ids = _external_site_ids(db)
         all_sites = [
@@ -9270,17 +9276,10 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
         ]
         all_sites = sorted(all_sites, key=lambda s: (0 if "doviz" in (s["domain"] or "").lower() else 1, s["domain"] or ""))
 
-    if not site_id and all_sites:
-        site_id = all_sites[0]["id"]
+        if not site_id and all_sites:
+            site_id = all_sites[0]["id"]
 
-    limit = 100
-    offset = (page - 1) * limit
-    summary: dict = {"total_pages": 0, "score_counts": {}, "issue_counts": {}, "last_crawled": None}
-    issues: list = []
-    total_count = 0
-
-    if site_id:
-        with SessionLocal() as db:
+        if site_id:
             summary = get_audit_summary(db, site_id)
             issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
             total_count = get_audit_issues_count(db, site_id, filter_key=filter)
@@ -9546,25 +9545,20 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
     sidebar_sites = get_sidebar_sites()
     days = max(1, min(int(days), 30))
 
-    # Seçili site yoksa ilk siteyi al — external siteler dahil edilmez
     with SessionLocal() as db:
         from backend.models import Site
         external_ids = _external_site_ids(db)
         _raw_sites = [s for s in db.query(Site).order_by(Site.domain).all() if s.id not in external_ids]
-        # doviz her zaman ilk sırada
         all_sites = sorted(_raw_sites, key=lambda s: (0 if "doviz" in (s.domain or "").lower() else 1, s.domain or ""))
         all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
 
-    if not site_id and all_sites_list:
-        site_id = all_sites_list[0]["id"]
+        if not site_id and all_sites_list:
+            site_id = all_sites_list[0]["id"]
 
-    # Seçili sitenin domain'ini bul (template'de Jinja2 scope sorunu yaşamamak için)
-    selected_site_domain = next((s["domain"] for s in all_sites_list if s["id"] == site_id), "")
+        selected_site_domain = next((s["domain"] for s in all_sites_list if s["id"] == site_id), "")
+        summary = {"total_404": 0, "total_5xx": 0, "total_users": 0, "by_source": {}, "errors": [], "site_id": site_id, "days": days}
 
-    summary = {"total_404": 0, "total_5xx": 0, "total_users": 0, "by_source": {}, "errors": [], "site_id": site_id, "days": days}
-
-    if site_id:
-        with SessionLocal() as db:
+        if site_id:
             summary = get_error_summary(db, site_id, days=days)
 
     return templates.TemplateResponse(
@@ -10594,15 +10588,30 @@ def ga4_sources_partial(request: Request, site_id: int):
 def realtime_page(request: Request):
     """Bağımsız Realtime sayfası — her site için profil bazlı kutular."""
     with SessionLocal() as db:
+        from backend.services.ga4_auth import GA4_CREDENTIAL_TYPE, load_ga4_properties, ga4_is_configured
+
         external_site_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_site_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+
+        # N+1 yerine tek sorguda tüm GA4 credential'ları yükle
+        ga4_creds = (
+            db.query(SiteCredential)
+            .filter(SiteCredential.credential_type == GA4_CREDENTIAL_TYPE)
+            .order_by(SiteCredential.site_id, SiteCredential.id.desc())
+            .all()
+        )
+        creds_by_site: dict[int, SiteCredential] = {}
+        for cred in ga4_creds:
+            creds_by_site.setdefault(cred.site_id, cred)
+
+        is_ga4_ok = ga4_is_configured()
         site_list = []
         for site in sites:
-            ga4_status = get_ga4_connection_status(db, site.id)
-            if not ga4_status.get("connected"):
+            cred = creds_by_site.get(site.id)
+            if cred is None or not is_ga4_ok:
                 continue
-            props = ga4_status.get("properties") or {}
+            props = load_ga4_properties(cred)
             profiles = [p for p in ("web", "mweb", "ios", "android") if str(props.get(p, "")).strip()]
             if not profiles:
                 continue
