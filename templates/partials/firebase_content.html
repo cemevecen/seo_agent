@@ -96,6 +96,12 @@
       </div>
     </div>
 
+    {# 30g/90g geçmiş veri uyarısı #}
+    <div id="crash-limited-data-notice" class="hidden items-center gap-2.5 border-b border-amber-200/70 bg-amber-50/80 px-4 py-2.5 dark:border-amber-700/40 dark:bg-amber-900/20 sm:px-5">
+      <svg class="h-3.5 w-3.5 flex-shrink-0 text-amber-500 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+      <span class="text-[11px] text-amber-700 dark:text-amber-300">Bu dönem için BigQuery'de yeterli geçmiş veri olmayabilir — streaming export yakın zamanda etkinleştirildiğinden veriler eksik görünebilir.</span>
+    </div>
+
     {# Versiyon filtresi — Versiyonlar yüklendikten sonra JS tarafından doldurulur #}
     <div id="crash-version-bar" class="hidden items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
       <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
@@ -192,6 +198,12 @@
     crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
       b.className = filterCls(b.dataset.crashType === crashState.type);
     });
+    var notice = document.getElementById("crash-limited-data-notice");
+    if (notice) {
+      var isLong = crashState.days >= 30;
+      notice.classList.toggle("hidden", !isLong);
+      notice.classList.toggle("flex", isLong);
+    }
   }
 
   function sectionUrl(name) {
