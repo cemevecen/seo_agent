@@ -135,12 +135,16 @@ def _reporting_service():
 
 
 def _date_to_gp(d: date) -> dict:
-    """Play Reporting API DateTime formatı (timeZone zorunlu)."""
+    """Play Reporting API DateTime formatı.
+
+    Google Play Reporting API "UTC"yi IANA zone olarak kabul etmiyor; metric
+    set'lerin default zaman dilimi America/Los_Angeles (Google Play merkezi).
+    """
     return {
         "year": d.year,
         "month": d.month,
         "day": d.day,
-        "timeZone": {"id": "UTC"},
+        "timeZone": {"id": "America/Los_Angeles"},
     }
 
 
