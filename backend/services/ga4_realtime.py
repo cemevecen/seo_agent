@@ -392,7 +392,13 @@ def _preheader(text: str) -> str:
     )
 
 
-def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
+def _html_news_alarm_body(
+    domain: str,
+    profile_label: str,
+    alarms: list[dict[str, Any]],
+    site_kpi: dict | None = None,
+    top_falls: list[dict[str, Any]] | None = None,
+) -> str:
     dom_e = html.escape(domain)
     prof_e = html.escape(profile_label)
     # Negatif (düşüş/kaybolma/zirveden düşüş) ve pozitif alarmları ayır — her ikisinin de
@@ -524,6 +530,33 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             pre_parts.append(f"{title}: {curr}")
     preheader_str = " · ".join(pre_parts) if pre_parts else f"{len(alarms)} haber alarmı"
 
+    # ── Düşen sayfalar kompakt bölümü ─────────────────────────────────────────
+    falls_html = ""
+    if top_falls:
+        rows_html = ""
+        for f in top_falls:
+            t = html.escape(_rt_alarm_screen_title_one_line(f.get("page", ""), max_len=50) or f.get("page", ""))
+            prev_u = int(f.get("previous_users", 0))
+            curr_u = int(f.get("current_users", 0))
+            drop   = prev_u - curr_u
+            pct_f  = round((curr_u - prev_u) / prev_u * 100, 0) if prev_u > 0 else 0
+            rows_html += (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:5px 10px;margin-bottom:3px;background:#fef2f2;border-radius:5px;border-left:3px solid #dc2626;">'
+                f'<span style="font-size:12px;font-weight:600;color:#0f172a;overflow:hidden;text-overflow:ellipsis;'
+                f'white-space:nowrap;max-width:60%;">{t}</span>'
+                f'<span style="font-size:12px;font-weight:700;color:#dc2626;white-space:nowrap;margin-left:8px;">'
+                f'{prev_u} → {curr_u} &nbsp;{int(pct_f)}%</span>'
+                f'</div>'
+            )
+        falls_html = (
+            f'<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;">'
+            f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;'
+            f'color:#64748b;margin-bottom:7px;">↓ Düşen Sayfalar</div>'
+            f'{rows_html}'
+            f'</div>'
+        )
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
             {_preheader(preheader_str)}
@@ -531,6 +564,7 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{head}</p>
             {kpi_html}
             {''.join(cards)}
+            {falls_html}
             <p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
         </div>
         """
@@ -2972,7 +3006,13 @@ def _get_site_kpi_summary(db: Session, site_id: int, profile: str) -> dict:
     return {}
 
 
-def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> None:
+def _send_news_alarm_email(
+    domain: str,
+    profile: str,
+    alarms: list[dict[str, Any]],
+    site_kpi: dict | None = None,
+    top_falls: list[dict[str, Any]] | None = None,
+) -> None:
     """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
     from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
 
@@ -2988,7 +3028,7 @@ def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_news_alarm_body(domain, profile_label, alarms, site_kpi=site_kpi or {})
+    html_body = _html_news_alarm_body(domain, profile_label, alarms, site_kpi=site_kpi or {}, top_falls=top_falls)
     subject = _email_news_alarm_subject(domain, profile, alarms)
     send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
 
@@ -3039,6 +3079,30 @@ def check_news_alarms_for_site(
         peak_pages=peak_pages,
     )
 
+    # Alarm eşiğini geçmemiş düşen sayfalar — maile kompakt bölüm olarak eklenir.
+    # Alarm kartlarındaki sayfalar hariç tutulur (çift gösterim önlemi).
+    _alarm_page_set = {a["page"] for a in alarms}
+    _prev_map_raw = {p["page"]: p for p in previous_pages}
+    _curr_map_raw = {p["page"]: p for p in current_pages}
+    _falls: list[dict[str, Any]] = []
+    for _page, _prev_d in _prev_map_raw.items():
+        if _page in _alarm_page_set:
+            continue
+        _prev_u = float(_prev_d.get("activeUsers", 0) or 0)
+        _curr_u = float((_curr_map_raw.get(_page) or {}).get("activeUsers", 0) or 0)
+        if _prev_u < 5 or _curr_u >= _prev_u:
+            continue
+        _title = _rt_alarm_screen_title_one_line(_page)
+        if not _title or _title == "—" or _title.lower() in ("(other)", "(not set)", "(blank)"):
+            continue
+        _falls.append({
+            "page": _page,
+            "current_users": int(_curr_u),
+            "previous_users": int(_prev_u),
+            "drop": int(_prev_u - _curr_u),
+        })
+    top_falls = sorted(_falls, key=lambda x: x["drop"], reverse=True)[:5]
+
     if alarms:
         _save_news_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
@@ -3057,7 +3121,12 @@ def check_news_alarms_for_site(
                     to_send.extend(negatives)
             if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi)
+                _send_news_alarm_email(
+                    site.domain, profile,
+                    _cap_top_n_each_side(to_send),
+                    site_kpi=site_kpi,
+                    top_falls=top_falls or None,
+                )
 
     return alarms
 
