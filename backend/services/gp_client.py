@@ -17,9 +17,12 @@ Google Play Reporting API → https://developers.google.com/play/developer/repor
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 import os
+import time
 from datetime import date, timedelta
 from typing import Any
 
@@ -153,7 +156,8 @@ def fetch_crash_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | N
     svc = _reporting_service()
     if svc is None:
         return None
-    end = date.today() - timedelta(days=1)
+    # Vitals freshness genelde 2-3 gün geride; güvenlik için 3 gün geri kayalım.
+    end = date.today() - timedelta(days=3)
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/crashRateMetricSet"
     body = {
@@ -178,7 +182,8 @@ def fetch_anr_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | Non
     svc = _reporting_service()
     if svc is None:
         return None
-    end = date.today() - timedelta(days=1)
+    # Vitals freshness genelde 2-3 gün geride; güvenlik için 3 gün geri kayalım.
+    end = date.today() - timedelta(days=3)
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/anrRateMetricSet"
     body = {
@@ -203,7 +208,8 @@ def fetch_slow_render_rate(package_name: str, *, days: int = 30) -> dict[str, An
     svc = _reporting_service()
     if svc is None:
         return None
-    end = date.today() - timedelta(days=1)
+    # Vitals freshness genelde 2-3 gün geride; güvenlik için 3 gün geri kayalım.
+    end = date.today() - timedelta(days=3)
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/slowRenderingRateMetricSet"
     body = {
