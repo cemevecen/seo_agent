@@ -182,28 +182,40 @@
   var SECTIONS = ["summary", "crashes", "anr", "versions"];
   var SEC_IDS  = { summary: "crash-sec-summary", crashes: "crash-sec-crashes", anr: "crash-sec-anr", versions: "crash-sec-versions" };
 
-  function filterCls(on) {
-    return on
-      ? "rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100"
-      : "rounded-md px-2.5 py-1 text-[11px] font-semibold transition text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100";
+  // Buton ref'leri init sırasında bir kez alınır — sınıf değişimlerinden etkilenmez
+  var platformBtns = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-platform-btn"));
+  var daysBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-days-btn"));
+  var typeBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-type-btn"));
+
+  // Aktif/pasif sınıflar — sadece bunlar toggle edilir, geri kalan sınıflar korunur
+  var CLS_ON  = ["bg-slate-900", "text-white", "dark:bg-slate-600", "dark:text-slate-100"];
+  var CLS_OFF = ["text-slate-500", "hover:text-slate-800", "dark:text-slate-400", "dark:hover:text-slate-100"];
+
+  function setBtnActive(btn, on) {
+    var add = on ? CLS_ON  : CLS_OFF;
+    var rem = on ? CLS_OFF : CLS_ON;
+    rem.forEach(function (c) { btn.classList.remove(c); });
+    add.forEach(function (c) { btn.classList.add(c); });
   }
 
   function syncBtns() {
-    crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
-      b.className = filterCls(b.dataset.crashPlatform === crashState.platform);
-    });
-    crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
-      b.className = filterCls(parseInt(b.dataset.crashDays) === crashState.days);
-    });
-    crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
-      b.className = filterCls(b.dataset.crashType === crashState.type);
-    });
+    platformBtns.forEach(function (b) { setBtnActive(b, b.dataset.crashPlatform === crashState.platform); });
+    daysBtns.forEach(function (b)     { setBtnActive(b, parseInt(b.dataset.crashDays) === crashState.days); });
+    typeBtns.forEach(function (b)     { setBtnActive(b, b.dataset.crashType === crashState.type); });
     var notice = document.getElementById("crash-limited-data-notice");
     if (notice) {
       var isLong = crashState.days >= 30;
       notice.classList.toggle("hidden", !isLong);
       notice.classList.toggle("flex", isLong);
     }
+  }
+
+  function syncVersionChips() {
+    var chipsEl = document.getElementById("crash-version-chips");
+    if (!chipsEl) return;
+    chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
+      setBtnActive(b, b.getAttribute("data-ver") === crashState.version);
+    });
   }
 
   function sectionUrl(name) {
@@ -261,18 +273,24 @@
     }, 250);
   }
 
-  // ── Versiyon filtresi — Versiyonlar bölümü yüklendikten sonra doldurulur ──
+  // ── Versiyon filtresi ──
   function populateVersionChips(versionsBox) {
-    var bar = document.getElementById("crash-version-bar");
+    var bar     = document.getElementById("crash-version-bar");
     var chipsEl = document.getElementById("crash-version-chips");
     if (!bar || !chipsEl) return;
+
+    // Versiyon filtresi aktifken chip listesini yeniden çizme — sadece aktif durumu senkronize et
+    if (crashState.version) { syncVersionChips(); return; }
+
     var rows = versionsBox.querySelectorAll("tr[data-app-version]");
     if (!rows.length) { bar.classList.add("hidden"); bar.classList.remove("flex"); return; }
+
     var versions = [];
     rows.forEach(function (r) {
       var v = r.getAttribute("data-app-version");
       if (v && versions.indexOf(v) === -1) versions.push(v);
     });
+
     // Semver sıralaması (en yenisi önce)
     versions.sort(function (a, b) {
       var av = a.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
@@ -282,24 +300,25 @@
       }
       return 0;
     });
+
     // Chip'leri oluştur — "Tümü" + en fazla 6 versiyon
     var shown = versions.slice(0, 6);
     chipsEl.innerHTML = "";
     [""].concat(shown).forEach(function (v) {
       var btn = document.createElement("button");
       btn.type = "button";
+      btn.setAttribute("data-ver", v);
       btn.textContent = v ? v : "Tümü";
-      btn.className = filterCls(crashState.version === v);
+      btn.className = "rounded-md px-2.5 py-1 text-[11px] font-semibold transition";
+      setBtnActive(btn, crashState.version === v);
       btn.addEventListener("click", function () {
         crashState.version = v;
-        chipsEl.querySelectorAll("button").forEach(function (b) {
-          b.className = filterCls(b.textContent === (v ? v : "Tümü") && crashState.version === v
-            || b.textContent === "Tümü" && !v && crashState.version === "");
-        });
-        loadAllSections();
+        syncVersionChips();
+        loadAllDebounced();
       });
       chipsEl.appendChild(btn);
     });
+
     bar.classList.remove("hidden");
     bar.classList.add("flex");
   }
@@ -525,13 +544,13 @@
   }
 
   // ── Filtre butonları ──
-  crashRoot.querySelectorAll(".crash-platform-btn").forEach(function (b) {
+  platformBtns.forEach(function (b) {
     b.addEventListener("click", function () { crashState.platform = b.dataset.crashPlatform; syncBtns(); loadAllDebounced(); });
   });
-  crashRoot.querySelectorAll(".crash-days-btn").forEach(function (b) {
+  daysBtns.forEach(function (b) {
     b.addEventListener("click", function () { crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadAllDebounced(); });
   });
-  crashRoot.querySelectorAll(".crash-type-btn").forEach(function (b) {
+  typeBtns.forEach(function (b) {
     b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadAllDebounced(); });
   });
 
