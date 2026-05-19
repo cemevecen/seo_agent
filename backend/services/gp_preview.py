@@ -246,6 +246,67 @@ def build_gp_preview_payload(
         import logging as _log
         _log.getLogger(__name__).warning("GP live overlay başarısız: %s", exc)
 
+    # ── Puanlama: google-play-scraper ile canlı (credential gerekmez) ─────
+    try:
+        pkg = APP_PRODUCTS[pid].get("android_package") or ""
+        if pkg:
+            payload = _overlay_live_ratings(payload, pkg)
+    except Exception as exc:  # noqa: BLE001
+        import logging as _log
+        _log.getLogger(__name__).warning("GP puanlama overlay başarısız: %s", exc)
+
+    return payload
+
+
+def _overlay_live_ratings(payload: dict[str, Any], package_name: str) -> dict[str, Any]:
+    """google-play-scraper meta'sından puan ortalaması + dağılım canlı."""
+    try:
+        from google_play_scraper import app as gp_app
+    except ImportError:
+        return payload
+    try:
+        meta = gp_app(package_name, lang="tr", country="tr")
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning("GP store meta alınamadı (%s): %s", package_name, exc)
+        return payload
+
+    score = meta.get("score")
+    total = meta.get("ratings")
+    histogram = meta.get("histogram")  # 1-5 yıldız listesi: [<1*>, <2*>, ..., <5*>]
+    if score is None or total is None or not histogram:
+        return payload
+
+    dist = {}
+    if isinstance(histogram, (list, tuple)) and len(histogram) >= 5:
+        for i in range(5):
+            dist[str(i + 1)] = int(histogram[i] or 0)
+    elif isinstance(histogram, dict):
+        for k, v in histogram.items():
+            dist[str(k)] = int(v or 0)
+
+    if not dist:
+        return payload
+
+    payload["ratings"] = {
+        "average": round(float(score), 2),
+        "total": int(total),
+        "distribution": dist,
+        "delta_avg": 0.0,
+    }
+    # Bu noktada Vitals canlı + ratings canlı; source'u live_partial'da bırak
+    # (kurulum verisi hâlâ demo). Note'u güncelle.
+    if payload.get("source") == "demo":
+        payload["source"] = "live_partial"
+        payload["source_note"] = (
+            "Kısmi canlı veri — Puanlama gerçek. "
+            "Çökme/ANR ve kurulum verileri için Play API yetkileri gerekli."
+        )
+    elif payload.get("source") == "live_partial":
+        payload["source_note"] = (
+            "Kısmi canlı veri — Android Vitals (çökme/ANR) ve Puanlama gerçek. "
+            "Kurulum/kaldırma sayıları Play Console rapor bucket'ı bağlanana kadar demo."
+        )
     return payload
 
 
