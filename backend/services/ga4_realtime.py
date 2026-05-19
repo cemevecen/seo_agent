@@ -1439,6 +1439,7 @@ def fetch_realtime_top_pages_with_app_fallback(
             sort_by=sort_by,
             dimension=dim,
             compare_previous=True,
+            include_page_path=False,  # app property'lerde pagePath geçersiz
             client=client,
         )
 
