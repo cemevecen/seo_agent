@@ -45,6 +45,15 @@ _CACHE: dict[str, tuple[float, Any]] = {}           # key → (ts, data)
 _JOB_LOCK = threading.Lock()
 _JOBS: dict[str, dict[str, Any]] = {}               # job_id → progress state
 
+# Issue detail: ayrı semaphore (6 eşzamanlı — sorgular küçük/filtrelenmiş)
+# ve ayrı cache (15 dakika TTL, issue_id bazlı)
+_DETAIL_SEMAPHORE = threading.Semaphore(6)
+_DETAIL_CACHE_TTL_S = 15 * 60
+_DETAIL_CACHE_LOCK = threading.Lock()
+_DETAIL_CACHE: dict[str, tuple[float, Any]] = {}    # key → (ts, data)
+_DETAIL_BUILD_LOCKS_LOCK = threading.Lock()
+_DETAIL_BUILD_LOCKS: dict[str, threading.Lock] = {}
+
 # Circuit breaker: bir platform için "dataset boş" tespit edilirse 1 saat boyunca
 # yeni sorgu deneme — BQ free-tier'ı tüketmesin ve audit log'u kirlemesin.
 _EMPTY_DATASET_TTL_S = 60 * 60   # 1 saat
@@ -765,19 +774,67 @@ LIMIT 30
 
 # ── Issue derinlik sorgusu (drill-down) ───────────────────────────────────────
 
+def _run_detail_query(platform: str, sql: str) -> tuple[list[dict], str | None]:
+    """Issue detail için optimize edilmiş sorgu çalıştırıcı.
+
+    Ana _BQ_SEMAPHORE yerine _DETAIL_SEMAPHORE kullanır (6 eşzamanlı izin);
+    issue detail sorguları küçük/filtrelenmiş olduğundan bütçe kontrolü atlanır.
+    """
+    if not platform_ready(platform):
+        return [], f"CRASHLYTICS_{platform.upper()}_SERVICE_ACCOUNT_JSON tanımlı değil."
+    if _circuit_open(platform):
+        return [], "Dataset erişim devre kesici aktif."
+
+    acquired = _DETAIL_SEMAPHORE.acquire(timeout=8)
+    if not acquired:
+        return [], "Çok fazla eş zamanlı sorgu."
+    try:
+        client = _get_client(platform)
+        loc = _get_dataset_location(platform)
+        job = client.query(sql, location=loc) if loc else client.query(sql)
+        rows = [dict(r) for r in job.result(timeout=QUERY_TIMEOUT_S)]
+        return rows, None
+    except Exception as exc:
+        msg = str(exc).strip()
+        logger.warning("Detail sorgu hatası (%s): %s", platform, msg[:200])
+        return [], msg[:200]
+    finally:
+        _DETAIL_SEMAPHORE.release()
+
+
 def query_issue_detail(platform: str, table: str, issue_id: str, days: int) -> dict[str, Any]:
     """Tek bir issue için: trend + version/OS/device kırılımı + ilk/son görülme + stack frame.
 
-    Frontend modal'ı bu çıktıyı kullanır. Tüm sorgular tek tablodan, küçük veri.
+    6 sorgu paralel çalışır; sonuç 15 dakika cache'lenir.
     """
+    from backend.services.device_names import get_display_name
+
     if not issue_id:
         return {"ok": False, "error": "missing_issue_id"}
 
-    safe_id = issue_id.replace("'", "''")
-    where = f"{_ts_filter(days)} AND issue_id = '{safe_id}'"
+    cache_key = f"detail:{platform}:{issue_id}:{days}"
+    with _DETAIL_CACHE_LOCK:
+        entry = _DETAIL_CACHE.get(cache_key)
+        if entry and time.time() - entry[0] < _DETAIL_CACHE_TTL_S:
+            return entry[1]
 
-    # 1) Özet + ilk/son görülme + başlık
-    sql_summary = f"""
+    # Per-issue build lock: aynı issue için eş zamanlı iki sorgu takımı başlamasın
+    with _DETAIL_BUILD_LOCKS_LOCK:
+        if cache_key not in _DETAIL_BUILD_LOCKS:
+            _DETAIL_BUILD_LOCKS[cache_key] = threading.Lock()
+        build_lock = _DETAIL_BUILD_LOCKS[cache_key]
+
+    with build_lock:
+        # Kilidi aldıktan sonra tekrar cache kontrolü
+        with _DETAIL_CACHE_LOCK:
+            entry = _DETAIL_CACHE.get(cache_key)
+            if entry and time.time() - entry[0] < _DETAIL_CACHE_TTL_S:
+                return entry[1]
+
+        safe_id = issue_id.replace("'", "''")
+        where = f"{_ts_filter(days)} AND issue_id = '{safe_id}'"
+
+        sql_summary = f"""
 SELECT
   COUNT(*) AS total_events,
   COUNT(DISTINCT installation_uuid) AS affected_users,
@@ -788,51 +845,39 @@ SELECT
 FROM {table}
 WHERE {where}
 """
-    # 2) Günlük trend
-    sql_trend = f"""
+        sql_trend = f"""
 SELECT DATE(event_timestamp) AS d, COUNT(*) AS c
 FROM {table}
 WHERE {where}
-GROUP BY d
-ORDER BY d ASC
+GROUP BY d ORDER BY d ASC
 """
-    # 3) Versiyon
-    sql_versions = f"""
+        sql_versions = f"""
 SELECT
   COALESCE(application.display_version, 'bilinmiyor') AS app_version,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM {table}
 WHERE {where}
-GROUP BY app_version
-ORDER BY event_count DESC
-LIMIT 10
+GROUP BY app_version ORDER BY event_count DESC LIMIT 10
 """
-    # 4) OS
-    sql_os = f"""
+        sql_os = f"""
 SELECT
   COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
   COUNT(*) AS event_count
 FROM {table}
 WHERE {where}
-GROUP BY os_version
-ORDER BY event_count DESC
-LIMIT 10
+GROUP BY os_version ORDER BY event_count DESC LIMIT 10
 """
-    # 5) Cihaz
-    sql_devices = f"""
+        sql_devices = f"""
 SELECT
   COALESCE(device.model, 'bilinmiyor') AS model,
   COALESCE(device.manufacturer, '') AS manufacturer,
   COUNT(*) AS event_count
 FROM {table}
 WHERE {where}
-GROUP BY model, manufacturer
-ORDER BY event_count DESC
-LIMIT 10
+GROUP BY model, manufacturer ORDER BY event_count DESC LIMIT 10
 """
-    # 6) Blame frame (kabaca neresi crash etti)
-    sql_blame = f"""
+        sql_blame = f"""
 SELECT
   blame_frame.file AS file,
   blame_frame.symbol AS symbol,
@@ -840,74 +885,94 @@ SELECT
   COUNT(*) AS occurrences
 FROM {table}
 WHERE {where}
-GROUP BY file, symbol, line
-ORDER BY occurrences DESC
-LIMIT 5
+GROUP BY file, symbol, line ORDER BY occurrences DESC LIMIT 5
 """
 
-    summary_rows, sum_err = _run_query(platform, sql_summary, skip_budget=True)
-    trend_rows, _ = _run_query(platform, sql_trend, skip_budget=True)
-    version_rows, _ = _run_query(platform, sql_versions, skip_budget=True)
-    os_rows, _ = _run_query(platform, sql_os, skip_budget=True)
-    device_rows, _ = _run_query(platform, sql_devices, skip_budget=True)
-    blame_rows, _ = _run_query(platform, sql_blame, skip_budget=True)
+        # 6 sorguyu paralel çalıştır
+        queries = [
+            ("summary",  sql_summary),
+            ("trend",    sql_trend),
+            ("versions", sql_versions),
+            ("os",       sql_os),
+            ("devices",  sql_devices),
+            ("blame",    sql_blame),
+        ]
+        results: dict[str, tuple[list, str | None]] = {}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futs = {pool.submit(_run_detail_query, platform, sql): name for name, sql in queries}
+            for fut in as_completed(futs):
+                results[futs[fut]] = fut.result()
 
-    summary = summary_rows[0] if summary_rows else {}
-    first_seen = summary.get("first_seen")
-    last_seen = summary.get("last_seen")
-    return {
-        "ok": True,
-        "platform": platform,
-        "issue_id": issue_id,
-        "error": sum_err,
-        "summary": {
-            "issue_title": summary.get("issue_title") or "",
-            "error_type": (summary.get("error_type") or "").upper(),
-            "total_events": int(summary.get("total_events") or 0),
-            "affected_users": int(summary.get("affected_users") or 0),
-            "first_seen": first_seen.isoformat() if hasattr(first_seen, "isoformat") else (str(first_seen) if first_seen else None),
-            "last_seen": last_seen.isoformat() if hasattr(last_seen, "isoformat") else (str(last_seen) if last_seen else None),
-        },
-        "trend": [
-            {"date": str(r.get("d") or ""), "count": int(r.get("c") or 0)}
-            for r in trend_rows
-        ],
-        "versions": [
-            {
-                "app_version": r.get("app_version") or "—",
-                "event_count": int(r.get("event_count") or 0),
-                "affected_users": int(r.get("affected_users") or 0),
-            }
-            for r in version_rows
-        ],
-        "os_versions": [
-            {
-                "os_version": r.get("os_version") or "—",
-                "event_count": int(r.get("event_count") or 0),
-            }
-            for r in os_rows
-        ],
-        "devices": [
-            {
-                "model": r.get("model") or "—",
-                "manufacturer": r.get("manufacturer") or "",
-                "marketing_name": __import__("backend.services.device_names", fromlist=["get_display_name"]).get_display_name(
-                    r.get("manufacturer") or "", r.get("model") or ""
-                ),
-                "event_count": int(r.get("event_count") or 0),
-            }
-            for r in device_rows
-        ],
-        "blame_frames": [
-            {
-                "file": r.get("file") or "",
-                "symbol": r.get("symbol") or "",
-                "line": int(r.get("line") or 0) if r.get("line") is not None else None,
-                "occurrences": int(r.get("occurrences") or 0),
-            }
-            for r in blame_rows
-        ],
-    }
+        summary_rows, sum_err = results.get("summary", ([], None))
+        trend_rows,   _       = results.get("trend",    ([], None))
+        version_rows, _       = results.get("versions", ([], None))
+        os_rows,      _       = results.get("os",       ([], None))
+        device_rows,  _       = results.get("devices",  ([], None))
+        blame_rows,   _       = results.get("blame",    ([], None))
+
+        summary = summary_rows[0] if summary_rows else {}
+        first_seen = summary.get("first_seen")
+        last_seen  = summary.get("last_seen")
+
+        payload: dict[str, Any] = {
+            "ok": True,
+            "platform": platform,
+            "issue_id": issue_id,
+            "error": sum_err,
+            "summary": {
+                "issue_title": summary.get("issue_title") or "",
+                "error_type":  (summary.get("error_type") or "").upper(),
+                "total_events": int(summary.get("total_events") or 0),
+                "affected_users": int(summary.get("affected_users") or 0),
+                "first_seen": first_seen.isoformat() if hasattr(first_seen, "isoformat") else (str(first_seen) if first_seen else None),
+                "last_seen":  last_seen.isoformat()  if hasattr(last_seen,  "isoformat") else (str(last_seen)  if last_seen  else None),
+            },
+            "trend": [
+                {"date": str(r.get("d") or ""), "count": int(r.get("c") or 0)}
+                for r in trend_rows
+            ],
+            "versions": [
+                {
+                    "app_version":   r.get("app_version") or "—",
+                    "event_count":   int(r.get("event_count") or 0),
+                    "affected_users": int(r.get("affected_users") or 0),
+                }
+                for r in version_rows
+            ],
+            "os_versions": [
+                {"os_version": r.get("os_version") or "—", "event_count": int(r.get("event_count") or 0)}
+                for r in os_rows
+            ],
+            "devices": [
+                {
+                    "model":        r.get("model") or "—",
+                    "manufacturer": r.get("manufacturer") or "",
+                    "marketing_name": get_display_name(r.get("manufacturer") or "", r.get("model") or ""),
+                    "event_count":  int(r.get("event_count") or 0),
+                }
+                for r in device_rows
+            ],
+            "blame_frames": [
+                {
+                    "file":        r.get("file") or "",
+                    "symbol":      r.get("symbol") or "",
+                    "line":        int(r.get("line") or 0) if r.get("line") is not None else None,
+                    "occurrences": int(r.get("occurrences") or 0),
+                }
+                for r in blame_rows
+            ],
+        }
+
+        with _DETAIL_CACHE_LOCK:
+            _DETAIL_CACHE[cache_key] = (time.time(), payload)
+            # 200'den fazla entry varsa en eskilerini temizle
+            if len(_DETAIL_CACHE) > 200:
+                cutoff = time.time() - _DETAIL_CACHE_TTL_S
+                stale = [k for k, (ts, _) in _DETAIL_CACHE.items() if ts < cutoff]
+                for k in stale:
+                    del _DETAIL_CACHE[k]
+
+        return payload
 
 
 def get_issue_detail_for_product(product_id: str, platform: str, issue_id: str, days: int) -> dict[str, Any]:
