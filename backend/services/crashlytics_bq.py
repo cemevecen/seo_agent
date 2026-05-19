@@ -875,6 +875,22 @@ def _run_detail_query(platform: str, sql: str) -> tuple[list[dict], str | None]:
         return rows, None
     except Exception as exc:
         msg = str(exc).strip()
+        # UNION ALL şema uyumsuzluğu — batch tablosuna fallback
+        if "UNION ALL" in msg and "incompatible types" in msg:
+            import re as _re3
+            fixed_sql = _re3.sub(
+                r"\(SELECT \* FROM (`[^`]+`) UNION ALL SELECT \* FROM `[^`]+`\)",
+                r"\1",
+                sql,
+            )
+            if fixed_sql != sql:
+                logger.warning("Detail UNION ALL şema uyumsuzluğu (%s), batch'e fallback", platform)
+                try:
+                    job2 = client.query(fixed_sql, location=loc) if loc else client.query(fixed_sql)
+                    rows2 = [dict(r) for r in job2.result(timeout=QUERY_TIMEOUT_S)]
+                    return rows2, None
+                except Exception as exc2:
+                    return [], str(exc2).strip()[:200]
         logger.warning("Detail sorgu hatası (%s): %s", platform, msg[:200])
         return [], msg[:200]
     finally:
