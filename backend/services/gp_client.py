@@ -284,23 +284,27 @@ def fetch_install_stats(
         logger.error("GP bucket erişim hatası (%s): %s", bucket_name, exc)
         return None
 
-    # Son 13 ay için aylık dosyaları listele (365 gün için yeterli)
-    today = date.today()
-    months_to_fetch = set()
-    for off in range(0, 390, 28):
-        d = today - timedelta(days=off)
-        months_to_fetch.add(f"{d.year:04d}{d.month:02d}")
+    # CSV'leri listele — list_blobs daha sağlam; ay ay probe yapmak
+    # blob.exists() ile yetki sorunlarında yanıltıcı False döndürebiliyor.
+    prefix = f"stats/installs/installs_{package_name}_"
+    try:
+        blob_iter = bucket.list_blobs(prefix=prefix)
+        candidates = [b for b in blob_iter if b.name.endswith("_overview.csv")]
+    except Exception as exc:
+        logger.warning("GP bucket listeleme hatası (%s, prefix=%s): %s",
+                       bucket_name, prefix, exc)
+        return None
+
+    if not candidates:
+        logger.warning("GP bucket'ta CSV bulunamadı: prefix=%s", prefix)
+        return None
 
     daily_rows: dict[str, dict[str, float]] = {}
-    for ym in sorted(months_to_fetch):
-        blob_path = f"stats/installs/installs_{package_name}_{ym}_overview.csv"
+    for blob in candidates:
         try:
-            blob = bucket.blob(blob_path)
-            if not blob.exists():
-                continue
             raw = blob.download_as_bytes()
         except Exception as exc:
-            logger.debug("GP CSV yok ya da erişilemiyor (%s): %s", blob_path, exc)
+            logger.warning("GP CSV indirme hatası (%s): %s", blob.name, exc)
             continue
 
         # Play CSV'leri UTF-16 LE BOM ile geliyor
