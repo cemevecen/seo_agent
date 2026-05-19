@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 BIGQUERY_SCOPES = ("https://www.googleapis.com/auth/bigquery",)
 QUERY_TIMEOUT_S = 25.0          # BigQuery job timeout (saniye)
 BYTES_BUDGET = 200_000_000      # Sorgu başına 200 MB limit
-MAX_CONCURRENT = 2              # Eş zamanlı max sorgu sayısı
+MAX_CONCURRENT = 6              # Eş zamanlı max sorgu sayısı (paralel platform sorguları için)
 CACHE_TTL_S = 4 * 3600         # 4 saat cache
 
 _PLATFORM_PROJECTS = {"ios": "doviz-ios", "android": "doviz-android"}
@@ -661,7 +661,7 @@ GROUP BY issue_id, issue_title, error_type
 ORDER BY event_count DESC
 LIMIT {limit}
 """
-    rows, err = _run_query(platform, sql)
+    rows, err = _run_query(platform, sql, skip_budget=True)
     return [
         {
             "issue_id": r.get("issue_id", ""),
@@ -692,7 +692,7 @@ GROUP BY issue_id, issue_title, application.display_version
 ORDER BY event_count DESC
 LIMIT {limit}
 """
-    rows, err = _run_query(platform, sql)
+    rows, err = _run_query(platform, sql, skip_budget=True)
     return [
         {
             "issue_id": r.get("issue_id", ""),
@@ -721,7 +721,7 @@ GROUP BY application.display_version
 ORDER BY total_events DESC
 LIMIT {limit}
 """
-    rows, err = _run_query(platform, sql)
+    rows, err = _run_query(platform, sql, skip_budget=True)
     return [
         {
             "app_version": r.get("app_version", "—"),
@@ -1078,13 +1078,30 @@ def build_full_payload(
         errors: list[str] = []
 
         def _fetch_platform(plat: str, tbl: str) -> dict:
+            """Platform için 6 BQ sorgusunu paralel çalıştır."""
             out: dict[str, Any] = {"platform": plat}
-            out["summary"] = query_summary(plat, tbl, days)
-            out["crash_free"] = query_crash_free(plat, tbl, days)
-            out["issues"], out["issues_err"] = query_top_issues(plat, tbl, days, None, None)
-            out["anr"], out["anr_err"] = query_anr_list(plat, tbl, days, None)
-            out["versions"], out["ver_err"] = query_version_breakdown(plat, tbl, days)
-            out["trend"], out["trend_err"] = query_daily_trend(plat, tbl, days)
+            sub_tasks = {
+                "summary":    lambda: ("summary",    query_summary(plat, tbl, days),            None),
+                "crash_free": lambda: ("crash_free", query_crash_free(plat, tbl, days),         None),
+                "issues":     lambda: ("issues",     *query_top_issues(plat, tbl, days, None, None)),
+                "anr":        lambda: ("anr",        *query_anr_list(plat, tbl, days, None)),
+                "versions":   lambda: ("versions",   *query_version_breakdown(plat, tbl, days)),
+                "trend":      lambda: ("trend",      *query_daily_trend(plat, tbl, days)),
+            }
+            with ThreadPoolExecutor(max_workers=6) as sub_pool:
+                sub_futs = {sub_pool.submit(fn): name for name, fn in sub_tasks.items()}
+                for fut in as_completed(sub_futs):
+                    try:
+                        key, data, err = fut.result()
+                        if key in ("summary", "crash_free"):
+                            out[key] = data
+                        else:
+                            out[key] = data
+                            out[f"{key}_err"] = err
+                    except Exception as exc:
+                        name = sub_futs[fut]
+                        out[name] = [] if name != "summary" else {}
+                        out[f"{name}_err"] = str(exc)[:200]
             return out
 
         _step(15, "Crash verileri sorgulanıyor…")

@@ -3164,8 +3164,8 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     from apscheduler.triggers.interval import IntervalTrigger as _CrashIntervalTrigger
     scheduler.add_job(
         _run_crashlytics_prewarm,
-        trigger=_CrashIntervalTrigger(hours=2, timezone=timezone),
-        id="crashlytics-cache-prewarm-2h",
+        trigger=_CrashIntervalTrigger(hours=1, timezone=timezone),
+        id="crashlytics-cache-prewarm-1h",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
