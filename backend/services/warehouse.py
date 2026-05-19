@@ -245,7 +245,6 @@ def get_latest_search_console_rows_batch(
         return {}
 
     # 1. Her scope için en son collected_at'ı tek sorguda al
-    from sqlalchemy import case, literal_column, tuple_ as sq_tuple
     rows_max = (
         db.query(
             SearchConsoleQuerySnapshot.data_scope,
@@ -262,47 +261,52 @@ def get_latest_search_console_rows_batch(
     if not scope_to_ts:
         return {scope: [] for scope in scopes}
 
-    # 2. Her scope için ayrı sorgu — global limit yerine per-scope limit
-    #    Böylece düşük tıklı scope'lar (current_day vb.) yüksek tıklı scope'lar
-    #    tarafından ezilmez.
-    from sqlalchemy import and_
-    try:
-        from backend.database import _IS_SQLITE
+    # 2. Tüm scope'ları TEK sorguda çek — OR koşulları ile (N ayrı sorgu yerine 1)
+    from sqlalchemy import and_, or_
 
-        if not _IS_SQLITE:
-            db.execute(text("SET LOCAL max_parallel_workers_per_gather = 0"))
-    except Exception:
-        pass
+    PER_SCOPE_LIMIT = 1000  # scope başına max satır
 
-    PER_SCOPE_LIMIT = 1000  # scope başına max satır; disk kullanımını sınırlar
-
-    result: dict[str, list[dict]] = {scope: [] for scope in scopes}
-    for scope, ts in scope_to_ts.items():
-        scope_rows = (
-            db.query(SearchConsoleQuerySnapshot)
-            .filter(
-                SearchConsoleQuerySnapshot.site_id == site_id,
-                SearchConsoleQuerySnapshot.data_scope == scope,
-                SearchConsoleQuerySnapshot.collected_at == ts,
-            )
-            .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
-            .limit(PER_SCOPE_LIMIT)
-            .all()
+    conditions = [
+        and_(
+            SearchConsoleQuerySnapshot.data_scope == scope,
+            SearchConsoleQuerySnapshot.collected_at == ts,
         )
-        for row in scope_rows:
-            result[scope].append(
-                {
-                    "query": row.query,
-                    "property_url": row.property_url,
-                    "device": row.device,
-                    "clicks": float(row.clicks),
-                    "impressions": float(row.impressions),
-                    "ctr": float(row.ctr),
-                    "position": float(row.position),
-                    "start_date": row.start_date,
-                    "end_date": row.end_date,
-                }
-            )
+        for scope, ts in scope_to_ts.items()
+    ]
+    all_rows = (
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            or_(*conditions),
+        )
+        .order_by(SearchConsoleQuerySnapshot.data_scope, SearchConsoleQuerySnapshot.clicks.desc())
+        .all()
+    )
+
+    # Python'da scope'a göre grupla, per-scope limit uygula
+    result: dict[str, list[dict]] = {scope: [] for scope in scopes}
+    scope_count: dict[str, int] = {}
+    for row in all_rows:
+        scope = row.data_scope
+        if scope not in scope_to_ts:
+            continue
+        cnt = scope_count.get(scope, 0)
+        if cnt >= PER_SCOPE_LIMIT:
+            continue
+        scope_count[scope] = cnt + 1
+        result[scope].append(
+            {
+                "query": row.query,
+                "property_url": row.property_url,
+                "device": row.device,
+                "clicks": float(row.clicks),
+                "impressions": float(row.impressions),
+                "ctr": float(row.ctr),
+                "position": float(row.position),
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+            }
+        )
     return result
 
 
