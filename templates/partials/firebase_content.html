@@ -223,7 +223,7 @@
     showProgress(true);
     setProgress(5, "BigQuery bağlantısı kuruluyor…");
     crashState.pollTimer = setInterval(function () {
-      fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
+      fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           setProgress(j.pct || 0, j.step || "");
@@ -241,7 +241,7 @@
     box.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, 30000);
-    fetch(tabUrl(), { cache: "no-store", signal: ctrl.signal })
+    fetch(tabUrl(), { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
       .then(function (r) {
         clearTimeout(timer);
         if (seq !== crashState.seq) return;
@@ -410,7 +410,7 @@
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
       + "&days=" + crashState.days;
-    fetch(url, { cache: "no-store" })
+    fetch(url, { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
       .then(function (j) { if (bodyEl) bodyEl.innerHTML = renderIssueDetail(j); })
       .catch(function () {
@@ -517,7 +517,7 @@
     var icon = document.getElementById("crash-refresh-icon");
     if (btn) btn.disabled = true;
     fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
-      { method: "POST", cache: "no-store" })
+      { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j.already_running) { loadTab(); return; }
@@ -558,7 +558,7 @@
 
   // İlk yükleme: cache sıcaksa anında yükle; soğuksa arka planda başlat + progress bar.
   syncBtns();
-  fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
+  fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
     .then(function (r) { return r.json(); })
     .then(function (j) {
       if (j.cache_warm) {
@@ -570,7 +570,7 @@
       } else {
         // Cache soğuk, job yok → arka planda başlat + poll
         fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
-          { method: "POST", cache: "no-store" })
+          { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
           .then(function () { startPoll(); })
           .catch(function () { loadTab(); });
       }
