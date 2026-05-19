@@ -1,5 +1,10 @@
 {% set rows = data.versions %}
 {% set active_type = (params.error_type or '')|upper %}
+{% set vbp = data.versions_by_platform or {} %}
+{# Per-platform version listelerini JS'e ilet #}
+<div id="crash-versions-by-plat" class="hidden"
+  data-ios="{{ (vbp.get('ios') or []) | map(attribute='app_version') | list | tojson }}"
+  data-android="{{ (vbp.get('android') or []) | map(attribute='app_version') | list | tojson }}"></div>
 <div class="space-y-3">
   {% if data.errors %}
     {% set _seen = [] %}{% set _unique = [] %}

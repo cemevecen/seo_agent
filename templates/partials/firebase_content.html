@@ -301,6 +301,42 @@
   }
 
   // ── Versiyon filtresi ──
+  function semverSort(arr) {
+    return arr.slice().sort(function (a, b) {
+      var av = a.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
+      var bv = b.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
+      for (var i = 0; i < Math.max(av.length, bv.length); i++) {
+        if ((bv[i] || 0) !== (av[i] || 0)) return (bv[i] || 0) - (av[i] || 0);
+      }
+      return 0;
+    });
+  }
+
+  function makeChip(v, label) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("data-ver", v);
+    btn.textContent = label || v || "Tümü";
+    btn.className = "rounded-md px-2.5 py-1 text-[11px] font-semibold transition";
+    setBtnActive(btn, crashState.version === v);
+    btn.addEventListener("click", function () {
+      crashState.version = v;
+      syncVersionChips();
+      loadDebounced("version");
+    });
+    return btn;
+  }
+
+  function platBadge(plat) {
+    var span = document.createElement("span");
+    span.className = "plat-badge " + (plat === "ios" ? "plat-badge--apple" : "plat-badge--android");
+    span.setAttribute("aria-hidden", "true");
+    span.innerHTML = plat === "ios"
+      ? '<svg><use href="#plat-apple"/></svg>'
+      : '<svg><use href="#plat-android"/></svg>';
+    return span;
+  }
+
   function populateVersionChips(versionsBox) {
     var bar     = document.getElementById("crash-version-bar");
     var chipsEl = document.getElementById("crash-version-chips");
@@ -309,45 +345,60 @@
     // Versiyon filtresi aktifken chip listesini yeniden çizme — sadece aktif durumu senkronize et
     if (crashState.version) { syncVersionChips(); return; }
 
-    var rows = versionsBox.querySelectorAll("tr[data-app-version]");
-    if (!rows.length) { bar.classList.add("hidden"); bar.classList.remove("flex"); return; }
-
-    var versions = [];
-    rows.forEach(function (r) {
-      var v = r.getAttribute("data-app-version");
-      if (v && versions.indexOf(v) === -1) versions.push(v);
-    });
-
-    // Semver sıralaması (en yenisi önce)
-    versions.sort(function (a, b) {
-      var av = a.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
-      var bv = b.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
-      for (var i = 0; i < Math.max(av.length, bv.length); i++) {
-        if ((bv[i] || 0) !== (av[i] || 0)) return (bv[i] || 0) - (av[i] || 0);
-      }
-      return 0;
-    });
-
-    // Chip'leri oluştur — "Tümü" + en fazla 6 versiyon
-    var shown = versions.slice(0, 6);
-    chipsEl.innerHTML = "";
-    [""].concat(shown).forEach(function (v) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.setAttribute("data-ver", v);
-      btn.textContent = v ? v : "Tümü";
-      btn.className = "rounded-md px-2.5 py-1 text-[11px] font-semibold transition";
-      setBtnActive(btn, crashState.version === v);
-      btn.addEventListener("click", function () {
-        crashState.version = v;
-        syncVersionChips();
-        loadDebounced("version");
+    // Per-platform version data from hidden meta element
+    var meta = versionsBox.querySelector
+      ? versionsBox.querySelector("#crash-versions-by-plat")
+      : document.getElementById("crash-versions-by-plat");
+    var iosVers = [], androidVers = [];
+    if (meta) {
+      try { iosVers     = JSON.parse(meta.getAttribute("data-ios")     || "[]"); } catch (_) {}
+      try { androidVers = JSON.parse(meta.getAttribute("data-android") || "[]"); } catch (_) {}
+    }
+    // Fallback: tüm satırlardan oku (platform farkı yok)
+    if (!iosVers.length && !androidVers.length) {
+      var seen = [];
+      versionsBox.querySelectorAll("tr[data-app-version]").forEach(function (r) {
+        var v = r.getAttribute("data-app-version");
+        if (v && seen.indexOf(v) === -1) seen.push(v);
       });
-      chipsEl.appendChild(btn);
-    });
+      androidVers = seen;
+    }
+
+    iosVers     = semverSort(iosVers).slice(0, 5);
+    androidVers = semverSort(androidVers).slice(0, 5);
+
+    if (!iosVers.length && !androidVers.length) {
+      bar.classList.add("hidden"); bar.classList.remove("flex"); return;
+    }
+
+    chipsEl.innerHTML = "";
+
+    // "Tümü" butonu — her iki platform sıfırlar
+    chipsEl.appendChild(makeChip("", "Tümü"));
+
+    // iOS grubu
+    if (iosVers.length) {
+      // separator
+      var sep1 = document.createElement("span");
+      sep1.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
+      chipsEl.appendChild(sep1);
+      // platform badge
+      chipsEl.appendChild(platBadge("ios"));
+      iosVers.forEach(function (v) { chipsEl.appendChild(makeChip(v)); });
+    }
+
+    // Android grubu
+    if (androidVers.length) {
+      var sep2 = document.createElement("span");
+      sep2.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
+      chipsEl.appendChild(sep2);
+      chipsEl.appendChild(platBadge("android"));
+      androidVers.forEach(function (v) { chipsEl.appendChild(makeChip(v)); });
+    }
 
     bar.classList.remove("hidden");
     bar.classList.add("flex");
+    bar.style.flexWrap = "wrap";
   }
 
   // ── Progress bar ──

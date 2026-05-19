@@ -1174,6 +1174,7 @@ def build_full_payload(
             "issues": _merge_issues(issues_all),
             "anr": _merge_issues(anr_all),
             "versions": _merge_versions(ver_all),
+            "versions_by_platform": {plat: rows for plat, rows in ver_all},
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
             "storage_mb": storage_mb,
