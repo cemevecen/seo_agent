@@ -223,6 +223,149 @@ def fetch_slow_render_rate(package_name: str, *, days: int = 30) -> dict[str, An
         return None
 
 
+# ─── Cloud Storage rapor bucket (kurulum/kaldırma CSV'leri) ────────────────
+# Play Console her uygulama için günlük CSV raporları
+# gs://pubsite_prod_rev_<ID>/stats/installs/installs_<package>_YYYYMM_*.csv
+# adresine otomatik gönderiyor. Bunları okuyup günlük seri çıkarıyoruz.
+
+_install_cache: dict[str, Any] = {}  # {package: {ts, data}}
+_INSTALL_CACHE_TTL = 60 * 30  # 30 dk cache
+
+
+def _get_storage_client():
+    creds = _load_credentials()
+    if creds is None:
+        return None
+    try:
+        from google.cloud import storage
+        return storage.Client(credentials=creds, project=creds.project_id)
+    except ImportError:
+        logger.error("google-cloud-storage paketi yüklü değil.")
+        return None
+    except Exception as exc:
+        logger.error("GP storage client hatası: %s", exc)
+        return None
+
+
+def fetch_install_stats(
+    package_name: str,
+    *,
+    days: int = 30,
+) -> dict[str, Any] | None:
+    """Play Console install CSV'lerini okuyup günlük kurulum/kaldırma serisi çıkar.
+
+    CSV yolu: stats/installs/installs_<package>_YYYYMM_overview.csv
+    Kolonlar: Date, Package Name, Daily Device Installs, Daily Device Uninstalls,
+              Daily User Installs, Daily User Uninstalls, Active Device Installs, ...
+    """
+    bucket_name = _env("GP_REPORTS_BUCKET")
+    if not bucket_name:
+        return None
+
+    # Cache check
+    now = time.time()
+    cached = _install_cache.get(package_name)
+    if cached and (now - cached["ts"]) < _INSTALL_CACHE_TTL:
+        return _filter_install_data(cached["data"], days)
+
+    client = _get_storage_client()
+    if client is None:
+        return None
+
+    try:
+        bucket = client.bucket(bucket_name)
+    except Exception as exc:
+        logger.error("GP bucket erişim hatası (%s): %s", bucket_name, exc)
+        return None
+
+    # Son 13 ay için aylık dosyaları listele (365 gün için yeterli)
+    today = date.today()
+    months_to_fetch = set()
+    for off in range(0, 390, 28):
+        d = today - timedelta(days=off)
+        months_to_fetch.add(f"{d.year:04d}{d.month:02d}")
+
+    daily_rows: dict[str, dict[str, float]] = {}
+    for ym in sorted(months_to_fetch):
+        blob_path = f"stats/installs/installs_{package_name}_{ym}_overview.csv"
+        try:
+            blob = bucket.blob(blob_path)
+            if not blob.exists():
+                continue
+            raw = blob.download_as_bytes()
+        except Exception as exc:
+            logger.debug("GP CSV yok ya da erişilemiyor (%s): %s", blob_path, exc)
+            continue
+
+        # Play CSV'leri UTF-16 LE BOM ile geliyor
+        try:
+            text = raw.decode("utf-16")
+        except UnicodeDecodeError:
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+        reader = csv.DictReader(io.StringIO(text))
+        for r in reader:
+            ds = (r.get("Date") or "").strip()
+            if not ds:
+                continue
+            try:
+                device_installs = int(r.get("Daily Device Installs") or 0)
+                device_uninstalls = int(r.get("Daily Device Uninstalls") or 0)
+                user_installs = int(r.get("Daily User Installs") or 0)
+                user_uninstalls = int(r.get("Daily User Uninstalls") or 0)
+                active = int(r.get("Active Device Installs") or 0)
+            except (TypeError, ValueError):
+                continue
+            daily_rows[ds] = {
+                "installs": user_installs or device_installs,
+                "uninstalls": user_uninstalls or device_uninstalls,
+                "active": active,
+            }
+
+    if not daily_rows:
+        logger.warning("GP install CSV bulunamadı: package=%s bucket=%s",
+                       package_name, bucket_name)
+        return None
+
+    full_data = {
+        "daily": daily_rows,
+        "dates_sorted": sorted(daily_rows.keys()),
+    }
+    _install_cache[package_name] = {"ts": now, "data": full_data}
+    return _filter_install_data(full_data, days)
+
+
+def _filter_install_data(full: dict, days: int) -> dict:
+    """Tam datasetten son N gün serisi çıkar."""
+    dates_sorted = full["dates_sorted"]
+    if not dates_sorted:
+        return {"installs_series": [], "uninstalls_series": [],
+                "total_installs": 0, "total_uninstalls": 0,
+                "active_latest": 0, "dates": []}
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    recent_dates = [d for d in dates_sorted if d >= cutoff]
+    if not recent_dates:
+        recent_dates = dates_sorted[-days:] if len(dates_sorted) >= days else dates_sorted
+
+    installs_series = [full["daily"][d]["installs"] for d in recent_dates]
+    uninstalls_series = [full["daily"][d]["uninstalls"] for d in recent_dates]
+    total_installs = sum(installs_series)
+    total_uninstalls = sum(uninstalls_series)
+    active_latest = full["daily"][recent_dates[-1]].get("active", 0)
+
+    return {
+        "installs_series": installs_series,
+        "uninstalls_series": uninstalls_series,
+        "total_installs": total_installs,
+        "total_uninstalls": total_uninstalls,
+        "active_latest": active_latest,
+        "dates": recent_dates,
+    }
+
+
 # ─── Üst seviye: Play Store Analytics özeti ─────────────────────────────────
 
 def _extract_metric_rows(resp: dict | None, metric_key: str) -> list[dict]:
@@ -268,7 +411,7 @@ def build_gp_analytics_payload(
     *,
     days: int = 30,
 ) -> dict[str, Any] | None:
-    """Google Play vitals (crash rate, ANR rate) + scraper rating verisini birleştirir."""
+    """Google Play vitals (crash rate, ANR rate) + install/uninstall CSV serisi."""
     if not is_configured():
         return None
 
@@ -284,6 +427,8 @@ def build_gp_analytics_payload(
     latest_crash = crash_series[-1] if crash_series else None
     latest_anr = anr_series[-1] if anr_series else None
 
+    install_stats = fetch_install_stats(package_name, days=days)
+
     return {
         "source": "live",
         "crash_rate_series": crash_series,
@@ -291,4 +436,5 @@ def build_gp_analytics_payload(
         "anr_rate_series": anr_series,
         "anr_rate_latest": latest_anr,
         "dates": [r["date"] for r in crash_rows],
+        "install_stats": install_stats,
     }

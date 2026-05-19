@@ -294,24 +294,20 @@ def _overlay_live_ratings(payload: dict[str, Any], package_name: str) -> dict[st
         "distribution": dist,
         "delta_avg": 0.0,
     }
-    # Bu noktada Vitals canlı + ratings canlı; source'u live_partial'da bırak
-    # (kurulum verisi hâlâ demo). Note'u güncelle.
-    if payload.get("source") == "demo":
+    # Ratings her durumda eklenebilir; source/note'u koruyalım
+    cur = payload.get("source")
+    if cur == "demo":
         payload["source"] = "live_partial"
         payload["source_note"] = (
             "Kısmi canlı veri — Puanlama gerçek. "
-            "Çökme/ANR ve kurulum verileri için Play API yetkileri gerekli."
+            "Vitals ve kurulum verileri için Play API yetkileri gerekli."
         )
-    elif payload.get("source") == "live_partial":
-        payload["source_note"] = (
-            "Kısmi canlı veri — Android Vitals (çökme/ANR) ve Puanlama gerçek. "
-            "Kurulum/kaldırma sayıları Play Console rapor bucket'ı bağlanana kadar demo."
-        )
+    # cur == "live" veya "live_partial" ise note'u dokunmadan bırak (zaten ratings'i kapsıyor)
     return payload
 
 
 def _overlay_live_vitals(payload: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
-    """Google Play Vitals gerçek verisiyle overlay."""
+    """Google Play Vitals + install/uninstall (CSV) gerçek verisiyle overlay."""
     crash = live.get("crash_rate_latest")
     anr = live.get("anr_rate_latest")
     c_series = live.get("crash_rate_series") or []
@@ -324,9 +320,55 @@ def _overlay_live_vitals(payload: dict[str, Any], live: dict[str, Any]) -> dict[
         payload["vitals"]["anr_rate"] = round(anr * 100, 3)
         payload["vitals"]["anr_rate_label"] = f"{anr * 100:.2f}%"
         payload["vitals"]["anr_series"] = [round(v * 100, 4) for v in a_series]
-    payload["source"] = "live_partial"
-    payload["source_note"] = (
-        "Kısmi canlı veri — Android Vitals (çökme/ANR) gerçek. "
-        "İndirme/kurulum sayıları için Google Play Console API erişimi onaylanmalı."
-    )
+
+    # Install CSV verisi
+    inst = live.get("install_stats") or {}
+    has_installs = bool(inst and inst.get("dates"))
+    if has_installs:
+        i_series = inst.get("installs_series") or []
+        u_series = inst.get("uninstalls_series") or []
+        total_i = int(inst.get("total_installs") or 0)
+        total_u = int(inst.get("total_uninstalls") or 0)
+        net = max(0, total_i - total_u)
+
+        payload["kpis"]["installs"] = {
+            "value": total_i,
+            "value_label": _fmt_compact(float(total_i)),
+            "delta_pct": 0.0,
+            "series": [float(x) for x in i_series],
+        }
+        payload["kpis"]["uninstalls"] = {
+            "value": total_u,
+            "value_label": _fmt_compact(float(total_u)),
+            "delta_pct": 0.0,
+            "series": [float(x) for x in u_series],
+        }
+        payload["kpis"]["net_installs"] = {
+            "value": net,
+            "value_label": _fmt_compact(float(net)),
+            "delta_pct": 0.0,
+            "series": [max(0.0, i_series[k] - u_series[k]) for k in range(min(len(i_series), len(u_series)))],
+        }
+        # Günlük trend gerçek
+        payload["trend_daily"] = [
+            {"i": k, "installs": round(i_series[k]),
+             "uninstalls": round(u_series[k] if k < len(u_series) else 0)}
+            for k in range(len(i_series))
+        ]
+
+    # Source ve note: kaç bileşen canlı?
+    has_vitals = (crash is not None) or (anr is not None)
+    if has_vitals and has_installs:
+        payload["source"] = "live"
+        payload["source_note"] = (
+            "Canlı veri — Vitals (çökme/ANR) ve kurulum istatistikleri Google Play "
+            "Console raporlarından gerçek zamanlı çekiliyor (1-2 gün gecikme normaldir)."
+        )
+    elif has_vitals:
+        payload["source"] = "live_partial"
+        payload["source_note"] = (
+            "Kısmi canlı veri — Android Vitals (çökme/ANR) gerçek. "
+            "Kurulum sayıları için GP_REPORTS_BUCKET ortam değişkeni ve bucket "
+            "okuma yetkisi onaylanmalı."
+        )
     return payload

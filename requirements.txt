@@ -21,6 +21,7 @@ google-analytics-data==0.18.19
 google-cloud-bigquery==3.27.0
 cryptography==45.0.5
 PyJWT==2.9.0
+google-cloud-storage==2.18.2
 playwright==1.50.0
 deep-translator==1.11.4
 openpyxl==3.1.5
