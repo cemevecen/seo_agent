@@ -33,7 +33,8 @@ BIGQUERY_SCOPES = ("https://www.googleapis.com/auth/bigquery",)
 QUERY_TIMEOUT_S = 25.0          # BigQuery job timeout (saniye)
 BYTES_BUDGET = 200_000_000      # Sorgu başına 200 MB limit
 MAX_CONCURRENT = 6              # Eş zamanlı max sorgu sayısı (paralel platform sorguları için)
-CACHE_TTL_S = 4 * 3600         # 4 saat cache
+CACHE_TTL_S = 4 * 3600         # 4 saat fresh cache
+CACHE_STALE_TTL_S = 24 * 3600  # 24 saat stale — anında sun, arka planda yenile
 
 _PLATFORM_PROJECTS = {"ios": "doviz-ios", "android": "doviz-android"}
 _DATASET = "firebase_crashlytics"
@@ -64,6 +65,10 @@ _EMPTY_DATASET_UNTIL: dict[str, float] = {}        # platform → expiry timesta
 # İlk çağrı BQ sorgularını başlatır; sonrakiler cache dolana dek bekler.
 _BUILD_LOCKS_LOCK = threading.Lock()
 _BUILD_LOCKS: dict[str, threading.Lock] = {}
+
+# Stale-while-revalidate: hangi cache key'lerin arka plan yenilemesi aktif?
+_BGREFRESH_LOCK = threading.Lock()
+_BGREFRESH_ACTIVE: set[str] = set()
 
 
 def _circuit_open(platform: str) -> bool:
@@ -394,6 +399,7 @@ def _table(platform: str, bundle: str) -> str:
 # ── Cache yardımcıları ────────────────────────────────────────────────────────
 
 def _cache_get(key: str) -> Any | None:
+    """Fresh cache (< CACHE_TTL_S). None if expired or missing."""
     with _CACHE_LOCK:
         entry = _CACHE.get(key)
         if entry and time.time() - entry[0] < CACHE_TTL_S:
@@ -401,9 +407,40 @@ def _cache_get(key: str) -> Any | None:
     return None
 
 
+def _cache_get_stale(key: str) -> Any | None:
+    """Stale cache (< CACHE_STALE_TTL_S). Returns data even if past fresh TTL."""
+    with _CACHE_LOCK:
+        entry = _CACHE.get(key)
+        if entry and time.time() - entry[0] < CACHE_STALE_TTL_S:
+            return entry[1]
+    return None
+
+
 def _cache_set(key: str, value: Any) -> None:
     with _CACHE_LOCK:
         _CACHE[key] = (time.time(), value)
+
+
+def _trigger_bg_refresh(pid: str, days: int, platform_filter: str, cache_key: str) -> None:
+    """Stale veri sunulduğunda arka planda cache'i yenile (tekrar giriş önlenir)."""
+    with _BGREFRESH_LOCK:
+        if cache_key in _BGREFRESH_ACTIVE:
+            return
+        _BGREFRESH_ACTIVE.add(cache_key)
+
+    def _worker():
+        try:
+            # Stale girdiyi sil ki build_full_payload yeni sorgu yapsın
+            with _CACHE_LOCK:
+                _CACHE.pop(cache_key, None)
+            build_full_payload(pid, days=days, platform_filter=platform_filter)
+        except Exception as exc:
+            logger.warning("Arka plan cache yenileme başarısız (%s): %s", cache_key, exc)
+        finally:
+            with _BGREFRESH_LOCK:
+                _BGREFRESH_ACTIVE.discard(cache_key)
+
+    threading.Thread(target=_worker, daemon=True, name=f"bg-refresh-{cache_key}").start()
 
 
 # ── Progress tracking ─────────────────────────────────────────────────────────
@@ -1064,10 +1101,19 @@ def build_full_payload(
         return {"ok": False, "configured": False, "message": "Service account tanımlı değil."}
 
     cache_key = f"{pid}:{days}:{platform_filter}"
+
+    # 1) Fresh cache → anlık dön
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
+    # 2) Stale cache → anlık dön + arka planda yenile (stale-while-revalidate)
+    stale = _cache_get_stale(cache_key)
+    if stale:
+        _trigger_bg_refresh(pid, days, platform_filter, cache_key)
+        return stale
+
+    # 3) Hiç veri yok → BQ sorgusunu bekle (normal ilk yükleme akışı)
     # Per-key lock: aynı cache key için eş zamanlı iki BQ sorgu seti başlamasın.
     # İlk çağrı build'i tamamlayıp cache'e yazar; bekleyen ikinci çağrı kilidi alınca
     # cache'den okuyup döner — BQ sorguları tekrar çalışmaz.
@@ -1265,9 +1311,9 @@ _REFRESH_RUNNING = False
 
 
 def is_cache_warm(product_id: str = "doviz", days: int = 7, platform_filter: str = "all") -> bool:
-    """Varsayılan filtre için cache'in sıcak olup olmadığını kontrol et."""
-    key = f"{product_id}:{days}:{platform_filter}::"
-    return _cache_get(key) is not None
+    """Fresh veya stale cache varsa True — JS progress bar'ı atla."""
+    key = f"{product_id}:{days}:{platform_filter}"
+    return _cache_get(key) is not None or _cache_get_stale(key) is not None
 
 
 def prewarm_cache(product_id: str = "doviz") -> None:
