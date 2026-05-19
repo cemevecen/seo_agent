@@ -16,11 +16,28 @@
         Yenile
       </button>
     </div>
-    <span class="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 dark:text-amber-400/90">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m0 0v.01M9 12V8a3 3 0 116 0v4m-9 0h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z" />
-      </svg>
-      **vpn bağlantısı gerektirir
+    <span class="inline-flex items-center gap-2 text-[12px] font-semibold">
+      <template x-if="vpnStatus === 'checking'">
+        <span class="inline-flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+          <span class="inline-block h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse"></span>
+          VPN kontrol ediliyor…
+        </span>
+      </template>
+      <template x-if="vpnStatus === 'on'">
+        <span class="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+          <span class="relative inline-flex h-2.5 w-2.5">
+            <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
+            <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+          </span>
+          VPN ON
+        </span>
+      </template>
+      <template x-if="vpnStatus === 'off'">
+        <span class="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+          <span class="inline-block h-2.5 w-2.5 rounded-full bg-rose-500"></span>
+          VPN OFF
+        </span>
+      </template>
     </span>
   </div>
 
@@ -147,12 +164,30 @@
       configProjects: {{ projects | tojson | safe }},
       activeProject: null,
       projectData: {},
+      vpnStatus: 'checking',
+
+      async checkVpn() {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2500);
+        try {
+          const res = await fetch('https://git.nokta.com/api/v4/version', {
+            headers: { 'PRIVATE-TOKEN': this.token },
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          this.vpnStatus = res.ok || res.status === 401 ? 'on' : 'off';
+        } catch {
+          clearTimeout(timer);
+          this.vpnStatus = 'off';
+        }
+      },
 
       initBoards() {
         this.configProjects.forEach(p => {
           this.projectData[p.path] = { loading: false, loaded: false, error: null, board: null, lists: [], issues: [] };
         });
         if (this.configProjects.length > 0) this.activeProject = this.configProjects[0].path;
+        this.checkVpn();
         this.configProjects.forEach(p => this.fetchProjectData(p.path));
       },
 
@@ -211,6 +246,7 @@
           ]);
 
           if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
+          this.vpnStatus = 'on';
           const boardsData = await boardsRes.json();
           if (!boardsData || boardsData.length === 0) throw new Error("Projede aktif board bulunamadı.");
           
@@ -252,6 +288,7 @@
         } catch (err) {
           console.error(err);
           pd.error = err.message || "Bağlantı hatası.";
+          if (this.vpnStatus === 'checking') this.vpnStatus = 'off';
         } finally {
           pd.loading = false;
         }
