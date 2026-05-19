@@ -215,6 +215,9 @@
   </div>
   {% endif %}
 
-  <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ (data.fetched_at or "")[:16]|replace("T", " ") }} UTC</p>
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <p class="text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ (data.fetched_at or "")[:16]|replace("T", " ") }} UTC</p>
+    {% if data.data_days %}<p class="text-[10px] text-slate-400 dark:text-slate-500">· {{ data.data_days }} günlük veri üzerinden tüm hesaplamalar yapılmaktadır</p>{% endif %}
+  </div>
 </div>
 {% endif %}

@@ -638,8 +638,30 @@ WHERE {_ts_filter(days)}
     crashed = int(r.get("crashed_users") or 0)
     if total <= 0:
         return None
+    # BQ crash events table only contains crash events, not all sessions.
+    # With very few users the ratio is misleading (e.g. 3/3 → 0.0%).
+    if total < 15:
+        return None
     pct = round((1 - crashed / total) * 100, 2)
     return {"total_users": total, "crashed_users": crashed, "crash_free_pct": pct}
+
+
+def query_oldest_date(platform: str, table: str, days: int) -> int | None:
+    """Tablodaki en eski event_timestamp'i sorgular; gün cinsinden gerçek veri yaşını döner."""
+    sql = f"""
+SELECT DATE(MIN(event_timestamp)) AS oldest_date
+FROM {table}
+WHERE {_ts_filter(days)}
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    if err or not rows:
+        return None
+    oldest = rows[0].get("oldest_date")
+    if not oldest:
+        return None
+    today = datetime.now(timezone.utc).date()
+    delta = (today - oldest).days + 1
+    return min(delta, days)
 
 
 def query_top_issues(platform: str, table: str, days: int,
@@ -1075,25 +1097,27 @@ def build_full_payload(
         anr_all: list[tuple[str, list[dict]]] = []
         ver_all: list[tuple[str, list[dict]]] = []
         trend_all: list[tuple[str, list[dict]]] = []
+        oldest_days_all: list[int] = []
         errors: list[str] = []
 
         def _fetch_platform(plat: str, tbl: str) -> dict:
             """Platform için 6 BQ sorgusunu paralel çalıştır."""
             out: dict[str, Any] = {"platform": plat}
             sub_tasks = {
-                "summary":    lambda: ("summary",    query_summary(plat, tbl, days),            None),
-                "crash_free": lambda: ("crash_free", query_crash_free(plat, tbl, days),         None),
-                "issues":     lambda: ("issues",     *query_top_issues(plat, tbl, days, None, None)),
-                "anr":        lambda: ("anr",        *query_anr_list(plat, tbl, days, None)),
-                "versions":   lambda: ("versions",   *query_version_breakdown(plat, tbl, days)),
-                "trend":      lambda: ("trend",      *query_daily_trend(plat, tbl, days)),
+                "summary":      lambda: ("summary",      query_summary(plat, tbl, days),            None),
+                "crash_free":   lambda: ("crash_free",   query_crash_free(plat, tbl, days),         None),
+                "issues":       lambda: ("issues",       *query_top_issues(plat, tbl, days, None, None)),
+                "anr":          lambda: ("anr",          *query_anr_list(plat, tbl, days, None)),
+                "versions":     lambda: ("versions",     *query_version_breakdown(plat, tbl, days)),
+                "trend":        lambda: ("trend",        *query_daily_trend(plat, tbl, days)),
+                "oldest_date":  lambda: ("oldest_date",  query_oldest_date(plat, tbl, days),        None),
             }
-            with ThreadPoolExecutor(max_workers=6) as sub_pool:
+            with ThreadPoolExecutor(max_workers=7) as sub_pool:
                 sub_futs = {sub_pool.submit(fn): name for name, fn in sub_tasks.items()}
                 for fut in as_completed(sub_futs):
                     try:
                         key, data, err = fut.result()
-                        if key in ("summary", "crash_free"):
+                        if key in ("summary", "crash_free", "oldest_date"):
                             out[key] = data
                         else:
                             out[key] = data
@@ -1101,7 +1125,8 @@ def build_full_payload(
                     except Exception as exc:
                         name = sub_futs[fut]
                         out[name] = [] if name != "summary" else {}
-                        out[f"{name}_err"] = str(exc)[:200]
+                        if name not in ("summary", "crash_free", "oldest_date"):
+                            out[f"{name}_err"] = str(exc)[:200]
             return out
 
         _step(15, "Crash verileri sorgulanıyor…")
@@ -1126,6 +1151,8 @@ def build_full_payload(
                         ver_all.append((plat, res["versions"]))
                     if res["trend"]:
                         trend_all.append((plat, res["trend"]))
+                    if res.get("oldest_date") is not None:
+                        oldest_days_all.append(res["oldest_date"])
                     seen_for_plat: set[str] = set()
                     for field in ("issues_err", "anr_err", "ver_err", "trend_err"):
                         msg = res.get(field)
@@ -1160,11 +1187,14 @@ def build_full_payload(
 
         storage_mb = get_all_storage_mb()
 
+        data_days = max(oldest_days_all) if oldest_days_all else days
+
         result = {
             "ok": True,
             "configured": True,
             "product": pid,
             "days": days,
+            "data_days": data_days,
             "platform_filter": platform_filter,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "totals": totals,
