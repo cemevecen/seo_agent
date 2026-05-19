@@ -1102,6 +1102,41 @@ _REFRESH_LOCK = threading.Lock()
 _REFRESH_RUNNING = False
 
 
+def is_cache_warm(product_id: str = "doviz", days: int = 7, platform_filter: str = "all") -> bool:
+    """Varsayılan filtre için cache'in sıcak olup olmadığını kontrol et."""
+    key = f"{product_id}:{days}:{platform_filter}::"
+    return _cache_get(key) is not None
+
+
+def prewarm_cache(product_id: str = "doviz") -> None:
+    """Startup veya scheduled re-warm için arka planda cache'i ısıt.
+    Manuel refresh'ten farklı olarak cache/circuit breaker'ı sıfırlamaz —
+    sadece cache soğuksa sorgu başlatır."""
+    global _REFRESH_RUNNING
+    if is_cache_warm(product_id):
+        return
+    with _REFRESH_LOCK:
+        if _REFRESH_RUNNING:
+            return
+        _REFRESH_RUNNING = True
+
+    jid = _job_new(product_id)
+
+    def _worker():
+        global _REFRESH_RUNNING
+        try:
+            build_full_payload(product_id, days=7, platform_filter="all", jid=jid)
+            _job_done(jid)
+        except Exception as exc:
+            logger.warning("Crashlytics prewarm başarısız: %s", exc)
+            _job_done(jid, error=str(exc)[:200])
+        finally:
+            with _REFRESH_LOCK:
+                _REFRESH_RUNNING = False
+
+    threading.Thread(target=_worker, daemon=True, name="crashlytics-prewarm").start()
+
+
 def run_daily_refresh(product_id: str = "doviz") -> str:
     """Arkaplanda tam veri çekimi başlat. Job ID döndürür."""
     global _REFRESH_RUNNING

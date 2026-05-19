@@ -556,8 +556,25 @@
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // İlk yükleme: sayfa açılınca hemen yükle
+  // İlk yükleme: cache sıcaksa anında yükle; soğuksa arka planda başlat + progress bar.
   syncBtns();
-  loadTab();
+  fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j.cache_warm) {
+        // Cache hazır → direkt yükle (anlık)
+        loadTab();
+      } else if (j.running) {
+        // Zaten bir job çalışıyor → sadece poll et
+        startPoll();
+      } else {
+        // Cache soğuk, job yok → arka planda başlat + poll
+        fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
+          { method: "POST", cache: "no-store" })
+          .then(function () { startPoll(); })
+          .catch(function () { loadTab(); });
+      }
+    })
+    .catch(function () { loadTab(); });
 })();
 </script>

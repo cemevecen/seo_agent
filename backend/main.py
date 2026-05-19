@@ -1214,6 +1214,17 @@ def on_startup() -> None:
     except Exception:
         LOGGER.exception("app_intel prewarm registration failed")
 
+    # Crashlytics BQ cache'ini arka planda ısıt — /firebase açılışı anlık olsun
+    def _prewarm_crashlytics():
+        try:
+            from backend.services import crashlytics_bq as cbq
+            cbq.prewarm_cache("doviz")
+        except Exception as exc:
+            LOGGER.warning("Crashlytics startup prewarm hatası: %s", exc)
+
+    import threading as _threading
+    _threading.Thread(target=_prewarm_crashlytics, daemon=True, name="crashlytics-prewarm-startup").start()
+
     # TMDB vizyon takvimi cache'ini arka planda ısıt (ilk sayfa açılışı hızlı olsun)
     def _prewarm_tmdb():
         try:
@@ -3133,6 +3144,28 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         _run_crashlytics_daily,
         trigger=CronTrigger(hour=6, minute=15, timezone=timezone),
         id="crashlytics-daily-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+
+    # Crashlytics cache re-warm — her 2 saatte bir (cache TTL 4 saat; soğumasın)
+    def _run_crashlytics_prewarm() -> None:
+        from backend.services import crashlytics_bq as cbq
+        from backend.services.app_intel import APP_PRODUCTS
+        for pid in APP_PRODUCTS:
+            if cbq.any_platform_ready():
+                try:
+                    cbq.prewarm_cache(pid)
+                except Exception as exc:
+                    LOGGER.warning("Crashlytics prewarm hatası (%s): %s", pid, exc)
+
+    from apscheduler.triggers.interval import IntervalTrigger as _CrashIntervalTrigger
+    scheduler.add_job(
+        _run_crashlytics_prewarm,
+        trigger=_CrashIntervalTrigger(hours=2, timezone=timezone),
+        id="crashlytics-cache-prewarm-2h",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -9904,15 +9937,18 @@ def api_crash_diagnose(product: str = "doviz"):
 @app.get("/api/app/crashlytics/progress")
 def api_crash_progress(product: str = "doviz"):
     from backend.services import crashlytics_bq as cbq
-    state = cbq.get_job_state(product.strip().lower())
+    pid = product.strip().lower()
+    warm = cbq.is_cache_warm(pid)
+    state = cbq.get_job_state(pid)
     if state is None:
-        return JSONResponse({"running": False, "pct": 0, "step": "", "done": True, "error": None})
+        return JSONResponse({"running": False, "pct": 0, "step": "", "done": True, "error": None, "cache_warm": warm})
     return JSONResponse({
         "running": not state["done"],
         "pct": state.get("pct", 0),
         "step": state.get("step", ""),
         "done": state.get("done", False),
         "error": state.get("error"),
+        "cache_warm": warm,
     })
 
 
