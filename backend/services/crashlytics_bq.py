@@ -845,6 +845,9 @@ LIMIT 5
             {
                 "model": r.get("model") or "—",
                 "manufacturer": r.get("manufacturer") or "",
+                "marketing_name": __import__("backend.services.device_names", fromlist=["get_display_name"]).get_display_name(
+                    r.get("manufacturer") or "", r.get("model") or ""
+                ),
                 "event_count": int(r.get("event_count") or 0),
             }
             for r in device_rows

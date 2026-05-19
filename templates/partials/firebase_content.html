@@ -496,7 +496,12 @@
       + table(j.os_versions, ["OS Versiyon", "Olay"], function (r) { return [escapeHtml(r.os_version), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "OS verisi yok.")
       + '</div></div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
       + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cihaz kırılımı</p>'
-      + table(j.devices, ["Cihaz", "Olay"], function (r) { var n = r.manufacturer ? (r.manufacturer + " " + r.model) : r.model; return [escapeHtml(n), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "Cihaz verisi yok.")
+      + table(j.devices, ["Cihaz", "Olay"], function (r) {
+          var code = r.manufacturer ? (r.manufacturer + " " + r.model) : r.model;
+          var cell = escapeHtml(code);
+          if (r.marketing_name) cell += ' <span class="ml-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">(' + escapeHtml(r.marketing_name) + ')</span>';
+          return [cell, '<span class="tabular-nums">' + r.event_count + '</span>'];
+        }, "Cihaz verisi yok.")
       + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stack frame (blame)</p>'
       + table(j.blame_frames, ["Dosya / Sembol", "Adet"], function (r) { var loc = r.file ? (r.file + (r.line ? ":" + r.line : "")) : ""; var sym = r.symbol || ""; var disp = (loc || sym) ? (escapeHtml(loc) + (sym ? '<br><span class="font-mono text-[10px] text-slate-500">' + escapeHtml(sym) + '</span>' : '')) : '<span class="text-slate-400">—</span>'; return [disp, '<span class="tabular-nums">' + r.occurrences + '</span>']; }, "Stack frame verisi yok.")
       + '</div></div>';
