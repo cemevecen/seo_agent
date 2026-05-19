@@ -232,17 +232,24 @@
     if (box) box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
   }
 
+  // Her section için aktif AbortController — eski in-flight isteği iptal etmek için
+  var _abortCtrls = {};
+
   function loadSection(name) {
+    // Önceki uçuştaki isteği iptal et
+    if (_abortCtrls[name]) { try { _abortCtrls[name].abort(); } catch (_) {} }
     var box = document.getElementById(SEC_IDS[name]);
     if (!box) return;
     crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
     var seq = crashState.seqs[name];
     setSecLoading(name);
     var ctrl = new AbortController();
+    _abortCtrls[name] = ctrl;
     var timer = setTimeout(function () { ctrl.abort(); }, 35000);
     fetch(sectionUrl(name), { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
       .then(function (r) {
         clearTimeout(timer);
+        if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
         if (crashState.seqs[name] !== seq) return null;
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
@@ -254,22 +261,42 @@
         if (name === "versions") populateVersionChips(box);
       })
       .catch(function (e) {
+        if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
         if (!box || crashState.seqs[name] !== seq) return;
-        box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">'
-          + (e.name === "AbortError" ? "Zaman aşımı. Dönem daraltın veya tekrar deneyin." : "Veri yüklenemedi.")
-          + '</p>';
+        if (e.name === "AbortError") return; // kasıtlı iptal — sessiz
+        box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
       });
   }
 
-  function loadAllSections() {
-    SECTIONS.forEach(loadSection);
-  }
+  function loadAllSections() { SECTIONS.forEach(loadSection); }
 
-  function loadAllDebounced() {
+  // Filtre tipine göre hangi section'ların etkilendiğini bilir:
+  //   "type"    → summary değişmez (genel sayılar), anr değişmez; sadece crashes + versions
+  //   "version" → summary değişmez; crashes + anr + versions
+  //   diğerleri → hepsi (platform / days)
+  var _pendingFilterType = "all";
+  function loadDebounced(filterType) {
+    // Birden fazla filtre hızla değişirse en geniş kümesi al
+    if (_pendingFilterType !== "all") {
+      if (filterType === "all" || _pendingFilterType !== filterType) _pendingFilterType = "all";
+    } else {
+      _pendingFilterType = filterType || "all";
+    }
     if (crashState.debounceTimer) clearTimeout(crashState.debounceTimer);
     crashState.debounceTimer = setTimeout(function () {
+      var ft = _pendingFilterType;
+      _pendingFilterType = "all";
       crashState.debounceTimer = null;
-      loadAllSections();
+      if (ft === "type") {
+        loadSection("crashes");
+        loadSection("versions");
+      } else if (ft === "version") {
+        loadSection("crashes");
+        loadSection("anr");
+        loadSection("versions");
+      } else {
+        loadAllSections();
+      }
     }, 250);
   }
 
@@ -314,7 +341,7 @@
       btn.addEventListener("click", function () {
         crashState.version = v;
         syncVersionChips();
-        loadAllDebounced();
+        loadDebounced("version");
       });
       chipsEl.appendChild(btn);
     });
@@ -545,13 +572,13 @@
 
   // ── Filtre butonları ──
   platformBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.platform = b.dataset.crashPlatform; syncBtns(); loadAllDebounced(); });
+    b.addEventListener("click", function () { crashState.platform = b.dataset.crashPlatform; syncBtns(); loadDebounced("all"); });
   });
   daysBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadAllDebounced(); });
+    b.addEventListener("click", function () { crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadDebounced("all"); });
   });
   typeBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadAllDebounced(); });
+    b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadDebounced("type"); });
   });
 
   var refreshBtn = document.getElementById("crash-refresh-btn");
