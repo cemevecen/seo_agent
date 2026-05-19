@@ -1311,19 +1311,27 @@ def fetch_realtime_top_event_names(
             MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w)
         )
 
-    request = RunRealtimeReportRequest(
-        property=f"properties/{property_id}",
-        dimensions=[Dimension(name="eventName")],
-        metrics=[
-            Metric(name="activeUsers"),
-            Metric(name="eventCount"),
-        ],
-        minute_ranges=minute_ranges,
-        limit=fetch_cap,
-    )
-
+    # GA4 Realtime API: eventName + activeUsers + eventCount birlikte çalışmıyor ("cannot be queried together").
+    # Önce eventCount ile dene; başarısız olursa activeUsers fallback.
     t0 = time.monotonic()
-    response = client.run_realtime_report(request)
+    try:
+        request = RunRealtimeReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="eventName")],
+            metrics=[Metric(name="eventCount")],
+            minute_ranges=minute_ranges,
+            limit=fetch_cap,
+        )
+        response = client.run_realtime_report(request)
+    except Exception:
+        request = RunRealtimeReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="eventName")],
+            metrics=[Metric(name="activeUsers")],
+            minute_ranges=minute_ranges,
+            limit=fetch_cap,
+        )
+        response = client.run_realtime_report(request)
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     metric_names = [m.name for m in response.metric_headers]
@@ -2474,19 +2482,15 @@ def check_page_alarms_for_site(
 ) -> list[dict[str, Any]]:
     """Tek site+profil için sayfa bazlı alarm kontrolü yapar.
 
-    1. Önceki snapshot'ı DB'den al
-    2. Yeni top sayfaları API'den çek
-    3. Karşılaştır, alarmları değerlendir
-    4. Yeni snapshot'ı DB'ye kaydet
-    5. Alarmları DB'ye kaydet ve mail gönder
+    API'nin compare_previous=True modu kullanılır: current 15dk vs previous 15dk
+    (GA4 Realtime'ın kendi karşılaştırması). DB snapshot'ı sadece fallback olarak
+    kullanılır — örtüşen pencere sorununu önler.
     """
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
     property_id = properties.get(profile) or properties.get("web")
     if not property_id:
         return []
-
-    previous_pages = get_previous_page_snapshots(db, site.id, profile)
 
     try:
         result = fetch_realtime_top_pages_with_app_fallback(
@@ -2495,6 +2499,7 @@ def check_page_alarms_for_site(
             window_minutes=window_minutes,
             limit=100,
             sort_by="activeUsers",
+            compare_previous=True,
         )
     except Exception as exc:
         logger.warning("Sayfa alarm: top pages API hatası [%s/%s]: %s", site.domain, profile, exc)
@@ -2509,6 +2514,22 @@ def check_page_alarms_for_site(
         current_pages = [p for p in current_pages if not _dynamic.match(p.get("page", "") or "")]
 
     save_page_snapshots(db, site.id, profile, current_pages)
+
+    # API karşılaştırma verisi varsa kullan (daha doğru: non-overlapping 15min pencereler)
+    # Yoksa DB snapshot fallback
+    if result.get("comparison_enabled") and any(p.get("activeUsers_previous") for p in current_pages):
+        synthetic_prev = [
+            {
+                "page": p["page"],
+                "activeUsers": float(p.get("activeUsers_previous") or 0),
+                "screenPageViews": float(p.get("screenPageViews_previous") or 0),
+                "rank": i + 1,
+            }
+            for i, p in enumerate(current_pages)
+        ]
+        previous_pages = synthetic_prev
+    else:
+        previous_pages = get_previous_page_snapshots(db, site.id, profile)
 
     if not previous_pages:
         return []
@@ -3680,11 +3701,19 @@ def check_app_event_spike_for_site(
             thread_key = _realtime_email_thread_key(site.domain, profile)
             send_realtime_email(subject, html_body, thread_kind="app_event", thread_key=thread_key)
 
-            # Cooldown için log
+            # Cooldown için log — _save_alarm_logs beklenen tüm alanlarla çağrılmalı
             _save_alarm_logs(db, site.id, [
-                {"rule_id": a["rule_id"], "message": a["event_name"], "page": "", "profile": profile}
+                {
+                    "rule_id": a["rule_id"],
+                    "message": a["event_name"],
+                    "metric": "eventCount",
+                    "current_value": float(a.get("current_count", 0)),
+                    "previous_value": float(a.get("previous_count", a.get("peak_count", 0))),
+                    "change_pct": float(a.get("change_pct", 0)),
+                    "severity": "warning",
+                }
                 for a in to_send
-            ])
+            ], profile=profile)
 
     return {"alarms": alarms}
 
