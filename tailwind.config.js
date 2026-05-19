@@ -2,6 +2,20 @@
 module.exports = {
   darkMode: "class",
   content: ["./templates/**/*.html"],
+  safelist: [
+    // ASC kart renkleri — JS'de dinamik olarak oluşturulduğu için safelist gerekiyor
+    {
+      pattern:
+        /^(text|bg|border)-(sky|cyan|indigo|violet|emerald|fuchsia|amber|teal|rose|slate)-(50|100|200|300|400|500|600|700|800|900|950)(\/\d+)?$/,
+      variants: ["dark", "hover", "dark:hover"],
+    },
+    // Opacity varyantlar (bg-*/70 gibi)
+    {
+      pattern:
+        /^(bg|border)-(sky|cyan|indigo|violet|emerald|fuchsia|amber|teal|rose|slate)-(50|100|200|700|800|900|950)\/(30|40|50|60|70|80)$/,
+      variants: ["dark"],
+    },
+  ],
   theme: {
     extend: {},
   },

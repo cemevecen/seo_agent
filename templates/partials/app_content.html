@@ -398,6 +398,83 @@
     </div>{# /app-asc-body #}
   </section>
 
+  {# ── Google Play Store ── #}
+  <section
+    id="app-gp-root"
+    class="app-gp-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
+    aria-label="Google Play Store özeti"
+  >
+    {# Başlık şeridi (tıklanabilir — dropdown toggle) #}
+    <header id="app-gp-header" role="button" tabindex="0" aria-expanded="false" aria-controls="app-gp-body"
+      class="flex cursor-pointer select-none flex-col gap-3 border-b border-slate-100 px-4 py-4 transition hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M3.18 23.76a1.96 1.96 0 01-.99-.27C1.45 23.05 1 22.3 1 21.48V2.52C1 1.7 1.45.95 2.19.51a1.96 1.96 0 011.99.07l17.23 9.48c.71.39 1.13 1.1 1.13 1.94 0 .84-.42 1.55-1.13 1.94L4.18 23.42c-.31.22-.66.34-.99.34z"/></svg>
+          </span>
+          <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Google Play Store</h2>
+          <span id="app-gp-source-pill" class="hidden rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"></span>
+        </div>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">İndirmeler · Vitals · Puanlama · Kaynaklar — Play Console Analytics özet görünümü</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="app-gp-meta" class="text-[10px] text-slate-400 dark:text-slate-500"></span>
+        <button id="app-gp-refresh-btn" type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
+          <span id="app-gp-refresh-icon">↺</span> Yenile
+        </button>
+        <svg id="app-gp-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+        </svg>
+      </div>
+    </header>
+
+    {# Açılır gövde #}
+    <div id="app-gp-body" hidden>
+      {# Filtre bar #}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+          <div id="app-gp-period-nav" class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+            {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y")] %}
+              <button type="button" data-app-gp-period="{{ dv }}"
+                class="app-gp-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if dv == 30 %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <label for="app-gp-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ülke</label>
+          <select id="app-gp-country" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-green-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            <option value="all">Tüm ülkeler</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <label for="app-gp-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cihaz</label>
+          <select id="app-gp-device" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-green-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            <option value="all">Tüm cihazlar</option>
+          </select>
+        </div>
+        <button type="button" id="app-gp-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Filtreleri sıfırla</button>
+      </div>
+
+      {# Tab bar #}
+      <div class="flex items-center gap-0 overflow-x-auto border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
+        {% for tid, tlabel in [("overview","Genel Bakış"),("installs","İndirmeler"),("vitals","Vitals"),("ratings","Puanlama"),("tops","Sıralamalar")] %}
+          <button type="button" data-app-gp-tab="{{ tid }}"
+            class="app-gp-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition {% if tid == 'overview' %}border-green-500 text-green-600 dark:border-green-400 dark:text-green-300{% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
+        {% endfor %}
+      </div>
+
+      {# Source note #}
+      <p id="app-gp-source-note" class="hidden border-b border-amber-200/60 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200/85 sm:px-5"></p>
+
+      {# Content area #}
+      <div id="app-gp-content" class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5" style="overflow-anchor: none">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      </div>
+    </div>{# /app-gp-body #}
+  </section>
+
   {# ── Firebase Crashlytics ── #}
   <section id="app-crashlytics-root" class="mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
     {# Başlık + kontroller #}
@@ -1097,9 +1174,17 @@
       b.addEventListener("click", function () {
         state.product = p.id;
         state.releasePanelProduct = null;
+        // Store payload'larını temizle; yeni ürün için lazy load ile yeniden çekilecek
+        ascState.payload = null;
+        gpState.payload = null;
         refreshProductStyles();
         applyHeroShellFromState();
         loadIntel({ cacheOnly: true });
+        // Açık store panellerini hemen yenile
+        var ascBody = document.getElementById('app-asc-body');
+        if (ascBody && !ascBody.hasAttribute('hidden')) loadAscPreview();
+        var gpBody = document.getElementById('app-gp-body');
+        if (gpBody && !gpBody.hasAttribute('hidden')) loadGpPreview();
         var cDet = document.getElementById("app-crashlytics-details");
         if (cDet && cDet.open) {
           loadCrashlyticsPreview();
@@ -1598,8 +1683,13 @@
       }
     }
     if (note) {
-      if (j && j.source === 'demo' && j.source_note) {
+      if (j && j.source_note) {
         note.textContent = j.source_note;
+        if (j.source !== 'demo') {
+          note.className = 'border-b border-sky-200/60 bg-sky-50/70 px-4 py-2 text-[11px] text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-200/85 sm:px-5';
+        } else {
+          note.className = 'border-b border-amber-200/60 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200/85 sm:px-5';
+        }
         note.classList.remove('hidden');
       } else {
         note.textContent = '';
@@ -1701,6 +1791,17 @@
         var icon = document.getElementById('app-asc-refresh-icon');
         if (icon) icon.classList.add('app-asc-spin');
         refresh.disabled = true;
+        // Kapalıysa aç, sonra yükle
+        var bodyEl = document.getElementById('app-asc-body');
+        if (bodyEl && bodyEl.hasAttribute('hidden')) {
+          bodyEl.removeAttribute('hidden');
+          var chevEl = document.getElementById('app-asc-chevron');
+          if (chevEl) chevEl.style.transform = 'rotate(180deg)';
+          var hdrEl = document.getElementById('app-asc-header');
+          if (hdrEl) hdrEl.setAttribute('aria-expanded', 'true');
+        }
+        // payload'ı null yaparak zorla yenile
+        ascState.payload = null;
         loadAscPreview();
         setTimeout(function () {
           if (icon) icon.classList.remove('app-asc-spin');
@@ -1720,7 +1821,8 @@
         body.removeAttribute('hidden');
         if (chev) chev.style.transform = 'rotate(180deg)';
         if (hdr) hdr.setAttribute('aria-expanded', 'true');
-        if (!ascState.payload) loadAscPreview();
+        var curProduct = (ascState.payload && ascState.payload.product) || null;
+        if (!ascState.payload || curProduct !== state.product) loadAscPreview();
       } else {
         body.setAttribute('hidden', '');
         if (chev) chev.style.transform = '';
@@ -1739,6 +1841,469 @@
     }
   }
   function renderAscPeriodNav() { ascRenderPeriodNav(); }
+
+  // ─── Google Play Store: state + helpers ───────────────────────────────────
+  var gpState = {
+    period: 30,
+    country: "all",
+    device: "all",
+    tab: "overview",
+    seq: 0,
+    payload: null,
+    topCountriesSort: { key: "installs", dir: "desc" },
+    topSourcesSort: { key: "installs", dir: "desc" },
+  };
+
+  function gpFmtNum(n) {
+    if (n == null || !isFinite(n)) return "—";
+    if (n >= 1000000) return (n / 1000000).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(Math.round(n));
+  }
+  function gpDeltaClass(n) {
+    if (!isFinite(n)) return "text-slate-500 dark:text-slate-400";
+    if (n > 0.05) return "text-emerald-600 dark:text-emerald-400";
+    if (n < -0.05) return "text-rose-600 dark:text-rose-400";
+    return "text-slate-500 dark:text-slate-400";
+  }
+  function gpFormatDelta(n) {
+    if (!isFinite(n)) return "—";
+    return (n > 0 ? "+" : "") + n.toFixed(1).replace(/\.0$/, "") + "%";
+  }
+  function gpSparkline(series, color) {
+    var s = (series && series.length) ? series : [0, 0];
+    var minV = Math.min.apply(null, s), maxV = Math.max.apply(null, s);
+    var span = maxV - minV || 1;
+    var pts = s.map(function (v, i) {
+      return (i / Math.max(1, s.length - 1) * 100) + "," + (32 - ((v - minV) / span) * 28 - 2);
+    }).join(" ");
+    var areaPts = "0,32 " + pts + " 100,32";
+    var cls = color || "text-green-500 dark:text-green-400";
+    return '<svg class="h-8 w-full ' + cls + '" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polygon fill="currentColor" opacity="0.12" points="' + areaPts + '"></polygon>' +
+      '<polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="' + pts + '"></polyline></svg>';
+  }
+  function gpKpiCard(title, metric, opts) {
+    opts = opts || {};
+    var color = opts.color || "green";
+    var val = (metric && metric.value_label) ? metric.value_label : "—";
+    var d = (metric && typeof metric.delta_pct === "number") ? metric.delta_pct : null;
+    return '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 sm:p-4">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
+      '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">' + esc(val) + '</p>' +
+      (d == null ? '' : '<p class="mt-0.5 text-xs font-semibold ' + gpDeltaClass(d) + '"><span class="mr-0.5">' + (d > 0 ? "▲" : d < 0 ? "▼" : "→") + '</span>' + esc(gpFormatDelta(d)) + '</p>') +
+      ((metric && metric.series && metric.series.length) ? '<div class="mt-2">' + gpSparkline(metric.series, "text-" + color + "-500 dark:text-" + color + "-400") + '</div>' : '') +
+      '</div>';
+  }
+  function gpMiniCard(title, val, deltaPct) {
+    var d = (typeof deltaPct === "number") ? deltaPct : null;
+    return '<div class="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-700/60 dark:bg-slate-900/60">' +
+      '<p class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
+      '<p class="mt-0.5 text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">' + esc(val || "—") + '</p>' +
+      (d == null ? '' : '<p class="text-[11px] font-semibold ' + gpDeltaClass(d) + '">' + esc(gpFormatDelta(d)) + '</p>') +
+      '</div>';
+  }
+  function gpSectionTitle(text, sub) {
+    return '<div class="mb-3 flex items-baseline justify-between gap-2"><h3 class="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">' + esc(text) + '</h3>' +
+      (sub ? '<p class="text-[10px] text-slate-400 dark:text-slate-500">' + esc(sub) + '</p>' : '') + '</div>';
+  }
+
+  function gpRenderOverview(j) {
+    var K = j.kpis || {}, R = j.ratings || {}, V = j.vitals || {};
+    var html = '<section>' + gpSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
+      gpKpiCard('Kurulum', K.installs, { color: 'green' }) +
+      gpKpiCard('Kaldırma', K.uninstalls, { color: 'rose' }) +
+      gpKpiCard('Net kurulum', K.net_installs, { color: 'emerald' }) +
+      '</div></section>';
+
+    var trend = j.trend_daily || [];
+    if (trend.length) {
+      var iSeries = trend.map(function (r) { return r.installs; });
+      var uSeries = trend.map(function (r) { return r.uninstalls; });
+      html += '<section class="mt-6">' + gpSectionTitle('Günlük Trend', 'Kurulum · Kaldırma') +
+        '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+        '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum (toplam)</p>' +
+        '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(iSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
+        gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma (toplam)</p>' +
+        '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(uSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
+        gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
+        '</div></div></section>';
+    }
+
+    // Puanlama + Vitals
+    var ratingDist = R.distribution || {};
+    var maxR = 0;
+    ["1","2","3","4","5"].forEach(function (k) { maxR = Math.max(maxR, ratingDist[k] || 0); });
+    var rbar = '';
+    [5,4,3,2,1].forEach(function (k) {
+      var v = ratingDist[String(k)] || 0;
+      var w = maxR > 0 ? Math.round(v / maxR * 100) : 0;
+      rbar += '<div class="flex items-center gap-2 text-[11px]">' +
+        '<span class="w-3 text-right font-bold text-slate-500">' + k + '</span>' +
+        '<svg class="h-3 w-3 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>' +
+        '<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-full rounded-full bg-amber-400" style="width:' + w + '%"></div></div>' +
+        '<span class="w-12 text-right tabular-nums text-slate-500">' + gpFmtNum(v) + '</span></div>';
+    });
+    html += '<section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Puanlama</p>' +
+      '<div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><span class="text-sm text-slate-400">/ 5</span></div>' +
+      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + gpFmtNum(R.total) + ' puan</p>' +
+      '<div class="mt-3 space-y-1">' + rbar + '</div></div>' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Android Vitals</p>' +
+      '<div class="mt-2 grid grid-cols-3 gap-2">' +
+      gpMiniCard('Çökme oranı', V.crash_rate_label || '—', null) +
+      gpMiniCard('ANR oranı', V.anr_rate_label || '—', null) +
+      gpMiniCard('Yavaş render', V.slow_render_label || '—', null) +
+      '</div>' +
+      (V.crash_series && V.crash_series.length ?
+        '<div class="mt-3"><p class="text-[9px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Çökme trendi</p>' + gpSparkline(V.crash_series, 'text-rose-500 dark:text-rose-400') + '</div>' : '') +
+      '</div></section>';
+    return html;
+  }
+
+  function gpRenderInstalls(j) {
+    var K = j.kpis || {};
+    var trend = j.trend_daily || [];
+    var iSeries = trend.map(function (r) { return r.installs; });
+    var uSeries = trend.map(function (r) { return r.uninstalls; });
+    return '<section>' + gpSectionTitle('İndirmeler (Kurulum)') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
+      gpKpiCard('Yeni kurulum', K.installs, { color: 'green' }) +
+      gpKpiCard('Kaldırma', K.uninstalls, { color: 'rose' }) +
+      gpKpiCard('Net kurulum', K.net_installs, { color: 'emerald' }) +
+      '</div></section>' +
+      (trend.length ? '<section class="mt-5"><div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+        '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum serisi</p>' + gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma serisi</p>' + gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
+        '</div></div></section>' : '');
+  }
+
+  function gpRenderVitals(j) {
+    var V = j.vitals || {};
+    return '<section>' + gpSectionTitle('Android Vitals') +
+      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
+      '<div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Çökme oranı</p>' +
+      '<p class="mt-1 text-2xl font-extrabold tabular-nums text-rose-700 dark:text-rose-300">' + esc(V.crash_rate_label || '—') + '</p>' +
+      (V.crash_series && V.crash_series.length ? '<div class="mt-2">' + gpSparkline(V.crash_series, 'text-rose-500 dark:text-rose-400') + '</div>' : '') +
+      '</div>' +
+      '<div class="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">ANR oranı</p>' +
+      '<p class="mt-1 text-2xl font-extrabold tabular-nums text-amber-700 dark:text-amber-300">' + esc(V.anr_rate_label || '—') + '</p>' +
+      (V.anr_series && V.anr_series.length ? '<div class="mt-2">' + gpSparkline(V.anr_series, 'text-amber-500 dark:text-amber-400') + '</div>' : '') +
+      '</div>' +
+      '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Yavaş render</p>' +
+      '<p class="mt-1 text-2xl font-extrabold tabular-nums text-slate-700 dark:text-slate-200">' + esc(V.slow_render_label || '—') + '</p>' +
+      '</div>' +
+      '</div></section>';
+  }
+
+  function gpRenderRatings(j) {
+    var R = j.ratings || {};
+    var ratingDist = R.distribution || {};
+    var maxR = 0;
+    ["1","2","3","4","5"].forEach(function (k) { maxR = Math.max(maxR, ratingDist[k] || 0); });
+    var rbar = '';
+    [5,4,3,2,1].forEach(function (k) {
+      var v = ratingDist[String(k)] || 0;
+      var w = maxR > 0 ? Math.round(v / maxR * 100) : 0;
+      rbar += '<div class="flex items-center gap-2 text-[12px]">' +
+        '<span class="w-4 text-right font-bold text-slate-500">' + k + '</span>' +
+        '<svg class="h-4 w-4 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>' +
+        '<div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-full rounded-full bg-amber-400 transition-all" style="width:' + w + '%"></div></div>' +
+        '<span class="w-16 text-right tabular-nums text-slate-500">' + gpFmtNum(v) + '</span></div>';
+    });
+    return '<section>' + gpSectionTitle('Puanlama') +
+      '<div class="max-w-lg rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+      '<div class="flex items-baseline gap-3 mb-4"><span class="text-5xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><div>' +
+      '<p class="text-sm text-slate-500">/ 5 yıldız</p>' +
+      '<p class="text-xs text-slate-400">' + gpFmtNum(R.total) + ' değerlendirme</p></div></div>' +
+      '<div class="space-y-2">' + rbar + '</div></div></section>';
+  }
+
+  function gpRenderTops(j) {
+    var sortC = gpState.topCountriesSort, sortS = gpState.topSourcesSort;
+    var countries = (j.top_countries || []).slice().sort(function (a, b) {
+      var va = a[sortC.key], vb = b[sortC.key];
+      if (typeof va === "number" && typeof vb === "number") return sortC.dir === "asc" ? va - vb : vb - va;
+      return sortC.dir === "asc" ? String(va).localeCompare(String(vb), "tr") : String(vb).localeCompare(String(va), "tr");
+    });
+    var sources = (j.top_sources || []).slice().sort(function (a, b) {
+      var va = a[sortS.key], vb = b[sortS.key];
+      if (typeof va === "number" && typeof vb === "number") return sortS.dir === "asc" ? va - vb : vb - va;
+      return sortS.dir === "asc" ? String(va).localeCompare(String(vb), "tr") : String(vb).localeCompare(String(va), "tr");
+    });
+    var thB = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 py-2 px-3 border-b border-slate-200 dark:border-slate-700 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200';
+    var tdB = 'py-2 px-3 text-sm align-middle';
+    var rowB = 'border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-800/40';
+
+    var html = '<section>' + gpSectionTitle('En çok kurulum: Ülkeler') +
+      '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
+      '<table class="w-full min-w-[400px] border-collapse">' +
+      '<thead><tr>' +
+      '<th class="' + thB + '" data-gp-sort-group="countries" data-gp-sort-key="name">Ülke ' + (sortC.key === "name" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="installs">Kurulum ' + (sortC.key === "installs" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="share_pct">Pay ' + (sortC.key === "share_pct" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="delta_pct">Δ ' + (sortC.key === "delta_pct" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '</tr></thead><tbody>';
+    countries.forEach(function (r) {
+      html += '<tr class="' + rowB + '">' +
+        '<td class="' + tdB + ' font-medium text-slate-900 dark:text-slate-100"><span class="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300 mr-2">' + esc(r.code) + '</span>' + esc(r.name) + '</td>' +
+        '<td class="' + tdB + ' text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100">' + gpFmtNum(r.installs) + '</td>' +
+        '<td class="' + tdB + ' text-right tabular-nums text-slate-500 dark:text-slate-400">' + (r.share_pct != null ? r.share_pct + "%" : "—") + '</td>' +
+        '<td class="' + tdB + ' text-right tabular-nums font-semibold ' + gpDeltaClass(r.delta_pct) + '">' + gpFormatDelta(r.delta_pct) + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></section>';
+
+    html += '<section class="mt-5">' + gpSectionTitle('Kurulum Kaynakları') +
+      '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
+      '<table class="w-full min-w-[380px] border-collapse">' +
+      '<thead><tr>' +
+      '<th class="' + thB + '" data-gp-sort-group="sources" data-gp-sort-key="name">Kaynak</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="installs">Kurulum</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="share_pct">Pay</th>' +
+      '</tr></thead><tbody>';
+    sources.forEach(function (r) {
+      html += '<tr class="' + rowB + '">' +
+        '<td class="' + tdB + ' font-medium text-slate-900 dark:text-slate-100">' + esc(r.name) + '</td>' +
+        '<td class="' + tdB + ' text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100">' + gpFmtNum(r.installs) + '</td>' +
+        '<td class="' + tdB + ' text-right tabular-nums text-slate-500 dark:text-slate-400">' + (r.share_pct != null ? r.share_pct + "%" : "—") + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></section>';
+    return html;
+  }
+
+  function gpRenderActiveTab() {
+    var box = document.getElementById('app-gp-content');
+    var j = gpState.payload;
+    if (!box || !j) return;
+    var html;
+    switch (gpState.tab) {
+      case 'installs': html = gpRenderInstalls(j); break;
+      case 'vitals': html = gpRenderVitals(j); break;
+      case 'ratings': html = gpRenderRatings(j); break;
+      case 'tops': html = gpRenderTops(j); break;
+      default: html = gpRenderOverview(j);
+    }
+    box.innerHTML = html;
+    // Tablo sıralama event'leri
+    box.querySelectorAll('[data-gp-sort-group]').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var group = th.getAttribute('data-gp-sort-group');
+        var key = th.getAttribute('data-gp-sort-key');
+        var st = group === 'countries' ? gpState.topCountriesSort : gpState.topSourcesSort;
+        if (st.key === key) { st.dir = st.dir === 'asc' ? 'desc' : 'asc'; }
+        else { st.key = key; st.dir = 'desc'; }
+        gpRenderActiveTab();
+      });
+    });
+  }
+
+  function gpRenderTabsNav() {
+    document.querySelectorAll('.app-gp-tab-btn').forEach(function (b) {
+      var on = b.getAttribute('data-app-gp-tab') === gpState.tab;
+      b.className = 'app-gp-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition ' +
+        (on ? 'border-green-500 text-green-600 dark:border-green-400 dark:text-green-300'
+            : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200');
+    });
+  }
+
+  function gpRenderPeriodNav() {
+    document.querySelectorAll('.app-gp-period-btn').forEach(function (b) {
+      var v = parseInt(b.getAttribute('data-app-gp-period'), 10);
+      var on = v === gpState.period;
+      b.className = 'app-gp-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition ' +
+        (on ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100');
+    });
+  }
+
+  function gpPopulateFilters(j) {
+    var af = j.available_filters || {};
+    var sCountry = document.getElementById('app-gp-country');
+    var sDevice = document.getElementById('app-gp-device');
+    if (sCountry && !sCountry.dataset.populated) {
+      sCountry.innerHTML = (af.countries || []).map(function (c) {
+        return '<option value="' + esc(c.code) + '">' + esc(c.name) + '</option>';
+      }).join('');
+      sCountry.value = gpState.country;
+      sCountry.dataset.populated = '1';
+    }
+    if (sDevice && !sDevice.dataset.populated) {
+      sDevice.innerHTML = (af.devices || []).map(function (d) {
+        return '<option value="' + esc(d.id) + '">' + esc(d.name) + '</option>';
+      }).join('');
+      sDevice.value = gpState.device;
+      sDevice.dataset.populated = '1';
+    }
+  }
+
+  function gpRenderSourcePill(j) {
+    var pill = document.getElementById('app-gp-source-pill');
+    var note = document.getElementById('app-gp-source-note');
+    var meta = document.getElementById('app-gp-meta');
+    if (pill) {
+      if (j && j.source === 'demo') {
+        pill.className = 'rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+        pill.textContent = 'Demo'; pill.classList.remove('hidden');
+      } else if (j && j.source) {
+        pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
+        pill.textContent = 'Canlı'; pill.classList.remove('hidden');
+      } else {
+        pill.classList.add('hidden');
+      }
+    }
+    if (note) {
+      if (j && j.source_note) {
+        note.textContent = j.source_note;
+        note.className = j.source !== 'demo'
+          ? 'border-b border-sky-200/60 bg-sky-50/70 px-4 py-2 text-[11px] text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-200/85 sm:px-5'
+          : 'border-b border-amber-200/60 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200/85 sm:px-5';
+        note.classList.remove('hidden');
+      } else {
+        note.textContent = ''; note.classList.add('hidden');
+      }
+    }
+    if (meta) {
+      var parts = [];
+      if (j && j.product_label) parts.push(j.product_label);
+      if (j && j.period_days) parts.push('Son ' + j.period_days + 'g');
+      meta.textContent = parts.join(' · ');
+    }
+  }
+
+  function loadGpPreview() {
+    var box = document.getElementById('app-gp-content');
+    if (!box) return;
+    var gp_body = document.getElementById('app-gp-body');
+    if (gp_body && gp_body.hasAttribute('hidden')) return;
+    gpState.seq += 1;
+    var req = gpState.seq;
+    var url = '/api/app/gp-preview?product=' + encodeURIComponent(state.product) +
+      '&period=' + encodeURIComponent(String(gpState.period)) +
+      '&country=' + encodeURIComponent(gpState.country) +
+      '&device=' + encodeURIComponent(gpState.device);
+    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-gp-spin" style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Google Play verileri yükleniyor…</div>';
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (req !== gpState.seq) return;
+        if (!x.ok || !x.j) { box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Google Play özeti yüklenemedi.</p>'; return; }
+        gpState.payload = x.j;
+        gpPopulateFilters(x.j);
+        gpRenderSourcePill(x.j);
+        gpRenderActiveTab();
+      })
+      .catch(function () {
+        if (req !== gpState.seq) return;
+        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — Google Play verisi alınamadı.</p>';
+      });
+  }
+
+  function gpBindControls() {
+    var root = document.getElementById('app-gp-root');
+    if (!root || root.dataset.gpBound) return;
+    root.dataset.gpBound = '1';
+
+    root.querySelectorAll('.app-gp-period-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var v = parseInt(b.getAttribute('data-app-gp-period'), 10);
+        if (!v || v === gpState.period) return;
+        gpState.period = v;
+        gpRenderPeriodNav();
+        loadGpPreview();
+      });
+    });
+    root.querySelectorAll('.app-gp-tab-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = b.getAttribute('data-app-gp-tab');
+        if (!t || t === gpState.tab) return;
+        gpState.tab = t;
+        gpRenderTabsNav();
+        gpRenderActiveTab();
+      });
+    });
+    ['country', 'device'].forEach(function (k) {
+      var el = document.getElementById('app-gp-' + k);
+      if (!el) return;
+      el.addEventListener('change', function () { gpState[k] = el.value || 'all'; loadGpPreview(); });
+    });
+    var rb = document.getElementById('app-gp-reset-btn');
+    if (rb) {
+      rb.addEventListener('click', function () {
+        gpState.country = 'all'; gpState.device = 'all'; gpState.period = 30;
+        ['country', 'device'].forEach(function (k) {
+          var el = document.getElementById('app-gp-' + k);
+          if (el) el.value = 'all';
+        });
+        gpRenderPeriodNav();
+        loadGpPreview();
+      });
+    }
+
+    // Refresh butonu
+    var refresh = document.getElementById('app-gp-refresh-btn');
+    if (refresh) {
+      refresh.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var bodyEl = document.getElementById('app-gp-body');
+        if (bodyEl && bodyEl.hasAttribute('hidden')) {
+          bodyEl.removeAttribute('hidden');
+          var chevEl = document.getElementById('app-gp-chevron');
+          if (chevEl) chevEl.style.transform = 'rotate(180deg)';
+          var hdrEl = document.getElementById('app-gp-header');
+          if (hdrEl) hdrEl.setAttribute('aria-expanded', 'true');
+        }
+        gpState.payload = null;
+        loadGpPreview();
+        var icon = document.getElementById('app-gp-refresh-icon');
+        if (icon) icon.classList.add('app-gp-spin');
+        refresh.disabled = true;
+        setTimeout(function () {
+          if (icon) icon.classList.remove('app-gp-spin');
+          refresh.disabled = false;
+        }, 600);
+      });
+    }
+
+    // Dropdown toggle
+    var hdr = document.getElementById('app-gp-header');
+    var body = document.getElementById('app-gp-body');
+    var chev = document.getElementById('app-gp-chevron');
+    function gpToggle() {
+      if (!body) return;
+      var isHidden = body.hasAttribute('hidden');
+      if (isHidden) {
+        body.removeAttribute('hidden');
+        if (chev) chev.style.transform = 'rotate(180deg)';
+        if (hdr) hdr.setAttribute('aria-expanded', 'true');
+        var curProduct = (gpState.payload && gpState.payload.product) || null;
+        if (!gpState.payload || curProduct !== state.product) loadGpPreview();
+      } else {
+        body.setAttribute('hidden', '');
+        if (chev) chev.style.transform = '';
+        if (hdr) hdr.setAttribute('aria-expanded', 'false');
+      }
+    }
+    if (hdr) {
+      hdr.addEventListener('click', function (ev) {
+        if (ev.target.closest('#app-gp-refresh-btn')) return;
+        gpToggle();
+      });
+      hdr.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); gpToggle(); }
+      });
+    }
+  }
 
   function renderCrashlyticsPanel(j) {
     var box = document.getElementById("app-crashlytics-content");
@@ -3524,6 +4089,9 @@
     renderAscPeriodNav();
     ascRenderTabsNav();
     ascBindControls();
+    gpRenderPeriodNav();
+    gpRenderTabsNav();
+    gpBindControls();
     renderCrashPeriodNav();
     bindCrashlyticsDetails();
     applyHeroShellFromState();

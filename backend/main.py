@@ -9890,6 +9890,32 @@ def api_app_asc_preview(
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/gp-preview")
+def api_app_gp_preview(
+    product: str = "doviz",
+    period: int = 30,
+    country: str = "all",
+    device: str = "all",
+):
+    """Google Play Store Analytics özeti (indirmeler, vitals, puanlama)."""
+    from backend.services.gp_preview import build_gp_preview_payload
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 30
+    if p not in (1, 7, 14, 30, 90, 365):
+        p = 30
+    payload = build_gp_preview_payload(pid, p, country=country, device=device)
+    if payload.get("error"):
+        return JSONResponse(intel_json_safe(payload), status_code=400)
+    return JSONResponse(intel_json_safe(payload))
+
+
 @app.get("/api/app/crashlytics")
 def api_app_crashlytics(product: str = "doviz", days: int = 7):
     """Eski endpoint — geriye uyumluluk için korundu."""
