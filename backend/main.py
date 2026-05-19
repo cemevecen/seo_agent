@@ -9539,9 +9539,7 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
 
 @app.get("/errors")
 def errors_page(request: Request, site_id: int | None = None, days: int = 7):
-    """Site hata izleme — GA4 + SC + sunucu kaynaklı 404/500 listesi."""
-    from backend.services.error_monitor import get_error_summary, run_error_detection_for_site
-
+    """Site hata izleme — iskelet anında render, tablo HTMX lazy load."""
     sidebar_sites = get_sidebar_sites()
     days = max(1, min(int(days), 30))
 
@@ -9552,14 +9550,10 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
         all_sites = sorted(_raw_sites, key=lambda s: (0 if "doviz" in (s.domain or "").lower() else 1, s.domain or ""))
         all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
 
-        if not site_id and all_sites_list:
-            site_id = all_sites_list[0]["id"]
+    if not site_id and all_sites_list:
+        site_id = all_sites_list[0]["id"]
 
-        selected_site_domain = next((s["domain"] for s in all_sites_list if s["id"] == site_id), "")
-        summary = {"total_404": 0, "total_5xx": 0, "total_users": 0, "by_source": {}, "errors": [], "site_id": site_id, "days": days}
-
-        if site_id:
-            summary = get_error_summary(db, site_id, days=days)
+    selected_site_domain = next((s["domain"] for s in all_sites_list if s["id"] == site_id), "")
 
     return templates.TemplateResponse(
         request,
@@ -9568,12 +9562,21 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
             "request": request,
             "sites": sidebar_sites,
             "all_sites": all_sites_list,
-            "summary": summary,
             "selected_site_id": site_id,
             "selected_site_domain": selected_site_domain,
             "days": days,
         },
     )
+
+
+@app.get("/api/errors/{site_id}/summary")
+def api_errors_summary(site_id: int, days: int = 7):
+    """HTMX lazy-load: belirtilen site için hata özeti (DB'den, GA4 çağrısı yok)."""
+    from backend.services.error_monitor import get_error_summary
+    days = max(1, min(int(days), 30))
+    with SessionLocal() as db:
+        summary = get_error_summary(db, site_id, days=days)
+    return JSONResponse(summary)
 
 
 @app.get("/api/errors/{site_id}/refresh")

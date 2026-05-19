@@ -7,7 +7,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">Hata İzleme</h2>
-        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son {{ days }} gün</p>
+        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son <span id="days-label">{{ days }}</span> gün</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select onchange="window.location='/errors?site_id='+this.value+'&days={{ days }}'"
@@ -35,28 +35,22 @@
     </div>
   </div>
 
-  {# Özet kartlar #}
-  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  {# Özet kartlar — JS ile doldurulur #}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4" id="summary-cards">
+    {% for label, id, color, sub in [
+      ("404 URL",          "card-404",   "text-rose-600 dark:text-rose-400",   "Bulunamayan benzersiz sayfa"),
+      ("5xx Hata",         "card-5xx",   "text-orange-600 dark:text-orange-400","Sunucu hatası"),
+      ("Etkilenen Kullanıcı","card-users","text-slate-800 dark:text-zinc-300",  "Hata sayfasına düşen kişi"),
+      ("Toplam Kayıt",     "card-total", "text-slate-800 dark:text-zinc-300",  "Son {{ days }} günde tespit edilen"),
+    ] %}
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">404 URL</p>
-      <p class="mt-1.5 text-2xl font-black text-rose-600 dark:text-rose-400">{{ summary.total_404 }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">Bulunamayan benzersiz sayfa</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">{{ label }}</p>
+      <p class="mt-1.5 text-2xl font-black {{ color }}" id="{{ id }}">
+        <span class="inline-block h-5 w-8 animate-pulse rounded bg-slate-100 dark:bg-zinc-800 align-middle"></span>
+      </p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">{{ sub }}</p>
     </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">5xx Hata</p>
-      <p class="mt-1.5 text-2xl font-black text-orange-600 dark:text-orange-400">{{ summary.total_5xx }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">Sunucu hatası</p>
-    </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Etkilenen Kullanıcı</p>
-      <p class="mt-1.5 text-2xl font-black text-slate-800 dark:text-zinc-300">{{ summary.total_users }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">Hata sayfasına düşen kişi</p>
-    </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Toplam Kayıt</p>
-      <p class="mt-1.5 text-2xl font-black text-slate-800 dark:text-zinc-300">{{ summary.errors | length }}</p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">Son {{ days }} günde tespit edilen</p>
-    </div>
+    {% endfor %}
   </div>
 
   {# Hata tablosu #}
@@ -67,9 +61,7 @@
           <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-400">Hatalı URL'ler</h3>
         </div>
         <div class="flex items-center gap-2">
-          {% if summary.fetched_at %}
-          <span class="text-xs text-slate-400 dark:text-zinc-500 whitespace-nowrap">{{ summary.fetched_at }}</span>
-          {% endif %}
+          <span id="fetched-at" class="text-xs text-slate-400 dark:text-zinc-500 whitespace-nowrap"></span>
           <input id="err-search" type="search" placeholder="URL filtrele…"
                  oninput="filterErrors(this.value)"
                  class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400 w-28 sm:w-40 md:w-48">
@@ -77,8 +69,14 @@
       </div>
     </div>
 
-    {% if summary.errors %}
-    <div class="overflow-x-auto -mx-0">
+    {# Yükleniyor iskeleti #}
+    <div id="err-loading" class="px-5 py-12 text-center">
+      <div class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-zinc-700 dark:border-t-zinc-300"></div>
+      <p class="mt-3 text-xs text-slate-400 dark:text-zinc-500">Veriler yükleniyor…</p>
+    </div>
+
+    {# Tablo — JS ile doldurulur #}
+    <div id="err-table-wrap" class="overflow-x-auto -mx-0 hidden">
       <table class="table-fixed text-sm" style="min-width:640px;width:100%" id="err-table">
         <colgroup>
           <col style="width:52px">
@@ -96,69 +94,12 @@
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Son Görülme</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-zinc-800" id="err-tbody">
-          {% for e in summary.errors %}
-          {% set is_404 = e.status_code == 404 %}
-          <tr class="err-row hover:bg-slate-50 dark:hover:bg-zinc-800/60" data-url="{{ e.url | lower }}">
-            <td class="px-2 py-2">
-              <span class="rounded-md px-2 py-0.5 text-xs font-bold whitespace-nowrap
-                {% if is_404 %}bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400
-                {% else %}bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400{% endif %}">
-                {{ e.status_code }}
-              </span>
-            </td>
-            <td class="px-3 py-2 min-w-0 overflow-hidden">
-              <a href="https://{{ selected_site_domain }}{{ e.url }}" target="_blank" rel="noopener"
-                 class="flex items-center gap-1 group"
-                 title="Aç: https://{{ selected_site_domain }}{{ e.url }}">
-                <span class="truncate font-mono text-xs text-sky-600 group-hover:underline dark:text-sky-600">{{ e.url.split('?')[0] }}</span>
-                <svg class="h-3 w-3 flex-none text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                </svg>
-              </a>
-              {% if e.page_title and e.page_title not in ('Sayfa Bulunamadı', 'Sayfa Bulunamadı - Sinemalar.com') %}
-              <span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">{{ e.page_title }}</span>
-              {% endif %}
-            </td>
-            <td class="px-2 py-2 text-right whitespace-nowrap">
-              <span class="text-sm font-bold {% if e.hit_count >= 20 %}text-rose-600 dark:text-rose-400{% elif e.hit_count >= 5 %}text-orange-600 dark:text-orange-400{% else %}text-slate-600 dark:text-zinc-300{% endif %}">
-                {{ e.hit_count }}
-              </span>
-            </td>
-            <td class="px-3 py-2 overflow-hidden">
-              {% if e.referrers %}
-                {% for ref in e.referrers[:5] %}
-                  {% if ref.startswith('http') %}
-                    <a href="{{ ref }}" target="_blank" rel="noopener"
-                       class="block truncate text-xs text-slate-500 hover:text-sky-600 hover:underline dark:text-zinc-400 dark:hover:text-sky-500 leading-5"
-                       title="{{ ref }}">{{ ref | replace('https://', '') | replace('http://', '') }}</a>
-                  {% else %}
-                    <span class="block truncate text-xs text-slate-400 dark:text-zinc-500 leading-5" title="{{ ref }}">{{ ref }}</span>
-                  {% endif %}
-                {% endfor %}
-                {% if e.referrers | length > 5 %}
-                  <span class="text-[10px] text-slate-400 dark:text-zinc-600">+{{ (e.referrers | length) - 5 }} kaynak daha</span>
-                {% endif %}
-              {% else %}
-                <span class="text-xs text-slate-300 dark:text-zinc-600">—</span>
-              {% endif %}
-            </td>
-            <td class="px-2 py-2 whitespace-nowrap">
-              <div class="text-xs text-slate-400 dark:text-zinc-500">{{ e.last_seen[:10] if e.last_seen else "—" }}</div>
-              <span class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase whitespace-nowrap
-                {% if 'ga4' in e.source %}bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400
-                {% elif e.source == 'sc' %}bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400
-                {% else %}bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500{% endif %}">
-                {{ e.source | upper | replace('GA4_', '') | replace('D', 'G') if 'ga4_' in e.source else e.source }}
-              </span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
+        <tbody class="divide-y divide-slate-100 dark:divide-zinc-800" id="err-tbody"></tbody>
       </table>
     </div>
-    {% else %}
-    <div class="px-5 py-12 text-center">
+
+    {# Boş durum #}
+    <div id="err-empty" class="hidden px-5 py-12 text-center">
       <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800">
         <svg class="h-6 w-6 text-slate-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/>
@@ -167,7 +108,6 @@
       <p class="text-sm font-medium text-slate-600 dark:text-zinc-300">Kayıt bulunamadı</p>
       <p class="mt-1 text-xs text-slate-400 dark:text-zinc-500">"GA4'ten Çek" butonuna basarak veri çekebilirsin.</p>
     </div>
-    {% endif %}
   </div>
 
 </div>
@@ -179,16 +119,10 @@
       <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-200">GA4'ten Çekiliyor</h3>
       <span id="err-prog-pct" class="text-xs font-bold text-sky-600 dark:text-sky-400">0%</span>
     </div>
-
-    {# Progress bar #}
     <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-zinc-800 mb-4 overflow-hidden">
       <div id="err-prog-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%"></div>
     </div>
-
-    {# Anlık durum #}
     <p id="err-prog-current" class="text-xs text-slate-500 dark:text-zinc-400 mb-3 truncate">Başlatılıyor…</p>
-
-    {# Sayaçlar #}
     <div class="flex gap-4 mb-4">
       <div class="text-center">
         <p class="text-lg font-black text-slate-800 dark:text-zinc-200" id="err-prog-done">0</p>
@@ -203,16 +137,86 @@
         <p class="text-[10px] text-slate-400 uppercase tracking-wide">Hata Bulundu</p>
       </div>
     </div>
-
-    {# Son adımlar #}
     <div id="err-prog-steps" class="space-y-1 max-h-32 overflow-y-auto text-[11px]"></div>
-
-    {# Hata mesajı #}
     <p id="err-prog-error" class="mt-3 text-xs text-rose-500 hidden"></p>
   </div>
 </div>
 
 <script>
+var _errSiteId = {{ selected_site_id if selected_site_id else 'null' }};
+var _errDays   = {{ days }};
+var _errDomain = "{{ selected_site_domain }}";
+var _errPollTimer = null;
+
+// --- Lazy load summary -------------------------------------------------------
+function loadErrSummary() {
+  if (!_errSiteId) { _showEmpty(); return; }
+  fetch('/api/errors/' + _errSiteId + '/summary?days=' + _errDays, {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) { _renderSummary(d); })
+    .catch(function() { _showEmpty(); });
+}
+
+function _renderSummary(d) {
+  document.getElementById('card-404').textContent   = d.total_404   || 0;
+  document.getElementById('card-5xx').textContent   = d.total_5xx   || 0;
+  document.getElementById('card-users').textContent = d.total_users || 0;
+  document.getElementById('card-total').textContent = (d.errors || []).length;
+  if (d.fetched_at) document.getElementById('fetched-at').textContent = d.fetched_at;
+
+  var errors = d.errors || [];
+  document.getElementById('err-loading').classList.add('hidden');
+
+  if (!errors.length) { _showEmpty(); return; }
+
+  var tbody = document.getElementById('err-tbody');
+  tbody.innerHTML = errors.map(function(e) {
+    var is404 = e.status_code === 404;
+    var codeCls = is404
+      ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+      : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    var hitCls = e.hit_count >= 20 ? 'text-rose-600 dark:text-rose-400'
+               : e.hit_count >= 5  ? 'text-orange-600 dark:text-orange-400'
+               : 'text-slate-600 dark:text-zinc-300';
+    var srcRaw = (e.source || '').toLowerCase();
+    var srcLabel = srcRaw.includes('ga4_') ? srcRaw.replace('ga4_','').replace('d','G') : (e.source || '').toUpperCase();
+    var srcCls = srcRaw.includes('ga4') ? 'bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400'
+               : srcRaw === 'sc'        ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+               : 'bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500';
+    var urlPath = (e.url || '').split('?')[0];
+    var refs = (e.referrers || []).slice(0,5).map(function(ref) {
+      if (!ref) return '';
+      if (ref.startsWith('http')) {
+        var clean = ref.replace('https://','').replace('http://','');
+        return '<a href="'+_esc(ref)+'" target="_blank" rel="noopener" class="block truncate text-xs text-slate-500 hover:text-sky-600 hover:underline dark:text-zinc-400 dark:hover:text-sky-500 leading-5" title="'+_esc(ref)+'">'+_esc(clean)+'</a>';
+      }
+      return '<span class="block truncate text-xs text-slate-400 dark:text-zinc-500 leading-5" title="'+_esc(ref)+'">'+_esc(ref)+'</span>';
+    }).join('');
+    var more = (e.referrers || []).length > 5 ? '<span class="text-[10px] text-slate-400 dark:text-zinc-600">+'+(e.referrers.length-5)+' kaynak daha</span>' : '';
+    var lastSeen = (e.last_seen || '—').slice(0,10);
+    var title = e.page_title && !['Sayfa Bulunamadı','Sayfa Bulunamadı - Sinemalar.com'].includes(e.page_title)
+      ? '<span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">'+_esc(e.page_title)+'</span>' : '';
+    return '<tr class="err-row hover:bg-slate-50 dark:hover:bg-zinc-800/60" data-url="'+_esc((e.url||'').toLowerCase())+'">'
+      +'<td class="px-2 py-2"><span class="rounded-md px-2 py-0.5 text-xs font-bold whitespace-nowrap '+codeCls+'">'+e.status_code+'</span></td>'
+      +'<td class="px-3 py-2 min-w-0 overflow-hidden"><a href="https://'+_esc(_errDomain)+_esc(e.url||'')+'" target="_blank" rel="noopener" class="flex items-center gap-1 group"><span class="truncate font-mono text-xs text-sky-600 group-hover:underline dark:text-sky-600">'+_esc(urlPath)+'</span><svg class="h-3 w-3 flex-none text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>'+title+'</td>'
+      +'<td class="px-2 py-2 text-right whitespace-nowrap"><span class="text-sm font-bold '+hitCls+'">'+e.hit_count+'</span></td>'
+      +'<td class="px-3 py-2 overflow-hidden">'+(refs||more ? refs+more : '<span class="text-xs text-slate-300 dark:text-zinc-600">—</span>')+'</td>'
+      +'<td class="px-2 py-2 whitespace-nowrap"><div class="text-xs text-slate-400 dark:text-zinc-500">'+_esc(lastSeen)+'</div><span class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase whitespace-nowrap '+srcCls+'">'+_esc(srcLabel)+'</span></td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('err-table-wrap').classList.remove('hidden');
+}
+
+function _showEmpty() {
+  document.getElementById('err-loading').classList.add('hidden');
+  document.getElementById('err-empty').classList.remove('hidden');
+}
+
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function filterErrors(q) {
   var lq = q.toLowerCase();
   document.querySelectorAll('.err-row').forEach(function(r) {
@@ -221,20 +225,17 @@ function filterErrors(q) {
 }
 
 function switchPeriod(d) {
-  var siteId = {{ selected_site_id if selected_site_id else 'null' }};
-  // Veri DB'de hazır — sadece URL değiştir, GA4 çağrısı yapma
+  var siteId = _errSiteId;
   window.location = '/errors?' + (siteId ? 'site_id=' + siteId + '&' : '') + 'days=' + d;
 }
 
-var _errPollTimer = null;
-
+// --- GA4 Progress Modal -------------------------------------------------------
 function startErrRefresh() {
   var btn = document.getElementById('err-refresh-btn');
   var icon = document.getElementById('err-spin');
   if (btn) { btn.disabled = true; }
   if (icon) icon.style.animation = 'spin 0.8s linear infinite';
 
-  // Modal'ı sıfırla ve aç
   _setErrModal({running: true, pct: 0, current: 'Başlatılıyor…', done: 0, total: 0, total_found: 0, recent_steps: [], error: ''});
   document.getElementById('err-progress-modal').classList.remove('hidden');
   document.getElementById('err-progress-modal').classList.add('flex');
@@ -249,10 +250,7 @@ function startErrRefresh() {
         alert('Başlatılamadı: ' + (d.status || 'bilinmiyor'));
       }
     })
-    .catch(function() {
-      _closeErrModal();
-      alert('İstek başarısız');
-    });
+    .catch(function() { _closeErrModal(); alert('İstek başarısız'); });
 }
 
 function _pollErrProgress() {
@@ -261,12 +259,8 @@ function _pollErrProgress() {
     .then(function(d) {
       _setErrModal(d);
       if (!d.running) {
-        clearInterval(_errPollTimer);
-        _errPollTimer = null;
-        setTimeout(function() {
-          _closeErrModal();
-          window.location.reload();
-        }, 1200);
+        clearInterval(_errPollTimer); _errPollTimer = null;
+        setTimeout(function() { _closeErrModal(); loadErrSummary(); }, 1200);
       }
     })
     .catch(function() {});
@@ -277,28 +271,17 @@ function _setErrModal(d) {
   document.getElementById('err-prog-bar').style.width = pct + '%';
   document.getElementById('err-prog-pct').textContent = pct + '%';
   document.getElementById('err-prog-current').textContent = d.current || (d.running ? 'Çekiliyor…' : 'Tamamlandı');
-  document.getElementById('err-prog-done').textContent = d.done || 0;
+  document.getElementById('err-prog-done').textContent  = d.done || 0;
   document.getElementById('err-prog-total').textContent = d.total || '—';
   document.getElementById('err-prog-found').textContent = d.total_found || 0;
-
-  if (d.error) {
-    var el = document.getElementById('err-prog-error');
-    el.textContent = d.error;
-    el.classList.remove('hidden');
-  }
-
-  var stepsEl = document.getElementById('err-prog-steps');
+  if (d.error) { var el = document.getElementById('err-prog-error'); el.textContent = d.error; el.classList.remove('hidden'); }
   var steps = d.recent_steps || [];
   if (steps.length) {
-    stepsEl.innerHTML = steps.slice().reverse().map(function(s) {
+    document.getElementById('err-prog-steps').innerHTML = steps.slice().reverse().map(function(s) {
       var ok = s.status === 'ok';
-      var color = ok ? 'text-slate-500 dark:text-zinc-400' : 'text-rose-500';
-      var badge = ok
-        ? '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">' + s.found + ' hata</span>'
-        : '<span class="text-rose-500">hata</span>';
-      return '<div class="flex items-center justify-between gap-2 ' + color + '">'
-        + '<span class="truncate">' + (s.domain || '') + ' · ' + s.days + 'g</span>'
-        + badge + '</div>';
+      var badge = ok ? '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">'+s.found+' hata</span>'
+                     : '<span class="text-rose-500">hata</span>';
+      return '<div class="flex items-center justify-between gap-2 '+(ok?'text-slate-500 dark:text-zinc-400':'text-rose-500')+'"><span class="truncate">'+_esc(s.domain||'')+' · '+s.days+'g</span>'+badge+'</div>';
     }).join('');
   }
 }
@@ -311,6 +294,9 @@ function _closeErrModal() {
   if (btn) btn.disabled = false;
   if (icon) icon.style.animation = '';
 }
+
+// Sayfa açılışında lazy load
+loadErrSummary();
 </script>
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
