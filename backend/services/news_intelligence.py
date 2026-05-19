@@ -124,24 +124,65 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         db.commit()
         logger.info("Database cleared for news intelligence reset.")
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    _BASE_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml, application/xml, text/xml, application/atom+xml, */*;q=0.8",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    _GNEWS_HEADERS = {
+        **_BASE_HEADERS,
+        # Google News için Referer eklemek gerekiyor aksi halde HTML redirect alıyoruz
+        "Referer": "https://news.google.com/",
     }
 
+    import time as _time
+
+    def _fetch_rss(url: str) -> bytes | None:
+        """RSS içeriğini çek; HTML dönerse None."""
+        hdrs = _GNEWS_HEADERS if "news.google.com" in url else _BASE_HEADERS
+        try:
+            resp = requests.get(url, headers=hdrs, timeout=15)
+            if resp.status_code != 200:
+                logger.error("RSS HTTP %d: %s", resp.status_code, url[:80])
+                return None
+            ct = resp.headers.get("Content-Type", "")
+            # Google bazen HTML döndürüyor (bot tespiti / consent sayfası)
+            if "html" in ct and "xml" not in ct:
+                logger.warning("RSS kaynak HTML döndürdü (bot bloğu?): %s", url[:80])
+                return None
+            # Content-Type olmasa bile içerik kontrolü yap
+            sniff = resp.content[:50].lstrip()
+            if sniff.startswith(b"<!") or sniff.lower().startswith(b"<html"):
+                logger.warning("RSS içerik HTML (Content-Type: %s): %s", ct[:40], url[:80])
+                return None
+            return resp.content
+        except requests.RequestException as exc:
+            logger.warning("RSS fetch hatası: %s — %s", url[:80], exc)
+            return None
+
     # Her kategori için tüm kaynakları tara
+    _gnews_count = 0  # Google News istekleri arasında throttle
     for category, rss_urls in CATEGORY_SOURCES.items():
         logger.info("Scanning category: %s with %d sources", category, len(rss_urls))
         for rss_url in rss_urls:
             try:
-                response = requests.get(rss_url, headers=headers, timeout=15)
-                if response.status_code != 200:
-                    logger.error("Failed to fetch RSS for %s from %s: HTTP %d", category, rss_url, response.status_code)
+                # Google News rate limiting: istekler arasına küçük gecikme koy
+                if "news.google.com" in rss_url:
+                    if _gnews_count > 0:
+                        _time.sleep(1.5)
+                    _gnews_count += 1
+
+                content = _fetch_rss(rss_url)
+                if content is None:
                     continue
 
                 try:
-                    root = ET.fromstring(response.content)
-                except ET.ParseError:
-                    logger.warning("RSS XML parse hatası (muhtemelen HTML döndü): %s", rss_url[:80])
+                    root = ET.fromstring(content)
+                except ET.ParseError as exc:
+                    logger.warning("RSS XML parse hatası (%s): %s", exc, rss_url[:80])
                     continue
                 items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
 
