@@ -308,8 +308,9 @@
     class="app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
     aria-label="App Store Connect özeti"
   >
-    {# Başlık şeridi #}
-    <header class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    {# Başlık şeridi (tıklanabilir — dropdown toggle) #}
+    <header id="app-asc-header" role="button" tabindex="0" aria-expanded="false" aria-controls="app-asc-body"
+      class="flex cursor-pointer select-none flex-col gap-3 border-b border-slate-100 px-4 py-4 transition hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div class="min-w-0">
         <div class="flex items-center gap-2">
           <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
@@ -326,8 +327,14 @@
           class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
           <span id="app-asc-refresh-icon">↺</span> Yenile
         </button>
+        <svg id="app-asc-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+        </svg>
       </div>
     </header>
+
+    {# Açılır gövde #}
+    <div id="app-asc-body" hidden>
 
     {# Filtre bar #}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
@@ -388,6 +395,7 @@
     >
       <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
     </div>
+    </div>{# /app-asc-body #}
   </section>
 
   {# ── Firebase Crashlytics ── #}
@@ -1609,6 +1617,9 @@
   function loadAscPreview() {
     var box = document.getElementById('app-asc-content');
     if (!box) return;
+    // Dropdown kapalıyken yükleme yapma; kullanıcı açtığında lazy yüklenecek
+    var asc_body = document.getElementById('app-asc-body');
+    if (asc_body && asc_body.hasAttribute('hidden')) return;
     ascState.seq += 1;
     var req = ascState.seq;
     var url = '/api/app/asc-preview?product=' + encodeURIComponent(state.product) +
@@ -1685,7 +1696,8 @@
     }
     var refresh = document.getElementById('app-asc-refresh-btn');
     if (refresh) {
-      refresh.addEventListener('click', function () {
+      refresh.addEventListener('click', function (ev) {
+        ev.stopPropagation();
         var icon = document.getElementById('app-asc-refresh-icon');
         if (icon) icon.classList.add('app-asc-spin');
         refresh.disabled = true;
@@ -1694,6 +1706,35 @@
           if (icon) icon.classList.remove('app-asc-spin');
           refresh.disabled = false;
         }, 600);
+      });
+    }
+
+    // Dropdown toggle: header'a tıklayınca aç/kapa, ilk açılışta lazy load
+    var hdr = document.getElementById('app-asc-header');
+    var body = document.getElementById('app-asc-body');
+    var chev = document.getElementById('app-asc-chevron');
+    function ascToggle() {
+      if (!body) return;
+      var isHidden = body.hasAttribute('hidden');
+      if (isHidden) {
+        body.removeAttribute('hidden');
+        if (chev) chev.style.transform = 'rotate(180deg)';
+        if (hdr) hdr.setAttribute('aria-expanded', 'true');
+        if (!ascState.payload) loadAscPreview();
+      } else {
+        body.setAttribute('hidden', '');
+        if (chev) chev.style.transform = '';
+        if (hdr) hdr.setAttribute('aria-expanded', 'false');
+      }
+    }
+    if (hdr) {
+      hdr.addEventListener('click', function (ev) {
+        // Refresh butonuna tıklarsa toggle etme
+        if (ev.target.closest('#app-asc-refresh-btn')) return;
+        ascToggle();
+      });
+      hdr.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ascToggle(); }
       });
     }
   }

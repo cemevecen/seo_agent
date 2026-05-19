@@ -389,7 +389,7 @@ def build_asc_connect_preview_payload(
         "active_devices": active_devices,
     }
 
-    return {
+    payload = {
         "source": "demo",
         "source_note": (
             "Örnek veri — App Store Connect API bağlandığında bu özet canlı verilerle dolacak."
@@ -415,3 +415,117 @@ def build_asc_connect_preview_payload(
         "top_versions": top_versions,
         "trend_daily": trend_daily,
     }
+
+    # ── Gerçek App Store Connect verisi (varsa) ───────────────────────────
+    try:
+        from backend.services import asc_client
+        if asc_client.is_configured():
+            bundle = APP_PRODUCTS[pid].get("ios_bundle_id") or ""
+            live = asc_client.fetch_daily_sales_summary(
+                bundle_id=bundle, days=p, country=cc, device=dev,
+            )
+            if live:
+                payload = _overlay_live_sales(payload, live)
+            subs = asc_client.fetch_subscription_summary(days=p)
+            if subs:
+                payload = _overlay_live_subscriptions(payload, subs)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning("ASC live overlay başarısız: %s", exc)
+
+    return payload
+
+
+def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
+    """ASC sales raporundan gelen gerçek verilerle demo payload'ı güncelle."""
+    first_dl = int(live.get("first_time_downloads") or 0)
+    redl = int(live.get("redownloads") or 0)
+    updates = int(live.get("updates") or 0)
+    total_dl = int(live.get("total_downloads") or (first_dl + redl))
+    proceeds_v = float(live.get("proceeds_usd") or 0)
+    dl_series = list(live.get("dl_series") or [])
+    pr_series = list(live.get("pr_series") or [])
+
+    def _kpi(value: float, *, money: bool = False, series: list[float] | None = None) -> dict[str, Any]:
+        return {
+            "value": round(value, 2),
+            "value_label": _fmt_money(value) if money else _fmt_compact(float(value)),
+            "delta_pct": 0.0,  # delta için önceki periyot karşılaştırması yapılana kadar 0
+            "series": [float(x) for x in (series or [])],
+        }
+
+    payload["acquisition"]["first_time_downloads"] = _kpi(first_dl, series=dl_series)
+    payload["acquisition"]["redownloads"] = _kpi(redl)
+    payload["acquisition"]["total_downloads"] = _kpi(total_dl, series=dl_series)
+    payload["acquisition"]["updates"] = _kpi(updates)
+    payload["sales"]["proceeds"] = _kpi(proceeds_v, money=True, series=pr_series)
+    payload["kpis"]["total_downloads"] = payload["acquisition"]["total_downloads"]
+    payload["kpis"]["proceeds"] = payload["sales"]["proceeds"]
+
+    # Günlük trend gerçek verilerden yeniden inşa
+    if dl_series:
+        payload["trend_daily"] = [
+            {"i": i, "downloads": round(dl_series[i]),
+             "proceeds": round(pr_series[i] if i < len(pr_series) else 0, 2)}
+            for i in range(len(dl_series))
+        ]
+
+    # Ülke kırılımı — gerçekçi tablo
+    country_agg = live.get("country_breakdown") or {}
+    if country_agg:
+        cc_total = sum(c["downloads"] for c in country_agg.values()) or 1
+        new_top = []
+        for code, vals in country_agg.items():
+            new_top.append({
+                "code": code.lower(),
+                "name": code,
+                "downloads": int(vals["downloads"]),
+                "share_pct": round(vals["downloads"] / cc_total * 100, 1),
+                "delta_pct": 0.0,
+                "proceeds": round(float(vals.get("proceeds") or 0), 2),
+            })
+        new_top.sort(key=lambda r: r["downloads"], reverse=True)
+        payload["top_countries"] = new_top[:15]
+
+    # Versiyon kırılımı
+    version_agg = live.get("version_breakdown") or {}
+    if version_agg:
+        v_total = sum(v["downloads"] for v in version_agg.values()) or 1
+        new_v = []
+        for ver, vals in version_agg.items():
+            share = vals["downloads"] / v_total
+            new_v.append({
+                "version": ver,
+                "downloads": int(vals["downloads"]),
+                "active_devices": 0,
+                "crash_rate_pct": 0.0,
+                "share_pct": round(share * 100, 1),
+                "is_latest": False,
+            })
+        new_v.sort(key=lambda r: r["downloads"], reverse=True)
+        if new_v:
+            new_v[0]["is_latest"] = True
+        payload["top_versions"] = new_v[:10]
+
+    payload["source"] = "live"
+    payload["source_note"] = (
+        "Canlı veri — App Store Connect Sales raporlarından (24-48 saat gecikme normaldir). "
+        "Impression / dönüşüm / etkileşim alanları Analytics Reports API'ye bağlanana kadar demo kalıyor."
+    )
+    return payload
+
+
+def _overlay_live_subscriptions(payload: dict[str, Any], subs: dict[str, Any]) -> dict[str, Any]:
+    ap = int(subs.get("active_plans") or 0)
+    pp = int(subs.get("paid_plans") or 0)
+    ft = int(subs.get("free_trials") or 0)
+    payload["subscriptions"]["active_plans"] = {
+        "value": ap, "value_label": _fmt_compact(float(ap)), "delta_pct": 0.0,
+    }
+    payload["subscriptions"]["paid_plans"] = {
+        "value": pp, "value_label": _fmt_compact(float(pp)), "delta_pct": 0.0,
+    }
+    payload["subscriptions"]["free_trials"] = {
+        "value": ft, "value_label": _fmt_compact(float(ft)), "delta_pct": 0.0,
+    }
+    return payload
