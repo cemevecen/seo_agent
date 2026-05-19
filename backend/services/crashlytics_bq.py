@@ -690,6 +690,8 @@ def _version_filter(version: str | None) -> str:
 # ── Sorgu fonksiyonları ───────────────────────────────────────────────────────
 
 def query_summary(platform: str, table: str, days: int) -> dict[str, Any]:
+    # ROLLUP: son satırda error_type=NULL → tüm event_type'lar arası gerçek unique kullanıcı sayısı.
+    # ROLLUP olmadan FATAL+NON_FATAL toplandığında her ikisinde de olan kullanıcılar çift sayılır.
     sql = f"""
 SELECT
   error_type,
@@ -697,11 +699,10 @@ SELECT
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM {table}
 WHERE {_ts_filter(days)}
-GROUP BY error_type
+GROUP BY ROLLUP(error_type)
 """
     rows, err = _run_query(platform, sql, skip_budget=True)
     result: dict[str, Any] = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0, "error": err}
-    total_affected = 0
     for r in rows:
         et = (r.get("error_type") or "").upper()
         n = int(r.get("event_count") or 0)
@@ -712,8 +713,9 @@ GROUP BY error_type
             result["anr"] = n
         elif et == "NON_FATAL":
             result["non_fatal"] = n
-        total_affected += u
-    result["affected_users"] = total_affected
+        else:
+            # ROLLUP grand total satırı (error_type IS NULL) — gerçek unique kullanıcı sayısı
+            result["affected_users"] = u
     return result
 
 
@@ -733,11 +735,17 @@ WHERE {_ts_filter(days)}
     crashed = int(r.get("crashed_users") or 0)
     if total <= 0:
         return None
-    # BQ crash events table only contains crash events, not all sessions.
-    # With very few users the ratio is misleading (e.g. 3/3 → 0.0%).
+    # BQ crash events tablosu sadece crash olaylarını içeriyor — aktif kullanıcı sayısı değil.
+    # Firebase'in %99.95'i tüm oturum sayısını payda alır (session data).
+    # Bizim "total_users" aslında "crash yaşayan kullanıcılar" — paydanın yanlış olduğunu biliyoruz.
+    # Sonuç 0.0% ya da yanıltıcı düşük çıkıyorsa (total ≈ crashed) gösterme.
     if total < 15:
         return None
     pct = round((1 - crashed / total) * 100, 2)
+    # Eğer crash_free < %2 ise BQ kaynağı güvenilmez (hemen herkeste FATAL+NON_FATAL overlap).
+    # Firebase Console'daki gerçek crash-free yerine bu metriği gösterme.
+    if pct < 2.0:
+        return None
     return {"total_users": total, "crashed_users": crashed, "crash_free_pct": pct}
 
 
