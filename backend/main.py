@@ -12113,8 +12113,8 @@ def _run_error_report_email_job() -> None:
                     f' <span style="font-weight:400;font-size:12px;color:#64748b">'
                     f'· {total} benzersiz URL · {users} kullanıcı etkilendi</span></div>'
                     f'<table style="width:100%;border-collapse:collapse">{rows}</table>'
-                    f'{"<div style=\'font-size:11px;color:#94a3b8;margin-top:4px\'>…ve " + str(len(errors)-15) + " URL daha</div>" if len(errors) > 15 else ""}'
-                    f'</div>'
+                    + (f'<div style="font-size:11px;color:#94a3b8;margin-top:4px">…ve {len(errors)-15} URL daha</div>' if len(errors) > 15 else "")
+                    + '</div>'
                 )
 
         if not site_blocks:
