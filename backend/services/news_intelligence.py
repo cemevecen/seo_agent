@@ -11,42 +11,43 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu
+# Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu.
+#
+# NOT: Aşağıdaki kaynaklar kasıtlı olarak çıkarıldı çünkü sürekli "not well-formed"
+# parse hatası veriyor (Cloudflare bot koruması, Brotli sıkıştırması veya bozuk XML):
+#   - sozcu.com.tr/rss.xml
+#   - cumhuriyet.com.tr/rss/son_dakika.xml
+#   - ntv.com.tr/gundem.rss
+#   - dunya.com/rss
+#   - ekonomim.com/rss
+#   - techcrunch.com/feed/
+#   - theverge.com/rss/index.xml
+# Bunlar tekrar denenmemeli; çöp veri üretiyorlardı.
 CATEGORY_SOURCES = {
     "Türkiye": [
         # Ajanslar
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-        # Gazeteler
+        # Gazeteler (sadece çalışanlar)
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
         "https://www.hurriyet.com.tr/rss/anasayfa",
         "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
         "https://www.haberturk.com/rss",
-        "https://www.sozcu.com.tr/rss.xml",
-        "https://www.cumhuriyet.com.tr/rss/son_dakika.xml",
-        "https://www.ntv.com.tr/gundem.rss",
         # Google News
         "https://news.google.com/rss/search?q=türkiye+gündem+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=ankara+siyaset+meclis+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=erdoğan+hükümet+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Genel": [
-        # Ekonomi/Haber ajansları
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-        "https://www.ntv.com.tr/gundem.rss",
         "https://www.cnnturk.com/feed/rss/all/news",
         "https://www.bloomberght.com/rss",
-        "https://www.dunya.com/rss",
-        "https://www.ekonomim.com/rss",
-        "https://www.sozcu.com.tr/rss.xml",
         # Google News
         "https://news.google.com/rss/headlines/section/topic/TOP_STORIES?hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=son+dakika+türkiye+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=türkiye+ekonomi+dünya+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "İş Dünyası": [
-        "https://www.dunya.com/rss",
-        "https://www.ekonomim.com/rss",
         "https://www.bloomberght.com/rss",
         # Google News
         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr",
@@ -57,8 +58,6 @@ CATEGORY_SOURCES = {
     ],
     "Finans & Borsa": [
         "https://www.bloomberght.com/rss",
-        "https://www.ekonomim.com/rss",
-        "https://www.dunya.com/rss",
         # Google News — piyasa odaklı
         "https://news.google.com/rss/search?q=borsa+istanbul+bist100+hisse+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=merkez+bankası+faiz+enflasyon+when:3h&hl=tr&gl=TR&ceid=TR:tr",
@@ -68,7 +67,6 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=fed+ecb+para+politikası+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
-        # Türk ajanslar — dünya
         "https://www.aa.com.tr/tr/rss/default?cat=dunya",
         "https://www.cnnturk.com/feed/rss/all/news",
         # Uluslararası
@@ -87,12 +85,10 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=yapay+zeka+ai+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=teknoloji+yazılım+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=siber+güvenlik+when:6h&hl=tr&gl=TR&ceid=TR:tr",
-        # Google News EN (çeviri gerekiyor)
+        # Google News EN
         "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en&gl=US&ceid=US:en",
-        # Tech medya
-        "https://techcrunch.com/feed/",
+        # Tech medya (çalışan)
         "https://feeds.arstechnica.com/arstechnica/index",
-        "https://www.theverge.com/rss/index.xml",
         "https://www.wired.com/feed/rss",
         # Türkçe tech
         "https://news.google.com/rss/search?q=openai+google+microsoft+apple+when:6h&hl=tr&gl=TR&ceid=TR:tr",
@@ -125,11 +121,38 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         db.commit()
         logger.info("Database cleared for news intelligence reset.")
 
+    # Kronik bozulan kaynaklardan kalan eski item'leri her sync'te temizle.
+    # Bu kaynaklar artık fetch edilmiyor; DB'de duran kayıtları da çöpe atalım.
+    _BLACKLISTED_DOMAINS = (
+        "sozcu.com.tr",
+        "cumhuriyet.com.tr",
+        "ntv.com.tr",
+        "dunya.com",
+        "ekonomim.com",
+        "techcrunch.com",
+        "theverge.com",
+    )
+    try:
+        from sqlalchemy import or_
+        conds = []
+        for dom in _BLACKLISTED_DOMAINS:
+            pat = f"%{dom}%"
+            conds.append(NewsIntelligenceItem.url.like(pat))
+            conds.append(NewsIntelligenceItem.source_url.like(pat))
+        deleted = db.query(NewsIntelligenceItem).filter(or_(*conds)).delete(synchronize_session=False)
+        if deleted:
+            db.commit()
+            logger.info("News intelligence: %d eski item kara liste kaynaklardan silindi.", deleted)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.warning("News intelligence kara liste temizlik hatası: %s", exc)
+
     _BASE_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/rss+xml, application/xml, text/xml, application/atom+xml, */*;q=0.8",
         "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
+        # br (Brotli) çıkarıldı — requests Brotli'yi otomatik açamıyor, gzip+deflate yeterli
+        "Accept-Encoding": "gzip, deflate",
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
     }
