@@ -1,3 +1,4 @@
+import gzip
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -141,7 +142,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     import time as _time
 
     def _fetch_rss(url: str) -> bytes | None:
-        """RSS içeriğini çek; HTML dönerse None."""
+        """RSS içeriğini çek; HTML veya parse edilemeyen içerik dönerse None."""
         hdrs = _GNEWS_HEADERS if "news.google.com" in url else _BASE_HEADERS
         try:
             resp = requests.get(url, headers=hdrs, timeout=15)
@@ -153,12 +154,20 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
             if "html" in ct and "xml" not in ct:
                 logger.warning("RSS kaynak HTML döndürdü (bot bloğu?): %s", url[:80])
                 return None
+            # Ham içeriği al; gzip magic bytes varsa manuel decompress et
+            raw = resp.content
+            if raw[:2] == b"\x1f\x8b":
+                try:
+                    raw = gzip.decompress(raw)
+                except Exception as gz_exc:
+                    logger.warning("RSS gzip decompress hatası (%s): %s", gz_exc, url[:80])
+                    return None
             # Content-Type olmasa bile içerik kontrolü yap
-            sniff = resp.content[:50].lstrip()
+            sniff = raw[:50].lstrip()
             if sniff.startswith(b"<!") or sniff.lower().startswith(b"<html"):
                 logger.warning("RSS içerik HTML (Content-Type: %s): %s", ct[:40], url[:80])
                 return None
-            return resp.content
+            return raw
         except requests.RequestException as exc:
             logger.warning("RSS fetch hatası: %s — %s", url[:80], exc)
             return None
@@ -172,7 +181,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 # Google News rate limiting: istekler arasına küçük gecikme koy
                 if "news.google.com" in rss_url:
                     if _gnews_count > 0:
-                        _time.sleep(1.5)
+                        _time.sleep(3.0)
                     _gnews_count += 1
 
                 content = _fetch_rss(rss_url)
