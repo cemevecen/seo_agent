@@ -135,7 +135,13 @@ def _reporting_service():
 
 
 def _date_to_gp(d: date) -> dict:
-    return {"year": d.year, "month": d.month, "day": d.day}
+    """Play Reporting API DateTime formatı (timeZone zorunlu)."""
+    return {
+        "year": d.year,
+        "month": d.month,
+        "day": d.day,
+        "timeZone": {"id": "UTC"},
+    }
 
 
 def fetch_crash_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | None:
@@ -147,12 +153,11 @@ def fetch_crash_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | N
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/crashRateMetricSet"
     body = {
-        "timeline": {
+        "timelineSpec": {
             "aggregationPeriod": "DAILY",
-            "startDate": _date_to_gp(start),
-            "endDate": _date_to_gp(end),
+            "startTime": _date_to_gp(start),
+            "endTime": _date_to_gp(end + timedelta(days=1)),  # endTime exclusive
         },
-        "dimensions": [],
         "metrics": ["crashRate7dUserWeighted", "crashRate28dUserWeighted"],
         "pageSize": 1000,
     }
@@ -173,12 +178,11 @@ def fetch_anr_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | Non
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/anrRateMetricSet"
     body = {
-        "timeline": {
+        "timelineSpec": {
             "aggregationPeriod": "DAILY",
-            "startDate": _date_to_gp(start),
-            "endDate": _date_to_gp(end),
+            "startTime": _date_to_gp(start),
+            "endTime": _date_to_gp(end + timedelta(days=1)),
         },
-        "dimensions": [],
         "metrics": ["anrRate7dUserWeighted", "anrRate28dUserWeighted"],
         "pageSize": 1000,
     }
@@ -199,12 +203,11 @@ def fetch_slow_render_rate(package_name: str, *, days: int = 30) -> dict[str, An
     start = end - timedelta(days=days - 1)
     name = f"apps/{package_name}/slowRenderingRateMetricSet"
     body = {
-        "timeline": {
+        "timelineSpec": {
             "aggregationPeriod": "DAILY",
-            "startDate": _date_to_gp(start),
-            "endDate": _date_to_gp(end),
+            "startTime": _date_to_gp(start),
+            "endTime": _date_to_gp(end + timedelta(days=1)),
         },
-        "dimensions": [],
         "metrics": ["slowRenderingRate7dUserWeighted"],
         "pageSize": 1000,
     }
@@ -225,19 +228,33 @@ def _extract_metric_rows(resp: dict | None, metric_key: str) -> list[dict]:
     rows = resp.get("rows") or []
     out = []
     for row in rows:
-        date_info = row.get("startDate") or {}
-        metrics = row.get("metrics") or {}
+        # API "startTime" (DateTime) dönüyor; metrics ise liste değil dict liste karışık olabilir
+        date_info = row.get("startTime") or row.get("startDate") or {}
         try:
             d = date(int(date_info["year"]), int(date_info["month"]), int(date_info["day"]))
         except (KeyError, TypeError, ValueError):
             continue
-        val_obj = metrics.get(metric_key) or {}
-        # decimalValue ya da int64Value olabilir
-        val = val_obj.get("decimalValue") or val_obj.get("int64Value") or 0
-        try:
-            val = float(val)
-        except (TypeError, ValueError):
-            val = 0.0
+        # metrics: liste formatında [{metric: "...", decimalValue: {...}}, ...]
+        # ya da dict formatında {metric_key: {decimalValue: "..."}}
+        val = 0.0
+        raw_metrics = row.get("metrics")
+        if isinstance(raw_metrics, list):
+            for m in raw_metrics:
+                if (m.get("metric") or "") == metric_key:
+                    dv = m.get("decimalValue") or {}
+                    val = float(dv.get("value") or dv if isinstance(dv, (int, float, str)) else 0)
+                    if isinstance(dv, dict):
+                        val = float(dv.get("value") or 0)
+                    break
+        elif isinstance(raw_metrics, dict):
+            val_obj = raw_metrics.get(metric_key) or {}
+            v = val_obj.get("decimalValue") or val_obj.get("int64Value") or 0
+            if isinstance(v, dict):
+                v = v.get("value") or 0
+            try:
+                val = float(v)
+            except (TypeError, ValueError):
+                val = 0.0
         out.append({"date": d.isoformat(), "value": val})
     return sorted(out, key=lambda r: r["date"])
 

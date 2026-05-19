@@ -2155,6 +2155,9 @@
       if (j && j.source === 'demo') {
         pill.className = 'rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
         pill.textContent = 'Demo'; pill.classList.remove('hidden');
+      } else if (j && j.source === 'live_partial') {
+        pill.className = 'rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
+        pill.textContent = 'Kısmi Canlı'; pill.classList.remove('hidden');
       } else if (j && j.source) {
         pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
         pill.textContent = 'Canlı'; pill.classList.remove('hidden');
