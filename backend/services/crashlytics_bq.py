@@ -391,11 +391,22 @@ def _table(platform: str, bundle: str) -> str:
     batch_tid   = _find(batch_candidates)
     realtime_tid = _find(realtime_candidates)
 
-    # Her iki tablo varsa batch öncelikli — SELECT * UNION ALL şema uyumsuzluğuna yol açıyor.
-    # Batch tablo tüm historical datayı içeriyor; realtime sadece son birkaç saatin streaming export'u.
+    # Her iki tablo varsa explicit sütun seçimiyle UNION ALL — SELECT * yapmak BOOL/STRING
+    # uyumsuzluğuna yol açıyor (is_fatal/is_anr). Kullandığımız sütunları seçerek bunu atlıyoruz.
+    # Realtime tablosu son saatlerin streaming export'unu içeriyor; 1-günlük sorgular için şart.
     if batch_tid and realtime_tid:
-        logger.debug("Crashlytics batch+realtime mevcut, batch kullanılıyor: %s", batch_tid)
-        return f"`{proj}.{_DATASET}.{batch_tid}`"
+        logger.info("Crashlytics batch+realtime UNION ALL: %s + %s", batch_tid, realtime_tid)
+        batch_ref = f"`{proj}.{_DATASET}.{batch_tid}`"
+        rt_ref    = f"`{proj}.{_DATASET}.{realtime_tid}`"
+        cols = (
+            "event_timestamp, error_type, installation_uuid, issue_id, issue_title, "
+            "STRUCT(application.display_version AS display_version) AS application, "
+            "STRUCT(device.model AS model, device.manufacturer AS manufacturer) AS device, "
+            "STRUCT(operating_system.display_version AS display_version) AS operating_system, "
+            "STRUCT(blame_frame.file AS file, blame_frame.symbol AS symbol, "
+            "       blame_frame.line AS line) AS blame_frame"
+        )
+        return f"(SELECT {cols} FROM {batch_ref} UNION ALL SELECT {cols} FROM {rt_ref})"
     if batch_tid:
         logger.info("Crashlytics tablo (batch): %s", batch_tid)
         return f"`{proj}.{_DATASET}.{batch_tid}`"
