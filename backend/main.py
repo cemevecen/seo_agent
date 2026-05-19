@@ -9851,14 +9851,37 @@ def _crash_params(request: Request) -> dict:
 
 
 def _crash_fetch(params: dict) -> dict:
+    """BQ'dan tüm veriyi cache'li çek, sonra tip/versiyon filtresi memory'de uygula."""
     from backend.services import crashlytics_bq as cbq
-    return cbq.build_full_payload(
+    data = cbq.build_full_payload(
         params["product"],
         days=params["days"],
         platform_filter=params["platform"],
-        error_type=params["error_type"],
-        version=params["version"],
     )
+    if not data or not data.get("ok"):
+        return data
+
+    error_type = (params.get("error_type") or "").strip().upper() or None
+    version = (params.get("version") or "").strip() or None
+
+    if error_type or version:
+        data = dict(data)  # shallow copy — don't mutate cache
+
+        if data.get("issues"):
+            issues = data["issues"]
+            if error_type:
+                issues = [i for i in issues if (i.get("error_type") or "").upper() == error_type]
+            if version:
+                issues = [i for i in issues if i.get("latest_version") == version]
+            data["issues"] = issues
+
+        if data.get("anr") and version:
+            data["anr"] = [r for r in data["anr"] if r.get("app_version") == version]
+
+        if data.get("versions") and version:
+            data["versions"] = [r for r in data["versions"] if r.get("app_version") == version]
+
+    return data
 
 
 @app.get("/api/app/crashlytics/summary", response_class=HTMLResponse)

@@ -927,7 +927,7 @@ def build_full_payload(
     if not any_platform_ready():
         return {"ok": False, "configured": False, "message": "Service account tanımlı değil."}
 
-    cache_key = f"{pid}:{days}:{platform_filter}:{error_type or ''}:{version or ''}"
+    cache_key = f"{pid}:{days}:{platform_filter}"
     cached = _cache_get(cache_key)
     if cached:
         return cached
@@ -967,8 +967,8 @@ def build_full_payload(
             out: dict[str, Any] = {"platform": plat}
             out["summary"] = query_summary(plat, tbl, days)
             out["crash_free"] = query_crash_free(plat, tbl, days)
-            out["issues"], out["issues_err"] = query_top_issues(plat, tbl, days, error_type, version)
-            out["anr"], out["anr_err"] = query_anr_list(plat, tbl, days, version)
+            out["issues"], out["issues_err"] = query_top_issues(plat, tbl, days, None, None)
+            out["anr"], out["anr_err"] = query_anr_list(plat, tbl, days, None)
             out["versions"], out["ver_err"] = query_version_breakdown(plat, tbl, days)
             out["trend"], out["trend_err"] = query_daily_trend(plat, tbl, days)
             return out
