@@ -393,20 +393,33 @@ def _table(platform: str, bundle: str) -> str:
 
     # Her iki tablo varsa explicit sütun seçimiyle UNION ALL — SELECT * yapmak BOOL/STRING
     # uyumsuzluğuna yol açıyor (is_fatal/is_anr). Kullandığımız sütunları seçerek bunu atlıyoruz.
-    # Realtime tablosu son saatlerin streaming export'unu içeriyor; 1-günlük sorgular için şart.
+    # Realtime tablosu sadece BUGÜNÜN verisini içersin: gece batch export'u dünü kapattı, realtime
+    # bugünü tamamlıyor. TIMESTAMP_TRUNC filtresi sayesinde aynı event iki tabloda çift sayılmaz.
     if batch_tid and realtime_tid:
         logger.info("Crashlytics batch+realtime UNION ALL: %s + %s", batch_tid, realtime_tid)
         batch_ref = f"`{proj}.{_DATASET}.{batch_tid}`"
         rt_ref    = f"`{proj}.{_DATASET}.{realtime_tid}`"
+        # iOS tablolarında device.manufacturer alanı yoktur (sadece Android'de var).
+        # NULL dökmek yerine platform'a göre seçiyoruz; dış sorgular manufacturer'a NULL olarak erişir.
+        if platform == "android":
+            device_struct = "STRUCT(device.model AS model, device.manufacturer AS manufacturer) AS device"
+        else:
+            device_struct = "STRUCT(device.model AS model, CAST(NULL AS STRING) AS manufacturer) AS device"
         cols = (
             "event_timestamp, error_type, installation_uuid, issue_id, issue_title, "
             "STRUCT(application.display_version AS display_version) AS application, "
-            "STRUCT(device.model AS model, device.manufacturer AS manufacturer) AS device, "
+            f"{device_struct}, "
             "STRUCT(operating_system.display_version AS display_version) AS operating_system, "
             "STRUCT(blame_frame.file AS file, blame_frame.symbol AS symbol, "
             "       blame_frame.line AS line) AS blame_frame"
         )
-        return f"(SELECT {cols} FROM {batch_ref} UNION ALL SELECT {cols} FROM {rt_ref})"
+        # Realtime tablosunu sadece bugünkü eventlerle sınırla (batch ile overlap önlenir)
+        rt_today = "event_timestamp >= TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY)"
+        return (
+            f"(SELECT {cols} FROM {batch_ref} "
+            f"UNION ALL "
+            f"SELECT {cols} FROM {rt_ref} WHERE {rt_today})"
+        )
     if batch_tid:
         logger.info("Crashlytics tablo (batch): %s", batch_tid)
         return f"`{proj}.{_DATASET}.{batch_tid}`"
@@ -688,7 +701,7 @@ GROUP BY error_type
 """
     rows, err = _run_query(platform, sql, skip_budget=True)
     result: dict[str, Any] = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0, "error": err}
-    seen_users: set = set()
+    total_affected = 0
     for r in rows:
         et = (r.get("error_type") or "").upper()
         n = int(r.get("event_count") or 0)
@@ -699,8 +712,8 @@ GROUP BY error_type
             result["anr"] = n
         elif et == "NON_FATAL":
             result["non_fatal"] = n
-        seen_users.add(u)
-    result["affected_users"] = sum(seen_users)
+        total_affected += u
+    result["affected_users"] = total_affected
     return result
 
 
