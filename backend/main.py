@@ -2031,8 +2031,9 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
 def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
     """Tek bir site için tam Search Console kart verisi üretir."""
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-    status = _search_console_status(db, latest, site.id)
     connection = get_search_console_connection_status(db, site.id)
+    has_rows_28d = bool(get_latest_search_console_rows(db, site_id=site.id, data_scope="current_28d"))
+    status = _search_console_status_from_cache(latest, connection, has_rows_28d)
     last_run = _latest_provider_run(db, site_id=site.id, provider="search_console", strategy="all")
     cooldown_active = _latest_collector_run_recent(
         db,
