@@ -71,7 +71,7 @@ from backend.models import (
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
     RealtimeAlarmLog, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
-    SearchConsoleQuerySnapshot, Site, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
+    SearchConsoleQuerySnapshot, Site, SiteCredential, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
     AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache,
     SupportInboxThread, SupportInboxMessage,
 )
