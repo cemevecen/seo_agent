@@ -751,8 +751,9 @@ WHERE {_ts_filter(days)}
 
 def query_oldest_date(platform: str, table: str, days: int) -> int | None:
     """Tablodaki en eski event_timestamp'i sorgular; gün cinsinden gerçek veri yaşını döner."""
+    # Türkiye saati (Firebase Console'un gösterdiği yerel saat) ile aynı gün hesabı için.
     sql = f"""
-SELECT DATE(MIN(event_timestamp)) AS oldest_date
+SELECT DATE(MIN(event_timestamp), 'Europe/Istanbul') AS oldest_date
 FROM {table}
 WHERE {_ts_filter(days)}
 """
@@ -861,9 +862,11 @@ LIMIT {limit}
 
 
 def query_daily_trend(platform: str, table: str, days: int) -> tuple[list[dict], str | None]:
+    # Gün gruplaması Türkiye saati (Firebase Console'un yerel saati) ile aynı olmalı —
+    # aksi halde 21:00 UTC sonrası crash'ler bir gün önceye düşer, Firebase'le uyuşmaz.
     sql = f"""
 SELECT
-  DATE(event_timestamp) AS crash_date,
+  DATE(event_timestamp, 'Europe/Istanbul') AS crash_date,
   COUNTIF(error_type = 'FATAL') AS fatal_count,
   COUNTIF(error_type = 'ANR') AS anr_count,
   COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count
@@ -988,7 +991,7 @@ FROM {table}
 WHERE {where}
 """
         sql_trend = f"""
-SELECT DATE(event_timestamp) AS d, COUNT(*) AS c
+SELECT DATE(event_timestamp, 'Europe/Istanbul') AS d, COUNT(*) AS c
 FROM {table}
 WHERE {where}
 GROUP BY d ORDER BY d ASC
