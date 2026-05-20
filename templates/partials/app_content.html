@@ -1993,17 +1993,52 @@
       (sub ? '<p class="text-[10px] text-slate-400 dark:text-slate-500">' + esc(sub) + '</p>' : '') + '</div>';
   }
 
+  var _gpYakSeq = 0;
+  function gpRenderKpiGrid(cards) {
+    var liveHtml = '', yakHtml = '', yakCount = 0;
+    cards.forEach(function (c) {
+      var isDemo = c.metric && (c.metric.is_demo || c.metric.is_unavailable);
+      if (isDemo) {
+        yakCount++;
+        yakHtml +=
+          '<div class="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-2.5 dark:border-slate-700/40 dark:bg-slate-800/20">' +
+          '<p class="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">' + esc(c.title) + '</p>' +
+          '<p class="mt-0.5 text-sm font-semibold text-slate-300 dark:text-slate-600">—</p>' +
+          '</div>';
+      } else {
+        liveHtml += gpKpiCard(c.title, c.metric, c.opts);
+      }
+    });
+    var html = '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' + liveHtml + '</div>';
+    if (yakCount > 0) {
+      var tid = 'gp-yak-' + (++_gpYakSeq);
+      html +=
+        '<div class="mt-2.5">' +
+        '<button type="button" onclick="var p=document.getElementById(\'' + tid + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.gp-yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
+        'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
+        '<span class="gp-yak-ic">▸</span>' +
+        yakCount + ' metrik — GP Reports bucket bağlandığında' +
+        '</button>' +
+        '<div id="' + tid + '" class="hidden mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">' +
+        yakHtml +
+        '</div>' +
+        '</div>';
+    }
+    return html;
+  }
+
   function gpRenderOverview(j) {
     var K = j.kpis || {}, R = j.ratings || {}, V = j.vitals || {};
     var html = '<section>' + gpSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
-      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
-      gpKpiCard('Kurulum', K.installs, { color: 'green' }) +
-      gpKpiCard('Kaldırma', K.uninstalls, { color: 'rose' }) +
-      gpKpiCard('Net kurulum', K.net_installs, { color: 'emerald' }) +
-      '</div></section>';
+      gpRenderKpiGrid([
+        { title: 'Kurulum',     metric: K.installs,     opts: { color: 'green' } },
+        { title: 'Kaldırma',   metric: K.uninstalls,   opts: { color: 'rose' } },
+        { title: 'Net kurulum', metric: K.net_installs, opts: { color: 'emerald' } },
+      ]) +
+      '</section>';
 
     var trend = j.trend_daily || [];
-    if (trend.length) {
+    if (trend.length && !j.trend_daily_is_demo) {
       var iSeries = trend.map(function (r) { return r.installs; });
       var uSeries = trend.map(function (r) { return r.uninstalls; });
       html += '<section class="mt-6">' + gpSectionTitle('Günlük Trend', 'Kurulum · Kaldırma') +
@@ -2057,12 +2092,13 @@
     var iSeries = trend.map(function (r) { return r.installs; });
     var uSeries = trend.map(function (r) { return r.uninstalls; });
     return '<section>' + gpSectionTitle('İndirmeler (Kurulum)') +
-      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
-      gpKpiCard('Yeni kurulum', K.installs, { color: 'green' }) +
-      gpKpiCard('Kaldırma', K.uninstalls, { color: 'rose' }) +
-      gpKpiCard('Net kurulum', K.net_installs, { color: 'emerald' }) +
-      '</div></section>' +
-      (trend.length ? '<section class="mt-5"><div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
+      gpRenderKpiGrid([
+        { title: 'Yeni kurulum', metric: K.installs,     opts: { color: 'green' } },
+        { title: 'Kaldırma',    metric: K.uninstalls,   opts: { color: 'rose' } },
+        { title: 'Net kurulum', metric: K.net_installs, opts: { color: 'emerald' } },
+      ]) +
+      '</section>' +
+      (trend.length && !j.trend_daily_is_demo ? '<section class="mt-5"><div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum serisi</p>' + gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma serisi</p>' + gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
@@ -2113,7 +2149,28 @@
       '<div class="space-y-2">' + rbar + '</div></div></section>';
   }
 
+  function _gpDemoTablePlaceholder(title) {
+    return '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700/40 dark:bg-slate-800/20">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">' + esc(title) + '</p>' +
+      '<p class="text-[11px] text-slate-300 dark:text-slate-600">Kurulum verileri GP_REPORTS_BUCKET bağlandığında burada görünür.</p>' +
+      '</div>';
+  }
+
   function gpRenderTops(j) {
+    if (j.top_countries_is_demo || j.top_sources_is_demo) {
+      var tid2 = 'gp-tops-' + (++_gpYakSeq);
+      return '<section>' + gpSectionTitle('En çok kurulum: Ülkeler / Kaynaklar') +
+        '<div class="mt-1">' +
+        '<button type="button" onclick="var p=document.getElementById(\'' + tid2 + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.gp-yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
+        'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
+        '<span class="gp-yak-ic">▸</span>' +
+        '2 tablo — GP Reports bucket bağlandığında' +
+        '</button>' +
+        '<div id="' + tid2 + '" class="hidden mt-3 space-y-3">' +
+        _gpDemoTablePlaceholder('En çok kurulum: Ülkeler') +
+        _gpDemoTablePlaceholder('Kurulum Kaynakları') +
+        '</div></div></section>';
+    }
     var sortC = gpState.topCountriesSort, sortS = gpState.topSourcesSort;
     var countries = (j.top_countries || []).slice().sort(function (a, b) {
       var va = a[sortC.key], vb = b[sortC.key];

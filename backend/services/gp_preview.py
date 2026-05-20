@@ -255,6 +255,19 @@ def build_gp_preview_payload(
         import logging as _log
         _log.getLogger(__name__).warning("GP puanlama overlay başarısız: %s", exc)
 
+    # ── Sentetik kurulum verilerini işaretle ──────────────────────────────
+    # Installs/uninstalls/net_installs gerçek değilse is_demo=True ekle
+    if payload.get("source") in ("demo", "live_partial"):
+        _demo_kpi: dict[str, Any] = {
+            "value": None, "value_label": "—",
+            "delta_pct": None, "series": [], "is_demo": True,
+        }
+        for _k in ("installs", "uninstalls", "net_installs"):
+            payload["kpis"][_k] = dict(_demo_kpi)
+        payload["trend_daily_is_demo"] = True
+        payload["top_countries_is_demo"] = True
+        payload["top_sources_is_demo"] = True
+
     return payload
 
 
