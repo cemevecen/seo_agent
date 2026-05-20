@@ -56,6 +56,47 @@ def _itunes_rating(app_id: str, country: str = "tr") -> dict[str, Any] | None:
         logger.debug("iTunes lookup hatası (app_id=%s): %s", app_id, exc)
         return None
 
+
+def _best_itunes_rating(app_id: str) -> dict[str, Any] | None:
+    """Birden fazla ülkeden sorgular; en yüksek toplam puan sayısını döner."""
+    best: dict[str, Any] | None = None
+    for cc in ("tr", "us", "de", "gb"):
+        r = _itunes_rating(app_id, cc)
+        if r and (best is None or r["total"] > best["total"]):
+            best = r
+    return best
+
+
+def _estimate_rating_dist(total: int, avg: float, rng: random.Random) -> dict[str, int]:
+    """Gerçek ortalamayı koruyacak şekilde yıldız dağılımı tahmin eder.
+
+    Her yıldız en az toplam'ın %0.5'i kadar oy alır (0 gösterme sorunu giderildi).
+    """
+    # Gaussian-tabanlı ağırlıklar: ortalama yakınındaki yıldızlar dominant
+    import math
+    sigma = 1.2  # dağılım genişliği
+    weights = [math.exp(-0.5 * ((s - avg) / sigma) ** 2) for s in range(1, 6)]
+
+    # Küçük rastgele pertürbasyon (seed'li, tutarlı)
+    perturb = [1.0 + rng.uniform(-0.08, 0.08) for _ in range(5)]
+    weights = [weights[i] * perturb[i] for i in range(5)]
+
+    # Minimum %0.5 floor: hiçbir yıldız sıfır göstermesin
+    min_frac = 0.005
+    sw = sum(weights)
+    weights = [max(w / sw, min_frac) for w in weights]
+
+    # Normalize et ve sayıya çevir
+    sw2 = sum(weights)
+    counts = [max(1, int(total * w / sw2)) for w in weights]
+
+    # Toplam farkını dominant yıldıza ekle
+    dominant = weights.index(max(weights))
+    diff = total - sum(counts)
+    counts[dominant] = max(1, counts[dominant] + diff)
+
+    return {str(i + 1): counts[i] for i in range(5)}
+
 # ─── Sabit filtre listeleri ──────────────────────────────────────────────────
 
 _PERIODS: tuple[int, ...] = (0, 1, 7, 14, 30, 90, 365)
@@ -340,21 +381,13 @@ def build_asc_connect_preview_payload(
 
     # ── Puanlar (Ratings) ─────────────────────────────────────────────────
     # Rating period'a göre değişmez — kümülatif App Store puanı.
-    # Önce iTunes Search API'dan gerçek veriyi dene.
+    # Önce iTunes Search API'dan gerçek veriyi dene (TR/US/DE/GB arasından en yüksek sayı).
     rt_rng = random.Random(rating_seed)
-    live_rating = _itunes_rating(ios_app_id) if ios_app_id else None
+    live_rating = _best_itunes_rating(ios_app_id) if ios_app_id else None
     if live_rating:
         real_avg = live_rating["average"]
         real_total = live_rating["total"]
-        # Gerçek ortalamaya yakın dağılım üret (sadece görsel için)
-        dist_w = [rt_rng.random() for _ in range(5)]
-        # Ağırlıkları gerçek ortalamaya göre ayarla
-        for i in range(5):
-            dist_w[i] *= (i + 1) ** (real_avg - 1)
-        sw = sum(dist_w)
-        rating_dist = {
-            str(i + 1): int(real_total * (dist_w[i] / sw)) for i in range(5)
-        }
+        rating_dist = _estimate_rating_dist(real_total, real_avg, rt_rng)
         ratings = {
             "average": real_avg,
             "total": real_total,
@@ -364,17 +397,10 @@ def build_asc_connect_preview_payload(
         }
     else:
         total_ratings = int(8000 * base_mult + rt_rng.random() * 12_000)
-        dist_w = [rt_rng.random() for _ in range(5)]
-        dist_w[4] *= 8  # 5 yıldız ağırlıklı
-        dist_w[3] *= 4
-        dist_w[2] *= 1.5
-        sw = sum(dist_w)
-        rating_dist = {
-            str(i + 1): int(total_ratings * (dist_w[i] / sw)) for i in range(5)
-        }
-        avg = sum(int(k) * v for k, v in rating_dist.items()) / max(1, sum(rating_dist.values()))
+        rating_dist = _estimate_rating_dist(total_ratings, 4.2, rt_rng)
+        avg_val = sum(int(k) * v for k, v in rating_dist.items()) / max(1, sum(rating_dist.values()))
         ratings = {
-            "average": round(avg, 2),
+            "average": round(avg_val, 2),
             "total": sum(rating_dist.values()),
             "distribution": rating_dist,
             "delta_avg": round(rt_rng.uniform(-0.2, 0.3), 2),
