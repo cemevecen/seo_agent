@@ -1246,6 +1246,42 @@
     return "$" + n.toFixed(2);
   }
 
+  var _yakindaSeq = 0;
+
+  function ascRenderKpiGrid(cards) {
+    /* cards: [{title, metric, opts}] — unavailable olanları gizler, toggle ile açar */
+    var liveHtml = '', yakHtml = '', yakCount = 0;
+    cards.forEach(function (c) {
+      var isY = c.metric && (c.metric.is_demo || c.metric.is_unavailable);
+      if (isY) {
+        yakCount++;
+        yakHtml +=
+          '<div class="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-2.5 dark:border-slate-700/40 dark:bg-slate-800/20">' +
+          '<p class="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">' + esc(c.title) + '</p>' +
+          '<p class="mt-0.5 text-sm font-semibold text-slate-300 dark:text-slate-600">—</p>' +
+          '</div>';
+      } else {
+        liveHtml += ascKpiCard(c.title, c.metric, c.opts);
+      }
+    });
+    var html = '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' + liveHtml + '</div>';
+    if (yakCount > 0) {
+      var tid = 'asc-yak-' + (++_yakindaSeq);
+      html +=
+        '<div class="mt-2.5">' +
+        '<button type="button" onclick="var p=document.getElementById(\'' + tid + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
+        'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
+        '<span class="yak-ic">▸</span>' +
+        yakCount + ' metrik — Analytics API bağlandığında' +
+        '</button>' +
+        '<div id="' + tid + '" class="hidden mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">' +
+        yakHtml +
+        '</div>' +
+        '</div>';
+    }
+    return html;
+  }
+
   function ascSparklineSvg(series, colorClass) {
     var s = (series && series.length) ? series : [0, 0];
     var minV = Math.min.apply(null, s);
@@ -1270,15 +1306,11 @@
     opts = opts || {};
     var color = opts.color || "indigo";
     var sparkColor = "text-" + color + "-500 dark:text-" + color + "-400";
-    var isUnavail = metric && (metric.is_unavailable || metric.is_demo);
     var val = (metric && metric.value_label) ? metric.value_label : "—";
     var d = (metric && typeof metric.delta_pct === "number") ? metric.delta_pct : null;
-    var badge = isUnavail
-      ? '<span class="ml-1.5 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">Yakında</span>'
-      : '';
     return (
-      '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/70 sm:p-4' + (isUnavail ? ' opacity-50' : '') + '">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + badge + '</p>' +
+      '<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/70 sm:p-4">' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
       '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">' + esc(val) + '</p>' +
       (d == null ? '' :
         '<p class="mt-0.5 text-xs font-semibold ' + ascDeltaClass(d) + '"><span class="mr-0.5">' + ascDeltaArrow(d) + '</span>' + esc(ascFormatDelta(d)) + '</p>') +
@@ -1314,14 +1346,15 @@
     var R = j.ratings || {};
     var E = j.engagement || {};
     var html = '<section>' + ascSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
-      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
-      ascKpiCard('Gösterimler (Impressions)', K.impressions, { color: 'sky' }) +
-      ascKpiCard('Ürün sayfası görüntüleme', K.product_page_views, { color: 'cyan' }) +
-      ascKpiCard('Toplam indirme', K.total_downloads, { color: 'indigo' }) +
-      ascKpiCard('Dönüşüm oranı', K.conversion_rate, { color: 'violet' }) +
-      ascKpiCard('Gelir (Proceeds)', K.proceeds, { color: 'emerald' }) +
-      ascKpiCard('Aktif cihaz', K.active_devices, { color: 'fuchsia' }) +
-      '</div></section>';
+      ascRenderKpiGrid([
+        { title: 'Gösterimler (Impressions)', metric: K.impressions,       opts: { color: 'sky' } },
+        { title: 'Ürün sayfası görüntüleme',  metric: K.product_page_views,opts: { color: 'cyan' } },
+        { title: 'Toplam indirme',             metric: K.total_downloads,   opts: { color: 'indigo' } },
+        { title: 'Dönüşüm oranı',             metric: K.conversion_rate,   opts: { color: 'violet' } },
+        { title: 'Gelir (Proceeds)',           metric: K.proceeds,          opts: { color: 'emerald' } },
+        { title: 'Aktif cihaz',               metric: K.active_devices,    opts: { color: 'fuchsia' } },
+      ]) +
+      '</section>';
 
     var trend = (j.trend_daily || []);
     if (trend.length) {
@@ -1382,14 +1415,15 @@
   function ascRenderAcquisition(j) {
     var A = j.acquisition || {};
     return '<section>' + ascSectionTitle('Kazanım (Acquisition)') +
-      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
-      ascKpiCard('Gösterimler', A.impressions, { color: 'sky' }) +
-      ascKpiCard('Ürün sayfası görüntüleme', A.product_page_views, { color: 'cyan' }) +
-      ascKpiCard('İlk indirme', A.first_time_downloads, { color: 'indigo' }) +
-      ascKpiCard('Yeniden indirme', A.redownloads, { color: 'violet' }) +
-      ascKpiCard('Toplam indirme', A.total_downloads, { color: 'fuchsia' }) +
-      ascKpiCard('Dönüşüm oranı', A.conversion_rate, { color: 'emerald' }) +
-      '</div></section>' +
+      ascRenderKpiGrid([
+        { title: 'Gösterimler',               metric: A.impressions,          opts: { color: 'sky' } },
+        { title: 'Ürün sayfası görüntüleme',  metric: A.product_page_views,   opts: { color: 'cyan' } },
+        { title: 'İlk indirme',               metric: A.first_time_downloads, opts: { color: 'indigo' } },
+        { title: 'Yeniden indirme',           metric: A.redownloads,          opts: { color: 'violet' } },
+        { title: 'Toplam indirme',            metric: A.total_downloads,      opts: { color: 'fuchsia' } },
+        { title: 'Dönüşüm oranı',            metric: A.conversion_rate,      opts: { color: 'emerald' } },
+      ]) +
+      '</section>' +
       '<section class="mt-5">' + ascSectionTitle('Yan metrikler') +
       '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
       ascMiniCard('Güncelleme', A.updates ? A.updates.value_label : '—', A.updates ? A.updates.delta_pct : null) +
@@ -1464,11 +1498,12 @@
   function ascRenderEngagement(j) {
     var E = j.engagement || {};
     return '<section>' + ascSectionTitle('Etkileşim (Engagement)') +
-      '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
-      ascKpiCard('Oturum (Sessions)', E.sessions, { color: 'indigo' }) +
-      ascKpiCard('Aktif cihaz', E.active_devices, { color: 'sky' }) +
-      ascKpiCard('Çökme (Crashes)', E.crashes, { color: 'rose' }) +
-      '</div></section>' +
+      ascRenderKpiGrid([
+        { title: 'Oturum (Sessions)', metric: E.sessions,      opts: { color: 'indigo' } },
+        { title: 'Aktif cihaz',       metric: E.active_devices,opts: { color: 'sky' } },
+        { title: 'Çökme (Crashes)',   metric: E.crashes,       opts: { color: 'rose' } },
+      ]) +
+      '</section>' +
       '<section class="mt-5">' + ascSectionTitle('Kullanıcı tutma (Retention)') +
       '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
       '<div class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">' +
