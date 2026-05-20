@@ -1079,6 +1079,10 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
     </svg>
     <span class="text-sm font-semibold tracking-wide">AI Talk</span>
+    <span id="pc-alert-badge"
+      style="display:none;position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;
+             background:#ef4444;color:white;font-size:10px;font-weight:700;border-radius:9px;
+             align-items:center;justify-content:center;padding:0 4px;border:2px solid white;"></span>
   </button>
 
   <div id="pc-agent-panel"
@@ -1192,6 +1196,39 @@
     var _pcHistory = [];
     var _pcStreaming = false;
     var _pcOpen = false;
+
+    // Session ID — kalıcı, localStorage'da saklanır
+    var _pcSessionId = (function () {
+      var key = 'ai_talk_session_id';
+      var id = localStorage.getItem(key);
+      if (!id) {
+        id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+        localStorage.setItem(key, id);
+      }
+      return id;
+    })();
+
+    // Alert badge — her 2 dakikada poll
+    (function () {
+      function checkAlerts() {
+        fetch('/api/agent/alerts').then(function(r){ return r.json(); }).then(function(data) {
+          var badge = document.getElementById('pc-alert-badge');
+          if (!badge) return;
+          var count = data.count || 0;
+          if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'flex';
+          } else {
+            badge.style.display = 'none';
+          }
+        }).catch(function(){});
+      }
+      checkAlerts();
+      setInterval(checkAlerts, 120000);
+    })();
 
     window.pcAgentToggle = function () {
       _pcOpen = !_pcOpen;
@@ -1346,7 +1383,7 @@
       fetch('/api/agent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: _pcHistory.slice() }),
+        body: JSON.stringify({ messages: _pcHistory.slice(), session_id: _pcSessionId }),
       }).then(function (resp) {
         if (!resp.ok) return resp.text().then(function (t) { throw new Error(t); });
         var reader = resp.body.getReader();

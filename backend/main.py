@@ -3176,6 +3176,25 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         misfire_grace_time=1800,
     )
 
+    # AI Talk proaktif izleme — her 30 dakikada bir
+    from apscheduler.triggers.interval import IntervalTrigger as _AiMonitorTrigger
+    def _run_proactive_monitor():
+        try:
+            from backend.services.proactive_monitor import run_proactive_checks
+            run_proactive_checks()
+        except Exception as _e:
+            logging.getLogger(__name__).warning("Proaktif izleme hatası: %s", _e)
+
+    scheduler.add_job(
+        _run_proactive_monitor,
+        trigger=_AiMonitorTrigger(minutes=30),
+        id="ai-talk-proactive-monitor",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
+    )
+
     return scheduler
 
 
@@ -13490,8 +13509,44 @@ async def api_agent_chat(request: Request):
     if not clean_messages or clean_messages[-1]["role"] != "user":
         return JSONResponse({"error": "Son mesaj user rolünde olmalı."}, status_code=400)
 
+    # Bağlam hafızası: session_id ile geçmiş mesajları DB'den ekle
+    session_id = (body.get("session_id") or "").strip()
+    if session_id:
+        from backend.services.agent_tools import ai_talk_get_messages, ai_talk_save_messages
+        history = ai_talk_get_messages(session_id)
+        if history:
+            # DB geçmişi + mevcut yeni mesajlar
+            combined: list[dict] = []
+            for m in history[:-len(clean_messages)] if len(history) >= len(clean_messages) else history:
+                combined.append(m)
+            # Yeni mesajları ekle (tekrar etmesin diye DB'deki son mesajı atla)
+            combined.extend(clean_messages)
+            clean_messages = combined[-30:]
+        # Sohbet bittikten sonra kaydet (async — fire and forget)
+        import threading
+        threading.Thread(
+            target=ai_talk_save_messages,
+            args=(session_id, clean_messages),
+            daemon=True,
+        ).start()
+
     return StarletteStreamingResponse(
         stream_agent_response(clean_messages),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/agent/alerts")
+def api_agent_alerts():
+    """Okunmamış proaktif uyarıları döner."""
+    from backend.services.agent_tools import get_unread_alerts
+    alerts = get_unread_alerts(limit=20)
+    return JSONResponse({"alerts": alerts, "count": len(alerts)})
+
+
+@app.post("/api/agent/alerts/{alert_id}/read")
+def api_agent_alert_read(alert_id: int):
+    """Uyarıyı okundu işaretler."""
+    from backend.services.agent_tools import mark_alert_read
+    return JSONResponse(mark_alert_read(alert_id))

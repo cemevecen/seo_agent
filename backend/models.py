@@ -781,3 +781,31 @@ class PolicyCSVUpload(Base):
     updated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── AI Talk ───────────────────────────────────────────────────────────────────
+
+class AiTalkHistory(Base):
+    """AI Talk sohbet geçmişi — session başına bir kayıt."""
+    __tablename__ = "ai_talk_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
+    messages: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_message_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AiTalkAlert(Base):
+    """Proaktif izleme uyarıları."""
+    __tablename__ = "ai_talk_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning")
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)

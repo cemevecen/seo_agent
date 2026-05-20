@@ -448,6 +448,265 @@ def project_structure() -> dict[str, Any]:
     return {"structure": structure, "base": base}
 
 
+# ── GitHub kod yazma + PR araçları ───────────────────────────────────────────
+
+import base64 as _base64
+
+
+def github_get_file(path: str, branch: str = "main") -> dict[str, Any]:
+    """GitHub'dan bir dosyanın içeriğini okur."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/contents/{path}",
+            params={"ref": branch},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        content = _base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+        return {"path": data["path"], "sha": data["sha"], "content": content[:8000], "size": data["size"]}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_create_or_update_file(path: str, content: str, message: str, branch: str = "main") -> dict[str, Any]:
+    """GitHub'da yeni dosya oluşturur veya mevcut dosyayı günceller."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        # Mevcut SHA'yı al (update için gerekli)
+        existing_sha: str | None = None
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/contents/{path}",
+            params={"ref": branch},
+            headers=_gh_headers(),
+            timeout=10,
+        )
+        if r.status_code == 200:
+            existing_sha = r.json().get("sha")
+
+        payload: dict[str, Any] = {
+            "message": message,
+            "content": _base64.b64encode(content.encode()).decode(),
+            "branch": branch,
+        }
+        if existing_sha:
+            payload["sha"] = existing_sha
+
+        r = httpx.put(
+            f"{_GH_BASE}/repos/{repo}/contents/{path}",
+            json=payload,
+            headers=_gh_headers(),
+            timeout=20,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "path": path,
+            "branch": branch,
+            "sha": data.get("content", {}).get("sha", "")[:8],
+            "url": data.get("content", {}).get("html_url", ""),
+            "action": "updated" if existing_sha else "created",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_create_branch_from_main(branch_name: str) -> dict[str, Any]:
+    """main'den yeni bir branch oluşturur."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        # main'in SHA'sını al
+        r = httpx.get(f"{_GH_BASE}/repos/{repo}/git/ref/heads/main", headers=_gh_headers(), timeout=10)
+        r.raise_for_status()
+        sha = r.json()["object"]["sha"]
+        # Branch oluştur
+        r = httpx.post(
+            f"{_GH_BASE}/repos/{repo}/git/refs",
+            json={"ref": f"refs/heads/{branch_name}", "sha": sha},
+            headers=_gh_headers(),
+            timeout=10,
+        )
+        r.raise_for_status()
+        return {"branch": branch_name, "sha": sha[:8], "created": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_create_pr(title: str, body: str, branch: str, base: str = "main") -> dict[str, Any]:
+    """GitHub'da pull request açar."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.post(
+            f"{_GH_BASE}/repos/{repo}/pulls",
+            json={"title": title, "body": body, "head": branch, "base": base},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return {"number": data["number"], "url": data["html_url"], "title": data["title"], "state": data["state"]}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Veritabanı şema + doğal dil sorgu araçları ────────────────────────────────
+
+def db_get_schema() -> dict[str, Any]:
+    """Veritabanı şemasını döner: tablo adları, sütunlar, satır sayıları."""
+    try:
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT
+                    t.tablename,
+                    s.n_live_tup AS row_count,
+                    pg_size_pretty(pg_total_relation_size('public.'||t.tablename)) AS size
+                FROM pg_tables t
+                LEFT JOIN pg_stat_user_tables s ON s.relname = t.tablename
+                WHERE t.schemaname = 'public'
+                ORDER BY s.n_live_tup DESC NULLS LAST
+                LIMIT 40
+            """))
+            tables = []
+            for row in result:
+                # Sütunları al
+                cols_result = db.execute(text("""
+                    SELECT column_name, data_type, is_nullable
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = :tname
+                    ORDER BY ordinal_position
+                    LIMIT 20
+                """), {"tname": row.tablename})
+                cols = [{"name": c.column_name, "type": c.data_type, "nullable": c.is_nullable == "YES"}
+                        for c in cols_result]
+                tables.append({"table": row.tablename, "rows": row.row_count or 0, "size": row.size, "columns": cols})
+            return {"tables": tables, "count": len(tables)}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Sohbet geçmişi araçları ───────────────────────────────────────────────────
+
+def ai_talk_save_messages(session_id: str, messages: list[dict]) -> dict[str, Any]:
+    """Sohbet geçmişini veritabanına kaydeder (maks 30 mesaj)."""
+    try:
+        from backend.models import AiTalkHistory
+        db = SessionLocal()
+        try:
+            record = db.query(AiTalkHistory).filter_by(session_id=session_id).first()
+            kept = messages[-30:]
+            payload = json.dumps(kept, ensure_ascii=False)
+            if record:
+                record.messages = payload
+                record.message_count = len(kept)
+                record.last_message_at = datetime.utcnow()
+            else:
+                record = AiTalkHistory(
+                    session_id=session_id,
+                    messages=payload,
+                    message_count=len(kept),
+                    last_message_at=datetime.utcnow(),
+                )
+                db.add(record)
+            db.commit()
+            return {"ok": True, "count": len(kept)}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def ai_talk_get_messages(session_id: str) -> list[dict]:
+    """Session'a ait sohbet geçmişini döner."""
+    try:
+        from backend.models import AiTalkHistory
+        db = SessionLocal()
+        try:
+            record = db.query(AiTalkHistory).filter_by(session_id=session_id).first()
+            if not record:
+                return []
+            return json.loads(record.messages or "[]")
+        finally:
+            db.close()
+    except Exception:
+        return []
+
+
+# ── Proaktif izleme ───────────────────────────────────────────────────────────
+
+def create_alert(alert_type: str, severity: str, title: str, summary: str, detail: dict) -> None:
+    """Yeni alert kaydı oluşturur (duplicate check: son 2 saatte aynı tip varsa oluşturma)."""
+    try:
+        from backend.models import AiTalkAlert
+        db = SessionLocal()
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=2)
+            existing = db.query(AiTalkAlert).filter(
+                AiTalkAlert.alert_type == alert_type,
+                AiTalkAlert.created_at >= cutoff,
+            ).first()
+            if existing:
+                return
+            alert = AiTalkAlert(
+                alert_type=alert_type,
+                severity=severity,
+                title=title,
+                summary=summary,
+                detail=json.dumps(detail, ensure_ascii=False, default=str),
+            )
+            db.add(alert)
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        LOGGER.warning("Alert kaydı oluşturulamadı: %s", e)
+
+
+def get_unread_alerts(limit: int = 10) -> list[dict]:
+    """Okunmamış uyarıları döner."""
+    try:
+        from backend.models import AiTalkAlert
+        db = SessionLocal()
+        try:
+            rows = db.query(AiTalkAlert).filter(
+                AiTalkAlert.read_at.is_(None)
+            ).order_by(AiTalkAlert.created_at.desc()).limit(limit).all()
+            return [
+                {
+                    "id": r.id, "type": r.alert_type, "severity": r.severity,
+                    "title": r.title, "summary": r.summary,
+                    "created_at": r.created_at.isoformat(),
+                }
+                for r in rows
+            ]
+        finally:
+            db.close()
+    except Exception as e:
+        LOGGER.warning("Alert listesi alınamadı: %s", e)
+        return []
+
+
+def mark_alert_read(alert_id: int) -> dict[str, Any]:
+    """Uyarıyı okundu olarak işaretler."""
+    try:
+        from backend.models import AiTalkAlert
+        db = SessionLocal()
+        try:
+            alert = db.query(AiTalkAlert).filter_by(id=alert_id).first()
+            if alert:
+                alert.read_at = datetime.utcnow()
+                db.commit()
+            return {"ok": True}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Araç tanımları (Claude tool_use formatı) ──────────────────────────────────
 
 TOOL_DEFINITIONS = [
@@ -508,6 +767,62 @@ TOOL_DEFINITIONS = [
     {
         "name": "github_list_workflows",
         "description": "GitHub Actions CI/CD workflow çalıştırmalarını listeler. Build başarısız mı, test geçti mi kontrol eder.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "github_get_file",
+        "description": "GitHub'da bir dosyanın içeriğini okur. Mevcut kodu görmek veya düzenlemeden önce okumak için kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Dosya yolu, ör: backend/main.py"},
+                "branch": {"type": "string", "description": "Branch adı", "default": "main"},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "github_create_or_update_file",
+        "description": "GitHub'da yeni dosya oluştur veya mevcut dosyayı güncelle. Kod yazma işlemleri için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Dosya yolu"},
+                "content": {"type": "string", "description": "Dosyanın tam içeriği"},
+                "message": {"type": "string", "description": "Commit mesajı"},
+                "branch": {"type": "string", "description": "Hangi branch'e yazılacak", "default": "main"},
+            },
+            "required": ["path", "content", "message"],
+        },
+    },
+    {
+        "name": "github_create_branch_from_main",
+        "description": "main'den yeni bir feature branch oluşturur. PR açmadan önce kullan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "branch_name": {"type": "string", "description": "Yeni branch adı, ör: fix/ga4-quota-error"},
+            },
+            "required": ["branch_name"],
+        },
+    },
+    {
+        "name": "github_create_pr",
+        "description": "Bir branch'ten main'e pull request açar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "PR başlığı"},
+                "body": {"type": "string", "description": "PR açıklaması (Markdown)"},
+                "branch": {"type": "string", "description": "Kaynak branch"},
+                "base": {"type": "string", "description": "Hedef branch", "default": "main"},
+            },
+            "required": ["title", "body", "branch"],
+        },
+    },
+    {
+        "name": "db_get_schema",
+        "description": "Veritabanı şemasını döner: tüm tablolar, sütunlar, satır sayıları. Doğal dil sorularını SQL'e çevirmeden önce kullan.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -590,6 +905,10 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "github_get_repo_info": lambda: github_get_repo_info(),
         "github_get_branch_diff": lambda: github_get_branch_diff(**inputs),
         "github_list_workflows": lambda: github_list_workflows(),
+        "github_get_file": lambda: github_get_file(**inputs),
+        "github_create_or_update_file": lambda: github_create_or_update_file(**inputs),
+        "github_create_branch_from_main": lambda: github_create_branch_from_main(**inputs),
+        "github_create_pr": lambda: github_create_pr(**inputs),
         "github_list_issues": lambda: github_list_issues(**inputs),
         "github_list_prs": lambda: github_list_prs(**inputs),
         "github_recent_commits": lambda: github_recent_commits(**inputs),
@@ -597,6 +916,7 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "railway_get_deployments": lambda: railway_get_deployments(**inputs),
         "railway_get_logs": lambda: railway_get_logs(**inputs),
         "db_table_stats": lambda: db_table_stats(),
+        "db_get_schema": lambda: db_get_schema(),
         "db_recent_errors": lambda: db_recent_errors(**inputs),
         "db_custom_query": lambda: db_custom_query(**inputs),
         "system_health_check": lambda: system_health_check(),
