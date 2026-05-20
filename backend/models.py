@@ -535,6 +535,7 @@ class RealtimeAlarmLog(Base):
     change_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
     triggered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
     site: Mapped["Site"] = relationship("Site")
 

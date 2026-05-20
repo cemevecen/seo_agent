@@ -1998,7 +1998,8 @@ def check_site_realtime(
             if _alarm_email_suppressed(db, site.id, rule_ids, profile=profile):
                 logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s, profile=%s).", site.domain, profile)
             else:
-                _send_site_alarm_emails(site.domain, profile, alarms)
+                if _send_site_alarm_emails(site.domain, profile, alarms):
+                    _mark_alarms_emailed(db, site.id, rule_ids, profile=profile)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -2080,7 +2081,8 @@ def _alarm_email_suppressed(
         .filter(
             RealtimeAlarmLog.site_id == site_id,
             RealtimeAlarmLog.rule_id.in_(rule_ids),
-            RealtimeAlarmLog.triggered_at > cutoff,
+            RealtimeAlarmLog.email_sent_at.isnot(None),
+            RealtimeAlarmLog.email_sent_at > cutoff,
         )
     )
     if profile:
@@ -2088,12 +2090,38 @@ def _alarm_email_suppressed(
     return q.first() is not None
 
 
-def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
-    """Genel site alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
+def _mark_alarms_emailed(
+    db: Session, site_id: int, rule_ids: list[str], *, profile: str | None = None,
+    window_minutes: int = 5,
+) -> None:
+    """Son `window_minutes` dakika içinde kaydedilmiş ve mail atılan alarm loglarını işaretle."""
+    from backend.models import RealtimeAlarmLog
+    if not rule_ids:
+        return
+    now = datetime.utcnow()
+    cutoff = now - timedelta(minutes=window_minutes)
+    try:
+        q = db.query(RealtimeAlarmLog).filter(
+            RealtimeAlarmLog.site_id == site_id,
+            RealtimeAlarmLog.rule_id.in_(rule_ids),
+            RealtimeAlarmLog.triggered_at > cutoff,
+            RealtimeAlarmLog.email_sent_at.is_(None),
+        )
+        if profile:
+            q = q.filter(RealtimeAlarmLog.metric.like(f"{profile}:%"))
+        q.update({RealtimeAlarmLog.email_sent_at: now}, synchronize_session=False)
+        db.commit()
+    except Exception as exc:
+        logger.warning("_mark_alarms_emailed hatası: %s", exc)
+        db.rollback()
+
+
+def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> bool:
+    """Genel site alarmları — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
     from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
 
     if not alarms:
-        return
+        return False
     if not is_realtime_mail_ready():
         logger.warning(
             "Realtime site alarmı tetiklendi (site=%s, alarm_count=%d) ancak e-posta gönderilemedi. "
@@ -2101,7 +2129,7 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
             domain,
             len(alarms),
         )
-        return
+        return False
 
     logger.info("GA4 Realtime: E-posta hazırlanıyor (site=%s, profile=%s)...", domain, profile)
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
@@ -2113,6 +2141,7 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
         logger.info("GA4 Realtime: E-posta başarıyla gönderildi (site=%s, profile=%s).", domain, profile)
     else:
         logger.error("GA4 Realtime: E-posta gönderimi başarısız (site=%s, profile=%s).", domain, profile)
+    return bool(ok)
 
 
 def get_recent_snapshots(
@@ -2541,6 +2570,7 @@ def check_page_alarms_for_site(
     )
 
     if alarms:
+        _save_page_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             negatives, positives = _split_alarms_by_sentiment(alarms)
             to_send: list[dict[str, Any]] = []
@@ -2555,8 +2585,8 @@ def check_page_alarms_for_site(
                 else:
                     to_send.extend(negatives)
             if to_send:
-                _send_page_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send))
-        _save_page_alarm_logs(db, site.id, alarms, profile=profile)
+                if _send_page_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send)):
+                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
 
     return alarms
 
@@ -2584,25 +2614,25 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         logger.exception("Sayfa alarm log kayıt hatası (site_id=%s)", site_id)
 
 
-def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> None:
-    """Sayfa bazlı alarmlar — tek e-postada özet + Gmail iş parçacığı."""
+def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> bool:
+    """Sayfa bazlı alarmlar — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
     from backend.services.mailer import is_page_alarm_mail_ready, send_realtime_email
 
     if not alarms:
-        return
+        return False
     if not is_page_alarm_mail_ready():
         logger.warning(
             "Realtime sayfa alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
             "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
             len(alarms),
         )
-        return
+        return False
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_page_alarm_body(domain, profile_label, alarms)
     subject = _email_page_alarm_subject(domain, profile, alarms)
-    send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key)
+    return bool(send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key))
 
 
 def run_page_alarm_check_all_sites(
@@ -2972,25 +3002,25 @@ def _get_site_kpi_summary(db: Session, site_id: int, profile: str) -> dict:
     return {}
 
 
-def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> None:
-    """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı (sabit konu + References)."""
+def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> bool:
+    """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
     from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
 
     if not alarms:
-        return
+        return False
     if not is_news_realtime_mail_ready():
         logger.warning(
             "Realtime haber alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
             "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_NEWS_ALERT_EMAIL, SMTP ve MAIL_TO.",
             len(alarms),
         )
-        return
+        return False
 
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_news_alarm_body(domain, profile_label, alarms, site_kpi=site_kpi or {})
     subject = _email_news_alarm_subject(domain, profile, alarms)
-    send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
+    return bool(send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key))
 
 
 def check_news_alarms_for_site(
@@ -3040,6 +3070,7 @@ def check_news_alarms_for_site(
     )
 
     if alarms:
+        _save_news_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             # Negatif (düşüş) ve pozitif (artış) alarmları ayrı ayrı cooldown'la — negatifler bastırılmasın
             negatives, positives = _split_alarms_by_sentiment(alarms)
@@ -3056,8 +3087,8 @@ def check_news_alarms_for_site(
                     to_send.extend(negatives)
             if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi)
-        _save_news_alarm_logs(db, site.id, alarms, profile=profile)
+                if _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi):
+                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
 
     return alarms
 

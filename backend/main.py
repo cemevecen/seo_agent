@@ -1174,6 +1174,9 @@ def on_startup() -> None:
             "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
             # Unique constraint — duplicate engelle (mevcut duplicate varsa hata verir, pas geçilir)
             "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
+            # RealtimeAlarmLog.email_sent_at — cooldown sadece mail atılan alarmları saysın
+            "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
+            "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
         ]:
             try:
                 with engine.connect() as _conn:
