@@ -18,10 +18,43 @@ Frontend için sağlanan alanlar:
 from __future__ import annotations
 
 import hashlib
+import logging
 import random
+from functools import lru_cache
 from typing import Any
 
+import httpx
+
 from backend.services.app_intel import APP_PRODUCTS
+
+logger = logging.getLogger(__name__)
+
+# ─── iTunes Search API (public) ─────────────────────────────────────────────
+
+@lru_cache(maxsize=32)
+def _itunes_rating(app_id: str, country: str = "tr") -> dict[str, Any] | None:
+    """iTunes Lookup API'dan gerçek puan ve toplam oy sayısını çeker.
+
+    Cache'li (process ömrü boyunca); pratikte bir kez çekilir.
+    """
+    try:
+        url = f"https://itunes.apple.com/lookup?id={app_id}&country={country}"
+        with httpx.Client(timeout=10) as cli:
+            resp = cli.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return None
+        data = resp.json().get("results", [])
+        if not data:
+            return None
+        r = data[0]
+        avg = r.get("averageUserRating")
+        cnt = r.get("userRatingCount")
+        if avg is None:
+            return None
+        return {"average": round(float(avg), 2), "total": int(cnt or 0)}
+    except Exception as exc:
+        logger.debug("iTunes lookup hatası (app_id=%s): %s", app_id, exc)
+        return None
 
 # ─── Sabit filtre listeleri ──────────────────────────────────────────────────
 
@@ -172,8 +205,11 @@ def build_asc_connect_preview_payload(
         dev = "all"
 
     seed = _seed_int(f"asc_v2|{pid}|{p}|{cc}|{src}|{dev}")
+    # Rating seed period'dan bağımsız — App Store puanı kümülatif, period'a göre değişmez
+    rating_seed = _seed_int(f"asc_rating|{pid}")
     rng = random.Random(seed)
     label = APP_PRODUCTS[pid]["label"]
+    ios_app_id = APP_PRODUCTS[pid].get("ios_app_id", "")
 
     # Günlük noktalar (sparkline / trend için)
     line_points = max(6, effective_p) if effective_p > 1 else 6
@@ -289,23 +325,46 @@ def build_asc_connect_preview_payload(
     }
 
     # ── Puanlar (Ratings) ─────────────────────────────────────────────────
-    rt_rng = random.Random(seed + 13)
-    total_ratings = int(8000 * base_mult + rt_rng.random() * 12_000)
-    dist_w = [rt_rng.random() for _ in range(5)]
-    dist_w[4] *= 8  # 5 yıldız ağırlıklı
-    dist_w[3] *= 4
-    dist_w[2] *= 1.5
-    sw = sum(dist_w)
-    rating_dist = {
-        str(i + 1): int(total_ratings * (dist_w[i] / sw)) for i in range(5)
-    }
-    avg = sum(int(k) * v for k, v in rating_dist.items()) / max(1, sum(rating_dist.values()))
-    ratings = {
-        "average": round(avg, 2),
-        "total": sum(rating_dist.values()),
-        "distribution": rating_dist,
-        "delta_avg": round(rt_rng.uniform(-0.2, 0.3), 2),
-    }
+    # Rating period'a göre değişmez — kümülatif App Store puanı.
+    # Önce iTunes Search API'dan gerçek veriyi dene.
+    rt_rng = random.Random(rating_seed)
+    live_rating = _itunes_rating(ios_app_id) if ios_app_id else None
+    if live_rating:
+        real_avg = live_rating["average"]
+        real_total = live_rating["total"]
+        # Gerçek ortalamaya yakın dağılım üret (sadece görsel için)
+        dist_w = [rt_rng.random() for _ in range(5)]
+        # Ağırlıkları gerçek ortalamaya göre ayarla
+        for i in range(5):
+            dist_w[i] *= (i + 1) ** (real_avg - 1)
+        sw = sum(dist_w)
+        rating_dist = {
+            str(i + 1): int(real_total * (dist_w[i] / sw)) for i in range(5)
+        }
+        ratings = {
+            "average": real_avg,
+            "total": real_total,
+            "distribution": rating_dist,
+            "delta_avg": round(rt_rng.uniform(-0.05, 0.1), 2),
+            "source": "live",
+        }
+    else:
+        total_ratings = int(8000 * base_mult + rt_rng.random() * 12_000)
+        dist_w = [rt_rng.random() for _ in range(5)]
+        dist_w[4] *= 8  # 5 yıldız ağırlıklı
+        dist_w[3] *= 4
+        dist_w[2] *= 1.5
+        sw = sum(dist_w)
+        rating_dist = {
+            str(i + 1): int(total_ratings * (dist_w[i] / sw)) for i in range(5)
+        }
+        avg = sum(int(k) * v for k, v in rating_dist.items()) / max(1, sum(rating_dist.values()))
+        ratings = {
+            "average": round(avg, 2),
+            "total": sum(rating_dist.values()),
+            "distribution": rating_dist,
+            "delta_avg": round(rt_rng.uniform(-0.2, 0.3), 2),
+        }
 
     # ── Top tablolar ──────────────────────────────────────────────────────
     tc_rng = random.Random(seed + 17)
