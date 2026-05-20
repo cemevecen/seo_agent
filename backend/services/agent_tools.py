@@ -118,6 +118,69 @@ def github_list_branches() -> dict[str, Any]:
         return {"error": str(e)}
 
 
+def github_commit_stats() -> dict[str, Any]:
+    """Projedeki toplam commit sayısını ve branch başına commit sayılarını döner."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        # Toplam commit sayısı: per_page=1 ile son sayfa numarasını Link header'dan oku
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/commits",
+            params={"per_page": 1},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        total_main = 0
+        link = r.headers.get("Link", "")
+        if 'rel="last"' in link:
+            import re
+            m = re.search(r'page=(\d+)>; rel="last"', link)
+            if m:
+                total_main = int(m.group(1))
+        else:
+            # tek sayfa — listeden say
+            total_main = len(r.json()) if r.status_code == 200 else 0
+
+        # Tüm branch'ler ve her birinin son commit SHA'sı
+        rb = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/branches",
+            params={"per_page": 50},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        rb.raise_for_status()
+        branches = rb.json()
+
+        branch_stats = []
+        for b in branches:
+            bname = b["name"]
+            br = httpx.get(
+                f"{_GH_BASE}/repos/{repo}/commits",
+                params={"per_page": 1, "sha": bname},
+                headers=_gh_headers(),
+                timeout=15,
+            )
+            count = 0
+            blink = br.headers.get("Link", "")
+            if 'rel="last"' in blink:
+                import re
+                m = re.search(r'page=(\d+)>; rel="last"', blink)
+                if m:
+                    count = int(m.group(1))
+            else:
+                count = len(br.json()) if br.status_code == 200 else 0
+            branch_stats.append({"branch": bname, "commit_count": count})
+
+        branch_stats.sort(key=lambda x: -x["commit_count"])
+        return {
+            "total_commits_main": total_main,
+            "branches": branch_stats,
+            "note": "commit sayıları branch'e özgü (shared commit'ler birden fazla branch'te sayılır)",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def github_recent_commits(limit: int = 10) -> dict[str, Any]:
     """Son commit'leri getirir."""
     repo = settings.github_repo or "cemevecen/seo_agent"
@@ -738,6 +801,11 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "github_commit_stats",
+        "description": "Projedeki toplam commit sayısını ve her branch'teki commit sayısını döner. 'toplam kaç commit var', 'en çok commit hangi branch' gibi sorular için kullan.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "github_recent_commits",
         "description": "Son commit'leri getirir. Ne değişti, kim değiştirdi.",
         "input_schema": {
@@ -901,6 +969,7 @@ TOOL_DEFINITIONS = [
 def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
     """Araç adına göre ilgili fonksiyonu çalıştırır."""
     dispatch = {
+        "github_commit_stats": lambda: github_commit_stats(),
         "github_list_branches": lambda: github_list_branches(),
         "github_get_repo_info": lambda: github_get_repo_info(),
         "github_get_branch_diff": lambda: github_get_branch_diff(**inputs),
