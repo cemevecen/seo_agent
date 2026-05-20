@@ -32,6 +32,42 @@ ASC_BASE = "https://api.appstoreconnect.apple.com"
 _TOKEN_TTL = 60 * 18  # JWT en fazla 20 dk; biz 18 dk tutuyoruz
 _token_cache: dict[str, Any] = {"token": None, "exp": 0}
 
+# ─── Döviz çevirimi (USD) ────────────────────────────────────────────────────
+# Apple Sales Report'ta gelirler yerel para biriminde gelir; USD'ye çevirmek
+# için yaklaşık kurlar kullanılır. Kurlar 24 saatte bir güncellenir.
+# Format: 1 USD = X yerel birim (exchangerate-api.com ile aynı format)
+_FALLBACK_FX: dict[str, float] = {
+    "USD": 1.0,    "EUR": 0.92,  "GBP": 0.79,  "TRY": 36.0,   "CAD": 1.37,
+    "AUD": 1.56,   "JPY": 154.0, "CHF": 0.89,  "SEK": 10.5,   "NOK": 10.8,
+    "DKK": 6.88,   "PLN": 4.0,   "CZK": 22.7,  "HUF": 370.0,  "RON": 4.55,
+    "BGN": 1.80,   "RUB": 91.0,  "BRL": 5.55,  "MXN": 19.2,   "ARS": 900.0,
+    "CLP": 910.0,  "COP": 4150.0,"SAR": 3.75,  "AED": 3.67,   "KWD": 0.306,
+    "QAR": 3.64,   "ILS": 3.70,  "ZAR": 18.5,  "KRW": 1370.0, "SGD": 1.33,
+    "HKD": 7.82,   "TWD": 32.2,  "INR": 83.5,  "THB": 35.7,   "IDR": 16400.0,
+    "MYR": 4.55,   "PHP": 58.0,  "NZD": 1.67,  "CNY": 7.25,
+}
+_fx_cache: dict[str, Any] = {"rates": {}, "updated": 0.0}
+
+
+def _to_usd(amount: float, currency: str) -> float:
+    """Verilen tutarı yaklaşık USD'ye çevirir (24 saatlik cache).
+
+    rates["TRY"] = 36 → 1 USD = 36 TRY → amount_TRY / 36 = USD
+    """
+    now = time.time()
+    if now - _fx_cache["updated"] > 86400:
+        try:
+            with httpx.Client(timeout=5) as cli:
+                r = cli.get("https://api.exchangerate-api.com/v4/latest/USD")
+            if r.status_code == 200:
+                _fx_cache["rates"] = r.json().get("rates", {})
+                _fx_cache["updated"] = now
+        except Exception:
+            pass
+    cur = (currency or "USD").strip().upper()
+    rate = (_fx_cache["rates"] or _FALLBACK_FX).get(cur) or _FALLBACK_FX.get(cur, 1.0)
+    return amount / rate
+
 
 # ─── Yapılandırma ────────────────────────────────────────────────────────────
 
@@ -238,7 +274,8 @@ def fetch_daily_sales_summary(
     total_first_dl = 0
     total_redownloads = 0
     total_updates = 0
-    total_proceeds = 0.0
+    total_proceeds = 0.0   # USD cinsinden (tüm para birimleri çevrilir)
+    total_iap_units = 0    # in-app purchase + abonelik yenileme birimi
     total_paying_users = 0
     country_agg: dict[str, dict[str, float]] = {}
     version_agg: dict[str, dict[str, float]] = {}
@@ -312,19 +349,28 @@ def fetch_daily_sales_summary(
                 total_updates += units
             # Redownloads: Sales Report'ta ayrı bir product type yok;
             # Analytics Reports API'dan gelir — şimdilik 0 kalır.
-            # Para — TL/EUR vs. USD karışık; sadece USD topla, gerisi atla (basit yaklaşım)
-            if currency == "USD":
-                total_proceeds += developer_proceeds * units
-                day_proc += developer_proceeds * units
+
+            # In-App Purchase / abonelik birimleri (IAY=abonelik, IA1/IA9=iap, IAC=iptal)
+            _IAP = {"IAY", "IAYF", "IA1", "IA9", "IAC", "IA1F", "IA9F"}
+            if product_type_id in _IAP:
+                total_iap_units += units
+
+            # Para — tüm para birimlerini USD'ye çevir
+            if developer_proceeds and currency:
+                proceeds_usd = _to_usd(developer_proceeds * units, currency)
+                total_proceeds += proceeds_usd
+                day_proc += proceeds_usd
 
             # Ülke kırılımı (sadece ilk indirmeler)
             if product_type_id in _FIRST_DL:
-                cc = (r.get("Country Code") or "").strip().upper()
-                if cc:
-                    country_agg.setdefault(cc, {"downloads": 0, "proceeds": 0.0})
-                    country_agg[cc]["downloads"] += units
-                    if currency == "USD":
-                        country_agg[cc]["proceeds"] += developer_proceeds * units
+                cc_code = (r.get("Country Code") or "").strip().upper()
+                if cc_code:
+                    country_agg.setdefault(cc_code, {"downloads": 0, "proceeds": 0.0})
+                    country_agg[cc_code]["downloads"] += units
+                ver = (r.get("Version") or "").strip()
+                if ver:
+                    version_agg.setdefault(ver, {"downloads": 0})
+                    version_agg[ver]["downloads"] += units
                 ver = (r.get("Version") or "").strip()
                 if ver:
                     version_agg.setdefault(ver, {"downloads": 0})
@@ -345,9 +391,9 @@ def fetch_daily_sales_summary(
 
     logger.info(
         "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, "
-        "updates=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
+        "updates=%d, iap_units=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
         effective_days, len(daily_rows), total_first_dl,
-        total_updates, total_downloads, total_proceeds,
+        total_updates, total_iap_units, total_downloads, total_proceeds,
         len(country_agg), len(version_agg),
     )
 
@@ -355,6 +401,7 @@ def fetch_daily_sales_summary(
         "first_time_downloads": total_first_dl,
         "redownloads": total_redownloads,
         "updates": total_updates,
+        "iap_units": total_iap_units,
         "total_downloads": total_downloads,
         "proceeds_usd": round(total_proceeds, 2),
         "dl_series": dl_series,

@@ -514,6 +514,7 @@ def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[s
     """ASC sales raporundan gelen gerçek verilerle demo payload'ı güncelle."""
     first_dl = int(live.get("first_time_downloads") or 0)
     updates = int(live.get("updates") or 0)
+    iap_units = int(live.get("iap_units") or 0)
     total_dl = int(live.get("total_downloads") or first_dl)
     proceeds_v = float(live.get("proceeds_usd") or 0)
     dl_series = list(live.get("dl_series") or [])
@@ -532,6 +533,8 @@ def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[s
     payload["acquisition"]["first_time_downloads"] = _kpi(first_dl, series=dl_series)
     payload["acquisition"]["total_downloads"] = _kpi(total_dl, series=dl_series)
     payload["acquisition"]["updates"] = _kpi(updates)
+    if iap_units > 0:
+        payload["sales"]["in_app_purchases"] = _kpi(float(iap_units))
     # Redownloads Sales Report'ta yok — kart mevcut ama değer yok
     payload["acquisition"]["redownloads"] = {
         "value": None, "value_label": "—", "delta_pct": None, "series": [],
