@@ -164,6 +164,79 @@ def github_create_issue(title: str, body: str, labels: list[str] | None = None) 
         return {"error": str(e)}
 
 
+def github_get_branch_diff(base: str = "main", head: str = "") -> dict[str, Any]:
+    """İki branch arasındaki farkı gösterir — kaç commit geride/ileride."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    if not head:
+        return {"error": "head branch adı gerekli."}
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/compare/{base}...{head}",
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "status": data.get("status"),
+            "ahead_by": data.get("ahead_by", 0),
+            "behind_by": data.get("behind_by", 0),
+            "commits": [
+                {"sha": c["sha"][:8], "message": c["commit"]["message"].split("\n")[0][:80]}
+                for c in data.get("commits", [])[:10]
+            ],
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_get_repo_info() -> dict[str, Any]:
+    """Repo genel bilgisi: yıldız, fork, açık issue sayısı, default branch, son push."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(f"{_GH_BASE}/repos/{repo}", headers=_gh_headers(), timeout=15)
+        r.raise_for_status()
+        d = r.json()
+        return {
+            "name": d["full_name"],
+            "default_branch": d["default_branch"],
+            "open_issues": d["open_issues_count"],
+            "stars": d["stargazers_count"],
+            "forks": d["forks_count"],
+            "pushed_at": d["pushed_at"],
+            "visibility": d["visibility"],
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_list_workflows() -> dict[str, Any]:
+    """GitHub Actions workflow çalıştırmalarını listeler (CI/CD durumu)."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/actions/runs",
+            params={"per_page": 10},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        runs = [
+            {
+                "name": run["name"],
+                "status": run["status"],
+                "conclusion": run["conclusion"],
+                "branch": run["head_branch"],
+                "created_at": run["created_at"],
+                "url": run["html_url"],
+            }
+            for run in r.json().get("workflow_runs", [])
+        ]
+        return {"workflow_runs": runs, "count": len(runs)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Railway araçları ──────────────────────────────────────────────────────────
 
 def railway_get_deployments(limit: int = 5) -> dict[str, Any]:
@@ -416,6 +489,28 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "github_get_repo_info",
+        "description": "GitHub repo genel bilgisi: default branch, açık issue sayısı, son push zamanı, görünürlük.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "github_get_branch_diff",
+        "description": "İki branch arasındaki farkı karşılaştırır. Bir branch main'den ne kadar geride/ileride, hangi commitler var.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "base": {"type": "string", "description": "Temel branch (varsayılan: main)", "default": "main"},
+                "head": {"type": "string", "description": "Karşılaştırılacak branch"},
+            },
+            "required": ["head"],
+        },
+    },
+    {
+        "name": "github_list_workflows",
+        "description": "GitHub Actions CI/CD workflow çalıştırmalarını listeler. Build başarısız mı, test geçti mi kontrol eder.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "github_create_issue",
         "description": "GitHub'da yeni bir issue oluşturur. Bug veya özellik talebi için.",
         "input_schema": {
@@ -492,6 +587,9 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
     """Araç adına göre ilgili fonksiyonu çalıştırır."""
     dispatch = {
         "github_list_branches": lambda: github_list_branches(),
+        "github_get_repo_info": lambda: github_get_repo_info(),
+        "github_get_branch_diff": lambda: github_get_branch_diff(**inputs),
+        "github_list_workflows": lambda: github_list_workflows(),
         "github_list_issues": lambda: github_list_issues(**inputs),
         "github_list_prs": lambda: github_list_prs(**inputs),
         "github_recent_commits": lambda: github_recent_commits(**inputs),
