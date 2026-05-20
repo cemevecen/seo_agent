@@ -342,7 +342,7 @@
       <div class="flex items-center gap-1.5">
         <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
         <div id="app-asc-period-nav" class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y")] %}
+          {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y"),(0,"Tümü")] %}
             <button type="button" data-app-asc-period="{{ dv }}"
               class="app-asc-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if dv == 30 %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
           {% endfor %}
@@ -1748,7 +1748,7 @@
     root.querySelectorAll('.app-asc-period-btn').forEach(function (b) {
       b.addEventListener('click', function () {
         var v = parseInt(b.getAttribute('data-app-asc-period'), 10);
-        if (!v || v === ascState.period) return;
+        if (isNaN(v) || v === ascState.period) return;
         ascState.period = v;
         state.ascPeriod = v;
         ascRenderPeriodNav();

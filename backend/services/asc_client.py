@@ -20,6 +20,7 @@ import io
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -213,8 +214,11 @@ def fetch_daily_sales_summary(
     if not vendor:
         return None
 
+    # 0 = "tümü" — Apple DAILY raporları son 2 yıla kadar gider
+    effective_days = 730 if days == 0 else days
+
     end = date.today()
-    start = end - timedelta(days=days - 1)
+    start = end - timedelta(days=effective_days - 1)
 
     bundle_lc = (bundle_id or "").strip().lower()
     country_uc = (country or "all").strip().upper()
@@ -234,17 +238,33 @@ def fetch_daily_sales_summary(
     country_agg: dict[str, dict[str, float]] = {}
     version_agg: dict[str, dict[str, float]] = {}
 
+    # Tüm günler için paralel HTTP isteği
+    all_dates = []
     cur = start
     while cur <= end:
-        ds = cur.isoformat()
-        rows = _fetch_sales_report(
+        all_dates.append(cur.isoformat())
+        cur = cur + timedelta(days=1)
+
+    def _fetch_day(ds: str):
+        return ds, _fetch_sales_report(
             report_type="SALES",
             report_sub_type="SUMMARY",
             frequency="DAILY",
             report_date=ds,
             vendor_number=vendor,
         )
-        cur = cur + timedelta(days=1)
+
+    # Apple API rate limit aşmamak için max 20 eşzamanlı istek
+    workers = min(20, len(all_dates)) if all_dates else 1
+    date_rows: dict[str, list | None] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_day, ds): ds for ds in all_dates}
+        for fut in as_completed(futures):
+            ds, rows = fut.result()
+            date_rows[ds] = rows
+
+    for ds in all_dates:
+        rows = date_rows.get(ds)
         if not rows:
             continue
         day_dl = 0
@@ -314,7 +334,7 @@ def fetch_daily_sales_summary(
     logger.info(
         "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, redl=%d, "
         "updates=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
-        days, len(daily_rows), total_first_dl, total_redownloads,
+        effective_days, len(daily_rows), total_first_dl, total_redownloads,
         total_updates, total_downloads, total_proceeds,
         len(country_agg), len(version_agg),
     )

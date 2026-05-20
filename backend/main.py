@@ -9885,7 +9885,7 @@ def api_app_asc_preview(
         p = int(period)
     except (TypeError, ValueError):
         p = 30
-    if p not in (1, 7, 14, 30, 90, 365):
+    if p not in (0, 1, 7, 14, 30, 90, 365):
         p = 30
     payload = build_asc_connect_preview_payload(pid, p, country=country, source=source, device=device)
     if payload.get("error"):

@@ -25,7 +25,7 @@ from backend.services.app_intel import APP_PRODUCTS
 
 # ─── Sabit filtre listeleri ──────────────────────────────────────────────────
 
-_PERIODS: tuple[int, ...] = (1, 7, 14, 30, 90, 365)
+_PERIODS: tuple[int, ...] = (0, 1, 7, 14, 30, 90, 365)
 
 _COUNTRIES: list[dict[str, str]] = [
     {"code": "all", "name": "Tüm ülkeler"},
@@ -158,6 +158,8 @@ def build_asc_connect_preview_payload(
         p = 30
     if p not in _PERIODS:
         p = 30
+    # 0 = "tümü" — demo için 730 gün olarak davran
+    effective_p = 730 if p == 0 else p
 
     cc = (country or "all").strip().lower()
     if cc not in {c["code"] for c in _COUNTRIES}:
@@ -174,12 +176,12 @@ def build_asc_connect_preview_payload(
     label = APP_PRODUCTS[pid]["label"]
 
     # Günlük noktalar (sparkline / trend için)
-    line_points = max(6, p) if p > 1 else 6
+    line_points = max(6, effective_p) if effective_p > 1 else 6
 
     # Ürün ve filtre ölçeği
     base_mult = 1.15 if pid == "doviz" else 0.85
     fmult = _filter_multiplier(cc, src, dev)
-    mult = base_mult * fmult * (p / 30.0)  # period uzadıkça toplam büyür
+    mult = base_mult * fmult * (effective_p / 30.0)  # period uzadıkça toplam büyür
 
     # ── Kazanım (Acquisition) ─────────────────────────────────────────────
     impressions = _metric(rng, base=1_200_000 * mult, vol=0.030, n_points=line_points)
@@ -396,7 +398,7 @@ def build_asc_connect_preview_payload(
         ),
         "product": pid,
         "product_label": label,
-        "period_days": p,
+        "period_days": effective_p,
         "filters": {"country": cc, "source": src, "device": dev},
         "available_filters": {
             "periods": list(_PERIODS),
