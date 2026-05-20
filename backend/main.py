@@ -13434,3 +13434,39 @@ def api_policy_last_csv(db: Session = Depends(get_db)):
             "Content-Disposition": f'attachment; filename="{upload.filename}"',
         },
     )
+
+
+# ── ProjectControl AI Ajan ────────────────────────────────────────────────────
+
+@app.post("/api/agent/chat")
+async def api_agent_chat(request: Request):
+    """AI ajan SSE endpoint — streaming tool-use yanıtı."""
+    import asyncio
+    from starlette.responses import StreamingResponse as StarletteStreamingResponse
+    from backend.services.project_agent import stream_agent_response
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Geçersiz JSON gövdesi."}, status_code=400)
+
+    messages = body.get("messages", [])
+    if not messages or not isinstance(messages, list):
+        return JSONResponse({"error": "messages dizisi gerekli."}, status_code=400)
+
+    # Sadece role/content kabul et
+    clean_messages = []
+    for m in messages[-20:]:  # Max 20 mesaj geçmişi
+        role = m.get("role", "")
+        content = m.get("content", "")
+        if role in ("user", "assistant") and content:
+            clean_messages.append({"role": role, "content": str(content)[:8000]})
+
+    if not clean_messages or clean_messages[-1]["role"] != "user":
+        return JSONResponse({"error": "Son mesaj user rolünde olmalı."}, status_code=400)
+
+    return StarletteStreamingResponse(
+        stream_agent_response(clean_messages),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

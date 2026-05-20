@@ -42,6 +42,30 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     encryption_key: str
 
+    # ProjectControl AI Ajan — Claude claude-opus-4-7
+    anthropic_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "anthropic_api_key"),
+    )
+    # GitHub entegrasyonu (ajan araçları için)
+    github_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("GITHUB_TOKEN", "github_token"),
+    )
+    github_repo: str = Field(
+        default="cemevecen/seo_agent",
+        validation_alias=AliasChoices("GITHUB_REPO", "github_repo"),
+    )
+    # Railway API (deployment & log araçları için)
+    railway_api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("RAILWAY_API_TOKEN", "railway_api_token"),
+    )
+    railway_project_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("RAILWAY_PROJECT_ID", "railway_project_id"),
+    )
+
     # OMDB (Open Movie Database) — IMDb / RT / Metacritic zenginleştirme
     omdb_api_key: str = Field(
         default="",
