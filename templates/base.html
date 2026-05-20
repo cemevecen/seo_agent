@@ -1211,6 +1211,34 @@
       return id;
     })();
 
+    // Sayfa yüklenince geçmiş geçmişi restore et
+    (function () {
+      fetch('/api/agent/history/' + _pcSessionId)
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+          var msgs = data.messages || [];
+          if (!msgs.length) return;
+          _pcHistory = msgs;
+          var container = document.getElementById('pc-agent-messages');
+          if (!container) return;
+          msgs.forEach(function(m) {
+            if (m.role === 'user') {
+              var div = document.createElement('div');
+              div.className = 'flex justify-end';
+              div.innerHTML = '<div class="rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm leading-relaxed bg-violet-700 text-white max-w-[85%]">' + _esc(m.content) + '</div>';
+              container.appendChild(div);
+            } else if (m.role === 'assistant') {
+              var wrap = document.createElement('div');
+              wrap.className = 'pc-msg-assistant flex gap-2.5';
+              wrap.innerHTML = '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div><div class="pc-bubble rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%] whitespace-pre-wrap break-words">' + _md(m.content) + '</div>';
+              container.appendChild(wrap);
+            }
+          });
+          var scrollEl = document.getElementById('pc-agent-messages');
+          if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+        }).catch(function(){});
+    })();
+
     // Alert badge — her 2 dakikada poll
     (function () {
       function checkAlerts() {

@@ -13509,32 +13509,30 @@ async def api_agent_chat(request: Request):
     if not clean_messages or clean_messages[-1]["role"] != "user":
         return JSONResponse({"error": "Son mesaj user rolünde olmalı."}, status_code=400)
 
-    # Bağlam hafızası: session_id ile geçmiş mesajları DB'den ekle
+    # Bağlam hafızası: frontend az mesaj gönderiyorsa (sayfa yenileme) DB'den tamamla
     session_id = (body.get("session_id") or "").strip()
-    if session_id:
-        from backend.services.agent_tools import ai_talk_get_messages, ai_talk_save_messages
+    if session_id and len(clean_messages) <= 2:
+        from backend.services.agent_tools import ai_talk_get_messages
         history = ai_talk_get_messages(session_id)
-        if history:
-            # DB geçmişi + mevcut yeni mesajlar
-            combined: list[dict] = []
-            for m in history[:-len(clean_messages)] if len(history) >= len(clean_messages) else history:
-                combined.append(m)
-            # Yeni mesajları ekle (tekrar etmesin diye DB'deki son mesajı atla)
-            combined.extend(clean_messages)
-            clean_messages = combined[-30:]
-        # Sohbet bittikten sonra kaydet (async — fire and forget)
-        import threading
-        threading.Thread(
-            target=ai_talk_save_messages,
-            args=(session_id, clean_messages),
-            daemon=True,
-        ).start()
+        if history and len(history) > len(clean_messages):
+            # Geçmiş mesajları + mevcut yeni mesajı birleştir
+            # Son mesaj zaten clean_messages'da, geçmişe eklenmesin
+            prefix = [m for m in history if m not in clean_messages]
+            clean_messages = (prefix + clean_messages)[-30:]
 
     return StarletteStreamingResponse(
-        stream_agent_response(clean_messages),
+        stream_agent_response(clean_messages, session_id=session_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/agent/history/{session_id}")
+def api_agent_history(session_id: str):
+    """Sayfa yenileme sonrası sohbet geçmişini döner."""
+    from backend.services.agent_tools import ai_talk_get_messages
+    messages = ai_talk_get_messages(session_id)
+    return JSONResponse({"messages": messages, "count": len(messages)})
 
 
 @app.get("/api/agent/alerts")

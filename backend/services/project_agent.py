@@ -110,6 +110,7 @@ def _messages_to_contents(messages: list[dict[str, Any]]) -> list[dict]:
 async def stream_agent_response(
     messages: list[dict[str, Any]],
     max_iterations: int = 8,
+    session_id: str = "",
 ) -> AsyncGenerator[str, None]:
     """Gemini REST ile tool-use döngüsü — SSE formatında string generator."""
     import asyncio
@@ -117,13 +118,15 @@ async def stream_agent_response(
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
+    final_messages: list[dict[str, Any]] = []
 
     def _send(event: dict[str, Any]):
         asyncio.run_coroutine_threadsafe(queue.put(event), loop)
 
     def _worker():
         try:
-            _run_agent_loop(messages, max_iterations, _send)
+            result_msgs = _run_agent_loop(messages, max_iterations, _send)
+            final_messages.extend(result_msgs)
         except Exception as e:
             LOGGER.exception("Ajan worker hatası")
             _send({"type": "error", "message": str(e)[:400]})
@@ -140,6 +143,15 @@ async def stream_agent_response(
             break
         yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         if event.get("type") in ("done", "error"):
+            # Geçmişi DB'ye kaydet (stream bitti, asistan yanıtı artık final_messages'da)
+            if session_id and final_messages:
+                def _save():
+                    try:
+                        from backend.services.agent_tools import ai_talk_save_messages
+                        ai_talk_save_messages(session_id, final_messages)
+                    except Exception:
+                        pass
+                threading.Thread(target=_save, daemon=True).start()
             break
 
 
@@ -181,9 +193,11 @@ def _run_agent_loop(
     messages: list[dict[str, Any]],
     max_iterations: int,
     send: Any,
-) -> None:
-    """Senkron Gemini REST ajan döngüsü — ayrı thread'de çalışır."""
+) -> list[dict[str, Any]]:
+    """Senkron Gemini REST ajan döngüsü. Tamamlanan mesaj listesini döner (DB kayıt için)."""
     contents = _messages_to_contents(messages)
+    # Başlangıç mesajlarını kopyala (role/content formatında tutuyoruz)
+    saved: list[dict[str, Any]] = list(messages)
 
     for iteration in range(max_iterations):
         send({"type": "thinking", "iteration": iteration + 1})
@@ -192,15 +206,15 @@ def _run_agent_loop(
             data = _gemini_generate(contents)
         except Exception as e:
             send({"type": "error", "message": str(e)})
-            return
+            return saved
 
         try:
             text, func_calls = _parse_response(data)
         except Exception as e:
             send({"type": "error", "message": str(e)})
-            return
+            return saved
 
-        # Asistan yanıtını history'e ekle
+        # Asistan yanıtını contents'e ekle (Gemini formatı)
         assistant_parts: list[dict] = []
         if text:
             assistant_parts.append({"text": text})
@@ -209,12 +223,14 @@ def _run_agent_loop(
         if assistant_parts:
             contents.append({"role": "model", "parts": assistant_parts})
 
-        # Tool call yoksa bitir — metni streaming simüle ederek gönder
+        # Tool call yoksa bitir
         if not func_calls:
-            # Metni kelime kelime gönder (streaming hissi)
             _stream_text(text or "(Yanıt yok)", send)
             send({"type": "complete", "text": text or ""})
-            return
+            # Asistan yanıtını DB formatında kaydet
+            if text:
+                saved.append({"role": "assistant", "content": text})
+            return saved
 
         # Araçları çalıştır
         tool_result_parts = []
@@ -222,22 +238,17 @@ def _run_agent_loop(
             tname = fc["name"]
             tinputs = fc.get("args") or {}
             send({"type": "tool_start", "tool": tname})
-
             result = execute_tool(tname, tinputs)
             result_str = json.dumps(result, ensure_ascii=False, default=str)
             send({"type": "tool_result", "tool": tname, "result_preview": result_str[:200]})
-
             tool_result_parts.append({
-                "functionResponse": {
-                    "name": tname,
-                    "response": {"result": result_str},
-                }
+                "functionResponse": {"name": tname, "response": {"result": result_str}}
             })
 
-        # Tool sonuçlarını bir sonraki tura ekle
         contents.append({"role": "user", "parts": tool_result_parts})
 
     send({"type": "complete", "text": "Maksimum iterasyon sayısına ulaşıldı."})
+    return saved
 
 
 def _stream_text(text: str, send: Any) -> None:
