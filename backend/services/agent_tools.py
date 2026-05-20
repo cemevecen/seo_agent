@@ -308,7 +308,7 @@ def system_health_check() -> dict[str, Any]:
 
     # Ortam değişkenleri
     checks["env"] = {
-        "ANTHROPIC_API_KEY": "set" if settings.anthropic_api_key else "missing",
+        "GEMINI_API_KEY": "set" if settings.gemini_api_key else "missing",
         "GITHUB_TOKEN": "set" if settings.github_token else "missing",
         "RAILWAY_API_TOKEN": "set" if settings.railway_api_token else "missing",
         "GP_REPORTS_BUCKET": "set" if os.environ.get("GP_REPORTS_BUCKET") else "missing",
