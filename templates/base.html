@@ -1083,12 +1083,16 @@
 
   <div id="pc-agent-panel"
     class="fixed bottom-20 right-6 z-50 hidden
-           w-[min(420px,calc(100vw-1.5rem))]
            flex flex-col rounded-2xl
            bg-zinc-950 border border-violet-800/40
            shadow-2xl shadow-violet-950/60
-           overflow-hidden"
-    style="height: min(580px, calc(100vh - 120px));">
+           overflow-hidden select-none"
+    style="width: min(420px, calc(100vw - 1.5rem)); height: min(580px, calc(100vh - 120px)); min-width: 300px; min-height: 280px;">
+
+    <!-- Resize handle — sol üst köşe -->
+    <div id="pc-agent-resize"
+      style="position:absolute;top:0;left:0;width:18px;height:18px;cursor:nw-resize;z-index:10;background:linear-gradient(135deg,#7c3aed 0%,transparent 60%);border-radius:0.75rem 0 0 0;opacity:0.6"
+      title="Sürükleyerek boyutlandır"></div>
 
     <div class="flex items-center gap-3 px-4 py-3
                 bg-gradient-to-r from-violet-900/80 to-indigo-900/80
@@ -1207,6 +1211,61 @@
         iconClose.classList.add('hidden');
       }
     };
+
+    // ── Resize ──────────────────────────────────────────────────────────────
+    (function () {
+      var handle = document.getElementById('pc-agent-resize');
+      var panel  = document.getElementById('pc-agent-panel');
+      if (!handle || !panel) return;
+      var dragging = false, startX, startY, startW, startH;
+
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startW = panel.offsetWidth;
+        startH = panel.offsetHeight;
+        document.body.style.cursor = 'nw-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        var dw = startX - e.clientX;   // sola sürükleme = genişleme
+        var dh = startY - e.clientY;   // yukarı sürükleme = yükseklik artışı
+        var newW = Math.max(300, Math.min(startW + dw, window.innerWidth - 24));
+        var newH = Math.max(280, Math.min(startH + dh, window.innerHeight - 80));
+        panel.style.width  = newW + 'px';
+        panel.style.height = newH + 'px';
+      });
+
+      document.addEventListener('mouseup', function () {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+
+      // Dokunmatik destek
+      handle.addEventListener('touchstart', function (e) {
+        var t = e.touches[0];
+        startX = t.clientX; startY = t.clientY;
+        startW = panel.offsetWidth; startH = panel.offsetHeight;
+        dragging = true;
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function (e) {
+        if (!dragging) return;
+        var t = e.touches[0];
+        var newW = Math.max(300, Math.min(startW + (startX - t.clientX), window.innerWidth - 24));
+        var newH = Math.max(280, Math.min(startH + (startY - t.clientY), window.innerHeight - 80));
+        panel.style.width  = newW + 'px';
+        panel.style.height = newH + 'px';
+      }, { passive: true });
+
+      document.addEventListener('touchend', function () { dragging = false; });
+    })();
 
     window.pcAgentClearHistory = function () {
       if (_pcStreaming) return;
