@@ -253,6 +253,123 @@ def github_get_branch_diff(base: str = "main", head: str = "") -> dict[str, Any]
         return {"error": str(e)}
 
 
+def github_contributor_stats() -> dict[str, Any]:
+    """Kim en çok commit attı, toplam katkı sayıları. 'En aktif geliştirici kim?' gibi sorular için."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/contributors",
+            params={"per_page": 20, "anon": "true"},
+            headers=_gh_headers(),
+            timeout=20,
+        )
+        r.raise_for_status()
+        contributors = [
+            {
+                "login": c.get("login") or c.get("name", "anonim"),
+                "contributions": c["contributions"],
+                "type": c.get("type", "User"),
+            }
+            for c in r.json()
+        ]
+        total = sum(c["contributions"] for c in contributors)
+        return {"contributors": contributors, "total_contributions": total, "count": len(contributors)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_file_history(path: str, limit: int = 5) -> dict[str, Any]:
+    """Belirli bir dosyanın commit geçmişi — kim ne zaman değiştirdi."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/commits",
+            params={"path": path, "per_page": min(limit, 10)},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        items = [
+            {
+                "sha": c["sha"][:8],
+                "message": c["commit"]["message"].split("\n")[0][:100],
+                "author": c["commit"]["author"]["name"],
+                "date": c["commit"]["author"]["date"],
+            }
+            for c in r.json()
+        ]
+        return {"path": path, "commits": items, "count": len(items)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_repo_languages() -> dict[str, Any]:
+    """Repo'daki programlama dilleri ve byte dağılımı."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(f"{_GH_BASE}/repos/{repo}/languages", headers=_gh_headers(), timeout=15)
+        r.raise_for_status()
+        langs = r.json()
+        total = sum(langs.values()) or 1
+        result = [
+            {"language": lang, "bytes": bytes_, "percent": round(bytes_ / total * 100, 1)}
+            for lang, bytes_ in sorted(langs.items(), key=lambda x: -x[1])
+        ]
+        return {"languages": result, "total_bytes": total}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_search_code(query: str) -> dict[str, Any]:
+    """Repo içinde kod arar. 'X nerede tanımlanmış', 'Y fonksiyonu hangi dosyada' gibi sorular için."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/search/code",
+            params={"q": f"{query} repo:{repo}", "per_page": 10},
+            headers={**_gh_headers(), "Accept": "application/vnd.github.text-match+json"},
+            timeout=20,
+        )
+        r.raise_for_status()
+        items = [
+            {
+                "path": i["path"],
+                "url": i["html_url"],
+                "matches": [m.get("fragment", "")[:150] for m in i.get("text_matches", [])[:2]],
+            }
+            for i in r.json().get("items", [])
+        ]
+        return {"results": items, "count": len(items), "query": query}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def github_get_releases() -> dict[str, Any]:
+    """Repo'daki release'leri listeler."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/releases",
+            params={"per_page": 10},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        releases = [
+            {
+                "tag": rel["tag_name"],
+                "name": rel["name"],
+                "published_at": rel["published_at"],
+                "prerelease": rel["prerelease"],
+                "url": rel["html_url"],
+            }
+            for rel in r.json()
+        ]
+        return {"releases": releases, "count": len(releases)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def github_get_repo_info() -> dict[str, Any]:
     """Repo genel bilgisi: yıldız, fork, açık issue sayısı, default branch, son push."""
     repo = settings.github_repo or "cemevecen/seo_agent"
@@ -806,6 +923,44 @@ TOOL_DEFINITIONS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "github_contributor_stats",
+        "description": "Kim kaç commit atmış, en aktif geliştirici kim, toplam katkı sayısı kaç. 'katkıda bulunanlar', 'en çok commit atan' gibi sorular için.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "github_file_history",
+        "description": "Belirli bir dosyanın commit geçmişi: kim ne zaman değiştirdi. 'bu dosya en son ne zaman değişti', 'X dosyasını kim yazdı' gibi sorular için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Dosya yolu, ör: backend/main.py"},
+                "limit": {"type": "integer", "description": "Kaç commit (max 10)", "default": 5},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "github_repo_languages",
+        "description": "Repo'da hangi programlama dilleri kullanılıyor, yüzde dağılımı nedir.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "github_search_code",
+        "description": "Repo içinde kod/metin arar. 'X fonksiyonu nerede', 'Y değişkeni hangi dosyada tanımlı', 'Z endpoint nerede' gibi sorular için.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Arama terimi, ör: 'stream_agent_response' veya 'def login'"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "github_get_releases",
+        "description": "Repo'daki release/sürüm geçmişini listeler.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "github_recent_commits",
         "description": "Son commit'leri getirir. Ne değişti, kim değiştirdi.",
         "input_schema": {
@@ -970,6 +1125,11 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
     """Araç adına göre ilgili fonksiyonu çalıştırır."""
     dispatch = {
         "github_commit_stats": lambda: github_commit_stats(),
+        "github_contributor_stats": lambda: github_contributor_stats(),
+        "github_file_history": lambda: github_file_history(**inputs),
+        "github_repo_languages": lambda: github_repo_languages(),
+        "github_search_code": lambda: github_search_code(**inputs),
+        "github_get_releases": lambda: github_get_releases(),
         "github_list_branches": lambda: github_list_branches(),
         "github_get_repo_info": lambda: github_get_repo_info(),
         "github_get_branch_diff": lambda: github_get_branch_diff(**inputs),
