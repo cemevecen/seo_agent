@@ -353,6 +353,7 @@ def fetch_subscription_summary(*, days: int) -> dict[str, Any] | None:
             frequency="DAILY",
             report_date=ds,
             vendor_number=vendor,
+            version="1_4",
         )
         if rows:
             for r in rows:
