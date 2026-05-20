@@ -153,7 +153,7 @@ def _fetch_sales_report(
             return []  # O tarih için rapor yok (çok yeni / hafta sonu vs.)
         if resp.status_code != 200:
             logger.warning("ASC sales %s/%s/%s → %d: %s",
-                           report_type, frequency, report_date, resp.status_code, resp.text[:200])
+                           report_type, frequency, report_date, resp.status_code, resp.text[:600])
             return None
         raw = resp.content
         if raw[:2] == b"\x1f\x8b":
