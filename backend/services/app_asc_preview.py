@@ -110,6 +110,19 @@ def _delta_pct(rng: random.Random, *, lo: float = -18.0, hi: float = 60.0) -> fl
     return round(rng.uniform(lo, hi), 2)
 
 
+def _series_delta(series: list[float]) -> float | None:
+    """İlk yarı ortalamasına göre ikinci yarının % değişimi."""
+    n = len(series)
+    if n < 4:
+        return None
+    mid = n // 2
+    first_avg = sum(series[:mid]) / mid
+    second_avg = sum(series[mid:]) / (n - mid)
+    if first_avg == 0:
+        return None
+    return round((second_avg - first_avg) / first_avg * 100, 1)
+
+
 def _fmt_compact(n: float) -> str:
     if n >= 1_000_000:
         return f"{n / 1_000_000:.2f}M".rstrip("0").rstrip(".")
@@ -500,28 +513,44 @@ def build_asc_connect_preview_payload(
 def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
     """ASC sales raporundan gelen gerçek verilerle demo payload'ı güncelle."""
     first_dl = int(live.get("first_time_downloads") or 0)
-    redl = int(live.get("redownloads") or 0)
     updates = int(live.get("updates") or 0)
-    total_dl = int(live.get("total_downloads") or (first_dl + redl))
+    total_dl = int(live.get("total_downloads") or first_dl)
     proceeds_v = float(live.get("proceeds_usd") or 0)
     dl_series = list(live.get("dl_series") or [])
     pr_series = list(live.get("pr_series") or [])
 
     def _kpi(value: float, *, money: bool = False, series: list[float] | None = None) -> dict[str, Any]:
+        s = [float(x) for x in (series or [])]
         return {
             "value": round(value, 2),
             "value_label": _fmt_money(value) if money else _fmt_compact(float(value)),
-            "delta_pct": 0.0,  # delta için önceki periyot karşılaştırması yapılana kadar 0
-            "series": [float(x) for x in (series or [])],
+            "delta_pct": _series_delta(s),
+            "series": s,
         }
 
+    # Metrikler Sales Report'tan gelir (canlı)
     payload["acquisition"]["first_time_downloads"] = _kpi(first_dl, series=dl_series)
-    payload["acquisition"]["redownloads"] = _kpi(redl)
     payload["acquisition"]["total_downloads"] = _kpi(total_dl, series=dl_series)
     payload["acquisition"]["updates"] = _kpi(updates)
+    # Redownloads Sales Report'ta yok — kart mevcut ama değer yok
+    payload["acquisition"]["redownloads"] = {
+        "value": None, "value_label": "—", "delta_pct": None, "series": [],
+        "is_unavailable": True,
+    }
     payload["sales"]["proceeds"] = _kpi(proceeds_v, money=True, series=pr_series)
     payload["kpis"]["total_downloads"] = payload["acquisition"]["total_downloads"]
     payload["kpis"]["proceeds"] = payload["sales"]["proceeds"]
+
+    # Demo'dan gelen impressions/page_views/conversion/active_devices kart gösterir ama
+    # değeri "—" olarak işaretlenir ki gerçek veriyle karıştırılmasın.
+    _unavail: dict[str, Any] = {"value": None, "value_label": "—", "delta_pct": None, "series": [], "is_demo": True}
+    for key in ("impressions", "product_page_views", "conversion_rate"):
+        payload["kpis"][key] = dict(_unavail)
+        if key in payload.get("acquisition", {}):
+            payload["acquisition"][key] = dict(_unavail)
+    payload["kpis"]["active_devices"] = dict(_unavail)
+    if "active_devices" in payload.get("engagement", {}):
+        payload["engagement"]["active_devices"] = dict(_unavail)
 
     # Günlük trend gerçek verilerden yeniden inşa
     if dl_series:

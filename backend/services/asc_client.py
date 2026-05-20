@@ -294,26 +294,31 @@ def fetch_daily_sales_summary(
             developer_proceeds = float(r.get("Developer Proceeds") or 0)
             currency = (r.get("Currency of Proceeds") or "USD").strip()
             product_type_id = (r.get("Product Type Identifier") or "").strip()
-            # Product Type IDs:
-            # 1, 1T, 1F, 1E, 1EP, 1EU = iOS app first-time download
-            # 3, 3T, 3F = redownload
-            # 7, 7T, 7F = update
-            # IA1, IA9 = in-app purchase
-            # IAY, IAC = auto-renewable subscription
-            if product_type_id in {"1", "1T", "1F", "1E", "1EP", "1EU"}:
+            # Apple Sales & Trends Report product type IDs (doğrulanmış mapping):
+            # 1, 1F, 1T, 1E, 1EP = iPhone/iPod ilk indirme
+            # 7, 7F, 7T           = Universal (iPad+iPhone) ilk indirme
+            # 2, 2F, 2T           = iPad ilk indirme
+            # 3, 3F, 3T           = iPhone/iPod GÜNCELLEME (update) — NOT: redownload değil!
+            # 4, 4F, 4T           = iPad GÜNCELLEME
+            # 8, 8F, 8T           = Universal GÜNCELLEME
+            # 1EU, F1             = Diğer (eğitim güncelleme vs.)
+            # IA1, IA9, IAY, IAC  = in-app satın alma / abonelik
+            _FIRST_DL = {"1", "1F", "1T", "1E", "1EP", "7", "7F", "7T", "2", "2F", "2T"}
+            _UPDATES   = {"3", "3F", "3T", "4", "4F", "4T", "8", "8F", "8T", "1EU"}
+            if product_type_id in _FIRST_DL:
                 total_first_dl += units
                 day_dl += units
-            elif product_type_id in {"3", "3T", "3F"}:
-                total_redownloads += units
-            elif product_type_id in {"7", "7T", "7F"}:
+            elif product_type_id in _UPDATES:
                 total_updates += units
+            # Redownloads: Sales Report'ta ayrı bir product type yok;
+            # Analytics Reports API'dan gelir — şimdilik 0 kalır.
             # Para — TL/EUR vs. USD karışık; sadece USD topla, gerisi atla (basit yaklaşım)
             if currency == "USD":
                 total_proceeds += developer_proceeds * units
                 day_proc += developer_proceeds * units
 
-            # Ülke kırılımı (sadece downloads)
-            if product_type_id in {"1", "1T", "1F", "1E", "1EP", "1EU"}:
+            # Ülke kırılımı (sadece ilk indirmeler)
+            if product_type_id in _FIRST_DL:
                 cc = (r.get("Country Code") or "").strip().upper()
                 if cc:
                     country_agg.setdefault(cc, {"downloads": 0, "proceeds": 0.0})
@@ -334,12 +339,14 @@ def fetch_daily_sales_summary(
     dates_sorted = sorted(daily_rows.keys())
     dl_series = [daily_rows[d]["downloads"] for d in dates_sorted]
     pr_series = [daily_rows[d]["proceeds"] for d in dates_sorted]
-    total_downloads = total_first_dl + total_redownloads
+    # total_redownloads Sales Report'tan alınamaz (Analytics API gerekir) — her zaman 0
+    total_redownloads = 0
+    total_downloads = total_first_dl
 
     logger.info(
-        "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, redl=%d, "
+        "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, "
         "updates=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
-        effective_days, len(daily_rows), total_first_dl, total_redownloads,
+        effective_days, len(daily_rows), total_first_dl,
         total_updates, total_downloads, total_proceeds,
         len(country_agg), len(version_agg),
     )
