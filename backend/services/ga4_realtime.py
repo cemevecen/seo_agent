@@ -2541,7 +2541,6 @@ def check_page_alarms_for_site(
     )
 
     if alarms:
-        _save_page_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             negatives, positives = _split_alarms_by_sentiment(alarms)
             to_send: list[dict[str, Any]] = []
@@ -2557,6 +2556,7 @@ def check_page_alarms_for_site(
                     to_send.extend(negatives)
             if to_send:
                 _send_page_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send))
+        _save_page_alarm_logs(db, site.id, alarms, profile=profile)
 
     return alarms
 
@@ -3040,7 +3040,6 @@ def check_news_alarms_for_site(
     )
 
     if alarms:
-        _save_news_alarm_logs(db, site.id, alarms, profile=profile)
         if not skip_emails:
             # Negatif (düşüş) ve pozitif (artış) alarmları ayrı ayrı cooldown'la — negatifler bastırılmasın
             negatives, positives = _split_alarms_by_sentiment(alarms)
@@ -3058,6 +3057,7 @@ def check_news_alarms_for_site(
             if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
                 _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi)
+        _save_news_alarm_logs(db, site.id, alarms, profile=profile)
 
     return alarms
 
