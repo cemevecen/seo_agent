@@ -14,7 +14,7 @@ from backend.services.agent_tools import TOOL_DEFINITIONS, execute_tool
 LOGGER = logging.getLogger(__name__)
 
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-1.5-flash"
 
 _SYSTEM_PROMPT = """Sen ProjectControl'ün gömülü AI ajanısın. Bu uygulama bir SEO ve uygulama analitik platformudur.
 

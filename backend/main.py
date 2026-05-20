@@ -13448,7 +13448,7 @@ def api_agent_test():
         return JSONResponse({"ok": False, "error": "GEMINI_API_KEY yok"})
     try:
         r = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}",
             json={"contents": [{"role": "user", "parts": [{"text": "Merhaba, çalışıyor musun?"}]}]},
             timeout=30,
         )
