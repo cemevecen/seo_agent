@@ -193,6 +193,7 @@ def build_asc_connect_preview_payload(
     country: str = "all",
     source: str = "all",
     device: str = "all",
+    progress_cb=None,  # Callable[[done: int, total: int], None] | None
 ) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -497,6 +498,7 @@ def build_asc_connect_preview_payload(
             bundle = APP_PRODUCTS[pid].get("ios_bundle_id") or ""
             live = asc_client.fetch_daily_sales_summary(
                 bundle_id=bundle, days=p, country=cc, device=dev,
+                progress_cb=progress_cb,
             )
             if live:
                 payload = _overlay_live_sales(payload, live)
@@ -552,8 +554,12 @@ def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[s
         if key in payload.get("acquisition", {}):
             payload["acquisition"][key] = dict(_unavail)
     payload["kpis"]["active_devices"] = dict(_unavail)
-    if "active_devices" in payload.get("engagement", {}):
-        payload["engagement"]["active_devices"] = dict(_unavail)
+    for _eng_key in ("active_devices", "sessions", "crashes"):
+        if _eng_key in payload.get("engagement", {}):
+            payload["engagement"][_eng_key] = dict(_unavail)
+    # sessions kpi varsa da temizle
+    if "sessions" in payload.get("kpis", {}):
+        payload["kpis"]["sessions"] = dict(_unavail)
 
     # Günlük trend gerçek verilerden yeniden inşa
     if dl_series:

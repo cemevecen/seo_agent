@@ -1708,41 +1708,87 @@
     }
   }
 
+  var _ascEventSource = null;
+
+  function _ascProgressHtml(done, total) {
+    var pct = total > 0 ? Math.round(done / total * 100) : 0;
+    return (
+      '<div class="space-y-2 px-1 py-6">' +
+      '<div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">' +
+      '<span class="font-medium">App Store Connect verileri yükleniyor…</span>' +
+      '<span class="tabular-nums" id="asc-prog-label">' + done + ' / ' + total + ' gün</span>' +
+      '</div>' +
+      '<div class="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">' +
+      '<div id="asc-prog-fill" class="h-full rounded-full bg-indigo-500 transition-all duration-200" style="width:' + pct + '%"></div>' +
+      '</div>' +
+      '<p class="text-[10px] text-slate-400 dark:text-slate-500" id="asc-prog-detail">' +
+      (total > 0 ? (pct + '% tamamlandı · ' + total + ' günlük veri çekiliyor') : 'Bağlanıyor…') +
+      '</p>' +
+      '</div>'
+    );
+  }
+
   function loadAscPreview() {
     var box = document.getElementById('app-asc-content');
     if (!box) return;
-    // Dropdown kapalıyken yükleme yapma; kullanıcı açtığında lazy yüklenecek
     var asc_body = document.getElementById('app-asc-body');
     if (asc_body && asc_body.hasAttribute('hidden')) return;
+
+    // Önceki SSE bağlantısını kapat
+    if (_ascEventSource) { _ascEventSource.close(); _ascEventSource = null; }
     ascState.seq += 1;
     var req = ascState.seq;
-    var url = '/api/app/asc-preview?product=' + encodeURIComponent(state.product) +
+
+    var streamUrl = '/api/app/asc-stream?product=' + encodeURIComponent(state.product) +
       '&period=' + encodeURIComponent(String(ascState.period)) +
       '&country=' + encodeURIComponent(ascState.country) +
       '&source=' + encodeURIComponent(ascState.source) +
       '&device=' + encodeURIComponent(ascState.device);
+
     var prevH = box.offsetHeight;
     if (prevH > 64) box.style.minHeight = prevH + 'px';
-    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-asc-spin">⟳</span> App Store Connect verileri yükleniyor…</div>';
-    fetch(url, { cache: 'no-store' })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-      .then(function (x) {
-        if (req !== ascState.seq) return;
-        box.style.minHeight = '';
-        if (!x.ok || !x.j) {
-          box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">App Store Connect özeti yüklenemedi.</p>';
-          return;
-        }
-        ascState.payload = x.j;
-        ascPopulateFilterOptions(x.j);
-        ascRenderSourcePill(x.j);
-        ascRenderActiveTab();
-      })
-      .catch(function () {
-        if (req !== ascState.seq) return;
-        box.style.minHeight = '';
-        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — App Store Connect verisi alınamadı.</p>';
-      });
+    box.innerHTML = _ascProgressHtml(0, 0);
+
+    var src = new EventSource(streamUrl);
+    _ascEventSource = src;
+
+    src.onmessage = function (e) {
+      if (req !== ascState.seq) { src.close(); _ascEventSource = null; return; }
+      var ev;
+      try { ev = JSON.parse(e.data); } catch (_) { return; }
+
+      if (ev.type === 'progress') {
+        var fill = document.getElementById('asc-prog-fill');
+        var label = document.getElementById('asc-prog-label');
+        var detail = document.getElementById('asc-prog-detail');
+        var pct = ev.total > 0 ? Math.round(ev.done / ev.total * 100) : 0;
+        if (fill) fill.style.width = pct + '%';
+        if (label) label.textContent = ev.done + ' / ' + ev.total + ' gün';
+        if (detail) detail.textContent = pct + '% tamamlandı · ' + ev.total + ' günlük veri çekiliyor';
+        return;
+      }
+
+      src.close(); _ascEventSource = null;
+      box.style.minHeight = '';
+
+      if (ev.type === 'error' || !ev.payload) {
+        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">App Store Connect verisi alınamadı.</p>';
+        return;
+      }
+
+      var j = ev.payload;
+      ascState.payload = j;
+      ascPopulateFilterOptions(j);
+      ascRenderSourcePill(j);
+      ascRenderActiveTab();
+    };
+
+    src.onerror = function () {
+      if (req !== ascState.seq) return;
+      src.close(); _ascEventSource = null;
+      box.style.minHeight = '';
+      box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — App Store Connect verisi alınamadı.</p>';
+    };
   }
 
   function ascBindControls() {

@@ -9893,6 +9893,77 @@ def api_app_asc_preview(
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/asc-stream")
+async def api_app_asc_stream(
+    product: str = "doviz",
+    period: int = 30,
+    country: str = "all",
+    source: str = "all",
+    device: str = "all",
+):
+    """SSE endpoint: gün bazlı progress + final payload."""
+    import asyncio
+    import json
+    import threading
+    from starlette.responses import StreamingResponse as StarletteStreamingResponse
+    from backend.services.app_asc_preview import build_asc_connect_preview_payload
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
+
+    pid = (product or "doviz").strip().lower()
+    try:
+        p = int(period)
+    except (TypeError, ValueError):
+        p = 30
+    if p not in (0, 1, 7, 14, 30, 90, 365):
+        p = 30
+    if pid not in APP_PRODUCTS:
+        async def _err():
+            yield 'data: {"type":"error","message":"unknown_product"}\n\n'
+        return StarletteStreamingResponse(_err(), media_type="text/event-stream")
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def _worker():
+        def _cb(done: int, total: int):
+            asyncio.run_coroutine_threadsafe(
+                queue.put({"type": "progress", "done": done, "total": total}), loop
+            )
+
+        try:
+            payload = build_asc_connect_preview_payload(
+                pid, p, country=country, source=source, device=device,
+                progress_cb=_cb,
+            )
+            result = intel_json_safe(payload)
+            asyncio.run_coroutine_threadsafe(
+                queue.put({"type": "done", "payload": result}), loop
+            )
+        except Exception as exc:
+            asyncio.run_coroutine_threadsafe(
+                queue.put({"type": "error", "message": str(exc)[:200]}), loop
+            )
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    async def _generate():
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=90)
+            except asyncio.TimeoutError:
+                yield 'data: {"type":"error","message":"timeout"}\n\n'
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("type") in ("done", "error"):
+                break
+
+    return StarletteStreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/api/app/gp-preview")
 def api_app_gp_preview(
     product: str = "doviz",

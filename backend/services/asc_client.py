@@ -245,6 +245,7 @@ def fetch_daily_sales_summary(
     days: int,
     country: str = "all",
     device: str = "all",
+    progress_cb=None,  # Callable[[done: int, total: int], None] | None
 ) -> dict[str, Any] | None:
     """Belirtilen gün sayısı için DAILY SUMMARY Sales raporlarını çeker ve özetler.
 
@@ -299,11 +300,19 @@ def fetch_daily_sales_summary(
     # Apple API rate limit aşmamak için max 20 eşzamanlı istek
     workers = min(20, len(all_dates)) if all_dates else 1
     date_rows: dict[str, list | None] = {}
+    total = len(all_dates)
+    done_count = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(_fetch_day, ds): ds for ds in all_dates}
         for fut in as_completed(futures):
             ds, rows = fut.result()
             date_rows[ds] = rows
+            done_count += 1
+            if progress_cb:
+                try:
+                    progress_cb(done_count, total)
+                except Exception:
+                    pass
 
     for ds in all_dates:
         rows = date_rows.get(ds)
