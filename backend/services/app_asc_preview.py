@@ -158,8 +158,8 @@ def build_asc_connect_preview_payload(
         p = 30
     if p not in _PERIODS:
         p = 30
-    # 0 = "tümü" — demo için 730 gün olarak davran
-    effective_p = 730 if p == 0 else p
+    # 0 = "tümü" — Apple DAILY max 365 gün
+    effective_p = 365 if p == 0 else p
 
     cc = (country or "all").strip().lower()
     if cc not in {c["code"] for c in _COUNTRIES}:

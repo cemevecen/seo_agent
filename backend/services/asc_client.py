@@ -146,6 +146,11 @@ def _fetch_sales_report(
             resp = cli.get(url, headers=headers, params=params)
         if resp.status_code == 404:
             return []  # O tarih için rapor yok (çok yeni / hafta sonu vs.)
+        if resp.status_code == 410:
+            # Apple DAILY raporları ~365 gün saklar; daha eski tarihler beklenen 410
+            logger.debug("ASC sales %s/%s/%s → 410 (süresi dolmuş, atlanıyor)",
+                         report_type, frequency, report_date)
+            return []
         if resp.status_code != 200:
             logger.warning("ASC sales %s/%s/%s → %d: %s",
                            report_type, frequency, report_date, resp.status_code, resp.text[:200])
@@ -214,8 +219,8 @@ def fetch_daily_sales_summary(
     if not vendor:
         return None
 
-    # 0 = "tümü" — Apple DAILY raporları son 2 yıla kadar gider
-    effective_days = 730 if days == 0 else days
+    # 0 = "tümü" — Apple DAILY raporları son 365 günü saklar
+    effective_days = 365 if days == 0 else days
 
     end = date.today()
     start = end - timedelta(days=effective_days - 1)
