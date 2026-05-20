@@ -48,24 +48,23 @@ def is_configured() -> bool:
 
 def _get_private_key_pem() -> str:
     raw = _env("ASC_PRIVATE_KEY") or ""
-    # Railway env vars çoğunlukla \n'i literal "\n" olarak tutuyor — normalize et
-    if "\\n" in raw:
-        raw = raw.replace("\\n", "\n")
-    raw = raw.strip()
     if not raw:
         return raw
-    # Bazı UI'lar (Railway dahil) PEM'i tek satıra düşürebiliyor: header/footer'ı
-    # tespit edip body'yi 64 karakterlik satırlara yeniden bölelim.
+    # Railway env vars literal "\n" olarak gelebiliyor — normalize et
+    raw = raw.replace("\\n", "\n").strip()
     begin = "-----BEGIN PRIVATE KEY-----"
     end = "-----END PRIVATE KEY-----"
-    if begin in raw and end in raw and "\n" not in raw:
+    # Header/footer varsa içeriği oradan al, yoksa tüm string'i body kabul et
+    if begin in raw and end in raw:
         body = raw.split(begin, 1)[1].split(end, 1)[0]
-        body = "".join(body.split())  # tüm boşlukları temizle
-        wrapped = "\n".join(body[i:i + 64] for i in range(0, len(body), 64))
-        raw = f"{begin}\n{wrapped}\n{end}\n"
-    elif not raw.endswith("\n"):
-        raw += "\n"
-    return raw
+    else:
+        body = raw
+    # Tüm boşluk/satır sonlarını temizle; sadece base64 karakterleri kalsın
+    body = "".join(body.split())
+    if not body:
+        return ""
+    wrapped = "\n".join(body[i:i + 64] for i in range(0, len(body), 64))
+    return f"{begin}\n{wrapped}\n{end}\n"
 
 
 # ─── JWT üretimi (ES256) ─────────────────────────────────────────────────────
@@ -98,7 +97,13 @@ def _generate_token() -> str | None:
     try:
         token = jwt.encode(payload, pem, algorithm="ES256", headers=headers)
     except Exception as exc:
-        logger.error("ASC JWT üretilemedi: %s", exc)
+        raw = os.getenv("ASC_PRIVATE_KEY") or ""
+        logger.error(
+            "ASC JWT üretilemedi: %s | raw_len=%d, has_newline=%s, has_escaped_n=%s, "
+            "starts=%r, ends=%r, normalized_lines=%d",
+            exc, len(raw), "\n" in raw, "\\n" in raw,
+            raw[:35], raw[-35:], pem.count("\n"),
+        )
         return None
     if isinstance(token, bytes):
         token = token.decode("utf-8")
