@@ -1293,9 +1293,17 @@
         var reader = resp.body.getReader();
         var decoder = new TextDecoder();
         var leftover = '';
+        var _finished = false;
         function pump() {
           reader.read().then(function (result) {
-            if (result.done) { _finishStreaming(bubble, accText); return; }
+            if (result.done) {
+              if (!_finished) {
+                // Stream bitti ama complete/done olayı gelmedi
+                if (accText) _finishStreaming(bubble, accText);
+                else { bubble.innerHTML = '<span style="color:#f87171">Yanıt alınamadı. /api/agent/test adresini kontrol et.</span>'; _endStreaming(); }
+              }
+              return;
+            }
             var lines = (leftover + decoder.decode(result.value, { stream: true })).split('\n');
             leftover = lines.pop();
             lines.forEach(function (line) {
@@ -1310,9 +1318,9 @@
                 bubble.innerHTML = _md(accText) + '<span style="display:inline-block;width:8px;height:16px;background:#a78bfa;animation:pulse 1s infinite;vertical-align:middle"></span>';
                 _scrollBottom();
               }
-              else if (evt.type === 'complete') { _finishStreaming(bubble, evt.text || accText); }
-              else if (evt.type === 'error') { bubble.innerHTML = '<span style="color:#f87171">Hata: ' + _esc(evt.message || '?') + '</span>'; _endStreaming(); }
-              else if (evt.type === 'done') { if (accText) _finishStreaming(bubble, accText); else _endStreaming(); }
+              else if (evt.type === 'complete') { _finished = true; _finishStreaming(bubble, evt.text || accText); }
+              else if (evt.type === 'error') { _finished = true; bubble.innerHTML = '<span style="color:#f87171">⚠ ' + _esc(evt.message || '?') + '</span>'; _endStreaming(); }
+              else if (evt.type === 'done') { _finished = true; if (accText) _finishStreaming(bubble, accText); else _endStreaming(); }
             });
             pump();
           }).catch(function (e) { bubble.innerHTML = '<span style="color:#f87171">Bağlantı hatası: ' + _esc(String(e)) + '</span>'; _endStreaming(); });

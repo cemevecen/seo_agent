@@ -13438,6 +13438,28 @@ def api_policy_last_csv(db: Session = Depends(get_db)):
 
 # ── ProjectControl AI Ajan ────────────────────────────────────────────────────
 
+@app.get("/api/agent/test")
+def api_agent_test():
+    """Gemini API bağlantı testi — debug için."""
+    import httpx
+    from backend.config import settings
+    key = (settings.gemini_api_key or "").strip()
+    if not key:
+        return JSONResponse({"ok": False, "error": "GEMINI_API_KEY yok"})
+    try:
+        r = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+            json={"contents": [{"role": "user", "parts": [{"text": "Merhaba, çalışıyor musun?"}]}]},
+            timeout=30,
+        )
+        data = r.json()
+        if r.status_code != 200:
+            return JSONResponse({"ok": False, "status": r.status_code, "error": data})
+        text = data["candidates"][0]["content"]["parts"][0].get("text", "")
+        return JSONResponse({"ok": True, "response": text[:200]})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
 @app.post("/api/agent/chat")
 async def api_agent_chat(request: Request):
     """AI ajan SSE endpoint — streaming tool-use yanıtı."""
