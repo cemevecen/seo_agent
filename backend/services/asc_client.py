@@ -317,6 +317,14 @@ def fetch_daily_sales_summary(
     pr_series = [daily_rows[d]["proceeds"] for d in dates_sorted]
     total_downloads = total_first_dl + total_redownloads
 
+    logger.info(
+        "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, redl=%d, "
+        "updates=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
+        days, len(daily_rows), total_first_dl, total_redownloads,
+        total_updates, total_downloads, total_proceeds,
+        len(country_agg), len(version_agg),
+    )
+
     return {
         "first_time_downloads": total_first_dl,
         "redownloads": total_redownloads,
