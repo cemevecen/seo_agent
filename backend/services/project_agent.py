@@ -177,7 +177,19 @@ def _parse_response(data: dict) -> tuple[str, list[dict]]:
         error = data.get("error", {})
         raise RuntimeError(f"Gemini yanıt boş: {error.get('message', json.dumps(data)[:200])}")
 
-    parts = candidates[0].get("content", {}).get("parts") or []
+    candidate = candidates[0]
+    finish_reason = candidate.get("finishReason", "")
+
+    # content yoksa (SAFETY, RECITATION, OTHER vb.) anlamlı hata ver
+    if finish_reason and finish_reason not in ("STOP", "MAX_TOKENS", "TOOL_USE", ""):
+        raise RuntimeError(f"Gemini yanıtı kesildi (finishReason: {finish_reason}). Soruyu farklı bir şekilde sormayı dene.")
+
+    parts = (candidate.get("content") or {}).get("parts") or []
+
+    # content hiç yoksa ve STOP değilse uyar
+    if not parts and finish_reason not in ("STOP", "TOOL_USE", ""):
+        LOGGER.warning("Gemini boş parts döndü. finishReason=%s, data=%s", finish_reason, json.dumps(data)[:300])
+
     text_parts = []
     func_calls = []
     for part in parts:
@@ -225,8 +237,12 @@ def _run_agent_loop(
 
         # Tool call yoksa bitir
         if not func_calls:
-            _stream_text(text or "(Yanıt yok)", send)
-            send({"type": "complete", "text": text or ""})
+            if not text:
+                LOGGER.warning("Gemini boş text + sıfır tool call döndü. iteration=%d", iteration)
+                send({"type": "error", "message": "model yanıt üretemedi, tekrar dene."})
+                return saved
+            _stream_text(text, send)
+            send({"type": "complete", "text": text})
             # Asistan yanıtını DB formatında kaydet
             if text:
                 saved.append({"role": "assistant", "content": text})
