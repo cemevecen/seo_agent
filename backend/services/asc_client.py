@@ -217,7 +217,10 @@ def fetch_daily_sales_summary(
     """
     vendor = _env("ASC_VENDOR_NUMBER")
     if not vendor:
+        logger.warning("ASC fetch_daily_sales_summary: VENDOR_NUMBER yok, atlanıyor")
         return None
+    logger.warning("ASC fetch_daily_sales_summary başladı: vendor=%s, days=%d, bundle=%s",
+                   vendor, days, bundle_id)
 
     end = date.today()
     start = end - timedelta(days=days - 1)
@@ -309,6 +312,7 @@ def fetch_daily_sales_summary(
         daily_rows[ds] = {"downloads": day_dl, "proceeds": day_proc}
 
     if not daily_rows:
+        logger.warning("ASC fetch_daily_sales_summary: tüm günler için rapor yok (daily_rows boş)")
         return None
 
     # Günlük seri (tarih sırasına göre)
@@ -317,7 +321,7 @@ def fetch_daily_sales_summary(
     pr_series = [daily_rows[d]["proceeds"] for d in dates_sorted]
     total_downloads = total_first_dl + total_redownloads
 
-    logger.info(
+    logger.warning(
         "ASC sales özet: days=%d, days_with_data=%d, first_dl=%d, redl=%d, "
         "updates=%d, total_dl=%d, proceeds_usd=%.2f, countries=%d, versions=%d",
         days, len(daily_rows), total_first_dl, total_redownloads,
