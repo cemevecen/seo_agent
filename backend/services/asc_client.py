@@ -132,7 +132,7 @@ def _fetch_sales_report(
     frequency: str,
     report_date: str,  # YYYY-MM-DD (DAILY), YYYY-MM-DD (haftanın bitiş günü), YYYY-MM (MONTHLY), YYYY (YEARLY)
     vendor_number: str,
-    version: str = "1_4",
+    version: str = "1_1",
 ) -> list[dict[str, str]] | None:
     headers = _auth_headers()
     if headers is None:
