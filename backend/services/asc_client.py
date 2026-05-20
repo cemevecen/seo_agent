@@ -49,8 +49,22 @@ def is_configured() -> bool:
 def _get_private_key_pem() -> str:
     raw = _env("ASC_PRIVATE_KEY") or ""
     # Railway env vars çoğunlukla \n'i literal "\n" olarak tutuyor — normalize et
-    if "\\n" in raw and "\n" not in raw:
+    if "\\n" in raw:
         raw = raw.replace("\\n", "\n")
+    raw = raw.strip()
+    if not raw:
+        return raw
+    # Bazı UI'lar (Railway dahil) PEM'i tek satıra düşürebiliyor: header/footer'ı
+    # tespit edip body'yi 64 karakterlik satırlara yeniden bölelim.
+    begin = "-----BEGIN PRIVATE KEY-----"
+    end = "-----END PRIVATE KEY-----"
+    if begin in raw and end in raw and "\n" not in raw:
+        body = raw.split(begin, 1)[1].split(end, 1)[0]
+        body = "".join(body.split())  # tüm boşlukları temizle
+        wrapped = "\n".join(body[i:i + 64] for i in range(0, len(body), 64))
+        raw = f"{begin}\n{wrapped}\n{end}\n"
+    elif not raw.endswith("\n"):
+        raw += "\n"
     return raw
 
 
