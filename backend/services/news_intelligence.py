@@ -175,7 +175,12 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
             ct = resp.headers.get("Content-Type", "")
             # Google bazen HTML döndürüyor (bot tespiti / consent sayfası)
             if "html" in ct and "xml" not in ct:
-                logger.warning("RSS kaynak HTML döndürdü (bot bloğu?): %s", url[:80])
+                # news.google.com cloud IP'lerden HTML consent sayfasına yönlendiriyor;
+                # bu beklenen bir durum, diğer kaynaklarımız yeterli — gürültüyü azalt.
+                if "news.google.com" in url:
+                    logger.debug("Google News HTML döndürdü (cloud IP), atlanıyor: %s", url[:80])
+                else:
+                    logger.warning("RSS kaynak HTML döndürdü (bot bloğu?): %s", url[:80])
                 return None
             # Ham içeriği al; gzip magic bytes varsa manuel decompress et
             raw = resp.content
