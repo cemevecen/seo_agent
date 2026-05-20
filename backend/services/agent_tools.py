@@ -92,6 +92,32 @@ def github_list_prs(state: str = "open", limit: int = 10) -> dict[str, Any]:
         return {"error": str(e)}
 
 
+def github_list_branches() -> dict[str, Any]:
+    """Repo'daki tüm branch'leri listeler."""
+    repo = settings.github_repo or "cemevecen/seo_agent"
+    try:
+        r = httpx.get(
+            f"{_GH_BASE}/repos/{repo}/branches",
+            params={"per_page": 50},
+            headers=_gh_headers(),
+            timeout=15,
+        )
+        r.raise_for_status()
+        branches = [
+            {
+                "name": b["name"],
+                "sha": b["commit"]["sha"][:8],
+                "protected": b.get("protected", False),
+            }
+            for b in r.json()
+        ]
+        # main/master branch'ini öne al
+        branches.sort(key=lambda b: (0 if b["name"] in ("main", "master") else 1, b["name"]))
+        return {"branches": branches, "count": len(branches)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def github_recent_commits(limit: int = 10) -> dict[str, Any]:
     """Son commit'leri getirir."""
     repo = settings.github_repo or "cemevecen/seo_agent"
@@ -364,6 +390,11 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "github_list_branches",
+        "description": "GitHub repo'sundaki tüm branch'leri listeler. Hangi branch'ler var, hangisi main, eski branch var mı diye kontrol eder.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "github_list_prs",
         "description": "GitHub pull request'lerini listeler.",
         "input_schema": {
@@ -460,6 +491,7 @@ TOOL_DEFINITIONS = [
 def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
     """Araç adına göre ilgili fonksiyonu çalıştırır."""
     dispatch = {
+        "github_list_branches": lambda: github_list_branches(),
         "github_list_issues": lambda: github_list_issues(**inputs),
         "github_list_prs": lambda: github_list_prs(**inputs),
         "github_recent_commits": lambda: github_recent_commits(**inputs),
