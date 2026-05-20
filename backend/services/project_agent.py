@@ -1,4 +1,4 @@
-"""ProjectControl AI Ajan — Claude claude-opus-4-7 ile streaming tool-use ajanı."""
+"""ProjectControl AI Ajan — Gemini 2.0 Flash ile streaming tool-use ajanı."""
 from __future__ import annotations
 
 import json
@@ -38,27 +38,64 @@ _SYSTEM_PROMPT = """Sen ProjectControl'ün gömülü AI ajanısın. Bu uygulama 
 Şu an aktif platformdasın. Soruları cevapla, araçları kullan, kullanıcıya yardım et."""
 
 
-def _get_client():
-    """Anthropic istemcisini döner."""
+def _gemini_tool_declarations():
+    """TOOL_DEFINITIONS'ı Gemini FunctionDeclaration listesine çevirir."""
     try:
-        import anthropic
-    except ImportError:
-        raise RuntimeError("anthropic paketi yüklü değil. requirements.txt'e ekle ve yeniden deploy et.")
+        import google.generativeai as genai
+        declarations = []
+        for t in TOOL_DEFINITIONS:
+            schema = dict(t.get("input_schema", {}))
+            schema.pop("$schema", None)
+            declarations.append(
+                genai.protos.FunctionDeclaration(
+                    name=t["name"],
+                    description=t["description"],
+                    parameters=schema,
+                )
+            )
+        return [genai.protos.Tool(function_declarations=declarations)]
+    except Exception as e:
+        LOGGER.warning("Gemini tool declaration hatası: %s", e)
+        return []
 
-    api_key = settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+
+def _get_model():
+    """Gemini modelini döner."""
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        raise RuntimeError("google-generativeai paketi yüklü değil.")
+
+    api_key = (settings.gemini_api_key or "").strip()
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY tanımlı değil. Railway environment variables'a ekle.")
-    return anthropic.Anthropic(api_key=api_key)
+        raise RuntimeError("GEMINI_API_KEY tanımlı değil. Railway environment variables'a ekle.")
+
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel(
+        model_name="gemini-2.0-flash",
+        system_instruction=_SYSTEM_PROMPT,
+        tools=_gemini_tool_declarations(),
+    )
+
+
+def _to_gemini_history(messages: list[dict[str, Any]]):
+    """messages [{role, content}] → Gemini chat history formatı."""
+    import google.generativeai as genai
+    history = []
+    for m in messages[:-1]:  # Son mesaj hariç — o send_message ile gönderilecek
+        role = "model" if m["role"] == "assistant" else "user"
+        history.append(genai.protos.Content(
+            role=role,
+            parts=[genai.protos.Part(text=m["content"])],
+        ))
+    return history
 
 
 async def stream_agent_response(
     messages: list[dict[str, Any]],
     max_iterations: int = 8,
 ) -> AsyncGenerator[str, None]:
-    """
-    Claude ile tool-use döngüsü — SSE formatında string generator.
-    Her yield bir `data: {...}\n\n` satırıdır.
-    """
+    """Gemini ile tool-use döngüsü — SSE formatında string generator."""
     import asyncio
     import threading
 
@@ -95,105 +132,78 @@ def _run_agent_loop(
     max_iterations: int,
     send: Any,
 ) -> None:
-    """Senkron ajan döngüsü — ayrı thread'de çalışır."""
-    client = _get_client()
-    conversation = list(messages)
+    """Senkron Gemini ajan döngüsü — ayrı thread'de çalışır."""
+    import google.generativeai as genai
+
+    model = _get_model()
+    history = _to_gemini_history(messages)
+    chat = model.start_chat(history=history)
+    user_text = messages[-1]["content"]
 
     for iteration in range(max_iterations):
         send({"type": "thinking", "iteration": iteration + 1})
 
-        with client.messages.stream(
-            model="claude-opus-4-7",
-            max_tokens=4096,
-            thinking={"type": "adaptive"},
-            system=_SYSTEM_PROMPT,
-            tools=TOOL_DEFINITIONS,
-            messages=conversation,
-        ) as stream:
-            # Metin token'larını chunk chunk gönder
-            full_text = ""
-            tool_uses: list[dict[str, Any]] = []
-            current_tool: dict[str, Any] | None = None
-            current_input_json = ""
-            stop_reason = None
+        # Streaming ile yanıt al
+        try:
+            response_stream = chat.send_message(user_text, stream=True)
+        except Exception as e:
+            send({"type": "error", "message": f"Gemini API hatası: {e}"})
+            return
 
-            for event in stream:
-                etype = type(event).__name__
+        # Stream chunk'larını topla
+        full_text = ""
+        function_calls: list[Any] = []
 
-                if etype == "RawContentBlockStartEvent":
-                    block = event.content_block
-                    btype = getattr(block, "type", "")
-                    if btype == "text":
-                        current_tool = None
-                    elif btype == "tool_use":
-                        current_tool = {
-                            "id": block.id,
-                            "name": block.name,
-                            "input": {},
-                        }
-                        current_input_json = ""
-                        send({"type": "tool_start", "tool": block.name})
+        try:
+            for chunk in response_stream:
+                # Metin chunk'ları
+                try:
+                    chunk_text = chunk.text
+                    if chunk_text:
+                        full_text += chunk_text
+                        send({"type": "text_chunk", "text": chunk_text})
+                except Exception:
+                    pass
 
-                elif etype == "RawContentBlockDeltaEvent":
-                    delta = event.delta
-                    dtype = getattr(delta, "type", "")
-                    if dtype == "text_delta":
-                        chunk = delta.text
-                        full_text += chunk
-                        send({"type": "text_chunk", "text": chunk})
-                    elif dtype == "input_json_delta":
-                        current_input_json += delta.partial_json
+                # Function call chunk'ları
+                try:
+                    for part in chunk.parts:
+                        if hasattr(part, "function_call") and part.function_call.name:
+                            function_calls.append(part.function_call)
+                except Exception:
+                    pass
+        except Exception as e:
+            send({"type": "error", "message": f"Stream okuma hatası: {e}"})
+            return
 
-                elif etype == "RawContentBlockStopEvent":
-                    if current_tool is not None:
-                        try:
-                            current_tool["input"] = json.loads(current_input_json) if current_input_json else {}
-                        except json.JSONDecodeError:
-                            current_tool["input"] = {}
-                        tool_uses.append(dict(current_tool))
-                        current_tool = None
-                        current_input_json = ""
-
-                elif etype == "RawMessageStopEvent":
-                    stop_reason = getattr(event.message, "stop_reason", None) if hasattr(event, "message") else None
-
-            final_message = stream.get_final_message()
-            stop_reason = final_message.stop_reason
-
-        # Asistan yanıtını konuşma geçmişine ekle
-        conversation.append({"role": "assistant", "content": final_message.content})
-
-        # Tool kullanımı yoksa bitti
-        if stop_reason != "tool_use" or not tool_uses:
+        # Tool call yoksa bitti
+        if not function_calls:
             send({"type": "complete", "text": full_text})
             return
 
-        # Araçları çalıştır ve sonuçları gönder
-        tool_results = []
-        for tool in tool_uses:
-            tname = tool["name"]
-            tinputs = tool.get("input", {})
-            send({"type": "tool_running", "tool": tname, "inputs": _safe_inputs(tname, tinputs)})
+        # Araçları çalıştır
+        tool_response_parts = []
+        for fc in function_calls:
+            tname = fc.name
+            try:
+                tinputs = dict(fc.args)
+            except Exception:
+                tinputs = {}
 
+            send({"type": "tool_start", "tool": tname})
             result = execute_tool(tname, tinputs)
-            result_str = json.dumps(result, ensure_ascii=False, default=str)
-            send({"type": "tool_result", "tool": tname, "result_preview": result_str[:200]})
+            send({"type": "tool_result", "tool": tname, "result_preview": json.dumps(result, ensure_ascii=False, default=str)[:200]})
 
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": tool["id"],
-                "content": result_str,
-            })
+            tool_response_parts.append(
+                genai.protos.Part(
+                    function_response=genai.protos.FunctionResponse(
+                        name=tname,
+                        response={"result": json.dumps(result, ensure_ascii=False, default=str)},
+                    )
+                )
+            )
 
-        conversation.append({"role": "user", "content": tool_results})
+        # Sonraki tur için kullanıcı mesajı = tool sonuçları
+        user_text = genai.protos.Content(role="user", parts=tool_response_parts)
 
-    # Max iterasyona ulaşıldı
     send({"type": "complete", "text": "Maksimum iterasyon sayısına ulaşıldı."})
-
-
-def _safe_inputs(tool_name: str, inputs: dict[str, Any]) -> dict[str, Any]:
-    """SQL içeriğini kısalt, gizli bilgileri maskele."""
-    result = dict(inputs)
-    if "sql" in result:
-        result["sql"] = str(result["sql"])[:100] + "..."
-    return result

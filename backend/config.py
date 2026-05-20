@@ -42,11 +42,6 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     encryption_key: str
 
-    # ProjectControl AI Ajan — Claude claude-opus-4-7
-    anthropic_api_key: str = Field(
-        default="",
-        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "anthropic_api_key"),
-    )
     # GitHub entegrasyonu (ajan araçları için)
     github_token: str = Field(
         default="",
