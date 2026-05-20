@@ -1061,5 +1061,295 @@
       });
     })();
   </script>
+
+  <!-- ProjectControl AI Ajan — her sayfada görünen yüzen chat widget -->
+  <button id="pc-agent-btn"
+    onclick="pcAgentToggle()"
+    title="ProjectControl AI Ajan"
+    class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full
+           bg-gradient-to-br from-violet-600 to-indigo-700
+           px-4 py-3 text-white shadow-2xl shadow-violet-900/40
+           hover:from-violet-500 hover:to-indigo-600
+           transition-all duration-200 hover:scale-105 active:scale-95
+           ring-2 ring-violet-400/30">
+    <svg id="pc-agent-icon-chat" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+    </svg>
+    <svg id="pc-agent-icon-close" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+    </svg>
+    <span class="text-sm font-semibold tracking-wide">PC Ajan</span>
+  </button>
+
+  <div id="pc-agent-panel"
+    class="fixed bottom-20 right-6 z-50 hidden
+           w-[min(420px,calc(100vw-1.5rem))]
+           flex flex-col rounded-2xl
+           bg-zinc-950 border border-violet-800/40
+           shadow-2xl shadow-violet-950/60
+           overflow-hidden"
+    style="height: min(580px, calc(100vh - 120px));">
+
+    <div class="flex items-center gap-3 px-4 py-3
+                bg-gradient-to-r from-violet-900/80 to-indigo-900/80
+                border-b border-violet-800/40">
+      <div class="flex h-8 w-8 items-center justify-center rounded-full
+                  bg-violet-600 ring-2 ring-violet-400/40 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+        </svg>
+      </div>
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-bold text-white">PC Ajan</div>
+        <div id="pc-agent-status-text" class="text-xs text-violet-300/70">Gemini 2.0 Flash · Araçlı</div>
+      </div>
+      <button onclick="pcAgentClearHistory()"
+        title="Sohbeti temizle"
+        class="ml-auto shrink-0 rounded-lg p-1.5 text-violet-300/60 hover:text-white hover:bg-violet-800/40 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="pc-agent-messages"
+      class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div class="pc-msg-assistant flex gap-2.5">
+        <div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+          </svg>
+        </div>
+        <div class="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">
+          Merhaba! Ben ProjectControl'ün AI ajanıyım 👋<br>
+          GitHub, Railway, veritabanı ve sistem durumuyla ilgili her konuda yardımcı olabilirim.<br>
+          <span class="text-violet-400 text-xs mt-1 block">Ne yapmamı istersin?</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5">
+      <button onclick="pcAgentQuickSend(this)" data-msg="Sistem sağlık durumunu kontrol et"
+        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
+               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
+        🩺 Sağlık
+      </button>
+      <button onclick="pcAgentQuickSend(this)" data-msg="Son GitHub issue'ları listele"
+        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
+               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
+        🐛 Issue'lar
+      </button>
+      <button onclick="pcAgentQuickSend(this)" data-msg="Railway son deployment durumu nedir?"
+        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
+               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
+        🚀 Deploy
+      </button>
+      <button onclick="pcAgentQuickSend(this)" data-msg="Veritabanı tablo istatistiklerini göster"
+        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
+               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
+        🗄️ DB
+      </button>
+      <button onclick="pcAgentQuickSend(this)" data-msg="Son commit'leri göster ve özetle"
+        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
+               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
+        📝 Commit
+      </button>
+    </div>
+
+    <div class="px-4 pb-4 pt-1">
+      <div class="flex items-end gap-2 rounded-xl border border-zinc-700/60
+                  bg-zinc-900/80 px-3 py-2 focus-within:border-violet-600/60 transition-colors">
+        <textarea id="pc-agent-input"
+          placeholder="Mesajını yaz..."
+          rows="1"
+          onkeydown="pcAgentKeydown(event)"
+          oninput="pcAgentAutoResize(this)"
+          class="flex-1 resize-none bg-transparent text-sm text-zinc-100
+                 placeholder-zinc-500 outline-none leading-relaxed
+                 max-h-32 min-h-[1.5rem]"
+          style="overflow-y: auto;"></textarea>
+        <button id="pc-agent-send-btn"
+          onclick="pcAgentSend()"
+          class="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg
+                 bg-violet-600 text-white hover:bg-violet-500
+                 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z"/>
+          </svg>
+        </button>
+      </div>
+      <p class="mt-1.5 text-center text-[10px] text-zinc-600">Enter gönder · Shift+Enter yeni satır</p>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var _pcHistory = [];
+    var _pcStreaming = false;
+    var _pcOpen = false;
+
+    window.pcAgentToggle = function () {
+      _pcOpen = !_pcOpen;
+      var panel = document.getElementById('pc-agent-panel');
+      var iconChat = document.getElementById('pc-agent-icon-chat');
+      var iconClose = document.getElementById('pc-agent-icon-close');
+      if (_pcOpen) {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+        iconChat.classList.add('hidden');
+        iconClose.classList.remove('hidden');
+        setTimeout(function () { var i = document.getElementById('pc-agent-input'); if (i) i.focus(); }, 50);
+      } else {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+        iconChat.classList.remove('hidden');
+        iconClose.classList.add('hidden');
+      }
+    };
+
+    window.pcAgentClearHistory = function () {
+      if (_pcStreaming) return;
+      _pcHistory = [];
+      document.getElementById('pc-agent-messages').innerHTML =
+        '<div class="pc-msg-assistant flex gap-2.5"><div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div>' +
+        '<div class="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">Sohbet temizlendi. Nasıl yardımcı olabilirim?</div></div>';
+      _pcSetStatus('Hazır');
+    };
+
+    window.pcAgentQuickSend = function (btn) {
+      var msg = btn.getAttribute('data-msg');
+      if (!msg || _pcStreaming) return;
+      document.getElementById('pc-agent-input').value = msg;
+      pcAgentSend();
+    };
+
+    window.pcAgentAutoResize = function (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+    };
+
+    window.pcAgentKeydown = function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pcAgentSend(); }
+    };
+
+    window.pcAgentSend = function () {
+      if (_pcStreaming) return;
+      var inp = document.getElementById('pc-agent-input');
+      var text = (inp.value || '').trim();
+      if (!text) return;
+      inp.value = '';
+      inp.style.height = 'auto';
+      _pcHistory.push({ role: 'user', content: text });
+      _appendUserMsg(text);
+      _startStreaming();
+    };
+
+    function _appendUserMsg(text) {
+      var msgs = document.getElementById('pc-agent-messages');
+      var div = document.createElement('div');
+      div.className = 'flex justify-end';
+      div.innerHTML = '<div class="rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm leading-relaxed bg-violet-700 text-white max-w-[85%]">' + _esc(text) + '</div>';
+      msgs.appendChild(div);
+      _scrollBottom();
+    }
+
+    function _appendAssistantBubble() {
+      var msgs = document.getElementById('pc-agent-messages');
+      var wrap = document.createElement('div');
+      wrap.className = 'pc-msg-assistant flex gap-2.5';
+      wrap.innerHTML = '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div><div class="pc-bubble rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%] whitespace-pre-wrap break-words"></div>';
+      msgs.appendChild(wrap);
+      _scrollBottom();
+      return wrap.querySelector('.pc-bubble');
+    }
+
+    function _appendToolBadge(toolName) {
+      var msgs = document.getElementById('pc-agent-messages');
+      var div = document.createElement('div');
+      div.className = 'flex items-center gap-2 px-1';
+      div.innerHTML = '<div class="h-px flex-1 bg-violet-900/40"></div><span class="text-[10px] font-medium text-violet-400/70 flex items-center gap-1"><svg class="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>' + _esc(toolName) + '</span><div class="h-px flex-1 bg-violet-900/40"></div>';
+      msgs.appendChild(div);
+      _scrollBottom();
+      return div;
+    }
+
+    function _startStreaming() {
+      _pcStreaming = true;
+      document.getElementById('pc-agent-send-btn').disabled = true;
+      document.getElementById('pc-agent-input').disabled = true;
+      _pcSetStatus('Düşünüyor…');
+      var bubble = _appendAssistantBubble();
+      bubble.innerHTML = '<span style="display:inline-block;width:8px;height:16px;background:#a78bfa;animation:pulse 1s infinite;vertical-align:middle"></span>';
+      var accText = '';
+      var toolBadge = null;
+
+      fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: _pcHistory.slice() }),
+      }).then(function (resp) {
+        if (!resp.ok) return resp.text().then(function (t) { throw new Error(t); });
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        var leftover = '';
+        function pump() {
+          reader.read().then(function (result) {
+            if (result.done) { _finishStreaming(bubble, accText); return; }
+            var lines = (leftover + decoder.decode(result.value, { stream: true })).split('\n');
+            leftover = lines.pop();
+            lines.forEach(function (line) {
+              if (!line.startsWith('data: ')) return;
+              var evt; try { evt = JSON.parse(line.slice(6)); } catch (e) { return; }
+              if (evt.type === 'thinking') { _pcSetStatus('Düşünüyor (' + evt.iteration + '. tur)…'); }
+              else if (evt.type === 'tool_start') { toolBadge = _appendToolBadge(evt.tool); _pcSetStatus('Araç: ' + evt.tool + '…'); }
+              else if (evt.type === 'tool_result') { if (toolBadge) { toolBadge.querySelector('span').innerHTML = '✓ ' + _esc(evt.tool); toolBadge = null; } }
+              else if (evt.type === 'text_chunk') {
+                if (accText === '') bubble.innerHTML = '';
+                accText += evt.text;
+                bubble.innerHTML = _md(accText) + '<span style="display:inline-block;width:8px;height:16px;background:#a78bfa;animation:pulse 1s infinite;vertical-align:middle"></span>';
+                _scrollBottom();
+              }
+              else if (evt.type === 'complete') { _finishStreaming(bubble, evt.text || accText); }
+              else if (evt.type === 'error') { bubble.innerHTML = '<span style="color:#f87171">Hata: ' + _esc(evt.message || '?') + '</span>'; _endStreaming(); }
+              else if (evt.type === 'done') { if (accText) _finishStreaming(bubble, accText); else _endStreaming(); }
+            });
+            pump();
+          }).catch(function (e) { bubble.innerHTML = '<span style="color:#f87171">Bağlantı hatası: ' + _esc(String(e)) + '</span>'; _endStreaming(); });
+        }
+        pump();
+      }).catch(function (e) { bubble.innerHTML = '<span style="color:#f87171">İstek hatası: ' + _esc(String(e)) + '</span>'; _endStreaming(); });
+    }
+
+    function _finishStreaming(bubble, text) {
+      bubble.innerHTML = _md(text);
+      _pcHistory.push({ role: 'assistant', content: text });
+      _endStreaming();
+      _scrollBottom();
+    }
+
+    function _endStreaming() {
+      _pcStreaming = false;
+      document.getElementById('pc-agent-send-btn').disabled = false;
+      var inp = document.getElementById('pc-agent-input');
+      inp.disabled = false;
+      inp.focus();
+      _pcSetStatus('Hazır');
+    }
+
+    function _pcSetStatus(t) { var el = document.getElementById('pc-agent-status-text'); if (el) el.textContent = t; }
+    function _scrollBottom() { var m = document.getElementById('pc-agent-messages'); if (m) m.scrollTop = m.scrollHeight; }
+    function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function _md(t) {
+      var h = String(t);
+      h = h.replace(/```[\w]*\n?([\s\S]*?)```/g, function(_,c){ return '<pre style="margin:6px 0;padding:8px 12px;background:#18181b;border:1px solid #3f3f46;border-radius:8px;font-size:11px;overflow-x:auto;color:#6ee7b7;font-family:monospace">' + _esc(c.trim()) + '</pre>'; });
+      h = h.replace(/`([^`]+)`/g, '<code style="background:#27272a;padding:1px 5px;border-radius:4px;font-size:11px;color:#6ee7b7;font-family:monospace">$1</code>');
+      h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      h = h.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      h = h.replace(/\n/g, '<br>');
+      return h;
+    }
+  })();
+  </script>
 </body>
 </html>
