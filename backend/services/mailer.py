@@ -210,6 +210,7 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
         load_inbox_credentials,
         get_inbox_credential_row,
         persist_credentials_if_refreshed,
+        delete_inbox_credentials,
     )
     from backend.database import SessionLocal
     from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -228,7 +229,16 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
                 persist_credentials_if_refreshed(session, creds, row)
                 logging.info("Gmail OAuth token yenilendi ve DB'ye kaydedildi.")
             except Exception as ref_err:
-                logging.error("Gmail OAuth token yenileme başarısız: %s", ref_err)
+                err_str = str(ref_err).lower()
+                if "invalid_grant" in err_str or "token has been expired or revoked" in err_str:
+                    # Kalıcı hata — token iptal edilmiş, DB'den sil ki UI yeniden bağlan uyarısı göstersin
+                    try:
+                        delete_inbox_credentials(session)
+                        logging.warning("Gmail OAuth token kalıcı olarak geçersiz, silindi. Yeniden bağlanma gerekiyor.")
+                    except Exception:
+                        pass
+                else:
+                    logging.error("Gmail OAuth token yenileme başarısız: %s", ref_err)
                 return False
 
         if not creds.valid:
