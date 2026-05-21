@@ -233,7 +233,8 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
     try:
         payload = inbox_gmail_auth.decode_inbox_oauth_state(state)
     except ValueError as exc:
-        return HTMLResponse(str(exc), status_code=400)
+        from urllib.parse import quote
+        return RedirectResponse(url=f"/inbox?oauth_error={quote(str(exc)[:120])}", status_code=302)
     try:
         creds = inbox_gmail_auth.exchange_inbox_authorization_code(code)
         # googleapiclient.build() + execute() google-auth scope validasyonu tetikler.
@@ -244,20 +245,69 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
             timeout=15.0,
         )
         if prof_resp.status_code != 200:
-            raise RuntimeError(f"Gmail profile alınamadı: {prof_resp.status_code} {prof_resp.text[:200]}")
+            raise RuntimeError(f"Gmail profil alınamadı: {prof_resp.status_code}")
         email = str(prof_resp.json().get("emailAddress") or "").strip()
         inbox_gmail_auth.save_inbox_credentials(db, creds, email)
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox oauth callback failed")
-        return HTMLResponse(f"Gmail bağlantısı tamamlanamadı: {exc}", status_code=500)
+        from urllib.parse import quote
+        return RedirectResponse(url=f"/inbox?oauth_error={quote(str(exc)[:120])}", status_code=302)
     return RedirectResponse(str(payload.get("return_path") or "/inbox"), status_code=302)
+
+
+@router.get("/action-auth/status")
+@limiter.limit("120/minute")
+def inbox_action_auth_status(request: Request):
+    """Inbox aksiyon şifresinin cookie'de geçerli olup olmadığını döndürür."""
+    import hashlib, hmac as _hmac
+    from backend.config import settings as _settings
+    raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
+    if not raw_pwd:
+        return {"authenticated": True, "required": False}
+    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
+    if not token:
+        return {"authenticated": False, "required": True}
+    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
+    expected = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    ok = _hmac.compare_digest(token, expected)
+    return {"authenticated": ok, "required": True}
+
+
+@router.post("/action-auth")
+@limiter.limit("20/minute")
+async def inbox_action_auth_set(request: Request):
+    """Inbox aksiyon şifresini doğrula ve oturum cookie'si yaz."""
+    import hashlib, hmac as _hmac
+    from backend.config import settings as _settings
+    raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
+    if not raw_pwd:
+        resp = JSONResponse({"ok": True})
+        return resp
+    form = await request.form()
+    submitted = str(form.get("password") or "").strip()
+    if submitted != raw_pwd:
+        return JSONResponse({"ok": False, "error": "Yanlış şifre"})
+    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
+    token = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    secure = request.url.scheme == "https"
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(
+        key=_INBOX_ACTION_AUTH_COOKIE,
+        value=token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=86400 * 7,
+        path="/",
+    )
+    return resp
 
 
 @router.delete("/oauth")
 @limiter.limit("20/minute")
 def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
-    ok = inbox_gmail_auth.delete_inbox_credentials(db)
     _require_inbox_action_auth(request)
+    ok = inbox_gmail_auth.delete_inbox_credentials(db)
     return {"disconnected": ok}
 
 
