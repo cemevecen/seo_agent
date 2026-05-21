@@ -4,14 +4,14 @@
 <div class="mx-auto w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
   <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Admin Girişi</h2>
   <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-    IP adresin allowlistte değil ({{ client_ip or "bilinmiyor" }}). Devam etmek için admin password gir.
+    Devam etmek için admin password gir.
   </p>
   {% if not password_configured %}
   <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
     {% if local_first_setup %}
       Henüz admin şifresi yok. Bu sayfadan giriş yapılamaz. Aynı makineden <a href="/settings" class="font-medium underline">Ayarlar (/settings)</a> sayfasına gidip ilk şifreyi kaydedin; ardından buradan giriş yapın.
     {% else %}
-      Henüz admin şifresi ayarlanmadı. Bir kez allowlist IP’den bağlanıp <span class="font-mono">/settings</span> üzerinden şifre belirleyin veya sunucuda <span class="font-mono">ADMIN_PASSWORD</span> (≥6 karakter) ile otomatik yazdırın.
+      Henüz admin şifresi ayarlanmadı. Sunucuda <span class="font-mono">ADMIN_PASSWORD</span> (≥6 karakter) env değişkeni ile otomatik olarak ayarlayabilirsiniz.
     {% endif %}
   </p>
   {% endif %}

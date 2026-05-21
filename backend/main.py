@@ -967,25 +967,81 @@ def _may_set_or_update_admin_password(request: Request) -> bool:
     return _is_local_dev_first_password_client(request)
 
 
-def _is_ip_allowed(client_ip: str, allowlist: list[str]) -> bool:
-    # Tek IP ve CIDR formatlarını destekleyen allowlist kontrolü.
-    if not client_ip:
-        return False
-    for entry in allowlist:
-        try:
-            if "/" in entry:
-                if ip_address(client_ip) in ip_network(entry, strict=False):
-                    return True
-            elif client_ip == entry:
-                return True
-        except ValueError:
-            continue
-    return False
-
-
 _ADMIN_AUTH_COOKIE = "seo_admin_auth"
 _SETTINGS_AUTH_COOKIE = "seo_settings_auth"
 _INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
+
+# ── Aktif oturum takibi ──────────────────────────────────────────────────────
+# Anahtar: cookie token'ın SHA-256 hash'i (ilk 16 karakter). Değer: oturum meta.
+_active_sessions: dict[str, dict] = {}
+_SESSION_IDLE_MINUTES = 30  # Bu süreden uzun süre istek gelmezse oturumu sil
+
+
+def _session_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()[:16]
+
+
+def _parse_device(ua: str) -> str:
+    ua_l = ua.lower()
+    if "mobile" in ua_l or "android" in ua_l or "iphone" in ua_l:
+        device = "Mobil"
+    elif "tablet" in ua_l or "ipad" in ua_l:
+        device = "Tablet"
+    else:
+        device = "Masaüstü"
+    if "chrome" in ua_l and "edg" not in ua_l and "opr" not in ua_l:
+        browser = "Chrome"
+    elif "firefox" in ua_l:
+        browser = "Firefox"
+    elif "safari" in ua_l and "chrome" not in ua_l:
+        browser = "Safari"
+    elif "edg" in ua_l:
+        browser = "Edge"
+    elif "opr" in ua_l or "opera" in ua_l:
+        browser = "Opera"
+    else:
+        browser = "Tarayıcı"
+    return f"{device} / {browser}"
+
+
+def _record_session(request: Request) -> None:
+    token = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
+    if not token:
+        return
+    key = _session_key(token)
+    now = datetime.utcnow()
+    cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
+    # Eskiyen oturumları temizle
+    dead = [k for k, v in _active_sessions.items() if v.get("last_seen", now) < cutoff]
+    for k in dead:
+        del _active_sessions[k]
+    ip = _extract_client_ip(request)
+    ua = request.headers.get("user-agent", "")
+    if key in _active_sessions:
+        _active_sessions[key]["last_seen"] = now
+        _active_sessions[key]["ip"] = ip
+    else:
+        _active_sessions[key] = {
+            "ip": ip,
+            "device": _parse_device(ua),
+            "user_agent": ua[:120],
+            "first_seen": now,
+            "last_seen": now,
+        }
+
+
+def _get_active_sessions() -> list[dict]:
+    now = datetime.utcnow()
+    cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
+    return sorted(
+        [
+            {**v, "key": k}
+            for k, v in _active_sessions.items()
+            if v.get("last_seen", now) >= cutoff
+        ],
+        key=lambda x: x["last_seen"],
+        reverse=True,
+    )
 
 
 def _is_settings_authenticated(request: Request) -> bool:
@@ -1090,13 +1146,6 @@ def _bootstrap_admin_password_from_env() -> None:
         LOGGER.warning("ADMIN_PASSWORD veritabanına yazılamadı: %s", exc)
 
 
-def _request_is_allowlisted(request: Request) -> bool:
-    allowlist = [item.strip() for item in settings.allowed_client_ips.split(",") if item.strip()]
-    if not allowlist:
-        return False
-    client_ip = _extract_client_ip(request)
-    return _is_ip_allowed(client_ip, allowlist)
-
 
 def _admin_auth_active() -> bool:
     """IP allowlist + admin oturum. Railway'de daima açık; yerelde ADMIN_AUTH_ENFORCED=false ile kapatılabilir."""
@@ -1132,6 +1181,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
     if password_ready and _is_admin_authenticated(request):
+        _record_session(request)
         # Admin girişi okeyse, şimdi Settings için ikinci katmanı kontrol et
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             return RedirectResponse(url="/admin/settings-login", status_code=303)
@@ -8233,7 +8283,7 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "admin_allowlisted_ip": False,
+            "active_sessions": _get_active_sessions(),
         }
     flash_key = (request.query_params.get("admin_pw") or "").strip()
     _admin_pw_flash_messages = {

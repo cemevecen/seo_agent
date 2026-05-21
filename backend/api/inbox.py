@@ -221,7 +221,9 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
 
     err = request.query_params.get("error")
     if err:
-        return HTMLResponse(f"Google OAuth reddedildi: {err}", status_code=400)
+        if err == "access_denied":
+            return RedirectResponse(url="/inbox?oauth_error=access_denied", status_code=302)
+        return RedirectResponse(url=f"/inbox?oauth_error={err}", status_code=302)
     state = request.query_params.get("state")
     if not state:
         return HTMLResponse("OAuth state eksik.", status_code=400)

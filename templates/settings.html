@@ -13,8 +13,7 @@
       {% endif %}
     </div>
     <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
-      Allowlist IP’leri doğrudan geçer. Diğer IP’ler bu tek şifre ile giriş yapar.
-      {% if admin_allowlisted_ip %} Şu an allowlist IP’den bağlısın.{% endif %}
+      Tüm erişimler bu tek şifre ile korunmaktadır.
     </p>
     <p class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400 sm:text-xs">
       Kayıtlı şifre güvenlik nedeniyle bu alanlarda <span class="font-medium text-slate-700 dark:text-slate-300">gösterilmez</span>.
@@ -64,6 +63,25 @@
     <form method="post" action="/admin/auth/logout" class="mt-3">
       <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70">Admin çıkış yap</button>
     </form>
+    {% endif %}
+
+    {# Aktif oturumlar #}
+    {% if active_sessions %}
+    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aktif Oturumlar</h4>
+      <div class="space-y-2">
+        {% for s in active_sessions %}
+        <div class="flex flex-col gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800/60 sm:flex-row sm:items-center sm:gap-4">
+          <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.ip }}</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ s.device }}</span>
+          <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">
+            İlk: {{ s.first_seen.strftime('%d.%m %H:%M') }} &nbsp;·&nbsp; Son: {{ s.last_seen.strftime('%d.%m %H:%M') }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son {{ 30 }} dakika içinde istek gönderen oturumlar. Sunucu yeniden başlatılırsa liste sıfırlanır.</p>
+    </div>
     {% endif %}
   </div>
   {% endif %}

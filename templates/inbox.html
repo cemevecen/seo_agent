@@ -618,7 +618,16 @@
       );
     }
     if (parts.length) showBanner(parts.join(" "));
-    else hideBanner();
+    else {
+      var oauthErr = new URLSearchParams(window.location.search).get("oauth_error");
+      if (oauthErr === "access_denied") {
+        showBanner("Google izni reddedildi. Google Cloud Console'da OAuth uygulamanız test modundaysa e-posta adresinizi \"Test Kullanıcıları\" listesine ekleyin, ardından tekrar bağlanmayı deneyin.");
+      } else if (oauthErr) {
+        showBanner("Gmail bağlantısı tamamlanamadı: " + oauthErr);
+      } else {
+        hideBanner();
+      }
+    }
   }
 
   async function loadThreads() {
