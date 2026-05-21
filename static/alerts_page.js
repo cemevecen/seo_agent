@@ -88,6 +88,18 @@ function applyAlertsFilters() {
     if (show) visible++;
   });
 
+  // CTR / Impression / Pozisyon sekmelerinde en olumsuzdan en olumluya sırala
+  var scTabs = ['ctr', 'impression', 'position'];
+  if (scTabs.indexOf(_alertType) !== -1) {
+    var sortable = Array.from(cards).filter(function (c) { return c.style.display !== 'none'; });
+    sortable.sort(function (a, b) {
+      var sa = parseFloat(a.getAttribute('data-sort-score') || '0');
+      var sb = parseFloat(b.getAttribute('data-sort-score') || '0');
+      return sb - sa; // yüksek score = daha olumsuz → önce
+    });
+    sortable.forEach(function (c) { container.appendChild(c); });
+  }
+
   var empty = container.querySelector('.alerts-empty-state');
   if (visible === 0) {
     if (!empty) {

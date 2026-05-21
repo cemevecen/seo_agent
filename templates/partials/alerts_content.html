@@ -304,6 +304,8 @@
           {% set is_doviz = 'doviz.com' in domain_key %}
           {% set is_sinema = 'sinemalar.com' in domain_key %}
 
+          {%- set _dn = alert.delta_numeric if alert.delta_numeric is not none else 0 -%}
+          {%- set _sort_score = (-_dn) if cat in ('ctr', 'impression') else _dn -%}
           <div
             class="alert-card group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 transition hover:bg-white dark:border-slate-700/70 dark:bg-slate-800/30 dark:hover:bg-slate-800/50{% if is_doviz or is_sinema %} alert-has-stripe pl-[3px]{% endif %}"
             data-alert-id="{{ alert.id }}"
@@ -311,6 +313,7 @@
             data-alert-category="{{ cat }}"
             data-triggered-at="{{ alert.triggered_at_iso }}"
             data-is-external="{{ 'true' if alert.is_external else '' }}"
+            data-sort-score="{{ _sort_score }}"
           >
             {% if is_doviz %}
               <div class="alert-domain-stripe-doviz absolute inset-y-0 left-0 w-[3px] rounded-l-xl" aria-hidden="true"></div>

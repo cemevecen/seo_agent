@@ -1,6 +1,7 @@
 """Alert yönetimi API endpoint'leri."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import re
@@ -88,6 +89,43 @@ def _position_change_state(change: float | None) -> str:
     return "neutral"
 
 
+def _fetch_query_direct(db: Session, site_id: int, data_scope: str, query_name: str) -> list[dict]:
+    """Top-1000 sınırı dışında kalan sorguyu isim bazlı direkt DB'den çeker."""
+    from backend.models import SearchConsoleQuerySnapshot
+    latest_ts = (
+        db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == data_scope,
+        )
+        .scalar()
+    )
+    if latest_ts is None:
+        return []
+    rows = (
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == data_scope,
+            SearchConsoleQuerySnapshot.collected_at == latest_ts,
+            SearchConsoleQuerySnapshot.query == query_name,
+        )
+        .all()
+    )
+    return [
+        {
+            "query": r.query,
+            "property_url": r.property_url,
+            "device": r.device,
+            "clicks": float(r.clicks),
+            "impressions": float(r.impressions),
+            "ctr": float(r.ctr),
+            "position": float(r.position),
+        }
+        for r in rows
+    ]
+
+
 def _build_search_console_comparison(
     db: Session,
     site: Site,
@@ -128,6 +166,19 @@ def _build_search_console_comparison(
 
     current = _aggregate_search_console_query(current_rows, query_name)
     previous = _aggregate_search_console_query(previous_rows, query_name)
+
+    # Sorgu top-1000 dışında kalmışsa direkt DB'den çek
+    if not current["rows"]:
+        current = _aggregate_search_console_query(
+            _fetch_query_direct(db, site.id, "current_7d" if comparison_type == "weekly" else "current_day", query_name),
+            query_name,
+        )
+    if not previous["rows"]:
+        previous = _aggregate_search_console_query(
+            _fetch_query_direct(db, site.id, "previous_7d" if comparison_type == "weekly" else "previous_day", query_name),
+            query_name,
+        )
+
     has_meaningful_data = bool(current["rows"] or previous["rows"])
 
     cards: list[dict] = []

@@ -793,6 +793,7 @@ def get_recent_alerts(
                 "sent_mail": log.sent_mail,
                 "metric_type": _metric_type_for_alert_filter(presentation, alert.alert_type),
                 "is_external": is_external,
+                "delta_numeric": presentation.get("delta_numeric"),
             }
         )
         if len(filtered_alerts) >= limit:
