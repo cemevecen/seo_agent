@@ -419,42 +419,49 @@ def github_list_workflows() -> dict[str, Any]:
 
 # ── Railway araçları ──────────────────────────────────────────────────────────
 
-def railway_get_deployments(limit: int = 5) -> dict[str, Any]:
-    """Railway'deki son deployment'ları getirir (GraphQL)."""
+def _railway_query(query: str, variables: dict) -> dict:
+    """Railway GraphQL isteği atar, data döner."""
     project_id = settings.railway_project_id or os.environ.get("RAILWAY_PROJECT_ID", "")
     if not project_id:
-        return {"error": "RAILWAY_PROJECT_ID tanımlı değil."}
-    query = """
-    query($projectId: String!, $first: Int!) {
-      deployments(input: { projectId: $projectId }, first: $first) {
-        edges {
-          node {
-            id
-            status
-            createdAt
-            meta { commitMessage commitSha }
-            service { name }
+        raise RuntimeError("RAILWAY_PROJECT_ID tanımlı değil.")
+    r = httpx.post(
+        _RAILWAY_BASE,
+        json={"query": query, "variables": {**variables, "projectId": project_id}},
+        headers=_railway_headers(),
+        timeout=25,
+    )
+    r.raise_for_status()
+    data = r.json()
+    if "errors" in data:
+        raise RuntimeError(f"GraphQL hata: {data['errors'][0].get('message', str(data['errors']))}")
+    return data.get("data", {})
+
+
+def railway_get_deployments(limit: int = 5) -> dict[str, Any]:
+    """Son deployment'ların listesi ve durumları."""
+    try:
+        data = _railway_query("""
+        query($projectId: String!, $first: Int!) {
+          deployments(input: { projectId: $projectId }, first: $first) {
+            edges {
+              node {
+                id status createdAt updatedAt
+                meta { commitMessage commitSha branch }
+                service { name }
+              }
+            }
           }
         }
-      }
-    }
-    """
-    try:
-        r = httpx.post(
-            _RAILWAY_BASE,
-            json={"query": query, "variables": {"projectId": project_id, "first": limit}},
-            headers=_railway_headers(),
-            timeout=20,
-        )
-        r.raise_for_status()
-        data = r.json()
-        edges = data.get("data", {}).get("deployments", {}).get("edges", [])
+        """, {"first": limit})
+        edges = data.get("deployments", {}).get("edges", [])
         deploys = [
             {
                 "id": e["node"]["id"][:12],
                 "status": e["node"]["status"],
                 "service": (e["node"].get("service") or {}).get("name", "?"),
                 "created_at": e["node"]["createdAt"],
+                "updated_at": e["node"].get("updatedAt", ""),
+                "branch": (e["node"].get("meta") or {}).get("branch", ""),
                 "commit": (e["node"].get("meta") or {}).get("commitMessage", "")[:80],
                 "sha": (e["node"].get("meta") or {}).get("commitSha", "")[:8],
             }
@@ -465,35 +472,94 @@ def railway_get_deployments(limit: int = 5) -> dict[str, Any]:
         return {"error": str(e)}
 
 
-def railway_get_logs(service_name: str = "", lines: int = 50) -> dict[str, Any]:
-    """Railway servis loglarını getirir."""
-    project_id = settings.railway_project_id or os.environ.get("RAILWAY_PROJECT_ID", "")
-    if not project_id:
-        return {"error": "RAILWAY_PROJECT_ID tanımlı değil."}
-    # Railway'in log API'si REST değil, önce environment+service ID'yi almak gerekir
-    query = """
-    query($projectId: String!) {
-      project(id: $projectId) {
-        environments { edges { node { id name } } }
-        services { edges { node { id name } } }
-      }
-    }
-    """
+def railway_get_project_info() -> dict[str, Any]:
+    """Proje genel bilgisi: servisler, ortamlar, volume'lar, proje adı."""
     try:
-        r = httpx.post(
-            _RAILWAY_BASE,
-            json={"query": query, "variables": {"projectId": project_id}},
-            headers=_railway_headers(),
-            timeout=20,
-        )
-        r.raise_for_status()
-        data = r.json().get("data", {}).get("project", {})
-        services = [e["node"] for e in data.get("services", {}).get("edges", [])]
-        envs = [e["node"] for e in data.get("environments", {}).get("edges", [])]
+        data = _railway_query("""
+        query($projectId: String!) {
+          project(id: $projectId) {
+            id name description createdAt updatedAt
+            environments { edges { node { id name createdAt } } }
+            services { edges { node { id name createdAt updatedAt } } }
+          }
+        }
+        """, {})
+        proj = data.get("project", {})
+        return {
+            "name": proj.get("name"),
+            "description": proj.get("description"),
+            "created_at": proj.get("createdAt"),
+            "updated_at": proj.get("updatedAt"),
+            "environments": [e["node"]["name"] for e in proj.get("environments", {}).get("edges", [])],
+            "services": [
+                {"name": s["node"]["name"], "id": s["node"]["id"][:12]}
+                for s in proj.get("services", {}).get("edges", [])
+            ],
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def railway_get_service_status() -> dict[str, Any]:
+    """Her servisin son deployment durumu — çalışıyor mu, ne zaman deploy edildi."""
+    try:
+        data = _railway_query("""
+        query($projectId: String!) {
+          project(id: $projectId) {
+            services {
+              edges {
+                node {
+                  id name
+                  deployments(first: 1) {
+                    edges {
+                      node {
+                        status createdAt updatedAt
+                        meta { commitMessage commitSha }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """, {})
+        services = data.get("project", {}).get("services", {}).get("edges", [])
+        result = []
+        for s in services:
+            node = s["node"]
+            deploys = node.get("deployments", {}).get("edges", [])
+            last = deploys[0]["node"] if deploys else {}
+            result.append({
+                "service": node["name"],
+                "status": last.get("status", "NO_DEPLOY"),
+                "last_deploy": last.get("createdAt", ""),
+                "last_commit": (last.get("meta") or {}).get("commitMessage", "")[:60],
+                "sha": (last.get("meta") or {}).get("commitSha", "")[:8],
+            })
+        return {"services": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def railway_get_logs(service_name: str = "", lines: int = 50) -> dict[str, Any]:
+    """Railway servis ve ortam yapısını listeler (gerçek log streaming Railway dashboard'dan yapılır)."""
+    try:
+        data = _railway_query("""
+        query($projectId: String!) {
+          project(id: $projectId) {
+            environments { edges { node { id name } } }
+            services { edges { node { id name } } }
+          }
+        }
+        """, {})
+        proj = data.get("project", {})
+        services = [e["node"] for e in proj.get("services", {}).get("edges", [])]
+        envs = [e["node"] for e in proj.get("environments", {}).get("edges", [])]
         return {
             "services": [{"id": s["id"][:12], "name": s["name"]} for s in services],
             "environments": [{"id": e["id"][:12], "name": e["name"]} for e in envs],
-            "note": "Log çekmek için servis ve ortam ID'si gerekir. Deployment listesi kullan.",
+            "note": "canlı log için Railway dashboard → Deployments → View Logs kullan.",
         }
     except Exception as e:
         return {"error": str(e)}
@@ -1063,7 +1129,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "railway_get_deployments",
-        "description": "Railway'deki son deployment'ların listesi ve durumları.",
+        "description": "Son deployment'ların listesi ve durumları (SUCCESS/FAILED/CRASHED). 'son deploy ne zaman', 'deploy başarılı mı', 'hangi commit deploy edildi' gibi sorular için.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1072,13 +1138,23 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "railway_get_project_info",
+        "description": "Railway proje genel bilgisi: servisler, ortamlar, proje adı, oluşturulma tarihi. 'kaç servis var', 'ortamlar neler' gibi sorular için.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "railway_get_service_status",
+        "description": "Her servisin anlık durumu: çalışıyor mu, son deploy ne zaman, hangi commit. 'servisler ayakta mı', 'production sağlıklı mı' gibi sorular için.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "railway_get_logs",
-        "description": "Railway servis yapısını ve log erişim bilgilerini getirir.",
+        "description": "Railway servis ve ortam listesi. Canlı log için dashboard yönlendirmesi yapar.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "service_name": {"type": "string", "description": "Servis adı (boş bırakılabilir)", "default": ""},
-                "lines": {"type": "integer", "description": "Log satır sayısı", "default": 50},
+                "service_name": {"type": "string", "default": ""},
+                "lines": {"type": "integer", "default": 50},
             },
         },
     },
@@ -1143,6 +1219,8 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "github_recent_commits": lambda: github_recent_commits(**inputs),
         "github_create_issue": lambda: github_create_issue(**inputs),
         "railway_get_deployments": lambda: railway_get_deployments(**inputs),
+        "railway_get_project_info": lambda: railway_get_project_info(),
+        "railway_get_service_status": lambda: railway_get_service_status(),
         "railway_get_logs": lambda: railway_get_logs(**inputs),
         "db_table_stats": lambda: db_table_stats(),
         "db_get_schema": lambda: db_get_schema(),
