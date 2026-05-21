@@ -308,7 +308,7 @@ function bindRefreshButton() {
       if (detailEl) detailEl.textContent = d || '';
     }
 
-    _setProgress(10, 'Yenileme başlatılıyor…', 'Sunucuya istek gönderiliyor.');
+    _setProgress(5, 'Yenileme başlatılıyor…', 'Sunucuya istek gönderiliyor.');
 
     try {
       var resp = await fetch('/alerts/refresh', { method: 'POST', headers: { Accept: 'application/json' } });
@@ -318,34 +318,30 @@ function bindRefreshButton() {
       return;
     }
 
-    // Arka planda çalışıyor — tamamlanana kadar polling yap
-    _setProgress(20, 'Site listesi hazırlanıyor', 'Alert yenileme arka planda başladı.');
-    var pollInterval = setInterval(async function () {
-      try {
-        var sr = await fetch('/alerts/refresh/status');
-        if (!sr.ok) return;
-        var s = await sr.json();
-        if (s.running) {
-          // Sahte ilerleme — maksimum 90%'da dur
-          var cur = parseFloat((barEl || {}).style && barEl.style.width) || 20;
-          if (cur < 88) {
-            var next = Math.min(cur + 12, 88);
-            var msgs = [
-              [30, 'Search Console verileri alınıyor', 'Sorgu bazlı karşılaştırma yapılıyor.'],
-              [50, 'CTR ve pozisyon hesaplanıyor', 'Değişim eşikleri kontrol ediliyor.'],
-              [65, 'Uyarılar oluşturuluyor', 'Kayıtlar veritabanına yazılıyor.'],
-              [80, 'Diğer siteler işleniyor…', 'Lütfen bekleyin.'],
-            ];
-            var msg = msgs.find(function (m) { return next >= m[0]; }) || msgs[0];
-            _setProgress(next, msg[1], msg[2]);
-          }
-        } else if (s.done) {
-          clearInterval(pollInterval);
-          _setProgress(100, 'Tamamlandı ✓', 'Sayfa yenileniyor…');
-          setTimeout(_reloadAlerts, 800);
-        }
-      } catch (_e) { /* polling hatası, devam et */ }
-    }, 2000);
+    // Countdown — arka plan taraması tamamlanana kadar bekle
+    var TOTAL_SECS = 45;
+    var elapsed = 0;
+    var steps = [
+      { at: 0,  pct: 10, title: 'Site listesi hazırlanıyor',             detail: 'Alert yenileme arka planda başladı.' },
+      { at: 5,  pct: 25, title: 'Search Console verileri alınıyor',       detail: 'Sorgu bazlı karşılaştırma yapılıyor.' },
+      { at: 12, pct: 45, title: 'CTR ve pozisyon hesaplanıyor',           detail: 'Değişim eşikleri kontrol ediliyor.' },
+      { at: 22, pct: 65, title: 'Uyarılar oluşturuluyor',                 detail: 'Kayıtlar veritabanına yazılıyor.' },
+      { at: 32, pct: 80, title: 'Diğer siteler işleniyor…',               detail: 'Lütfen bekleyin.' },
+      { at: 40, pct: 90, title: 'Tamamlanmak üzere…',                     detail: 'Sonuçlar hazırlanıyor.' },
+    ];
+    var countdownTimer = setInterval(function () {
+      elapsed++;
+      var step = null;
+      for (var i = steps.length - 1; i >= 0; i--) {
+        if (elapsed >= steps[i].at) { step = steps[i]; break; }
+      }
+      if (step) _setProgress(step.pct, step.title, step.detail);
+      if (elapsed >= TOTAL_SECS) {
+        clearInterval(countdownTimer);
+        _setProgress(100, 'Tamamlandı ✓', 'Sayfa yenileniyor…');
+        setTimeout(_reloadAlerts, 600);
+      }
+    }, 1000);
   });
 }
 
