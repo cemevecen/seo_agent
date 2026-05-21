@@ -89,17 +89,41 @@ def _position_change_state(change: float | None) -> str:
     return "neutral"
 
 
-def _fetch_query_direct(db: Session, site_id: int, data_scope: str, query_name: str) -> list[dict]:
-    """Top-1000 sınırı dışında kalan sorguyu isim bazlı direkt DB'den çeker."""
+def _fetch_query_direct(
+    db: Session,
+    site_id: int,
+    data_scope: str,
+    query_name: str,
+    reference_ts: datetime | None = None,
+) -> list[dict]:
+    """Top-1000 sınırı dışında kalan sorguyu isim bazlı direkt DB'den çeker.
+
+    reference_ts verilirse o zamana en yakın (≤) snapshot'ı kullanır.
+    Yoksa en son snapshot'ı kullanır.
+    """
     from backend.models import SearchConsoleQuerySnapshot
-    latest_ts = (
+
+    ts_q = (
         db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
         .filter(
             SearchConsoleQuerySnapshot.site_id == site_id,
             SearchConsoleQuerySnapshot.data_scope == data_scope,
         )
-        .scalar()
     )
+    if reference_ts is not None:
+        ts_q = ts_q.filter(SearchConsoleQuerySnapshot.collected_at <= reference_ts)
+    latest_ts = ts_q.scalar()
+
+    # Eğer reference_ts'den önce kayıt yoksa en son snapshot'ı kullan
+    if latest_ts is None:
+        latest_ts = (
+            db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
+            .filter(
+                SearchConsoleQuerySnapshot.site_id == site_id,
+                SearchConsoleQuerySnapshot.data_scope == data_scope,
+            )
+            .scalar()
+        )
     if latest_ts is None:
         return []
     rows = (
@@ -126,12 +150,68 @@ def _fetch_query_direct(db: Session, site_id: int, data_scope: str, query_name: 
     ]
 
 
+def _get_sc_rows_near_ts(
+    db: Session,
+    site_id: int,
+    data_scope: str,
+    reference_ts: datetime | None,
+) -> list[dict]:
+    """data_scope için reference_ts'e en yakın snapshot'ı döner (yoksa en son)."""
+    from backend.models import SearchConsoleQuerySnapshot
+
+    ts_q = db.query(func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
+        SearchConsoleQuerySnapshot.site_id == site_id,
+        SearchConsoleQuerySnapshot.data_scope == data_scope,
+    )
+    if reference_ts is not None:
+        ts_q = ts_q.filter(SearchConsoleQuerySnapshot.collected_at <= reference_ts)
+    chosen_ts = ts_q.scalar()
+
+    # reference_ts öncesinde kayıt yoksa en son snapshot'ı kullan
+    if chosen_ts is None:
+        chosen_ts = (
+            db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
+            .filter(
+                SearchConsoleQuerySnapshot.site_id == site_id,
+                SearchConsoleQuerySnapshot.data_scope == data_scope,
+            )
+            .scalar()
+        )
+    if chosen_ts is None:
+        return []
+
+    rows = (
+        db.query(SearchConsoleQuerySnapshot)
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == data_scope,
+            SearchConsoleQuerySnapshot.collected_at == chosen_ts,
+        )
+        .order_by(SearchConsoleQuerySnapshot.clicks.desc(), SearchConsoleQuerySnapshot.impressions.desc())
+        .limit(1000)
+        .all()
+    )
+    return [
+        {
+            "query": r.query,
+            "property_url": r.property_url,
+            "device": r.device,
+            "clicks": float(r.clicks),
+            "impressions": float(r.impressions),
+            "ctr": float(r.ctr),
+            "position": float(r.position),
+        }
+        for r in rows
+    ]
+
+
 def _build_search_console_comparison(
     db: Session,
     site: Site,
     metric_type: str,
     comparison_type: str,
     alert_log_message: str | None,
+    triggered_at: datetime | None = None,
 ) -> dict:
     query_name = _extract_primary_query(alert_log_message)
     if not query_name:
@@ -142,22 +222,24 @@ def _build_search_console_comparison(
                 "Bu uyarı Search Console son 7 gün / önceki 7 gün karşılaştırmasından üretilir."
             ),
             "comparison_type": comparison_type,
+            "has_meaningful_data": False,
         }
 
     current_label = "Son 7 Gün"
     previous_label = "Önceki 7 Gün"
     if comparison_type == "weekly":
-        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
-        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+        current_rows = _get_sc_rows_near_ts(db, site.id, "current_7d", triggered_at)
+        previous_rows = _get_sc_rows_near_ts(db, site.id, "previous_7d", triggered_at)
     else:
-        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_day")
-        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
+        current_rows = _get_sc_rows_near_ts(db, site.id, "current_day", triggered_at)
+        previous_rows = _get_sc_rows_near_ts(db, site.id, "previous_day", triggered_at)
         current_label = "Dün"
         previous_label = "Önceki Gün"
         if not current_rows and not previous_rows:
             return {
                 "message": "Günlük Search Console verisi henüz hazır değil. Manuel yenile ya da sabah otomatik taramayı bekle.",
                 "comparison_type": comparison_type,
+                "has_meaningful_data": False,
                 "query_details": [],
                 "cards": [
                     _comparison_card("Durum", "Veri yok", "Dün / önceki gün kaydı bulunamadı.", "slate"),
@@ -167,15 +249,23 @@ def _build_search_console_comparison(
     current = _aggregate_search_console_query(current_rows, query_name)
     previous = _aggregate_search_console_query(previous_rows, query_name)
 
-    # Sorgu top-1000 dışında kalmışsa direkt DB'den çek
+    # Sorgu top-1000 dışında kalmışsa direkt DB'den çek (alert zamanına yakın snapshot)
     if not current["rows"]:
         current = _aggregate_search_console_query(
-            _fetch_query_direct(db, site.id, "current_7d" if comparison_type == "weekly" else "current_day", query_name),
+            _fetch_query_direct(
+                db, site.id,
+                "current_7d" if comparison_type == "weekly" else "current_day",
+                query_name, reference_ts=triggered_at,
+            ),
             query_name,
         )
     if not previous["rows"]:
         previous = _aggregate_search_console_query(
-            _fetch_query_direct(db, site.id, "previous_7d" if comparison_type == "weekly" else "previous_day", query_name),
+            _fetch_query_direct(
+                db, site.id,
+                "previous_7d" if comparison_type == "weekly" else "previous_day",
+                query_name, reference_ts=triggered_at,
+            ),
             query_name,
         )
 
@@ -461,7 +551,7 @@ def _calculate_comparison(db: Session, site_id: int, metric_type: str, triggered
     if metric_type.startswith("search_console_"):
         if site is None:
             return {"message": "Site bulunamadi.", "comparison_type": comparison_type, "query_details": [], "cards": []}
-        return _build_search_console_comparison(db, site, metric_type, comparison_type, alert_log_message)
+        return _build_search_console_comparison(db, site, metric_type, comparison_type, alert_log_message, triggered_at=triggered_at)
 
     # Mevcut günün metriğini al
     current_start = triggered_at.replace(hour=0, minute=0, second=0, microsecond=0)
