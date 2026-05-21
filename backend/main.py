@@ -8141,49 +8141,60 @@ def alerts_threshold_panel(request: Request):
     )
 
 
+_alerts_refresh_status: dict = {"running": False, "done": False}
+
+
+def _run_alerts_refresh_bg():
+    """Alert yenilemeyi arka planda çalıştırır (timeout'u önlemek için)."""
+    _alerts_refresh_status["running"] = True
+    _alerts_refresh_status["done"] = False
+    try:
+        with SessionLocal() as db:
+            external_ids = _external_site_ids(db)
+            sites = [site for site in _active_sites(db) if site.id not in external_ids]
+            alert_batch: list[tuple[Site, dict]] = []
+            for index, site in enumerate(sites):
+                try:
+                    results = {
+                        "search_console": collect_search_console_alert_metrics(
+                            db,
+                            site,
+                            send_notifications=True,
+                        )
+                    }
+                    _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+                    alert_batch.append((site, results["search_console"]))
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    alert_batch.append((site, {"state": "failed", "error": str(exc)}))
+
+                if index < len(sites) - 1:
+                    time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+
+            if alert_batch:
+                send_consolidated_system_email(
+                    system_key="search_console_alerts",
+                    trigger_source="manual",
+                    action_label="Uyarıları yenile",
+                    items=alert_batch,
+                    db=db,
+                )
+    finally:
+        _alerts_refresh_status["running"] = False
+        _alerts_refresh_status["done"] = True
+
+
 @app.post("/alerts/refresh")
 def alerts_refresh(request: Request):
-    summaries: list[dict[str, object]] = []
-    with SessionLocal() as db:
-        external_ids = _external_site_ids(db)
-        sites = [site for site in _active_sites(db) if site.id not in external_ids]
-        alert_batch: list[tuple[Site, dict]] = []
-        for index, site in enumerate(sites):
-            try:
-                results = {
-                    "search_console": collect_search_console_alert_metrics(
-                        db,
-                        site,
-                        send_notifications=True,
-                    )
-                }
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-                alert_batch.append((site, results["search_console"]))
-                summaries.append({"site": site.domain, "results": results})
-            except Exception as exc:  # noqa: BLE001
-                db.rollback()
-                alert_batch.append((site, {"state": "failed", "error": str(exc)}))
-                summaries.append({"site": site.domain, "error": str(exc)})
+    if not _alerts_refresh_status.get("running"):
+        t = threading.Thread(target=_run_alerts_refresh_bg, daemon=True)
+        t.start()
+    return JSONResponse({"refreshed": True, "background": True})
 
-            if index < len(sites) - 1:
-                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
 
-        if alert_batch:
-            send_consolidated_system_email(
-                system_key="search_console_alerts",
-                trigger_source="manual",
-                action_label="Uyarıları yenile",
-                items=alert_batch,
-                db=db,
-            )
-
-        return JSONResponse(
-            {
-                "refreshed": True,
-                "sites": summaries,
-                "recent_alerts": get_recent_alerts(db, limit=100, include_external=True),
-            }
-        )
+@app.get("/alerts/refresh/status")
+def alerts_refresh_status(request: Request):
+    return JSONResponse(_alerts_refresh_status)
 
 
 @app.get("/settings")

@@ -297,51 +297,55 @@ function bindRefreshButton() {
 
     if (panel) panel.classList.remove('hidden');
 
-    var steps = [
-      { p: 20, t: 'Site listesi hazırlanıyor', d: 'Alert yenileme akışı başlatılıyor.' },
-      { p: 45, t: 'Search Console verileri karşılaştırılıyor', d: 'CTR, pozisyon ve impression değişimleri hesaplanıyor.' },
-      { p: 75, t: 'Uyarılar hesaplanıyor', d: 'Kayıtlar veritabanına yazılıyor.' },
-      { p: 90, t: 'Liste yenileniyor', d: 'Yeni sonuç ile liste tekrar çizilecek.' },
-    ];
-
-    var si = 0;
-    function tick() {
-      if (si >= steps.length) return;
-      var s = steps[si++];
-      if (titleEl) titleEl.textContent = s.t;
-      if (detailEl) detailEl.textContent = s.d;
-      if (percentEl) percentEl.textContent = s.p + '%';
-      if (barEl) barEl.style.width = s.p + '%';
+    function _reloadAlerts() {
+      window.location.href = '/alerts?t=' + Date.now();
     }
-    tick();
-    var timer = setInterval(tick, 1200);
+
+    function _setProgress(p, t, d) {
+      if (percentEl) percentEl.textContent = p + '%';
+      if (barEl) barEl.style.width = p + '%';
+      if (titleEl) titleEl.textContent = t;
+      if (detailEl) detailEl.textContent = d || '';
+    }
+
+    _setProgress(10, 'Yenileme başlatılıyor…', 'Sunucuya istek gönderiliyor.');
 
     try {
       var resp = await fetch('/alerts/refresh', { method: 'POST', headers: { Accept: 'application/json' } });
-      clearInterval(timer);
-      if (resp.ok) {
-        if (percentEl) percentEl.textContent = '100%';
-        if (barEl) barEl.style.width = '100%';
-        if (titleEl) titleEl.textContent = 'Tamamlandı ✓';
-        setTimeout(function () { window.location.reload(); }, 800);
-      } else {
-        if (titleEl) titleEl.textContent = 'Hata oluştu';
-        if (detailEl) detailEl.textContent = 'Yenileme isteği başarısız oldu. Lütfen tekrar deneyin.';
-        setTimeout(function () {
-          btn.disabled = false;
-          btn.innerHTML = origText;
-          if (panel) panel.classList.add('hidden');
-        }, 1800);
-      }
+      if (!resp.ok) { _reloadAlerts(); return; }
     } catch (err) {
-      clearInterval(timer);
-      if (titleEl) titleEl.textContent = 'Hata: ' + err.message;
-      setTimeout(function () {
-        btn.disabled = false;
-        btn.innerHTML = origText;
-        if (panel) panel.classList.add('hidden');
-      }, 1800);
+      _reloadAlerts();
+      return;
     }
+
+    // Arka planda çalışıyor — tamamlanana kadar polling yap
+    _setProgress(20, 'Site listesi hazırlanıyor', 'Alert yenileme arka planda başladı.');
+    var pollInterval = setInterval(async function () {
+      try {
+        var sr = await fetch('/alerts/refresh/status');
+        if (!sr.ok) return;
+        var s = await sr.json();
+        if (s.running) {
+          // Sahte ilerleme — maksimum 90%'da dur
+          var cur = parseFloat((barEl || {}).style && barEl.style.width) || 20;
+          if (cur < 88) {
+            var next = Math.min(cur + 12, 88);
+            var msgs = [
+              [30, 'Search Console verileri alınıyor', 'Sorgu bazlı karşılaştırma yapılıyor.'],
+              [50, 'CTR ve pozisyon hesaplanıyor', 'Değişim eşikleri kontrol ediliyor.'],
+              [65, 'Uyarılar oluşturuluyor', 'Kayıtlar veritabanına yazılıyor.'],
+              [80, 'Diğer siteler işleniyor…', 'Lütfen bekleyin.'],
+            ];
+            var msg = msgs.find(function (m) { return next >= m[0]; }) || msgs[0];
+            _setProgress(next, msg[1], msg[2]);
+          }
+        } else if (s.done) {
+          clearInterval(pollInterval);
+          _setProgress(100, 'Tamamlandı ✓', 'Sayfa yenileniyor…');
+          setTimeout(_reloadAlerts, 800);
+        }
+      } catch (_e) { /* polling hatası, devam et */ }
+    }, 2000);
   });
 }
 
