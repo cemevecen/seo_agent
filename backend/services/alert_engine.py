@@ -243,6 +243,32 @@ def _recent_duplicate_exists(
     )
 
 
+def _query_alert_exists_recently(
+    db: Session,
+    *,
+    alert_id: int,
+    query_name: str,
+    now: datetime,
+    dedupe_hours: int = 24,
+) -> bool:
+    """Aynı alert_id + query_name için son dedupe_hours içinde kayıt var mı?
+
+    Exact message yerine query adına göre dedupe yapar; 7 günlük SC penceresi
+    kayarken sayılar değişse de aynı sorgu için tekrar kayıt açılmaz.
+    """
+    pattern = f"%'{query_name}'%"
+    return (
+        db.query(AlertLog.id)
+        .filter(
+            AlertLog.alert_id == alert_id,
+            AlertLog.message.like(pattern),
+            AlertLog.triggered_at >= now - timedelta(hours=dedupe_hours),
+        )
+        .first()
+        is not None
+    )
+
+
 def _is_sqlite_locked_error(exc: Exception) -> bool:
     return "database is locked" in str(exc).lower()
 
@@ -457,7 +483,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"[NEGATIVE] search_console_position_drop: '{drop['query']}'. "
                     f"Position: {drop['old_position']:.1f}->{drop['new_position']:.1f}"
                 )
-                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
+                if not _query_alert_exists_recently(db, alert_id=alert.id, query_name=drop["query"], now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -467,7 +493,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     )
                     db.add(log)
                     created_logs.append(log)
-    
+
     # Create alerts for impression drops
     if impression_drops:
         alert = next((a for a in alerts if a.alert_type == "search_console_impressions_drop"), None)
@@ -479,7 +505,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
                     f"Impressions {drop['old_impressions']:.0f} → {drop['new_impressions']:.0f} ({drop['change_pct']:+.1f}%)"
                 )
-                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
+                if not _query_alert_exists_recently(db, alert_id=alert.id, query_name=drop["query"], now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -489,7 +515,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     )
                     db.add(log)
                     created_logs.append(log)
-    
+
     # Create alerts for CTR drops
     if ctr_drops:
         alert = next((a for a in alerts if a.alert_type == "search_console_ctr_drop"), None)
@@ -501,7 +527,7 @@ def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog
                     f"'{drop['query']}' ({drop['clicks']:.0f} clicks): "
                     f"CTR {drop['old_ctr']:.3f}% → {drop['new_ctr']:.3f}% ({drop['change_pct']:+.1f}%)"
                 )
-                if not _recent_duplicate_exists(db, alert_id=alert.id, message=message, now=now):
+                if not _query_alert_exists_recently(db, alert_id=alert.id, query_name=drop["query"], now=now):
                     log = AlertLog(
                         alert_id=alert.id,
                         domain=site.domain,
@@ -770,7 +796,6 @@ def get_recent_alerts(
             alert.alert_type,
             presentation.get("display_title") or "",
             presentation.get("display_query") or "",
-            presentation.get("display_metric") or "",
             presentation.get("device_code") or "",
         )
         if semantic_key in seen_keys:
