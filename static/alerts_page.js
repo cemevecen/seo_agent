@@ -323,34 +323,25 @@ function bindRefreshButton() {
         if (percentEl) percentEl.textContent = '100%';
         if (barEl) barEl.style.width = '100%';
         if (titleEl) titleEl.textContent = 'Tamamlandı ✓';
-        var partialResp = await fetch('/alerts', { headers: { 'HX-Request': 'true', Accept: 'text/html' } });
-        if (partialResp.ok) {
-          var html = await partialResp.text();
-          var viewRoot = document.getElementById('alerts-view');
-          if (viewRoot && html.trim()) {
-            var tmpDiv = document.createElement('div');
-            tmpDiv.innerHTML = html;
-            var newView = tmpDiv.querySelector('#alerts-view');
-            if (newView && viewRoot.parentNode) {
-              viewRoot.parentNode.replaceChild(newView, viewRoot);
-            }
-          }
-        }
-        applyAlertsFilters();
+        setTimeout(function () { window.location.reload(); }, 800);
       } else {
         if (titleEl) titleEl.textContent = 'Hata oluştu';
         if (detailEl) detailEl.textContent = 'Yenileme isteği başarısız oldu. Lütfen tekrar deneyin.';
+        setTimeout(function () {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+          if (panel) panel.classList.add('hidden');
+        }, 1800);
       }
     } catch (err) {
       clearInterval(timer);
       if (titleEl) titleEl.textContent = 'Hata: ' + err.message;
+      setTimeout(function () {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+        if (panel) panel.classList.add('hidden');
+      }, 1800);
     }
-
-    setTimeout(function () {
-      btn.disabled = false;
-      btn.innerHTML = origText;
-      if (panel) panel.classList.add('hidden');
-    }, 1800);
   });
 }
 
