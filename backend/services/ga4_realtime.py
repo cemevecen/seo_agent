@@ -184,7 +184,7 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
             return f"{title} ↓{prev}"
         if rid == "news_peak_drop":
             peak = int(a.get("peak_users", prev))
-            return f"{title} ↓{curr} (zirve {peak})"
+            return f"{title} ↓{curr}"
         delta = curr - prev
         sign = "+" if delta >= 0 else ""
         return f"{title} {sign}{delta}"
@@ -438,20 +438,20 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             peak = int(alarm.get("peak_users", prev))
             drop_pct = int(alarm.get("drop_pct", 0))
             metric_html = (
-                f'<span style="font-size:16px;font-weight:700;color:#94a3b8;">zirve</span>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;margin:0 6px;">{peak}</span>'
-                f'<span style="font-size:18px;color:#94a3b8;margin-right:6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
-                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · zirveden düştü</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · düştü</span>'
             )
         else:
             delta = curr - prev
             sign = "+" if delta >= 0 else ""
+            direction_label = "arttı" if delta >= 0 else "düştü"
             metric_html = (
                 f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta}</span>'
+                f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} · {direction_label}</span>'
             )
 
         cards.append(
@@ -2953,7 +2953,7 @@ def evaluate_news_alarms(
                     "peak_users": peak_users,
                     "drop_pct": round(drop_pct),
                     "change_pct": -round(drop_pct, 1),
-                    "message": f"{title} — zirveden düştü: {peak_users:.0f} → {curr_users:.0f} (−{drop_pct:.0f}%)",
+                    "message": f"{title} — düştü: {peak_users:.0f} → {curr_users:.0f} (−{drop_pct:.0f}%)",
                 })
 
     return triggered
@@ -3557,36 +3557,42 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
 
     cards = []
     for a in alarms:
-        evt = html.escape(str(a.get("event_name", "")))
+        evt_name = str(a.get("event_name", ""))
+        evt = html.escape(evt_name)
         curr = int(a.get("current_count", 0))
         prev = int(a.get("previous_count", 0))
         rid = str(a.get("rule_id", ""))
         is_peak_drop = rid == "app_event_peak_drop"
         is_drop = is_peak_drop or (curr - prev) < 0
-        border = "#dc2626" if is_drop else "#16a34a"
-        bg = "#fef2f2" if is_drop else "#f0fdf4"
-        num_c = "#dc2626" if is_drop else "#16a34a"
+        # Olumsuz event'lerde (failed/error/crash) renk mantığı tersine döner:
+        # artış = kötü (kırmızı), düşüş = iyi (yeşil)
+        _neg_kw = ("failed", "error", "crash", "exception", "timeout", "denied")
+        is_negative_event = any(kw in evt_name.lower() for kw in _neg_kw)
+        is_bad = (not is_drop) if is_negative_event else is_drop
+        border = "#dc2626" if is_bad else "#16a34a"
+        bg = "#fef2f2" if is_bad else "#f0fdf4"
+        num_c = "#dc2626" if is_bad else "#16a34a"
 
         if is_peak_drop:
             peak = int(a.get("peak_count", prev))
             drop_pct = int(a.get("drop_pct", 0))
             metric_html = (
-                f'<span style="font-size:14px;font-weight:700;color:#94a3b8;">zirve</span>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;margin:0 6px;">{peak}</span>'
-                f'<span style="font-size:18px;color:#94a3b8;margin-right:6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
-                f'<span style="font-size:13px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · zirveden düştü</span>'
+                f'<span style="font-size:13px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · düştü</span>'
             )
         else:
             delta = curr - prev
             sign = "+" if delta >= 0 else ""
             pct = a.get("change_pct", 0)
             pct_sign = "+" if pct >= 0 else ""
+            direction_label = ("arttı" if delta >= 0 else "düştü")
             metric_html = (
                 f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%)</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%) · {direction_label}</span>'
             )
 
         cards.append(
