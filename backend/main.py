@@ -12069,13 +12069,22 @@ def search_console_oauth_callback(request: Request):
     except ValueError as exc:
         return HTMLResponse(str(exc), status_code=400)
 
+    import os as _os
+    _os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == int(payload["site_id"])).first()
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
-        flow = build_oauth_flow(state=state)
-        flow.fetch_token(authorization_response=str(request.url))
+        try:
+            flow = build_oauth_flow(state=state)
+            flow.fetch_token(authorization_response=str(request.url))
+        except Exception as exc:
+            return HTMLResponse(
+                f"OAuth token alınamadı: {exc}",
+                status_code=400,
+            )
         save_oauth_credentials(db, site.id, flow.credentials)
     return RedirectResponse(str(payload.get("return_path") or "/settings"), status_code=302)
 
