@@ -6884,12 +6884,34 @@ def api_home_sc_summary(request: Request, site: str | None = None):
 
 def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
     """current_7d vs previous_7d MOBILE pozisyon farkı en kötü (artış) ilk N sorgu."""
+    from sqlalchemy import func as _func
+    latest_cur = (
+        db.query(_func.max(SearchConsoleQuerySnapshot.collected_at))
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == "current_7d",
+            SearchConsoleQuerySnapshot.device == "MOBILE",
+        )
+        .scalar()
+    )
+    latest_prev = (
+        db.query(_func.max(SearchConsoleQuerySnapshot.collected_at))
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site_id,
+            SearchConsoleQuerySnapshot.data_scope == "previous_7d",
+            SearchConsoleQuerySnapshot.device == "MOBILE",
+        )
+        .scalar()
+    )
+    if not latest_cur or not latest_prev:
+        return []
     cur_rows = (
         db.query(SearchConsoleQuerySnapshot.query, SearchConsoleQuerySnapshot.position, SearchConsoleQuerySnapshot.clicks)
         .filter(
             SearchConsoleQuerySnapshot.site_id == site_id,
             SearchConsoleQuerySnapshot.data_scope == "current_7d",
             SearchConsoleQuerySnapshot.device == "MOBILE",
+            SearchConsoleQuerySnapshot.collected_at == latest_cur,
         )
         .all()
     )
@@ -6899,6 +6921,7 @@ def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict
             SearchConsoleQuerySnapshot.site_id == site_id,
             SearchConsoleQuerySnapshot.data_scope == "previous_7d",
             SearchConsoleQuerySnapshot.device == "MOBILE",
+            SearchConsoleQuerySnapshot.collected_at == latest_prev,
         )
         .all()
     )
