@@ -3390,9 +3390,9 @@ def check_realtime_404_for_site(
 
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
-    property_id = properties.get(profile) or properties.get("web")
+    property_id = (properties.get(profile) or "").strip()
     if not property_id:
-        return {}
+        return {}  # Profil için property tanımlı değilse atla (web fallback yapmıyoruz — duplicate mail önlemi)
 
     try:
         data = fetch_realtime_404_users(property_id, window_minutes=window)
