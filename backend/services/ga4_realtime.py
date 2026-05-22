@@ -47,7 +47,38 @@ def _normalize_ga4_property_id(property_id: str) -> str:
     return pid
 
 
-def _realtime_email_thread_key(domain: str, profile: str) -> str:
+# Realtime mail ve döngü sıralaması: doviz önce, sinemalar sonra; her site içinde profil sırası
+_DOMAIN_PRIORITY: dict[str, int] = {
+    "doviz.com": 0,
+    "sinemalar.com": 1,
+}
+_PROFILE_PRIORITY: dict[str, int] = {
+    "web": 0,
+    "mweb": 1,
+    "ios": 2,
+    "android": 3,
+}
+
+
+def _domain_sort_key(domain: str) -> tuple[int, str]:
+    d = (domain or "").lower().lstrip("www.").strip()
+    return (_DOMAIN_PRIORITY.get(d, 99), d)
+
+
+def _site_profile_sort_key(site_domain: str, profile: str) -> tuple[int, int, str]:
+    d = (site_domain or "").lower().lstrip("www.").strip()
+    return (
+        _DOMAIN_PRIORITY.get(d, 99),
+        _PROFILE_PRIORITY.get(profile, 99),
+        d,
+    )
+
+
+def _sort_sites(sites: list) -> list:
+    return sorted(sites, key=lambda s: _domain_sort_key(s.domain))
+
+
+
     """Gmail iş parçacığı / References için site+profil anahtarı (ASCII, kısa)."""
     d = (domain or "").strip().lower()
     p = (profile or "").strip().lower()
@@ -2259,7 +2290,7 @@ def run_all_sites_realtime_check(
     from backend.models import Site as SiteModel
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
-    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+    sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
     results: list[dict[str, Any]] = []
     profile_order = ("web", "mweb", "ios", "android")
     for site in sites:
@@ -2645,7 +2676,7 @@ def run_page_alarm_check_all_sites(
     from backend.models import Site as SiteModel
 
     all_alarms: list[dict[str, Any]] = []
-    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+    sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
 
     for site in sites:
         record = get_ga4_credentials_record(db, site.id)
@@ -3104,7 +3135,7 @@ def run_news_alarm_check_all_sites(db: Session, *, skip_emails: bool = False) ->
 
     interval = int(settings.ga4_realtime_news_alert_interval_minutes)
     window = int(settings.ga4_realtime_news_alert_window_minutes)
-    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+    sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
 
     for site in sites:
         record = get_ga4_credentials_record(db, site.id)
@@ -3142,9 +3173,14 @@ def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
         by_site.setdefault(dom, []).append(a)
 
     sections: list[str] = []
-    # Siteleri alfabetik, içindeki alarmları ise önem sırasına göre diz
-    for dom in sorted(by_site.keys()):
-        site_alarms = sorted(by_site[dom], key=lambda x: abs(float(x.get("change_pct", 0))), reverse=True)
+    for dom in sorted(by_site.keys(), key=_domain_sort_key):
+        site_alarms = sorted(
+            by_site[dom],
+            key=lambda x: (
+                _PROFILE_PRIORITY.get(x.get("profile", "web"), 99),
+                -abs(float(x.get("change_pct", 0))),
+            ),
+        )
         rows: list[str] = []
         for a in site_alarms[:10]: # Her site için de bir sınır koyalım ki çok uzamasın
             profile = a.get("profile", "web")
@@ -3429,7 +3465,7 @@ def run_404_spike_check_all_sites(db: Session, *, skip_emails: bool = False) -> 
     from backend.services.ga4_auth import get_ga4_credentials_record
 
     results = []
-    sites = db.query(SiteModel).all()
+    sites = _sort_sites(db.query(SiteModel).all())
     for site in sites:
         record = get_ga4_credentials_record(db, site.id)
         if not record:
@@ -3760,7 +3796,7 @@ def run_app_event_spike_check_all_sites(db: Session, *, skip_emails: bool = Fals
     """Tüm siteler için android+ios profillerinde event spike kontrolü."""
     from backend.models import Site as SiteModel
     results = []
-    sites = db.query(SiteModel).all()
+    sites = _sort_sites(db.query(SiteModel).all())
     for site in sites:
         record = get_ga4_credentials_record(db, site.id)
         if not record:
