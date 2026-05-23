@@ -13,6 +13,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
@@ -181,7 +182,6 @@ def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[i
 @limiter.limit("120/minute")
 def inbox_status(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     row = inbox_gmail_auth.get_inbox_credential_row(db)
-    from backend.config import settings
 
     return {
         "oauth_client_configured": inbox_gmail_auth.inbox_oauth_is_configured(),
@@ -205,19 +205,27 @@ def inbox_oauth_start(request: Request, next: str = "/inbox"):
             "Google OAuth istemcisi eksik (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).",
             status_code=400,
         )
-    safe_next = next if next.startswith("/") else "/inbox"
-    state = inbox_gmail_auth.encode_inbox_oauth_state(safe_next, request=request)
-    flow = inbox_gmail_auth.build_inbox_oauth_flow(state=state, request=request)
-    auth_kwargs: dict[str, str] = {
-        "access_type": "offline",
-        "prompt": "select_account consent",
-        "include_granted_scopes": "false",
-    }
-    hint = (getattr(settings, "inbox_oauth_login_hint", "") or "").strip()
-    if hint and "@" in hint:
-        auth_kwargs["login_hint"] = hint
-    authorization_url, _ = flow.authorization_url(**auth_kwargs)
-    return RedirectResponse(authorization_url, status_code=302)
+    try:
+        safe_next = next if next.startswith("/") else "/inbox"
+        state = inbox_gmail_auth.encode_inbox_oauth_state(safe_next, request=request)
+        flow = inbox_gmail_auth.build_inbox_oauth_flow(state=state, request=request)
+        auth_kwargs: dict[str, str] = {
+            "access_type": "offline",
+            "prompt": "select_account consent",
+            "include_granted_scopes": "false",
+        }
+        hint = (settings.inbox_oauth_login_hint or "").strip()
+        if hint and "@" in hint:
+            auth_kwargs["login_hint"] = hint
+        authorization_url, _ = flow.authorization_url(**auth_kwargs)
+        return RedirectResponse(authorization_url, status_code=302)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("inbox oauth start failed")
+        from urllib.parse import quote
+        return RedirectResponse(
+            url=f"/inbox?oauth_error={quote(str(exc)[:160])}",
+            status_code=302,
+        )
 
 
 @router.get("/oauth/callback")
