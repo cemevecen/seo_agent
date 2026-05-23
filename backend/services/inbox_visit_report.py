@@ -21,6 +21,18 @@ _ZIYARET_HEADER = (
 )
 
 
+_ZIYARET_URL_DISPLAY_LEN = 45
+
+
+def _display_url(url: str) -> tuple[str, str]:
+    """Tam href + ekranda https:// olmadan, en fazla 45 karakter."""
+    href = (url or "").strip()
+    display = re.sub(r"^https?://", "", href, flags=re.I)
+    if len(display) > _ZIYARET_URL_DISPLAY_LEN:
+        display = display[: _ZIYARET_URL_DISPLAY_LEN - 1] + "…"
+    return href, display
+
+
 def _pct_class(value: str) -> str:
     raw = (value or "").strip().replace("%", "").replace(" ", "")
     if not raw:
@@ -45,9 +57,11 @@ def _cell_html(value: str, *, is_pct: bool = False, is_url_col: bool = False) ->
     if not text:
         return "<td></td>"
     if is_url_col or text.startswith("http://") or text.startswith("https://"):
+        href, display = _display_url(text)
         return (
-            f'<td class="inbox-ziyaret-url"><a href="{html.escape(text)}" '
-            f'target="_blank" rel="noopener">{text}</a></td>'
+            f'<td class="inbox-ziyaret-url" title="{html.escape(href)}">'
+            f'<a href="{html.escape(href)}" target="_blank" rel="noopener">'
+            f"{html.escape(display)}</a></td>"
         )
     if is_pct or _PCT_CELL_RE.match(text.replace(" ", "")):
         cls = _pct_class(text)
@@ -178,9 +192,9 @@ def ziyaret_thread_preview(body_text: str, *, max_rows: int = 2) -> str:
         return plain[:240] + ("…" if len(plain) > 240 else "")
     bits: list[str] = []
     for row in rows[:max_rows]:
-        url = row[0]
-        if len(url) > 48:
-            url = url[:45] + "…"
+        url = re.sub(r"^https?://", "", row[0], flags=re.I)
+        if len(url) > _ZIYARET_URL_DISPLAY_LEN:
+            url = url[: _ZIYARET_URL_DISPLAY_LEN - 1] + "…"
         bits.append(f"{url} · bugün {row[1]} · {row[3]}")
     suffix = f" (+{len(rows) - max_rows} satır)" if len(rows) > max_rows else ""
     return " | ".join(bits) + suffix

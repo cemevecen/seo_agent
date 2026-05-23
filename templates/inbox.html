@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .inbox-ziyaret-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.4; table-layout: auto; }
+  .inbox-ziyaret-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.4; table-layout: fixed; }
   .inbox-ziyaret-table th,
   .inbox-ziyaret-table td { border: 1px solid #e2e8f0; padding: 6px 10px; text-align: right; vertical-align: middle; white-space: nowrap; }
   html.dark .inbox-ziyaret-table th,
@@ -11,15 +11,19 @@
   .inbox-ziyaret-table th.inbox-ziyaret-url,
   .inbox-ziyaret-table td.inbox-ziyaret-url {
     text-align: left;
-    min-width: 14rem;
-    max-width: 32rem;
+    width: 45ch;
+    max-width: 45ch;
+    min-width: 45ch;
     white-space: nowrap;
-    word-break: normal;
-    overflow-wrap: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .inbox-ziyaret-table td.inbox-ziyaret-url a {
     color: #2563eb;
     text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
   html.dark .inbox-ziyaret-table td.inbox-ziyaret-url a { color: #93c5fd; }
