@@ -24,11 +24,29 @@ LOGGER = logging.getLogger(__name__)
 
 INBOX_SYNC_MAX_THREADS = 50
 INBOX_LIST_LIMIT = 50
+INBOX_DEFAULT_TAB = "firebase"
+
+# Canonical route_tag değerleri (UI sekmeleriyle birebir)
+INBOX_ROUTE_FIREBASE = "firebase"
+INBOX_ROUTE_DOVIZ = "doviz"
+INBOX_ROUTE_SINEMALAR = "sinemalar"
+INBOX_ROUTE_NSTAT = "nstat"
+INBOX_ROUTE_ALL = "all"
+
+INBOX_ROUTE_LEGACY_MAP: dict[str, str] = {
+    "info": INBOX_ROUTE_DOVIZ,
+    "feedback": INBOX_ROUTE_DOVIZ,
+    "ziyaret": INBOX_ROUTE_NSTAT,
+    "tome": INBOX_ROUTE_ALL,
+    "mixed": INBOX_ROUTE_ALL,
+}
+
+INBOX_ALERT_ROUTES = frozenset({INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT})
 
 INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
     "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
-    "ziyaret": "from:noreply@doviz.com",
-    "info": (
+    "nstat": "from:noreply@doviz.com",
+    "doviz": (
         "to:info@doviz.com OR deliveredto:info@doviz.com OR "
         "to:feedback@doviz.com OR deliveredto:feedback@doviz.com"
     ),
@@ -36,20 +54,20 @@ INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
         "to:info@sinemalar.com OR deliveredto:info@sinemalar.com OR "
         "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
     ),
-    "tome": (
+    "all": (
         "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
         "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
         "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
     ),
 }
 
-# UI sekmesi → veritabanı route_tag değerleri (feedback artık info ile birleşik)
+# UI sekmesi → veritabanı route_tag (canonical + eski kayıtlar)
 INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
-    "info": ("info", "feedback"),
-    "sinemalar": ("sinemalar",),
     "firebase": ("firebase",),
-    "ziyaret": ("ziyaret",),
-    "tome": ("tome",),
+    "doviz": ("doviz", "info", "feedback"),
+    "sinemalar": ("sinemalar",),
+    "nstat": ("nstat", "ziyaret"),
+    "all": ("all", "tome", "mixed"),
 }
 
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
@@ -258,11 +276,25 @@ def _route_text_from_headers(h: dict[str, str]) -> str:
 
 
 def normalize_inbox_route_tag(route_tag: str | None) -> str:
-    """feedback@doviz.com artık info sekmesinde; eski kayıtları birleştir."""
+    """Eski route_tag değerlerini yeni sekmelere map eder."""
     tag = (route_tag or "").strip().lower()
-    if tag == "feedback":
-        return "info"
-    return tag or "tome"
+    if not tag:
+        return INBOX_ROUTE_ALL
+    return INBOX_ROUTE_LEGACY_MAP.get(tag, tag)
+
+
+def migrate_legacy_inbox_route_tags(db: Session) -> int:
+    """DB'deki eski etiketleri (info/ziyaret/tome vb.) yeni isimlere taşır."""
+    changed = 0
+    for row in db.query(SupportInboxThread).all():
+        canonical = normalize_inbox_route_tag(row.route_tag)
+        if row.route_tag != canonical:
+            row.route_tag = canonical
+            changed += 1
+    if changed:
+        db.commit()
+        LOGGER.info("Inbox legacy route migration: %d thread güncellendi", changed)
+    return changed
 
 
 def _route_tag_from_addrs(text: str) -> str | None:
@@ -273,12 +305,12 @@ def _route_tag_from_addrs(text: str) -> str | None:
 
     found: list[str] = []
     if has_info_doviz:
-        found.append("info")
+        found.append(INBOX_ROUTE_DOVIZ)
     if has_info_sinemalar:
-        found.append("sinemalar")
+        found.append(INBOX_ROUTE_SINEMALAR)
 
     if len(found) > 1:
-        for pref in ("sinemalar", "info"):
+        for pref in (INBOX_ROUTE_SINEMALAR, INBOX_ROUTE_DOVIZ):
             if pref in found:
                 return pref
         return found[0]
@@ -296,14 +328,12 @@ def _finalize_route_tag(
     header_tag = _route_tag_from_addrs(route_src)
     if header_tag:
         return header_tag
-    hint = (sync_route_hint or "").strip().lower()
-    if hint == "feedback":
-        hint = "info"
-    if hint in ("firebase", "ziyaret") and computed in ("tome", hint):
+    hint = normalize_inbox_route_tag(sync_route_hint)
+    if hint in (INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT) and computed in (INBOX_ROUTE_ALL, hint):
         return hint
-    if hint in ("info", "sinemalar") and computed == "tome":
+    if hint in (INBOX_ROUTE_DOVIZ, INBOX_ROUTE_SINEMALAR) and computed == INBOX_ROUTE_ALL:
         return hint
-    return computed
+    return normalize_inbox_route_tag(computed)
 
 
 def _is_direct_to_account(
@@ -336,13 +366,13 @@ def _route_tag_from_thread(
     for m in msgs_raw:
         h = _header_map(m)
         if _is_ziyaret_sender(h.get("from") or ""):
-            return "ziyaret"
+            return INBOX_ROUTE_NSTAT
     tag = _route_tag_from_addrs(route_src)
     if tag:
         return tag
     if _is_direct_to_account(msgs_raw, route_src, account_lower):
-        return "tome"
-    return "tome"
+        return INBOX_ROUTE_ALL
+    return INBOX_ROUTE_ALL
 
 
 def _thread_has_unread(full: dict[str, Any]) -> bool:
@@ -640,7 +670,13 @@ def iter_sync_inbox_all_routes(
 
     unique_refs: list[tuple[str, dict[str, Any]]] = []
     seen_ids: dict[str, str] = {}
-    route_rank = {"firebase": 0, "ziyaret": 1, "sinemalar": 2, "info": 3, "tome": 4}
+    route_rank = {
+        INBOX_ROUTE_FIREBASE: 0,
+        INBOX_ROUTE_NSTAT: 1,
+        INBOX_ROUTE_SINEMALAR: 2,
+        INBOX_ROUTE_DOVIZ: 3,
+        INBOX_ROUTE_ALL: 4,
+    }
     for route, tref in thread_refs:
         tid = str(tref.get("id") or "")
         if not tid:
@@ -713,15 +749,12 @@ def iter_sync_inbox_all_routes(
 
 
 def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
-    """Kayıtlı To/Delivered-To alanlarından route_tag yeniden hesaplar; feedback→info birleştirir."""
+    """Kayıtlı To/Delivered-To alanlarından route_tag yeniden hesaplar."""
+    migrate_legacy_inbox_route_tags(db)
     changed = 0
     rows = db.query(SupportInboxThread).all()
     for row in rows:
-        if row.route_tag == "feedback":
-            row.route_tag = "info"
-            changed += 1
-            continue
-        if row.route_tag in ("firebase", "ziyaret"):
+        if row.route_tag in (INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT):
             continue
         msgs = (
             db.query(SupportInboxMessage)
@@ -733,20 +766,22 @@ def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
         rerouted = False
         for m in msgs:
             if _is_firebase_sender(m.from_addr or ""):
-                if row.route_tag != "firebase":
-                    row.route_tag = "firebase"
+                if row.route_tag != INBOX_ROUTE_FIREBASE:
+                    row.route_tag = INBOX_ROUTE_FIREBASE
                     changed += 1
                 rerouted = True
                 break
             if _is_ziyaret_sender(m.from_addr or ""):
-                if row.route_tag != "ziyaret":
-                    row.route_tag = "ziyaret"
+                if row.route_tag != INBOX_ROUTE_NSTAT:
+                    row.route_tag = INBOX_ROUTE_NSTAT
                     changed += 1
                 rerouted = True
                 break
         if rerouted:
             continue
         header_tag = _route_tag_from_addrs(route_src)
+        if header_tag:
+            header_tag = normalize_inbox_route_tag(header_tag)
         if header_tag and header_tag != row.route_tag:
             row.route_tag = header_tag
             changed += 1
@@ -865,7 +900,7 @@ def _upsert_thread_from_gmail(
             subject0 = h.get("subject") or ""
 
     computed_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
-    route_tag = _finalize_route_tag(computed_tag, route_src, sync_route_hint)
+    route_tag = normalize_inbox_route_tag(_finalize_route_tag(computed_tag, route_src, sync_route_hint))
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()

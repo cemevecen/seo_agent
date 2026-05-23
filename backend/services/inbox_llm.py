@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from backend.config import settings
+from backend.services import inbox_sync
 
 LOGGER = logging.getLogger(__name__)
 
@@ -143,6 +144,7 @@ def analyze_alert_thread_tr_tr(messages_plain: str, *, route_tag: str) -> str:
         "Madde listeleri için - veya numaralı satır kullan."
     )
     tag = (route_tag or "").strip().lower()
+    tag = inbox_sync.normalize_inbox_route_tag(tag)
     if tag == "firebase":
         system = (
             "Sen kıdemli bir mobil uygulama güvenilirliği mühendisisin (Android/iOS crash, ANR, "
@@ -172,10 +174,10 @@ def analyze_alert_thread_tr_tr(messages_plain: str, *, route_tag: str) -> str:
             "backtick ile vurgula (ör. `NullPointerException`, `ANR`, `SIGSEGV`). "
             + structure
         )
-    elif tag == "ziyaret":
+    elif tag in ("nstat", "ziyaret"):
         system = (
             "Sen web analitiği ve trafik istihbaratı uzmanısın. "
-            "Aşağıdaki noreply@doviz.com (Ziyaret) bildirim e-postasını Türkçe analiz et. "
+            "Aşağıdaki noreply@doviz.com (nstat / ziyaret raporu) bildirim e-postasını Türkçe analiz et. "
             "En az 15 tam cümle yaz; daha uzun olabilir. "
             "Şu bölümleri kullan: ## Genel özet, ## Desktop trafik, ## Mobil trafik, "
             "## Trafik kaynakları, ## Anomaliler ve dikkat noktaları, ## Önerilen aksiyonlar. "

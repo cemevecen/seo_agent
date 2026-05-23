@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 # UI sekmeleriyle aynı sıra
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str], ...] = (
-    ("firebase", "Firebase", "#b45309", "#fffbeb"),
-    ("info", "info@doviz (+ feedback@doviz)", "#1d4ed8", "#eff6ff"),
-    ("sinemalar", "sinemalar@", "#4338ca", "#eef2ff"),
-    ("ziyaret", "Ziyaret", "#047857", "#ecfdf5"),
-    ("tome", "to:me", "#475569", "#f8fafc"),
+    ("firebase", "firebase", "#b45309", "#fffbeb"),
+    ("doviz", "doviz", "#1d4ed8", "#eff6ff"),
+    ("sinemalar", "sinemalar", "#4338ca", "#eef2ff"),
+    ("nstat", "nstat", "#047857", "#ecfdf5"),
+    ("all", "all", "#475569", "#f8fafc"),
 )
 
 
@@ -32,12 +32,7 @@ def _inbox_summary_email_disabled() -> bool:
 
 
 def _normalize_summary_route(route_tag: str | None) -> str:
-    tag = (route_tag or "").strip().lower()
-    if tag == "feedback":
-        return "info"
-    if tag in {s[0] for s in INBOX_SUMMARY_SECTIONS}:
-        return tag
-    return "tome"
+    return inbox_sync.normalize_inbox_route_tag(route_tag)
 
 
 def run_inbox_scheduled_sync(db: Session) -> None:

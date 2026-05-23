@@ -32,21 +32,21 @@ class _FakeDb:
         return _FakeQuery()
 
 
-def test_normalize_feedback_to_info():
-    assert _normalize_summary_route("feedback") == "info"
+def test_normalize_feedback_to_doviz():
+    assert _normalize_summary_route("feedback") == "doviz"
+    assert _normalize_summary_route("ziyaret") == "nstat"
 
 
 def test_summary_html_includes_all_five_sections():
     grouped = {
         "firebase": [_Thread(id=1, subject="Crash", route_tag="firebase", snippet="NPE")],
-        "info": [],
+        "doviz": [],
         "sinemalar": [],
-        "ziyaret": [],
-        "tome": [],
+        "nstat": [],
+        "all": [],
     }
     html_out = build_inbox_summary_html(grouped, _FakeDb())
     for _key, title, *_rest in INBOX_SUMMARY_SECTIONS:
-        assert title in html_out or html_out.count("okunmamış") >= 5
-    assert "Firebase" in html_out
+        assert title in html_out
     assert "Crash" in html_out
     assert "Bu sekmede okunmamış mesaj yok." in html_out

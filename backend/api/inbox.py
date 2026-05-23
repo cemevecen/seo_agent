@@ -20,6 +20,18 @@ from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
 from backend.services.inbox_visit_report import render_ziyaret_message_html, ziyaret_thread_preview
 
+
+def _thread_route(tag: str | None) -> str:
+    return inbox_sync.normalize_inbox_route_tag(tag)
+
+
+def _is_nstat_route(tag: str | None) -> bool:
+    return _thread_route(tag) == inbox_sync.INBOX_ROUTE_NSTAT
+
+
+def _is_alert_route(tag: str | None) -> bool:
+    return _thread_route(tag) in inbox_sync.INBOX_ALERT_ROUTES
+
 _INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
 
 
@@ -385,12 +397,13 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
 def inbox_threads_list(
     request: Request,
     db: Session = Depends(get_db),
-    route: str | None = Query(None, description="info|sinemalar|firebase|ziyaret|tome"),
+    route: str | None = Query(None, description="firebase|doviz|sinemalar|nstat|all"),
     limit: int = Query(inbox_sync.INBOX_LIST_LIMIT, ge=1, le=200),
 ):
+    if route not in inbox_sync.INBOX_TAB_ROUTE_TAGS:
+        raise HTTPException(status_code=400, detail="Geçerli bir route sekmesi gerekli.")
     q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
-    if route in inbox_sync.INBOX_TAB_ROUTE_TAGS:
-        q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
+    q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
     rows = q.limit(limit).all()
     tid_list = [t.id for t in rows]
     latest_bodies = _latest_message_body_by_thread(db, tid_list)
@@ -398,7 +411,7 @@ def inbox_threads_list(
     for t in rows:
         last_body = (latest_bodies.get(t.id) or "").strip()
         preview_src = last_body or (t.snippet or "")
-        if t.route_tag == "ziyaret" and last_body:
+        if _is_nstat_route(t.route_tag) and last_body:
             message_preview = ziyaret_thread_preview(last_body)
         else:
             message_preview = _body_preview(preview_src)
@@ -458,7 +471,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
                         body_html=getattr(m, "body_html", "") or "",
                         body_text=m.body_text or "",
                     )
-                    if t.route_tag == "ziyaret"
+                    if _is_nstat_route(t.route_tag)
                     else None
                 ),
                 "internal_ms": m.internal_ms,
@@ -552,10 +565,10 @@ def inbox_thread_delete(request: Request, thread_id: int, db: Session = Depends(
 def inbox_thread_summarize(request: Request, thread_id: int, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
     _require_inbox_action_auth(request)
-    if t.route_tag in ("firebase", "ziyaret"):
+    if _is_alert_route(t.route_tag):
         raise HTTPException(
             status_code=400,
-            detail="Firebase ve Ziyaret için «Durum analizi» kullanın.",
+            detail="firebase ve nstat için «Durum analizi» kullanın.",
         )
     _, blob = _thread_messages_blob(db, thread_id)
     try:
@@ -585,13 +598,13 @@ def _thread_messages_blob(db: Session, thread_id: int) -> tuple[SupportInboxThre
 @router.post("/threads/{thread_id}/analyze-alert")
 @limiter.limit("15/minute")
 def inbox_thread_analyze_alert(request: Request, thread_id: int, db: Session = Depends(get_db)):
-    """Firebase / Ziyaret uyarıları için manuel AI durum analizi (≥15 cümle)."""
+    """firebase / nstat uyarıları için manuel AI durum analizi (≥15 cümle)."""
     _require_inbox_action_auth(request)
     t, blob = _thread_messages_blob(db, thread_id)
-    if t.route_tag not in ("firebase", "ziyaret"):
+    if not _is_alert_route(t.route_tag):
         raise HTTPException(
             status_code=400,
-            detail="Durum analizi yalnızca Firebase veya Ziyaret sekmelerindeki iletiler için kullanılabilir.",
+            detail="Durum analizi yalnızca firebase veya nstat sekmelerindeki iletiler için kullanılabilir.",
         )
     try:
         analysis = inbox_llm.analyze_alert_thread_tr_tr(blob, route_tag=t.route_tag)
@@ -670,10 +683,10 @@ async def inbox_thread_reply_templates(
     except Exception:  # noqa: BLE001
         pass  # gövde yoksa veya JSON değilse varsayılan None
     t = _thread_or_404(db, thread_id)
-    if t.route_tag in ("firebase", "ziyaret"):
+    if _is_alert_route(t.route_tag):
         raise HTTPException(
             status_code=400,
-            detail="Firebase ve Ziyaret iletilerinde yanıt şablonu üretilmez.",
+            detail="firebase ve nstat iletilerinde yanıt şablonu üretilmez.",
         )
     msgs = (
         db.query(SupportInboxMessage)
