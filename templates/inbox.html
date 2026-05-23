@@ -663,7 +663,9 @@
       var msg =
         "Google izni reddedildi (access_denied). Muhtemel nedenler: (1) OAuth uygulaması «Testing» modunda ve Google hesabınız Test kullanıcıları listesinde değil — " +
         "Cloud Console → APIs & Services → OAuth consent screen → Test users → e-postanızı ekleyin. " +
-        "(2) İzin ekranında «İptal»e bastınız — tekrar «Google ile bağla» deyip tüm kutucukları onaylayın. " +
+        "(2) İzin ekranında «İptal»e bastınız veya yanlış Google hesabını seçtiniz — Test users’taki hesapla giriş yapın" +
+        (status.oauth_login_hint ? " (" + status.oauth_login_hint + ")" : " (cemevecen@nokta.com)") +
+        ". Tekrar «Google ile bağla» deyip tüm kutucukları onaylayın. " +
         "(3) Authorized redirect URI eksik — aynı OAuth istemcisinde şu adres kayıtlı olmalı: " +
         (ru || hostHint + "/api/inbox/oauth/callback") +
         " (Credentials → OAuth 2.0 Client → Authorized redirect URIs).";

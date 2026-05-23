@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import httpx
+from fastapi import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import is_railway_runtime, settings
 from backend.models import InboxGmailCredential
 from backend.services.crypto import decrypt_text, encrypt_text
 
@@ -29,15 +30,49 @@ def inbox_oauth_is_configured() -> bool:
     return bool(settings.google_client_id.strip() and settings.google_client_secret.strip())
 
 
-def get_inbox_oauth_redirect_uri() -> str:
-    return (
-        settings.gmail_inbox_oauth_redirect_uri.strip()
-        or "http://127.0.0.1:8012/api/inbox/oauth/callback"
-    )
+def _request_public_origin(request: Request | None) -> str | None:
+    if request is None:
+        return None
+    try:
+        return str(request.base_url).rstrip("/")
+    except Exception:  # noqa: BLE001
+        return None
 
 
-def build_inbox_oauth_flow(state: str | None = None) -> Flow:
-    redirect = get_inbox_oauth_redirect_uri()
+def _configured_inbox_redirect_is_localhost(configured: str) -> bool:
+    c = (configured or "").strip().lower()
+    return not c or c.startswith("http://127.0.0.1") or c.startswith("http://localhost")
+
+
+def get_inbox_oauth_redirect_uri(*, request: Request | None = None) -> str:
+    """OAuth redirect URI — Railway'de istek host'undan türetilir (env localhost/uyumsuz ise)."""
+    configured = (settings.gmail_inbox_oauth_redirect_uri or "").strip()
+    origin = _request_public_origin(request)
+    if origin and is_railway_runtime():
+        from_request = f"{origin}/api/inbox/oauth/callback"
+        if _configured_inbox_redirect_is_localhost(configured):
+            return from_request
+        if configured:
+            cfg_host = urlparse(configured).netloc
+            req_host = urlparse(origin).netloc
+            if cfg_host and req_host and cfg_host != req_host:
+                LOGGER.warning(
+                    "GMAIL_INBOX_OAUTH_REDIRECT_URI host (%s) istek host (%s) ile uyuşmuyor; istek kullanılıyor.",
+                    cfg_host,
+                    req_host,
+                )
+                return from_request
+            return configured
+        return from_request
+    if configured:
+        return configured
+    if origin:
+        return f"{origin}/api/inbox/oauth/callback"
+    return "http://127.0.0.1:8012/api/inbox/oauth/callback"
+
+
+def build_inbox_oauth_flow(state: str | None = None, *, request: Request | None = None) -> Flow:
+    redirect = get_inbox_oauth_redirect_uri(request=request)
     client_config = {
         "web": {
             "client_id": settings.google_client_id.strip(),
@@ -59,14 +94,14 @@ def build_inbox_oauth_flow(state: str | None = None) -> Flow:
     )
 
 
-def exchange_inbox_authorization_code(code: str) -> Credentials:
+def exchange_inbox_authorization_code(code: str, *, request: Request | None = None) -> Credentials:
     """Yetkilendirme kodunu doğrudan Google token uç noktasında değiştirir (oauthlib yok).
 
     Aynı Client ID ile Search Console izni varken yanıtta ek ``webmasters.readonly`` scope
     gelebilir; oauthlib ``Scope has changed`` ile düşer. Burada yanıt ayrıştırılır, Gmail
     için Credentials üretilir.
     """
-    redirect = get_inbox_oauth_redirect_uri()
+    redirect = get_inbox_oauth_redirect_uri(request=request)
     body = {
         "code": code.strip(),
         "client_id": settings.google_client_id.strip(),
@@ -115,25 +150,26 @@ def exchange_inbox_authorization_code(code: str) -> Credentials:
     )
 
 
-def encode_inbox_oauth_state(return_path: str = "/inbox") -> str:
+def encode_inbox_oauth_state(return_path: str = "/inbox", *, request: Request | None = None) -> str:
     safe = return_path if return_path.startswith("/") else "/inbox"
+    redirect = get_inbox_oauth_redirect_uri(request=request)
     payload = {
         "kind": "inbox",
         "issued_at": datetime.utcnow().isoformat(),
-        "redirect_host": urlparse(get_inbox_oauth_redirect_uri()).netloc,
+        "redirect_host": urlparse(redirect).netloc,
         "return_path": safe,
     }
     return encrypt_text(json.dumps(payload, ensure_ascii=False))
 
 
-def decode_inbox_oauth_state(state: str) -> dict:
+def decode_inbox_oauth_state(state: str, *, request: Request | None = None) -> dict:
     payload = json.loads(decrypt_text(state))
     if payload.get("kind") != "inbox":
         raise ValueError("OAuth state gelen kutusu için değil.")
     issued_at = datetime.fromisoformat(payload["issued_at"])
     if issued_at < datetime.utcnow() - timedelta(minutes=20):
         raise ValueError("OAuth state zaman aşımına uğradı.")
-    if payload.get("redirect_host") != urlparse(get_inbox_oauth_redirect_uri()).netloc:
+    if payload.get("redirect_host") != urlparse(get_inbox_oauth_redirect_uri(request=request)).netloc:
         raise ValueError("OAuth state geçersiz host içeriyor.")
     rp = str(payload.get("return_path") or "/inbox")
     payload["return_path"] = rp if rp.startswith("/") else "/inbox"
