@@ -1,142 +1,197 @@
+"""Gelen kutusu senkronu ve 5 sekmeli özet e-postası."""
+
+from __future__ import annotations
+
+import html
 import logging
 import os
+from collections import defaultdict
 from datetime import datetime
+
 from sqlalchemy.orm import Session
-from backend.models import SupportInboxThread, SupportInboxMessage
-from backend.services import inbox_sync, mailer, inbox_gmail_auth
+
+from backend.models import SupportInboxMessage, SupportInboxThread
+from backend.services import inbox_gmail_auth, inbox_sync, mailer
 
 logger = logging.getLogger(__name__)
 
+# UI sekmeleriyle aynı sıra
+INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str], ...] = (
+    ("firebase", "Firebase", "#b45309", "#fffbeb"),
+    ("info", "info@doviz (+ feedback@doviz)", "#1d4ed8", "#eff6ff"),
+    ("sinemalar", "sinemalar@", "#4338ca", "#eef2ff"),
+    ("ziyaret", "Ziyaret", "#047857", "#ecfdf5"),
+    ("tome", "to:me", "#475569", "#f8fafc"),
+)
+
 
 def _inbox_summary_email_disabled() -> bool:
-    """Operator kararı: inbox özet mail'i varsayılan olarak kapalı.
-    INBOX_SUMMARY_EMAIL_ENABLED=true env'i set edilirse açılır."""
-    raw = (os.getenv("INBOX_SUMMARY_EMAIL_ENABLED") or "").strip().lower()
-    return raw not in ("1", "true", "yes", "on")
+    """Varsayılan açık; INBOX_SUMMARY_EMAIL_ENABLED=false ile kapatılır."""
+    raw = (os.getenv("INBOX_SUMMARY_EMAIL_ENABLED") or "true").strip().lower()
+    return raw in ("0", "false", "no", "off")
 
 
-def run_inbox_summary_job(db: Session):
-    """
-    1. Her 30 dakikada inbox senkronize edilir (env'den bağımsız, her zaman çalışır).
-    2. INBOX_SUMMARY_EMAIL_ENABLED=true ise okunmamış özeti maille gönderilir.
-    """
-    # 1. Sync inbox — env'e bakmadan her zaman çalışır.
-    #    Kullanıcı /inbox sayfasında güncel veriyi görmek için bu sync'e bağlı.
-    logger.info("Starting scheduled inbox sync...")
+def _normalize_summary_route(route_tag: str | None) -> str:
+    tag = (route_tag or "").strip().lower()
+    if tag == "feedback":
+        return "info"
+    if tag in {s[0] for s in INBOX_SUMMARY_SECTIONS}:
+        return tag
+    return "tome"
+
+
+def run_inbox_scheduled_sync(db: Session) -> None:
+    """10 dk job: Gmail → DB senkronu (e-posta göndermez)."""
     if inbox_gmail_auth.get_inbox_credential_row(db) is None:
-        logger.info("Inbox sync atlandı: Gmail henüz bağlı değil (OAuth tamamlanmalı).")
+        logger.info("Inbox sync atlandı: Gmail henüz bağlı değil.")
         return
+    logger.info("Starting scheduled inbox sync...")
     try:
-        # Senkronizasyon yaparken max_threads'i yüksek tutalım (100) ki güncelliği kaçırmasın
         inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
     except Exception as exc:
-        logger.warning("Inbox sync failed (continuing with local data): %s", exc)
+        logger.warning("Inbox sync failed: %s", exc)
 
-    # 2. Özet maili sadece env enable'sa gönder.
+
+def _latest_inbound_message(db: Session, thread_id: int) -> SupportInboxMessage | None:
+    return (
+        db.query(SupportInboxMessage)
+        .filter(SupportInboxMessage.thread_id == thread_id, SupportInboxMessage.is_outbound.is_(False))
+        .order_by(SupportInboxMessage.internal_ms.desc())
+        .first()
+    )
+
+
+def _format_thread_date(internal_ms: int) -> str:
+    if not internal_ms:
+        return "—"
+    try:
+        return datetime.fromtimestamp(internal_ms / 1000.0).strftime("%d.%m %H:%M")
+    except (OSError, OverflowError, ValueError):
+        return "—"
+
+
+def _thread_preview_text(thread: SupportInboxThread, latest: SupportInboxMessage | None) -> str:
+    raw = ""
+    if latest and (latest.body_text or "").strip():
+        raw = latest.body_text.strip()
+    elif thread.snippet:
+        raw = thread.snippet.strip()
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+    if len(raw) > 480:
+        raw = raw[:477] + "…"
+    return html.escape(raw).replace("\n", "<br/>")
+
+
+def _render_thread_item(thread: SupportInboxThread, latest: SupportInboxMessage | None) -> str:
+    sender = html.escape((latest.from_addr if latest else "") or "Bilinmiyor")
+    date_str = _format_thread_date(latest.internal_ms if latest else thread.last_internal_ms)
+    subject = html.escape(thread.subject or "(konu yok)")
+    preview = _thread_preview_text(thread, latest)
+    return (
+        "<li style='border-bottom:1px solid #e2e8f0;padding:14px 0;margin:0;list-style:none;'>"
+        f"<div style='color:#64748b;font-size:12px;margin-bottom:6px;'>{date_str}</div>"
+        f"<div style='font-size:15px;font-weight:800;color:#1e293b;margin-bottom:6px;'>{subject}</div>"
+        f"<div style='color:#475569;font-size:13px;margin-bottom:8px;'><b>Kimden:</b> {sender}</div>"
+        f"<div style='color:#334155;font-size:13px;line-height:1.55;padding:10px 12px;"
+        f"background:#f1f5f9;border-radius:6px;border-left:4px solid #94a3b8;'>{preview}</div>"
+        "</li>"
+    )
+
+
+def build_inbox_summary_html(
+    grouped: dict[str, list[SupportInboxThread]],
+    db: Session,
+) -> str:
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    total = sum(len(v) for v in grouped.values())
+    parts = [
+        "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#1e293b;"
+        "max-width:680px;margin:0 auto;'>",
+        f"<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
+        f"<p style='color:#64748b;font-size:13px;margin:0 0 20px;'>{now_str} · "
+        f"<b>{total}</b> okunmamış konuşma</p>",
+    ]
+
+    for route_key, title, accent, bg in INBOX_SUMMARY_SECTIONS:
+        threads = grouped.get(route_key) or []
+        count = len(threads)
+        parts.append(
+            f"<section style='margin-bottom:28px;border:1px solid #e2e8f0;border-radius:10px;"
+            f"overflow:hidden;background:{bg};'>"
+            f"<h3 style='margin:0;padding:14px 16px;font-size:15px;font-weight:800;"
+            f"color:{accent};border-bottom:2px solid {accent};background:#fff;'>"
+            f"{html.escape(title)}"
+            f"<span style='float:right;font-size:13px;font-weight:700;color:#64748b;'>"
+            f"{count} okunmamış</span></h3>"
+        )
+        if not threads:
+            parts.append(
+                "<p style='margin:0;padding:16px;color:#64748b;font-size:13px;'>"
+                "Bu sekmede okunmamış mesaj yok.</p>"
+            )
+        else:
+            parts.append("<ul style='margin:0;padding:0 16px 8px;'>")
+            for thread in threads[:15]:
+                latest = _latest_inbound_message(db, thread.id)
+                parts.append(_render_thread_item(thread, latest))
+            if count > 15:
+                parts.append(
+                    f"<li style='list-style:none;padding:10px 0;color:#64748b;font-size:12px;'>"
+                    f"+ {count - 15} konuşma daha…</li>"
+                )
+            parts.append("</ul>")
+        parts.append("</section>")
+
+    parts.append(
+        "<p style='margin-top:8px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;"
+        "padding-top:12px;'>SEO Agent · 2 saatte bir otomatik özet · "
+        "<a href='https://projectcontrol.up.railway.app/inbox'>Gelen kutusunu aç</a></p>"
+    )
+    parts.append("</div>")
+    return "\n".join(parts)
+
+
+def run_inbox_summary_email(db: Session) -> bool:
+    """Senkron sonrası 5 sekmeli okunmamış özet e-postası gönderir."""
     if _inbox_summary_email_disabled():
-        logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED not set); sync done, email skipped.")
-        return
+        logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED=false).")
+        return False
 
-    # 3. Okunmamış mesajları sorgula
+    if inbox_gmail_auth.get_inbox_credential_row(db) is None:
+        logger.info("Inbox summary email atlandı: Gmail bağlı değil.")
+        return False
+
+    try:
+        inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
+    except Exception as exc:
+        logger.warning("Inbox sync before summary failed (continuing): %s", exc)
+
     unread_threads = (
         db.query(SupportInboxThread)
-        .filter(SupportInboxThread.gmail_unread == True)
+        .filter(SupportInboxThread.gmail_unread.is_(True))
         .order_by(SupportInboxThread.last_internal_ms.desc())
         .all()
     )
+    logger.info("Unread threads for summary: %d", len(unread_threads))
 
-    logger.info("Unread threads found: %d", len(unread_threads))
+    grouped: dict[str, list[SupportInboxThread]] = defaultdict(list)
+    for thread in unread_threads:
+        grouped[_normalize_summary_route(thread.route_tag)].append(thread)
 
-    if not unread_threads:
-        logger.info("No unread threads found for summary. Skipping email.")
-        return
+    total = len(unread_threads)
+    section_counts = {key: len(grouped.get(key) or []) for key, *_ in INBOX_SUMMARY_SECTIONS}
+    chips = " · ".join(f"{k}:{v}" for k, v in section_counts.items() if v > 0)
+    subject = f"Inbox özeti — {total} okunmamış" + (f" ({chips})" if chips else "")
 
-    # 3. İstatistikleri ve Raporu Hazırla
-    counts = {"info": 0, "sinemalar": 0, "firebase": 0, "ziyaret": 0, "tome": 0}
-    for t in unread_threads:
-        tag = t.route_tag
-        if tag == "feedback":
-            tag = "info"
-        if tag in counts:
-            counts[tag] += 1
-
-    lines = []
-    lines.append("<div style='font-family: sans-serif; color: #333;'>")
-    lines.append(f"<h2 style='color: #2563eb;'> Okunmamış Mesaj Özeti</h2>")
-    
-    # Hesap bazlı özet
-    lines.append("<div style='background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;'>")
-    lines.append(f"<b>info@doviz.com (+ feedback@doviz.com):</b> {counts['info']} mesaj<br/>")
-    lines.append(f"<b>info@sinemalar.com:</b> {counts['sinemalar']} mesaj<br/>")
-    if counts["ziyaret"] > 0:
-        lines.append(f"<b>Ziyaret (noreply@doviz.com):</b> {counts['ziyaret']} mesaj<br/>")
-    if counts["tome"] > 0:
-        lines.append(f"<b>to:me:</b> {counts['tome']} mesaj<br/>")
-    if counts["firebase"] > 0:
-        lines.append(f"<b>Firebase:</b> {counts['firebase']} mesaj<br/>")
-    lines.append(f"<p><b>Toplam: {len(unread_threads)} okunmamış konuşma.</b></p>")
-    lines.append("</div>")
-
-    lines.append("<h3>Mesaj Listesi</h3>")
-    lines.append("<ul style='list-style: none; padding: 0;'>")
-    
-    for t in unread_threads:
-        # Gelen en son mesajı bul (giden mesajları atla)
-        latest_inbound = (
-            db.query(SupportInboxMessage)
-            .filter(SupportInboxMessage.thread_id == t.id)
-            .filter(SupportInboxMessage.is_outbound == False)
-            .order_by(SupportInboxMessage.internal_ms.desc())
-            .first()
-        )
-        
-        sender = latest_inbound.from_addr if latest_inbound else "Bilinmiyor"
-        date_str = ""
-        if latest_inbound:
-            try:
-                dt = datetime.fromtimestamp(latest_inbound.internal_ms / 1000.0)
-                date_str = dt.strftime("%d.%m %H:%M")
-            except:
-                date_str = "Bilinmiyor"
-        
-        tag_label = {
-            "info": "info@doviz.com",
-            "sinemalar": "info@sinemalar.com",
-            "feedback": "info@doviz.com",
-            "firebase": "Firebase Crashlytics",
-            "ziyaret": "Ziyaret (noreply@doviz.com)",
-            "tome": "to:me",
-            "mixed": "Çoklu Hesap",
-        }.get(t.route_tag, t.route_tag)
-        
-        content_html = latest_inbound.body_text if latest_inbound and latest_inbound.body_text else t.snippet
-        # Basit bir temizlik: HTML taglarını metne çevirmek gerekebilir ama mailer zaten HTML destekliyor.
-        # Yine de çok uzunsa veya satır sonları varsa düzenleyelim.
-        content_display = content_html.replace("\n", "<br/>")
-        
-        lines.append(
-            f"<li style='border-bottom: 1px solid #e2e8f0; padding: 15px 0;'>"
-            f"<div style='margin-bottom: 8px;'>"
-            f"<span style='background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;'>{tag_label}</span> "
-            f"<span style='color: #64748b; font-size: 12px; margin-left: 10px;'>{date_str}</span>"
-            f"</div>"
-            f"<div style='font-size: 16px; font-weight: 800; color: #1e293b; mb-2;'>{t.subject}</div>"
-            f"<div style='color: #475569; font-size: 13px; margin-bottom: 10px;'><b>Kimden:</b> {sender}</div>"
-            f"<div style='color: #334155; font-size: 14px; line-height: 1.6; padding: 12px; background: #f1f5f9; border-radius: 6px; border-left: 4px solid #94a3b8;'>{content_display}</div>"
-            f"</li>"
-        )
-    
-    lines.append("</ul>")
-    lines.append("<p style='margin-top: 30px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px;'>"
-                 "Bu e-posta SEO Agent tarafından saatlik olarak otomatik üretilmiştir.</p>")
-    lines.append("</div>")
-    
-    html_body = "\n".join(lines)
-    subject = f"Inbox Özeti: {len(unread_threads)} Yeni Mesaj"
-    
-    # 4. E-postayı gönder (Klasik sistemimiz: mailer.send_email -> Gmail API)
+    html_body = build_inbox_summary_html(grouped, db)
     ok = mailer.send_email(subject, html_body)
     if ok:
-        logger.info("Inbox summary email sent successfully.")
+        logger.info("Inbox summary email sent (%d unread).", total)
     else:
         logger.error("Failed to send inbox summary email.")
+    return ok
+
+
+def run_inbox_summary_job(db: Session) -> None:
+    """Geriye uyumluluk: admin tetikleme → özet maili."""
+    run_inbox_summary_email(db)

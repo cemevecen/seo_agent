@@ -666,13 +666,16 @@ def admin_refresh_tmdb_cache():
 
 @app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
-    """Saatlik inbox özetini MANUEL olarak tetikler."""
-    from backend.services.inbox_summary import run_inbox_summary_job
+    """Inbox özet mailini MANUEL tetikler (5 sekme)."""
+    from backend.services.inbox_summary import run_inbox_summary_email
 
     try:
         with SessionLocal() as db:
-            run_inbox_summary_job(db)
-        return {"status": "ok", "message": "Inbox özeti gönderimi başarıyla tetiklendi."}
+            ok = run_inbox_summary_email(db)
+        return {
+            "status": "ok" if ok else "skipped",
+            "message": "Inbox özet maili gönderildi." if ok else "Mail gönderilmedi (kapalı veya Gmail yok).",
+        }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
@@ -3127,12 +3130,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Inbox senkron + özet — her 10 dakikada bir, tüm sekmeler (son 3 gün; artımlı pencere).
-    # Mesajları Gmail'den çeker, DB'ye kaydeder; INBOX_SUMMARY_EMAIL_ENABLED=true ise
-    # okunmamış özet e-postasını da gönderir.
+    # Inbox senkron — her 10 dakikada bir (e-posta göndermez).
     from apscheduler.triggers.interval import IntervalTrigger as _InboxIntervalTrigger
     scheduler.add_job(
-        _run_inbox_summary_job,
+        _run_inbox_scheduled_sync_job,
         trigger=_InboxIntervalTrigger(minutes=10, timezone=timezone),
         id="inbox-scheduled-sync-10min",
         replace_existing=True,
@@ -3142,8 +3143,29 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Eski inbox job id'lerini kaldır (30 dk özet + 3 dk Firebase ayrı job)
-    for _legacy_inbox_job in ("inbox-summary-30min", "inbox-firebase-sync-3min"):
+    # Inbox 5 sekmeli özet maili — 2 saatte bir, çeyrek geçe (:15).
+    scheduler.add_job(
+        _run_inbox_summary_email_job,
+        trigger=CronTrigger(
+            minute=15,
+            hour="0,2,4,6,8,10,12,14,16,18,20,22",
+            timezone=timezone,
+        ),
+        id="inbox-summary-email-2h",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=1800,
+    )
+    job_count += 1
+
+    # Eski inbox job id'lerini kaldır
+    for _legacy_inbox_job in (
+        "inbox-summary-30min",
+        "inbox-firebase-sync-3min",
+        "inbox-summary-on-hour",
+        "inbox-summary-on-half",
+    ):
         try:
             scheduler.remove_job(_legacy_inbox_job)
         except Exception:
@@ -12805,15 +12827,31 @@ def _run_omdb_enrichment_job() -> None:
         LOGGER.exception("OMDB enrichment job failed")
 
 
-def _run_inbox_summary_job() -> None:
-    """APScheduler: Saatlik inbox özet raporu (info/sinemalar/feedback)."""
+def _run_inbox_scheduled_sync_job() -> None:
+    """APScheduler: 10 dk inbox Gmail senkronu."""
     try:
-        from backend.services.inbox_summary import run_inbox_summary_job
+        from backend.services.inbox_summary import run_inbox_scheduled_sync
 
         with SessionLocal() as db:
-            run_inbox_summary_job(db)
+            run_inbox_scheduled_sync(db)
     except Exception:
-        LOGGER.exception("Inbox summary job failed")
+        LOGGER.exception("Inbox scheduled sync job failed")
+
+
+def _run_inbox_summary_email_job() -> None:
+    """APScheduler: 2 saatte bir 5 sekmeli inbox özet maili (:15)."""
+    try:
+        from backend.services.inbox_summary import run_inbox_summary_email
+
+        with SessionLocal() as db:
+            run_inbox_summary_email(db)
+    except Exception:
+        LOGGER.exception("Inbox summary email job failed")
+
+
+def _run_inbox_summary_job() -> None:
+    """Geriye uyumluluk: eski job adı → özet maili."""
+    _run_inbox_summary_email_job()
 
 
 def _run_inbox_firebase_sync_job() -> None:
