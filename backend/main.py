@@ -1227,6 +1227,7 @@ def on_startup() -> None:
             # RealtimeAlarmLog.email_sent_at — cooldown sadece mail atılan alarmları saysın
             "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
             "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
+            "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
         ]:
             try:
                 with engine.connect() as _conn:
@@ -3125,32 +3126,27 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Inbox senkron + özet — her 30 dakikada bir, gün boyu.
+    # Inbox senkron + özet — her 10 dakikada bir, tüm sekmeler (son 3 gün; artımlı pencere).
     # Mesajları Gmail'den çeker, DB'ye kaydeder; INBOX_SUMMARY_EMAIL_ENABLED=true ise
     # okunmamış özet e-postasını da gönderir.
     from apscheduler.triggers.interval import IntervalTrigger as _InboxIntervalTrigger
     scheduler.add_job(
         _run_inbox_summary_job,
-        trigger=_InboxIntervalTrigger(minutes=30, timezone=timezone),
-        id="inbox-summary-30min",
+        trigger=_InboxIntervalTrigger(minutes=10, timezone=timezone),
+        id="inbox-scheduled-sync-10min",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
-        misfire_grace_time=1800,
+        misfire_grace_time=600,
     )
     job_count += 1
 
-    # Firebase Crashlytics e-posta uyarıları (firebase-noreply) — sık senkron
-    scheduler.add_job(
-        _run_inbox_firebase_sync_job,
-        trigger=_InboxIntervalTrigger(minutes=3, timezone=timezone),
-        id="inbox-firebase-sync-3min",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=120,
-    )
-    job_count += 1
+    # Eski inbox job id'lerini kaldır (30 dk özet + 3 dk Firebase ayrı job)
+    for _legacy_inbox_job in ("inbox-summary-30min", "inbox-firebase-sync-3min"):
+        try:
+            scheduler.remove_job(_legacy_inbox_job)
+        except Exception:
+            pass
 
     # TMDB vizyon takvimi cache — her gece 02:30'da
     scheduler.add_job(

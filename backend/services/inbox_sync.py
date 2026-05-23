@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from typing import Any
 
@@ -64,6 +64,9 @@ def _firebase_only_gmail_query() -> str:
     return "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
 
 
+SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS = 3
+
+
 def _append_or_clause_to_query(q: str, clause: str) -> str:
     q = (q or "").strip()
     if q.startswith("(") and q.endswith(")"):
@@ -86,14 +89,25 @@ def _ensure_inbox_query_clauses(q: str) -> str:
     return q
 
 
-def _normalize_inbox_gmail_query(raw: str) -> str:
+def _normalize_inbox_gmail_query(
+    raw: str,
+    *,
+    lookback_days: int | None = 60,
+    after_unix: int | None = None,
+) -> str:
     q = (raw or "").strip()
     if not q:
         q = _default_inbox_gmail_query()
     q = _ensure_inbox_query_clauses(q)
     q = re.sub(r"\bis:unread\b", "", q, flags=re.IGNORECASE).strip()
     q = re.sub(r"\s{2,}", " ", q).strip()
-    if "newer_than:" not in q.lower() and "after:" not in q.lower():
+    if after_unix is not None and after_unix > 0:
+        q = f"after:{after_unix} {q}"
+    has_newer_than = bool(re.search(r"\bnewer_than:\d", q, re.IGNORECASE))
+    has_after = bool(re.search(r"\bafter:", q, re.IGNORECASE))
+    if lookback_days is not None and not has_newer_than:
+        q = f"newer_than:{lookback_days}d {q}"
+    elif lookback_days is None and not has_newer_than and not has_after:
         q = f"newer_than:60d {q}"
     return q
 
@@ -336,6 +350,8 @@ def iter_sync_inbox_threads(
     *,
     max_threads: int = 30,
     gmail_query: str | None = None,
+    lookback_days: int | None = 60,
+    after_unix: int | None = None,
 ) -> Iterator[dict[str, Any]]:
     yield {
         "type": "phase",
@@ -362,7 +378,11 @@ def iter_sync_inbox_threads(
     # - deliveredto: → forward sonrası Delivered-To header'ına bakar
     # Bu sayede info@doviz.com → cemevecen@nokta.com forward zincirleri de yakalanır.
     # from:firebase-noreply → Firebase Console crash/ANR e-posta uyarıları.
-    q = _normalize_inbox_gmail_query(gmail_query if gmail_query is not None else (settings.inbox_gmail_query or ""))
+    q = _normalize_inbox_gmail_query(
+        gmail_query if gmail_query is not None else (settings.inbox_gmail_query or ""),
+        lookback_days=lookback_days,
+        after_unix=after_unix,
+    )
     yield {
         "type": "phase",
         "phase": "listing",
@@ -467,10 +487,18 @@ def sync_inbox_threads(
     *,
     max_threads: int = 30,
     gmail_query: str | None = None,
+    lookback_days: int | None = 60,
+    after_unix: int | None = None,
 ) -> dict[str, Any]:
     """Tek JSON yanıtı (eski API); içeride akışlı senkron kullanılır."""
     out: dict[str, Any] | None = None
-    for evt in iter_sync_inbox_threads(db, max_threads=max_threads, gmail_query=gmail_query):
+    for evt in iter_sync_inbox_threads(
+        db,
+        max_threads=max_threads,
+        gmail_query=gmail_query,
+        lookback_days=lookback_days,
+        after_unix=after_unix,
+    ):
         if evt.get("type") == "complete":
             out = {"synced_threads": evt.get("synced_threads", 0), "query": evt.get("query", "")}
     if out is None:
@@ -484,7 +512,41 @@ def sync_firebase_inbox_threads(db: Session, *, max_threads: int = 25) -> dict[s
         db,
         max_threads=max_threads,
         gmail_query=_firebase_only_gmail_query(),
+        lookback_days=SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS,
     )
+
+
+def sync_scheduled_inbox_threads(db: Session, *, max_threads: int = 100) -> dict[str, Any]:
+    """Zamanlanmış inbox senkronu: ilk çalışmada son 3 gün; sonraki çalışmalarda yalnızca son başarılı kontrolden sonraki mailler."""
+    row = inbox_gmail_auth.get_inbox_credential_row(db)
+    if row is None:
+        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+
+    last_success = row.scheduled_sync_last_success_at
+    after_unix: int | None = None
+    if last_success is not None:
+        after_unix = int(last_success.replace(tzinfo=timezone.utc).timestamp())
+
+    mode = "incremental" if after_unix else "initial"
+    LOGGER.info(
+        "Scheduled inbox sync (%s): lookback=%dd after=%s",
+        mode,
+        SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS,
+        after_unix,
+    )
+    try:
+        out = sync_inbox_threads(
+            db,
+            max_threads=max_threads,
+            lookback_days=SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS,
+            after_unix=after_unix,
+        )
+        row.scheduled_sync_last_success_at = datetime.utcnow()
+        db.commit()
+        return {**out, "sync_mode": mode, "after_unix": after_unix}
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _upsert_thread_from_gmail(

@@ -608,6 +608,7 @@ class InboxGmailCredential(Base):
     account_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
     encrypted_data: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    scheduled_sync_last_success_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class SupportInboxThread(Base):
