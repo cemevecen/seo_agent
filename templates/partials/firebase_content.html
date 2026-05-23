@@ -45,6 +45,31 @@
   }
   #crash-version-mobile-panel[data-open="true"] { display: flex; }
   .crash-ver-mobile-row:active { background: rgba(148, 163, 184, 0.15); }
+  /* Sürüm dropdown — fixed katman; alttaki sparkline/grafikler üstüne binmesin */
+  #crash-version-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: rgba(15, 23, 42, 0.35);
+  }
+  html.dark #crash-version-mobile-backdrop { background: rgba(0, 0, 0, 0.55); }
+  #crash-version-mobile-panel {
+    position: fixed;
+    z-index: 45;
+    max-height: min(55vh, 22rem);
+    background-color: #ffffff;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  }
+  html.dark #crash-version-mobile-panel {
+    background-color: #0f172a;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  }
+  #crash-version-mobile-list {
+    background-color: #ffffff;
+  }
+  html.dark #crash-version-mobile-list {
+    background-color: #0f172a;
+  }
 </style>
 
 {# Apple ve Android SVG sembolleri — sayfada bir kez tanımlanır, <use> ile çağrılır #}
@@ -169,24 +194,27 @@
             <span id="crash-version-mobile-label" class="truncate">Tüm sürümler</span>
             <svg class="h-4 w-4 shrink-0 text-slate-400 transition-transform" id="crash-version-mobile-chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
           </button>
-          <div id="crash-version-mobile-panel" role="listbox" data-open="false"
-            class="absolute left-0 right-0 z-30 mt-1 hidden flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900">
-            <div class="border-b border-slate-100 p-2 dark:border-slate-700">
-              <input type="search" id="crash-version-search-mobile" placeholder="Sürüm ara…" autocomplete="off"
-                class="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
-            </div>
-            <div id="crash-version-mobile-list" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"></div>
-            <div class="flex items-center justify-between gap-2 border-t border-slate-100 px-2.5 py-2 dark:border-slate-700">
-              <span id="crash-version-mobile-count" class="text-[10px] tabular-nums text-slate-400"></span>
-              <button type="button" id="crash-version-mobile-done" class="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white dark:bg-slate-600">Tamam</button>
-            </div>
-          </div>
         </div>
         <input type="search" id="crash-version-search" placeholder="Sürüm ara (ör. 7.0.0)…"
           class="hidden min-w-[10rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none md:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
         <span id="crash-version-count" class="hidden shrink-0 text-[10px] tabular-nums text-slate-400 md:inline"></span>
       </div>
       <div id="crash-version-chips" class="hidden max-h-32 flex-wrap gap-1 overflow-y-auto overscroll-contain md:flex"></div>
+    </div>
+
+    {# Mobil sürüm dropdown — fixed katman (section içi absolute alttaki grafiklerin üstüne biner) #}
+    <div id="crash-version-mobile-backdrop" class="fixed inset-0 z-[44] hidden md:hidden" aria-hidden="true"></div>
+    <div id="crash-version-mobile-panel" role="listbox" data-open="false"
+      class="fixed z-[45] hidden flex-col overflow-hidden rounded-xl border border-slate-200 md:hidden dark:border-slate-600">
+      <div class="border-b border-slate-100 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+        <input type="search" id="crash-version-search-mobile" placeholder="Sürüm ara…" autocomplete="off"
+          class="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+      </div>
+      <div id="crash-version-mobile-list" class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-1.5 dark:bg-slate-900"></div>
+      <div class="flex items-center justify-between gap-2 border-t border-slate-100 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900">
+        <span id="crash-version-mobile-count" class="text-[10px] tabular-nums text-slate-400"></span>
+        <button type="button" id="crash-version-mobile-done" class="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white dark:bg-slate-600">Tamam</button>
+      </div>
     </div>
 
     {# Tüm içerik: Özet + Crash'ler + ANR + Versiyonlar dikey sıralı #}
@@ -383,25 +411,60 @@
     loadDebounced("version");
   }
 
+  function positionVersionMobilePanel() {
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var trigger = document.getElementById("crash-version-mobile-trigger");
+    if (!panel || !trigger || panel.classList.contains("hidden")) return;
+    var rect = trigger.getBoundingClientRect();
+    var margin = 8;
+    var maxH = Math.min(window.innerHeight * 0.55, 352);
+    var spaceBelow = window.innerHeight - rect.bottom - margin;
+    var spaceAbove = rect.top - margin;
+    var openDown = spaceBelow >= 140 || spaceBelow >= spaceAbove;
+    var top;
+    var heightCap;
+    if (openDown) {
+      top = rect.bottom + 4;
+      heightCap = Math.max(120, Math.min(maxH, spaceBelow - 8));
+    } else {
+      heightCap = Math.max(120, Math.min(maxH, spaceAbove - 8));
+      top = Math.max(margin, rect.top - heightCap - 4);
+    }
+    panel.style.top = top + "px";
+    panel.style.left = margin + "px";
+    panel.style.right = margin + "px";
+    panel.style.width = "auto";
+    panel.style.maxHeight = heightCap + "px";
+  }
+
   function setVersionMobileOpen(open) {
     var panel = document.getElementById("crash-version-mobile-panel");
+    var backdrop = document.getElementById("crash-version-mobile-backdrop");
     var trigger = document.getElementById("crash-version-mobile-trigger");
     var chevron = document.getElementById("crash-version-mobile-chevron");
     if (!panel || !trigger) return;
     panel.setAttribute("data-open", open ? "true" : "false");
     panel.classList.toggle("hidden", !open);
     panel.classList.toggle("flex", open);
+    if (backdrop) backdrop.classList.toggle("hidden", !open);
     trigger.setAttribute("aria-expanded", open ? "true" : "false");
     if (chevron) chevron.classList.toggle("rotate-180", open);
+    document.body.style.overflow = open ? "hidden" : "";
     if (open) {
       var mobSearch = document.getElementById("crash-version-search-mobile");
       var deskSearch = document.getElementById("crash-version-search");
       if (mobSearch && deskSearch) mobSearch.value = deskSearch.value;
       renderVersionMobileList();
+      positionVersionMobilePanel();
       setTimeout(function () {
         var inp = document.getElementById("crash-version-search-mobile");
         if (inp) inp.focus();
       }, 50);
+    } else {
+      panel.style.top = "";
+      panel.style.left = "";
+      panel.style.right = "";
+      panel.style.maxHeight = "";
     }
   }
 
@@ -637,7 +700,7 @@
       if (!filtered.length) return;
       if (title) {
         var head = document.createElement("p");
-        head.className = "sticky top-0 z-10 bg-white/95 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 backdrop-blur dark:bg-slate-900/95 dark:text-slate-500";
+        head.className = "sticky top-0 z-10 bg-white px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:bg-slate-900 dark:text-slate-500";
         head.textContent = title;
         listEl.appendChild(head);
       }
@@ -1135,6 +1198,10 @@
     if (panel.contains(e.target) || (trigger && trigger.contains(e.target))) return;
     setVersionMobileOpen(false);
   });
+  var verBackdrop = document.getElementById("crash-version-mobile-backdrop");
+  if (verBackdrop) verBackdrop.addEventListener("click", function () { setVersionMobileOpen(false); });
+  window.addEventListener("resize", function () { positionVersionMobilePanel(); });
+  window.addEventListener("scroll", function () { positionVersionMobilePanel(); }, true);
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") setVersionMobileOpen(false);
   });
