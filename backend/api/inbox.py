@@ -325,6 +325,15 @@ def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
     return {"disconnected": ok}
 
 
+@router.post("/repair-route-tags")
+@limiter.limit("10/minute")
+def inbox_repair_route_tags(request: Request, db: Session = Depends(get_db)):
+    """Mevcut konuşmaların sekme etiketlerini To/Delivered-To alanlarından yeniden hesaplar."""
+    _require_inbox_action_auth(request)
+    out = inbox_sync.repair_misrouted_inbox_threads(db)
+    return JSONResponse(out)
+
+
 @router.post("/sync")
 @limiter.limit("30/minute")
 def inbox_sync_post(request: Request, db: Session = Depends(get_db)):

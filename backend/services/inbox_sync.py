@@ -224,29 +224,69 @@ def _extract_body_text(
     return plain
 
 
+_ROUTE_HEADER_KEYS = (
+    "delivered-to",
+    "to",
+    "cc",
+    "x-original-to",
+    "envelope-to",
+    "x-forwarded-to",
+    "x-envelope-to",
+)
+
+
+def _route_text_from_headers(h: dict[str, str]) -> str:
+    parts: list[str] = []
+    for key in _ROUTE_HEADER_KEYS:
+        val = (h.get(key) or "").strip()
+        if val:
+            parts.append(val)
+    from_ = (h.get("from") or "").strip()
+    if from_:
+        parts.append(from_)
+    return " ".join(parts)
+
+
 def _route_tag_from_addrs(text: str) -> str | None:
     t = (text or "").lower()
 
-    is_info = "info@doviz.com" in t or "info@sinemalar.com" in t
-    is_feedback = "feedback@doviz.com" in t or "feedback@sinemalar.com" in t
-    is_sinemalar = "sinemalar.com" in t and "info" in t
+    has_info_doviz = "info@doviz.com" in t
+    has_info_sinemalar = "info@sinemalar.com" in t
+    has_feedback = "feedback@doviz.com" in t or "feedback@sinemalar.com" in t
 
     found: list[str] = []
-    if is_info:
+    if has_info_doviz:
         found.append("info")
-    if is_feedback:
-        found.append("feedback")
-    if is_sinemalar and "info" not in found:
+    if has_info_sinemalar:
         found.append("sinemalar")
+    if has_feedback:
+        found.append("feedback")
 
     if len(found) > 1:
-        for pref in ("info", "feedback", "sinemalar"):
+        for pref in ("feedback", "sinemalar", "info"):
             if pref in found:
                 return pref
         return found[0]
     if len(found) == 1:
         return found[0]
     return None
+
+
+def _finalize_route_tag(
+    computed: str,
+    route_src: str,
+    sync_route_hint: str | None,
+) -> str:
+    """Header'dan net rota varsa onu kullan; yoksa Gmail sekme sorgusunu ipucu al."""
+    header_tag = _route_tag_from_addrs(route_src)
+    if header_tag:
+        return header_tag
+    hint = (sync_route_hint or "").strip().lower()
+    if hint in ("firebase", "ziyaret") and computed in ("tome", hint):
+        return hint
+    if hint in ("info", "feedback", "sinemalar") and computed == "tome":
+        return hint
+    return computed
 
 
 def _is_direct_to_account(
@@ -262,7 +302,7 @@ def _is_direct_to_account(
         from_ = (h.get("from") or "").lower()
         if account_lower in from_:
             continue
-        for key in ("to", "delivered-to", "x-original-to", "envelope-to", "cc"):
+        for key in _ROUTE_HEADER_KEYS + ("from",):
             hdr = (h.get(key) or "").lower()
             if account_lower in hdr:
                 return True
@@ -509,10 +549,12 @@ def iter_sync_inbox_threads(
             "pct": _sync_pct_saved(synced, n),
         }
     db.commit()
+    repair = repair_misrouted_inbox_threads(db)
     yield {
         "type": "complete",
         "synced_threads": synced,
         "query": q,
+        "repaired_route_tags": repair.get("repaired", 0),
         "message": f"Tamamlandı — {synced} konuşma veritabanına yazıldı.",
         "pct": 100,
     }
@@ -580,11 +622,18 @@ def iter_sync_inbox_all_routes(
         LOGGER.info("Inbox sync route=%s listed %d threads (query=%s)", route, n_route, q)
 
     unique_refs: list[tuple[str, dict[str, Any]]] = []
-    seen_ids: set[str] = set()
+    seen_ids: dict[str, str] = {}
+    route_rank = {"firebase": 0, "ziyaret": 1, "feedback": 2, "sinemalar": 3, "info": 4, "tome": 5}
     for route, tref in thread_refs:
         tid = str(tref.get("id") or "")
-        if tid and tid not in seen_ids:
-            seen_ids.add(tid)
+        if not tid:
+            continue
+        prev = seen_ids.get(tid)
+        if prev is None or route_rank.get(route, 99) < route_rank.get(prev, 99):
+            seen_ids[tid] = route
+    for route, tref in thread_refs:
+        tid = str(tref.get("id") or "")
+        if tid and seen_ids.get(tid) == route:
             unique_refs.append((route, tref))
 
     n = len(unique_refs)
@@ -617,7 +666,7 @@ def iter_sync_inbox_all_routes(
             continue
         nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
         subj, snip = _thread_subject_snippet_preview(full)
-        _upsert_thread_from_gmail(db, full, account_lower, service)
+        _upsert_thread_from_gmail(db, full, account_lower, service, sync_route_hint=route)
         synced += 1
         yield {
             "type": "thread",
@@ -634,13 +683,56 @@ def iter_sync_inbox_all_routes(
             "pct": _sync_pct_saved(synced, n),
         }
     db.commit()
+    repair = repair_misrouted_inbox_threads(db)
     yield {
         "type": "complete",
         "synced_threads": synced,
         "routes": len(routes),
+        "route_counts": route_counts,
+        "repaired_route_tags": repair.get("repaired", 0),
         "message": f"Tamamlandı — {synced} konuşma ({len(routes)} sekme) veritabanına yazıldı.",
         "pct": 100,
     }
+
+
+def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
+    """Kayıtlı To/Delivered-To alanlarından route_tag yeniden hesaplar (ör. sinemalar→info)."""
+    changed = 0
+    rows = db.query(SupportInboxThread).all()
+    for row in rows:
+        if row.route_tag in ("firebase", "ziyaret"):
+            continue
+        msgs = (
+            db.query(SupportInboxMessage)
+            .filter(SupportInboxMessage.thread_id == row.id)
+            .order_by(SupportInboxMessage.internal_ms.asc())
+            .all()
+        )
+        route_src = " ".join(f"{m.to_addr} {m.from_addr}" for m in msgs)
+        rerouted = False
+        for m in msgs:
+            if _is_firebase_sender(m.from_addr or ""):
+                if row.route_tag != "firebase":
+                    row.route_tag = "firebase"
+                    changed += 1
+                rerouted = True
+                break
+            if _is_ziyaret_sender(m.from_addr or ""):
+                if row.route_tag != "ziyaret":
+                    row.route_tag = "ziyaret"
+                    changed += 1
+                rerouted = True
+                break
+        if rerouted:
+            continue
+        header_tag = _route_tag_from_addrs(route_src)
+        if header_tag and header_tag != row.route_tag:
+            row.route_tag = header_tag
+            changed += 1
+    if changed:
+        db.commit()
+        LOGGER.info("Inbox route repair: %d thread güncellendi", changed)
+    return {"repaired": changed}
 
 
 def sync_inbox_threads(
@@ -724,7 +816,12 @@ def sync_scheduled_inbox_threads(db: Session, *, max_threads: int = INBOX_SYNC_M
 
 
 def _upsert_thread_from_gmail(
-    db: Session, full: dict[str, Any], account_lower: str, service: Any
+    db: Session,
+    full: dict[str, Any],
+    account_lower: str,
+    service: Any,
+    *,
+    sync_route_hint: str | None = None,
 ) -> SupportInboxThread:
     tid = str(full.get("id") or "")
     gmail_unread = _thread_has_unread(full)
@@ -742,12 +839,12 @@ def _upsert_thread_from_gmail(
         if ms > last_ms:
             last_ms = ms
         h = _header_map(m)
-        route_src += " " + (h.get("delivered-to") or h.get("to") or h.get("cc") or "")
-        route_src += " " + (h.get("from") or "")
+        route_src += " " + _route_text_from_headers(h)
         if not subject0:
             subject0 = h.get("subject") or ""
 
-    route_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
+    computed_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
+    route_tag = _finalize_route_tag(computed_tag, route_src, sync_route_hint)
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()
@@ -800,12 +897,14 @@ def _upsert_thread_from_gmail(
         except (TypeError, ValueError):
             ims = 0
         out = _is_outbound(m, account_lower)
+        to_parts = [h.get("to"), h.get("delivered-to"), h.get("x-original-to"), h.get("envelope-to")]
+        to_combined = " ".join(p for p in to_parts if p).strip()[:512]
         db.add(
             SupportInboxMessage(
                 thread_id=row.id,
                 gmail_message_id=mid,
                 from_addr=(h.get("from") or "")[:512],
-                to_addr=(h.get("to") or "")[:512],
+                to_addr=to_combined or (h.get("to") or "")[:512],
                 subject=(h.get("subject") or "")[:998],
                 body_text=body,
                 body_html=body_html,
