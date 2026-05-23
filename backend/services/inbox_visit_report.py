@@ -21,6 +21,31 @@ _ZIYARET_HEADER = (
 
 
 _ZIYARET_URL_DISPLAY_LEN = 45
+# nstat sekmesi — yalnızca bu konu kalıbı (noreply@doviz.com ziyaret raporu)
+ZIYARET_REPORT_SUBJECT_MARKERS = (
+    "en çok ziyaret edilen sayfalar",
+    "en cok ziyaret edilen sayfalar",
+)
+
+
+def _normalize_subject_key(subject: str) -> str:
+    s = (subject or "").strip().lower()
+    for src, dst in (
+        ("ı", "i"),
+        ("ş", "s"),
+        ("ğ", "g"),
+        ("ü", "u"),
+        ("ö", "o"),
+        ("ç", "c"),
+    ):
+        s = s.replace(src, dst)
+    return re.sub(r"\s+", " ", s)
+
+
+def is_ziyaret_report_subject(subject: str) -> bool:
+    """noreply@doviz.com «En çok ziyaret edilen sayfalar» raporu mu?"""
+    key = _normalize_subject_key(subject)
+    return any(marker in key for marker in ZIYARET_REPORT_SUBJECT_MARKERS)
 
 
 def _display_url(url: str) -> tuple[str, str]:

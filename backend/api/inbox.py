@@ -18,7 +18,11 @@ from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
-from backend.services.inbox_visit_report import render_ziyaret_message_html, ziyaret_thread_preview
+from backend.services.inbox_visit_report import (
+    is_ziyaret_report_subject,
+    render_ziyaret_message_html,
+    ziyaret_thread_preview,
+)
 
 
 def _thread_route(tag: str | None) -> str:
@@ -404,6 +408,8 @@ def inbox_threads_list(
         raise HTTPException(status_code=400, detail="Geçerli bir route sekmesi gerekli.")
     q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
     q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
+    if route == inbox_sync.INBOX_ROUTE_NSTAT:
+        q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
     rows = q.limit(limit).all()
     tid_list = [t.id for t in rows]
     latest_bodies = _latest_message_body_by_thread(db, tid_list)

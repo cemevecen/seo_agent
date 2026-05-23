@@ -47,18 +47,34 @@ def test_finalize_prefers_header_over_hint():
     assert _finalize_route_tag(INBOX_ROUTE_ALL, src, "sinemalar") == INBOX_ROUTE_DOVIZ
 
 
-def test_thread_route_nstat_from_noreply():
+def test_thread_route_nstat_from_noreply_ziyaret_subject():
     msgs = [
         {
             "payload": {
                 "headers": [
                     {"name": "From", "value": "Doviz <noreply@doviz.com>"},
+                    {"name": "Subject", "value": "En çok ziyaret edilen sayfalar - 23.05.2026 20:00"},
                     {"name": "To", "value": "cemevecen@nokta.com"},
                 ]
             }
         }
     ]
     assert _route_tag_from_thread(msgs, "noreply@doviz.com", "cemevecen@nokta.com") == INBOX_ROUTE_NSTAT
+
+
+def test_thread_route_noreply_other_subject_goes_to_all():
+    msgs = [
+        {
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Doviz <noreply@doviz.com>"},
+                    {"name": "Subject", "value": "Günlük özet raporu"},
+                    {"name": "To", "value": "cemevecen@nokta.com"},
+                ]
+            }
+        }
+    ]
+    assert _route_tag_from_thread(msgs, "noreply@doviz.com", "cemevecen@nokta.com") == INBOX_ROUTE_ALL
 
 
 def test_normalize_legacy_tags():

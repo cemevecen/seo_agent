@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.services import inbox_gmail_auth
+from backend.services.inbox_visit_report import is_ziyaret_report_subject
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ INBOX_ALERT_ROUTES = frozenset({INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT})
 
 INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
     "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
-    "nstat": "from:noreply@doviz.com",
+    "nstat": 'from:noreply@doviz.com subject:"ziyaret edilen sayfalar"',
     "doviz": (
         "to:info@doviz.com OR deliveredto:info@doviz.com OR "
         "to:feedback@doviz.com OR deliveredto:feedback@doviz.com"
@@ -323,13 +324,19 @@ def _finalize_route_tag(
     computed: str,
     route_src: str,
     sync_route_hint: str | None,
+    *,
+    subject: str = "",
 ) -> str:
     """Header'dan net rota varsa onu kullan; yoksa Gmail sekme sorgusunu ipucu al."""
     header_tag = _route_tag_from_addrs(route_src)
     if header_tag:
         return header_tag
     hint = normalize_inbox_route_tag(sync_route_hint)
-    if hint in (INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT) and computed in (INBOX_ROUTE_ALL, hint):
+    if hint == INBOX_ROUTE_NSTAT and computed in (INBOX_ROUTE_ALL, hint):
+        if is_ziyaret_report_subject(subject):
+            return hint
+        return normalize_inbox_route_tag(computed)
+    if hint == INBOX_ROUTE_FIREBASE and computed in (INBOX_ROUTE_ALL, hint):
         return hint
     if hint in (INBOX_ROUTE_DOVIZ, INBOX_ROUTE_SINEMALAR) and computed == INBOX_ROUTE_ALL:
         return hint
@@ -356,9 +363,19 @@ def _is_direct_to_account(
     return account_lower in t
 
 
+def _thread_subject_from_msgs(msgs_raw: list[dict[str, Any]]) -> str:
+    for m in msgs_raw:
+        h = _header_map(m)
+        subj = (h.get("subject") or "").strip()
+        if subj:
+            return subj
+    return ""
+
+
 def _route_tag_from_thread(
     msgs_raw: list[dict[str, Any]], route_src: str, account_lower: str = ""
 ) -> str:
+    subject = _thread_subject_from_msgs(msgs_raw)
     for m in msgs_raw:
         h = _header_map(m)
         if _is_firebase_sender(h.get("from") or ""):
@@ -366,7 +383,10 @@ def _route_tag_from_thread(
     for m in msgs_raw:
         h = _header_map(m)
         if _is_ziyaret_sender(h.get("from") or ""):
-            return INBOX_ROUTE_NSTAT
+            subj = (h.get("subject") or subject or "").strip()
+            if is_ziyaret_report_subject(subj):
+                return INBOX_ROUTE_NSTAT
+            return INBOX_ROUTE_ALL
     tag = _route_tag_from_addrs(route_src)
     if tag:
         return tag
@@ -754,14 +774,25 @@ def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
     changed = 0
     rows = db.query(SupportInboxThread).all()
     for row in rows:
-        if row.route_tag in (INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT):
-            continue
         msgs = (
             db.query(SupportInboxMessage)
             .filter(SupportInboxMessage.thread_id == row.id)
             .order_by(SupportInboxMessage.internal_ms.asc())
             .all()
         )
+        subject = (row.subject or "").strip()
+        if not subject and msgs:
+            subject = (msgs[0].subject or "").strip()
+
+        if row.route_tag in (INBOX_ROUTE_NSTAT, "ziyaret"):
+            if not is_ziyaret_report_subject(subject):
+                row.route_tag = INBOX_ROUTE_ALL
+                changed += 1
+            continue
+
+        if row.route_tag == INBOX_ROUTE_FIREBASE:
+            continue
+
         route_src = " ".join(f"{m.to_addr} {m.from_addr}" for m in msgs)
         rerouted = False
         for m in msgs:
@@ -771,7 +802,9 @@ def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
                     changed += 1
                 rerouted = True
                 break
-            if _is_ziyaret_sender(m.from_addr or ""):
+            if _is_ziyaret_sender(m.from_addr or "") and is_ziyaret_report_subject(
+                (m.subject or subject or "").strip()
+            ):
                 if row.route_tag != INBOX_ROUTE_NSTAT:
                     row.route_tag = INBOX_ROUTE_NSTAT
                     changed += 1
@@ -900,7 +933,9 @@ def _upsert_thread_from_gmail(
             subject0 = h.get("subject") or ""
 
     computed_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
-    route_tag = normalize_inbox_route_tag(_finalize_route_tag(computed_tag, route_src, sync_route_hint))
+    route_tag = normalize_inbox_route_tag(
+        _finalize_route_tag(computed_tag, route_src, sync_route_hint, subject=subject0)
+    )
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()
