@@ -28,14 +28,22 @@ INBOX_LIST_LIMIT = 50
 INBOX_DEFAULT_TAB = "all"
 
 # UI sekmeleri — soldan sağa sıra
-INBOX_TAB_ORDER: tuple[str, ...] = ("all", "doviz", "sinemalar", "nstat", "firebase")
+INBOX_TAB_ORDER: tuple[str, ...] = ("all", "doviz", "sinemalar", "reklam", "nstat", "firebase")
 
 # Canonical route_tag değerleri (UI sekmeleriyle birebir)
 INBOX_ROUTE_FIREBASE = "firebase"
 INBOX_ROUTE_DOVIZ = "doviz"
 INBOX_ROUTE_SINEMALAR = "sinemalar"
+INBOX_ROUTE_REKLAM = "reklam"
 INBOX_ROUTE_NSTAT = "nstat"
 INBOX_ROUTE_ALL = "all"
+
+# all sekmesinde gösterilen paylaşılan destek adresleri
+INBOX_ALL_SHARED_ADDRESSES: tuple[str, ...] = (
+    "info@blogcu.com",
+    "info@izlesene.com",
+    "medya@nokta.com",
+)
 
 INBOX_ROUTE_LEGACY_MAP: dict[str, str] = {
     "info": INBOX_ROUTE_DOVIZ,
@@ -47,12 +55,24 @@ INBOX_ROUTE_LEGACY_MAP: dict[str, str] = {
 
 INBOX_ALERT_ROUTES = frozenset({INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT})
 
+def _gmail_addr_clauses(addr: str) -> str:
+    a = addr.strip().lower()
+    return f"to:{a} OR deliveredto:{a}"
+
+
+def _inbox_all_gmail_query() -> str:
+    shared = " OR ".join(_gmail_addr_clauses(a) for a in INBOX_ALL_SHARED_ADDRESSES)
+    return (
+        f"(to:me OR {shared}) "
+        "-to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
+        "-to:feedback@sinemalar.com -to:reklam@nokta.com "
+        "-from:firebase-noreply@google.com -from:firebase-noreply.googleapis.com "
+        "-from:noreply@doviz.com"
+    )
+
+
 INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
-    "all": (
-        "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
-        "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
-        "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
-    ),
+    "all": _inbox_all_gmail_query(),
     "doviz": (
         "to:info@doviz.com OR deliveredto:info@doviz.com OR "
         "to:feedback@doviz.com OR deliveredto:feedback@doviz.com"
@@ -61,6 +81,7 @@ INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
         "to:info@sinemalar.com OR deliveredto:info@sinemalar.com OR "
         "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
     ),
+    "reklam": _gmail_addr_clauses("reklam@nokta.com"),
     "nstat": 'from:noreply@doviz.com subject:"ziyaret edilen sayfalar"',
     "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
 }
@@ -70,6 +91,7 @@ INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
     "all": ("all", "tome", "mixed"),
     "doviz": ("doviz", "info", "feedback"),
     "sinemalar": ("sinemalar",),
+    "reklam": ("reklam",),
     "nstat": ("nstat", "ziyaret"),
     "firebase": ("firebase",),
 }
@@ -87,6 +109,8 @@ _SUPPORT_ADDR_MARKERS = (
     "feedback@doviz.com",
     "info@sinemalar.com",
     "feedback@sinemalar.com",
+    "reklam@nokta.com",
+    *INBOX_ALL_SHARED_ADDRESSES,
 )
 
 
@@ -100,11 +124,13 @@ def _is_ziyaret_sender(text: str) -> bool:
 
 def _default_inbox_gmail_query() -> str:
     """Destek adresleri + Firebase Crashlytics uyarı mailleri (from: firebase-noreply)."""
+    shared = " OR ".join(_gmail_addr_clauses(a) for a in INBOX_ALL_SHARED_ADDRESSES)
     return (
         "("
         "to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
         "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
         "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com "
+        f"OR {shared} OR {_gmail_addr_clauses('reklam@nokta.com')} "
         "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com "
         "OR from:noreply@doviz.com OR to:me"
         ")"
@@ -330,6 +356,9 @@ def migrate_legacy_inbox_route_tags(db: Session) -> int:
 def _route_tag_from_addrs(text: str) -> str | None:
     t = (text or "").lower()
 
+    if "reklam@nokta.com" in t:
+        return INBOX_ROUTE_REKLAM
+
     has_info_doviz = "info@doviz.com" in t or "feedback@doviz.com" in t
     has_info_sinemalar = "info@sinemalar.com" in t or "feedback@sinemalar.com" in t
 
@@ -367,7 +396,9 @@ def _finalize_route_tag(
         return normalize_inbox_route_tag(computed)
     if hint == INBOX_ROUTE_FIREBASE and computed in (INBOX_ROUTE_ALL, hint):
         return hint
-    if hint in (INBOX_ROUTE_DOVIZ, INBOX_ROUTE_SINEMALAR) and computed == INBOX_ROUTE_ALL:
+    if hint == INBOX_ROUTE_REKLAM and computed in (INBOX_ROUTE_ALL, hint):
+        return hint
+    if hint in (INBOX_ROUTE_DOVIZ, INBOX_ROUTE_SINEMALAR, INBOX_ROUTE_REKLAM) and computed == INBOX_ROUTE_ALL:
         return hint
     return normalize_inbox_route_tag(computed)
 
@@ -722,9 +753,10 @@ def iter_sync_inbox_all_routes(
     route_rank = {
         INBOX_ROUTE_FIREBASE: 0,
         INBOX_ROUTE_NSTAT: 1,
-        INBOX_ROUTE_SINEMALAR: 2,
-        INBOX_ROUTE_DOVIZ: 3,
-        INBOX_ROUTE_ALL: 4,
+        INBOX_ROUTE_REKLAM: 2,
+        INBOX_ROUTE_SINEMALAR: 3,
+        INBOX_ROUTE_DOVIZ: 4,
+        INBOX_ROUTE_ALL: 5,
     }
     for route, tref in thread_refs:
         tid = str(tref.get("id") or "")

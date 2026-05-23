@@ -1,4 +1,4 @@
-"""Gelen kutusu senkronu ve 5 sekmeli özet e-postası."""
+"""Gelen kutusu senkronu ve 6 sekmeli özet e-postası."""
 
 from __future__ import annotations
 
@@ -17,12 +17,19 @@ from backend.services.inbox_visit_report import is_ziyaret_report_subject, ziyar
 
 logger = logging.getLogger(__name__)
 
-# UI sekmeleriyle aynı sıra: all → doviz → sinemalar → nstat → firebase
+# UI sekmeleriyle aynı sıra: all → doviz → sinemalar → reklam → nstat → firebase
 # (key, başlık, kısa açıklama, vurgu rengi, arka plan)
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
-    ("all", "all", "Doğrudan size gelen mailler (to:me)", "#475569", "#f8fafc"),
+    (
+        "all",
+        "all",
+        "to:me · info@blogcu.com · info@izlesene.com · medya@nokta.com",
+        "#475569",
+        "#f8fafc",
+    ),
     ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
     ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
+    ("reklam", "reklam", "reklam@nokta.com", "#c026d3", "#fdf4ff"),
     ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
     ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
 )
@@ -197,7 +204,7 @@ def _group_unread_threads(unread_threads: list[SupportInboxThread]) -> dict[str,
 
 
 def run_inbox_summary_email(db: Session) -> bool:
-    """Senkron sonrası 5 sekmeli okunmamış özet e-postası gönderir."""
+    """Senkron sonrası 6 sekmeli okunmamış özet e-postası gönderir."""
     if _inbox_summary_email_disabled():
         logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED=false).")
         return False

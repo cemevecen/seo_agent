@@ -699,7 +699,7 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence/sources")
-def get_news_intelligence_sources(hours: int = 24):
+def get_news_intelligence_sources(hours: int = 24, sort: str = "name", order: str = "asc"):
     """Son N saatte haber içeren kaynak adlarını (ve adet) döner — dropdown için."""
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
@@ -718,16 +718,23 @@ def get_news_intelligence_sources(hours: int = 24):
             )
             .filter(NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""]))
             .group_by(NewsIntelligenceItem.source_name)
-            .order_by(NewsIntelligenceItem.source_name)
         )
         if hours_int > 0:
             cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
             query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
 
         rows = query.all()
-        return {
-            "sources": [{"name": name, "count": int(count or 0)} for name, count in rows if name],
-        }
+        sources = [{"name": name, "count": int(count or 0)} for name, count in rows if name]
+
+        sort_key = (sort or "name").strip().lower()
+        order_key = (order or "asc").strip().lower()
+        reverse = order_key == "desc"
+        if sort_key == "count":
+            sources.sort(key=lambda x: (x["count"], x["name"].casefold()), reverse=reverse)
+        else:
+            sources.sort(key=lambda x: x["name"].casefold(), reverse=reverse)
+
+        return {"sources": sources}
 
 
 @app.get("/api/admin/news-intelligence/list")
@@ -745,6 +752,7 @@ def get_news_intelligence(
     """
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
+        from backend.services.news_intelligence import dedupe_news_rows
         from sqlalchemy import desc
         import datetime as _dt
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
@@ -762,6 +770,7 @@ def get_news_intelligence(
             except Exception:
                 pass
             items = query.limit(50).all()
+            items = dedupe_news_rows(items)
         else:
             # Zaman bazlı pencere — varsayılan son 24 saat. 0 veya negatif verilirse limit yok.
             try:
@@ -771,10 +780,22 @@ def get_news_intelligence(
             if hours_int > 0:
                 cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
                 query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
-            # Saf kronolojik sıralama: en güncel önce. Kaynak çeşitliliği interleave'i
-            # kullanıcı isteği üzerine kaldırıldı (zaman sırasını bozuyordu).
             safe_limit = min(limit, 50)
-            items = query.offset(offset).limit(safe_limit).all()
+            collected: list = []
+            cur_offset = offset
+            rounds = 0
+            while len(collected) < safe_limit and rounds < 6:
+                chunk = query.offset(cur_offset).limit(max(safe_limit * 2, 24)).all()
+                if not chunk:
+                    break
+                for row in chunk:
+                    collected.append(row)
+                collected = dedupe_news_rows(collected)
+                cur_offset += len(chunk)
+                rounds += 1
+                if len(chunk) < max(safe_limit * 2, 24):
+                    break
+            items = collected[:safe_limit]
         return {
             "items": [
                 {
@@ -10288,6 +10309,60 @@ def _version_list_from_params(params: dict) -> list[str]:
     return versions
 
 
+# Filtreli (sürüm/tür) partial istekleri aynı BQ setini tekrar çalıştırmasın.
+_CRASH_FETCH_FILTER_CACHE_TTL_S = 10 * 60
+_CRASH_FETCH_FILTER_CACHE: dict[str, tuple[float, dict]] = {}
+_CRASH_FETCH_FILTER_CACHE_LOCK = threading.Lock()
+_CRASH_FETCH_FILTER_LOCKS: dict[str, threading.Lock] = {}
+_CRASH_FETCH_FILTER_LOCKS_GUARD = threading.Lock()
+
+
+def _crash_fetch_filter_cache_key(params: dict) -> str | None:
+    ver_list = sorted(_version_list_from_params(params))
+    error_type = (params.get("error_type") or "").strip().upper() or ""
+    if not ver_list and not error_type:
+        return None
+    plat = (params.get("platform") or "all").strip().lower()
+    return f"{params['product']}:{params['days']}:{plat}:{','.join(ver_list)}:{error_type}"
+
+
+def _crash_fetch_filter_cache_get(key: str) -> dict | None:
+    with _CRASH_FETCH_FILTER_CACHE_LOCK:
+        entry = _CRASH_FETCH_FILTER_CACHE.get(key)
+        if entry and time.time() - entry[0] < _CRASH_FETCH_FILTER_CACHE_TTL_S:
+            return entry[1]
+    return None
+
+
+def _crash_fetch_filter_cache_set(key: str, data: dict) -> None:
+    with _CRASH_FETCH_FILTER_CACHE_LOCK:
+        _CRASH_FETCH_FILTER_CACHE[key] = (time.time(), data)
+        if len(_CRASH_FETCH_FILTER_CACHE) > 80:
+            cutoff = time.time() - _CRASH_FETCH_FILTER_CACHE_TTL_S
+            stale = [k for k, (ts, _) in _CRASH_FETCH_FILTER_CACHE.items() if ts < cutoff]
+            for k in stale:
+                _CRASH_FETCH_FILTER_CACHE.pop(k, None)
+
+
+def clear_crash_fetch_filter_cache(product: str | None = None) -> None:
+    """Manuel yenileme sonrası filtreli partial önbelleğini temizler."""
+    prefix = f"{(product or '').strip().lower()}:" if product else None
+    with _CRASH_FETCH_FILTER_CACHE_LOCK:
+        if prefix:
+            for k in list(_CRASH_FETCH_FILTER_CACHE):
+                if k.startswith(prefix):
+                    _CRASH_FETCH_FILTER_CACHE.pop(k, None)
+        else:
+            _CRASH_FETCH_FILTER_CACHE.clear()
+
+
+def _crash_fetch_filter_lock(key: str) -> threading.Lock:
+    with _CRASH_FETCH_FILTER_LOCKS_GUARD:
+        if key not in _CRASH_FETCH_FILTER_LOCKS:
+            _CRASH_FETCH_FILTER_LOCKS[key] = threading.Lock()
+        return _CRASH_FETCH_FILTER_LOCKS[key]
+
+
 def _refetch_filtered_payload(data: dict, params: dict) -> dict:
     """Sürüm/tür seçiliyken BQ'da filtreli sorgu — tüm görünüm alanları tutarlı olsun."""
     from backend.services import crashlytics_bq as cbq
@@ -10320,39 +10395,83 @@ def _refetch_filtered_payload(data: dict, params: dict) -> dict:
     ver_all: list[tuple[str, list[dict]]] = []
     version_trend_all: list[tuple[str, list[dict]]] = []
 
-    for plat_key, tbl in platforms:
+    def _fetch_filtered_platform(plat_key: str, tbl: str) -> dict[str, Any]:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         bundle = (meta.get("android_package") if plat_key == "android" else meta.get("ios_bundle_id")) or ""
         batch_ref = cbq._batch_table_ref(plat_key, bundle) if bundle else None
+        out: dict[str, Any] = {"platform": plat_key}
+        sub_tasks = {
+            "summary": lambda: ("summary", cbq.query_summary(plat_key, tbl, days, **filt_kw), None),
+            "issues": lambda: ("issues", *cbq.query_top_issues(
+                plat_key, tbl, days, error_type, None, versions=ver_list or None
+            )),
+            "anr": lambda: ("anr", *cbq.query_anr_list(plat_key, tbl, days, versions=ver_list or None)),
+            "trend": lambda: ("trend", *cbq.query_daily_trend(plat_key, tbl, days, **filt_kw)),
+            "devices": lambda: ("devices", *cbq.query_device_breakdown(plat_key, tbl, days, **filt_kw)),
+            "os": lambda: ("os", *cbq.query_os_breakdown(plat_key, tbl, days, **filt_kw)),
+            "process_state": lambda: (
+                "process_state",
+                *cbq.query_process_state_breakdown(plat_key, batch_ref, days, **filt_kw),
+            ),
+            "versions": lambda: ("versions", *cbq.query_version_breakdown(plat_key, tbl, days, **filt_kw)),
+            "version_trend": lambda: (
+                "version_trend",
+                *cbq.query_version_time_series(plat_key, tbl, days, **filt_kw),
+            ),
+        }
+        if error_type and error_type != "ANR":
+            sub_tasks.pop("anr", None)
+        with ThreadPoolExecutor(max_workers=min(8, len(sub_tasks)), thread_name_prefix="crash-filt") as pool:
+            futs = {pool.submit(fn): name for name, fn in sub_tasks.items()}
+            for fut in as_completed(futs):
+                try:
+                    key, payload, err = fut.result()
+                    if key == "summary":
+                        out["summary"] = payload or {}
+                    elif key == "issues":
+                        out["issues"] = payload or []
+                        out["issues_err"] = err
+                    elif key == "anr":
+                        out["anr"] = payload or []
+                        out["anr_err"] = err
+                    else:
+                        out[key] = payload or []
+                        out[f"{key}_err"] = err
+                except Exception as exc:  # noqa: BLE001
+                    name = futs[fut]
+                    out[name] = [] if name != "summary" else {}
+                    if name != "summary":
+                        out[f"{name}_err"] = str(exc)[:200]
+        return out
 
-        summary_by_plat[plat_key] = cbq.query_summary(plat_key, tbl, days, **filt_kw)
-        issues, _ = cbq.query_top_issues(plat_key, tbl, days, error_type, None, versions=ver_list or None)
-        if issues:
-            issues_all.append((plat_key, issues))
-        if not error_type or error_type == "ANR":
-            anr_rows, _ = cbq.query_anr_list(plat_key, tbl, days, versions=ver_list or None)
-            if anr_rows:
-                anr_all.append((plat_key, anr_rows))
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        trend_rows, _ = cbq.query_daily_trend(plat_key, tbl, days, **filt_kw)
-        if trend_rows:
-            trend_all.append((plat_key, trend_rows))
-        device_rows, _ = cbq.query_device_breakdown(plat_key, tbl, days, **filt_kw)
-        if device_rows:
-            device_all.append((plat_key, device_rows))
-        os_rows, _ = cbq.query_os_breakdown(plat_key, tbl, days, **filt_kw)
-        if os_rows:
-            os_all.append((plat_key, os_rows))
-        proc_rows, _ = cbq.query_process_state_breakdown(
-            plat_key, batch_ref, days, **filt_kw
-        )
-        if proc_rows:
-            process_all.append((plat_key, proc_rows))
-        ver_rows, _ = cbq.query_version_breakdown(plat_key, tbl, days, **filt_kw)
-        if ver_rows:
-            ver_all.append((plat_key, ver_rows))
-        vt_rows, _ = cbq.query_version_time_series(plat_key, tbl, days, **filt_kw)
-        if vt_rows:
-            version_trend_all.append((plat_key, vt_rows))
+    with ThreadPoolExecutor(max_workers=min(2, len(platforms)), thread_name_prefix="crash-filt-plat") as pool:
+        plat_futs = {pool.submit(_fetch_filtered_platform, plat_key, tbl): plat_key for plat_key, tbl in platforms}
+        for fut in as_completed(plat_futs):
+            try:
+                res = fut.result()
+                plat_key = res["platform"]
+                summary_by_plat[plat_key] = res.get("summary") or {}
+                if res.get("issues"):
+                    issues_all.append((plat_key, res["issues"]))
+                if res.get("anr"):
+                    anr_all.append((plat_key, res["anr"]))
+                if res.get("trend"):
+                    trend_all.append((plat_key, res["trend"]))
+                if res.get("devices"):
+                    device_all.append((plat_key, res["devices"]))
+                if res.get("os"):
+                    os_all.append((plat_key, res["os"]))
+                if res.get("process_state"):
+                    process_all.append((plat_key, res["process_state"]))
+                if res.get("versions"):
+                    ver_all.append((plat_key, res["versions"]))
+                if res.get("version_trend"):
+                    version_trend_all.append((plat_key, res["version_trend"]))
+            except Exception:  # noqa: BLE001
+                continue
 
     data["summary_by_platform"] = summary_by_plat
     totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
@@ -10413,6 +10532,23 @@ def _refetch_filtered_payload(data: dict, params: dict) -> dict:
 
 def _crash_fetch(params: dict) -> dict:
     """BQ cache + seçili sürüm/tür için filtreli yeniden sorgu (doğru olay sayıları)."""
+    filter_key = _crash_fetch_filter_cache_key(params)
+    if filter_key:
+        cached = _crash_fetch_filter_cache_get(filter_key)
+        if cached:
+            return cached
+        with _crash_fetch_filter_lock(filter_key):
+            cached = _crash_fetch_filter_cache_get(filter_key)
+            if cached:
+                return cached
+            data = _crash_fetch_impl(params)
+            if data and data.get("ok"):
+                _crash_fetch_filter_cache_set(filter_key, data)
+            return data
+    return _crash_fetch_impl(params)
+
+
+def _crash_fetch_impl(params: dict) -> dict:
     from backend.services import crashlytics_bq as cbq
     data = cbq.build_full_payload(
         params["product"],
@@ -10694,6 +10830,7 @@ def api_crash_refresh(product: str = "doviz"):
     if not cbq.any_platform_ready():
         return JSONResponse({"ok": False, "error": "credential_missing"}, status_code=400)
     jid = cbq.run_daily_refresh(pid)
+    clear_crash_fetch_filter_cache(pid)
     if jid == "already_running":
         return JSONResponse({"ok": True, "already_running": True})
     return JSONResponse({"ok": True, "job_id": jid})

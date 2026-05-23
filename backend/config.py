@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     inbox_gmail_query: str = Field(
         default=(
             "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
+            "OR to:info@blogcu.com OR deliveredto:info@blogcu.com "
+            "OR to:info@izlesene.com OR deliveredto:info@izlesene.com "
+            "OR to:medya@nokta.com OR deliveredto:medya@nokta.com "
+            "OR to:reklam@nokta.com OR deliveredto:reklam@nokta.com "
             "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com "
             "OR from:noreply@doviz.com OR to:me)"
         ),

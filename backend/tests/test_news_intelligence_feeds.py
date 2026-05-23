@@ -43,3 +43,26 @@ def test_extract_atom_fields():
     assert link == "https://www.ntv.com.tr/haber"
     assert "2026" in pub
     assert src == "NTV"
+
+
+def test_news_dedup_key_same_headline():
+    a = ni.news_dedup_key("Doviz.com", "Jeopolitik gerilimler kripto varlıkları vurdu")
+    b = ni.news_dedup_key("Doviz.com", "  Jeopolitik   gerilimler kripto varlıkları vurdu  ")
+    assert a == b
+
+
+def test_dedupe_news_rows_keeps_newest_first():
+    class Row:
+        def __init__(self, source_name, headline):
+            self.source_name = source_name
+            self.headline = headline
+
+    rows = [
+        Row("Doviz.com", "Aynı haber"),
+        Row("Doviz.com", "Aynı haber"),
+        Row("Doviz.com", "Başka haber"),
+    ]
+    out = ni.dedupe_news_rows(rows)
+    assert len(out) == 2
+    assert out[0].headline == "Aynı haber"
+    assert out[1].headline == "Başka haber"

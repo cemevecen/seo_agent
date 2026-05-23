@@ -1,7 +1,8 @@
 import gzip
 import logging
+import re
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from sqlalchemy.orm import Session
@@ -10,6 +11,73 @@ from backend.models import NewsIntelligenceItem
 from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_headline_for_dedup(headline: str) -> str:
+    """Aynı haberin farklı URL ile tekrarını yakalamak için başlık normalize."""
+    h = (headline or "").strip().casefold()
+    h = re.sub(r"\s+", " ", h)
+    return h
+
+
+def news_dedup_key(source_name: str, headline: str) -> str:
+    src = (source_name or "").strip().casefold()
+    return f"{src}|{normalize_headline_for_dedup(headline)}"
+
+
+def dedupe_news_rows(items: list) -> list:
+    """published_at desc sıralı listede ilk (en yeni) kaydı tut."""
+    seen: set[str] = set()
+    out: list = []
+    for item in items:
+        src = getattr(item, "source_name", None) or (item.get("source_name") if isinstance(item, dict) else "")
+        head = getattr(item, "headline", None) or (item.get("headline") if isinstance(item, dict) else "")
+        key = news_dedup_key(str(src or ""), str(head or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def headline_exists_for_source(db: Session, source_name: str, headline: str, *, hours: int = 168) -> bool:
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    norm = normalize_headline_for_dedup(headline)
+    rows = (
+        db.query(NewsIntelligenceItem.headline)
+        .filter(
+            NewsIntelligenceItem.source_name == source_name,
+            NewsIntelligenceItem.published_at >= cutoff,
+        )
+        .all()
+    )
+    return any(normalize_headline_for_dedup(h or "") == norm for (h,) in rows)
+
+
+def cleanup_duplicate_news_items(db: Session, *, hours: int = 168) -> int:
+    """Aynı kaynak+başlık tekrarlarını sil; en yeni published_at kalır."""
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    rows = (
+        db.query(NewsIntelligenceItem)
+        .filter(NewsIntelligenceItem.published_at >= cutoff)
+        .order_by(NewsIntelligenceItem.published_at.desc(), NewsIntelligenceItem.id.desc())
+        .all()
+    )
+    seen: set[str] = set()
+    to_delete: list[int] = []
+    for row in rows:
+        key = news_dedup_key(row.source_name, row.headline)
+        if key in seen:
+            to_delete.append(row.id)
+        else:
+            seen.add(key)
+    if not to_delete:
+        return 0
+    db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.id.in_(to_delete)).delete(
+        synchronize_session=False
+    )
+    db.commit()
+    return len(to_delete)
 
 # Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu.
 #
@@ -390,6 +458,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
 
                     if db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first():
                         continue
+                    if headline_exists_for_source(db, source_name, title):
+                        continue
 
                     pending_items.append((title, link, source_name, source_url, description,
                                           display_topic, published_at, image_url))
@@ -445,9 +515,17 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 logger.warning("RSS sync hatası (%s / %s): %s", category, rss_url[:60], e)
                 db.rollback()
 
+    # Yinelenen başlıkları temizle (aynı kaynak, farklı URL)
+    try:
+        dup_removed = cleanup_duplicate_news_items(db)
+        if dup_removed:
+            logger.info("News intelligence: %d yinelenen haber silindi.", dup_removed)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.warning("News intelligence yinelenen temizlik hatası: %s", exc)
+
     # 7 Günlük Temizlik
     try:
-        from datetime import timedelta
         cutoff = datetime.utcnow() - timedelta(hours=168)
         deleted_count = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.published_at < cutoff).delete()
         db.commit()

@@ -47,3 +47,24 @@ def test_unknown_device_sends_alert():
                 )
     mock_alert.assert_called_once()
     assert row.alert_sent is True
+
+
+def test_enrich_active_session_uses_tr_timezone():
+    from datetime import datetime
+
+    utc_dt = datetime(2026, 5, 23, 20, 47, 0)
+    session = {
+        "ip": "78.187.20.15",
+        "device": "Masaüstü / Firefox",
+        "user_agent": "Firefox",
+        "first_seen": utc_dt,
+        "last_seen": utc_dt,
+    }
+    out = aal.enrich_active_session(
+        session,
+        trusted_fps=set(),
+        current_key="abc",
+        session_key="xyz",
+    )
+    assert out["first_seen_tr"] == "23.05.2026 23:47"
+    assert out["last_seen_tr"] == "23.05.2026 23:47"

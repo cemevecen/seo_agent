@@ -39,7 +39,7 @@
           minlength="6"
           autocomplete="new-password"
           inputmode="text"
-          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+          class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
       <div>
@@ -52,7 +52,7 @@
           minlength="6"
           autocomplete="new-password"
           inputmode="text"
-          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+          class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
       <div class="flex items-end gap-2">
@@ -130,7 +130,7 @@
             <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.ip }}</span>
             <span class="text-slate-500 dark:text-slate-400">{{ s.device }}</span>
             <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">
-              İlk: {{ s.first_seen.strftime('%d.%m %H:%M') }} &nbsp;·&nbsp; Son: {{ s.last_seen.strftime('%d.%m %H:%M') }}
+              İlk: {{ s.first_seen_tr }} &nbsp;·&nbsp; Son: {{ s.last_seen_tr }}
             </span>
           </div>
           {% if not s.is_trusted %}
@@ -142,7 +142,7 @@
         </div>
         {% endfor %}
       </div>
-      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son 30 dakikada istek gönderen oturumlar (bellekte). Giriş kayıtları yukarıda kalıcıdır.</p>
+      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son 30 dakikada istek gönderen oturumlar (bellekte). Saatler Türkiye (TR) saatidir. Giriş kayıtları yukarıda kalıcıdır.</p>
     </div>
     {% endif %}
   </div>
@@ -169,7 +169,7 @@
           type="text"
           required
           placeholder="ornek.com"
-          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+          class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
 
@@ -180,7 +180,7 @@
           name="display_name"
           type="text"
           placeholder="Örnek Site"
-          class="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none ring-slate-200 dark:ring-slate-700 focus:ring"
+          class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
 

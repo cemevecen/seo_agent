@@ -1,5 +1,5 @@
 {% if not data or data.ok is sameas false %}
-  <p class="text-xs text-slate-400">Kırılım verisi yok.</p>
+  <p class="text-xs text-slate-400 dark:text-slate-500">Kırılım verisi yok.</p>
 {% else %}
 {% set devices = data.device_breakdown or [] %}
 {% set os_rows = data.os_breakdown or [] %}
@@ -8,7 +8,7 @@
   <div class="bd-bar-row space-y-1">
     <div class="flex items-center justify-between gap-2 text-[11px]">
       <span class="truncate text-slate-600 dark:text-slate-300" title="{% if raw %}{{ raw }} → {% endif %}{{ label }}">{{ label }}</span>
-      <span class="shrink-0 tabular-nums text-slate-500">{{ pct }}% · {{ count }}</span>
+      <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{{ pct }}% · {{ count }}</span>
     </div>
     <div class="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
       <div class="h-full rounded-full {{ color }}" style="width: {{ [pct, 100]|min }}%"></div>
@@ -18,8 +18,8 @@
 <div class="space-y-4" data-crash-breakdown-root>
   <div class="flex flex-wrap gap-1 border-b border-slate-200 pb-2 dark:border-slate-700" data-crash-bd-tabs>
     <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Cihaz</button>
-    <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500">OS</button>
-    <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500">Durum</button>
+    <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">OS</button>
+    <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Durum</button>
   </div>
   <div data-bd-panel="devices" class="space-y-2">
     {% if devices %}

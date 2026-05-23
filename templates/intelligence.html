@@ -4,12 +4,20 @@
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
   <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-400">NEWS</h1>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">NEWS</h1>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <select id="rt-intel-source-filter"
         class="max-w-[min(100%,14rem)] rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-zinc-900 dark:text-slate-100">
         <option value="">Tüm Kaynaklar</option>
+      </select>
+      <select id="rt-intel-source-sort"
+        title="Kaynak sıralama"
+        class="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-zinc-900 dark:text-slate-100">
+        <option value="name:asc">Kaynak A→Z</option>
+        <option value="name:desc">Kaynak Z→A</option>
+        <option value="count:desc">Adet çok→az</option>
+        <option value="count:asc">Adet az→çok</option>
       </select>
       <span id="rt-intel-last-update" class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums"></span>
       <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
@@ -90,6 +98,39 @@
     let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
     let _autoRefreshTimer = null;
     let _intelSourceFilter = '';
+    let _intelSourceSort = 'name:asc';
+    const _intelSeenKeys = new Set();
+
+    function _intelDedupKey(item) {
+      const src = (item.source_name || '').trim().toLowerCase();
+      const head = (item.headline || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      return src + '|' + head;
+    }
+
+    function _intelFilterUniqueItems(items) {
+      return (items || []).filter(item => {
+        const key = _intelDedupKey(item);
+        if (_intelSeenKeys.has(key)) return false;
+        _intelSeenKeys.add(key);
+        return true;
+      });
+    }
+
+    function _intelSortFromUrl() {
+      try {
+        return new URLSearchParams(window.location.search).get('source_sort') || 'name:asc';
+      } catch (e) {
+        return 'name:asc';
+      }
+    }
+
+    function _parseIntelSourceSort(raw) {
+      const v = (raw || 'name:asc').trim();
+      const [sort, order] = v.split(':');
+      const sortKey = sort === 'count' ? 'count' : 'name';
+      const orderKey = order === 'desc' ? 'desc' : 'asc';
+      return { sort: sortKey, order: orderKey, value: `${sortKey}:${orderKey}` };
+    }
 
     function _intelSourceFromUrl() {
       try {
@@ -117,6 +158,7 @@
       _intelOffset = 0;
       _intelFinished = false;
       _latestPublishedAt = null;
+      _intelSeenKeys.clear();
       document.getElementById('rt-intel-list').innerHTML = '';
     }
 
@@ -127,7 +169,9 @@
     }
 
     function rtLoadIntelSources() {
-      return fetch('/api/admin/news-intelligence/sources')
+      const parsed = _parseIntelSourceSort(_intelSourceSort);
+      const qs = `sort=${encodeURIComponent(parsed.sort)}&order=${encodeURIComponent(parsed.order)}`;
+      return fetch('/api/admin/news-intelligence/sources?' + qs)
         .then(r => r.json())
         .then(data => {
           const sel = document.getElementById('rt-intel-source-filter');
@@ -153,6 +197,19 @@
           sel.value = current;
         })
         .catch(() => {});
+    }
+
+    function rtOnIntelSourceSortChange() {
+      const sel = document.getElementById('rt-intel-source-sort');
+      _intelSourceSort = sel ? sel.value : 'name:asc';
+      const parsed = _parseIntelSourceSort(_intelSourceSort);
+      try {
+        const params = new URLSearchParams(window.location.search);
+        params.set('source_sort', parsed.value);
+        const qs = params.toString();
+        window.history.replaceState({}, '', qs ? ('?' + qs) : window.location.pathname);
+      } catch (_) {}
+      rtLoadIntelSources();
     }
 
     function rtOnIntelSourceChange() {
@@ -208,7 +265,7 @@
         }
       } catch(e) {}
       const newBadge = isNew
-        ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px;margin-left:6px;">YENİ</span>`
+        ? '<span class="ml-1.5 inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">YENİ</span>'
         : '';
 
       // Açıklama (description): HTML tag'lerini sıyır, &nbsp; vb. kodları normalize et,
@@ -236,7 +293,7 @@
             <span class="rt-source-name text-[10px] font-bold text-slate-400 truncate uppercase tracking-wider">${item.source_name}</span>
             ${newBadge}
           </div>
-          <span class="rt-time text-[10px] text-slate-300 dark:text-zinc-600 shrink-0">${timeStr}</span>
+          <span class="rt-time text-[10px] text-slate-500 dark:text-zinc-500 shrink-0">${timeStr}</span>
         </div>
         <div class="min-w-0">
           <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-5">
@@ -258,20 +315,26 @@
         .then(data => {
           _intelLoading = false;
           document.getElementById('rt-intel-loading').classList.add('hidden');
-          const items = data.items || [];
-          if(items.length < _intelLimit) _intelFinished = true;
-          if(items.length === 0 && _intelOffset === 0) {
+          const rawItems = data.items || [];
+          const items = _intelFilterUniqueItems(rawItems);
+          if (_intelOffset === 0 && items.length > 0 && items[0].published_at) {
+            _latestPublishedAt = items[0].published_at;
+          }
+          _intelOffset += rawItems.length;
+          if (rawItems.length < _intelLimit) _intelFinished = true;
+          if (items.length === 0 && rawItems.length > 0 && !_intelFinished) {
+            _intelLoading = false;
+            document.getElementById('rt-intel-loading').classList.add('hidden');
+            return rtFetchNewsIntelligence();
+          }
+          if (items.length === 0 && _intelFinished && document.getElementById('rt-intel-list').children.length === 0) {
             const emptyMsg = _intelSourceFilter
               ? `«${_intelSourceFilter}» kaynağında son 24 saatte haber bulunamadı.`
               : 'Son 24 saatte haber bulunamadı.';
-            document.getElementById('rt-intel-list').innerHTML = `<div class="col-span-full py-12 text-center text-slate-500">${emptyMsg}</div>`;
+            document.getElementById('rt-intel-list').innerHTML = `<div class="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">${emptyMsg}</div>`;
             return;
           }
-          if(_intelOffset === 0 && items.length > 0 && items[0].published_at) {
-            _latestPublishedAt = items[0].published_at;
-          }
           document.getElementById('rt-intel-list').insertAdjacentHTML('beforeend', items.map(i => _buildNewsCard(i, false)).join(''));
-          _intelOffset += items.length;
         })
         .catch(() => { _intelLoading = false; document.getElementById('rt-intel-loading').classList.add('hidden'); });
     }
@@ -297,7 +360,7 @@
         fetch(url)
         .then(r => r.json())
         .then(data => {
-          const items = data.items || [];
+          const items = _intelFilterUniqueItems(data.items || []);
           if(items.length === 0) return;
           const listEl = document.getElementById('rt-intel-list');
           const html = items.map(i => _buildNewsCard(i, true)).join('');
@@ -323,6 +386,12 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       _setIntelSourceFilter(_intelSourceFromUrl(), { updateUrl: false });
+      _intelSourceSort = _intelSortFromUrl();
+      const sortSel = document.getElementById('rt-intel-source-sort');
+      if (sortSel) {
+        sortSel.value = _parseIntelSourceSort(_intelSourceSort).value;
+        sortSel.addEventListener('change', rtOnIntelSourceSortChange);
+      }
       const srcSel = document.getElementById('rt-intel-source-filter');
       if (srcSel) srcSel.addEventListener('change', rtOnIntelSourceChange);
       rtLoadIntelSources().finally(() => rtAutoFillInitial());

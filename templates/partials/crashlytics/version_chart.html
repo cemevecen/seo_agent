@@ -1,9 +1,9 @@
 {% if not data or data.ok is sameas false %}
-  <p class="text-xs text-slate-400">Versiyon grafiği yok.</p>
+  <p class="text-xs text-slate-400 dark:text-slate-500">Versiyon grafiği yok.</p>
 {% else %}
 {% set rows = data.version_trend or [] %}
 {% if not rows %}
-  <p class="text-[11px] text-slate-400 py-4 text-center">Seçili dönemde versiyon × zaman verisi yok.</p>
+  <p class="text-[11px] text-slate-400 dark:text-slate-500 py-4 text-center">Seçili dönemde versiyon × zaman verisi yok.</p>
 {% else %}
 {% set versions = [] %}
 {% for r in rows %}
@@ -43,7 +43,7 @@
         {% endif %}
       {% endfor %}
     </svg>
-    <div class="mt-1 flex justify-between text-[9px] tabular-nums text-slate-400">
+    <div class="mt-1 flex justify-between text-[9px] tabular-nums text-slate-400 dark:text-slate-500">
       {% for d in dates %}
         {% if loop.index0 == 0 or loop.index0 == dates|length - 1 or loop.index0 == (dates|length // 2) %}
           <span>{{ d[5:] if d|length > 5 else d }}</span>

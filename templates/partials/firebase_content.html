@@ -27,6 +27,14 @@
     #app-crashlytics-root .crash-filter-scroll > .inline-flex {
       flex-wrap: nowrap;
     }
+    #app-crashlytics-root .crash-platform-btn,
+    #app-crashlytics-root .crash-days-btn,
+    #app-crashlytics-root .crash-type-btn,
+    #app-crashlytics-root .crash-product-btn,
+    #app-crashlytics-root .crash-version-chip,
+    #app-crashlytics-root .crash-bd-tab {
+      min-height: 36px;
+    }
     #crash-version-mobile-panel {
       max-height: min(55vh, 22rem);
     }
@@ -169,7 +177,7 @@
         <span id="crash-progress-step" class="text-[11px] text-slate-500 dark:text-slate-400">Yükleniyor…</span>
         <span id="crash-progress-pct" class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">0%</span>
       </div>
-      <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div id="crash-progress-bar"
           class="h-full rounded-full bg-rose-500/80 transition-all duration-300 dark:bg-rose-400/70"
           style="width:0%"></div>
@@ -278,12 +286,12 @@
           <p id="crash-detail-title" class="truncate text-sm font-bold text-slate-800 dark:text-slate-100">—</p>
           <p id="crash-detail-meta" class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">—</p>
         </div>
-        <button type="button" id="crash-detail-close" class="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+        <button type="button" id="crash-detail-close" class="rounded-md p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
         </button>
       </div>
       <div id="crash-detail-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:max-h-[70vh] sm:flex-none sm:p-5">
-        <div class="flex items-center gap-2 py-8 text-sm text-slate-400">
+        <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500">
           <span class="animate-spin inline-block">⟳</span> Detay yükleniyor…
         </div>
       </div>
@@ -522,9 +530,155 @@
     renderVersionChips();
   }
 
-  function setSecLoading(name) {
+  var SECTION_LABELS = {
+    summary: "Özet",
+    "version-chart": "Versiyon trendi",
+    breakdown: "Dağılım",
+    crashes: "Crash'ler",
+    anr: "ANR",
+    versions: "Versiyonlar"
+  };
+
+  function escapeHtml(s) {
+    return (s == null ? "" : String(s)).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  function secLoadingHtml(name, pct, step) {
+    pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    var text = step || ((SECTION_LABELS[name] || name) + " yükleniyor…");
+    return '<div class="crash-sec-loading space-y-2.5 py-4" data-sec="' + name + '">'
+      + '<div class="flex items-center justify-between gap-3">'
+      + '<span class="min-w-0 flex-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400" data-sec-step>' + escapeHtml(text) + '</span>'
+      + '<span class="shrink-0 text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-sec-pct>' + pct + '%</span>'
+      + '</div>'
+      + '<div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">'
+      + '<div class="crash-sec-progress-bar h-full rounded-full bg-rose-500/80 transition-all duration-300 dark:bg-rose-400/70" style="width:' + pct + '%"></div>'
+      + '</div></div>';
+  }
+
+  var _load = {
+    active: false,
+    phase: "sections",
+    pending: {},
+    done: 0,
+    bq: { running: false, pct: 0, step: "" },
+    onBqComplete: null
+  };
+
+  function resetLoadPending() {
+    _load.pending = {};
+    _load.done = 0;
+    SECTIONS.forEach(function (n) { _load.pending[n] = true; });
+  }
+
+  function setSecLoading(name, pct, step) {
     var box = document.getElementById(SEC_IDS[name]);
-    if (box) box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>';
+    if (!box) return;
+    if (box.querySelector(".crash-sec-loading")) {
+      updateSecProgress(name, pct, step);
+      return;
+    }
+    box.innerHTML = secLoadingHtml(name, pct, step);
+  }
+
+  function updateSecProgress(name, pct, step) {
+    var box = document.getElementById(SEC_IDS[name]);
+    if (!box) return;
+    var wrap = box.querySelector(".crash-sec-loading");
+    if (!wrap) return;
+    pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    var bar = wrap.querySelector(".crash-sec-progress-bar");
+    var stepEl = wrap.querySelector("[data-sec-step]");
+    var pctEl = wrap.querySelector("[data-sec-pct]");
+    if (bar) bar.style.width = pct + "%";
+    if (stepEl && step) stepEl.textContent = step;
+    if (pctEl) pctEl.textContent = pct + "%";
+  }
+
+  function applyCombinedProgress() {
+    var total = SECTIONS.length;
+    var done = _load.done;
+    var secPct = total ? Math.round((done / total) * 100) : 0;
+    var bq = _load.bq;
+    var pct, step;
+    if (bq.running || (_load.phase === "bq" && bq.pct < 100 && done === 0)) {
+      pct = bq.pct || 0;
+      step = bq.step || "BigQuery sorgulanıyor…";
+    } else if (done < total) {
+      pct = Math.max(secPct, bq.pct >= 100 ? secPct : (bq.pct || 0));
+      var next = SECTIONS.find(function (n) { return _load.pending[n]; });
+      var nextLabel = next ? SECTION_LABELS[next] : "Bölüm";
+      step = (bq.pct >= 100 && bq.step ? bq.step + " · " : "")
+        + nextLabel + " (" + done + "/" + total + ")";
+    } else {
+      pct = 100;
+      step = "Tamamlandı";
+    }
+    setProgress(pct, step);
+    SECTIONS.forEach(function (n) {
+      if (_load.pending[n]) updateSecProgress(n, pct, step);
+    });
+  }
+
+  function onSectionLoaded(name) {
+    if (_load.pending[name]) {
+      _load.pending[name] = false;
+      _load.done++;
+      updateSecProgress(name, 100, (SECTION_LABELS[name] || name) + " hazır");
+    }
+    applyCombinedProgress();
+    tryFinishLoadCycle();
+  }
+
+  function tryFinishLoadCycle() {
+    if (!_load.active) return;
+    if (_load.phase === "bq") return;
+    if (SECTIONS.some(function (n) { return _load.pending[n]; })) return;
+    _load.active = false;
+    stopPoll();
+    setProgress(100, "Tamamlandı");
+    setTimeout(function () { showProgress(false); }, 450);
+  }
+
+  function beginLoadCycle(opts) {
+    opts = opts || {};
+    stopPoll();
+    _load.active = true;
+    _load.phase = opts.phase || "sections";
+    _load.onBqComplete = opts.onBqComplete || null;
+    resetLoadPending();
+    _load.bq = { running: false, pct: 0, step: "" };
+    showProgress(true);
+    SECTIONS.forEach(function (n) { setSecLoading(n, 0, (SECTION_LABELS[n] || n) + " bekliyor…"); });
+    applyCombinedProgress();
+    crashState.pollTimer = setInterval(pollProgressTick, 600);
+    pollProgressTick();
+  }
+
+  function pollProgressTick() {
+    if (!_load.active) return;
+    fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        _load.bq = {
+          running: !!j.running,
+          pct: j.pct || 0,
+          step: j.step || "",
+          error: j.error || null
+        };
+        if (_load.phase === "bq" && j.done) {
+          _load.phase = "sections";
+          if (_load.onBqComplete) {
+            var cb = _load.onBqComplete;
+            _load.onBqComplete = null;
+            cb();
+          }
+        }
+        applyCombinedProgress();
+      })
+      .catch(function () {});
   }
 
   // Her section için aktif AbortController — eski in-flight isteği iptal etmek için
@@ -536,15 +690,17 @@
     if (crashState.htmlCache[key] && !opts.force) {
       applySectionHtml(name, crashState.htmlCache[key]);
       if (name === "summary") ingestFilterVersionsMeta(document.getElementById(SEC_IDS.summary));
+      onSectionLoaded(name);
       return;
     }
     // Önceki uçuştaki isteği iptal et
     if (_abortCtrls[name]) { try { _abortCtrls[name].abort(); } catch (_) {} }
     var box = document.getElementById(SEC_IDS[name]);
     if (!box) return;
+    if (!_load.active) beginLoadCycle();
     crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
     var seq = crashState.seqs[name];
-    if (!opts.silent) setSecLoading(name);
+    if (!opts.silent) setSecLoading(name, _load.bq.pct || 0, _load.bq.step || ((SECTION_LABELS[name] || name) + " sorgulanıyor…"));
     var ctrl = new AbortController();
     _abortCtrls[name] = ctrl;
     var timer = setTimeout(function () { ctrl.abort(); }, 35000);
@@ -562,13 +718,22 @@
         crashState.htmlCache[key] = html;
         applySectionHtml(name, html);
         if (name === "summary") ingestFilterVersionsMeta(box);
+        onSectionLoaded(name);
       })
       .catch(function (e) {
         if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
         if (!box || crashState.seqs[name] !== seq) return;
         if (e.name === "AbortError") return;
+        onSectionLoaded(name);
         if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
       });
+  }
+
+  function loadAllSections(opts) {
+    opts = opts || {};
+    if (!opts.skipBeginCycle && !_load.active) beginLoadCycle({ phase: opts.bqPhase ? "bq" : "sections" });
+    SECTIONS.forEach(function (n) { loadSection(n, opts); });
+    if (!opts.skipPrefetch) setTimeout(prefetchPlatformCache, 400);
   }
 
   function applySectionHtml(name, html) {
@@ -579,12 +744,6 @@
     wireBreakdownTabs(box);
     wireBreakdownExpand(box);
     if (name === "versions") populateVersionChips(box);
-  }
-
-  function loadAllSections(opts) {
-    opts = opts || {};
-    SECTIONS.forEach(function (n) { loadSection(n, opts); });
-    if (!opts.skipPrefetch) setTimeout(prefetchPlatformCache, 400);
   }
 
   function loadPlatformSections() {
@@ -609,7 +768,9 @@
   // Filtre tipine göre hangi section'ların etkilendiğini bilir (hepsi yenilenir).
   var _pendingFilterType = "all";
   function applyFilterChange(scope) {
-    clearHtmlCache();
+    if (scope === "platform" || scope === "days") {
+      clearHtmlCache();
+    }
     syncBtns();
     if (scope === "platform" || scope === "days") {
       crashState.versions = [];
@@ -617,8 +778,11 @@
       renderVersionChips();
     }
     var silent = scope === "platform";
-    SECTIONS.forEach(function (n) { loadSection(n, { force: true, silent: silent }); });
-    if (scope !== "platform") prefetchPlatformCache();
+    var forceReload = scope === "platform" || scope === "days";
+    beginLoadCycle({ phase: "sections" });
+    SECTIONS.forEach(function (n) { loadSection(n, { force: forceReload, silent: silent }); });
+    var hasVersionFilter = (crashState.versions || []).length > 0;
+    if (scope !== "platform" && !hasVersionFilter) prefetchPlatformCache();
   }
 
   function loadDebounced(filterType) {
@@ -633,7 +797,7 @@
       _pendingFilterType = "all";
       crashState.debounceTimer = null;
       applyFilterChange(ft);
-    }, filterType === "platform" ? 0 : 120);
+    }, filterType === "platform" ? 0 : (filterType === "version" || filterType === "type" ? 60 : 120));
   }
 
   // ── Versiyon filtresi ──
@@ -822,19 +986,13 @@
     if (crashState.pollTimer) { clearInterval(crashState.pollTimer); crashState.pollTimer = null; }
   }
 
-  function startPoll() {
-    stopPoll();
-    showProgress(true);
-    setProgress(5, "BigQuery bağlantısı kuruluyor…");
-    crashState.pollTimer = setInterval(function () {
-      fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          setProgress(j.pct || 0, j.step || "");
-          if (j.done) { stopPoll(); showProgress(false); loadAllSections(); }
-        })
-        .catch(stopPoll);
-    }, 800);
+  function startPoll(onBqComplete) {
+    beginLoadCycle({
+      phase: "bq",
+      onBqComplete: onBqComplete || function () {
+        loadAllSections({ skipBeginCycle: true, force: true });
+      }
+    });
   }
 
   // ── Breakdown sekmeleri + genişlet ──
@@ -870,7 +1028,6 @@
         var id = btn.getAttribute("data-bd-tab");
         tabs.querySelectorAll(".crash-bd-tab").forEach(function (b) {
           setBtnActive(b, b === btn);
-          if (b !== btn) { b.classList.remove("bg-slate-900", "text-white", "dark:bg-slate-600"); b.classList.add("text-slate-500"); }
         });
         root.querySelectorAll("[data-bd-panel]").forEach(function (p) {
           p.classList.toggle("hidden", p.getAttribute("data-bd-panel") !== id);
@@ -1028,12 +1185,6 @@
       .catch(function () { if (bodyEl) bodyEl.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">Detay yüklenemedi.</p>'; });
   }
 
-  function escapeHtml(s) {
-    return (s == null ? "" : String(s)).replace(/[&<>"']/g, function (c) {
-      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
-    });
-  }
-
   function renderIssueDetail(j) {
     if (!j || j.ok === false) return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">' + escapeHtml((j && (j.error || j.message)) || "Detay alınamadı.") + '</p>';
     if (j.filter_empty) {
@@ -1066,7 +1217,7 @@
           var p = x.split("|"); return '<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + p[0] + '</p><p class="mt-0.5 text-base font-black tabular-nums text-slate-800 dark:text-slate-100">' + p[1] + '</p></div>';
         }).join("") + '</div>'
       + '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük trend</p>'
-      + (trend.length ? '<div class="flex items-end gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">' + trendBars + '</div>' : '<p class="py-2 text-[11px] text-slate-400">Trend verisi yok.</p>')
+      + (trend.length ? '<div class="flex items-end gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">' + trendBars + '</div>' : '<p class="py-2 text-[11px] text-slate-400 dark:text-slate-500">Trend verisi yok.</p>')
       + '</div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
       + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon kırılımı</p>'
       + table(j.versions, ["Versiyon", "Olay", "Kullanıcı"], function (r) { return ['<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono dark:bg-slate-800">' + escapeHtml(r.app_version) + '</span>', '<span class="tabular-nums font-semibold">' + r.event_count + '</span>', '<span class="tabular-nums">' + r.affected_users + '</span>']; }, "Versiyon verisi yok.")
@@ -1089,11 +1240,11 @@
     }
     var events = j.events || [];
     if (events.length) {
-      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Olaylar (' + events.length + ')</p><div class="max-h-52 space-y-1 overflow-y-auto">';
+      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Olaylar (' + events.length + ')</p><div class="max-h-52 space-y-1 overflow-y-auto">';
       events.slice(0, 20).forEach(function (ev) {
-        html += '<button type="button" class="crash-ev-btn block w-full rounded border border-slate-200 px-2 py-1 text-left text-[11px] dark:border-slate-700" data-ev-ts="' + escapeHtml(ev.event_timestamp || '') + '">' + escapeHtml((ev.event_timestamp || '').replace("T", " ").slice(0, 19)) + ' · ' + escapeHtml(ev.marketing_name || ev.device_model || '') + '</button>';
+        html += '<button type="button" class="crash-ev-btn block w-full rounded border border-slate-200 bg-white px-2.5 py-2 text-left text-[11px] text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800" data-ev-ts="' + escapeHtml(ev.event_timestamp || '') + '">' + escapeHtml((ev.event_timestamp || '').replace("T", " ").slice(0, 19)) + ' · ' + escapeHtml(ev.marketing_name || ev.device_model || '') + '</button>';
       });
-      html += '</div><div id="crash-ev-detail" class="mt-2 text-[11px] text-slate-500">Olay seçin.</div></div>';
+      html += '</div><div id="crash-ev-detail" class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Olay seçin.</div></div>';
     }
     html += '<div class="mt-4"><button type="button" id="crash-ai-summary-btn" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white">AI özet</button><div id="crash-ai-summary-out" class="mt-2 text-sm"></div></div>';
     if (j.error) html += '<p class="mt-3 text-[11px] text-amber-700 dark:text-amber-400">⚠ ' + escapeHtml(j.error) + '</p>';
@@ -1130,8 +1281,14 @@
     fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
       { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j.already_running) { loadAllSections(); return; } startPoll(); })
-      .catch(function () { loadAllSections(); })
+      .then(function (j) {
+        if (j.already_running) {
+          loadAllSections({ force: true });
+          return;
+        }
+        startPoll(function () { loadAllSections({ skipBeginCycle: true, force: true }); });
+      })
+      .catch(function () { loadAllSections({ force: true }); })
       .finally(function () { if (btn) btn.disabled = false; if (icon) icon.textContent = "↺"; });
   }
 
@@ -1254,11 +1411,13 @@
       if (j.cache_warm) {
         loadAllSections();
       } else if (j.running) {
-        startPoll();
+        startPoll(function () { loadAllSections({ skipBeginCycle: true }); });
       } else {
         fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
           { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
-          .then(function () { startPoll(); })
+          .then(function () {
+            startPoll(function () { loadAllSections({ skipBeginCycle: true }); });
+          })
           .catch(function () { loadAllSections(); });
       }
     })

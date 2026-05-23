@@ -246,9 +246,13 @@ def enrich_active_session(
     ua = session.get("user_agent") or ""
     ip = session.get("ip") or ""
     fp = device_fingerprint(ip, ua)
+    first_seen = session.get("first_seen")
+    last_seen = session.get("last_seen")
     return {
         **session,
         "fingerprint": fp,
         "is_trusted": fp in trusted_fps,
         "is_current": session_key == current_key,
+        "first_seen_tr": format_tr(first_seen if isinstance(first_seen, datetime) else None),
+        "last_seen_tr": format_tr(last_seen if isinstance(last_seen, datetime) else None),
     }

@@ -1,6 +1,10 @@
 """Crashlytics sürüm filtresi — SQL ve bellek içi filtre tutarlılığı."""
 
-from backend.main import _refetch_filtered_payload, _version_list_from_params
+from backend.main import (
+    _crash_fetch_filter_cache_key,
+    _refetch_filtered_payload,
+    _version_list_from_params,
+)
 from backend.services.crashlytics_bq import (
     _event_filters_sql,
     _pick_higher_version,
@@ -42,3 +46,17 @@ def test_refetch_filtered_payload_no_filters_passthrough():
     base = {"ok": True, "days": 7, "issues": [{"issue_id": "a", "event_count": 10}]}
     out = _refetch_filtered_payload(base, {"product": "doviz", "platform": "all"})
     assert out is base or out.get("issues") == base.get("issues")
+
+
+def test_crash_fetch_filter_cache_key_includes_versions_and_type():
+    key = _crash_fetch_filter_cache_key(
+        {
+            "product": "doviz",
+            "days": 7,
+            "platform": "all",
+            "versions": ["8.12.4"],
+            "error_type": "FATAL",
+        }
+    )
+    assert key == "doviz:7:all:8.12.4:FATAL"
+    assert _crash_fetch_filter_cache_key({"product": "doviz", "platform": "all", "days": 7}) is None

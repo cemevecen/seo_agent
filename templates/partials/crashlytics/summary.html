@@ -188,7 +188,7 @@
 
   {# Platform bazlı kırılım + her platform için mini sparkline #}
   {% if data.summary_by_platform %}
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3">
       {% for plat, s in data.summary_by_platform.items() %}
         {% set cf_p = data.crash_free_by_platform.get(plat) %}
         {% set plat_trend = trend_by_plat.get(plat) or [] %}
@@ -200,8 +200,8 @@
           {% set _ = p_anr.append(d.get('anr', 0) or 0) %}
           {% set _ = p_nf.append(d.get('non_fatal', 0) or 0) %}
         {% endfor %}
-        <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 dark:bg-slate-900/50">
-          <div class="flex items-center justify-between">
+        <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 sm:p-4 dark:bg-slate-900/50">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">
               <span class="plat-badge plat-badge--lg {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}">
                 <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
@@ -213,21 +213,27 @@
             {% endif %}
             {% if s.affected_users %}<span class="text-[10px] tabular-nums text-slate-400">{{ s.affected_users }} kul.</span>{% endif %}
           </div>
-          <div class="mt-3 grid grid-cols-3 gap-3">
-            <div class="text-center">
-              <p class="text-base font-bold tabular-nums text-rose-600 dark:text-rose-300/85">{{ s.fatal or 0 }}</p>
-              <p class="text-[9px] uppercase text-slate-400">Fatal</p>
-              <div class="mt-1 opacity-90">{{ spark(p_fatal, 'p-' ~ plat ~ '-f', 'rose') }}</div>
+          <div class="mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
+            <div class="flex min-w-0 flex-col rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-950/60 dark:bg-rose-950/20">
+              <div class="flex flex-1 flex-col items-center justify-center">
+                <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300/85">{{ s.fatal or 0 }}</p>
+                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400/70">Fatal</p>
+              </div>
+              <div class="mt-2 opacity-90">{{ spark(p_fatal, 'p-' ~ plat ~ '-f', 'rose') }}</div>
             </div>
-            <div class="text-center">
-              <p class="text-base font-bold tabular-nums text-amber-600 dark:text-amber-300/85">{{ s.anr or 0 }}</p>
-              <p class="text-[9px] uppercase text-slate-400">ANR</p>
-              <div class="mt-1 opacity-90">{{ spark(p_anr, 'p-' ~ plat ~ '-a', 'amber') }}</div>
+            <div class="flex min-w-0 flex-col rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-950/60 dark:bg-amber-950/20">
+              <div class="flex flex-1 flex-col items-center justify-center">
+                <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300/85">{{ s.anr or 0 }}</p>
+                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400/70">ANR</p>
+              </div>
+              <div class="mt-2 opacity-90">{{ spark(p_anr, 'p-' ~ plat ~ '-a', 'amber') }}</div>
             </div>
-            <div class="text-center">
-              <p class="text-base font-bold tabular-nums text-slate-600 dark:text-slate-300">{{ s.non_fatal or 0 }}</p>
-              <p class="text-[9px] uppercase text-slate-400">Non-Fatal</p>
-              <div class="mt-1 opacity-90">{{ spark(p_nf, 'p-' ~ plat ~ '-n', 'slate') }}</div>
+            <div class="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+              <div class="flex flex-1 flex-col items-center justify-center">
+                <p class="text-2xl font-black tabular-nums text-slate-700 dark:text-slate-300">{{ s.non_fatal or 0 }}</p>
+                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</p>
+              </div>
+              <div class="mt-2 opacity-90">{{ spark(p_nf, 'p-' ~ plat ~ '-n', 'slate') }}</div>
             </div>
           </div>
         </div>

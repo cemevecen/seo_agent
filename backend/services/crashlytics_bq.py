@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 BIGQUERY_SCOPES = ("https://www.googleapis.com/auth/bigquery",)
 QUERY_TIMEOUT_S = 25.0          # BigQuery job timeout (saniye)
 BYTES_BUDGET = 200_000_000      # Sorgu başına 200 MB limit
-MAX_CONCURRENT = 6              # Eş zamanlı max sorgu sayısı (paralel platform sorguları için)
+MAX_CONCURRENT = 10             # Eş zamanlı max sorgu (filtreli partial paralel alt-sorgular)
 CACHE_TTL_S = 4 * 3600         # 4 saat fresh cache
 CACHE_STALE_TTL_S = 24 * 3600  # 24 saat stale — anında sun, arka planda yenile
 
@@ -520,6 +520,16 @@ def _job_new(product: str) -> str:
             for k, _ in oldest[:5]:
                 del _JOBS[k]
     return jid
+
+
+def _active_job_id(product: str) -> str | None:
+    """Ürün için devam eden BQ job id (paralel section istekleri aynı ilerlemeyi paylaşır)."""
+    pid = (product or "doviz").strip().lower()
+    with _JOB_LOCK:
+        running = [(jid, v) for jid, v in _JOBS.items() if v.get("product") == pid and not v.get("done")]
+        if running:
+            return sorted(running, key=lambda x: -x[1]["ts"])[0][0]
+    return None
 
 
 def _job_update(jid: str, pct: int, step: str) -> None:
@@ -2221,6 +2231,11 @@ def build_full_payload(
                 }
             return {"ok": False, "message": "Seçili platform için credential bulunamadı."}
 
+        if jid is None:
+            jid = _active_job_id(pid)
+        if jid is None:
+            jid = _job_new(pid)
+
         def _step(pct: int, msg: str) -> None:
             if jid:
                 _job_update(jid, pct, msg)
@@ -2485,6 +2500,8 @@ def build_full_payload(
         if not has_access_error:
             _cache_set(cache_key, result)
     _step(100, "Tamamlandı")
+    if jid:
+        _job_done(jid)
     return result
 
 
