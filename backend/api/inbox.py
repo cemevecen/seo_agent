@@ -329,7 +329,11 @@ def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
 @limiter.limit("30/minute")
 def inbox_sync_post(request: Request, db: Session = Depends(get_db)):
     try:
-        out = inbox_sync.sync_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
+        out = inbox_sync.sync_inbox_threads(
+            db,
+            max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS,
+            lookback_days=90,
+        )
         return JSONResponse(out)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -347,7 +351,9 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     def ndjson_iter():
         try:
             for evt in inbox_sync.iter_sync_inbox_all_routes(
-                db, max_threads_per_route=inbox_sync.INBOX_SYNC_MAX_THREADS
+                db,
+                max_threads_per_route=inbox_sync.INBOX_SYNC_MAX_THREADS,
+                lookback_days=90,
             ):
                 yield (json.dumps(evt, ensure_ascii=False) + "\n").encode("utf-8")
         except RuntimeError as exc:

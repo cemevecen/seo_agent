@@ -113,11 +113,14 @@ def _normalize_inbox_gmail_query(
     *,
     lookback_days: int | None = 60,
     after_unix: int | None = None,
+    merge_global_clauses: bool = True,
 ) -> str:
     q = (raw or "").strip()
     if not q:
         q = _default_inbox_gmail_query()
-    q = _ensure_inbox_query_clauses(q)
+        merge_global_clauses = True
+    if merge_global_clauses:
+        q = _ensure_inbox_query_clauses(q)
     q = re.sub(r"\bis:unread\b", "", q, flags=re.IGNORECASE).strip()
     q = re.sub(r"\s{2,}", " ", q).strip()
     if after_unix is not None and after_unix > 0:
@@ -538,10 +541,15 @@ def iter_sync_inbox_all_routes(
     service = _gmail_service(creds)
 
     thread_refs: list[tuple[str, dict[str, Any]]] = []
-    seen: set[str] = set()
     routes = list(INBOX_ROUTE_GMAIL_QUERIES.items())
+    route_counts: dict[str, int] = {}
     for ri, (route, base_q) in enumerate(routes):
-        q = _normalize_inbox_gmail_query(base_q, lookback_days=lookback_days, after_unix=after_unix)
+        q = _normalize_inbox_gmail_query(
+            base_q,
+            lookback_days=lookback_days,
+            after_unix=after_unix,
+            merge_global_clauses=False,
+        )
         yield {
             "type": "phase",
             "phase": "listing",
@@ -560,23 +568,36 @@ def iter_sync_inbox_all_routes(
         except HttpError as exc:
             msg = _gmail_http_error_message(exc)
             LOGGER.warning("Inbox sync route=%s list failed: %s", route, msg)
+            route_counts[route] = 0
             continue
+        n_route = 0
         for tref in lst.get("threads") or []:
             tid = str(tref.get("id") or "")
-            if tid and tid not in seen:
-                seen.add(tid)
+            if tid:
                 thread_refs.append((route, tref))
+                n_route += 1
+        route_counts[route] = n_route
+        LOGGER.info("Inbox sync route=%s listed %d threads (query=%s)", route, n_route, q)
 
-    n = len(thread_refs)
+    unique_refs: list[tuple[str, dict[str, Any]]] = []
+    seen_ids: set[str] = set()
+    for route, tref in thread_refs:
+        tid = str(tref.get("id") or "")
+        if tid and tid not in seen_ids:
+            seen_ids.add(tid)
+            unique_refs.append((route, tref))
+
+    n = len(unique_refs)
     yield {
         "type": "listed",
         "total": n,
+        "route_counts": route_counts,
         "message": f"{n} konuşma bulundu ({len(routes)} sekme); indiriliyor…",
         "pct": 12,
     }
     synced = 0
-    for i, (route, tref) in enumerate(thread_refs):
-        tid = tref.get("id")
+    for i, (route, tref) in enumerate(unique_refs):
+        tid = str(tref.get("id") or "")
         if not tid:
             continue
         yield {
