@@ -6,7 +6,6 @@ import html
 import re
 from html.parser import HTMLParser
 
-_PCT_CELL_RE = re.compile(r"^%?\s*-?\d[\d.,]*$")
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
 _ZIYARET_TEXT_ROW_RE = re.compile(
     r"(https?://\S+)\s+([\d.]+)\s+([\d.]+)\s+(%?-?[\d.,]+)\s+([\d.]+)\s+(%?-?[\d.,]+)"
@@ -15,9 +14,9 @@ _ZIYARET_HEADER = (
     "URL",
     "Bugün",
     "Dün",
-    "Dün'e Göre Değişim",
+    "günlük fark",
     "Geçen Hafta",
-    "Geçen Hafta'ya Göre Değişim",
+    "haftalık fark",
 )
 
 
@@ -31,6 +30,27 @@ def _display_url(url: str) -> tuple[str, str]:
     if len(display) > _ZIYARET_URL_DISPLAY_LEN:
         display = display[: _ZIYARET_URL_DISPLAY_LEN - 1] + "…"
     return href, display
+
+
+def _normalize_header_label(label: str) -> str:
+    h = (label or "").strip()
+    hl = h.lower()
+    if ("dün" in hl or "dun" in hl) and ("değişim" in hl or "degisim" in hl or "göre" in hl or "gore" in hl):
+        return "günlük fark"
+    if "geçen hafta" in hl and ("değişim" in hl or "degisim" in hl or "göre" in hl or "gore" in hl):
+        return "haftalık fark"
+    if hl in ("günlük fark", "gunluk fark"):
+        return "günlük fark"
+    if hl in ("haftalık fark", "haftalik fark"):
+        return "haftalık fark"
+    return h
+
+
+def _is_pct_column(header: str) -> bool:
+    hl = (header or "").strip().lower()
+    if hl in ("günlük fark", "gunluk fark", "haftalık fark", "haftalik fark"):
+        return True
+    return "değişim" in hl or "degisim" in hl or "change" in hl or hl.endswith(" fark")
 
 
 def _pct_class(value: str) -> str:
@@ -63,7 +83,7 @@ def _cell_html(value: str, *, is_pct: bool = False, is_url_col: bool = False) ->
             f'<a href="{html.escape(href)}" target="_blank" rel="noopener">'
             f"{html.escape(display)}</a></td>"
         )
-    if is_pct or _PCT_CELL_RE.match(text.replace(" ", "")):
+    if is_pct:
         cls = _pct_class(text)
         return f'<td class="{cls}">{text}</td>'
     return f"<td>{text}</td>"
@@ -143,13 +163,9 @@ def _pick_table_rows(body_html: str, body_text: str) -> list[list[str]]:
 def _render_table_html(rows: list[list[str]]) -> str:
     if not rows:
         return ""
-    header = rows[0]
+    header = [_normalize_header_label(c) for c in rows[0]]
     body_rows = rows[1:]
-    pct_cols = set()
-    for i, h in enumerate(header):
-        hl = h.lower()
-        if "değişim" in hl or "degisim" in hl or "change" in hl:
-            pct_cols.add(i)
+    pct_cols = {i for i, h in enumerate(header) if _is_pct_column(h)}
     thead_parts: list[str] = []
     for i, c in enumerate(header):
         cls = ' class="inbox-ziyaret-url"' if i == 0 else ""
