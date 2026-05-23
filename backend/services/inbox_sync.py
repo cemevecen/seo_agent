@@ -22,6 +22,9 @@ from backend.services import inbox_gmail_auth
 
 LOGGER = logging.getLogger(__name__)
 
+INBOX_SYNC_MAX_THREADS = 50
+INBOX_LIST_LIMIT = 50
+
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
 ANSWERED_LABEL_NAME = "SEO-Agent · Cevaplandı"
 _answered_label_id_cache: str | None = None
@@ -516,7 +519,7 @@ def sync_firebase_inbox_threads(db: Session, *, max_threads: int = 25) -> dict[s
     )
 
 
-def sync_scheduled_inbox_threads(db: Session, *, max_threads: int = 100) -> dict[str, Any]:
+def sync_scheduled_inbox_threads(db: Session, *, max_threads: int = INBOX_SYNC_MAX_THREADS) -> dict[str, Any]:
     """Zamanlanmış inbox senkronu: ilk çalışmada son 3 gün; sonraki çalışmalarda yalnızca son başarılı kontrolden sonraki mailler."""
     row = inbox_gmail_auth.get_inbox_credential_row(db)
     if row is None:

@@ -328,7 +328,7 @@ def inbox_oauth_disconnect(request: Request, db: Session = Depends(get_db)):
 @limiter.limit("30/minute")
 def inbox_sync_post(request: Request, db: Session = Depends(get_db)):
     try:
-        out = inbox_sync.sync_inbox_threads(db, max_threads=35)
+        out = inbox_sync.sync_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
         return JSONResponse(out)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -345,7 +345,9 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     _require_inbox_action_auth(request)
     def ndjson_iter():
         try:
-            for evt in inbox_sync.iter_sync_inbox_threads(db, max_threads=35):
+            for evt in inbox_sync.iter_sync_inbox_threads(
+                db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS
+            ):
                 yield (json.dumps(evt, ensure_ascii=False) + "\n").encode("utf-8")
         except RuntimeError as exc:
             err = {"type": "error", "message": str(exc), "pct": 0}
@@ -368,7 +370,7 @@ def inbox_threads_list(
     request: Request,
     db: Session = Depends(get_db),
     route: str | None = Query(None, description="info|feedback|sinemalar|firebase|ziyaret|tome"),
-    limit: int = Query(80, ge=1, le=200),
+    limit: int = Query(inbox_sync.INBOX_LIST_LIMIT, ge=1, le=200),
 ):
     q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
     if route in ("info", "feedback", "sinemalar", "firebase", "ziyaret", "tome"):
@@ -522,6 +524,24 @@ def inbox_thread_delete(request: Request, thread_id: int, db: Session = Depends(
 def inbox_thread_summarize(request: Request, thread_id: int, db: Session = Depends(get_db)):
     t = _thread_or_404(db, thread_id)
     _require_inbox_action_auth(request)
+    if t.route_tag in ("firebase", "ziyaret"):
+        raise HTTPException(
+            status_code=400,
+            detail="Firebase ve Ziyaret için «Durum analizi» kullanın.",
+        )
+    _, blob = _thread_messages_blob(db, thread_id)
+    try:
+        summary = inbox_llm.summarize_thread_tr_tr(blob)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("inbox summarize failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    t.ai_summary = summary
+    db.commit()
+    return {"summary": summary}
+
+
+def _thread_messages_blob(db: Session, thread_id: int) -> tuple[SupportInboxThread, str]:
+    t = _thread_or_404(db, thread_id)
     msgs = (
         db.query(SupportInboxMessage)
         .filter(SupportInboxMessage.thread_id == t.id)
@@ -531,15 +551,28 @@ def inbox_thread_summarize(request: Request, thread_id: int, db: Session = Depen
     parts = []
     for m in msgs:
         parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{m.body_text}\n")
-    blob = "\n".join(parts)
+    return t, "\n".join(parts)
+
+
+@router.post("/threads/{thread_id}/analyze-alert")
+@limiter.limit("15/minute")
+def inbox_thread_analyze_alert(request: Request, thread_id: int, db: Session = Depends(get_db)):
+    """Firebase / Ziyaret uyarıları için manuel AI durum analizi (≥15 cümle)."""
+    _require_inbox_action_auth(request)
+    t, blob = _thread_messages_blob(db, thread_id)
+    if t.route_tag not in ("firebase", "ziyaret"):
+        raise HTTPException(
+            status_code=400,
+            detail="Durum analizi yalnızca Firebase veya Ziyaret sekmelerindeki iletiler için kullanılabilir.",
+        )
     try:
-        summary = inbox_llm.summarize_thread_tr_tr(blob)
+        analysis = inbox_llm.analyze_alert_thread_tr_tr(blob, route_tag=t.route_tag)
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("inbox summarize failed: %s", exc)
+        LOGGER.warning("inbox analyze-alert failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    t.ai_summary = summary
+    t.ai_summary = analysis
     db.commit()
-    return {"summary": summary}
+    return {"analysis": analysis, "route_tag": t.route_tag}
 
 
 @router.post("/threads/{thread_id}/draft")
@@ -609,6 +642,11 @@ async def inbox_thread_reply_templates(
     except Exception:  # noqa: BLE001
         pass  # gövde yoksa veya JSON değilse varsayılan None
     t = _thread_or_404(db, thread_id)
+    if t.route_tag in ("firebase", "ziyaret"):
+        raise HTTPException(
+            status_code=400,
+            detail="Firebase ve Ziyaret iletilerinde yanıt şablonu üretilmez.",
+        )
     msgs = (
         db.query(SupportInboxMessage)
         .filter(SupportInboxMessage.thread_id == t.id)

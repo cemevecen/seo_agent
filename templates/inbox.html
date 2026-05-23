@@ -75,10 +75,17 @@
             <button type="button" id="btn-delete" class="rounded-md border border-rose-600 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-500 dark:bg-rose-950/50 dark:text-rose-100 dark:hover:bg-rose-900/60">Sil</button>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div id="inbox-support-ai-actions" class="flex flex-wrap gap-2">
           <button type="button" id="btn-summarize" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI özet</button>
           <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI taslak cevap</button>
         </div>
+        <div id="inbox-alert-ai-actions" class="hidden flex flex-wrap items-center gap-2">
+          <button type="button" id="btn-analyze-alert" class="rounded-md bg-amber-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500">Durum analizi (AI)</button>
+          <span id="inbox-analyze-alert-status" class="text-[11px] text-slate-500 dark:text-slate-400"></span>
+        </div>
+        <p id="inbox-ai-summary-hint" class="hidden text-[11px] text-slate-500 dark:text-slate-400">
+          Özet otomatik gösterilmez. «Durum analizi» ile en az 15 cümlelik değerlendirme üretin.
+        </p>
         <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"></div>
         <div class="my-6">
           <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
@@ -186,16 +193,31 @@
     });
   }
 
-  function toggleFirebaseCompose(isFirebase) {
-    var hide = !!isFirebase;
-    ["inbox-templates-wrap", "inbox-freewrite-wrap", "inbox-compose-anchor"].forEach(function (id) {
+  function isInboxAlertRoute(tag) {
+    return tag === "firebase" || tag === "ziyaret";
+  }
+
+  function toggleInboxReplyMode(routeTag) {
+    var alertTab = isInboxAlertRoute(routeTag);
+    ["inbox-templates-wrap", "inbox-freewrite-wrap", "inbox-compose-anchor", "inbox-support-ai-actions"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.classList.toggle("hidden", hide);
+      if (el) el.classList.toggle("hidden", alertTab);
     });
-    ["btn-summarize", "btn-draft", "btn-answered", "btn-unanswered"].forEach(function (id) {
+    ["btn-answered", "btn-unanswered"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.classList.toggle("hidden", hide);
+      if (el) el.classList.toggle("hidden", alertTab);
     });
+    var alertActions = document.getElementById("inbox-alert-ai-actions");
+    var alertHint = document.getElementById("inbox-ai-summary-hint");
+    if (alertActions) alertActions.classList.toggle("hidden", !alertTab);
+    if (alertHint) alertHint.classList.toggle("hidden", !alertTab);
+    var sum = document.getElementById("inbox-ai-summary");
+    if (sum && alertTab) {
+      sum.textContent = "";
+      sum.classList.add("hidden");
+    }
+    var st = document.getElementById("inbox-analyze-alert-status");
+    if (st) st.textContent = "";
   }
 
   function showBanner(msg) {
@@ -718,8 +740,9 @@
   }
 
   async function loadThreads() {
-    var q = inboxActiveRoute ? "?route=" + encodeURIComponent(inboxActiveRoute) : "";
-    var data = await jfetch("/api/inbox/threads" + q);
+    var qParts = ["limit=50"];
+    if (inboxActiveRoute) qParts.push("route=" + encodeURIComponent(inboxActiveRoute));
+    var data = await jfetch("/api/inbox/threads?" + qParts.join("&"));
     var box = document.getElementById("inbox-list");
     if (!box) return;
     var items = data.items || [];
@@ -795,14 +818,13 @@
     document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
     document.getElementById("inbox-detail-meta").textContent =
       "Rota: " + inboxRouteLabel(t.route_tag) + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
-    toggleFirebaseCompose(t.route_tag === "firebase");
+    toggleInboxReplyMode(t.route_tag);
     var sum = document.getElementById("inbox-ai-summary");
-    if (t.ai_summary && t.ai_summary.trim()) {
+    sum.textContent = "";
+    sum.classList.add("hidden");
+    if (!isInboxAlertRoute(t.route_tag) && t.ai_summary && t.ai_summary.trim()) {
       sum.textContent = t.ai_summary;
       sum.classList.remove("hidden");
-    } else {
-      sum.textContent = "";
-      sum.classList.add("hidden");
     }
     // ALICI: önce gövdeden gerçek e-postayı bul, yoksa from_addr headerını kullan
     document.getElementById("inbox-send-to").value = getReplyRecipient(messages, lastInboundFrom(messages));
@@ -869,7 +891,13 @@
       });
     });
     var focusG = lastInboundGmailId(messages);
-    await loadReplyTemplates(focusG || undefined);
+    if (!isInboxAlertRoute(t.route_tag)) {
+      await loadReplyTemplates(focusG || undefined);
+    } else {
+      templatesCache = [];
+      var list = document.getElementById("inbox-templates-list");
+      if (list) list.innerHTML = "";
+    }
   }
 
   document.getElementById("inbox-sync-btn").addEventListener("click", async function () {
@@ -1004,6 +1032,31 @@
       await loadThreads();
     } catch (e) {
       showBanner(String(e.message || e));
+    }
+  });
+
+  document.getElementById("btn-analyze-alert").addEventListener("click", async function () {
+    if (!selectedId) return;
+    var st = document.getElementById("inbox-analyze-alert-status");
+    var btn = document.getElementById("btn-analyze-alert");
+    try {
+      await _ensureInboxActionAuth();
+    } catch (e) {
+      return;
+    }
+    if (btn) btn.disabled = true;
+    if (st) st.textContent = "Analiz üretiliyor…";
+    try {
+      var out = await jfetch("/api/inbox/threads/" + selectedId + "/analyze-alert", { method: "POST" });
+      var sum = document.getElementById("inbox-ai-summary");
+      sum.textContent = out.analysis || "";
+      sum.classList.remove("hidden");
+      if (st) st.textContent = "Tamamlandı.";
+    } catch (e) {
+      if (st) st.textContent = "";
+      showBanner(String(e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 

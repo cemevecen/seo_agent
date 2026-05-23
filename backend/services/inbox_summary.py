@@ -28,7 +28,7 @@ def run_inbox_summary_job(db: Session):
         return
     try:
         # Senkronizasyon yaparken max_threads'i yüksek tutalım (100) ki güncelliği kaçırmasın
-        inbox_sync.sync_scheduled_inbox_threads(db, max_threads=100)
+        inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
     except Exception as exc:
         logger.warning("Inbox sync failed (continuing with local data): %s", exc)
 

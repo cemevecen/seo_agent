@@ -135,6 +135,39 @@ def _groq_plain_text(system: str, user: str, *, model: str) -> str:
     return out
 
 
+def analyze_alert_thread_tr_tr(messages_plain: str, *, route_tag: str) -> str:
+    """Firebase / Ziyaret uyarı e-postaları için en az 15 cümlelik durum analizi."""
+    tag = (route_tag or "").strip().lower()
+    if tag == "firebase":
+        system = (
+            "Sen Firebase Crashlytics ve mobil uygulama güvenilirliği uzmanısın. "
+            "Aşağıdaki Firebase uyarı e-postasını Türkçe analiz et. "
+            "En az 15 tam cümle yaz; daha uzun olabilir. "
+            "Şunları açıkla: hatanın ne anlama geldiği, hangi uygulama/sürüm/platform (varsa), "
+            "etkilenen kullanıcı veya olay sayısı (varsa), ANR/crash/performans türü, "
+            "olası kök nedenler, iş etkisi, aciliyet (kritik/yüksek/orta/düşük), "
+            "önerilen teknik inceleme adımları ve takip önerileri. "
+            "Bu e-postaya müşteri cevabı yazılmayacağını varsay; yalnızca durum değerlendirmesi yap. "
+            "Düz metin; gerekirse numaralı madde kullan."
+        )
+    elif tag == "ziyaret":
+        system = (
+            "Sen web analitiği ve trafik istihbaratı uzmanısın. "
+            "Aşağıdaki noreply@doviz.com (Ziyaret) bildirim e-postasını Türkçe analiz et. "
+            "En az 15 tam cümle yaz; daha uzun olabilir. "
+            "Verilerden önemli çıkarımlar yap: trafik hacmi/trend, dönem karşılaştırması (varsa), "
+            "anomaliler, ziyaretçi davranışı, kanal/kaynak ipuçları (varsa), "
+            "iş ve içerik stratejisi açısından anlam, dikkat gerektiren noktalar, "
+            "risk ve fırsatlar, önerilen izleme ve aksiyon adımları. "
+            "Bu e-postaya cevap yazılmayacağını varsay; yalnızca durum değerlendirmesi yap. "
+            "Düz metin; gerekirse numaralı madde kullan."
+        )
+    else:
+        raise ValueError(f"Desteklenmeyen uyarı rotası: {route_tag}")
+    text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
+    return text
+
+
 def summarize_thread_tr_tr(messages_plain: str) -> str:
     system = (
         "Sen bir müşteri e-postası özetleyicisisin. Çıktıyı Türkçe yaz; madde işaretli kısa özet; "
