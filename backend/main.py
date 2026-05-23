@@ -10187,7 +10187,7 @@ def _version_list_from_params(params: dict) -> list[str]:
 
 
 def _refetch_filtered_payload(data: dict, params: dict) -> dict:
-    """Sürüm/tür seçiliyken BQ'da filtreli sorgu — liste sayıları ile detay tutarlı olsun."""
+    """Sürüm/tür seçiliyken BQ'da filtreli sorgu — tüm görünüm alanları tutarlı olsun."""
     from backend.services import crashlytics_bq as cbq
     from backend.services.crashlytics_detail import enrich_issue_row
 
@@ -10204,24 +10204,53 @@ def _refetch_filtered_payload(data: dict, params: dict) -> dict:
     if not platforms:
         return data
 
+    meta = cbq.APP_PRODUCTS.get(pid, {})
+    filt_kw = {"error_type": error_type, "versions": ver_list or None}
+
     data = dict(data)
     issues_all: list[tuple[str, list[dict]]] = []
     anr_all: list[tuple[str, list[dict]]] = []
     summary_by_plat: dict[str, dict] = {}
+    trend_all: list[tuple[str, list[dict]]] = []
+    device_all: list[tuple[str, list[dict]]] = []
+    os_all: list[tuple[str, list[dict]]] = []
+    process_all: list[tuple[str, list[dict]]] = []
+    ver_all: list[tuple[str, list[dict]]] = []
+    version_trend_all: list[tuple[str, list[dict]]] = []
 
     for plat_key, tbl in platforms:
-        summary_by_plat[plat_key] = cbq.query_summary(
-            plat_key, tbl, days, error_type=error_type, versions=ver_list or None
-        )
-        issues, _ = cbq.query_top_issues(
-            plat_key, tbl, days, error_type, None, versions=ver_list or None
-        )
+        bundle = (meta.get("android_package") if plat_key == "android" else meta.get("ios_bundle_id")) or ""
+        batch_ref = cbq._batch_table_ref(plat_key, bundle) if bundle else None
+
+        summary_by_plat[plat_key] = cbq.query_summary(plat_key, tbl, days, **filt_kw)
+        issues, _ = cbq.query_top_issues(plat_key, tbl, days, error_type, None, versions=ver_list or None)
         if issues:
             issues_all.append((plat_key, issues))
         if not error_type or error_type == "ANR":
             anr_rows, _ = cbq.query_anr_list(plat_key, tbl, days, versions=ver_list or None)
             if anr_rows:
                 anr_all.append((plat_key, anr_rows))
+
+        trend_rows, _ = cbq.query_daily_trend(plat_key, tbl, days, **filt_kw)
+        if trend_rows:
+            trend_all.append((plat_key, trend_rows))
+        device_rows, _ = cbq.query_device_breakdown(plat_key, tbl, days, **filt_kw)
+        if device_rows:
+            device_all.append((plat_key, device_rows))
+        os_rows, _ = cbq.query_os_breakdown(plat_key, tbl, days, **filt_kw)
+        if os_rows:
+            os_all.append((plat_key, os_rows))
+        proc_rows, _ = cbq.query_process_state_breakdown(
+            plat_key, batch_ref, days, **filt_kw
+        )
+        if proc_rows:
+            process_all.append((plat_key, proc_rows))
+        ver_rows, _ = cbq.query_version_breakdown(plat_key, tbl, days, **filt_kw)
+        if ver_rows:
+            ver_all.append((plat_key, ver_rows))
+        vt_rows, _ = cbq.query_version_time_series(plat_key, tbl, days, **filt_kw)
+        if vt_rows:
+            version_trend_all.append((plat_key, vt_rows))
 
     data["summary_by_platform"] = summary_by_plat
     totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
@@ -10249,14 +10278,29 @@ def _refetch_filtered_payload(data: dict, params: dict) -> dict:
         for plat, rows in anr_all
     }
 
+    data.update(
+        cbq.assemble_breakdown_payload(
+            trend_all=trend_all,
+            device_all=device_all,
+            os_all=os_all,
+            process_all=process_all,
+            ver_all=ver_all,
+            version_trend_all=version_trend_all,
+        )
+    )
+
     if ver_list:
-        ver_filter = set(ver_list)
-        vers = data.get("versions") or []
-        data["versions"] = [r for r in vers if r.get("app_version") in ver_filter]
-        fvp = data.get("filter_versions_by_platform") or {}
-        data["filter_versions_by_platform"] = {
-            p: [v for v in (fvp.get(p) or []) if v in ver_filter] for p in fvp
-        }
+        data["crash_free_pct"] = None
+        data["crash_free_sessions_pct"] = None
+        data["crash_free_users_pct"] = None
+        hints = list(data.get("crash_free_hints") or [])
+        hint = (
+            "Crash-free, seçili app sürümüne göre hesaplanmaz "
+            "(oturum tablosu sürüm kırılımı içermez)."
+        )
+        if hint not in hints:
+            hints.append(hint)
+        data["crash_free_hints"] = hints
 
     data["active_filters"] = {
         "versions": ver_list,

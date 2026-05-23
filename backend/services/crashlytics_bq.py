@@ -712,6 +712,16 @@ def _versions_filter_sql(
     return f"AND application.display_version IN ({quoted})"
 
 
+def _event_filters_sql(
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> str:
+    """error_type + app sürümü — WHERE içine eklenir."""
+    return _type_filter(error_type) + _versions_filter_sql(versions, version)
+
+
 # ── Sorgu fonksiyonları ───────────────────────────────────────────────────────
 
 def query_summary(
@@ -1150,10 +1160,31 @@ def _batch_table_ref(platform: str, bundle: str) -> str | None:
 
 
 def query_version_time_series(
-    platform: str, table: str, days: int, *, limit_versions: int = 6
+    platform: str,
+    table: str,
+    days: int,
+    *,
+    limit_versions: int = 6,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
 ) -> tuple[list[dict], str | None]:
     """Günlük olay sayısı × app versiyonu (Console'daki versiyon grafiği)."""
-    sql = f"""
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
+    if extra.strip():
+        sql = f"""
+SELECT
+  DATE(event_timestamp, 'Europe/Istanbul') AS crash_date,
+  COALESCE(application.display_version, 'bilinmiyor') AS app_version,
+  COUNT(*) AS event_count
+FROM {table}
+WHERE {_ts_filter(days)}
+  {extra}
+GROUP BY crash_date, app_version
+ORDER BY crash_date ASC, app_version ASC
+"""
+    else:
+        sql = f"""
 WITH top_versions AS (
   SELECT application.display_version AS v
   FROM {table}
@@ -1181,7 +1212,17 @@ ORDER BY crash_date ASC, app_version ASC
     ], err
 
 
-def query_device_breakdown(platform: str, table: str, days: int, limit: int = 20) -> tuple[list[dict], str | None]:
+def query_device_breakdown(
+    platform: str,
+    table: str,
+    days: int,
+    limit: int = 20,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> tuple[list[dict], str | None]:
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
     sql = f"""
 SELECT
   COALESCE(device.manufacturer, '') AS manufacturer,
@@ -1189,6 +1230,7 @@ SELECT
   COUNT(*) AS event_count
 FROM {table}
 WHERE {_ts_filter(days)}
+  {extra}
 GROUP BY manufacturer, model
 ORDER BY event_count DESC
 LIMIT {limit}
@@ -1204,13 +1246,24 @@ LIMIT {limit}
     ], err
 
 
-def query_os_breakdown(platform: str, table: str, days: int, limit: int = 20) -> tuple[list[dict], str | None]:
+def query_os_breakdown(
+    platform: str,
+    table: str,
+    days: int,
+    limit: int = 20,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> tuple[list[dict], str | None]:
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
     sql = f"""
 SELECT
   COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
   COUNT(*) AS event_count
 FROM {table}
 WHERE {_ts_filter(days)}
+  {extra}
 GROUP BY os_version
 ORDER BY event_count DESC
 LIMIT {limit}
@@ -1223,16 +1276,25 @@ LIMIT {limit}
 
 
 def query_process_state_breakdown(
-    platform: str, batch_ref: str | None, days: int, limit: int = 15
+    platform: str,
+    batch_ref: str | None,
+    days: int,
+    limit: int = 15,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
 ) -> tuple[list[dict], str | None]:
     if not batch_ref:
         return [], None
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
     sql = f"""
 SELECT
   COALESCE(process_state, 'UNKNOWN') AS state,
   COUNT(*) AS event_count
 FROM {batch_ref}
 WHERE {_ts_filter(days)}
+  {extra}
 GROUP BY state
 ORDER BY event_count DESC
 LIMIT {limit}
@@ -1377,8 +1439,17 @@ LIMIT {limit}
     ], err
 
 
-def query_version_breakdown(platform: str, table: str, days: int,
-                            limit: int = 20) -> tuple[list[dict], str | None]:
+def query_version_breakdown(
+    platform: str,
+    table: str,
+    days: int,
+    limit: int = 20,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> tuple[list[dict], str | None]:
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
     sql = f"""
 SELECT
   COALESCE(application.display_version, 'bilinmiyor') AS app_version,
@@ -1389,6 +1460,7 @@ SELECT
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM {table}
 WHERE {_ts_filter(days)}
+  {extra}
 GROUP BY application.display_version
 ORDER BY total_events DESC
 LIMIT {limit}
@@ -1407,9 +1479,18 @@ LIMIT {limit}
     ], err
 
 
-def query_daily_trend(platform: str, table: str, days: int) -> tuple[list[dict], str | None]:
+def query_daily_trend(
+    platform: str,
+    table: str,
+    days: int,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> tuple[list[dict], str | None]:
     # Gün gruplaması Türkiye saati (Firebase Console'un yerel saati) ile aynı olmalı —
     # aksi halde 21:00 UTC sonrası crash'ler bir gün önceye düşer, Firebase'le uyuşmaz.
+    extra = _event_filters_sql(error_type=error_type, versions=versions, version=version)
     sql = f"""
 SELECT
   DATE(event_timestamp, 'Europe/Istanbul') AS crash_date,
@@ -1418,6 +1499,7 @@ SELECT
   COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count
 FROM {table}
 WHERE {_ts_filter(days)}
+  {extra}
 GROUP BY crash_date
 ORDER BY crash_date ASC
 LIMIT {days + 5}
@@ -2219,6 +2301,80 @@ def _merge_trend(results: list[tuple[str, list[dict]]]) -> list[dict]:
             else:
                 merged[d] = {"date": d, "fatal": r["fatal"], "anr": r["anr"], "non_fatal": r.get("non_fatal", 0)}
     return sorted(merged.values(), key=lambda x: x["date"])
+
+
+def assemble_breakdown_payload(
+    *,
+    trend_all: list[tuple[str, list[dict]]],
+    device_all: list[tuple[str, list[dict]]],
+    os_all: list[tuple[str, list[dict]]],
+    process_all: list[tuple[str, list[dict]]],
+    ver_all: list[tuple[str, list[dict]]],
+    version_trend_all: list[tuple[str, list[dict]]],
+) -> dict[str, Any]:
+    """Platform kırılım listelerinden UI payload alanlarını üret."""
+    from backend.services.android_device_names import enrich_device_row
+    from backend.services.crashlytics_detail import merge_breakdown_rows
+
+    device_breakdown_by_platform: dict[str, list[dict]] = {}
+    device_rows_merged: list[dict] = []
+    device_raw_by_label: dict[str, str | None] = {}
+    for plat, rows in device_all:
+        plat_labeled: list[dict] = []
+        plat_raw: dict[str, str | None] = {}
+        for r in rows:
+            er = enrich_device_row(r, platform=plat)
+            plat_labeled.append({
+                "label": er["label"],
+                "manufacturer": er.get("manufacturer") or r.get("manufacturer"),
+                "model": er.get("model") or r.get("model"),
+                "event_count": er["event_count"],
+            })
+            device_rows_merged.append({
+                "label": er["label"],
+                "manufacturer": er.get("manufacturer") or r.get("manufacturer"),
+                "model": er.get("model") or r.get("model"),
+                "event_count": er["event_count"],
+            })
+            if er.get("label_raw"):
+                plat_raw[er["label"]] = er["label_raw"]
+                device_raw_by_label[er["label"]] = er["label_raw"]
+        plat_rows = merge_breakdown_rows([plat_labeled], "label", limit=20)
+        for row in plat_rows:
+            if plat_raw.get(row["label"]):
+                row["label_raw"] = plat_raw[row["label"]]
+        device_breakdown_by_platform[plat] = plat_rows
+
+    os_breakdown_by_platform: dict[str, list[dict]] = {}
+    for plat, rows in os_all:
+        os_breakdown_by_platform[plat] = merge_breakdown_rows([rows], "os_version", limit=20)
+
+    process_breakdown_by_platform: dict[str, list[dict]] = {}
+    for plat, rows in process_all:
+        process_breakdown_by_platform[plat] = merge_breakdown_rows([rows], "state", limit=15)
+
+    device_breakdown = merge_breakdown_rows([device_rows_merged], "label", limit=20)
+    for row in device_breakdown:
+        if device_raw_by_label.get(row["label"]):
+            row["label_raw"] = device_raw_by_label[row["label"]]
+
+    version_trend_merged: list[dict] = []
+    for _plat, rows in version_trend_all:
+        version_trend_merged.extend(rows)
+
+    return {
+        "trend_by_platform": {plat: rows for plat, rows in trend_all},
+        "trend": _merge_trend(trend_all),
+        "device_breakdown_by_platform": device_breakdown_by_platform,
+        "device_breakdown": device_breakdown,
+        "os_breakdown_by_platform": os_breakdown_by_platform,
+        "os_breakdown": merge_breakdown_rows([r for _p, r in os_all], "os_version", limit=20),
+        "process_state_breakdown_by_platform": process_breakdown_by_platform,
+        "process_state_breakdown": merge_breakdown_rows([r for _p, r in process_all], "state", limit=15),
+        "versions_by_platform": {plat: rows for plat, rows in ver_all},
+        "versions": _merge_versions(ver_all),
+        "version_trend": version_trend_merged,
+    }
 
 
 def get_available_versions_all(product_id: str, days: int, platform_filter: str) -> list[str]:
