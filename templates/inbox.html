@@ -35,6 +35,17 @@
   .inbox-ziyaret-table td.inbox-ziyaret-neutral { color: #64748b; }
   .inbox-ziyaret-report { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
   .inbox-msg-body .inbox-ziyaret-wrap { max-width: 100%; overflow-x: auto; }
+  .inbox-msg-body--html {
+    max-width: 100%;
+    overflow-x: auto;
+    word-break: break-word;
+    color: #1e293b;
+  }
+  html.dark .inbox-msg-body--html { color: #e2e8f0; }
+  .inbox-msg-body--html img { max-width: 100%; height: auto; }
+  .inbox-msg-body--html table { max-width: 100%; border-collapse: collapse; }
+  .inbox-msg-body--html a { color: #2563eb; text-decoration: underline; }
+  html.dark .inbox-msg-body--html a { color: #93c5fd; }
   /* nstat ziyaret tablosu — tüm satırlar görünsün (iç scroll yok) */
   #inbox-messages.inbox-messages--nstat {
     max-height: none;
@@ -1095,15 +1106,15 @@
         var replyBtn = m.is_outbound || isInboxNstatRoute(t.route_tag)
           ? ""
           : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
-        var bodyBlock =
-          isInboxNstatRoute(t.route_tag) && m.body_display_html
-            ? '<motion class="inbox-msg-body inbox-msg-body--ziyaret mt-2 text-xs leading-relaxed">' +
-              m.body_display_html +
-              "</motion>"
-            : '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
-              esc(m.body_text || "") +
-              "</pre>";
-        bodyBlock = bodyBlock.replace(/<motion /g, "<div ").replace(/<\/motion>/g, "</div>");
+        var bodyBlock = m.body_display_html
+          ? '<div class="inbox-msg-body ' +
+            (isInboxNstatRoute(t.route_tag) ? "inbox-msg-body--ziyaret" : "inbox-msg-body--html") +
+            ' mt-2 text-xs leading-relaxed">' +
+            m.body_display_html +
+            "</div>"
+          : '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
+            esc(m.body_text || "") +
+            "</pre>";
         return (
           '<div class="rounded-lg border px-3 py-2 ' +
           cls +
@@ -1120,7 +1131,7 @@
           '</div><div class="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">' +
           esc(m.from) +
           "</div>" +
-          (isInboxNstatRoute(t.route_tag) && m.body_display_html ? "" : previewHtml) +
+          (m.body_display_html ? "" : previewHtml) +
           bodyBlock +
           replyBtn +
           "</div>"

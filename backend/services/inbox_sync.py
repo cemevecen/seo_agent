@@ -175,13 +175,41 @@ def _header_map(msg: dict[str, Any]) -> dict[str, str]:
     return out
 
 
-def _decode_b64url(data: str) -> str:
+def _part_charset(part: dict[str, Any]) -> str | None:
+    for h in part.get("headers") or []:
+        if (h.get("name") or "").lower() != "content-type":
+            continue
+        m = re.search(r"charset\s*=\s*['\"]?([a-zA-Z0-9_\-]+)", h.get("value") or "", re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _decode_bytes(data: bytes, charset: str | None) -> str:
+    encodings: list[str] = []
+    if charset:
+        encodings.append(charset.strip().lower())
+    encodings.extend(["utf-8", "utf-8-sig", "cp1254", "iso-8859-9", "latin-1", "cp1252"])
+    seen: set[str] = set()
+    for enc in encodings:
+        key = enc.replace("_", "-")
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            return data.decode(enc)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _decode_b64url(data: str, *, charset: str | None = None) -> str:
     raw = data.replace("-", "+").replace("_", "/")
     pad = len(raw) % 4
     if pad:
         raw += "=" * (4 - pad)
     try:
-        return base64.b64decode(raw).decode("utf-8", errors="replace")
+        return _decode_bytes(base64.b64decode(raw), charset)
     except Exception:  # noqa: BLE001
         return ""
 
@@ -215,12 +243,13 @@ def _extract_body_parts(
 
     def walk(p: dict[str, Any]) -> None:
         mime = (p.get("mimeType") or "").lower()
+        charset = _part_charset(p)
         body = p.get("body") or {}
         data = body.get("data")
         aid = body.get("attachmentId")
         chunk = ""
         if data:
-            chunk = _decode_b64url(data)
+            chunk = _decode_b64url(data, charset=charset)
         elif aid and service and gmail_message_id and mime in ("text/plain", "text/html"):
             chunk = _attachment_text(service, user_id=user_id, gmail_message_id=gmail_message_id, attachment_id=aid)
         if chunk:
@@ -232,13 +261,10 @@ def _extract_body_parts(
             walk(child)
 
     walk(payload)
-    plain_text = "\n\n".join(plain).strip()
     html_body = "\n".join(html_parts).strip()
-    if not plain_text and html_body:
-        text = re.sub(r"(?is)<script.*?>.*?</script>", " ", html_body)
-        text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
-        text = re.sub(r"<[^>]+>", " ", text)
-        plain_text = re.sub(r"\s+", " ", text).strip()
+    from backend.services.inbox_email_render import effective_plain_text
+
+    plain_text = effective_plain_text("\n\n".join(plain).strip(), html_body)
     return plain_text, html_body
 
 

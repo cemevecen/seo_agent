@@ -278,7 +278,9 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     message["Subject"] = subject
     message["From"] = settings.mail_from
     message["To"] = ", ".join(recipient_list)
-    message.set_content("This is a plain-text fallback for the HTML email.")
+    from backend.services.inbox_email_render import plain_text_for_mailer
+
+    message.set_content(plain_text_for_mailer(html_body, subject=subject))
     message.add_alternative(html_body, subtype="html")
 
     # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)

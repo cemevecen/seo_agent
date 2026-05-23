@@ -10,6 +10,41 @@
   html.dark .plat-badge--android { background: #a4c639; color: #0a1a00; }
   .plat-badge--lg { width: 1.4rem; height: 1.4rem; }
   .plat-badge--lg svg { width: 0.95rem; height: 0.95rem; }
+
+  /* Crashlytics — mobil düzen */
+  @media (max-width: 767px) {
+    #app-crashlytics-root .crash-filter-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+    #app-crashlytics-root .crash-filter-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+      padding-bottom: 2px;
+    }
+    #app-crashlytics-root .crash-filter-scroll > .inline-flex {
+      flex-wrap: nowrap;
+    }
+    #crash-version-mobile-panel {
+      max-height: min(55vh, 22rem);
+    }
+    #crash-detail-modal > div {
+      border-radius: 0;
+      max-height: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #crash-detail-body {
+      max-height: none;
+      flex: 1;
+      min-height: 0;
+    }
+  }
+  #crash-version-mobile-panel[data-open="true"] { display: flex; }
+  .crash-ver-mobile-row:active { background: rgba(148, 163, 184, 0.15); }
 </style>
 
 {# Apple ve Android SVG sembolleri — sayfada bir kez tanımlanır, <use> ile çağrılır #}
@@ -30,11 +65,11 @@
   <section id="app-crashlytics-root" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
 
     {# Başlık + Yenile #}
-    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         {% if app_products %}
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for p in app_products %}
@@ -54,11 +89,12 @@
       </div>
     </div>
 
-    {# Filtre bar #}
-    <div class="flex flex-wrap items-center gap-x-5 gap-y-2.5 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+    {# Filtre bar — mobilde dikey, chip grupları yatay kaydırma #}
+    <div class="crash-filter-bar flex flex-col gap-3 border-b border-slate-100 bg-slate-50/60 px-3 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2.5 sm:px-5">
       {# Platform #}
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Platform</span>
+      <div class="crash-filter-row flex items-center gap-2 sm:items-center">
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Platform</span>
+        <div class="crash-filter-scroll min-w-0 flex-1">
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for pv, pl in [("all","Tümü"),("android","Android"),("ios","iOS")] %}
             <button type="button" data-crash-platform="{{ pv }}"
@@ -70,11 +106,13 @@
             </button>
           {% endfor %}
         </div>
+        </div>
       </div>
 
       {# Dönem #}
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+      <div class="crash-filter-row flex items-center gap-2 sm:items-center">
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <div class="crash-filter-scroll min-w-0 flex-1">
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
             <button type="button" data-crash-days="{{ dv }}"
@@ -82,17 +120,20 @@
                 {% if dv == 7 %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
           {% endfor %}
         </div>
+        </div>
       </div>
 
       {# Tür #}
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
+      <div class="crash-filter-row flex items-center gap-2 sm:items-center">
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
+        <div class="crash-filter-scroll min-w-0 flex-1">
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for tv, tl in [("","Tümü"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
             <button type="button" data-crash-type="{{ tv }}"
               class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
                 {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
           {% endfor %}
+        </div>
         </div>
       </div>
     </div>
@@ -116,30 +157,50 @@
       <span class="text-[11px] text-amber-700 dark:text-amber-300">Bu dönem için BigQuery'de yeterli geçmiş veri olmayabilir — streaming export yakın zamanda etkinleştirildiğinden veriler eksik görünebilir.</span>
     </div>
 
-    {# Versiyon filtresi — tüm sürümler, çoklu seçim #}
-    <div id="crash-version-bar" class="hidden flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+    {# Versiyon filtresi — masaüstü chip, mobil dropdown #}
+    <div id="crash-version-bar" class="hidden flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
-        <button type="button" id="crash-version-all-btn" class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600">Tümü</button>
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
+        <button type="button" id="crash-version-all-btn" class="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600">Tümü</button>
+        {# Mobil: tek satır dropdown tetikleyici #}
+        <div class="relative min-w-0 flex-1 md:hidden">
+          <button type="button" id="crash-version-mobile-trigger" aria-expanded="false" aria-haspopup="listbox"
+            class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+            <span id="crash-version-mobile-label" class="truncate">Tüm sürümler</span>
+            <svg class="h-4 w-4 shrink-0 text-slate-400 transition-transform" id="crash-version-mobile-chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+          </button>
+          <div id="crash-version-mobile-panel" role="listbox" data-open="false"
+            class="absolute left-0 right-0 z-30 mt-1 hidden flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900">
+            <div class="border-b border-slate-100 p-2 dark:border-slate-700">
+              <input type="search" id="crash-version-search-mobile" placeholder="Sürüm ara…" autocomplete="off"
+                class="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
+            </div>
+            <div id="crash-version-mobile-list" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"></div>
+            <div class="flex items-center justify-between gap-2 border-t border-slate-100 px-2.5 py-2 dark:border-slate-700">
+              <span id="crash-version-mobile-count" class="text-[10px] tabular-nums text-slate-400"></span>
+              <button type="button" id="crash-version-mobile-done" class="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white dark:bg-slate-600">Tamam</button>
+            </div>
+          </div>
+        </div>
         <input type="search" id="crash-version-search" placeholder="Sürüm ara (ör. 7.0.0)…"
-          class="min-w-[10rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
-        <span id="crash-version-count" class="text-[10px] tabular-nums text-slate-400"></span>
+          class="hidden min-w-[10rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none md:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+        <span id="crash-version-count" class="hidden shrink-0 text-[10px] tabular-nums text-slate-400 md:inline"></span>
       </div>
-      <div id="crash-version-chips" class="flex max-h-32 flex-wrap gap-1 overflow-y-auto overscroll-contain"></div>
+      <div id="crash-version-chips" class="hidden max-h-32 flex-wrap gap-1 overflow-y-auto overscroll-contain md:flex"></div>
     </div>
 
     {# Tüm içerik: Özet + Crash'ler + ANR + Versiyonlar dikey sıralı #}
     <div class="divide-y divide-slate-100 dark:divide-slate-800">
 
       {# Özet #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <div id="crash-sec-summary" class="min-h-[120px]">
           <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
         </div>
       </div>
 
       {# Versiyon × zaman grafiği #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon trendi</p>
         <div id="crash-sec-version-chart" class="min-h-[80px]">
           <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
@@ -147,7 +208,7 @@
       </div>
 
       {# Cihaz / OS / Durum #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım (cihaz · OS · durum)</p>
         <div id="crash-sec-breakdown" class="min-h-[80px]">
           <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
@@ -155,7 +216,7 @@
       </div>
 
       {# Crash'ler #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash'ler</p>
         <div id="crash-sec-crashes" class="min-h-[80px]">
           <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
@@ -163,7 +224,7 @@
       </div>
 
       {# ANR #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ANR</p>
         <div id="crash-sec-anr" class="min-h-[80px]">
           <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
@@ -171,7 +232,7 @@
       </div>
 
       {# Versiyonlar #}
-      <div class="p-4 sm:p-5">
+      <div class="p-3 sm:p-5">
         <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyonlar</p>
         <div id="crash-sec-versions" class="min-h-[80px]">
           <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
@@ -182,8 +243,8 @@
   </section>
 
   {# Issue detay modal — drill-down #}
-  <div id="crash-detail-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm" data-modal-state="closed">
-    <div class="w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+  <div id="crash-detail-modal" class="fixed inset-0 z-[60] hidden items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" data-modal-state="closed">
+    <div class="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-2xl dark:border-slate-700 dark:bg-slate-900">
       <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
         <div class="min-w-0 flex-1">
           <p id="crash-detail-title" class="truncate text-sm font-bold text-slate-800 dark:text-slate-100">—</p>
@@ -193,7 +254,7 @@
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
         </button>
       </div>
-      <div id="crash-detail-body" class="max-h-[70vh] overflow-y-auto p-5">
+      <div id="crash-detail-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:max-h-[70vh] sm:flex-none sm:p-5">
         <div class="flex items-center gap-2 py-8 text-sm text-slate-400">
           <span class="animate-spin inline-block">⟳</span> Detay yükleniyor…
         </div>
@@ -263,19 +324,85 @@
   function syncVersionChips() {
     var chipsEl = document.getElementById("crash-version-chips");
     var allBtn = document.getElementById("crash-version-all-btn");
-    if (!chipsEl) return;
     var selected = crashState.versions || [];
     if (allBtn) setBtnActive(allBtn, selected.length === 0);
-    chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
-      var v = b.getAttribute("data-ver");
-      if (!v) return;
-      var on = selected.indexOf(v) !== -1;
-      b.classList.toggle("ring-2", on);
-      b.classList.toggle("ring-indigo-400", on);
-      b.classList.toggle("bg-indigo-100", on);
-      b.classList.toggle("dark:bg-indigo-900/40", on);
-      b.classList.toggle("border-indigo-400", on);
-    });
+    if (chipsEl) {
+      chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
+        var v = b.getAttribute("data-ver");
+        if (!v) return;
+        var on = selected.indexOf(v) !== -1;
+        b.classList.toggle("ring-2", on);
+        b.classList.toggle("ring-indigo-400", on);
+        b.classList.toggle("bg-indigo-100", on);
+        b.classList.toggle("dark:bg-indigo-900/40", on);
+        b.classList.toggle("border-indigo-400", on);
+      });
+    }
+    var mobileList = document.getElementById("crash-version-mobile-list");
+    if (mobileList) {
+      mobileList.querySelectorAll("input[data-ver]").forEach(function (cb) {
+        var v = cb.getAttribute("data-ver");
+        if (v) cb.checked = selected.indexOf(v) !== -1;
+      });
+    }
+    updateVersionMobileLabel();
+  }
+
+  function updateVersionMobileLabel() {
+    var label = document.getElementById("crash-version-mobile-label");
+    if (!label) return;
+    var sel = crashState.versions || [];
+    if (!sel.length) {
+      label.textContent = "Tüm sürümler";
+      return;
+    }
+    if (sel.length === 1) {
+      label.textContent = sel[0];
+      return;
+    }
+    label.textContent = sel.length + " sürüm seçili";
+  }
+
+  function versionSearchQuery() {
+    var desktop = document.getElementById("crash-version-search");
+    var mobile = document.getElementById("crash-version-search-mobile");
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var mobileOpen = panel && panel.getAttribute("data-open") === "true";
+    var raw = mobileOpen && mobile ? mobile.value : (desktop ? desktop.value : "");
+    return (raw || "").trim().toLowerCase();
+  }
+
+  function toggleVersionSelection(v) {
+    var list = (crashState.versions || []).slice();
+    var idx = list.indexOf(v);
+    if (idx === -1) list.push(v);
+    else list.splice(idx, 1);
+    crashState.versions = list;
+    crashState.version = list.length === 1 ? list[0] : "";
+    syncVersionChips();
+    loadDebounced("version");
+  }
+
+  function setVersionMobileOpen(open) {
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var trigger = document.getElementById("crash-version-mobile-trigger");
+    var chevron = document.getElementById("crash-version-mobile-chevron");
+    if (!panel || !trigger) return;
+    panel.setAttribute("data-open", open ? "true" : "false");
+    panel.classList.toggle("hidden", !open);
+    panel.classList.toggle("flex", open);
+    trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    if (chevron) chevron.classList.toggle("rotate-180", open);
+    if (open) {
+      var mobSearch = document.getElementById("crash-version-search-mobile");
+      var deskSearch = document.getElementById("crash-version-search");
+      if (mobSearch && deskSearch) mobSearch.value = deskSearch.value;
+      renderVersionMobileList();
+      setTimeout(function () {
+        var inp = document.getElementById("crash-version-search-mobile");
+        if (inp) inp.focus();
+      }, 50);
+    }
   }
 
   function sectionUrl(name, overrides) {
@@ -458,17 +585,30 @@
     btn.setAttribute("data-ver", v);
     btn.textContent = v;
     btn.className = "rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
-    btn.addEventListener("click", function () {
-      var list = (crashState.versions || []).slice();
-      var idx = list.indexOf(v);
-      if (idx === -1) list.push(v);
-      else list.splice(idx, 1);
-      crashState.versions = list;
-      crashState.version = list.length === 1 ? list[0] : "";
-      syncVersionChips();
-      loadDebounced("version");
-    });
+    btn.addEventListener("click", function () { toggleVersionSelection(v); });
     return btn;
+  }
+
+  function makeVersionMobileRow(v, platKey) {
+    var label = document.createElement("label");
+    label.className = "crash-ver-mobile-row flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.setAttribute("data-ver", v);
+    cb.className = "h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600";
+    cb.checked = (crashState.versions || []).indexOf(v) !== -1;
+    cb.addEventListener("change", function () { toggleVersionSelection(v); });
+    var span = document.createElement("span");
+    span.className = "min-w-0 flex-1 truncate font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200";
+    span.textContent = v;
+    label.appendChild(cb);
+    if (platKey && crashState.platform === "all") {
+      var badge = platBadge(platKey);
+      badge.classList.add("shrink-0");
+      label.appendChild(badge);
+    }
+    label.appendChild(span);
+    return label;
   }
 
   function platBadge(plat) {
@@ -481,50 +621,101 @@
     return span;
   }
 
+  function renderVersionMobileList() {
+    var listEl = document.getElementById("crash-version-mobile-list");
+    var mobCount = document.getElementById("crash-version-mobile-count");
+    if (!listEl) return;
+    var plat = crashState.platform;
+    var iosV = crashState.filterVersionsByPlat.ios || [];
+    var andV = crashState.filterVersionsByPlat.android || [];
+    var q = versionSearchQuery();
+    listEl.innerHTML = "";
+    var shown = 0;
+
+    function addMobileGroup(title, platKey, vers) {
+      var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
+      if (!filtered.length) return;
+      if (title) {
+        var head = document.createElement("p");
+        head.className = "sticky top-0 z-10 bg-white/95 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 backdrop-blur dark:bg-slate-900/95 dark:text-slate-500";
+        head.textContent = title;
+        listEl.appendChild(head);
+      }
+      filtered.forEach(function (v) {
+        listEl.appendChild(makeVersionMobileRow(v, platKey));
+        shown++;
+      });
+    }
+
+    if (plat === "ios") addMobileGroup(null, "ios", iosV);
+    else if (plat === "android") addMobileGroup(null, "android", andV);
+    else {
+      addMobileGroup("iOS", "ios", iosV);
+      addMobileGroup("Android", "android", andV);
+    }
+
+    if (!shown) {
+      var empty = document.createElement("p");
+      empty.className = "px-2 py-6 text-center text-[11px] text-slate-400";
+      empty.textContent = q ? "Aramanızla eşleşen sürüm yok." : "Sürüm listesi boş.";
+      listEl.appendChild(empty);
+    }
+
+    if (mobCount) {
+      var sel = (crashState.versions || []).length;
+      mobCount.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
+    }
+    syncVersionChips();
+  }
+
   function renderVersionChips() {
     var bar = document.getElementById("crash-version-bar");
     var chipsEl = document.getElementById("crash-version-chips");
     var countEl = document.getElementById("crash-version-count");
-    var searchEl = document.getElementById("crash-version-search");
-    if (!bar || !chipsEl) return;
+    if (!bar) return;
 
     var plat = crashState.platform;
     var iosV = crashState.filterVersionsByPlat.ios || [];
     var andV = crashState.filterVersionsByPlat.android || [];
-    var q = (searchEl && searchEl.value || "").trim().toLowerCase();
+    var q = versionSearchQuery();
 
     if (!iosV.length && !andV.length) {
       bar.classList.add("hidden");
       bar.classList.remove("flex");
+      setVersionMobileOpen(false);
       return;
     }
 
-    chipsEl.innerHTML = "";
-    var shown = 0;
+    if (chipsEl) {
+      chipsEl.innerHTML = "";
+      var shown = 0;
 
-    function addGroup(platKey, vers) {
-      var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
-      if (!filtered.length) return;
-      if (plat === "all") chipsEl.appendChild(platBadge(platKey));
-      filtered.forEach(function (v) { chipsEl.appendChild(makeVersionChip(v)); shown++; });
-    }
-
-    if (plat === "ios") addGroup("ios", iosV);
-    else if (plat === "android") addGroup("android", andV);
-    else {
-      addGroup("ios", iosV);
-      if (iosV.length && andV.length) {
-        var sep = document.createElement("span");
-        sep.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
-        chipsEl.appendChild(sep);
+      function addGroup(platKey, vers) {
+        var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
+        if (!filtered.length) return;
+        if (plat === "all") chipsEl.appendChild(platBadge(platKey));
+        filtered.forEach(function (v) { chipsEl.appendChild(makeVersionChip(v)); shown++; });
       }
-      addGroup("android", andV);
+
+      if (plat === "ios") addGroup("ios", iosV);
+      else if (plat === "android") addGroup("android", andV);
+      else {
+        addGroup("ios", iosV);
+        if (iosV.length && andV.length) {
+          var sep = document.createElement("span");
+          sep.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
+          chipsEl.appendChild(sep);
+        }
+        addGroup("android", andV);
+      }
+
+      if (countEl) {
+        var sel = (crashState.versions || []).length;
+        countEl.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
+      }
     }
 
-    if (countEl) {
-      var sel = (crashState.versions || []).length;
-      countEl.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
-    }
+    renderVersionMobileList();
     bar.classList.remove("hidden");
     bar.classList.add("flex");
     syncVersionChips();
@@ -738,10 +929,28 @@
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
       + "&days=" + crashState.days;
+    if (crashState.versions && crashState.versions.length) {
+      url += "&versions=" + encodeURIComponent(crashState.versions.join(","));
+    } else if (crashState.version) {
+      url += "&version=" + encodeURIComponent(crashState.version);
+    }
     crashState.detailCtx = info;
     fetch(url, { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
+        if (metaEl && j && j.ok && j.summary) {
+          var s = j.summary;
+          var platLower = (info.platform || "").toLowerCase();
+          var badge = platLower === "android"
+            ? '<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>'
+            : platLower === "ios" ? '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>' : "";
+          var verNote = (crashState.versions && crashState.versions.length)
+            ? " · filtre: v" + escapeHtml(crashState.versions.join(", v"))
+            : (crashState.version ? " · filtre: v" + escapeHtml(crashState.version) : "");
+          metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">' + badge + escapeHtml((info.platform || "").toUpperCase())
+            + "</span> · " + escapeHtml(s.error_type || info.error_type || "")
+            + " · " + (s.total_events || 0) + " olay · " + (s.affected_users || 0) + " kullanıcı" + verNote;
+        }
         if (bodyEl) {
           bodyEl.innerHTML = renderIssueDetail(j);
           wireIssueDetailTabs(bodyEl);
@@ -758,6 +967,15 @@
 
   function renderIssueDetail(j) {
     if (!j || j.ok === false) return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">' + escapeHtml((j && (j.error || j.message)) || "Detay alınamadı.") + '</p>';
+    if (j.filter_empty) {
+      var vers = (j.filter_versions || []).join(", ");
+      return '<div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-800/50 dark:bg-amber-950/30">'
+        + '<p class="text-sm font-semibold text-amber-900 dark:text-amber-200">Seçili sürümde olay yok</p>'
+        + '<p class="mt-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">'
+        + escapeHtml(vers ? "v" + vers + " için bu issue dönem içinde kayıt göstermiyor." : "Seçili sürüm filtresi için kayıt yok.")
+        + " BigQuery export gecikmesi olabilir; yeni sürümlerde veri 24–48 saat içinde tamamlanır."
+        + '</p></div>';
+    }
     var s = j.summary || {};
     var firstSeen = (s.first_seen || "").replace("T", " ").slice(0, 16);
     var lastSeen = (s.last_seen || "").replace("T", " ").slice(0, 16);
@@ -853,6 +1071,7 @@
     b.addEventListener("click", function () {
       if (b.dataset.crashPlatform === crashState.platform) return;
       crashState.platform = b.dataset.crashPlatform;
+      setVersionMobileOpen(false);
       loadDebounced("platform");
     });
   });
@@ -886,10 +1105,39 @@
     crashState.versions = [];
     crashState.version = "";
     syncVersionChips();
+    setVersionMobileOpen(false);
     loadDebounced("version");
   });
   var verSearch = document.getElementById("crash-version-search");
-  if (verSearch) verSearch.addEventListener("input", function () { renderVersionChips(); });
+  if (verSearch) verSearch.addEventListener("input", function () {
+    var mob = document.getElementById("crash-version-search-mobile");
+    if (mob) mob.value = verSearch.value;
+    renderVersionChips();
+  });
+  var verSearchMob = document.getElementById("crash-version-search-mobile");
+  if (verSearchMob) verSearchMob.addEventListener("input", function () {
+    if (verSearch) verSearch.value = verSearchMob.value;
+    renderVersionMobileList();
+  });
+  var verMobTrigger = document.getElementById("crash-version-mobile-trigger");
+  if (verMobTrigger) verMobTrigger.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var open = panel && panel.getAttribute("data-open") === "true";
+    setVersionMobileOpen(!open);
+  });
+  var verMobDone = document.getElementById("crash-version-mobile-done");
+  if (verMobDone) verMobDone.addEventListener("click", function () { setVersionMobileOpen(false); });
+  document.addEventListener("click", function (e) {
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var trigger = document.getElementById("crash-version-mobile-trigger");
+    if (!panel || panel.getAttribute("data-open") !== "true") return;
+    if (panel.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+    setVersionMobileOpen(false);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") setVersionMobileOpen(false);
+  });
   var diagBtn = document.getElementById("crash-diagnose-btn");
   if (diagBtn) diagBtn.addEventListener("click", function () {
     var days = crashState.days || 7;

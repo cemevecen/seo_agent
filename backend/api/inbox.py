@@ -18,9 +18,9 @@ from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
+from backend.services.inbox_email_render import effective_plain_text, render_inbox_message_html
 from backend.services.inbox_visit_report import (
     is_ziyaret_report_subject,
-    render_ziyaret_message_html,
     ziyaret_thread_preview,
 )
 
@@ -107,7 +107,7 @@ def _extract_sender_email_from_any_body(msgs: list[SupportInboxMessage]) -> str 
     for m in reversed(msgs):
         if m.is_outbound:
             continue
-        text = m.body_text or ""
+        text = effective_plain_text(m.body_text, getattr(m, "body_html", None))
         match = pattern.search(text)
         if match:
             return match.group(1).strip()
@@ -135,7 +135,8 @@ def _thread_blob_for_reply_templates(msgs: list[SupportInboxMessage], focus: Sup
     for m in msgs:
         direction = "giden" if m.is_outbound else "gelen"
         parts.append(
-            f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\nYön: {direction}\n{(m.body_text or '').strip()}\n"
+            f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\nYön: {direction}\n"
+            f"{effective_plain_text(m.body_text, getattr(m, 'body_html', None)).strip()}\n"
         )
     blob = "\n".join(parts)
     if focus is not None:
@@ -143,7 +144,7 @@ def _thread_blob_for_reply_templates(msgs: list[SupportInboxMessage], focus: Sup
         blob += (
             "\n\n=== YANITLANACAK İLETİ (öncelik: buna yanıt ver) ===\n"
             f"Kimden: {focus.from_addr}\nKonu: {focus.subject}\nYön: {direction}\n"
-            f"{(focus.body_text or '').strip()}\n=== BİTİŞ ===\n"
+            f"{effective_plain_text(focus.body_text, getattr(focus, 'body_html', None)).strip()}\n=== BİTİŞ ===\n"
         )
     return blob
 
@@ -184,7 +185,11 @@ def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[i
         .subquery()
     )
     rows = (
-        db.query(SupportInboxMessage.thread_id, SupportInboxMessage.body_text)
+        db.query(
+            SupportInboxMessage.thread_id,
+            SupportInboxMessage.body_text,
+            SupportInboxMessage.body_html,
+        )
         .join(
             subq,
             (SupportInboxMessage.thread_id == subq.c.tid)
@@ -192,7 +197,10 @@ def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[i
         )
         .all()
     )
-    return {int(tid): (body or "") for tid, body in rows}
+    return {
+        int(tid): effective_plain_text(body, html)
+        for tid, body, html in rows
+    }
 
 
 @router.get("/status")
@@ -470,15 +478,15 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
                 "from": m.from_addr,
                 "to": m.to_addr,
                 "subject": m.subject,
-                "body_preview": _body_preview(m.body_text),
-                "body_text": m.body_text,
-                "body_display_html": (
-                    render_ziyaret_message_html(
-                        body_html=getattr(m, "body_html", "") or "",
-                        body_text=m.body_text or "",
-                    )
-                    if _is_nstat_route(t.route_tag)
-                    else None
+                "body_preview": _body_preview(
+                    effective_plain_text(m.body_text, getattr(m, "body_html", None))
+                ),
+                "body_text": effective_plain_text(m.body_text, getattr(m, "body_html", None)),
+                "body_display_html": render_inbox_message_html(
+                    body_html=getattr(m, "body_html", "") or "",
+                    body_text=m.body_text or "",
+                    route_tag=t.route_tag,
+                    subject=m.subject,
                 ),
                 "internal_ms": m.internal_ms,
                 "is_outbound": m.is_outbound,
@@ -597,7 +605,8 @@ def _thread_messages_blob(db: Session, thread_id: int) -> tuple[SupportInboxThre
     )
     parts = []
     for m in msgs:
-        parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{m.body_text}\n")
+        body = effective_plain_text(m.body_text, getattr(m, "body_html", None))
+        parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{body}\n")
     return t, "\n".join(parts)
 
 
@@ -635,7 +644,8 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
     )
     parts = []
     for m in msgs:
-        parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{m.body_text}\n")
+        body = effective_plain_text(m.body_text, getattr(m, "body_html", None))
+        parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{body}\n")
     blob = "\n".join(parts)
     try:
         draft = inbox_llm.draft_reply_tr_tr(blob)

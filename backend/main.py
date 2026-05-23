@@ -10178,8 +10178,95 @@ def _crash_params(request: Request) -> dict:
     }
 
 
+def _version_list_from_params(params: dict) -> list[str]:
+    versions = [str(v).strip() for v in (params.get("versions") or []) if str(v).strip()]
+    single = (params.get("version") or "").strip()
+    if single and single not in versions:
+        versions.append(single)
+    return versions
+
+
+def _refetch_filtered_payload(data: dict, params: dict) -> dict:
+    """Sürüm/tür seçiliyken BQ'da filtreli sorgu — liste sayıları ile detay tutarlı olsun."""
+    from backend.services import crashlytics_bq as cbq
+    from backend.services.crashlytics_detail import enrich_issue_row
+
+    ver_list = _version_list_from_params(params)
+    error_type = (params.get("error_type") or "").strip().upper() or None
+    if not ver_list and not error_type:
+        return data
+
+    pid = params["product"]
+    days = int(data.get("days") or params.get("days") or 7)
+    plat_filter = (params.get("platform") or "all").strip().lower()
+    scope = plat_filter if plat_filter in ("ios", "android") else "all"
+    platforms = cbq._platforms_for(pid, scope)
+    if not platforms:
+        return data
+
+    data = dict(data)
+    issues_all: list[tuple[str, list[dict]]] = []
+    anr_all: list[tuple[str, list[dict]]] = []
+    summary_by_plat: dict[str, dict] = {}
+
+    for plat_key, tbl in platforms:
+        summary_by_plat[plat_key] = cbq.query_summary(
+            plat_key, tbl, days, error_type=error_type, versions=ver_list or None
+        )
+        issues, _ = cbq.query_top_issues(
+            plat_key, tbl, days, error_type, None, versions=ver_list or None
+        )
+        if issues:
+            issues_all.append((plat_key, issues))
+        if not error_type or error_type == "ANR":
+            anr_rows, _ = cbq.query_anr_list(plat_key, tbl, days, versions=ver_list or None)
+            if anr_rows:
+                anr_all.append((plat_key, anr_rows))
+
+    data["summary_by_platform"] = summary_by_plat
+    totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
+    for s in summary_by_plat.values():
+        totals["fatal"] += int(s.get("fatal") or 0)
+        totals["anr"] += int(s.get("anr") or 0)
+        totals["non_fatal"] += int(s.get("non_fatal") or 0)
+        totals["affected_users"] += int(s.get("affected_users") or 0)
+    data["totals"] = totals
+
+    data["issues"] = cbq._merge_issues(issues_all, days=days) if issues_all else []
+    data["issues_by_platform"] = {
+        plat: sorted(
+            [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
+            key=lambda x: -x["event_count"],
+        )
+        for plat, rows in issues_all
+    }
+    data["anr"] = cbq._merge_issues(anr_all, days=days) if anr_all else []
+    data["anr_by_platform"] = {
+        plat: sorted(
+            [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
+            key=lambda x: -x["event_count"],
+        )
+        for plat, rows in anr_all
+    }
+
+    if ver_list:
+        ver_filter = set(ver_list)
+        vers = data.get("versions") or []
+        data["versions"] = [r for r in vers if r.get("app_version") in ver_filter]
+        fvp = data.get("filter_versions_by_platform") or {}
+        data["filter_versions_by_platform"] = {
+            p: [v for v in (fvp.get(p) or []) if v in ver_filter] for p in fvp
+        }
+
+    data["active_filters"] = {
+        "versions": ver_list,
+        "error_type": error_type,
+    }
+    return data
+
+
 def _crash_fetch(params: dict) -> dict:
-    """BQ'dan tüm veriyi cache'li çek, sonra tip/versiyon/platform filtresi memory'de uygula."""
+    """BQ cache + seçili sürüm/tür için filtreli yeniden sorgu (doğru olay sayıları)."""
     from backend.services import crashlytics_bq as cbq
     data = cbq.build_full_payload(
         params["product"],
@@ -10189,75 +10276,15 @@ def _crash_fetch(params: dict) -> dict:
     if not data or not data.get("ok"):
         return data
 
+    if _version_list_from_params(params) or (params.get("error_type") or "").strip():
+        data = _refetch_filtered_payload(data, params)
+
     plat = (params.get("platform") or "all").strip().lower()
     if plat in ("ios", "android"):
         data = cbq.slice_payload_for_platform(data, plat)
 
-    error_type = (params.get("error_type") or "").strip().upper() or None
-    versions = params.get("versions") or []
-    version = (params.get("version") or "").strip() or None
-
-    if error_type or versions or version:
-        data = _apply_crash_filters(data, params)
-
     from backend.services.android_device_names import apply_device_friendly_labels
     return apply_device_friendly_labels(data, plat)
-
-
-def _apply_crash_filters(data: dict, params: dict) -> dict:
-    """Bellek içi filtre — özet kartı ve tablolar seçili tür/versiyona uyumlu olsun."""
-    data = dict(data)
-    error_type = (params.get("error_type") or "").strip().upper() or None
-    versions = params.get("versions") or []
-    version = (params.get("version") or "").strip() or None
-    ver_filter: set[str] = set()
-    if versions:
-        ver_filter = set(versions)
-    elif version:
-        ver_filter = {version}
-
-    plat = (params.get("platform") or "all").strip().lower()
-    sbp = data.get("summary_by_platform") or {}
-    plats = [plat] if plat in ("ios", "android") else list(sbp.keys()) or [""]
-
-    if error_type:
-        totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
-        for p in plats:
-            s = sbp.get(p) if p else (data.get("totals") or {})
-            if not s:
-                continue
-            if error_type == "FATAL":
-                totals["fatal"] += int(s.get("fatal") or 0)
-            elif error_type == "ANR":
-                totals["anr"] += int(s.get("anr") or 0)
-            elif error_type == "NON_FATAL":
-                totals["non_fatal"] += int(s.get("non_fatal") or 0)
-            totals["affected_users"] += int(s.get("affected_users") or 0)
-        data["totals"] = totals
-
-    if data.get("issues"):
-        issues = data["issues"]
-        if error_type:
-            issues = [i for i in issues if (i.get("error_type") or "").upper() == error_type]
-        if ver_filter:
-            issues = [i for i in issues if i.get("latest_version") in ver_filter]
-        data["issues"] = issues
-
-    if data.get("anr") is not None:
-        anr_rows = data["anr"]
-        if error_type and error_type != "ANR":
-            anr_rows = []
-        if ver_filter:
-            anr_rows = [r for r in anr_rows if r.get("app_version") in ver_filter]
-        data["anr"] = anr_rows
-
-    if data.get("versions"):
-        vers = data["versions"]
-        if ver_filter:
-            vers = [r for r in vers if r.get("app_version") in ver_filter]
-        data["versions"] = vers
-
-    return data
 
 
 @app.get("/api/app/crashlytics/summary", response_class=HTMLResponse)
@@ -10392,6 +10419,7 @@ def api_crash_progress(product: str = "doviz"):
 
 @app.get("/api/app/crashlytics/issue-detail")
 def api_crash_issue_detail(
+    request: Request,
     product: str = "doviz",
     platform: str = "android",
     issue_id: str = "",
@@ -10418,7 +10446,21 @@ def api_crash_issue_detail(
     if not iid:
         return JSONResponse({"ok": False, "error": "missing_issue_id"}, status_code=400)
 
-    data = cbq.get_issue_detail_for_product(product, plat, iid, d)
+    fp = _crash_params(request)
+    ver_list = _version_list_from_params(fp)
+    data = cbq.get_issue_detail_for_product(
+        product,
+        plat,
+        iid,
+        d,
+        versions=ver_list or None,
+        version=fp.get("version"),
+    )
+    if ver_list and data.get("ok"):
+        total = int((data.get("summary") or {}).get("total_events") or 0)
+        if total == 0:
+            data["filter_empty"] = True
+            data["filter_versions"] = ver_list
     return JSONResponse(data)
 
 

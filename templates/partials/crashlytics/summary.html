@@ -121,10 +121,10 @@
   {# Crash-free + Fatal/ANR/Non-Fatal kartları (sparkline ile) #}
   {# Crash-free yoksa (BQ crash events tablosu güvenilir crash-free hesabı vermiyor) kartı gösterme;
      grid 3 sütuna düşer, Fatal/ANR/Non-Fatal eşit genişlikte yayılır. #}
-  <div class="{% if cf is not none %}grid grid-cols-2 gap-3 sm:grid-cols-4{% else %}grid grid-cols-1 gap-3 sm:grid-cols-3{% endif %}">
+  <div class="{% if cf is not none %}grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4{% else %}grid grid-cols-1 gap-3 sm:grid-cols-3{% endif %}">
     {% if cf is not none %}
     {# CRASH-FREE — iOS ve Android breakdown ile #}
-    <div class="col-span-2 flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 sm:col-span-1 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
+    <div class="col-span-1 flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 min-[420px]:col-span-2 lg:col-span-1 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-3xl font-black tabular-nums {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ cf_fmt(cf) }}%</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>

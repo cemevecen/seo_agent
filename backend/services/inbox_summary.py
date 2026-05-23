@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.services import inbox_gmail_auth, inbox_sync, mailer
+from backend.services.inbox_email_render import effective_plain_text
 from backend.services.inbox_visit_report import is_ziyaret_report_subject, ziyaret_thread_preview
 
 logger = logging.getLogger(__name__)
@@ -74,8 +75,8 @@ def _thread_preview_text(
     route_key: str,
 ) -> str:
     raw = ""
-    if latest and (latest.body_text or "").strip():
-        raw = latest.body_text.strip()
+    if latest:
+        raw = effective_plain_text(latest.body_text, getattr(latest, "body_html", None))
     elif thread.snippet:
         raw = thread.snippet.strip()
     if route_key == "nstat" and raw:

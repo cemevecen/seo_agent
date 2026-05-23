@@ -690,9 +690,39 @@ def _version_filter(version: str | None) -> str:
     return ""
 
 
+def _versions_filter_sql(
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> str:
+    """Tek veya çoklu app sürümü — SQL IN / =."""
+    vers: list[str] = []
+    for v in versions or []:
+        s = (v or "").strip()
+        if s:
+            vers.append(s.replace("'", "''"))
+    if version and version.strip():
+        safe = version.strip().replace("'", "''")
+        if safe not in vers:
+            vers.append(safe)
+    if not vers:
+        return ""
+    if len(vers) == 1:
+        return f"AND application.display_version = '{vers[0]}'"
+    quoted = ", ".join(f"'{v}'" for v in vers)
+    return f"AND application.display_version IN ({quoted})"
+
+
 # ── Sorgu fonksiyonları ───────────────────────────────────────────────────────
 
-def query_summary(platform: str, table: str, days: int) -> dict[str, Any]:
+def query_summary(
+    platform: str,
+    table: str,
+    days: int,
+    *,
+    error_type: str | None = None,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
     # ROLLUP: son satırda error_type=NULL → tüm event_type'lar arası gerçek unique kullanıcı sayısı.
     # ROLLUP olmadan FATAL+NON_FATAL toplandığında her ikisinde de olan kullanıcılar çift sayılır.
     sql = f"""
@@ -702,6 +732,8 @@ SELECT
   COUNT(DISTINCT installation_uuid) AS affected_users
 FROM {table}
 WHERE {_ts_filter(days)}
+  {_type_filter(error_type)}
+  {_versions_filter_sql(versions, version)}
 GROUP BY ROLLUP(error_type)
 """
     rows, err = _run_query(platform, sql, skip_budget=True)
@@ -1049,9 +1081,17 @@ WHERE {_ts_filter(days)}
     return min(delta, days)
 
 
-def query_top_issues(platform: str, table: str, days: int,
-                     error_type: str | None = None, version: str | None = None,
-                     limit: int = 30) -> tuple[list[dict], str | None]:
+def query_top_issues(
+    platform: str,
+    table: str,
+    days: int,
+    error_type: str | None = None,
+    version: str | None = None,
+    *,
+    versions: list[str] | None = None,
+    limit: int = 30,
+) -> tuple[list[dict], str | None]:
+    ver_sql = _versions_filter_sql(versions, version)
     sql = f"""
 SELECT
   COALESCE(issue_id, '') AS issue_id,
@@ -1059,14 +1099,15 @@ SELECT
   COALESCE(error_type, '') AS error_type,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users,
-  MAX(application.display_version) AS latest_version,
+  APPROX_TOP_COUNT(COALESCE(application.display_version, 'bilinmiyor'), 1)[OFFSET(0)].value AS latest_version,
   MIN(event_timestamp) AS first_seen,
   MAX(event_timestamp) AS last_seen
 FROM {table}
 WHERE {_ts_filter(days)}
   {_type_filter(error_type)}
-  {_version_filter(version)}
+  {ver_sql}
 GROUP BY issue_id, issue_title, error_type
+HAVING COUNT(*) > 0
 ORDER BY event_count DESC
 LIMIT {limit}
 """
@@ -1299,8 +1340,15 @@ LIMIT 1
     }
 
 
-def query_anr_list(platform: str, table: str, days: int,
-                   version: str | None = None, limit: int = 30) -> tuple[list[dict], str | None]:
+def query_anr_list(
+    platform: str,
+    table: str,
+    days: int,
+    version: str | None = None,
+    *,
+    versions: list[str] | None = None,
+    limit: int = 30,
+) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
   COALESCE(issue_id, '') AS issue_id,
@@ -1311,7 +1359,7 @@ SELECT
 FROM {table}
 WHERE {_ts_filter(days)}
   AND error_type = 'ANR'
-  {_version_filter(version)}
+  {_versions_filter_sql(versions, version)}
 GROUP BY issue_id, issue_title, application.display_version
 ORDER BY event_count DESC
 LIMIT {limit}
@@ -1400,6 +1448,18 @@ LIMIT {limit}
     return _semver_sort_versions(versions)
 
 
+def _pick_higher_version(a: str | None, b: str | None) -> str:
+    """İki sürüm dizesinden semver-benzeri olarak daha yüksek olanı."""
+    aa = (a or "").strip()
+    bb = (b or "").strip()
+    if not aa or aa == "—":
+        return bb
+    if not bb or bb == "—":
+        return aa
+    ranked = _semver_sort_versions([aa, bb])
+    return ranked[0] if ranked else aa
+
+
 def _semver_sort_versions(versions: list[str]) -> list[str]:
     def key(v: str) -> tuple:
         parts = re.split(r"[.\-_]", v)
@@ -1461,7 +1521,15 @@ def _run_detail_query(platform: str, sql: str) -> tuple[list[dict], str | None]:
         _DETAIL_SEMAPHORE.release()
 
 
-def query_issue_detail(platform: str, table: str, issue_id: str, days: int) -> dict[str, Any]:
+def query_issue_detail(
+    platform: str,
+    table: str,
+    issue_id: str,
+    days: int,
+    *,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
     """Tek bir issue için: trend + version/OS/device kırılımı + ilk/son görülme + stack frame.
 
     6 sorgu paralel çalışır; sonuç 15 dakika cache'lenir.
@@ -1471,7 +1539,8 @@ def query_issue_detail(platform: str, table: str, issue_id: str, days: int) -> d
     if not issue_id:
         return {"ok": False, "error": "missing_issue_id"}
 
-    cache_key = f"detail:{platform}:{issue_id}:{days}"
+    ver_key = ",".join(sorted(versions or [])) or (version or "")
+    cache_key = f"detail:{platform}:{issue_id}:{days}:{ver_key}"
     with _DETAIL_CACHE_LOCK:
         entry = _DETAIL_CACHE.get(cache_key)
         if entry and time.time() - entry[0] < _DETAIL_CACHE_TTL_S:
@@ -1491,7 +1560,10 @@ def query_issue_detail(platform: str, table: str, issue_id: str, days: int) -> d
                 return entry[1]
 
         safe_id = issue_id.replace("'", "''")
-        where = f"{_ts_filter(days)} AND issue_id = '{safe_id}'"
+        where = (
+            f"{_ts_filter(days)} AND issue_id = '{safe_id}'"
+            f" {_versions_filter_sql(versions, version)}"
+        )
 
         sql_summary = f"""
 SELECT
@@ -1634,7 +1706,15 @@ GROUP BY file, symbol, line ORDER BY occurrences DESC LIMIT 15
         return payload
 
 
-def get_issue_detail_for_product(product_id: str, platform: str, issue_id: str, days: int) -> dict[str, Any]:
+def get_issue_detail_for_product(
+    product_id: str,
+    platform: str,
+    issue_id: str,
+    days: int,
+    *,
+    versions: list[str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
     """Wrapper: product+platform'dan tablo adresini çözüp query_issue_detail'i çalıştırır."""
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -1650,7 +1730,9 @@ def get_issue_detail_for_product(product_id: str, platform: str, issue_id: str, 
         return {"ok": False, "error": "bundle_missing"}
     table = _table(platform, bundle)
     batch_ref = _batch_table_ref(platform, bundle)
-    detail = query_issue_detail(platform, table, issue_id, days)
+    detail = query_issue_detail(
+        platform, table, issue_id, days, versions=versions, version=version
+    )
     if not detail.get("ok"):
         return detail
 
@@ -1714,7 +1796,9 @@ def _merge_issues(results: list[tuple[str, list[dict]]], *, days: int = 7) -> li
                 merged[key]["event_count"] += r["event_count"]
                 merged[key]["affected_users"] += r["affected_users"]
                 if r.get("latest_version") and r["latest_version"] != "—":
-                    merged[key]["latest_version"] = r["latest_version"]
+                    merged[key]["latest_version"] = _pick_higher_version(
+                        merged[key].get("latest_version"), r["latest_version"]
+                    )
                 fs, ls = r.get("first_seen"), r.get("last_seen")
                 if fs and (not merged[key].get("first_seen") or fs < merged[key]["first_seen"]):
                     merged[key]["first_seen"] = fs
