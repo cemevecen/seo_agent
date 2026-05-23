@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     inbox_gmail_query: str = Field(
         default=(
             "(to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
-            "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com)"
+            "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com "
+            "OR from:noreply@doviz.com OR to:me)"
         ),
         validation_alias=AliasChoices("INBOX_GMAIL_QUERY", "inbox_gmail_query"),
     )

@@ -30,10 +30,21 @@ _INFO_DOVIZ_RE = re.compile(r"info@doviz\.com", re.I)
 _INFO_SINEMALAR_RE = re.compile(r"info@sinemalar\.com", re.I)
 _FB_RE = re.compile(r"feedback@doviz\.com", re.I)
 _FIREBASE_FROM_RE = re.compile(r"firebase-noreply@(google\.com|googleapis\.com)", re.I)
+_ZIYARET_FROM_RE = re.compile(r"noreply@doviz\.com", re.I)
+_SUPPORT_ADDR_MARKERS = (
+    "info@doviz.com",
+    "feedback@doviz.com",
+    "info@sinemalar.com",
+    "feedback@sinemalar.com",
+)
 
 
 def _is_firebase_sender(text: str) -> bool:
     return bool(_FIREBASE_FROM_RE.search(text or ""))
+
+
+def _is_ziyaret_sender(text: str) -> bool:
+    return bool(_ZIYARET_FROM_RE.search(text or ""))
 
 
 def _default_inbox_gmail_query() -> str:
@@ -43,7 +54,8 @@ def _default_inbox_gmail_query() -> str:
         "to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
         "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
         "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com "
-        "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
+        "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com "
+        "OR from:noreply@doviz.com OR to:me"
         ")"
     )
 
@@ -52,24 +64,33 @@ def _firebase_only_gmail_query() -> str:
     return "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
 
 
-def _ensure_firebase_in_query(q: str) -> str:
-    low = (q or "").lower()
-    if "firebase-noreply" in low:
-        return q
-    fb = "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
-    q = q.strip()
+def _append_or_clause_to_query(q: str, clause: str) -> str:
+    q = (q or "").strip()
     if q.startswith("(") and q.endswith(")"):
-        return q[:-1] + f" OR {fb})"
+        return q[:-1] + f" OR {clause})"
     if q:
-        return f"({q}) OR ({fb})"
-    return fb
+        return f"({q}) OR ({clause})"
+    return clause
+
+
+def _ensure_inbox_query_clauses(q: str) -> str:
+    q = (q or "").strip()
+    if "firebase-noreply" not in q.lower():
+        q = _append_or_clause_to_query(
+            q, "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
+        )
+    if "noreply@doviz.com" not in q.lower():
+        q = _append_or_clause_to_query(q, "from:noreply@doviz.com")
+    if "to:me" not in q.lower():
+        q = _append_or_clause_to_query(q, "to:me")
+    return q
 
 
 def _normalize_inbox_gmail_query(raw: str) -> str:
     q = (raw or "").strip()
     if not q:
         q = _default_inbox_gmail_query()
-    q = _ensure_firebase_in_query(q)
+    q = _ensure_inbox_query_clauses(q)
     q = re.sub(r"\bis:unread\b", "", q, flags=re.IGNORECASE).strip()
     q = re.sub(r"\s{2,}", " ", q).strip()
     if "newer_than:" not in q.lower() and "after:" not in q.lower():
@@ -153,32 +174,68 @@ def _extract_body_text(
     return ""
 
 
-def _route_tag_from_addrs(text: str) -> str:
+def _route_tag_from_addrs(text: str) -> str | None:
     t = (text or "").lower()
-    
-    # Adres bazlı eşleşmeler (Regex yerine daha hızlı string kontrolü)
+
     is_info = "info@doviz.com" in t or "info@sinemalar.com" in t
     is_feedback = "feedback@doviz.com" in t or "feedback@sinemalar.com" in t
     is_sinemalar = "sinemalar.com" in t and "info" in t
-    
-    found = []
-    if is_info: found.append("info")
-    if is_feedback: found.append("feedback")
-    if is_sinemalar and "info" not in found: found.append("sinemalar")
+
+    found: list[str] = []
+    if is_info:
+        found.append("info")
+    if is_feedback:
+        found.append("feedback")
+    if is_sinemalar and "info" not in found:
+        found.append("sinemalar")
 
     if len(found) > 1:
-        return "mixed"
+        for pref in ("info", "feedback", "sinemalar"):
+            if pref in found:
+                return pref
+        return found[0]
     if len(found) == 1:
         return found[0]
-    return "mixed"
+    return None
 
 
-def _route_tag_from_thread(msgs_raw: list[dict[str, Any]], route_src: str) -> str:
+def _is_direct_to_account(
+    msgs_raw: list[dict[str, Any]], route_src: str, account_lower: str
+) -> bool:
+    if not account_lower:
+        return False
+    t = (route_src or "").lower()
+    if any(marker in t for marker in _SUPPORT_ADDR_MARKERS):
+        return False
+    for m in msgs_raw:
+        h = _header_map(m)
+        from_ = (h.get("from") or "").lower()
+        if account_lower in from_:
+            continue
+        for key in ("to", "delivered-to", "x-original-to", "envelope-to", "cc"):
+            hdr = (h.get(key) or "").lower()
+            if account_lower in hdr:
+                return True
+    return account_lower in t
+
+
+def _route_tag_from_thread(
+    msgs_raw: list[dict[str, Any]], route_src: str, account_lower: str = ""
+) -> str:
     for m in msgs_raw:
         h = _header_map(m)
         if _is_firebase_sender(h.get("from") or ""):
             return "firebase"
-    return _route_tag_from_addrs(route_src)
+    for m in msgs_raw:
+        h = _header_map(m)
+        if _is_ziyaret_sender(h.get("from") or ""):
+            return "ziyaret"
+    tag = _route_tag_from_addrs(route_src)
+    if tag:
+        return tag
+    if _is_direct_to_account(msgs_raw, route_src, account_lower):
+        return "tome"
+    return "tome"
 
 
 def _thread_has_unread(full: dict[str, Any]) -> bool:
@@ -454,7 +511,7 @@ def _upsert_thread_from_gmail(
         if not subject0:
             subject0 = h.get("subject") or ""
 
-    route_tag = _route_tag_from_thread(msgs_raw, route_src)
+    route_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()

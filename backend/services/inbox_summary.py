@@ -52,7 +52,7 @@ def run_inbox_summary_job(db: Session):
         return
 
     # 3. İstatistikleri ve Raporu Hazırla
-    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "mixed": 0, "firebase": 0}
+    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "firebase": 0, "ziyaret": 0, "tome": 0}
     for t in unread_threads:
         if t.route_tag in counts:
             counts[t.route_tag] += 1
@@ -66,8 +66,12 @@ def run_inbox_summary_job(db: Session):
     lines.append(f"<b>info@doviz.com:</b> {counts['info']} mesaj<br/>")
     lines.append(f"<b>info@sinemalar.com:</b> {counts['sinemalar']} mesaj<br/>")
     lines.append(f"<b>feedback@doviz.com:</b> {counts['feedback']} mesaj<br/>")
-    if counts["mixed"] > 0:
-        lines.append(f"<b>Birden Fazla / Karma:</b> {counts['mixed']} mesaj<br/>")
+    if counts["ziyaret"] > 0:
+        lines.append(f"<b>Ziyaret (noreply@doviz.com):</b> {counts['ziyaret']} mesaj<br/>")
+    if counts["tome"] > 0:
+        lines.append(f"<b>to:me:</b> {counts['tome']} mesaj<br/>")
+    if counts["firebase"] > 0:
+        lines.append(f"<b>Firebase:</b> {counts['firebase']} mesaj<br/>")
     lines.append(f"<p><b>Toplam: {len(unread_threads)} okunmamış konuşma.</b></p>")
     lines.append("</div>")
 
@@ -97,8 +101,10 @@ def run_inbox_summary_job(db: Session):
             "info": "info@doviz.com",
             "sinemalar": "info@sinemalar.com",
             "feedback": "feedback@doviz.com",
-            "mixed": "Çoklu Hesap",
             "firebase": "Firebase Crashlytics",
+            "ziyaret": "Ziyaret (noreply@doviz.com)",
+            "tome": "to:me",
+            "mixed": "Çoklu Hesap",
         }.get(t.route_tag, t.route_tag)
         
         content_html = latest_inbound.body_text if latest_inbound and latest_inbound.body_text else t.snippet

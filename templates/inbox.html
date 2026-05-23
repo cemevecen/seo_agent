@@ -48,7 +48,8 @@
           <button type="button" role="tab" data-route="info" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">info@doviz</button>
           <button type="button" role="tab" data-route="feedback" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">feedback@</button>
           <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar@</button>
-          <button type="button" role="tab" data-route="mixed" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">Karışık</button>
+          <button type="button" role="tab" data-route="ziyaret" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">Ziyaret</button>
+          <button type="button" role="tab" data-route="tome" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">to:me</button>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <span id="inbox-live-hint" class="text-[10px] text-slate-400 dark:text-slate-500 hidden">Otomatik yenileme açık</span>
@@ -151,6 +152,19 @@
   var inboxActiveRoute = "";
   var _inboxPollBusy = false;
   var _inboxPollTimer = null;
+
+  function inboxRouteLabel(tag) {
+    var labels = {
+      firebase: "firebase",
+      info: "info",
+      feedback: "feedback",
+      sinemalar: "sinemalar",
+      ziyaret: "ziyaret",
+      tome: "to:me",
+      mixed: "karışık",
+    };
+    return labels[tag] || tag;
+  }
 
   function inboxRouteBadgeClass(tag) {
     if (tag === "firebase") {
@@ -713,6 +727,10 @@
       var emptyMsg =
         inboxActiveRoute === "firebase"
           ? "Firebase uyarısı yok. «Senkronize et» deyin veya otomatik yenilemeyi bekleyin (≈30 sn)."
+          : inboxActiveRoute === "ziyaret"
+          ? "noreply@doviz.com kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          : inboxActiveRoute === "tome"
+          ? "Doğrudan size gelen (to:me) mail yok. «Senkronize et» ile güncelleyin."
           : "Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.";
       box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">' + emptyMsg + "</p>";
       return;
@@ -724,7 +742,7 @@
           '<span class="' +
           inboxRouteBadgeClass(t.route_tag) +
           '">' +
-          esc(t.route_tag) +
+          esc(inboxRouteLabel(t.route_tag)) +
           "</span>";
         var flags = "";
         if (t.gmail_unread) flags += '<span class="ml-1 text-rose-600 dark:text-rose-400">●</span>';
@@ -776,7 +794,7 @@
     document.getElementById("inbox-detail").classList.remove("hidden");
     document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
     document.getElementById("inbox-detail-meta").textContent =
-      "Rota: " + t.route_tag + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
+      "Rota: " + inboxRouteLabel(t.route_tag) + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
     toggleFirebaseCompose(t.route_tag === "firebase");
     var sum = document.getElementById("inbox-ai-summary");
     if (t.ai_summary && t.ai_summary.trim()) {
