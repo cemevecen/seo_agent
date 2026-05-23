@@ -12,6 +12,9 @@ from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+# Intelligence sayfası yalnızca son 12 saati tutar; daha eski kayıtlar sync sırasında silinir.
+RETENTION_HOURS = 12
+
 
 def normalize_headline_for_dedup(headline: str) -> str:
     """Aynı haberin farklı URL ile tekrarını yakalamak için başlık normalize."""
@@ -40,7 +43,7 @@ def dedupe_news_rows(items: list) -> list:
     return out
 
 
-def headline_exists_for_source(db: Session, source_name: str, headline: str, *, hours: int = 168) -> bool:
+def headline_exists_for_source(db: Session, source_name: str, headline: str, *, hours: int = RETENTION_HOURS) -> bool:
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     norm = normalize_headline_for_dedup(headline)
     rows = (
@@ -54,7 +57,7 @@ def headline_exists_for_source(db: Session, source_name: str, headline: str, *, 
     return any(normalize_headline_for_dedup(h or "") == norm for (h,) in rows)
 
 
-def cleanup_duplicate_news_items(db: Session, *, hours: int = 168) -> int:
+def cleanup_duplicate_news_items(db: Session, *, hours: int = RETENTION_HOURS) -> int:
     """Aynı kaynak+başlık tekrarlarını sil; en yeni published_at kalır."""
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     rows = (
@@ -78,6 +81,18 @@ def cleanup_duplicate_news_items(db: Session, *, hours: int = 168) -> int:
     )
     db.commit()
     return len(to_delete)
+
+
+def cleanup_old_news_items(db: Session, *, hours: int = RETENTION_HOURS) -> int:
+    """Retention penceresinin dışındaki haberleri kalıcı olarak siler."""
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    deleted_count = db.query(NewsIntelligenceItem).filter(
+        NewsIntelligenceItem.published_at < cutoff
+    ).delete(synchronize_session=False)
+    if deleted_count:
+        db.commit()
+    return deleted_count
+
 
 # Çok Kanallı Tarama: Her kategori için birden fazla kaynak ve arama sorgusu.
 #
@@ -374,6 +389,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
             logger.warning("RSS fetch hatası: %s — %s", url[:80], exc)
             return None
 
+    retention_cutoff = datetime.utcnow() - timedelta(hours=RETENTION_HOURS)
+
     # Her kategori için tüm kaynakları tara
     _gnews_count = 0  # Google News istekleri arasında throttle
     for category, rss_urls in CATEGORY_SOURCES.items():
@@ -455,6 +472,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     display_topic = matched_topic.capitalize() if matched_topic else category
 
                     published_at = parse_pub_date(pub_date_str) or datetime.utcnow()
+                    if published_at < retention_cutoff:
+                        continue
 
                     if db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first():
                         continue
@@ -524,13 +543,11 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         db.rollback()
         logger.warning("News intelligence yinelenen temizlik hatası: %s", exc)
 
-    # 7 Günlük Temizlik
+    # Retention: 12 saatten eski kayıtları sil
     try:
-        cutoff = datetime.utcnow() - timedelta(hours=168)
-        deleted_count = db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.published_at < cutoff).delete()
-        db.commit()
+        deleted_count = cleanup_old_news_items(db)
         if deleted_count > 0:
-            logger.info("Cleaned up %d old news items.", deleted_count)
+            logger.info("Cleaned up %d news items older than %dh.", deleted_count, RETENTION_HOURS)
     except Exception as e:
         logger.error("Error during news intelligence cleanup: %s", e)
         db.rollback()

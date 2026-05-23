@@ -34,7 +34,7 @@ _STOPWORDS: set[str] = {
 }
 
 _UTC = timezone.utc
-_MAX_REVIEWS = 500  # tek bir analiz başına üst sınır
+_MAX_REVIEWS = 1000  # tek bir analiz başına üst sınır
 
 
 # ─── Google Play ──────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ def _fetch_appstore_reviews(
     collected: list[dict[str, Any]] = []
     headers = {"User-Agent": "iTunes/12.0 (Macintosh; OS X 10.15.7)"}
 
-    for page in range(1, 11):
+    for page in range(1, 21):
         if len(collected) >= limit:
             break
         url = (
@@ -201,12 +201,14 @@ def run_heuristic(reviews: list[dict[str, Any]]) -> dict[str, Any]:
         [rv for rv in with_text if int(rv.get("score") or 0) >= 4],
         key=lambda r: r.get("at") or "",
         reverse=True,
-    )[:3]
+    )[:10]
     worst_samples = sorted(
         [rv for rv in with_text if int(rv.get("score") or 0) <= 2],
         key=lambda r: r.get("at") or "",
         reverse=True,
-    )[:3]
+    )[:10]
+
+    all_reviews = sorted(reviews, key=lambda r: r.get("at") or "", reverse=True)
 
     return {
         "total_reviews": n,
@@ -223,6 +225,7 @@ def run_heuristic(reviews: list[dict[str, Any]]) -> dict[str, Any]:
         "top_keywords": top_keywords,
         "best_samples": best_samples,
         "worst_samples": worst_samples,
+        "all_reviews": all_reviews,
     }
 
 
@@ -259,5 +262,6 @@ def analyze_store_app(
     return {
         "app_meta": app_meta,
         "reviews_fetched": len(reviews),
+        "reviews": sorted(reviews, key=lambda r: r.get("at") or "", reverse=True),
         "analysis": analysis,
     }

@@ -631,15 +631,18 @@
       </div>
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <select id="rt-viv-store-days" class="rt-viv-select">
-          <option value="30">Son 30 gün</option>
+          <option value="7">Son 7 gün</option>
+          <option value="30" selected>Son 30 gün</option>
           <option value="90">Son 90 gün</option>
           <option value="180">Son 180 gün</option>
           <option value="365">Son 1 yıl</option>
+          <option value="730">Son 2 yıl</option>
         </select>
         <select id="rt-viv-store-limit" class="rt-viv-select">
           <option value="200">200 yorum</option>
-          <option value="300" selected>300 yorum</option>
+          <option value="300">300 yorum</option>
           <option value="500">500 yorum</option>
+          <option value="1000" selected>1000 yorum</option>
         </select>
         <button type="button" id="rt-viv-store-analyze-btn" class="rt-viv-btn" onclick="rtVivRunStoreAnalysis()">
           Yorumları çek &amp; analiz et
@@ -700,15 +703,18 @@
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Yorum analizi:</span>
           <select id="rt-viv-cmp-days" class="rt-viv-select">
-            <option value="30">Son 30 gün</option>
+            <option value="7">Son 7 gün</option>
+            <option value="30" selected>Son 30 gün</option>
             <option value="90">Son 90 gün</option>
             <option value="180">Son 180 gün</option>
             <option value="365">Son 1 yıl</option>
+            <option value="730">Son 2 yıl</option>
           </select>
           <select id="rt-viv-cmp-limit" class="rt-viv-select">
             <option value="200">200 yorum</option>
-            <option value="300" selected>300 yorum</option>
+            <option value="300">300 yorum</option>
             <option value="500">500 yorum</option>
+            <option value="1000" selected>1000 yorum</option>
           </select>
           <button type="button" id="rt-viv-cmp-analyze-btn" class="rt-viv-btn" onclick="rtVivRunCompareAnalysis()">
             İki uygulamayı analiz et
@@ -735,6 +741,21 @@
   var _rtVivSel = { a: null, b: null };
   var _rtVivStoreLast = [];
   var _rtVivStoreSelApp = null; // seçili uygulama (analiz için)
+  var _rtVivReviewCache = {};
+
+  function _rtVivReviewCardKey(prefix) {
+    return (prefix || 'rv') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  }
+
+  function _rtVivDaysLabel(days) {
+    var d = parseInt(days, 10) || 30;
+    if (d === 7) return 'Son 7 gün';
+    if (d === 730) return 'Son 2 yıl';
+    if (d === 365) return 'Son 1 yıl';
+    if (d === 180) return 'Son 180 gün';
+    if (d === 90) return 'Son 90 gün';
+    return 'Son ' + d + ' gün';
+  }
 
   function _rtVivFmtRating(v) {
     if (v == null || v === '') return '—';
@@ -873,9 +894,11 @@
     }).join(' ');
   }
 
-  function _rtVivSampleReviews(samples, cls) {
+  function _rtVivSampleReviews(samples, cls, opts) {
+    opts = opts || {};
     if (!samples || !samples.length) return '';
     cls = cls || 'bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700';
+    var clamp = opts.fullText ? '' : ' line-clamp-3';
     return samples.map(function(rv) {
       var stars = ['', '★', '★★', '★★★', '★★★★', '★★★★★'][rv.score] || rv.score;
       var scoreClass = rv.score >= 4 ? 'text-emerald-600 dark:text-emerald-400' :
@@ -883,70 +906,129 @@
       var date = rv.at ? rv.at.slice(0, 10) : '';
       return (
         '<div class="rounded-lg border p-2.5 ' + cls + '">' +
-        '<div class="flex items-center gap-1.5 mb-1">' +
+        '<div class="flex items-center gap-1.5 mb-1 flex-wrap">' +
         '<span class="text-xs font-bold ' + scoreClass + '">' + stars + '</span>' +
         '<span class="text-[10px] text-slate-400 dark:text-slate-500">' + _esc(date) + '</span>' +
         (rv.author ? '<span class="text-[10px] text-slate-400 dark:text-slate-500">— ' + _esc(rv.author) + '</span>' : '') +
+        (rv.version ? '<span class="text-[10px] text-slate-400 dark:text-slate-500">· v' + _esc(rv.version) + '</span>' : '') +
         '</div>' +
-        '<p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-3">' + _esc(rv.text) + '</p>' +
+        '<p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed' + clamp + '">' + _esc(rv.text) + '</p>' +
         '</div>'
       );
     }).join('');
   }
 
-  function _rtVivBuildAnalysisCard(appName, platform, days, data) {
+  function _rtVivAllReviewsSection(cardKey, reviews) {
+    if (!reviews || !reviews.length) return '';
+    _rtVivReviewCache[cardKey] = reviews;
+    return (
+      '<div class="border-t border-slate-200 dark:border-zinc-700 pt-3">' +
+      '<div class="flex flex-wrap items-center gap-2">' +
+      '<button type="button" class="rt-viv-btn text-xs py-1.5 px-3" data-reviews-toggle="' + cardKey + '" onclick="rtVivToggleAllReviews(\'' + cardKey + '\')">' +
+      'Tüm yorumları gör (' + reviews.length + ')' +
+      '</button>' +
+      '<span class="text-[10px] text-slate-400 dark:text-slate-500">Analiz edilen tüm yorumlar</span>' +
+      '</div>' +
+      '<div id="' + cardKey + '-reviews-all" class="hidden mt-3">' +
+      '<div class="mb-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Yorum filtresi">' +
+      '<button type="button" class="rt-viv-review-filter rt-viv-review-filter--on rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200" data-card="' + cardKey + '" data-filter="all" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'all\')">Tümü</button>' +
+      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-emerald-300" data-card="' + cardKey + '" data-filter="positive" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'positive\')">Olumlu (4–5★)</button>' +
+      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-rose-300" data-card="' + cardKey + '" data-filter="negative" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'negative\')">Olumsuz (1–2★)</button>' +
+      '</div>' +
+      '<div id="' + cardKey + '-reviews-list" class="max-h-[28rem] overflow-y-auto space-y-2 pr-1">' +
+      _rtVivRenderFilteredReviews(cardKey, 'all') +
+      '</div></div></div>'
+    );
+  }
+
+  function _rtVivFilterReviews(reviews, filter) {
+    if (filter === 'positive') return reviews.filter(function (rv) { return (rv.score || 0) >= 4; });
+    if (filter === 'negative') return reviews.filter(function (rv) { return (rv.score || 0) <= 2; });
+    return reviews;
+  }
+
+  function _rtVivRenderFilteredReviews(cardKey, filter) {
+    var reviews = _rtVivReviewCache[cardKey] || [];
+    var filtered = _rtVivFilterReviews(reviews, filter);
+    if (!filtered.length) {
+      return '<p class="text-xs text-slate-400 dark:text-slate-500 py-2">Bu filtrede yorum yok.</p>';
+    }
+    return _rtVivSampleReviews(filtered, 'bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700', { fullText: true });
+  }
+
+  window.rtVivToggleAllReviews = function (cardKey) {
+    var panel = document.getElementById(cardKey + '-reviews-all');
+    var btn = document.querySelector('[data-reviews-toggle="' + cardKey + '"]');
+    if (!panel || !btn) return;
+    var opening = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !opening);
+    var n = (_rtVivReviewCache[cardKey] || []).length;
+    btn.textContent = opening ? 'Yorumları gizle (' + n + ')' : 'Tüm yorumları gör (' + n + ')';
+  };
+
+  window.rtVivFilterAllReviews = function (cardKey, filter) {
+    var list = document.getElementById(cardKey + '-reviews-list');
+    if (!list) return;
+    list.innerHTML = _rtVivRenderFilteredReviews(cardKey, filter);
+    document.querySelectorAll('.rt-viv-review-filter[data-card="' + cardKey + '"]').forEach(function (btn) {
+      var on = btn.getAttribute('data-filter') === filter;
+      btn.classList.toggle('rt-viv-review-filter--on', on);
+      btn.classList.toggle('ring-2', on);
+      btn.classList.toggle('ring-indigo-400', on);
+    });
+  };
+
+  function _rtVivBuildAnalysisCard(appName, platform, days, data, cardKey) {
+    cardKey = cardKey || _rtVivReviewCardKey('rv');
     var a = data.analysis || {};
     var n = a.total_reviews || 0;
     var dist = a.rating_distribution || {};
     var sent = a.sentiment || {};
     var avg = a.average_rating || 0;
     var platLabel = platform === 'google_play' ? 'Google Play' : 'App Store';
+    var reviews = data.reviews || a.all_reviews || [];
+    var daysLabel = _rtVivDaysLabel(days);
     if (a.error || n === 0) {
       return (
         '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
         '<p class="text-xs font-bold text-slate-800 dark:text-slate-100">' + _esc(appName) + ' — ' + platLabel + '</p>' +
-        '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || 'Son ' + days + ' günde yorum bulunamadı.') + '</p>' +
+        '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || daysLabel + ' döneminde yorum bulunamadı.') + '</p>' +
         '</div>'
       );
     }
 
     return (
       '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">' +
-      // Başlık
       '<div class="flex flex-wrap items-center justify-between gap-2">' +
       '<div>' +
       '<p class="text-sm font-extrabold text-slate-900 dark:text-slate-100">' + _esc(appName) + '</p>' +
-      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + platLabel + ' · Son ' + days + ' gün · ' + n + ' yorum</p>' +
+      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + platLabel + ' · ' + daysLabel + ' · ' + n + ' yorum</p>' +
       '</div>' +
       '<div class="flex items-baseline gap-1">' +
       '<span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + avg.toFixed(1) + '</span>' +
       '<span class="text-sm text-slate-400">/ 5</span>' +
       '</div>' +
       '</div>' +
-      // Puan dağılımı
       '<div>' +
       '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Puan dağılımı</p>' +
       '<div class="space-y-1">' +
       [5,4,3,2,1].map(function(s){ return _rtVivRatingBar(s, dist[s] || 0, n); }).join('') +
       '</div></div>' +
-      // Sentiment
       '<div>' +
       '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Duygu dağılımı</p>' +
       _rtVivSentimentBar(sent.positive || 0, sent.neutral || 0, sent.negative || 0, n) +
       '</div>' +
-      // Anahtar kelimeler
       '<div>' +
       '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Sık geçen kelimeler</p>' +
       '<div class="flex flex-wrap gap-1">' + _rtVivKeywordCloud(a.top_keywords) + '</div>' +
       '</div>' +
-      // Olumlu örnekler
       (a.best_samples && a.best_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Olumlu yorumlar</p>' +
+      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Olumlu yorumlar (özet)</p>' +
       '<div class="space-y-2">' + _rtVivSampleReviews(a.best_samples, 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50') + '</div></div>' : '') +
-      // Olumsuz örnekler
       (a.worst_samples && a.worst_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Olumsuz yorumlar</p>' +
+      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Olumsuz yorumlar (özet)</p>' +
       '<div class="space-y-2">' + _rtVivSampleReviews(a.worst_samples, 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50') + '</div></div>' : '') +
+      _rtVivAllReviewsSection(cardKey, reviews) +
       '</div>'
     );
   }
@@ -960,10 +1042,10 @@
     var msg = document.getElementById('rt-viv-store-analyze-msg');
     var res = document.getElementById('rt-viv-store-analysis-result');
     var days = parseInt(document.getElementById('rt-viv-store-days').value || '30', 10);
-    var limit = parseInt(document.getElementById('rt-viv-store-limit').value || '300', 10);
+    var limit = parseInt(document.getElementById('rt-viv-store-limit').value || '1000', 10);
 
     if (btn) btn.disabled = true;
-    if (msg) msg.textContent = 'Yorumlar mağazadan çekiliyor… (30–90 sn sürebilir)';
+    if (msg) msg.textContent = 'Yorumlar mağazadan çekiliyor… (1000 yorum 1–2 dk sürebilir)';
 
     var platform = it.platform === 'app_store' ? 'app_store' : 'google_play';
     var lang = document.getElementById('rt-viv-lang-store');
@@ -986,7 +1068,7 @@
     .then(function(d) {
       if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
       if (res) {
-        res.innerHTML = _rtVivBuildAnalysisCard(it.name, platform, days, d);
+        res.innerHTML = _rtVivBuildAnalysisCard(it.name, platform, days, d, _rtVivReviewCardKey('store'));
         res.classList.remove('hidden');
       }
       if (msg) msg.textContent = d.reviews_fetched + ' yorum analiz edildi.';
@@ -1009,10 +1091,10 @@
     var msg = document.getElementById('rt-viv-cmp-analyze-msg');
     var res = document.getElementById('rt-viv-compare-analysis-result');
     var days = parseInt((document.getElementById('rt-viv-cmp-days') || {}).value || '30', 10);
-    var limit = parseInt((document.getElementById('rt-viv-cmp-limit') || {}).value || '300', 10);
+    var limit = parseInt((document.getElementById('rt-viv-cmp-limit') || {}).value || '1000', 10);
 
     if (btn) btn.disabled = true;
-    if (msg) msg.textContent = 'Her iki uygulama için yorumlar çekiliyor… (60–120 sn sürebilir)';
+    if (msg) msg.textContent = 'Her iki uygulama için yorumlar çekiliyor… (1000 yorum 2–3 dk sürebilir)';
 
     var platA = selA.platform === 'app_store' ? 'app_store' : 'google_play';
     var platB = selB.platform === 'app_store' ? 'app_store' : 'google_play';
@@ -1038,8 +1120,8 @@
         res.innerHTML =
           '<div class="mb-3"><h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Yorum analizi karşılaştırması</h4></div>' +
           '<div class="grid gap-4 md:grid-cols-2">' +
-          '<div>' + _rtVivBuildAnalysisCard(selA.name, platA, days, dA) + '</div>' +
-          '<div>' + _rtVivBuildAnalysisCard(selB.name, platB, days, dB) + '</div>' +
+          '<div>' + _rtVivBuildAnalysisCard(selA.name, platA, days, dA, _rtVivReviewCardKey('cmp-a')) + '</div>' +
+          '<div>' + _rtVivBuildAnalysisCard(selB.name, platB, days, dB, _rtVivReviewCardKey('cmp-b')) + '</div>' +
           '</div>';
         res.classList.remove('hidden');
       }

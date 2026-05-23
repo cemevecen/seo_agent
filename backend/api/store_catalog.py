@@ -92,6 +92,7 @@ class ReviewAnalysisResponse(BaseModel):
     reviews_fetched: int
     app_meta: dict[str, Any] = {}
     analysis: dict[str, Any]
+    reviews: list[dict[str, Any]] = []
 
 
 @router.post("/review-analysis", response_model=ReviewAnalysisResponse)
@@ -103,7 +104,7 @@ async def store_review_analysis(body: ReviewAnalysisRequest) -> ReviewAnalysisRe
     if not _PLATFORM_SINGLE_RE.match(body.platform):
         raise HTTPException(status_code=400, detail="platform google_play veya app_store olmalı.")
     days = max(1, min(body.days, 730))
-    limit = max(50, min(body.limit, 500))
+    limit = max(50, min(body.limit, 1000))
 
     try:
         result = await run_in_threadpool(
@@ -126,4 +127,5 @@ async def store_review_analysis(body: ReviewAnalysisRequest) -> ReviewAnalysisRe
         reviews_fetched=result["reviews_fetched"],
         app_meta=result.get("app_meta") or {},
         analysis=result["analysis"],
+        reviews=result.get("reviews") or [],
     )

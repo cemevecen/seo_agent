@@ -5,6 +5,7 @@
   <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">NEWS</h1>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Son 12 saat — daha eski haberler otomatik silinir</p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <select id="rt-intel-source-filter"
@@ -93,6 +94,7 @@
 <script>
     let _intelOffset = 0;
     const _intelLimit = 24;
+    const _intelHours = 12;
     let _intelLoading = false;
     let _intelFinished = false;
     let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
@@ -163,14 +165,22 @@
     }
 
     function _intelListQuery(extra = '') {
-      let q = `offset=${_intelOffset}&limit=${_intelLimit}`;
+      let q = `offset=${_intelOffset}&limit=${_intelLimit}&hours=${_intelHours}`;
       if (_intelSourceFilter) q += `&source=${encodeURIComponent(_intelSourceFilter)}`;
       return extra ? `${extra}&${q}` : q;
     }
 
+    function _intelPruneStaleCards() {
+      const cutoff = Date.now() - _intelHours * 3600 * 1000;
+      document.querySelectorAll('#rt-intel-list .rt-intel-card[data-published-at]').forEach(el => {
+        const ts = Date.parse(el.getAttribute('data-published-at') || '');
+        if (!Number.isNaN(ts) && ts < cutoff) el.remove();
+      });
+    }
+
     function rtLoadIntelSources() {
       const parsed = _parseIntelSourceSort(_intelSourceSort);
-      const qs = `sort=${encodeURIComponent(parsed.sort)}&order=${encodeURIComponent(parsed.order)}`;
+      const qs = `sort=${encodeURIComponent(parsed.sort)}&order=${encodeURIComponent(parsed.order)}&hours=${_intelHours}`;
       return fetch('/api/admin/news-intelligence/sources?' + qs)
         .then(r => r.json())
         .then(data => {
@@ -284,7 +294,7 @@
         }
       }
 
-      return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}">
+      return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}" data-published-at="${item.published_at || ''}">
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0">
             <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 p-0.5 dark:bg-zinc-800/60">
@@ -329,8 +339,8 @@
           }
           if (items.length === 0 && _intelFinished && document.getElementById('rt-intel-list').children.length === 0) {
             const emptyMsg = _intelSourceFilter
-              ? `«${_intelSourceFilter}» kaynağında son 24 saatte haber bulunamadı.`
-              : 'Son 24 saatte haber bulunamadı.';
+              ? `«${_intelSourceFilter}» kaynağında son ${_intelHours} saatte haber bulunamadı.`
+              : `Son ${_intelHours} saatte haber bulunamadı.`;
             document.getElementById('rt-intel-list').innerHTML = `<div class="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">${emptyMsg}</div>`;
             return;
           }
@@ -341,7 +351,7 @@
 
     // Sayfa scroll edilebilir hale gelene kadar (ya da haber tükenene kadar) sırayla fetch et.
     // Bu sayede kısa ekranlarda kullanıcı 24'lük ilk sayfaya takılı kalmıyor; otomatik
-    // olarak son 24 saatin tüm haberleri yükleniyor.
+    // olarak son 12 saatin tüm haberleri yükleniyor.
     async function rtAutoFillInitial() {
       let guard = 20; // sonsuz döngüden korunma
       while (!_intelFinished && guard-- > 0) {
@@ -356,10 +366,11 @@
 
     function rtAutoRefreshNews() {
         if(!_latestPublishedAt) return;
-        const url = `/api/admin/news-intelligence/list?limit=20&since=${encodeURIComponent(_latestPublishedAt)}${_intelSourceFilter ? '&source=' + encodeURIComponent(_intelSourceFilter) : ''}`;
+        const url = `/api/admin/news-intelligence/list?limit=20&hours=${_intelHours}&since=${encodeURIComponent(_latestPublishedAt)}${_intelSourceFilter ? '&source=' + encodeURIComponent(_intelSourceFilter) : ''}`;
         fetch(url)
         .then(r => r.json())
         .then(data => {
+          _intelPruneStaleCards();
           const items = _intelFilterUniqueItems(data.items || []);
           if(items.length === 0) return;
           const listEl = document.getElementById('rt-intel-list');

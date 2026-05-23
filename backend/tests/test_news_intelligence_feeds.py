@@ -66,3 +66,7 @@ def test_dedupe_news_rows_keeps_newest_first():
     assert len(out) == 2
     assert out[0].headline == "Aynı haber"
     assert out[1].headline == "Başka haber"
+
+
+def test_retention_hours_is_twelve():
+    assert ni.RETENTION_HOURS == 12

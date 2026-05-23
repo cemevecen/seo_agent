@@ -699,17 +699,19 @@ def admin_run_news_intelligence_now():
 
 
 @app.get("/api/admin/news-intelligence/sources")
-def get_news_intelligence_sources(hours: int = 24, sort: str = "name", order: str = "asc"):
+def get_news_intelligence_sources(hours: int | None = None, sort: str = "name", order: str = "asc"):
     """Son N saatte haber içeren kaynak adlarını (ve adet) döner — dropdown için."""
+    from backend.services.news_intelligence import RETENTION_HOURS
+
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from sqlalchemy import func
         import datetime as _dt
 
         try:
-            hours_int = int(hours)
+            hours_int = int(hours) if hours is not None else RETENTION_HOURS
         except (TypeError, ValueError):
-            hours_int = 24
+            hours_int = RETENTION_HOURS
 
         query = (
             db.query(
@@ -744,12 +746,14 @@ def get_news_intelligence(
     limit: int = 24,
     offset: int = 0,
     since: str = None,
-    hours: int = 24,
+    hours: int | None = None,
 ):
     """Veritabanındaki haber istihbaratı verilerini döner.
     Varsayılan: son `hours` saatlik haberler (zaman bazlı), offset/limit ile lazyload.
     `since` parametresi auto-refresh için kullanılır (sadece bu zamandan sonrasını döner).
     """
+    from backend.services.news_intelligence import RETENTION_HOURS
+
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from backend.services.news_intelligence import dedupe_news_rows
@@ -763,6 +767,13 @@ def get_news_intelligence(
         query = query.filter(
             NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""])
         )
+        try:
+            hours_int = int(hours) if hours is not None else RETENTION_HOURS
+        except (TypeError, ValueError):
+            hours_int = RETENTION_HOURS
+        if hours_int > 0:
+            cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
+            query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
         if since:
             try:
                 since_dt = _dt.datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)
@@ -772,14 +783,6 @@ def get_news_intelligence(
             items = query.limit(50).all()
             items = dedupe_news_rows(items)
         else:
-            # Zaman bazlı pencere — varsayılan son 24 saat. 0 veya negatif verilirse limit yok.
-            try:
-                hours_int = int(hours)
-            except (TypeError, ValueError):
-                hours_int = 24
-            if hours_int > 0:
-                cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
-                query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
             safe_limit = min(limit, 50)
             collected: list = []
             cur_offset = offset
