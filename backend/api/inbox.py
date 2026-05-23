@@ -385,12 +385,12 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
 def inbox_threads_list(
     request: Request,
     db: Session = Depends(get_db),
-    route: str | None = Query(None, description="info|feedback|sinemalar|firebase|ziyaret|tome"),
+    route: str | None = Query(None, description="info|sinemalar|firebase|ziyaret|tome"),
     limit: int = Query(inbox_sync.INBOX_LIST_LIMIT, ge=1, le=200),
 ):
     q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
-    if route in ("info", "feedback", "sinemalar", "firebase", "ziyaret", "tome"):
-        q = q.filter(SupportInboxThread.route_tag == route)
+    if route in inbox_sync.INBOX_TAB_ROUTE_TAGS:
+        q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
     rows = q.limit(limit).all()
     tid_list = [t.id for t in rows]
     latest_bodies = _latest_message_body_by_thread(db, tid_list)

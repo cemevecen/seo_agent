@@ -28,17 +28,28 @@ INBOX_LIST_LIMIT = 50
 INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
     "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
     "ziyaret": "from:noreply@doviz.com",
-    "info": "to:info@doviz.com OR deliveredto:info@doviz.com",
-    "feedback": (
-        "to:feedback@doviz.com OR deliveredto:feedback@doviz.com OR "
+    "info": (
+        "to:info@doviz.com OR deliveredto:info@doviz.com OR "
+        "to:feedback@doviz.com OR deliveredto:feedback@doviz.com"
+    ),
+    "sinemalar": (
+        "to:info@sinemalar.com OR deliveredto:info@sinemalar.com OR "
         "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
     ),
-    "sinemalar": "to:info@sinemalar.com OR deliveredto:info@sinemalar.com",
     "tome": (
         "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
         "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
         "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
     ),
+}
+
+# UI sekmesi → veritabanı route_tag değerleri (feedback artık info ile birleşik)
+INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
+    "info": ("info", "feedback"),
+    "sinemalar": ("sinemalar",),
+    "firebase": ("firebase",),
+    "ziyaret": ("ziyaret",),
+    "tome": ("tome",),
 }
 
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
@@ -47,7 +58,6 @@ _answered_label_id_cache: str | None = None
 
 _INFO_DOVIZ_RE = re.compile(r"info@doviz\.com", re.I)
 _INFO_SINEMALAR_RE = re.compile(r"info@sinemalar\.com", re.I)
-_FB_RE = re.compile(r"feedback@doviz\.com", re.I)
 _FIREBASE_FROM_RE = re.compile(r"firebase-noreply@(google\.com|googleapis\.com)", re.I)
 _ZIYARET_FROM_RE = re.compile(r"noreply@doviz\.com", re.I)
 _SUPPORT_ADDR_MARKERS = (
@@ -247,23 +257,28 @@ def _route_text_from_headers(h: dict[str, str]) -> str:
     return " ".join(parts)
 
 
+def normalize_inbox_route_tag(route_tag: str | None) -> str:
+    """feedback@doviz.com artık info sekmesinde; eski kayıtları birleştir."""
+    tag = (route_tag or "").strip().lower()
+    if tag == "feedback":
+        return "info"
+    return tag or "tome"
+
+
 def _route_tag_from_addrs(text: str) -> str | None:
     t = (text or "").lower()
 
-    has_info_doviz = "info@doviz.com" in t
-    has_info_sinemalar = "info@sinemalar.com" in t
-    has_feedback = "feedback@doviz.com" in t or "feedback@sinemalar.com" in t
+    has_info_doviz = "info@doviz.com" in t or "feedback@doviz.com" in t
+    has_info_sinemalar = "info@sinemalar.com" in t or "feedback@sinemalar.com" in t
 
     found: list[str] = []
     if has_info_doviz:
         found.append("info")
     if has_info_sinemalar:
         found.append("sinemalar")
-    if has_feedback:
-        found.append("feedback")
 
     if len(found) > 1:
-        for pref in ("feedback", "sinemalar", "info"):
+        for pref in ("sinemalar", "info"):
             if pref in found:
                 return pref
         return found[0]
@@ -282,9 +297,11 @@ def _finalize_route_tag(
     if header_tag:
         return header_tag
     hint = (sync_route_hint or "").strip().lower()
+    if hint == "feedback":
+        hint = "info"
     if hint in ("firebase", "ziyaret") and computed in ("tome", hint):
         return hint
-    if hint in ("info", "feedback", "sinemalar") and computed == "tome":
+    if hint in ("info", "sinemalar") and computed == "tome":
         return hint
     return computed
 
@@ -623,7 +640,7 @@ def iter_sync_inbox_all_routes(
 
     unique_refs: list[tuple[str, dict[str, Any]]] = []
     seen_ids: dict[str, str] = {}
-    route_rank = {"firebase": 0, "ziyaret": 1, "feedback": 2, "sinemalar": 3, "info": 4, "tome": 5}
+    route_rank = {"firebase": 0, "ziyaret": 1, "sinemalar": 2, "info": 3, "tome": 4}
     for route, tref in thread_refs:
         tid = str(tref.get("id") or "")
         if not tid:
@@ -696,10 +713,14 @@ def iter_sync_inbox_all_routes(
 
 
 def repair_misrouted_inbox_threads(db: Session) -> dict[str, Any]:
-    """Kayıtlı To/Delivered-To alanlarından route_tag yeniden hesaplar (ör. sinemalar→info)."""
+    """Kayıtlı To/Delivered-To alanlarından route_tag yeniden hesaplar; feedback→info birleştirir."""
     changed = 0
     rows = db.query(SupportInboxThread).all()
     for row in rows:
+        if row.route_tag == "feedback":
+            row.route_tag = "info"
+            changed += 1
+            continue
         if row.route_tag in ("firebase", "ziyaret"):
             continue
         msgs = (

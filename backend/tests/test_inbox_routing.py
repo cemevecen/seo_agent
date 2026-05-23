@@ -4,6 +4,7 @@ from backend.services.inbox_sync import (
     _finalize_route_tag,
     _route_tag_from_addrs,
     _route_tag_from_thread,
+    normalize_inbox_route_tag,
 )
 
 
@@ -17,14 +18,14 @@ def test_info_doviz_goes_to_info():
     assert _route_tag_from_addrs(src) == "info"
 
 
-def test_feedback_doviz_goes_to_feedback():
+def test_feedback_doviz_goes_to_info():
     src = "X-Original-To: feedback@doviz.com Delivered-To: cemevecen@nokta.com"
-    assert _route_tag_from_addrs(src) == "feedback"
+    assert _route_tag_from_addrs(src) == "info"
 
 
-def test_feedback_sinemalar_goes_to_feedback():
+def test_feedback_sinemalar_goes_to_sinemalar():
     src = "to: feedback@sinemalar.com"
-    assert _route_tag_from_addrs(src) == "feedback"
+    assert _route_tag_from_addrs(src) == "sinemalar"
 
 
 def test_both_info_addresses_prefers_sinemalar_when_sinemalar_present():
@@ -33,8 +34,8 @@ def test_both_info_addresses_prefers_sinemalar_when_sinemalar_present():
 
 
 def test_finalize_uses_sync_hint_when_headers_missing():
-    assert _finalize_route_tag("tome", "cemevecen@nokta.com", "feedback") == "feedback"
-    assert _finalize_route_tag("tome", "cemevecen@nokta.com", "sinemalar") == "sinemalar"
+    assert _finalize_route_tag("tome", "cemevecen@nokta.com", "info") == "info"
+    assert _finalize_route_tag("tome", "cemevecen@nokta.com", "feedback") == "info"
 
 
 def test_finalize_prefers_header_over_hint():
@@ -56,3 +57,8 @@ def test_thread_route_from_headers():
     ]
     route_src = "info@sinemalar.com cemevecen@nokta.com"
     assert _route_tag_from_thread(msgs, route_src, "cemevecen@nokta.com") == "sinemalar"
+
+
+def test_normalize_legacy_feedback_tag():
+    assert normalize_inbox_route_tag("feedback") == "info"
+    assert normalize_inbox_route_tag("info") == "info"

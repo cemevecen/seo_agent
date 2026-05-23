@@ -52,10 +52,13 @@ def run_inbox_summary_job(db: Session):
         return
 
     # 3. İstatistikleri ve Raporu Hazırla
-    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "firebase": 0, "ziyaret": 0, "tome": 0}
+    counts = {"info": 0, "sinemalar": 0, "firebase": 0, "ziyaret": 0, "tome": 0}
     for t in unread_threads:
-        if t.route_tag in counts:
-            counts[t.route_tag] += 1
+        tag = t.route_tag
+        if tag == "feedback":
+            tag = "info"
+        if tag in counts:
+            counts[tag] += 1
 
     lines = []
     lines.append("<div style='font-family: sans-serif; color: #333;'>")
@@ -63,9 +66,8 @@ def run_inbox_summary_job(db: Session):
     
     # Hesap bazlı özet
     lines.append("<div style='background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;'>")
-    lines.append(f"<b>info@doviz.com:</b> {counts['info']} mesaj<br/>")
+    lines.append(f"<b>info@doviz.com (+ feedback@doviz.com):</b> {counts['info']} mesaj<br/>")
     lines.append(f"<b>info@sinemalar.com:</b> {counts['sinemalar']} mesaj<br/>")
-    lines.append(f"<b>feedback@doviz.com:</b> {counts['feedback']} mesaj<br/>")
     if counts["ziyaret"] > 0:
         lines.append(f"<b>Ziyaret (noreply@doviz.com):</b> {counts['ziyaret']} mesaj<br/>")
     if counts["tome"] > 0:
@@ -100,7 +102,7 @@ def run_inbox_summary_job(db: Session):
         tag_label = {
             "info": "info@doviz.com",
             "sinemalar": "info@sinemalar.com",
-            "feedback": "feedback@doviz.com",
+            "feedback": "info@doviz.com",
             "firebase": "Firebase Crashlytics",
             "ziyaret": "Ziyaret (noreply@doviz.com)",
             "tome": "to:me",

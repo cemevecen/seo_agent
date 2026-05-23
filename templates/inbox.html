@@ -136,8 +136,7 @@
         <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Gelen kutusu sekmeleri">
           <button type="button" role="tab" data-route="" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" aria-selected="true">Tümü</button>
           <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50">Firebase</button>
-          <button type="button" role="tab" data-route="info" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">info@doviz</button>
-          <button type="button" role="tab" data-route="feedback" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">feedback@</button>
+          <button type="button" role="tab" data-route="info" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="info@doviz.com ve feedback@doviz.com">info@doviz</button>
           <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar@</button>
           <button type="button" role="tab" data-route="ziyaret" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">Ziyaret</button>
           <button type="button" role="tab" data-route="tome" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">to:me</button>
@@ -363,10 +362,10 @@
   }
 
   function inboxRouteLabel(tag) {
+    if (tag === "feedback") tag = "info";
     var labels = {
       firebase: "firebase",
-      info: "info",
-      feedback: "feedback",
+      info: "info@doviz",
       sinemalar: "sinemalar",
       ziyaret: "ziyaret",
       tome: "to:me",
