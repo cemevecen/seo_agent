@@ -1489,7 +1489,6 @@ def fetch_realtime_top_pages_with_app_fallback(
             compare_previous=compare_previous,
             client=client,
         )
-        return alt
     except Exception as exc:
         logger.warning(
             "Realtime app fallback (eventName) başarısız [%s / %s]: %s",
