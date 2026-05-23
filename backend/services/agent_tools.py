@@ -1194,11 +1194,101 @@ TOOL_DEFINITIONS = [
         "description": "Projenin dosya yapısını özetler. Hangi modüller, hangi servisler var.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "page_fetch_crashlytics_summary",
+        "description": "Firebase/Crashlytics özeti: fatal/anr/non_fatal, crash-free, top issue'lar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string", "default": "doviz"},
+                "platform": {"type": "string", "default": "all"},
+                "days": {"type": "integer", "default": 7},
+                "limit_issues": {"type": "integer", "default": 8},
+            },
+        },
+    },
+    {
+        "name": "page_fetch_inbox_threads",
+        "description": "Inbox thread listesi. route: all|doviz|sinemalar|reklam|nstat|firebase",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "route": {"type": "string", "default": "all"},
+                "limit": {"type": "integer", "default": 15},
+            },
+        },
+    },
+    {
+        "name": "page_fetch_inbox_thread",
+        "description": "Tek inbox thread detayı, mesajlar ve AI özet/taslak.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"thread_id": {"type": "integer"}},
+            "required": ["thread_id"],
+        },
+    },
+    {
+        "name": "page_fetch_news_intelligence",
+        "description": "NEWS/intelligence son haber başlıkları.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hours": {"type": "integer", "default": 12},
+                "source": {"type": "string"},
+                "limit": {"type": "integer", "default": 20},
+            },
+        },
+    },
+    {
+        "name": "page_fetch_app_intel",
+        "description": "App Store / Play intel KPI özeti.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string", "default": "doviz"},
+                "period_days": {"type": "integer", "default": 30},
+            },
+        },
+    },
+    {
+        "name": "page_fetch_errors_summary",
+        "description": "404/5xx hata özeti (site_id gerekli).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "site_id": {"type": "integer"},
+                "days": {"type": "integer", "default": 7},
+            },
+            "required": ["site_id"],
+        },
+    },
+    {
+        "name": "page_fetch_ga4_realtime",
+        "description": "GA4 realtime tek site özeti.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "site_id": {"type": "integer"},
+                "window": {"type": "integer", "default": 10},
+            },
+            "required": ["site_id"],
+        },
+    },
+    {
+        "name": "page_list_sites",
+        "description": "Site id ↔ domain listesi.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 30}},
+        },
+    },
 ]
 
 
 def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
     """Araç adına göre ilgili fonksiyonu çalıştırır."""
+    from backend.services import page_context_tools as pct
+
     dispatch = {
         "github_commit_stats": lambda: github_commit_stats(),
         "github_contributor_stats": lambda: github_contributor_stats(),
@@ -1228,6 +1318,14 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "db_custom_query": lambda: db_custom_query(**inputs),
         "system_health_check": lambda: system_health_check(),
         "project_structure": lambda: project_structure(),
+        "page_fetch_crashlytics_summary": lambda: pct.page_fetch_crashlytics_summary(**inputs),
+        "page_fetch_inbox_threads": lambda: pct.page_fetch_inbox_threads(**inputs),
+        "page_fetch_inbox_thread": lambda: pct.page_fetch_inbox_thread(**inputs),
+        "page_fetch_news_intelligence": lambda: pct.page_fetch_news_intelligence(**inputs),
+        "page_fetch_app_intel": lambda: pct.page_fetch_app_intel(**inputs),
+        "page_fetch_errors_summary": lambda: pct.page_fetch_errors_summary(**inputs),
+        "page_fetch_ga4_realtime": lambda: pct.page_fetch_ga4_realtime(**inputs),
+        "page_list_sites": lambda: pct.page_list_sites(**inputs),
     }
     fn = dispatch.get(name)
     if not fn:

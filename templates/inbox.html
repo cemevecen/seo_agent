@@ -1374,6 +1374,16 @@
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden && status.connected) inboxBackgroundSync();
   });
+
+  window.__pcPageContext = function () {
+    var subj = document.getElementById("inbox-detail-subject");
+    return {
+      page: "inbox",
+      filters: { route: inboxActiveRoute },
+      thread_id: selectedId,
+      thread_subject: subj ? (subj.textContent || "").trim() : null,
+    };
+  };
 })();
 
 (function () {

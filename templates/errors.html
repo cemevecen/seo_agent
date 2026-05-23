@@ -297,6 +297,14 @@ function _closeErrModal() {
 
 // Sayfa açılışında lazy load
 loadErrSummary();
+
+window.__pcPageContext = function () {
+  return {
+    page: 'errors',
+    site_id: _errSiteId,
+    filters: { days: _errDays, domain: _errDomain || null },
+  };
+};
 </script>
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }

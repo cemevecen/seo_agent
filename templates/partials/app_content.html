@@ -4730,5 +4730,15 @@
 
   window.pcSetStatus = pcSetStatus;
 
+  window.__pcPageContext = function () {
+    var activeTabBtn = document.querySelector('.app-intel-tab-btn.bg-slate-900, .app-intel-tab-btn.dark\\:bg-slate-100');
+    return {
+      page: 'app',
+      filters: { product: state.product, period_days: state.period },
+      active_tab: activeTabBtn ? (activeTabBtn.getAttribute('data-app-tab') || activeTabBtn.textContent || '').trim() : null,
+      has_intel_payload: !!state.lastPayload,
+    };
+  };
+
 })();
 </script>

@@ -14148,6 +14148,22 @@ async def api_agent_chat(request: Request):
     if not clean_messages or clean_messages[-1]["role"] != "user":
         return JSONResponse({"error": "Son mesaj user rolünde olmalı."}, status_code=400)
 
+    page_context = body.get("page_context")
+    if page_context is not None and not isinstance(page_context, dict):
+        page_context = None
+    if isinstance(page_context, dict):
+        # Boyut sınırı — token patlamasını önle
+        import json as _json
+        try:
+            if len(_json.dumps(page_context, ensure_ascii=False, default=str)) > 16000:
+                page_context = {
+                    k: page_context.get(k)
+                    for k in ("path", "page_id", "label", "title", "query", "filters", "custom")
+                    if k in page_context
+                }
+        except Exception:
+            page_context = {"path": str(page_context.get("path", ""))[:200]}
+
     # Bağlam hafızası: frontend az mesaj gönderiyorsa (sayfa yenileme) DB'den tamamla
     session_id = (body.get("session_id") or "").strip()
     if session_id and len(clean_messages) <= 2:
@@ -14160,7 +14176,7 @@ async def api_agent_chat(request: Request):
             clean_messages = (prefix + clean_messages)[-30:]
 
     return StarletteStreamingResponse(
-        stream_agent_response(clean_messages, session_id=session_id),
+        stream_agent_response(clean_messages, session_id=session_id, page_context=page_context),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -408,5 +408,15 @@
       rtLoadIntelSources().finally(() => rtAutoFillInitial());
       _startAutoRefresh();
     });
+
+    window.__pcPageContext = function () {
+      return {
+        page: 'intelligence',
+        filters: { source: _intelSourceFilter || '', hours: _intelHours },
+        visible_headlines: Array.from(document.querySelectorAll('#rt-intel-list .rt-intel-card h3')).slice(0, 15).map(function (el) {
+          return (el.innerText || '').trim();
+        }).filter(Boolean),
+      };
+    };
 </script>
 {% endblock %}

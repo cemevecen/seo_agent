@@ -124,7 +124,22 @@ kullanıcı bir veri sorusu sorarsa:
 1. `db_get_schema()` ile tablo yapısını öğren
 2. uygun SELECT sorgusunu oluştur
 3. `db_custom_query(sql)` ile çalıştır, sonucu yorumla
-sadece SELECT kullan, DML/DDL asla."""
+sadece SELECT kullan, DML/DDL asla.
+
+## sayfa bağlamı (page context)
+kullanıcı admin panelinde bir sayfadayken sohbet eder. her istekte «aktif sayfa bağlamı» JSON'u system prompt'a eklenir.
+
+kurallar:
+1. «bu sayfa», «ekranda görünen», «şu filtrelerle», «özetle» denince önce aktif sayfa bağlamındaki `dom_snapshot`, `filters`, `custom` alanlarına bak.
+2. bağlam yetersizse sayfa tipine göre `page_fetch_*` araçlarını kullan:
+   - /firebase → `page_fetch_crashlytics_summary` (product/platform/days bağlamdan)
+   - /inbox → `page_fetch_inbox_threads` veya `page_fetch_inbox_thread`
+   - /intelligence → `page_fetch_news_intelligence`
+   - /app → `page_fetch_app_intel`
+   - /errors → `page_fetch_errors_summary` (site_id bağlamdan veya `page_list_sites`)
+   - /realtime, /ga4 → `page_fetch_ga4_realtime` veya `page_list_sites`
+3. hangi sayfada olduğunu kullanıcıya kısaca hatırlat (ör. «firebase · doviz ekranındasın»).
+4. dom_snapshot metnini olduğu gibi kopyalama; özetle ve yorumla."""
 
 
 def _api_key() -> str:
@@ -147,9 +162,12 @@ def _tool_declarations() -> list[dict]:
     return result
 
 
-def _build_request_body(contents: list[dict]) -> dict:
+def _build_request_body(contents: list[dict], page_context: dict[str, Any] | None = None) -> dict:
+    from backend.services.page_context_tools import format_page_context_for_prompt
+
+    prompt = _SYSTEM_PROMPT + format_page_context_for_prompt(page_context)
     return {
-        "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+        "systemInstruction": {"parts": [{"text": prompt}]},
         "contents": contents,
         "tools": [{"functionDeclarations": _tool_declarations()}],
         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 4096},
@@ -169,6 +187,7 @@ async def stream_agent_response(
     messages: list[dict[str, Any]],
     max_iterations: int = 8,
     session_id: str = "",
+    page_context: dict[str, Any] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Gemini REST ile tool-use döngüsü — SSE formatında string generator."""
     import asyncio
@@ -183,7 +202,7 @@ async def stream_agent_response(
 
     def _worker():
         try:
-            result_msgs = _run_agent_loop(messages, max_iterations, _send)
+            result_msgs = _run_agent_loop(messages, max_iterations, _send, page_context=page_context)
             final_messages.extend(result_msgs)
         except Exception as e:
             LOGGER.exception("Ajan worker hatası")
@@ -213,11 +232,11 @@ async def stream_agent_response(
             break
 
 
-def _gemini_generate(contents: list[dict]) -> dict:
+def _gemini_generate(contents: list[dict], page_context: dict[str, Any] | None = None) -> dict:
     """Gemini REST API'ye tek istek atar, JSON yanıt döner."""
     key = _api_key()
     url = f"{_GEMINI_BASE}/{_MODEL}:generateContent?key={key}"
-    body = _build_request_body(contents)
+    body = _build_request_body(contents, page_context=page_context)
     with httpx.Client(timeout=90) as client:
         r = client.post(url, json=body)
         if r.status_code != 200:
@@ -263,6 +282,7 @@ def _run_agent_loop(
     messages: list[dict[str, Any]],
     max_iterations: int,
     send: Any,
+    page_context: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Senkron Gemini REST ajan döngüsü. Tamamlanan mesaj listesini döner (DB kayıt için)."""
     contents = _messages_to_contents(messages)
@@ -273,7 +293,7 @@ def _run_agent_loop(
         send({"type": "thinking", "iteration": iteration + 1})
 
         try:
-            data = _gemini_generate(contents)
+            data = _gemini_generate(contents, page_context=page_context)
         except Exception as e:
             send({"type": "error", "message": str(e)})
             return saved

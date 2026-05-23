@@ -2442,6 +2442,17 @@
     _startPolling();
     _restoreRealtimeScroll();
   });
+
+  window.__pcPageContext = function () {
+    var first = document.querySelector('[data-rt-profile-box]');
+    var sid = first ? parseInt(first.getAttribute('data-rt-site-id') || '0', 10) : 0;
+    return {
+      page: 'realtime',
+      site_id: sid > 0 ? sid : null,
+      domain: first ? (first.getAttribute('data-rt-domain') || null) : null,
+      profile: first ? (first.getAttribute('data-rt-profile') || null) : null,
+    };
+  };
 })();
 </script>
 {% endblock %}

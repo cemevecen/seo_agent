@@ -1422,5 +1422,33 @@
       }
     })
     .catch(function () { loadAllSections(); });
+
+  window.__pcPageContext = function () {
+    try {
+      return {
+        page: "firebase",
+        filters: {
+          product: crashState.product,
+          platform: crashState.platform,
+          days: crashState.days,
+          type: crashState.type || null,
+          versions: (crashState.versions || []).slice(0, 10),
+        },
+        visible_text: (function () {
+          var parts = [];
+          SECTIONS.forEach(function (s) {
+            var el = document.getElementById(SEC_IDS[s]);
+            if (el) {
+              var t = (el.innerText || "").replace(/\s+/g, " ").trim();
+              if (t.length > 30) parts.push("[" + s + "] " + t.slice(0, 900));
+            }
+          });
+          return parts.join("\n").slice(0, 3500);
+        })(),
+      };
+    } catch (e) {
+      return { page: "firebase", error: String(e) };
+    }
+  };
 })();
 </script>

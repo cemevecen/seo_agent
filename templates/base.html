@@ -1110,6 +1110,9 @@
       <div class="min-w-0 flex-1">
         <div class="text-sm font-bold text-white">AI Talk</div>
         <div id="pc-agent-status-text" class="text-xs text-violet-300/70">hazır</div>
+        <span id="pc-agent-page-chip"
+          class="mt-0.5 inline-block max-w-full truncate rounded-full bg-violet-950/80 px-2 py-0.5 text-[10px] font-semibold text-violet-200/90 ring-1 ring-violet-700/40"
+          title="Aktif sayfa">Panel</span>
       </div>
       <button onclick="pcAgentClearHistory()"
         title="Sohbeti temizle"
@@ -1130,39 +1133,13 @@
         </div>
         <div class="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">
           buyur bayım? 👋<br>
-          github, railway, veritabanı, kod — her konuda yardımcı olurum.<br>
-          <span class="text-violet-400 text-xs mt-1 block">ne yapmamı istersin?</span>
+          hangi sayfada olduğunu görüyorum — ekrandaki veriyi özetleyebilir, sorularını yanıtlayabilirim.<br>
+          <span class="text-violet-400 text-xs mt-1 block">«bu ekranı özetle» dene · github, railway, db de var</span>
         </div>
       </div>
     </div>
 
-    <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5">
-      <button onclick="pcAgentQuickSend(this)" data-msg="Sistem sağlık durumunu kontrol et"
-        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-        Sağlık
-      </button>
-      <button onclick="pcAgentQuickSend(this)" data-msg="Son GitHub issue'ları listele"
-        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-        Issue'lar
-      </button>
-      <button onclick="pcAgentQuickSend(this)" data-msg="Railway son deployment durumu nedir?"
-        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-        Deploy
-      </button>
-      <button onclick="pcAgentQuickSend(this)" data-msg="Veritabanı tablo istatistiklerini göster"
-        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-        DB
-      </button>
-      <button onclick="pcAgentQuickSend(this)" data-msg="Son commit'leri göster ve özetle"
-        class="rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-               text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-        Commit
-      </button>
-    </div>
+    <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5"></div>
 
     <div class="px-4 pb-4 pt-1">
       <div class="flex items-end gap-2 rounded-xl border border-zinc-700/60
@@ -1190,12 +1167,29 @@
     </div>
   </div>
 
+  <script src="/static/js/pc-page-context.js?v=1"></script>
   <script>
   (function () {
     'use strict';
     var _pcHistory = [];
     var _pcStreaming = false;
     var _pcOpen = false;
+
+    function _pcCollectContext() {
+      try {
+        if (window.PcPageContext && window.PcPageContext.collect) return window.PcPageContext.collect();
+      } catch (_) {}
+      return { path: location.pathname, title: document.title };
+    }
+
+    function _pcRefreshPageUi() {
+      try {
+        if (window.PcPageContext) {
+          window.PcPageContext.updatePageChip(document.getElementById('pc-agent-page-chip'));
+          window.PcPageContext.renderQuickActions(document.getElementById('pc-agent-quick'));
+        }
+      } catch (_) {}
+    }
 
     // Session ID — kalıcı, localStorage'da saklanır
     var _pcSessionId = (function () {
@@ -1268,6 +1262,7 @@
         panel.classList.add('flex');
         iconChat.classList.add('hidden');
         iconClose.classList.remove('hidden');
+        _pcRefreshPageUi();
         setTimeout(function () { var i = document.getElementById('pc-agent-input'); if (i) i.focus(); }, 50);
       } else {
         panel.classList.add('hidden');
@@ -1411,7 +1406,7 @@
       fetch('/api/agent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: _pcHistory.slice(), session_id: _pcSessionId }),
+        body: JSON.stringify({ messages: _pcHistory.slice(), session_id: _pcSessionId, page_context: _pcCollectContext() }),
       }).then(function (resp) {
         if (!resp.ok) return resp.text().then(function (t) { throw new Error(t); });
         var reader = resp.body.getReader();
@@ -1481,6 +1476,10 @@
       h = h.replace(/\n/g, '<br>');
       return h;
     }
+
+    _pcRefreshPageUi();
+    document.addEventListener('DOMContentLoaded', _pcRefreshPageUi);
+    setInterval(function () { if (_pcOpen) _pcRefreshPageUi(); }, 15000);
   })();
   </script>
 </body>

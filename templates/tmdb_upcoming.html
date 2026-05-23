@@ -630,6 +630,19 @@
     observer.observe(currentAnchor);
     jumpBtn.addEventListener('click', scrollToCurrentMonth);
   }
+
+  window.__pcPageContext = function () {
+    var activeTab = Array.from(tabs).find(function (t) {
+      var tid = 'panel-' + t.getAttribute('data-tab');
+      var panel = document.getElementById(tid);
+      return panel && !panel.classList.contains('hidden');
+    });
+    return {
+      page: 'tmdb-upcoming',
+      active_tab: activeTab ? activeTab.getAttribute('data-tab') : 'theatrical',
+      filters: { pop: _activePop },
+    };
+  };
 })();
 </script>
 

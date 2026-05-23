@@ -1641,5 +1641,16 @@
   document.addEventListener('DOMContentLoaded', function () {
     initGa4Panels(document);
   });
+
+  window.__pcPageContext = function () {
+    var cards = document.querySelectorAll('[data-ga4-site-card]:not(.hidden)');
+    var first = cards.length ? cards[0] : document.querySelector('[data-ga4-site-card]');
+    var sid = first ? parseInt(first.getAttribute('data-site-id') || '0', 10) : 0;
+    return {
+      page: 'ga4',
+      site_id: sid > 0 ? sid : null,
+      visible_site_count: cards.length,
+    };
+  };
 </script>
 {% endblock %}
