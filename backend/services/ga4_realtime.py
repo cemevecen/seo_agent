@@ -1796,8 +1796,48 @@ def evaluate_alarms(
     return triggered
 
 
+def _build_traffic_drivers_from_page_comparison(
+    pages: list[dict[str, Any]],
+    site_delta: float,
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    """GA4 compare_previous sayfa listesinden site yönüyle uyumlu sürücüleri üretir."""
+    if not pages or abs(site_delta) < 1:
+        return []
+
+    drivers: list[dict[str, Any]] = []
+    for page in pages:
+        path = str(page.get("page") or "")
+        c = float(page.get("activeUsers") or 0)
+        p = float(page.get("activeUsers_previous") or 0)
+        diff = c - p
+        if diff == 0:
+            continue
+        drivers.append({
+            "page": path,
+            "delta": diff,
+            "contribution_pct": (diff / site_delta * 100) if site_delta else 0,
+            "current": c,
+            "previous": p,
+        })
+
+    # Site düşüşünde yalnızca düşen sayfalar; artışta yalnızca artan sayfalar
+    if site_delta < 0:
+        pool = [d for d in drivers if d["delta"] < 0]
+    elif site_delta > 0:
+        pool = [d for d in drivers if d["delta"] > 0]
+    else:
+        return []
+    if not pool:
+        return []
+
+    pool.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
+    return pool[:limit]
+
+
 def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta: float) -> list[dict[str, Any]]:
-    """Site genelindeki trafik değişimine hangi sayfaların ne kadar katkıda bulunduğunu analiz eder."""
+    """DB snapshot yedek yolu — canlı GA4 compare_previous kullanılamazsa devreye girer."""
     try:
         if abs(site_delta) < 5:
             return []
@@ -1805,7 +1845,6 @@ def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta
         from backend.models import RealtimePageSnapshot
         from sqlalchemy import desc
 
-        # En son 2 farklı collected_at zaman damgasını bul
         distinct_times = (
             db.query(RealtimePageSnapshot.collected_at)
             .filter(
@@ -1841,28 +1880,79 @@ def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta
         if not curr_map or not prev_map:
             return []
 
-        drivers = []
-        for path in set(curr_map) | set(prev_map):
-            c = curr_map.get(path, 0)
-            p = prev_map.get(path, 0)
-            diff = c - p
-            if diff != 0:
-                contribution = (diff / site_delta * 100) if site_delta else 0
-                drivers.append({
-                    "page": path,
-                    "delta": diff,
-                    "contribution_pct": contribution,
-                    "current": c,
-                    "previous": p,
-                })
-
-        # Düşüşte en çok düşenler, artışta en çok artanlar önce
-        drivers.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
-        return drivers[:5]
+        raw_pages = [
+            {
+                "page": path,
+                "activeUsers": curr_map.get(path, 0),
+                "activeUsers_previous": prev_map.get(path, 0),
+            }
+            for path in set(curr_map) | set(prev_map)
+        ]
+        return _build_traffic_drivers_from_page_comparison(raw_pages, site_delta)
 
     except Exception:
         logger.exception("_analyze_traffic_drivers hatası (site_id=%s)", site_id)
         return []
+
+
+def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, Any]:
+    """Değişim sekmesi: site toplamı + sayfa katkıları (GA4 non-overlapping pencereler)."""
+    from backend.models import RealtimeSnapshot
+    from sqlalchemy import desc
+
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if site is None:
+        return {"error": "site_not_found"}
+
+    curr_snap = (
+        db.query(RealtimeSnapshot)
+        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
+        .order_by(desc(RealtimeSnapshot.collected_at))
+        .first()
+    )
+    if curr_snap is None:
+        return {"site_delta": 0, "drivers": [], "has_data": False}
+
+    # Aynı snapshot içindeki current vs previous — kayan pencere farkı değil
+    site_delta = curr_snap.active_users_current - curr_snap.active_users_previous
+    drivers: list[dict[str, Any]] = []
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    property_id = properties.get(profile) or properties.get("web")
+
+    if property_id and abs(site_delta) >= 1:
+        try:
+            result = fetch_realtime_top_pages_with_app_fallback(
+                property_id,
+                profile=profile,
+                window_minutes=15,
+                limit=100,
+                sort_by="activeUsers",
+                compare_previous=True,
+            )
+            pages = result.get("pages") or []
+            if result.get("comparison_enabled") and pages:
+                drivers = _build_traffic_drivers_from_page_comparison(pages, site_delta)
+        except Exception as exc:
+            logger.warning(
+                "Traffic drivers canlı API hatası [%s/%s]: %s",
+                site.domain,
+                profile,
+                exc,
+            )
+
+    if not drivers:
+        drivers = _analyze_traffic_drivers(db, site_id, profile, site_delta)
+
+    return {
+        "has_data": True,
+        "site_delta": site_delta,
+        "current_total": curr_snap.active_users_current,
+        "previous_total": curr_snap.active_users_previous,
+        "collected_at": curr_snap.collected_at.isoformat() if curr_snap.collected_at else None,
+        "drivers": drivers,
+    }
 
 def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: float) -> str:
     """Trafik değişim analizi için HTML bölümü üretir."""

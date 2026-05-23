@@ -11048,40 +11048,13 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
 @app.get("/api/ga4/realtime/{site_id}/drivers")
 def api_ga4_realtime_drivers(site_id: int, profile: str = "web"):
     """Realtime trafik değişim analizi — hangi sayfalar site genelindeki değişime katkıda bulunuyor."""
-    from backend.models import RealtimeSnapshot, RealtimePageSnapshot
-    from backend.services.ga4_realtime import _analyze_traffic_drivers
-    from sqlalchemy import desc
+    from backend.services.ga4_realtime import fetch_traffic_drivers
 
     with SessionLocal() as db:
-        site = db.query(Site).filter(Site.id == site_id).first()
-        if site is None:
+        result = fetch_traffic_drivers(db, site_id, profile)
+        if result.get("error") == "site_not_found":
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-
-        # Son 2 site snapshot'ından site_delta hesapla
-        last_two = (
-            db.query(RealtimeSnapshot)
-            .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
-            .order_by(desc(RealtimeSnapshot.collected_at))
-            .limit(2)
-            .all()
-        )
-
-        if len(last_two) < 2:
-            return JSONResponse({"site_delta": 0, "drivers": [], "has_data": False})
-
-        curr_snap, prev_snap = last_two[0], last_two[1]
-        site_delta = curr_snap.active_users_current - prev_snap.active_users_current
-
-        drivers = _analyze_traffic_drivers(db, site_id, profile, site_delta)
-
-        return JSONResponse({
-            "has_data": True,
-            "site_delta": site_delta,
-            "current_total": curr_snap.active_users_current,
-            "previous_total": prev_snap.active_users_current,
-            "collected_at": curr_snap.collected_at.isoformat() if curr_snap.collected_at else None,
-            "drivers": drivers,
-        })
+        return JSONResponse(result)
 
 
 @app.get("/api/ga4/realtime/{site_id}/insights")
