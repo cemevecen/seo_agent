@@ -160,7 +160,7 @@
     <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
       <div class="inbox-toolbar-strip mb-3 flex flex-col gap-2">
         <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Gelen kutusu sekmeleri">
-          <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50" aria-selected="true">firebase</button>
+          <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" aria-selected="true">firebase</button>
           <button type="button" role="tab" data-route="doviz" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="info@doviz.com ve feedback@doviz.com">doviz</button>
           <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar</button>
           <button type="button" role="tab" data-route="nstat" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">nstat</button>
@@ -408,9 +408,6 @@
   }
 
   function inboxRouteBadgeClass(tag) {
-    if (tag === "firebase") {
-      return "inbox-route-badge ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
-    }
     return "inbox-route-badge ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200";
   }
 
@@ -422,8 +419,7 @@
       var on = r === inboxActiveRoute;
       btn.setAttribute("aria-selected", on ? "true" : "false");
       btn.classList.toggle("ring-2", on);
-      btn.classList.toggle("ring-indigo-500", on && r !== "firebase");
-      btn.classList.toggle("ring-amber-500", on && r === "firebase");
+      btn.classList.toggle("ring-indigo-500", on);
     });
   }
 
