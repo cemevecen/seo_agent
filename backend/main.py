@@ -1228,6 +1228,7 @@ def on_startup() -> None:
             "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
             "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
             "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
+            "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
         ]:
             try:
                 with engine.connect() as _conn:

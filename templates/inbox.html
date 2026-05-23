@@ -1,5 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .inbox-ziyaret-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.35; }
+  .inbox-ziyaret-table th,
+  .inbox-ziyaret-table td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: right; vertical-align: top; }
+  html.dark .inbox-ziyaret-table th,
+  html.dark .inbox-ziyaret-table td { border-color: #475569; }
+  .inbox-ziyaret-table th { background: #f1f5f9; font-weight: 700; text-align: center; white-space: nowrap; }
+  html.dark .inbox-ziyaret-table th { background: #1e293b; }
+  .inbox-ziyaret-table td.inbox-ziyaret-url { text-align: left; max-width: 220px; word-break: break-all; }
+  .inbox-ziyaret-table td.inbox-ziyaret-up { color: #15803d; font-weight: 700; background: #f0fdf4; }
+  html.dark .inbox-ziyaret-table td.inbox-ziyaret-up { color: #86efac; background: #14532d33; }
+  .inbox-ziyaret-table td.inbox-ziyaret-down { color: #b91c1c; font-weight: 700; background: #fef2f2; }
+  html.dark .inbox-ziyaret-table td.inbox-ziyaret-down { color: #fca5a5; background: #7f1d1d33; }
+  .inbox-ziyaret-table td.inbox-ziyaret-neutral { color: #64748b; }
+  .inbox-ziyaret-report { overflow-x: auto; margin-top: 8px; }
+  .inbox-ziyaret-intro { margin: 0 0 8px; font-size: 12px; color: #475569; }
+  html.dark .inbox-ziyaret-intro { color: #94a3b8; }
+</style>
 <div class="inbox-page mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
@@ -843,9 +861,18 @@
             esc(prev) +
             "</p>"
           : "";
-        var replyBtn = m.is_outbound
+        var replyBtn = m.is_outbound || t.route_tag === "ziyaret"
           ? ""
           : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
+        var bodyBlock =
+          t.route_tag === "ziyaret" && m.body_display_html
+            ? '<motion class="inbox-msg-body mt-2 overflow-auto text-xs leading-relaxed">' +
+              m.body_display_html +
+              "</motion>"
+            : '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
+              esc(m.body_text || "") +
+              "</pre>";
+        bodyBlock = bodyBlock.replace(/<motion /g, "<div ").replace(/<\/motion>/g, "</div>");
         return (
           '<div class="rounded-lg border px-3 py-2 ' +
           cls +
@@ -862,10 +889,8 @@
           '</div><div class="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">' +
           esc(m.from) +
           "</div>" +
-          previewHtml +
-          '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
-          esc(m.body_text || "") +
-          "</pre>" +
+          (t.route_tag === "ziyaret" && m.body_display_html ? "" : previewHtml) +
+          bodyBlock +
           replyBtn +
           "</div>"
         );

@@ -18,6 +18,7 @@ from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
+from backend.services.inbox_visit_report import render_ziyaret_message_html
 
 _INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
 
@@ -345,8 +346,8 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     _require_inbox_action_auth(request)
     def ndjson_iter():
         try:
-            for evt in inbox_sync.iter_sync_inbox_threads(
-                db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS
+            for evt in inbox_sync.iter_sync_inbox_all_routes(
+                db, max_threads_per_route=inbox_sync.INBOX_SYNC_MAX_THREADS
             ):
                 yield (json.dumps(evt, ensure_ascii=False) + "\n").encode("utf-8")
         except RuntimeError as exc:
@@ -433,6 +434,14 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
                 "subject": m.subject,
                 "body_preview": _body_preview(m.body_text),
                 "body_text": m.body_text,
+                "body_display_html": (
+                    render_ziyaret_message_html(
+                        body_html=getattr(m, "body_html", "") or "",
+                        body_text=m.body_text or "",
+                    )
+                    if t.route_tag == "ziyaret"
+                    else None
+                ),
                 "internal_ms": m.internal_ms,
                 "is_outbound": m.is_outbound,
             }

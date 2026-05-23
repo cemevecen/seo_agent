@@ -25,6 +25,22 @@ LOGGER = logging.getLogger(__name__)
 INBOX_SYNC_MAX_THREADS = 50
 INBOX_LIST_LIMIT = 50
 
+INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
+    "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
+    "ziyaret": "from:noreply@doviz.com",
+    "info": "to:info@doviz.com OR deliveredto:info@doviz.com",
+    "feedback": (
+        "to:feedback@doviz.com OR deliveredto:feedback@doviz.com OR "
+        "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
+    ),
+    "sinemalar": "to:info@sinemalar.com OR deliveredto:info@sinemalar.com",
+    "tome": (
+        "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
+        "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
+        "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
+    ),
+}
+
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
 ANSWERED_LABEL_NAME = "SEO-Agent · Cevaplandı"
 _answered_label_id_cache: str | None = None
@@ -151,16 +167,16 @@ def _attachment_text(service: Any, *, user_id: str, gmail_message_id: str, attac
         return ""
 
 
-def _extract_body_text(
+def _extract_body_parts(
     payload: dict[str, Any],
     *,
     service: Any | None = None,
     gmail_message_id: str | None = None,
     user_id: str = "me",
-) -> str:
-    """text/plain tercih; yoksa HTML. ``attachmentId`` ile gelen parçalar için Gmail attachments API kullanılır."""
+) -> tuple[str, str]:
+    """(plain_text, html) — text/plain tercih; HTML ayrı saklanır."""
     plain: list[str] = []
-    html: list[str] = []
+    html_parts: list[str] = []
 
     def walk(p: dict[str, Any]) -> None:
         mime = (p.get("mimeType") or "").lower()
@@ -176,19 +192,33 @@ def _extract_body_text(
             if mime == "text/plain":
                 plain.append(chunk)
             elif mime == "text/html":
-                html.append(chunk)
+                html_parts.append(chunk)
         for child in p.get("parts") or []:
             walk(child)
 
     walk(payload)
-    if plain:
-        return "\n\n".join(plain).strip()
-    if html:
-        text = re.sub(r"(?is)<script.*?>.*?</script>", " ", "\n\n".join(html))
+    plain_text = "\n\n".join(plain).strip()
+    html_body = "\n".join(html_parts).strip()
+    if not plain_text and html_body:
+        text = re.sub(r"(?is)<script.*?>.*?</script>", " ", html_body)
         text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
         text = re.sub(r"<[^>]+>", " ", text)
-        return re.sub(r"\s+", " ", text).strip()
-    return ""
+        plain_text = re.sub(r"\s+", " ", text).strip()
+    return plain_text, html_body
+
+
+def _extract_body_text(
+    payload: dict[str, Any],
+    *,
+    service: Any | None = None,
+    gmail_message_id: str | None = None,
+    user_id: str = "me",
+) -> str:
+    """text/plain tercih; yoksa HTML'den düz metin."""
+    plain, _ = _extract_body_parts(
+        payload, service=service, gmail_message_id=gmail_message_id, user_id=user_id
+    )
+    return plain
 
 
 def _route_tag_from_addrs(text: str) -> str | None:
@@ -485,25 +515,145 @@ def iter_sync_inbox_threads(
     }
 
 
+def iter_sync_inbox_all_routes(
+    db: Session,
+    *,
+    max_threads_per_route: int = INBOX_SYNC_MAX_THREADS,
+    lookback_days: int | None = 60,
+    after_unix: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Her sekme için ayrı Gmail sorgusu — sekme başına en fazla max_threads_per_route konuşma."""
+    yield {
+        "type": "phase",
+        "phase": "auth",
+        "message": "Gmail oturumu doğrulanıyor…",
+        "pct": 2,
+    }
+    creds = inbox_gmail_auth.load_inbox_credentials(db)
+    if creds is None:
+        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+    creds = _ensure_fresh_creds(db, creds)
+    row = inbox_gmail_auth.get_inbox_credential_row(db)
+    account_lower = (row.account_email if row else "").strip().lower()
+    service = _gmail_service(creds)
+
+    thread_refs: list[tuple[str, dict[str, Any]]] = []
+    seen: set[str] = set()
+    routes = list(INBOX_ROUTE_GMAIL_QUERIES.items())
+    for ri, (route, base_q) in enumerate(routes):
+        q = _normalize_inbox_gmail_query(base_q, lookback_days=lookback_days, after_unix=after_unix)
+        yield {
+            "type": "phase",
+            "phase": "listing",
+            "message": f"{route} sekmesi taranıyor…",
+            "query": q,
+            "route": route,
+            "pct": 5 + int((ri / max(len(routes), 1)) * 7),
+        }
+        try:
+            lst = (
+                service.users()
+                .threads()
+                .list(userId="me", q=q, maxResults=max_threads_per_route)
+                .execute()
+            )
+        except HttpError as exc:
+            msg = _gmail_http_error_message(exc)
+            LOGGER.warning("Inbox sync route=%s list failed: %s", route, msg)
+            continue
+        for tref in lst.get("threads") or []:
+            tid = str(tref.get("id") or "")
+            if tid and tid not in seen:
+                seen.add(tid)
+                thread_refs.append((route, tref))
+
+    n = len(thread_refs)
+    yield {
+        "type": "listed",
+        "total": n,
+        "message": f"{n} konuşma bulundu ({len(routes)} sekme); indiriliyor…",
+        "pct": 12,
+    }
+    synced = 0
+    for i, (route, tref) in enumerate(thread_refs):
+        tid = tref.get("id")
+        if not tid:
+            continue
+        yield {
+            "type": "thread",
+            "step": "fetch",
+            "current": i + 1,
+            "total": n,
+            "route": route,
+            "gmail_thread_id": tid,
+            "message": f"{i + 1}/{n} [{route}] — konuşma indiriliyor…",
+            "pct": max(12, _sync_pct_saved(synced, n)),
+        }
+        try:
+            full = service.users().threads().get(userId="me", id=tid, format="full").execute()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("gmail thread get failed %s: %s", tid, exc)
+            continue
+        nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
+        subj, snip = _thread_subject_snippet_preview(full)
+        _upsert_thread_from_gmail(db, full, account_lower, service)
+        synced += 1
+        yield {
+            "type": "thread",
+            "step": "save",
+            "current": i + 1,
+            "total": n,
+            "route": route,
+            "gmail_thread_id": tid,
+            "subject": subj,
+            "snippet": snip,
+            "messages_written": nmsg,
+            "synced_so_far": synced,
+            "message": f"{i + 1}/{n} [{route}] kaydedildi: {subj[:70]}{'…' if len(subj) > 70 else ''}",
+            "pct": _sync_pct_saved(synced, n),
+        }
+    db.commit()
+    yield {
+        "type": "complete",
+        "synced_threads": synced,
+        "routes": len(routes),
+        "message": f"Tamamlandı — {synced} konuşma ({len(routes)} sekme) veritabanına yazıldı.",
+        "pct": 100,
+    }
+
+
 def sync_inbox_threads(
     db: Session,
     *,
-    max_threads: int = 30,
+    max_threads: int = INBOX_SYNC_MAX_THREADS,
     gmail_query: str | None = None,
     lookback_days: int | None = 60,
     after_unix: int | None = None,
 ) -> dict[str, Any]:
-    """Tek JSON yanıtı (eski API); içeride akışlı senkron kullanılır."""
+    """Tek JSON yanıtı; gmail_query yoksa tüm sekmeler ayrı ayrı taranır."""
     out: dict[str, Any] | None = None
-    for evt in iter_sync_inbox_threads(
-        db,
-        max_threads=max_threads,
-        gmail_query=gmail_query,
-        lookback_days=lookback_days,
-        after_unix=after_unix,
-    ):
+    if gmail_query is None:
+        iterator = iter_sync_inbox_all_routes(
+            db,
+            max_threads_per_route=max_threads,
+            lookback_days=lookback_days,
+            after_unix=after_unix,
+        )
+    else:
+        iterator = iter_sync_inbox_threads(
+            db,
+            max_threads=max_threads,
+            gmail_query=gmail_query,
+            lookback_days=lookback_days,
+            after_unix=after_unix,
+        )
+    for evt in iterator:
         if evt.get("type") == "complete":
-            out = {"synced_threads": evt.get("synced_threads", 0), "query": evt.get("query", "")}
+            out = {
+                "synced_threads": evt.get("synced_threads", 0),
+                "query": evt.get("query", "all-routes"),
+                "routes": evt.get("routes"),
+            }
     if out is None:
         raise RuntimeError("Senkron tamamlanamadı.")
     return out
@@ -618,7 +768,7 @@ def _upsert_thread_from_gmail(
         if not mid:
             continue
         h = _header_map(m)
-        body = _extract_body_text(
+        body, body_html = _extract_body_parts(
             m.get("payload") or {},
             service=service,
             gmail_message_id=mid,
@@ -637,6 +787,7 @@ def _upsert_thread_from_gmail(
                 to_addr=(h.get("to") or "")[:512],
                 subject=(h.get("subject") or "")[:998],
                 body_text=body,
+                body_html=body_html,
                 internal_ms=ims,
                 is_outbound=out,
             )
@@ -670,7 +821,7 @@ def refresh_thread_bodies_from_gmail(db: Session, *, thread_id: int) -> dict[str
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("gmail message get failed %s: %s", gid, exc)
             continue
-        body = _extract_body_text(
+        body, body_html = _extract_body_parts(
             full.get("payload") or {},
             service=service,
             gmail_message_id=gid,
@@ -680,6 +831,9 @@ def refresh_thread_bodies_from_gmail(db: Session, *, thread_id: int) -> dict[str
         new = body.strip()
         if new and new != prev:
             mrow.body_text = body
+            updated += 1
+        if body_html and body_html != (mrow.body_html or ""):
+            mrow.body_html = body_html
             updated += 1
     row.last_synced_at = datetime.utcnow()
     db.commit()

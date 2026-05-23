@@ -690,6 +690,7 @@ class SupportInboxMessage(Base):
     to_addr: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     subject: Mapped[str] = mapped_column(String(998), nullable=False, default="")
     body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
     internal_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     is_outbound: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
