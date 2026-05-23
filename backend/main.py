@@ -9972,9 +9972,12 @@ def app_intel_page(request: Request):
 @app.get("/firebase")
 def firebase_page(request: Request):
     """Firebase Crashlytics izleme sayfası."""
+    from backend.services.app_intel import list_products
+
     payload = {
         "site_name": "Firebase",
         "sites": get_sidebar_sites(),
+        "app_products": list_products(),
     }
     template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -10246,6 +10249,26 @@ def api_crash_versions(request: Request):
     )
 
 
+@app.get("/api/app/crashlytics/breakdown", response_class=HTMLResponse)
+def api_crash_breakdown(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/breakdown.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
+@app.get("/api/app/crashlytics/version-chart", response_class=HTMLResponse)
+def api_crash_version_chart(request: Request):
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    return templates.TemplateResponse(
+        request, "partials/crashlytics/version_chart.html",
+        {"request": request, "data": data, "params": params},
+    )
+
+
 @app.get("/api/app/crashlytics/diagnose")
 def api_crash_diagnose(product: str = "doviz"):
     """Firebase Crashlytics BigQuery bağlantısını teşhis et.
@@ -10322,6 +10345,80 @@ def api_crash_issue_detail(
 
     data = cbq.get_issue_detail_for_product(product, plat, iid, d)
     return JSONResponse(data)
+
+
+@app.get("/api/app/crashlytics/issue-event")
+def api_crash_issue_event(
+    product: str = "doviz",
+    platform: str = "android",
+    issue_id: str = "",
+    event_timestamp: str = "",
+    days: int = 7,
+):
+    """Tek crash olayı — stack, breadcrumbs, keys."""
+    from backend.services import crashlytics_bq as cbq
+    from backend.services.app_intel import APP_PRODUCTS
+
+    plat = (platform or "").strip().lower()
+    if plat not in ("ios", "android"):
+        return JSONResponse({"ok": False, "error": "invalid_platform"}, status_code=400)
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"ok": False, "error": "unknown_product"}, status_code=400)
+    try:
+        d = int(days)
+    except (TypeError, ValueError):
+        d = 7
+    if d not in (1, 7, 14, 30, 90):
+        d = 7
+    iid = (issue_id or "").strip()
+    ts = (event_timestamp or "").strip()
+    if not iid or not ts:
+        return JSONResponse({"ok": False, "error": "missing_params"}, status_code=400)
+
+    meta = APP_PRODUCTS[pid]
+    bundle = (meta.get("android_package") if plat == "android" else meta.get("ios_bundle_id")) or ""
+    batch_ref = cbq._batch_table_ref(plat, bundle)
+    data = cbq.query_issue_event_raw(plat, batch_ref, iid, ts, d)
+    return JSONResponse(data)
+
+
+@app.post("/api/app/crashlytics/issue-ai-summary")
+async def api_crash_issue_ai_summary(request: Request):
+    """Issue için AI özet."""
+    from backend.services.crashlytics_detail import summarize_issue_tr
+    from backend.services import crashlytics_bq as cbq
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+
+    product = str(body.get("product") or "doviz")
+    platform = str(body.get("platform") or "android")
+    issue_id = str(body.get("issue_id") or "")
+    days = int(body.get("days") or 7)
+
+    detail = cbq.get_issue_detail_for_product(product, platform, issue_id, days)
+    if not detail.get("ok"):
+        return JSONResponse({"ok": False, "error": detail.get("error", "detail_failed")}, status_code=400)
+
+    s = detail.get("summary") or {}
+    try:
+        text = summarize_issue_tr(
+            issue_title=s.get("issue_title") or "",
+            error_type=s.get("error_type") or "",
+            total_events=int(s.get("total_events") or 0),
+            affected_users=int(s.get("affected_users") or 0),
+            blame_frames=detail.get("blame_frames") or [],
+            trend=detail.get("trend") or [],
+            process_states=detail.get("process_states"),
+        )
+        return JSONResponse({"ok": True, "summary": text})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=500)
 
 
 @app.post("/api/app/crashlytics/refresh")

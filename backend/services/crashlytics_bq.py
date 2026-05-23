@@ -778,7 +778,9 @@ SELECT
   COALESCE(error_type, '') AS error_type,
   COUNT(*) AS event_count,
   COUNT(DISTINCT installation_uuid) AS affected_users,
-  MAX(application.display_version) AS latest_version
+  MAX(application.display_version) AS latest_version,
+  MIN(event_timestamp) AS first_seen,
+  MAX(event_timestamp) AS last_seen
 FROM {table}
 WHERE {_ts_filter(days)}
   {_type_filter(error_type)}
@@ -796,9 +798,224 @@ LIMIT {limit}
             "event_count": int(r.get("event_count") or 0),
             "affected_users": int(r.get("affected_users") or 0),
             "latest_version": r.get("latest_version") or "—",
+            "first_seen": r.get("first_seen"),
+            "last_seen": r.get("last_seen"),
         }
         for r in rows
     ], err
+
+
+def _batch_table_ref(platform: str, bundle: str) -> str | None:
+    """Batch tablo referansı — threads/breadcrumbs gibi geniş şema alanları için."""
+    proj = _effective_project(platform)
+    base = bundle.replace(".", "_")
+    plat_up = platform.upper()
+    available = _list_dataset_tables(platform)
+    available_lower = {t.lower(): t for t in available} if available else {}
+    batch_candidates = [
+        f"{base}_{plat_up}",
+        base,
+        base.lower() + "_" + plat_up.lower(),
+    ]
+    for c in batch_candidates:
+        m = available_lower.get(c.lower())
+        if m and "realtime" not in m.lower():
+            return f"`{proj}.{_DATASET}.{m}`"
+    tid = _discover_table_id(platform, bundle)
+    if tid and "realtime" not in tid.lower():
+        return f"`{proj}.{_DATASET}.{tid}`"
+    return None
+
+
+def query_version_time_series(
+    platform: str, table: str, days: int, *, limit_versions: int = 6
+) -> tuple[list[dict], str | None]:
+    """Günlük olay sayısı × app versiyonu (Console'daki versiyon grafiği)."""
+    sql = f"""
+WITH top_versions AS (
+  SELECT application.display_version AS v
+  FROM {table}
+  WHERE {_ts_filter(days)} AND application.display_version IS NOT NULL
+  GROUP BY v ORDER BY COUNT(*) DESC LIMIT {limit_versions}
+)
+SELECT
+  DATE(event_timestamp, 'Europe/Istanbul') AS crash_date,
+  COALESCE(application.display_version, 'bilinmiyor') AS app_version,
+  COUNT(*) AS event_count
+FROM {table}
+WHERE {_ts_filter(days)}
+  AND application.display_version IN (SELECT v FROM top_versions)
+GROUP BY crash_date, app_version
+ORDER BY crash_date ASC, app_version ASC
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    return [
+        {
+            "date": str(r.get("crash_date") or ""),
+            "app_version": r.get("app_version") or "—",
+            "event_count": int(r.get("event_count") or 0),
+        }
+        for r in rows
+    ], err
+
+
+def query_device_breakdown(platform: str, table: str, days: int, limit: int = 10) -> tuple[list[dict], str | None]:
+    sql = f"""
+SELECT
+  COALESCE(device.manufacturer, '') AS manufacturer,
+  COALESCE(device.model, 'bilinmiyor') AS model,
+  COUNT(*) AS event_count
+FROM {table}
+WHERE {_ts_filter(days)}
+GROUP BY manufacturer, model
+ORDER BY event_count DESC
+LIMIT {limit}
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    return [
+        {
+            "manufacturer": r.get("manufacturer") or "",
+            "model": r.get("model") or "—",
+            "event_count": int(r.get("event_count") or 0),
+        }
+        for r in rows
+    ], err
+
+
+def query_os_breakdown(platform: str, table: str, days: int, limit: int = 10) -> tuple[list[dict], str | None]:
+    sql = f"""
+SELECT
+  COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
+  COUNT(*) AS event_count
+FROM {table}
+WHERE {_ts_filter(days)}
+GROUP BY os_version
+ORDER BY event_count DESC
+LIMIT {limit}
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    return [
+        {"os_version": r.get("os_version") or "—", "event_count": int(r.get("event_count") or 0)}
+        for r in rows
+    ], err
+
+
+def query_process_state_breakdown(
+    platform: str, batch_ref: str | None, days: int, limit: int = 5
+) -> tuple[list[dict], str | None]:
+    if not batch_ref:
+        return [], None
+    sql = f"""
+SELECT
+  COALESCE(process_state, 'UNKNOWN') AS state,
+  COUNT(*) AS event_count
+FROM {batch_ref}
+WHERE {_ts_filter(days)}
+GROUP BY state
+ORDER BY event_count DESC
+LIMIT {limit}
+"""
+    rows, err = _run_detail_query(platform, sql)
+    return [
+        {"state": r.get("state") or "UNKNOWN", "event_count": int(r.get("event_count") or 0)}
+        for r in rows
+    ], err
+
+
+def query_issue_events(
+    platform: str, batch_ref: str | None, issue_id: str, days: int, *, limit: int = 40
+) -> tuple[list[dict], str | None]:
+    if not batch_ref or not issue_id:
+        return [], None
+    safe_id = issue_id.replace("'", "''")
+    sql = f"""
+SELECT
+  event_timestamp,
+  installation_uuid,
+  process_state,
+  device.model AS device_model,
+  device.manufacturer AS manufacturer,
+  application.display_version AS app_version,
+  operating_system.display_version AS os_version
+FROM {batch_ref}
+WHERE {_ts_filter(days)} AND issue_id = '{safe_id}'
+ORDER BY event_timestamp DESC
+LIMIT {limit}
+"""
+    rows, err = _run_detail_query(platform, sql)
+    from backend.services.device_names import get_display_name
+
+    out = []
+    for r in rows:
+        ts = r.get("event_timestamp")
+        out.append({
+            "event_timestamp": ts.isoformat() if hasattr(ts, "isoformat") else str(ts or ""),
+            "installation_uuid": (r.get("installation_uuid") or "")[:12],
+            "process_state": r.get("process_state") or "",
+            "device_model": r.get("device_model") or "",
+            "manufacturer": r.get("manufacturer") or "",
+            "marketing_name": get_display_name(r.get("manufacturer") or "", r.get("device_model") or ""),
+            "app_version": r.get("app_version") or "",
+            "os_version": r.get("os_version") or "",
+        })
+    return out, err
+
+
+def query_issue_event_raw(
+    platform: str, batch_ref: str | None, issue_id: str, event_timestamp: str, days: int
+) -> dict[str, Any]:
+    """Tek olay: stack, breadcrumbs, keys."""
+    from backend.services.crashlytics_detail import (
+        parse_breadcrumbs,
+        parse_custom_keys,
+        parse_exceptions,
+        parse_threads,
+    )
+
+    if not batch_ref or not issue_id or not event_timestamp:
+        return {"ok": False, "error": "missing_params"}
+
+    safe_id = issue_id.replace("'", "''")
+    safe_ts = event_timestamp.replace("'", "''")
+    sql = f"""
+SELECT
+  event_timestamp,
+  process_state,
+  breadcrumbs,
+  custom_keys,
+  threads,
+  exceptions,
+  blame_frame
+FROM {batch_ref}
+WHERE {_ts_filter(days)}
+  AND issue_id = '{safe_id}'
+  AND event_timestamp = TIMESTAMP('{safe_ts}')
+LIMIT 1
+"""
+    rows, err = _run_detail_query(platform, sql)
+    if err:
+        return {"ok": False, "error": err}
+    if not rows:
+        return {"ok": False, "error": "event_not_found"}
+    r = rows[0]
+    bf = r.get("blame_frame") or {}
+    if isinstance(bf, dict):
+        blame = {
+            "file": bf.get("file") or "",
+            "symbol": bf.get("symbol") or "",
+            "line": bf.get("line"),
+        }
+    else:
+        blame = {}
+    return {
+        "ok": True,
+        "process_state": r.get("process_state") or "",
+        "blame_frame": blame,
+        "breadcrumbs": parse_breadcrumbs(r.get("breadcrumbs")),
+        "custom_keys": parse_custom_keys(r.get("custom_keys")),
+        "threads": parse_threads(r.get("threads")),
+        "exceptions": parse_exceptions(r.get("exceptions")),
+    }
 
 
 def query_anr_list(platform: str, table: str, days: int,
@@ -1030,7 +1247,7 @@ SELECT
   COUNT(*) AS occurrences
 FROM {table}
 WHERE {where}
-GROUP BY file, symbol, line ORDER BY occurrences DESC LIMIT 5
+GROUP BY file, symbol, line ORDER BY occurrences DESC LIMIT 15
 """
 
         # 6 sorguyu paralel çalıştır
@@ -1135,7 +1352,43 @@ def get_issue_detail_for_product(product_id: str, platform: str, issue_id: str, 
     if not bundle:
         return {"ok": False, "error": "bundle_missing"}
     table = _table(platform, bundle)
-    return query_issue_detail(platform, table, issue_id, days)
+    batch_ref = _batch_table_ref(platform, bundle)
+    detail = query_issue_detail(platform, table, issue_id, days)
+    if not detail.get("ok"):
+        return detail
+
+    events, ev_err = query_issue_events(platform, batch_ref, issue_id, days)
+    detail["events"] = events
+    if ev_err:
+        detail["events_error"] = ev_err
+
+    if events:
+        sample = query_issue_event_raw(platform, batch_ref, issue_id, events[0]["event_timestamp"], days)
+        detail["sample_event"] = sample
+
+    if batch_ref:
+        safe_id = issue_id.replace("'", "''")
+        ps_sql = f"""
+SELECT COALESCE(process_state, 'UNKNOWN') AS state, COUNT(*) AS event_count
+FROM {batch_ref}
+WHERE {_ts_filter(days)} AND issue_id = '{safe_id}'
+GROUP BY state ORDER BY event_count DESC LIMIT 5
+"""
+        ps_rows, _ = _run_detail_query(platform, ps_sql)
+        total_ps = sum(int(r.get("event_count") or 0) for r in ps_rows)
+        detail["process_states"] = [
+            {
+                "state": r.get("state") or "UNKNOWN",
+                "event_count": int(r.get("event_count") or 0),
+                "pct": round(int(r.get("event_count") or 0) / total_ps * 100, 1) if total_ps else 0,
+            }
+            for r in ps_rows
+        ]
+
+    te = int(detail.get("summary", {}).get("total_events") or 0)
+    au = int(detail.get("summary", {}).get("affected_users") or 0)
+    detail["summary"]["events_per_user"] = round(te / au, 2) if au > 0 else float(te)
+    return detail
 
 
 # ── Platform birleştirici ─────────────────────────────────────────────────────
@@ -1153,7 +1406,9 @@ def _platforms_for(pid: str, platform_filter: str) -> list[tuple[str, str]]:
     return out
 
 
-def _merge_issues(results: list[tuple[str, list[dict]]]) -> list[dict]:
+def _merge_issues(results: list[tuple[str, list[dict]]], *, days: int = 7) -> list[dict]:
+    from backend.services.crashlytics_detail import enrich_issue_row
+
     merged: dict[str, dict] = {}
     for plat, rows in results:
         for r in rows:
@@ -1163,9 +1418,15 @@ def _merge_issues(results: list[tuple[str, list[dict]]]) -> list[dict]:
                 merged[key]["affected_users"] += r["affected_users"]
                 if r.get("latest_version") and r["latest_version"] != "—":
                     merged[key]["latest_version"] = r["latest_version"]
+                fs, ls = r.get("first_seen"), r.get("last_seen")
+                if fs and (not merged[key].get("first_seen") or fs < merged[key]["first_seen"]):
+                    merged[key]["first_seen"] = fs
+                if ls and (not merged[key].get("last_seen") or ls > merged[key]["last_seen"]):
+                    merged[key]["last_seen"] = ls
             else:
                 merged[key] = {**r, "platform": plat}
-    return sorted(merged.values(), key=lambda x: -x["event_count"])
+    out = sorted(merged.values(), key=lambda x: -x["event_count"])
+    return [enrich_issue_row(row, days=days) for row in out]
 
 
 # ── Ana build fonksiyonu ──────────────────────────────────────────────────────
@@ -1230,14 +1491,21 @@ def build_full_payload(
         ver_all: list[tuple[str, list[dict]]] = []
         chip_ver_all: list[tuple[str, list[dict]]] = []
         trend_all: list[tuple[str, list[dict]]] = []
+        version_trend_all: list[tuple[str, list[dict]]] = []
+        device_all: list[tuple[str, list[dict]]] = []
+        os_all: list[tuple[str, list[dict]]] = []
+        process_all: list[tuple[str, list[dict]]] = []
         oldest_days_all: list[int] = []
         errors: list[str] = []
+        meta = APP_PRODUCTS.get(pid, {})
+        android_pkg = (meta.get("android_package") or "").strip()
+        ios_bundle = (meta.get("ios_bundle_id") or "").strip()
 
         def _fetch_platform(plat: str, tbl: str) -> dict:
             """Platform için BQ sorgularını paralel çalıştır."""
             out: dict[str, Any] = {"platform": plat}
-            # chip_days: version chip'leri için en az 30 gün — iOS gibi az crash'li platformlarda
-            # seçili dönemde event olmayabilir; 30 günlük pencere her zaman versiyon gösterir.
+            bundle = android_pkg if plat == "android" else ios_bundle
+            batch_ref = _batch_table_ref(plat, bundle) if bundle else None
             chip_days = max(days, 30)
             sub_tasks = {
                 "summary":      lambda: ("summary",      query_summary(plat, tbl, days),              None),
@@ -1246,6 +1514,10 @@ def build_full_payload(
                 "anr":          lambda: ("anr",          *query_anr_list(plat, tbl, days, None)),
                 "versions":     lambda: ("versions",     *query_version_breakdown(plat, tbl, days)),
                 "trend":        lambda: ("trend",        *query_daily_trend(plat, tbl, days)),
+                "version_trend": lambda: ("version_trend", *query_version_time_series(plat, tbl, days)),
+                "devices":      lambda: ("devices",      *query_device_breakdown(plat, tbl, days)),
+                "os":           lambda: ("os",           *query_os_breakdown(plat, tbl, days)),
+                "process_state": lambda: ("process_state", *query_process_state_breakdown(plat, batch_ref, days)),
                 "oldest_date":  lambda: ("oldest_date",  query_oldest_date(plat, tbl, days),          None),
                 "chip_versions": lambda: ("chip_versions", *query_version_breakdown(plat, tbl, chip_days)),
             }
@@ -1291,10 +1563,18 @@ def build_full_payload(
                         chip_ver_all.append((plat, chip_rows))
                     if res["trend"]:
                         trend_all.append((plat, res["trend"]))
+                    if res.get("version_trend"):
+                        version_trend_all.append((plat, res["version_trend"]))
+                    if res.get("devices"):
+                        device_all.append((plat, res["devices"]))
+                    if res.get("os"):
+                        os_all.append((plat, res["os"]))
+                    if res.get("process_state"):
+                        process_all.append((plat, res["process_state"]))
                     if res.get("oldest_date") is not None:
                         oldest_days_all.append(res["oldest_date"])
                     seen_for_plat: set[str] = set()
-                    for field in ("issues_err", "anr_err", "ver_err", "trend_err"):
+                    for field in ("issues_err", "anr_err", "ver_err", "trend_err", "version_trend_err", "devices_err", "os_err", "process_state_err"):
                         msg = res.get(field)
                         if not msg or msg in seen_for_plat:
                             continue
@@ -1329,6 +1609,21 @@ def build_full_payload(
 
         data_days = max(oldest_days_all) if oldest_days_all else days
 
+        from backend.services.crashlytics_detail import merge_breakdown_rows
+
+        device_rows_merged: list[dict] = []
+        for _plat, rows in device_all:
+            for r in rows:
+                label = ((r.get("manufacturer") or "") + " " + (r.get("model") or "")).strip() or "bilinmiyor"
+                device_rows_merged.append({"label": label, "event_count": r.get("event_count", 0)})
+        device_breakdown = merge_breakdown_rows([device_rows_merged], "label")
+        os_breakdown = merge_breakdown_rows([r for _p, r in os_all], "os_version")
+        process_breakdown = merge_breakdown_rows([r for _p, r in process_all], "state")
+
+        version_trend_merged: list[dict] = []
+        for _plat, rows in version_trend_all:
+            version_trend_merged.extend(rows)
+
         result = {
             "ok": True,
             "configured": True,
@@ -1341,12 +1636,16 @@ def build_full_payload(
             "crash_free_pct": crash_free_pct,
             "crash_free_by_platform": crash_free_by_plat,
             "summary_by_platform": summary_by_plat,
-            "issues": _merge_issues(issues_all),
-            "anr": _merge_issues(anr_all),
+            "issues": _merge_issues(issues_all, days=days),
+            "anr": _merge_issues(anr_all, days=days),
             "versions": _merge_versions(ver_all),
             "versions_by_platform": {plat: rows for plat, rows in chip_ver_all},
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
+            "version_trend": version_trend_merged,
+            "device_breakdown": device_breakdown,
+            "os_breakdown": os_breakdown,
+            "process_state_breakdown": process_breakdown,
             "storage_mb": storage_mb,
             "errors": errors,
         }
