@@ -3140,6 +3140,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Firebase Crashlytics e-posta uyarıları (firebase-noreply) — sık senkron
+    scheduler.add_job(
+        _run_inbox_firebase_sync_job,
+        trigger=_InboxIntervalTrigger(minutes=3, timezone=timezone),
+        id="inbox-firebase-sync-3min",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=120,
+    )
+    job_count += 1
+
     # TMDB vizyon takvimi cache — her gece 02:30'da
     scheduler.add_job(
         _run_tmdb_cache_refresh_job,
@@ -12805,6 +12817,17 @@ def _run_inbox_summary_job() -> None:
             run_inbox_summary_job(db)
     except Exception:
         LOGGER.exception("Inbox summary job failed")
+
+
+def _run_inbox_firebase_sync_job() -> None:
+    """APScheduler: firebase-noreply@google.com uyarılarını gelen kutusuna yazar."""
+    try:
+        from backend.services import inbox_sync
+
+        with SessionLocal() as db:
+            inbox_sync.sync_firebase_inbox_threads(db, max_threads=30)
+    except Exception:
+        LOGGER.exception("Inbox Firebase sync job failed")
 
 
 def _run_news_intelligence_job() -> None:

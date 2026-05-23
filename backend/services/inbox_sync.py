@@ -29,6 +29,52 @@ _answered_label_id_cache: str | None = None
 _INFO_DOVIZ_RE = re.compile(r"info@doviz\.com", re.I)
 _INFO_SINEMALAR_RE = re.compile(r"info@sinemalar\.com", re.I)
 _FB_RE = re.compile(r"feedback@doviz\.com", re.I)
+_FIREBASE_FROM_RE = re.compile(r"firebase-noreply@(google\.com|googleapis\.com)", re.I)
+
+
+def _is_firebase_sender(text: str) -> bool:
+    return bool(_FIREBASE_FROM_RE.search(text or ""))
+
+
+def _default_inbox_gmail_query() -> str:
+    """Destek adresleri + Firebase Crashlytics uyarı mailleri (from: firebase-noreply)."""
+    return (
+        "("
+        "to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
+        "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
+        "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com "
+        "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
+        ")"
+    )
+
+
+def _firebase_only_gmail_query() -> str:
+    return "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
+
+
+def _ensure_firebase_in_query(q: str) -> str:
+    low = (q or "").lower()
+    if "firebase-noreply" in low:
+        return q
+    fb = "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com"
+    q = q.strip()
+    if q.startswith("(") and q.endswith(")"):
+        return q[:-1] + f" OR {fb})"
+    if q:
+        return f"({q}) OR ({fb})"
+    return fb
+
+
+def _normalize_inbox_gmail_query(raw: str) -> str:
+    q = (raw or "").strip()
+    if not q:
+        q = _default_inbox_gmail_query()
+    q = _ensure_firebase_in_query(q)
+    q = re.sub(r"\bis:unread\b", "", q, flags=re.IGNORECASE).strip()
+    q = re.sub(r"\s{2,}", " ", q).strip()
+    if "newer_than:" not in q.lower() and "after:" not in q.lower():
+        q = f"newer_than:60d {q}"
+    return q
 
 
 def _header_map(msg: dict[str, Any]) -> dict[str, str]:
@@ -127,6 +173,14 @@ def _route_tag_from_addrs(text: str) -> str:
     return "mixed"
 
 
+def _route_tag_from_thread(msgs_raw: list[dict[str, Any]], route_src: str) -> str:
+    for m in msgs_raw:
+        h = _header_map(m)
+        if _is_firebase_sender(h.get("from") or ""):
+            return "firebase"
+    return _route_tag_from_addrs(route_src)
+
+
 def _thread_has_unread(full: dict[str, Any]) -> bool:
     for m in full.get("messages") or []:
         if "UNREAD" in (m.get("labelIds") or []):
@@ -220,7 +274,12 @@ def _sync_pct_saved(i_saved: int, n_total: int) -> int:
     return min(99, int(12 + (i_saved / n_total) * 88))
 
 
-def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[dict[str, Any]]:
+def iter_sync_inbox_threads(
+    db: Session,
+    *,
+    max_threads: int = 30,
+    gmail_query: str | None = None,
+) -> Iterator[dict[str, Any]]:
     yield {
         "type": "phase",
         "phase": "auth",
@@ -245,24 +304,8 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
     # - to:   → mailin orijinal To header'ına bakar (doğrudan gelenler)
     # - deliveredto: → forward sonrası Delivered-To header'ına bakar
     # Bu sayede info@doviz.com → cemevecen@nokta.com forward zincirleri de yakalanır.
-    q = (settings.inbox_gmail_query or "").strip()
-    if not q:
-        q = (
-            "("
-            "to:info@doviz.com OR to:feedback@doviz.com OR to:info@sinemalar.com OR to:feedback@sinemalar.com "
-            "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
-            "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com"
-            ")"
-        )
-
-    # is:unread filtresini kaldır — okunmuş mailler de (bugün açılanlar dahil) çekilsin
-    import re as _re
-    q = _re.sub(r'\bis:unread\b', '', q, flags=_re.IGNORECASE).strip()
-    q = _re.sub(r'\s{2,}', ' ', q).strip()
-
-    if "newer_than:" not in q.lower() and "after:" not in q.lower():
-        q = f"newer_than:60d {q}"
-        
+    # from:firebase-noreply → Firebase Console crash/ANR e-posta uyarıları.
+    q = _normalize_inbox_gmail_query(gmail_query if gmail_query is not None else (settings.inbox_gmail_query or ""))
     yield {
         "type": "phase",
         "phase": "listing",
@@ -362,15 +405,29 @@ def iter_sync_inbox_threads(db: Session, *, max_threads: int = 30) -> Iterator[d
     }
 
 
-def sync_inbox_threads(db: Session, *, max_threads: int = 30) -> dict[str, Any]:
+def sync_inbox_threads(
+    db: Session,
+    *,
+    max_threads: int = 30,
+    gmail_query: str | None = None,
+) -> dict[str, Any]:
     """Tek JSON yanıtı (eski API); içeride akışlı senkron kullanılır."""
     out: dict[str, Any] | None = None
-    for evt in iter_sync_inbox_threads(db, max_threads=max_threads):
+    for evt in iter_sync_inbox_threads(db, max_threads=max_threads, gmail_query=gmail_query):
         if evt.get("type") == "complete":
             out = {"synced_threads": evt.get("synced_threads", 0), "query": evt.get("query", "")}
     if out is None:
         raise RuntimeError("Senkron tamamlanamadı.")
     return out
+
+
+def sync_firebase_inbox_threads(db: Session, *, max_threads: int = 25) -> dict[str, Any]:
+    """Yalnızca firebase-noreply@google.com uyarılarını hızlı çeker."""
+    return sync_inbox_threads(
+        db,
+        max_threads=max_threads,
+        gmail_query=_firebase_only_gmail_query(),
+    )
 
 
 def _upsert_thread_from_gmail(
@@ -393,10 +450,11 @@ def _upsert_thread_from_gmail(
             last_ms = ms
         h = _header_map(m)
         route_src += " " + (h.get("delivered-to") or h.get("to") or h.get("cc") or "")
+        route_src += " " + (h.get("from") or "")
         if not subject0:
             subject0 = h.get("subject") or ""
 
-    route_tag = _route_tag_from_addrs(route_src)
+    route_tag = _route_tag_from_thread(msgs_raw, route_src)
 
     row = db.query(SupportInboxThread).filter(SupportInboxThread.gmail_thread_id == tid).first()
     now = datetime.utcnow()

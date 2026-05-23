@@ -49,7 +49,7 @@ def run_inbox_summary_job(db: Session):
         return
 
     # 3. İstatistikleri ve Raporu Hazırla
-    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "mixed": 0}
+    counts = {"info": 0, "sinemalar": 0, "feedback": 0, "mixed": 0, "firebase": 0}
     for t in unread_threads:
         if t.route_tag in counts:
             counts[t.route_tag] += 1
@@ -94,7 +94,8 @@ def run_inbox_summary_job(db: Session):
             "info": "info@doviz.com",
             "sinemalar": "info@sinemalar.com",
             "feedback": "feedback@doviz.com",
-            "mixed": "Çoklu Hesap"
+            "mixed": "Çoklu Hesap",
+            "firebase": "Firebase Crashlytics",
         }.get(t.route_tag, t.route_tag)
         
         content_html = latest_inbound.body_text if latest_inbound and latest_inbound.body_text else t.snippet

@@ -40,16 +40,19 @@
 
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
     <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
-      <div class="inbox-toolbar-strip mb-3 flex flex-wrap items-center gap-2">
-        <span class="inbox-filter-label text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtre</span>
-        <select id="inbox-route-filter" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-          <option value="">Tümü</option>
-          <option value="info">info@doviz</option>
-          <option value="feedback">feedback@</option>
-          <option value="sinemalar">sinemalar@</option>
-          <option value="mixed">Karışık</option>
-        </select>
-        <span id="inbox-account" class="ml-auto text-xs text-slate-500 dark:text-slate-400"></span>
+      <div class="inbox-toolbar-strip mb-3 flex flex-col gap-2">
+        <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Gelen kutusu sekmeleri">
+          <button type="button" role="tab" data-route="" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" aria-selected="true">Tümü</button>
+          <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50">Firebase</button>
+          <button type="button" role="tab" data-route="info" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">info@doviz</button>
+          <button type="button" role="tab" data-route="feedback" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">feedback@</button>
+          <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar@</button>
+          <button type="button" role="tab" data-route="mixed" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">Karışık</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="inbox-live-hint" class="text-[10px] text-slate-400 dark:text-slate-500 hidden">Otomatik yenileme açık</span>
+          <span id="inbox-account" class="ml-auto text-xs text-slate-500 dark:text-slate-400"></span>
+        </div>
       </div>
       <div id="inbox-list" class="max-h-[60vh] lg:max-h-[1500px] space-y-2 overflow-y-auto text-sm"></div>
     </div>
@@ -144,6 +147,41 @@
   var currentTemplateFocusGmid = null;
   var currentMessages = [];
   var _aiTemplatesMemo = {};
+  var inboxActiveRoute = "";
+  var _inboxPollBusy = false;
+  var _inboxPollTimer = null;
+
+  function inboxRouteBadgeClass(tag) {
+    if (tag === "firebase") {
+      return "inbox-route-badge ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
+    }
+    return "inbox-route-badge ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200";
+  }
+
+  function setInboxTabActive(route) {
+    inboxActiveRoute = route || "";
+    var tabs = document.querySelectorAll("#inbox-route-tabs .inbox-tab");
+    Array.prototype.forEach.call(tabs, function (btn) {
+      var r = btn.getAttribute("data-route") || "";
+      var on = r === inboxActiveRoute;
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.classList.toggle("ring-2", on);
+      btn.classList.toggle("ring-indigo-500", on && r !== "firebase");
+      btn.classList.toggle("ring-amber-500", on && r === "firebase");
+    });
+  }
+
+  function toggleFirebaseCompose(isFirebase) {
+    var hide = !!isFirebase;
+    ["inbox-templates-wrap", "inbox-freewrite-wrap", "inbox-compose-anchor"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle("hidden", hide);
+    });
+    ["btn-summarize", "btn-draft", "btn-answered", "btn-unanswered"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle("hidden", hide);
+    });
+  }
 
   function showBanner(msg) {
     var el = document.getElementById("inbox-banner");
@@ -631,21 +669,26 @@
   }
 
   async function loadThreads() {
-    var route = document.getElementById("inbox-route-filter");
-    var q = route && route.value ? "?route=" + encodeURIComponent(route.value) : "";
+    var q = inboxActiveRoute ? "?route=" + encodeURIComponent(inboxActiveRoute) : "";
     var data = await jfetch("/api/inbox/threads" + q);
     var box = document.getElementById("inbox-list");
     if (!box) return;
     var items = data.items || [];
     if (!items.length) {
-      box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.</p>';
+      var emptyMsg =
+        inboxActiveRoute === "firebase"
+          ? "Firebase uyarısı yok. «Senkronize et» deyin veya otomatik yenilemeyi bekleyin (≈30 sn)."
+          : "Henüz kayıt yok. Önce Gmail ile bağlanıp «Senkronize et» deyin.";
+      box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">' + emptyMsg + "</p>";
       return;
     }
     box.innerHTML = items
       .map(function (t) {
         var unread = t.gmail_unread ? "font-bold" : "";
         var badge =
-          '<span class="inbox-route-badge ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">' +
+          '<span class="' +
+          inboxRouteBadgeClass(t.route_tag) +
+          '">' +
           esc(t.route_tag) +
           "</span>";
         var flags = "";
@@ -699,6 +742,7 @@
     document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
     document.getElementById("inbox-detail-meta").textContent =
       "Rota: " + t.route_tag + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
+    toggleFirebaseCompose(t.route_tag === "firebase");
     var sum = document.getElementById("inbox-ai-summary");
     if (t.ai_summary && t.ai_summary.trim()) {
       sum.textContent = t.ai_summary;
@@ -810,7 +854,43 @@
     await loadStatus();
     await loadThreads();
   });
-  document.getElementById("inbox-route-filter").addEventListener("change", loadThreads);
+  async function inboxBackgroundSync() {
+    if (_inboxPollBusy || !status.connected || document.hidden) return;
+    _inboxPollBusy = true;
+    try {
+      await fetch("/api/inbox/sync", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } });
+      await loadThreads();
+      if (selectedId) {
+        try {
+          await openDetail(selectedId);
+        } catch (e) {
+          /* detay yenileme isteğe bağlı */
+        }
+      }
+    } catch (e) {
+      /* sessiz arka plan sync */
+    } finally {
+      _inboxPollBusy = false;
+    }
+  }
+
+  function startInboxLivePolling() {
+    if (_inboxPollTimer) clearInterval(_inboxPollTimer);
+    var hint = document.getElementById("inbox-live-hint");
+    if (hint) hint.classList.toggle("hidden", !status.connected);
+    if (!status.connected) return;
+    setTimeout(inboxBackgroundSync, 2500);
+    _inboxPollTimer = setInterval(inboxBackgroundSync, 30000);
+  }
+
+  document.getElementById("inbox-route-tabs").addEventListener("click", function (ev) {
+    var btn = ev.target.closest(".inbox-tab");
+    if (!btn) return;
+    setInboxTabActive(btn.getAttribute("data-route") || "");
+    loadThreads().catch(function (e) {
+      showBanner(String(e.message || e));
+    });
+  });
   document.getElementById("inbox-templates-refresh").addEventListener("click", function () {
     if (!selectedId) return;
     loadReplyTemplates(currentTemplateFocusGmid || undefined, undefined, true);
@@ -914,10 +994,17 @@
   });
 
   loadStatus()
-    .then(loadThreads)
+    .then(function () {
+      setInboxTabActive("");
+      startInboxLivePolling();
+      return loadThreads();
+    })
     .catch(function (e) {
       showBanner(String(e.message || e));
     });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && status.connected) inboxBackgroundSync();
+  });
 })();
 
 (function () {
