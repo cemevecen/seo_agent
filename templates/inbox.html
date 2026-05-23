@@ -35,6 +35,16 @@
   .inbox-ziyaret-table td.inbox-ziyaret-neutral { color: #64748b; }
   .inbox-ziyaret-report { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
   .inbox-msg-body .inbox-ziyaret-wrap { max-width: 100%; overflow-x: auto; }
+  /* nstat ziyaret tablosu — tüm satırlar görünsün (iç scroll yok) */
+  #inbox-messages.inbox-messages--nstat {
+    max-height: none;
+    overflow-y: visible;
+  }
+  #inbox-messages.inbox-messages--nstat .inbox-msg-body {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
   .inbox-ziyaret-intro { margin: 0 0 8px; font-size: 12px; color: #475569; }
   html.dark .inbox-ziyaret-intro { color: #94a3b8; }
   #inbox-alert-analysis-panel {
@@ -1073,6 +1083,7 @@
     document.getElementById("inbox-send-subject").value = t.subject && t.subject.indexOf("Re:") === 0 ? t.subject : "Re: " + (t.subject || "");
     document.getElementById("inbox-send-body").value = t.ai_draft_reply || "";
     var mb = document.getElementById("inbox-messages");
+    mb.classList.toggle("inbox-messages--nstat", isInboxNstatRoute(t.route_tag));
     mb.innerHTML = messages
       .map(function (m) {
         var cls = m.is_outbound
@@ -1090,7 +1101,7 @@
           : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
         var bodyBlock =
           isInboxNstatRoute(t.route_tag) && m.body_display_html
-            ? '<motion class="inbox-msg-body mt-2 overflow-auto text-xs leading-relaxed">' +
+            ? '<motion class="inbox-msg-body inbox-msg-body--ziyaret mt-2 text-xs leading-relaxed">' +
               m.body_display_html +
               "</motion>"
             : '<pre class="inbox-msg-body mt-2 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 dark:text-slate-200">' +
