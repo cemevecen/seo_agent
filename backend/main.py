@@ -12822,10 +12822,18 @@ def _run_inbox_summary_job() -> None:
 def _run_inbox_firebase_sync_job() -> None:
     """APScheduler: firebase-noreply@google.com uyarılarını gelen kutusuna yazar."""
     try:
-        from backend.services import inbox_sync
+        from backend.services import inbox_gmail_auth, inbox_sync
 
         with SessionLocal() as db:
+            if inbox_gmail_auth.get_inbox_credential_row(db) is None:
+                LOGGER.debug("Inbox Firebase sync atlandı: Gmail henüz bağlı değil.")
+                return
             inbox_sync.sync_firebase_inbox_threads(db, max_threads=30)
+    except RuntimeError as exc:
+        if "bağlı değil" in str(exc).lower():
+            LOGGER.debug("Inbox Firebase sync atlandı: %s", exc)
+            return
+        LOGGER.warning("Inbox Firebase sync: %s", exc)
     except Exception:
         LOGGER.exception("Inbox Firebase sync job failed")
 

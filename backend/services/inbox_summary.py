@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from sqlalchemy.orm import Session
 from backend.models import SupportInboxThread, SupportInboxMessage
-from backend.services import inbox_sync, mailer
+from backend.services import inbox_sync, mailer, inbox_gmail_auth
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,9 @@ def run_inbox_summary_job(db: Session):
     # 1. Sync inbox — env'e bakmadan her zaman çalışır.
     #    Kullanıcı /inbox sayfasında güncel veriyi görmek için bu sync'e bağlı.
     logger.info("Starting scheduled inbox sync...")
+    if inbox_gmail_auth.get_inbox_credential_row(db) is None:
+        logger.info("Inbox sync atlandı: Gmail henüz bağlı değil (OAuth tamamlanmalı).")
+        return
     try:
         # Senkronizasyon yaparken max_threads'i yüksek tutalım (100) ki güncelliği kaçırmasın
         inbox_sync.sync_inbox_threads(db, max_threads=100)
