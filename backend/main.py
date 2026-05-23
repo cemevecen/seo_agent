@@ -11011,7 +11011,7 @@ def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
 @app.get("/api/ga4/realtime/{site_id}/404-spike")
 def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int = 15):
     """Anlık 404 spike verisi — realtime sayfası için."""
-    from backend.services.ga4_realtime import fetch_realtime_404_users, _is_rt_404_title
+    from backend.services.ga4_realtime import fetch_realtime_404_users, _evaluate_404_spike_severity
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
     from backend.config import settings
 
@@ -11030,11 +11030,17 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
         warn = int(getattr(settings, "ga4_realtime_404_warning_threshold", 10))
         crit = int(getattr(settings, "ga4_realtime_404_critical_threshold", 25))
         total = data.get("total_404_users", 0)
-        severity = "critical" if total >= crit else ("warning" if total >= warn else None)
+        previous = int(data.get("previous_404_users") or 0)
+        delta = int(data.get("delta_404_users") or (total - previous))
+        severity = _evaluate_404_spike_severity(
+            total, previous, warn_threshold=warn, crit_threshold=crit
+        )
         return JSONResponse({
             "site_id": site_id,
             "profile": profile,
             "total_404_users": total,
+            "previous_404_users": previous,
+            "delta_404_users": delta,
             "pages": data.get("pages", []),
             "severity": severity,
             "warn_threshold": warn,

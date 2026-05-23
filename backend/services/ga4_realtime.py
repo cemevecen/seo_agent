@@ -10,6 +10,7 @@ import copy
 import hashlib
 import html
 import logging
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -3350,20 +3351,54 @@ def send_realtime_summary_email(all_alarms: list[dict[str, Any]]) -> bool:
 
 # ── Realtime 404 Spike İzleme ─────────────────────────────────────────────────
 
-_RT_404_TITLE_PATTERNS: tuple[str, ...] = (
+# Yalnızca net hata sayfası başlıkları (geniş "bulunamadı" eşleşmesi yok)
+_RT_404_TITLE_MARKERS: tuple[str, ...] = (
     "sayfa bulunamadı",
     "page not found",
-    "bulunamadı",
-    "not found",
-    "404",
-    "hata sayfası",
-    "error page",
+    "404 error",
+    "404 -",
+    "error 404",
+)
+
+_RT_404_PATH_RE = re.compile(
+    r"(?:^|[/?])(?:404|not[-_]?found|error[-_]?page)(?:[/?.]|$)|/404(?:/|$)",
+    re.I,
 )
 
 
-def _is_rt_404_title(title: str) -> bool:
+def _is_rt_404_page(title: str, paths: list[str] | None = None) -> bool:
+    """404/hata sayfası — net başlık veya path kalıbı."""
     t = (title or "").lower().strip()
-    return any(p in t for p in _RT_404_TITLE_PATTERNS)
+    if t and any(marker in t for marker in _RT_404_TITLE_MARKERS):
+        return True
+    for raw in paths or []:
+        p = (raw or "").strip()
+        if p and _RT_404_PATH_RE.search(p):
+            return True
+    return False
+
+
+def _evaluate_404_spike_severity(
+    total: int,
+    previous: int,
+    *,
+    warn_threshold: int,
+    crit_threshold: int,
+) -> str | None:
+    """Mutlak kullanıcı sayısı değil, önceki pencereye göre ani artış (spike) aranır."""
+    if total < warn_threshold:
+        return None
+    delta = total - previous
+    min_delta = max(8, warn_threshold // 2)
+    # Sürekli yüksek taban (384→380 gibi): spike değil, uyarı verme
+    if previous >= warn_threshold and delta < min_delta:
+        return None
+    pct = (delta / previous * 100) if previous > 0 else (100.0 if total >= warn_threshold else 0.0)
+    if total >= crit_threshold and (delta >= min_delta or previous == 0 or pct >= 25):
+        return "critical"
+    if total >= warn_threshold and (delta >= min_delta or previous == 0 or pct >= 15):
+        return "warning"
+    return None
 
 
 def fetch_realtime_404_users(
@@ -3371,37 +3406,49 @@ def fetch_realtime_404_users(
     window_minutes: int = 15,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """GA4 Realtime'dan 404 sayfasındaki aktif kullanıcıları çeker."""
+    """GA4 Realtime — 404 sayfasındaki aktif kullanıcılar + önceki pencere karşılaştırması."""
     if client is None:
         client = _build_client()
 
     result = fetch_realtime_top_pages(
         property_id,
         window_minutes=window_minutes,
-        limit=50,
+        limit=100,
         sort_by="activeUsers",
         dimension="unifiedScreenName",
-        compare_previous=False,
-        include_page_path=False,
+        compare_previous=True,
+        include_page_path=True,
         client=client,
     )
 
-    pages_404 = [
-        p for p in (result.get("pages") or [])
-        if _is_rt_404_title(str(p.get("page") or ""))
-    ]
-    total_users = sum(int(p.get("activeUsers") or 0) for p in pages_404)
+    pages_404: list[dict[str, Any]] = []
+    total_users = 0
+    total_prev = 0
+    for p in result.get("pages") or []:
+        title = str(p.get("page") or "")
+        paths = [str(x) for x in (p.get("page_paths") or []) if x]
+        if not _is_rt_404_page(title, paths):
+            continue
+        cur = int(p.get("activeUsers") or 0)
+        prev = int(p.get("activeUsers_previous") or 0)
+        total_users += cur
+        total_prev += prev
+        pages_404.append({
+            "title": title,
+            "activeUsers": cur,
+            "activeUsers_previous": prev,
+            "page_paths": paths[:5],
+        })
+
+    pages_404.sort(key=lambda x: x["activeUsers"], reverse=True)
 
     return {
         "total_404_users": total_users,
-        "pages": [
-            {
-                "title":       str(p.get("page") or ""),
-                "activeUsers": int(p.get("activeUsers") or 0),
-            }
-            for p in pages_404
-        ],
+        "previous_404_users": total_prev,
+        "delta_404_users": total_users - total_prev,
+        "pages": pages_404,
         "window_minutes": window_minutes,
+        "comparison_enabled": bool(result.get("comparison_enabled")),
     }
 
 
@@ -3412,6 +3459,9 @@ def _html_404_spike_body(
     pages: list[dict],
     severity: str,
     threshold: int,
+    *,
+    previous: int = 0,
+    delta: int = 0,
 ) -> str:
     dom_e  = html.escape(domain)
     prof_e = html.escape(profile_label)
@@ -3451,7 +3501,7 @@ def _html_404_spike_body(
               <span style="font-size:14px;color:#475569">kullanıcı şu an 404 sayfasında</span>
             </div>
             <div style="font-size:12px;color:#64748b;margin-top:4px">
-              Eşik: {threshold} · Pencere: son {15} dakika
+              Eşik: {threshold} · Önceki pencere: {previous} kul. · Değişim: {delta:+d}
             </div>
           </div>
           {('<div style="margin-top:8px">' + page_rows + '</div>') if pages else ''}
@@ -3490,18 +3540,24 @@ def check_realtime_404_for_site(
         return {}
 
     total = data.get("total_404_users", 0)
+    previous = int(data.get("previous_404_users") or 0)
+    delta = int(data.get("delta_404_users") or (total - previous))
     pages = data.get("pages", [])
 
     if total == 0:
-        return {"total_404_users": 0, "pages": [], "severity": None}
+        return {"total_404_users": 0, "previous_404_users": previous, "delta_404_users": delta, "pages": [], "severity": None}
 
-    severity = None
-    if total >= crit_threshold:
-        severity = "critical"
-    elif total >= warn_threshold:
-        severity = "warning"
+    severity = _evaluate_404_spike_severity(
+        total, previous, warn_threshold=warn_threshold, crit_threshold=crit_threshold
+    )
 
-    result = {"total_404_users": total, "pages": pages, "severity": severity}
+    result = {
+        "total_404_users": total,
+        "previous_404_users": previous,
+        "delta_404_users": delta,
+        "pages": pages,
+        "severity": severity,
+    }
 
     if severity is None:
         return result
@@ -3509,15 +3565,19 @@ def check_realtime_404_for_site(
     # DB'ye kaydet
     rule_id = f"rt_404_{severity}"
     profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+    change_pct = (delta / previous * 100) if previous > 0 else (100.0 if total > 0 else 0.0)
     log = RealtimeAlarmLog(
         site_id=site.id,
         rule_id=rule_id,
         metric=f"{profile}:active_404_users",
         severity=severity,
         current_value=float(total),
-        previous_value=0.0,
-        change_pct=0.0,
-        message=f"{site.domain} {profile_label} — {total} kullanıcı 404 sayfasında",
+        previous_value=float(previous),
+        change_pct=change_pct,
+        message=(
+            f"{site.domain} {profile_label} — 404 spike: {previous:.0f} → {total:.0f} kul. "
+            f"({delta:+.0f}, {change_pct:+.0f}%)"
+        ),
     )
     db.add(log)
     try:
@@ -3538,9 +3598,12 @@ def check_realtime_404_for_site(
     if is_realtime_mail_ready():
         threshold = crit_threshold if severity == "critical" else warn_threshold
         html_body = _html_404_spike_body(
-            site.domain, profile_label, total, pages, severity, threshold
+            site.domain, profile_label, total, pages, severity, threshold, previous=previous, delta=delta
         )
-        subject = f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · {site.domain} · {total} kul. 404 sayfasında"
+        subject = (
+            f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · {site.domain} · "
+            f"404 spike {previous:.0f}→{total:.0f} kul."
+        )
         thread_key = _realtime_email_thread_key(site.domain, profile)
         send_realtime_email(subject, html_body, thread_kind="404spike", thread_key=thread_key)
         logger.warning("404 Spike [%s %s]: %d kullanıcı (%s)", site.domain, profile, total, severity)

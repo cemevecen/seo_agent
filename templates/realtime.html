@@ -759,6 +759,7 @@
               <span class="text-xs font-bold text-amber-700 dark:text-amber-400">404 SPIKE</span>
               <span class="rt-404-badge rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white" data-rt-404-count>0</span>
               <span class="text-[10px] text-amber-600 dark:text-amber-500">kullanıcı şu an 404 sayfasında</span>
+              <span class="text-[10px] text-amber-600/80 dark:text-amber-500/80" data-rt-404-sub></span>
             </div>
             <span class="rt-404-severity text-[10px] font-bold uppercase" data-rt-404-severity></span>
           </div>
@@ -2404,6 +2405,14 @@
       var isCrit = data.severity === 'critical';
       sevEl.textContent = isCrit ? 'KRİTİK' : 'UYARI';
       sevEl.style.color = isCrit ? '#dc2626' : '#d97706';
+    }
+    var sub = sec.querySelector('[data-rt-404-sub]');
+    if (sub) {
+      var prev = (data && data.previous_404_users) || 0;
+      var delta = (data && data.delta_404_users);
+      if (delta == null) delta = (total - prev);
+      var deltaStr = delta >= 0 ? ('+' + delta) : String(delta);
+      sub.textContent = 'önceki ' + prev + ' → şimdi ' + total + ' (' + deltaStr + ')';
     }
     if (pagesEl && data.pages && data.pages.length) {
       pagesEl.innerHTML = data.pages.slice(0, 5).map(function(p) {
