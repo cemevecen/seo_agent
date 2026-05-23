@@ -26,7 +26,13 @@ _ZIYARET_URL_DISPLAY_LEN = 45
 def _display_url(url: str) -> tuple[str, str]:
     """Tam href + ekranda https:// olmadan, en fazla 45 karakter."""
     href = (url or "").strip()
+    if href and not re.match(r"^https?://", href, re.I):
+        href = "https://" + href.lstrip("/")
     display = re.sub(r"^https?://", "", href, flags=re.I)
+    # nstat: haber.doviz.com/path → /path (domain gösterilmez)
+    if re.match(r"^haber\.doviz\.com(?:/|$)", display, re.I):
+        rest = display[len("haber.doviz.com") :]
+        display = rest if rest.startswith("/") else ("/" + rest if rest else "/")
     if len(display) > _ZIYARET_URL_DISPLAY_LEN:
         display = display[: _ZIYARET_URL_DISPLAY_LEN - 1] + "…"
     return href, display
