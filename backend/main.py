@@ -10198,33 +10198,66 @@ def _crash_fetch(params: dict) -> dict:
     version = (params.get("version") or "").strip() or None
 
     if error_type or versions or version:
-        data = dict(data)  # shallow copy — don't mutate cache
-
-        if data.get("issues"):
-            issues = data["issues"]
-            if error_type:
-                issues = [i for i in issues if (i.get("error_type") or "").upper() == error_type]
-            ver_filter = set(versions) if versions else ({version} if version else set())
-            if ver_filter:
-                issues = [i for i in issues if i.get("latest_version") in ver_filter]
-            data["issues"] = issues
-
-        if data.get("anr"):
-            ver_filter = set(versions) if versions else ({version} if version else set())
-            if ver_filter:
-                data["anr"] = [r for r in data["anr"] if r.get("app_version") in ver_filter]
-            elif version:
-                data["anr"] = [r for r in data["anr"] if r.get("app_version") == version]
-
-        if data.get("versions"):
-            ver_filter = set(versions) if versions else ({version} if version else set())
-            if ver_filter:
-                data["versions"] = [r for r in data["versions"] if r.get("app_version") in ver_filter]
-            elif version:
-                data["versions"] = [r for r in data["versions"] if r.get("app_version") == version]
+        data = _apply_crash_filters(data, params)
 
     from backend.services.android_device_names import apply_device_friendly_labels
     return apply_device_friendly_labels(data, plat)
+
+
+def _apply_crash_filters(data: dict, params: dict) -> dict:
+    """Bellek içi filtre — özet kartı ve tablolar seçili tür/versiyona uyumlu olsun."""
+    data = dict(data)
+    error_type = (params.get("error_type") or "").strip().upper() or None
+    versions = params.get("versions") or []
+    version = (params.get("version") or "").strip() or None
+    ver_filter: set[str] = set()
+    if versions:
+        ver_filter = set(versions)
+    elif version:
+        ver_filter = {version}
+
+    plat = (params.get("platform") or "all").strip().lower()
+    sbp = data.get("summary_by_platform") or {}
+    plats = [plat] if plat in ("ios", "android") else list(sbp.keys()) or [""]
+
+    if error_type:
+        totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
+        for p in plats:
+            s = sbp.get(p) if p else (data.get("totals") or {})
+            if not s:
+                continue
+            if error_type == "FATAL":
+                totals["fatal"] += int(s.get("fatal") or 0)
+            elif error_type == "ANR":
+                totals["anr"] += int(s.get("anr") or 0)
+            elif error_type == "NON_FATAL":
+                totals["non_fatal"] += int(s.get("non_fatal") or 0)
+            totals["affected_users"] += int(s.get("affected_users") or 0)
+        data["totals"] = totals
+
+    if data.get("issues"):
+        issues = data["issues"]
+        if error_type:
+            issues = [i for i in issues if (i.get("error_type") or "").upper() == error_type]
+        if ver_filter:
+            issues = [i for i in issues if i.get("latest_version") in ver_filter]
+        data["issues"] = issues
+
+    if data.get("anr") is not None:
+        anr_rows = data["anr"]
+        if error_type and error_type != "ANR":
+            anr_rows = []
+        if ver_filter:
+            anr_rows = [r for r in anr_rows if r.get("app_version") in ver_filter]
+        data["anr"] = anr_rows
+
+    if data.get("versions"):
+        vers = data["versions"]
+        if ver_filter:
+            vers = [r for r in vers if r.get("app_version") in ver_filter]
+        data["versions"] = vers
+
+    return data
 
 
 @app.get("/api/app/crashlytics/summary", response_class=HTMLResponse)

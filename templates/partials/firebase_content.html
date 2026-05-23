@@ -386,13 +386,13 @@
   }
 
   function loadAllSections(opts) {
-    SECTIONS.forEach(function (n) { loadSection(n, opts || {}); });
-    setTimeout(prefetchPlatformCache, 400);
+    opts = opts || {};
+    SECTIONS.forEach(function (n) { loadSection(n, opts); });
+    if (!opts.skipPrefetch) setTimeout(prefetchPlatformCache, 400);
   }
 
   function loadPlatformSections() {
-    SECTIONS.forEach(function (n) { loadSection(n, { silent: true }); });
-    prefetchPlatformCache();
+    applyFilterChange("platform");
   }
 
   function prefetchPlatformCache() {
@@ -410,13 +410,22 @@
     });
   }
 
-  // Filtre tipine göre hangi section'ların etkilendiğini bilir:
-  //   "type"    → summary değişmez (genel sayılar), anr değişmez; sadece crashes + versions
-  //   "version" → summary değişmez; crashes + anr + versions
-  //   diğerleri → hepsi (platform / days)
+  // Filtre tipine göre hangi section'ların etkilendiğini bilir (hepsi yenilenir).
   var _pendingFilterType = "all";
+  function applyFilterChange(scope) {
+    clearHtmlCache();
+    syncBtns();
+    if (scope === "platform" || scope === "days") {
+      crashState.versions = [];
+      crashState.version = "";
+      renderVersionChips();
+    }
+    var silent = scope === "platform";
+    SECTIONS.forEach(function (n) { loadSection(n, { force: true, silent: silent }); });
+    if (scope !== "platform") prefetchPlatformCache();
+  }
+
   function loadDebounced(filterType) {
-    // Birden fazla filtre hızla değişirse en geniş kümesi al
     if (_pendingFilterType !== "all") {
       if (filterType === "all" || _pendingFilterType !== filterType) _pendingFilterType = "all";
     } else {
@@ -427,18 +436,8 @@
       var ft = _pendingFilterType;
       _pendingFilterType = "all";
       crashState.debounceTimer = null;
-      if (ft === "type") {
-        loadSection("crashes");
-        loadSection("versions");
-      } else if (ft === "version") {
-        loadSection("crashes");
-        loadSection("anr");
-        loadSection("versions");
-      } else {
-        clearHtmlCache();
-        loadAllSections();
-      }
-    }, ft === "platform" ? 0 : 250);
+      applyFilterChange(ft);
+    }, filterType === "platform" ? 0 : 120);
   }
 
   // ── Versiyon filtresi ──
@@ -854,31 +853,32 @@
     b.addEventListener("click", function () {
       if (b.dataset.crashPlatform === crashState.platform) return;
       crashState.platform = b.dataset.crashPlatform;
-      syncBtns();
-      renderVersionChips();
-      loadPlatformSections();
+      loadDebounced("platform");
     });
   });
   daysBtns.forEach(function (b) {
     b.addEventListener("click", function () {
-      if (parseInt(b.dataset.crashDays) === crashState.days) return;
-      crashState.days = parseInt(b.dataset.crashDays);
-      syncBtns();
-      clearHtmlCache();
-      loadDebounced("all");
+      var d = parseInt(b.dataset.crashDays, 10);
+      if (d === crashState.days) return;
+      crashState.days = d;
+      loadDebounced("days");
     });
   });
   typeBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadDebounced("type"); });
+    b.addEventListener("click", function () {
+      if (b.dataset.crashType === crashState.type) return;
+      crashState.type = b.dataset.crashType;
+      loadDebounced("type");
+    });
   });
   productBtns.forEach(function (b) {
     b.addEventListener("click", function () {
       if (b.dataset.crashProduct === crashState.product) return;
       crashState.product = b.dataset.crashProduct;
+      crashState.versions = [];
+      crashState.version = "";
       try { var u = new URL(window.location.href); u.searchParams.set("product", crashState.product); history.replaceState(null, "", u); } catch (_) {}
-      syncBtns();
-      clearHtmlCache();
-      loadDebounced("all");
+      loadDebounced("days");
     });
   });
   var verAllBtn = document.getElementById("crash-version-all-btn");
