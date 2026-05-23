@@ -978,14 +978,14 @@ def fetch_realtime_top_pages(
     dimension: str = "unifiedScreenName",
     sort_by: str = "activeUsers",
     compare_previous: bool = False,
-    include_page_path: bool = True,   # pagePath ikinci dimension olarak ekle
+    include_page_path: bool = False,  # GA4 Realtime şemasında pagePath geçerli değil
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Realtime API ile son N dakikadaki top sayfaları çeker.
 
     compare_previous: True ise önceki pencereyle (window_minutes kadar öncesi) karşılaştırma metriklerini de döner.
     sort_by: "activeUsers" veya "screenPageViews" — sıralama kriteri.
-    include_page_path: True ise pagePath ikinci dimension olarak eklenir; her sayfa için URL listesi de döner.
+    include_page_path: True ise pagePath ikinci dimension olarak eklenir (Realtime API'de desteklenmez — False bırakın).
     """
     if client is None:
         client = _build_client()
@@ -3417,7 +3417,7 @@ def fetch_realtime_404_users(
         sort_by="activeUsers",
         dimension="unifiedScreenName",
         compare_previous=True,
-        include_page_path=True,
+        include_page_path=False,
         client=client,
     )
 
