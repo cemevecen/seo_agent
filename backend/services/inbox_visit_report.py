@@ -40,18 +40,18 @@ def _pct_class(value: str) -> str:
     return "inbox-ziyaret-neutral"
 
 
-def _cell_html(value: str, *, is_pct: bool = False) -> str:
+def _cell_html(value: str, *, is_pct: bool = False, is_url_col: bool = False) -> str:
     text = html.escape((value or "").strip())
     if not text:
         return "<td></td>"
-    if is_pct or _PCT_CELL_RE.match(text.replace(" ", "")):
-        cls = _pct_class(text)
-        return f'<td class="{cls}">{text}</td>'
-    if text.startswith("http://") or text.startswith("https://"):
+    if is_url_col or text.startswith("http://") or text.startswith("https://"):
         return (
             f'<td class="inbox-ziyaret-url"><a href="{html.escape(text)}" '
             f'target="_blank" rel="noopener">{text}</a></td>'
         )
+    if is_pct or _PCT_CELL_RE.match(text.replace(" ", "")):
+        cls = _pct_class(text)
+        return f'<td class="{cls}">{text}</td>'
     return f"<td>{text}</td>"
 
 
@@ -136,12 +136,16 @@ def _render_table_html(rows: list[list[str]]) -> str:
         hl = h.lower()
         if "değişim" in hl or "degisim" in hl or "change" in hl:
             pct_cols.add(i)
-    thead = "".join(f"<th>{html.escape(c)}</th>" for c in header)
+    thead_parts: list[str] = []
+    for i, c in enumerate(header):
+        cls = ' class="inbox-ziyaret-url"' if i == 0 else ""
+        thead_parts.append(f"<th{cls}>{html.escape(c)}</th>")
+    thead = "".join(thead_parts)
     tbody_parts: list[str] = []
     for row in body_rows:
         cells: list[str] = []
         for i, val in enumerate(row):
-            cells.append(_cell_html(val, is_pct=(i in pct_cols)))
+            cells.append(_cell_html(val, is_pct=(i in pct_cols), is_url_col=(i == 0)))
         tbody_parts.append(f"<tr>{''.join(cells)}</tr>")
     return (
         '<div class="inbox-ziyaret-report">'
@@ -164,3 +168,19 @@ def render_ziyaret_message_html(*, body_html: str = "", body_text: str = "") -> 
         if before_url and len(before_url) < 400 and "Bugün" not in before_url[:80]:
             intro = f'<p class="inbox-ziyaret-intro">{html.escape(before_url)}</p>'
     return f'<div class="inbox-ziyaret-wrap">{intro}{table}</div>'
+
+
+def ziyaret_thread_preview(body_text: str, *, max_rows: int = 2) -> str:
+    """Liste satırı için kısa önizleme."""
+    rows = _rows_from_plain_text(body_text)
+    if not rows:
+        plain = re.sub(r"\s+", " ", (body_text or "").strip())
+        return plain[:240] + ("…" if len(plain) > 240 else "")
+    bits: list[str] = []
+    for row in rows[:max_rows]:
+        url = row[0]
+        if len(url) > 48:
+            url = url[:45] + "…"
+        bits.append(f"{url} · bugün {row[1]} · {row[3]}")
+    suffix = f" (+{len(rows) - max_rows} satır)" if len(rows) > max_rows else ""
+    return " | ".join(bits) + suffix

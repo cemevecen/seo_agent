@@ -18,7 +18,7 @@ from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
-from backend.services.inbox_visit_report import render_ziyaret_message_html
+from backend.services.inbox_visit_report import render_ziyaret_message_html, ziyaret_thread_preview
 
 _INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
 
@@ -389,13 +389,17 @@ def inbox_threads_list(
     for t in rows:
         last_body = (latest_bodies.get(t.id) or "").strip()
         preview_src = last_body or (t.snippet or "")
+        if t.route_tag == "ziyaret" and last_body:
+            message_preview = ziyaret_thread_preview(last_body)
+        else:
+            message_preview = _body_preview(preview_src)
         items.append(
             {
                 "id": t.id,
                 "gmail_thread_id": t.gmail_thread_id,
                 "subject": t.subject,
                 "snippet": (t.snippet or "")[:240],
-                "message_preview": _body_preview(preview_src),
+                "message_preview": message_preview,
                 "route_tag": t.route_tag,
                 "gmail_unread": t.gmail_unread,
                 "answered_flag": t.answered_flag,

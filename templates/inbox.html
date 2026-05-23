@@ -1,20 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .inbox-ziyaret-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.35; }
+  .inbox-ziyaret-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.4; table-layout: auto; }
   .inbox-ziyaret-table th,
-  .inbox-ziyaret-table td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: right; vertical-align: top; }
+  .inbox-ziyaret-table td { border: 1px solid #e2e8f0; padding: 6px 10px; text-align: right; vertical-align: middle; white-space: nowrap; }
   html.dark .inbox-ziyaret-table th,
   html.dark .inbox-ziyaret-table td { border-color: #475569; }
-  .inbox-ziyaret-table th { background: #f1f5f9; font-weight: 700; text-align: center; white-space: nowrap; }
+  .inbox-ziyaret-table th { background: #f1f5f9; font-weight: 700; text-align: center; }
   html.dark .inbox-ziyaret-table th { background: #1e293b; }
-  .inbox-ziyaret-table td.inbox-ziyaret-url { text-align: left; max-width: 220px; word-break: break-all; }
+  .inbox-ziyaret-table th.inbox-ziyaret-url,
+  .inbox-ziyaret-table td.inbox-ziyaret-url {
+    text-align: left;
+    min-width: 14rem;
+    max-width: 32rem;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  .inbox-ziyaret-table td.inbox-ziyaret-url a {
+    color: #2563eb;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  html.dark .inbox-ziyaret-table td.inbox-ziyaret-url a { color: #93c5fd; }
+  .inbox-ziyaret-table td.inbox-ziyaret-url a:hover { text-decoration: underline; }
   .inbox-ziyaret-table td.inbox-ziyaret-up { color: #15803d; font-weight: 700; background: #f0fdf4; }
   html.dark .inbox-ziyaret-table td.inbox-ziyaret-up { color: #86efac; background: #14532d33; }
   .inbox-ziyaret-table td.inbox-ziyaret-down { color: #b91c1c; font-weight: 700; background: #fef2f2; }
   html.dark .inbox-ziyaret-table td.inbox-ziyaret-down { color: #fca5a5; background: #7f1d1d33; }
   .inbox-ziyaret-table td.inbox-ziyaret-neutral { color: #64748b; }
-  .inbox-ziyaret-report { overflow-x: auto; margin-top: 8px; }
+  .inbox-ziyaret-report { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+  .inbox-msg-body .inbox-ziyaret-wrap { max-width: 100%; overflow-x: auto; }
   .inbox-ziyaret-intro { margin: 0 0 8px; font-size: 12px; color: #475569; }
   html.dark .inbox-ziyaret-intro { color: #94a3b8; }
 </style>
