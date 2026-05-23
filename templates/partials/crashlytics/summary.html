@@ -103,6 +103,15 @@
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Son {{ data.days or 7 }} gün · {{ data.platform_filter or 'all'|upper }}</p>
   </div>
 
+  {# Crash-free yoksa açıklama banner'ı #}
+  {% if cf is none and data.crash_free_hints %}
+    <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+      {% for hint in data.crash_free_hints %}
+        <p class="text-xs leading-snug text-indigo-800 dark:text-indigo-300">{{ hint }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {# Crash-free + Fatal/ANR/Non-Fatal kartları (sparkline ile) #}
   {# Crash-free yoksa (BQ crash events tablosu güvenilir crash-free hesabı vermiyor) kartı gösterme;
      grid 3 sütuna düşer, Fatal/ANR/Non-Fatal eşit genişlikte yayılır. #}
@@ -113,6 +122,7 @@
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-3xl font-black tabular-nums {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ "%.1f"|format(cf) }}%</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
+        {% if data.crash_free_method %}<p class="mt-0.5 text-[9px] text-slate-400">kaynak: {{ data.crash_free_method }}</p>{% endif %}
         {# Per-platform crash-free breakdown #}
         {% set cfbp = data.crash_free_by_platform or {} %}
         {% if cfbp %}

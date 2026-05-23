@@ -10171,15 +10171,19 @@ def _crash_params(request: Request) -> dict:
 
 
 def _crash_fetch(params: dict) -> dict:
-    """BQ'dan tüm veriyi cache'li çek, sonra tip/versiyon filtresi memory'de uygula."""
+    """BQ'dan tüm veriyi cache'li çek, sonra tip/versiyon/platform filtresi memory'de uygula."""
     from backend.services import crashlytics_bq as cbq
     data = cbq.build_full_payload(
         params["product"],
         days=params["days"],
-        platform_filter=params["platform"],
+        platform_filter="all",
     )
     if not data or not data.get("ok"):
         return data
+
+    plat = (params.get("platform") or "all").strip().lower()
+    if plat in ("ios", "android"):
+        data = cbq.slice_payload_for_platform(data, plat)
 
     error_type = (params.get("error_type") or "").strip().upper() or None
     version = (params.get("version") or "").strip() or None
@@ -10201,7 +10205,8 @@ def _crash_fetch(params: dict) -> dict:
         if data.get("versions") and version:
             data["versions"] = [r for r in data["versions"] if r.get("app_version") == version]
 
-    return data
+    from backend.services.android_device_names import apply_device_friendly_labels
+    return apply_device_friendly_labels(data, plat)
 
 
 @app.get("/api/app/crashlytics/summary", response_class=HTMLResponse)
@@ -10288,13 +10293,32 @@ def api_crash_diagnose(product: str = "doviz"):
         plat_block["expected_table_standard"] = (
             f"{bundle.replace('.', '_')}_{plat.upper()}" if bundle else None
         )
-        if plat_block.get("dataset_exists") and bundle:
+        if bundle:
             try:
                 plat_block["discovered_table"] = cbq._discover_table_id(plat, bundle)
             except Exception as exc:  # noqa: BLE001
                 plat_block["discovery_error"] = str(exc)[:300]
         out["platforms"][plat] = plat_block
+    try:
+        out["platform_analysis"] = cbq.analyze_platform_parity(pid, days=7)
+    except Exception as exc:  # noqa: BLE001
+        out["platform_analysis_error"] = str(exc)[:500]
     return JSONResponse(out)
+
+
+@app.get("/api/app/crashlytics/platform-analysis")
+def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
+    """iOS vs Android veri farkı ve crash-free teşhisi."""
+    from backend.services import crashlytics_bq as cbq
+
+    pid = (product or "doviz").strip().lower()
+    try:
+        d = int(days)
+    except (TypeError, ValueError):
+        d = 7
+    if d not in (1, 7, 14, 30, 90):
+        d = 7
+    return JSONResponse(cbq.analyze_platform_parity(pid, days=d))
 
 
 @app.get("/api/app/crashlytics/progress")

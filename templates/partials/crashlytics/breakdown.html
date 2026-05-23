@@ -4,10 +4,10 @@
 {% set devices = data.device_breakdown or [] %}
 {% set os_rows = data.os_breakdown or [] %}
 {% set states = data.process_state_breakdown or [] %}
-{% macro bar_row(label, count, pct, color) %}
-  <div class="space-y-1">
+{% macro bar_row(label, count, pct, color, raw) %}
+  <div class="bd-bar-row space-y-1">
     <div class="flex items-center justify-between gap-2 text-[11px]">
-      <span class="truncate text-slate-600 dark:text-slate-300" title="{{ label }}">{{ label }}</span>
+      <span class="truncate text-slate-600 dark:text-slate-300" title="{% if raw %}{{ raw }} → {% endif %}{{ label }}">{{ label }}</span>
       <span class="shrink-0 tabular-nums text-slate-500">{{ pct }}% · {{ count }}</span>
     </div>
     <div class="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -15,7 +15,7 @@
     </div>
   </div>
 {% endmacro %}
-<div class="space-y-4">
+<div class="space-y-4" data-crash-breakdown-root>
   <div class="flex flex-wrap gap-1 border-b border-slate-200 pb-2 dark:border-slate-700" data-crash-bd-tabs>
     <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Cihaz</button>
     <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500">OS</button>
@@ -23,27 +23,48 @@
   </div>
   <div data-bd-panel="devices" class="space-y-2">
     {% if devices %}
-      {% for r in devices[:8] %}
-        {{ bar_row(r.label, r.event_count, r.pct, 'bg-indigo-500/80') }}
+      {% for r in devices[:15] %}
+        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
+          {{ bar_row(r.label, r.event_count, r.pct, 'bg-indigo-500/80', r.label_raw) }}
+        </div>
       {% endfor %}
+      {% if devices|length > 8 %}
+        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+          Genişlet (15)
+        </button>
+      {% endif %}
     {% else %}
       <p class="text-[11px] text-slate-400">Cihaz kırılımı yok.</p>
     {% endif %}
   </div>
   <div data-bd-panel="os" class="hidden space-y-2">
     {% if os_rows %}
-      {% for r in os_rows[:8] %}
-        {{ bar_row(r.os_version, r.event_count, r.pct, 'bg-emerald-500/80') }}
+      {% for r in os_rows[:15] %}
+        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
+          {{ bar_row(r.os_version, r.event_count, r.pct, 'bg-emerald-500/80', none) }}
+        </div>
       {% endfor %}
+      {% if os_rows|length > 8 %}
+        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+          Genişlet (15)
+        </button>
+      {% endif %}
     {% else %}
       <p class="text-[11px] text-slate-400">OS kırılımı yok.</p>
     {% endif %}
   </div>
   <div data-bd-panel="state" class="hidden space-y-2">
     {% if states %}
-      {% for r in states[:6] %}
-        {{ bar_row(r.state, r.event_count, r.pct, 'bg-amber-500/80') }}
+      {% for r in states[:15] %}
+        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
+          {{ bar_row(r.state, r.event_count, r.pct, 'bg-amber-500/80', none) }}
+        </div>
       {% endfor %}
+      {% if states|length > 8 %}
+        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+          Genişlet (15)
+        </button>
+      {% endif %}
     {% else %}
       <p class="text-[11px] text-slate-400">Process state verisi batch tabloda yok veya boş.</p>
     {% endif %}

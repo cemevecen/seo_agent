@@ -207,6 +207,7 @@
     platform: "all", days: 7, type: "", version: "",
     product: (new URLSearchParams(window.location.search).get("product") || "doviz").toLowerCase(),
     pollTimer: null, debounceTimer: null,
+    htmlCache: {},
     seqs: { summary: 0, "version-chart": 0, breakdown: 0, crashes: 0, anr: 0, versions: 0 },
     detailCtx: null
   };
@@ -259,14 +260,34 @@
     });
   }
 
-  function sectionUrl(name) {
+  function sectionUrl(name, overrides) {
+    var o = overrides || {};
+    var plat = o.platform != null ? o.platform : crashState.platform;
+    var days = o.days != null ? o.days : crashState.days;
+    var typ = o.type != null ? o.type : crashState.type;
+    var ver = o.version != null ? o.version : crashState.version;
+  var prod = o.product != null ? o.product : crashState.product;
     return "/api/app/crashlytics/" + name
-      + "?product=" + encodeURIComponent(crashState.product)
-      + "&days=" + crashState.days
-      + "&platform=" + crashState.platform
-      + "&type=" + encodeURIComponent(crashState.type)
-      + (crashState.version ? "&version=" + encodeURIComponent(crashState.version) : "");
+      + "?product=" + encodeURIComponent(prod)
+      + "&days=" + days
+      + "&platform=" + plat
+      + "&type=" + encodeURIComponent(typ)
+      + (ver ? "&version=" + encodeURIComponent(ver) : "");
   }
+
+  function cacheKey(name, overrides) {
+    var o = overrides || {};
+    return [
+      o.product != null ? o.product : crashState.product,
+      o.days != null ? o.days : crashState.days,
+      o.platform != null ? o.platform : crashState.platform,
+      o.type != null ? o.type : crashState.type,
+      o.version != null ? o.version : crashState.version,
+      name
+    ].join("|");
+  }
+
+  function clearHtmlCache() { crashState.htmlCache = {}; }
 
   function setSecLoading(name) {
     var box = document.getElementById(SEC_IDS[name]);
@@ -276,18 +297,25 @@
   // Her section için aktif AbortController — eski in-flight isteği iptal etmek için
   var _abortCtrls = {};
 
-  function loadSection(name) {
+  function loadSection(name, opts) {
+    opts = opts || {};
+    var key = cacheKey(name, opts.overrides);
+    if (crashState.htmlCache[key] && !opts.force) {
+      applySectionHtml(name, crashState.htmlCache[key]);
+      return;
+    }
     // Önceki uçuştaki isteği iptal et
     if (_abortCtrls[name]) { try { _abortCtrls[name].abort(); } catch (_) {} }
     var box = document.getElementById(SEC_IDS[name]);
     if (!box) return;
     crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
     var seq = crashState.seqs[name];
-    setSecLoading(name);
+    if (!opts.silent) setSecLoading(name);
     var ctrl = new AbortController();
     _abortCtrls[name] = ctrl;
     var timer = setTimeout(function () { ctrl.abort(); }, 35000);
-    fetch(sectionUrl(name), { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
+    var url = sectionUrl(name, opts.overrides || null);
+    fetch(url, { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
       .then(function (r) {
         clearTimeout(timer);
         if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
@@ -297,20 +325,51 @@
       })
       .then(function (html) {
         if (!html || crashState.seqs[name] !== seq) return;
-        box.innerHTML = html;
-        wireTableEnhancements(box);
-        wireBreakdownTabs(box);
-        if (name === "versions") populateVersionChips(box);
+        crashState.htmlCache[key] = html;
+        applySectionHtml(name, html);
       })
       .catch(function (e) {
         if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
         if (!box || crashState.seqs[name] !== seq) return;
-        if (e.name === "AbortError") return; // kasıtlı iptal — sessiz
-        box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+        if (e.name === "AbortError") return;
+        if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
       });
   }
 
-  function loadAllSections() { SECTIONS.forEach(loadSection); }
+  function applySectionHtml(name, html) {
+    var box = document.getElementById(SEC_IDS[name]);
+    if (!box) return;
+    box.innerHTML = html;
+    wireTableEnhancements(box);
+    wireBreakdownTabs(box);
+    wireBreakdownExpand(box);
+    if (name === "versions") populateVersionChips(box);
+  }
+
+  function loadAllSections(opts) {
+    SECTIONS.forEach(function (n) { loadSection(n, opts || {}); });
+    setTimeout(prefetchPlatformCache, 400);
+  }
+
+  function loadPlatformSections() {
+    SECTIONS.forEach(function (n) { loadSection(n, { silent: true }); });
+    prefetchPlatformCache();
+  }
+
+  function prefetchPlatformCache() {
+    var cur = crashState.platform;
+    var targets = ["all", "ios", "android"].filter(function (p) { return p !== cur; });
+    targets.forEach(function (plat) {
+      SECTIONS.forEach(function (name) {
+        var key = cacheKey(name, { platform: plat });
+        if (crashState.htmlCache[key]) return;
+        fetch(sectionUrl(name, { platform: plat }), { cache: "no-store", headers: { "HX-Request": "true" } })
+          .then(function (r) { return r.ok ? r.text() : null; })
+          .then(function (html) { if (html) crashState.htmlCache[key] = html; })
+          .catch(function () {});
+      });
+    });
+  }
 
   // Filtre tipine göre hangi section'ların etkilendiğini bilir:
   //   "type"    → summary değişmez (genel sayılar), anr değişmez; sadece crashes + versions
@@ -337,9 +396,10 @@
         loadSection("anr");
         loadSection("versions");
       } else {
+        clearHtmlCache();
         loadAllSections();
       }
-    }, 250);
+    }, ft === "platform" ? 0 : 250);
   }
 
   // ── Versiyon filtresi ──
@@ -475,7 +535,31 @@
     }, 800);
   }
 
-  // ── Breakdown sekmeleri ──
+  // ── Breakdown sekmeleri + genişlet ──
+  function wireBreakdownExpand(root) {
+    var bdRoot = root.querySelector ? root.querySelector("[data-crash-breakdown-root]") : null;
+    if (!bdRoot) return;
+    bdRoot.querySelectorAll("[data-bd-expand-btn]").forEach(function (btn) {
+      if (btn.dataset.bdExpandBound) return;
+      btn.dataset.bdExpandBound = "1";
+      btn.addEventListener("click", function () {
+        var panel = btn.closest("[data-bd-panel]");
+        if (!panel) return;
+        var expanded = btn.getAttribute("data-bd-expanded") === "1";
+        panel.querySelectorAll("[data-bd-item]").forEach(function (item, idx) {
+          if (idx >= 8) item.classList.toggle("hidden", expanded);
+        });
+        if (expanded) {
+          btn.setAttribute("data-bd-expanded", "0");
+          btn.textContent = "Genişlet (15)";
+        } else {
+          btn.setAttribute("data-bd-expanded", "1");
+          btn.textContent = "Daralt (8)";
+        }
+      });
+    });
+  }
+
   function wireBreakdownTabs(root) {
     var tabs = root.querySelector("[data-crash-bd-tabs]");
     if (!tabs) return;
@@ -713,6 +797,7 @@
     var btn = document.getElementById("crash-refresh-btn");
     var icon = document.getElementById("crash-refresh-icon");
     if (btn) btn.disabled = true;
+    clearHtmlCache();
     fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
       { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
@@ -723,32 +808,65 @@
 
   // ── Filtre butonları ──
   platformBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.platform = b.dataset.crashPlatform; syncBtns(); loadDebounced("all"); });
+    b.addEventListener("click", function () {
+      if (b.dataset.crashPlatform === crashState.platform) return;
+      crashState.platform = b.dataset.crashPlatform;
+      syncBtns();
+      loadPlatformSections();
+    });
   });
   daysBtns.forEach(function (b) {
-    b.addEventListener("click", function () { crashState.days = parseInt(b.dataset.crashDays); syncBtns(); loadDebounced("all"); });
+    b.addEventListener("click", function () {
+      if (parseInt(b.dataset.crashDays) === crashState.days) return;
+      crashState.days = parseInt(b.dataset.crashDays);
+      syncBtns();
+      clearHtmlCache();
+      loadDebounced("all");
+    });
   });
   typeBtns.forEach(function (b) {
     b.addEventListener("click", function () { crashState.type = b.dataset.crashType; syncBtns(); loadDebounced("type"); });
   });
   productBtns.forEach(function (b) {
     b.addEventListener("click", function () {
+      if (b.dataset.crashProduct === crashState.product) return;
       crashState.product = b.dataset.crashProduct;
       try { var u = new URL(window.location.href); u.searchParams.set("product", crashState.product); history.replaceState(null, "", u); } catch (_) {}
-      syncBtns(); loadDebounced("all");
+      syncBtns();
+      clearHtmlCache();
+      loadDebounced("all");
     });
   });
   var diagBtn = document.getElementById("crash-diagnose-btn");
   if (diagBtn) diagBtn.addEventListener("click", function () {
-    fetch("/api/app/crashlytics/diagnose?product=" + encodeURIComponent(crashState.product))
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        var bodyEl = document.getElementById("crash-detail-body");
-        var titleEl = document.getElementById("crash-detail-title");
-        if (titleEl) titleEl.textContent = "BigQuery Teşhis";
-        if (bodyEl) bodyEl.innerHTML = '<pre class="max-h-[60vh] overflow-auto text-[10px]">' + escapeHtml(JSON.stringify(j, null, 2)) + '</pre>';
-        if (detailModal) { detailModal.classList.remove("hidden"); detailModal.classList.add("flex"); detailModal.setAttribute("data-modal-state", "open"); }
-      });
+    var days = crashState.days || 7;
+    Promise.all([
+      fetch("/api/app/crashlytics/diagnose?product=" + encodeURIComponent(crashState.product)).then(function (r) { return r.json(); }),
+      fetch("/api/app/crashlytics/platform-analysis?product=" + encodeURIComponent(crashState.product) + "&days=" + days).then(function (r) { return r.json(); })
+    ]).then(function (arr) {
+      var j = arr[0], pa = arr[1];
+      var bodyEl = document.getElementById("crash-detail-body");
+      var titleEl = document.getElementById("crash-detail-title");
+      if (titleEl) titleEl.textContent = "BigQuery Teşhis · iOS/Android";
+      var html = "";
+      if (pa && pa.findings && pa.findings.length) {
+        html += '<div class="mb-3 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">';
+        html += '<p class="text-[11px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-300">Bulgular</p>';
+        pa.findings.forEach(function (f) {
+          html += '<p class="text-xs leading-snug text-amber-900 dark:text-amber-200">• ' + escapeHtml(f) + '</p>';
+        });
+        html += '</div>';
+      }
+      if (pa && pa.comparison) {
+        var c = pa.comparison;
+        html += '<p class="mb-2 text-xs text-slate-600 dark:text-slate-300"><strong>Son ' + (pa.days || days) + 'g:</strong> Android ' + (c.android_events || 0) + ' olay · iOS ' + (c.ios_events || 0) + ' olay';
+        if (c.ios_vs_android_pct != null) html += ' (iOS Android\'in %' + c.ios_vs_android_pct + '\'i)';
+        html += '</p>';
+      }
+      html += '<pre class="max-h-[50vh] overflow-auto text-[10px]">' + escapeHtml(JSON.stringify({ diagnose: j, platform_analysis: pa }, null, 2)) + '</pre>';
+      if (bodyEl) bodyEl.innerHTML = html;
+      if (detailModal) { detailModal.classList.remove("hidden"); detailModal.classList.add("flex"); detailModal.setAttribute("data-modal-state", "open"); }
+    });
   });
 
   var refreshBtn = document.getElementById("crash-refresh-btn");

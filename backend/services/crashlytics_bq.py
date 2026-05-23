@@ -38,6 +38,7 @@ CACHE_STALE_TTL_S = 24 * 3600  # 24 saat stale — anında sun, arka planda yeni
 
 _PLATFORM_PROJECTS = {"ios": "doviz-ios", "android": "doviz-android"}
 _DATASET = "firebase_crashlytics"
+_SESSIONS_DATASET = "firebase_sessions"
 
 # ── Thread araçları ───────────────────────────────────────────────────────────
 _BQ_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT)
@@ -395,7 +396,7 @@ def _table(platform: str, bundle: str) -> str:
     # uyumsuzluğuna yol açıyor (is_fatal/is_anr). Kullandığımız sütunları seçerek bunu atlıyoruz.
     # Realtime tablosu sadece BUGÜNÜN verisini içersin: gece batch export'u dünü kapattı, realtime
     # bugünü tamamlıyor. TIMESTAMP_TRUNC filtresi sayesinde aynı event iki tabloda çift sayılmaz.
-    if batch_tid and realtime_tid:
+    if batch_tid and realtime_tid and not _union_incompat(platform):
         logger.info("Crashlytics batch+realtime UNION ALL: %s + %s", batch_tid, realtime_tid)
         batch_ref = f"`{proj}.{_DATASET}.{batch_tid}`"
         rt_ref    = f"`{proj}.{_DATASET}.{realtime_tid}`"
@@ -407,6 +408,7 @@ def _table(platform: str, bundle: str) -> str:
             device_struct = "STRUCT(device.model AS model, CAST(NULL AS STRING) AS manufacturer) AS device"
         cols = (
             "event_timestamp, error_type, installation_uuid, issue_id, issue_title, "
+            "firebase_session_id, "
             "STRUCT(application.display_version AS display_version) AS application, "
             f"{device_struct}, "
             "STRUCT(operating_system.display_version AS display_version) AS operating_system, "
@@ -719,7 +721,136 @@ GROUP BY ROLLUP(error_type)
     return result
 
 
-def query_crash_free(platform: str, table: str, days: int) -> dict[str, Any] | None:
+def _list_sessions_tables(platform: str) -> list[str]:
+    try:
+        client = _get_client(platform)
+        proj = _effective_project(platform)
+        loc = _get_dataset_location(platform) or "EU"
+        sql = f"SELECT table_id FROM `{proj}.{_SESSIONS_DATASET}.__TABLES__`"
+        query_job = client.query(sql, location=loc)
+        return [str(r.table_id) for r in query_job.result(timeout=12)]
+    except Exception as exc:
+        logger.debug("Sessions dataset listesi alınamadı (%s): %s", platform, exc)
+        return []
+
+
+def _discover_sessions_table_id(platform: str, bundle: str) -> str | None:
+    """firebase_sessions dataset'inde app tablosunu bul."""
+    base = bundle.replace(".", "_")
+    plat_up = platform.upper()
+    candidates = [
+        f"{base}_{plat_up}",
+        f"{base}_{plat_up}_REALTIME",
+        f"{base}_REALTIME_{plat_up}",
+        base,
+        base.lower() + "_" + plat_up.lower(),
+    ]
+    available = _list_sessions_tables(platform)
+    if not available:
+        return None
+    available_lower = {t.lower(): t for t in available}
+    for c in candidates:
+        m = available_lower.get(c.lower())
+        if m:
+            return m
+    base_lower = base.lower()
+    for t_lower, t_orig in available_lower.items():
+        if base_lower in t_lower and plat_up.lower() in t_lower:
+            return t_orig
+    return None
+
+
+def _sessions_table_ref(platform: str, bundle: str) -> str | None:
+    tid = _discover_sessions_table_id(platform, bundle)
+    if not tid:
+        return None
+    proj = _effective_project(platform)
+    return f"`{proj}.{_SESSIONS_DATASET}.{tid}`"
+
+
+def query_table_health_stats(platform: str, table: str, days: int) -> dict[str, Any]:
+    """Platform tablosu sağlık metrikleri — iOS/Android karşılaştırma için."""
+    sql = f"""
+SELECT
+  COUNT(*) AS event_count,
+  COUNT(DISTINCT installation_uuid) AS affected_users,
+  COUNTIF(error_type = 'FATAL') AS fatal_count,
+  COUNTIF(error_type = 'ANR') AS anr_count,
+  COUNTIF(error_type = 'NON_FATAL') AS non_fatal_count,
+  COUNTIF(firebase_session_id IS NOT NULL AND firebase_session_id != '') AS events_with_session_id,
+  MIN(event_timestamp) AS first_event,
+  MAX(event_timestamp) AS last_event,
+  COUNT(DISTINCT DATE(event_timestamp, 'Europe/Istanbul')) AS active_days
+FROM {table}
+WHERE {_ts_filter(days)}
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    if err or not rows:
+        return {"error": err}
+    r = rows[0]
+    ev = int(r.get("event_count") or 0)
+    with_sid = int(r.get("events_with_session_id") or 0)
+    fe, le = r.get("first_event"), r.get("last_event")
+    return {
+        "event_count": ev,
+        "affected_users": int(r.get("affected_users") or 0),
+        "fatal_count": int(r.get("fatal_count") or 0),
+        "anr_count": int(r.get("anr_count") or 0),
+        "non_fatal_count": int(r.get("non_fatal_count") or 0),
+        "events_with_session_id": with_sid,
+        "session_id_coverage_pct": round(with_sid / ev * 100, 1) if ev > 0 else 0.0,
+        "first_event": fe.isoformat() if hasattr(fe, "isoformat") else (str(fe) if fe else None),
+        "last_event": le.isoformat() if hasattr(le, "isoformat") else (str(le) if le else None),
+        "active_days": int(r.get("active_days") or 0),
+    }
+
+
+def _query_crash_free_sessions(
+    platform: str, crash_table: str, sessions_ref: str, days: int
+) -> dict[str, Any] | None:
+    """Firebase Console uyumlu crash-free — firebase_sessions + crash join."""
+    sql = f"""
+SELECT
+  COUNT(DISTINCT s.session_id) AS total_sessions,
+  COUNT(DISTINCT IF(c.error_type = 'FATAL', s.session_id, NULL)) AS crashed_sessions,
+  COUNT(DISTINCT s.instance_id) AS total_instances,
+  COUNT(DISTINCT IF(c.error_type = 'FATAL', c.installation_uuid, NULL)) AS fatal_users
+FROM {sessions_ref} AS s
+LEFT JOIN {crash_table} AS c
+  ON c.firebase_session_id = s.session_id
+  AND c.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    if err or not rows:
+        return None
+    r = rows[0]
+    total_sess = int(r.get("total_sessions") or 0)
+    crashed_sess = int(r.get("crashed_sessions") or 0)
+    total_inst = int(r.get("total_instances") or 0)
+    fatal_users = int(r.get("fatal_users") or 0)
+    if total_sess < 10 and total_inst < 10:
+        return None
+    # Oturum bazlı (Console'daki crash-free sessions'a yakın)
+    cfs = round((1 - crashed_sess / total_sess) * 100, 2) if total_sess > 0 else None
+    cfu = round((1 - fatal_users / total_inst) * 100, 2) if total_inst > 0 else None
+    pct = cfs if cfs is not None else cfu
+    if pct is None:
+        return None
+    return {
+        "total_users": total_inst or total_sess,
+        "crashed_users": fatal_users or crashed_sess,
+        "total_sessions": total_sess,
+        "crashed_sessions": crashed_sess,
+        "crash_free_pct": pct,
+        "crash_free_sessions_pct": cfs,
+        "crash_free_users_pct": cfu,
+        "method": "firebase_sessions",
+    }
+
+
+def _query_crash_free_crashes_only(platform: str, table: str, days: int) -> dict[str, Any] | None:
+    """Eski yöntem — yalnız crash tablosu; payda yanlış olduğu için güvenilmez."""
     sql = f"""
 SELECT
   COUNT(DISTINCT installation_uuid) AS total_users,
@@ -735,18 +866,167 @@ WHERE {_ts_filter(days)}
     crashed = int(r.get("crashed_users") or 0)
     if total <= 0:
         return None
-    # BQ crash events tablosu sadece crash olaylarını içeriyor — aktif kullanıcı sayısı değil.
-    # Firebase'in %99.95'i tüm oturum sayısını payda alır (session data).
-    # Bizim "total_users" aslında "crash yaşayan kullanıcılar" — paydanın yanlış olduğunu biliyoruz.
-    # Sonuç 0.0% ya da yanıltıcı düşük çıkıyorsa (total ≈ crashed) gösterme.
-    if total < 15:
-        return None
     pct = round((1 - crashed / total) * 100, 2)
-    # Eğer crash_free < %2 ise BQ kaynağı güvenilmez (hemen herkeste FATAL+NON_FATAL overlap).
-    # Firebase Console'daki gerçek crash-free yerine bu metriği gösterme.
-    if pct < 2.0:
+    return {
+        "total_users": total,
+        "crashed_users": crashed,
+        "crash_free_pct": pct,
+        "method": "crashes_only_unreliable",
+        "note": "Sadece crash tablosu — Console ile uyuşmaz; firebase_sessions export gerekir.",
+    }
+
+
+def query_crash_free(
+    platform: str, table: str, days: int, *, bundle: str = ""
+) -> dict[str, Any] | None:
+    """Crash-free oranı — önce firebase_sessions, yoksa güvenilmez fallback (gizlenir)."""
+    bundle = (bundle or "").strip()
+    # Session join için batch tablo tercih et (UNION alt sorgusu eksik alan içerebilir)
+    crash_table = table
+    if bundle:
+        batch_ref = _batch_table_ref(platform, bundle)
+        if batch_ref:
+            crash_table = batch_ref
+    if bundle:
+        sessions_ref = _sessions_table_ref(platform, bundle)
+        if sessions_ref:
+            result = _query_crash_free_sessions(platform, crash_table, sessions_ref, days)
+            if result and result.get("crash_free_pct") is not None:
+                result["sessions_table"] = sessions_ref.strip("`")
+                return result
+    legacy = _query_crash_free_crashes_only(platform, crash_table, days)
+    if not legacy:
         return None
-    return {"total_users": total, "crashed_users": crashed, "crash_free_pct": pct}
+    # Crash-only taban: neredeyse her satır crash → %0–2; Console'a gösterme
+    if legacy.get("crash_free_pct", 0) < 2.0:
+        return None
+    return legacy
+
+
+def analyze_platform_parity(product_id: str, days: int = 7) -> dict[str, Any]:
+    """iOS vs Android veri farkı + crash-free teşhisi."""
+    pid = (product_id or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return {"ok": False, "error": "unknown_product"}
+    meta = APP_PRODUCTS[pid]
+    android_pkg = (meta.get("android_package") or "").strip()
+    ios_bundle = (meta.get("ios_bundle_id") or "").strip()
+
+    report: dict[str, Any] = {
+        "ok": True,
+        "product": pid,
+        "days": days,
+        "platforms": {},
+        "comparison": {},
+        "findings": [],
+    }
+    plat_specs = [
+        ("android", android_pkg),
+        ("ios", ios_bundle),
+    ]
+    for plat, bundle in plat_specs:
+        block: dict[str, Any] = {
+            "bundle_id": bundle,
+            "configured": platform_ready(plat),
+            "circuit_open": _circuit_open(plat),
+            "union_incompat": _union_incompat(plat),
+        }
+        if not bundle:
+            block["error"] = "bundle_missing"
+            report["platforms"][plat] = block
+            continue
+        if not platform_ready(plat):
+            block["error"] = "credential_missing"
+            report["platforms"][plat] = block
+            continue
+        if _circuit_open(plat):
+            block["error"] = "circuit_breaker_open"
+            report["platforms"][plat] = block
+            continue
+
+        discovered = _discover_table_id(plat, bundle)
+        block["discovered_crash_table"] = discovered
+        block["sessions_table_id"] = _discover_sessions_table_id(plat, bundle)
+        block["sessions_export_enabled"] = bool(block["sessions_table_id"])
+        tbl = _table(plat, bundle)
+        block["query_table"] = tbl[:120] + ("…" if len(tbl) > 120 else "")
+        block["uses_union"] = "UNION ALL" in tbl
+        health_table = _batch_table_ref(plat, bundle) or tbl
+        block["health_table"] = health_table[:120] + ("…" if len(health_table) > 120 else "")
+
+        summary = query_summary(plat, tbl, days)
+        block["summary"] = {k: v for k, v in summary.items() if k != "error"}
+        if summary.get("error"):
+            block["summary_error"] = summary["error"]
+
+        health = query_table_health_stats(plat, health_table, days)
+        block["health"] = health
+
+        cf = query_crash_free(plat, tbl, days, bundle=bundle)
+        block["crash_free"] = cf
+        legacy = _query_crash_free_crashes_only(plat, health_table, days)
+        block["crash_free_legacy"] = legacy
+
+        batch_ref = _batch_table_ref(plat, bundle)
+        if batch_ref and batch_ref != tbl:
+            batch_health = query_table_health_stats(plat, batch_ref, days)
+            block["batch_only_health"] = batch_health
+
+        report["platforms"][plat] = block
+
+    a = report["platforms"].get("android", {})
+    i = report["platforms"].get("ios", {})
+    a_ev = int((a.get("health") or {}).get("event_count") or 0)
+    i_ev = int((i.get("health") or {}).get("event_count") or 0)
+    ratio = round(i_ev / a_ev * 100, 1) if a_ev > 0 else None
+    report["comparison"] = {
+        "android_events": a_ev,
+        "ios_events": i_ev,
+        "ios_vs_android_pct": ratio,
+        "android_users": int((a.get("health") or {}).get("affected_users") or 0),
+        "ios_users": int((i.get("health") or {}).get("affected_users") or 0),
+    }
+
+    findings: list[str] = []
+    if not i.get("sessions_export_enabled"):
+        findings.append(
+            "iOS'ta firebase_sessions tablosu yok — Crash-free oranı Console ile hesaplanamaz. "
+            "Firebase Console → Integrations → BigQuery → «Include sessions» açın."
+        )
+    if not a.get("sessions_export_enabled"):
+        findings.append("Android'de firebase_sessions export yok — crash-free yine de crash tablosundan tahmin edilemez.")
+
+    if i.get("crash_free_legacy") and (i["crash_free_legacy"].get("crash_free_pct") or 0) < 5:
+        findings.append(
+            "iOS crash-free eski formülle ~%0 çıkıyor (crash tablosu paydası yanlış) — bu yüzden UI'da hiç görünmüyordu."
+        )
+
+    if ratio is not None and ratio < 50:
+        findings.append(
+            f"iOS olay sayısı Android'in %{ratio}'i — teknik veya trafik farkı olabilir; "
+            "tablo keşfi, union_incompat ve active_days alanlarına bakın."
+        )
+    if i.get("union_incompat"):
+        findings.append("iOS batch/realtime UNION şema uyumsuz — yalnız batch tablosu kullanılıyor (bugünkü realtime eksik olabilir).")
+    if a.get("union_incompat"):
+        findings.append("Android UNION şema uyumsuz — realtime verisi atlanıyor.")
+
+    i_cov = (i.get("health") or {}).get("session_id_coverage_pct")
+    a_cov = (a.get("health") or {}).get("session_id_coverage_pct")
+    if i_cov is not None and a_cov is not None and i_cov < a_cov * 0.5:
+        findings.append(
+            f"iOS firebase_session_id doluluk %{i_cov} (Android %{a_cov}) — session join zayıf; crash-free join etkilenebilir."
+        )
+
+    i_days = (i.get("health") or {}).get("active_days") or 0
+    a_days = (a.get("health") or {}).get("active_days") or 0
+    if i_days and a_days and i_days < a_days * 0.5:
+        findings.append(
+            f"iOS'ta yalnız {i_days} günlük veri var (Android {a_days} gün) — export geç başlamış veya tablo eksik olabilir."
+        )
+
+    report["findings"] = findings
+    return report
 
 
 def query_oldest_date(platform: str, table: str, days: int) -> int | None:
@@ -859,7 +1139,7 @@ ORDER BY crash_date ASC, app_version ASC
     ], err
 
 
-def query_device_breakdown(platform: str, table: str, days: int, limit: int = 10) -> tuple[list[dict], str | None]:
+def query_device_breakdown(platform: str, table: str, days: int, limit: int = 20) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
   COALESCE(device.manufacturer, '') AS manufacturer,
@@ -882,7 +1162,7 @@ LIMIT {limit}
     ], err
 
 
-def query_os_breakdown(platform: str, table: str, days: int, limit: int = 10) -> tuple[list[dict], str | None]:
+def query_os_breakdown(platform: str, table: str, days: int, limit: int = 20) -> tuple[list[dict], str | None]:
     sql = f"""
 SELECT
   COALESCE(operating_system.display_version, 'bilinmiyor') AS os_version,
@@ -901,7 +1181,7 @@ LIMIT {limit}
 
 
 def query_process_state_breakdown(
-    platform: str, batch_ref: str | None, days: int, limit: int = 5
+    platform: str, batch_ref: str | None, days: int, limit: int = 15
 ) -> tuple[list[dict], str | None]:
     if not batch_ref:
         return [], None
@@ -1429,6 +1709,54 @@ def _merge_issues(results: list[tuple[str, list[dict]]], *, days: int = 7) -> li
     return [enrich_issue_row(row, days=days) for row in out]
 
 
+def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str, Any]:
+    """platform=all cache'inden ios/android görünümünü bellek içi dilimle — BQ tekrar çalışmaz."""
+    plat = (platform or "all").strip().lower()
+    if plat == "all" or not data or not data.get("ok"):
+        return data
+    if plat not in ("ios", "android"):
+        return data
+
+    out = dict(data)
+    out["platform_filter"] = plat
+
+    summary = (data.get("summary_by_platform") or {}).get(plat) or {}
+    out["totals"] = {
+        "fatal": summary.get("fatal", 0),
+        "anr": summary.get("anr", 0),
+        "non_fatal": summary.get("non_fatal", 0),
+        "affected_users": summary.get("affected_users", 0),
+    }
+    out["summary_by_platform"] = {plat: summary} if summary else {}
+
+    cf = (data.get("crash_free_by_platform") or {}).get(plat)
+    out["crash_free_by_platform"] = {plat: cf} if cf else {}
+    out["crash_free_pct"] = cf.get("crash_free_pct") if cf else None
+    out["crash_free_method"] = cf.get("method") if cf else None
+    hints = [h for h in (data.get("crash_free_hints") or []) if h.upper().startswith(plat.upper())]
+    out["crash_free_hints"] = hints
+
+    out["trend"] = (data.get("trend_by_platform") or {}).get(plat) or []
+    out["trend_by_platform"] = {plat: out["trend"]} if out["trend"] else {}
+
+    out["issues"] = (data.get("issues_by_platform") or {}).get(plat) or []
+    out["anr"] = (data.get("anr_by_platform") or {}).get(plat) or []
+
+    ver_plat = (data.get("versions_by_platform") or {}).get(plat) or []
+    out["versions"] = _merge_versions([(plat, ver_plat)]) if ver_plat else []
+    out["versions_by_platform"] = {plat: ver_plat} if ver_plat else {}
+
+    vt = [r for r in (data.get("version_trend") or []) if (r.get("platform") or plat) == plat]
+    if not vt:
+        vt = [r for r in (data.get("version_trend") or []) if not r.get("platform")]
+    out["version_trend"] = vt
+
+    out["device_breakdown"] = (data.get("device_breakdown_by_platform") or {}).get(plat) or []
+    out["os_breakdown"] = (data.get("os_breakdown_by_platform") or {}).get(plat) or []
+    out["process_state_breakdown"] = (data.get("process_state_breakdown_by_platform") or {}).get(plat) or []
+    return out
+
+
 # ── Ana build fonksiyonu ──────────────────────────────────────────────────────
 
 def build_full_payload(
@@ -1509,7 +1837,7 @@ def build_full_payload(
             chip_days = max(days, 30)
             sub_tasks = {
                 "summary":      lambda: ("summary",      query_summary(plat, tbl, days),              None),
-                "crash_free":   lambda: ("crash_free",   query_crash_free(plat, tbl, days),           None),
+                "crash_free":   lambda: ("crash_free",   query_crash_free(plat, tbl, days, bundle=bundle), None),
                 "issues":       lambda: ("issues",       *query_top_issues(plat, tbl, days, None, None)),
                 "anr":          lambda: ("anr",          *query_anr_list(plat, tbl, days, None)),
                 "versions":     lambda: ("versions",     *query_version_breakdown(plat, tbl, days)),
@@ -1604,21 +1932,83 @@ def build_full_payload(
         cf_total_users = sum(v.get("total_users", 0) for v in crash_free_by_plat.values())
         cf_crashed = sum(v.get("crashed_users", 0) for v in crash_free_by_plat.values())
         crash_free_pct = round((1 - cf_crashed / cf_total_users) * 100, 2) if cf_total_users > 0 else None
+        cf_methods = {plat: (v.get("method") or "") for plat, v in crash_free_by_plat.items()}
+        crash_free_method = "firebase_sessions" if any(m == "firebase_sessions" for m in cf_methods.values()) else None
+        crash_free_hints: list[str] = []
+        for plat in summary_by_plat:
+            if plat not in crash_free_by_plat or not crash_free_by_plat.get(plat):
+                s = summary_by_plat[plat]
+                ev = (s.get("fatal") or 0) + (s.get("anr") or 0) + (s.get("non_fatal") or 0)
+                if ev > 0:
+                    crash_free_hints.append(
+                        f"{plat.upper()}: Crash-free hesaplanamadı — Firebase Console → BigQuery → "
+                        "«Include sessions» export'unu açın (firebase_sessions dataset)."
+                    )
 
         storage_mb = get_all_storage_mb()
 
         data_days = max(oldest_days_all) if oldest_days_all else days
 
-        from backend.services.crashlytics_detail import merge_breakdown_rows
+        from backend.services.crashlytics_detail import merge_breakdown_rows, enrich_issue_row
+        from backend.services.android_device_names import enrich_device_row
 
+        device_breakdown_by_platform: dict[str, list[dict]] = {}
         device_rows_merged: list[dict] = []
-        for _plat, rows in device_all:
+        device_raw_by_label: dict[str, str | None] = {}
+        for plat, rows in device_all:
+            plat_labeled: list[dict] = []
+            plat_raw: dict[str, str | None] = {}
             for r in rows:
-                label = ((r.get("manufacturer") or "") + " " + (r.get("model") or "")).strip() or "bilinmiyor"
-                device_rows_merged.append({"label": label, "event_count": r.get("event_count", 0)})
-        device_breakdown = merge_breakdown_rows([device_rows_merged], "label")
-        os_breakdown = merge_breakdown_rows([r for _p, r in os_all], "os_version")
-        process_breakdown = merge_breakdown_rows([r for _p, r in process_all], "state")
+                er = enrich_device_row(r, platform=plat)
+                plat_labeled.append({
+                    "label": er["label"],
+                    "manufacturer": er.get("manufacturer") or r.get("manufacturer"),
+                    "model": er.get("model") or r.get("model"),
+                    "event_count": er["event_count"],
+                })
+                device_rows_merged.append({
+                    "label": er["label"],
+                    "manufacturer": er.get("manufacturer") or r.get("manufacturer"),
+                    "model": er.get("model") or r.get("model"),
+                    "event_count": er["event_count"],
+                })
+                if er.get("label_raw"):
+                    plat_raw[er["label"]] = er["label_raw"]
+                    device_raw_by_label[er["label"]] = er["label_raw"]
+            plat_rows = merge_breakdown_rows([plat_labeled], "label", limit=20)
+            for row in plat_rows:
+                if plat_raw.get(row["label"]):
+                    row["label_raw"] = plat_raw[row["label"]]
+            device_breakdown_by_platform[plat] = plat_rows
+
+        os_breakdown_by_platform: dict[str, list[dict]] = {}
+        for plat, rows in os_all:
+            os_breakdown_by_platform[plat] = merge_breakdown_rows([rows], "os_version", limit=20)
+
+        process_breakdown_by_platform: dict[str, list[dict]] = {}
+        for plat, rows in process_all:
+            process_breakdown_by_platform[plat] = merge_breakdown_rows([rows], "state", limit=15)
+
+        device_breakdown = merge_breakdown_rows([device_rows_merged], "label", limit=20)
+        for row in device_breakdown:
+            if device_raw_by_label.get(row["label"]):
+                row["label_raw"] = device_raw_by_label[row["label"]]
+
+        os_breakdown = merge_breakdown_rows([r for _p, r in os_all], "os_version", limit=20)
+        process_breakdown = merge_breakdown_rows([r for _p, r in process_all], "state", limit=15)
+
+        issues_by_platform: dict[str, list[dict]] = {}
+        for plat, rows in issues_all:
+            issues_by_platform[plat] = sorted(
+                [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
+                key=lambda x: -x["event_count"],
+            )
+        anr_by_platform: dict[str, list[dict]] = {}
+        for plat, rows in anr_all:
+            anr_by_platform[plat] = sorted(
+                [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
+                key=lambda x: -x["event_count"],
+            )
 
         version_trend_merged: list[dict] = []
         for _plat, rows in version_trend_all:
@@ -1634,18 +2024,25 @@ def build_full_payload(
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "totals": totals,
             "crash_free_pct": crash_free_pct,
+            "crash_free_method": crash_free_method,
+            "crash_free_hints": crash_free_hints,
             "crash_free_by_platform": crash_free_by_plat,
             "summary_by_platform": summary_by_plat,
             "issues": _merge_issues(issues_all, days=days),
+            "issues_by_platform": issues_by_platform,
             "anr": _merge_issues(anr_all, days=days),
+            "anr_by_platform": anr_by_platform,
             "versions": _merge_versions(ver_all),
             "versions_by_platform": {plat: rows for plat, rows in chip_ver_all},
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
             "version_trend": version_trend_merged,
             "device_breakdown": device_breakdown,
+            "device_breakdown_by_platform": device_breakdown_by_platform,
             "os_breakdown": os_breakdown,
+            "os_breakdown_by_platform": os_breakdown_by_platform,
             "process_state_breakdown": process_breakdown,
+            "process_state_breakdown_by_platform": process_breakdown_by_platform,
             "storage_mb": storage_mb,
             "errors": errors,
         }

@@ -135,7 +135,9 @@ def enrich_issue_row(row: dict[str, Any], *, days: int) -> dict[str, Any]:
     return row
 
 
-def merge_breakdown_rows(rows_list: list[list[dict]], key_field: str, count_field: str = "event_count") -> list[dict]:
+def merge_breakdown_rows(
+    rows_list: list[list[dict]], key_field: str, count_field: str = "event_count", *, limit: int = 20
+) -> list[dict]:
     merged: dict[str, dict] = {}
     total = 0
     for rows in rows_list:
@@ -150,7 +152,7 @@ def merge_breakdown_rows(rows_list: list[list[dict]], key_field: str, count_fiel
     result = sorted(merged.values(), key=lambda x: -x[count_field])
     for r in result:
         r["pct"] = round(r[count_field] / total * 100, 1) if total > 0 else 0.0
-    return result[:12]
+    return result[:limit]
 
 
 def summarize_issue_tr(
