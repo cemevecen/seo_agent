@@ -6,7 +6,11 @@
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-400">NEWS</h1>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
+      <select id="rt-intel-source-filter"
+        class="max-w-[min(100%,14rem)] rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-zinc-900 dark:text-slate-100">
+        <option value="">Tüm Kaynaklar</option>
+      </select>
       <span id="rt-intel-last-update" class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums"></span>
       <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
@@ -85,6 +89,78 @@
     let _intelFinished = false;
     let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
     let _autoRefreshTimer = null;
+    let _intelSourceFilter = '';
+
+    function _intelSourceFromUrl() {
+      try {
+        return new URLSearchParams(window.location.search).get('source') || '';
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function _setIntelSourceFilter(value, { updateUrl = true } = {}) {
+      _intelSourceFilter = (value || '').trim();
+      const sel = document.getElementById('rt-intel-source-filter');
+      if (sel && sel.value !== _intelSourceFilter) sel.value = _intelSourceFilter;
+      if (updateUrl) {
+        const params = new URLSearchParams(window.location.search);
+        if (_intelSourceFilter) params.set('source', _intelSourceFilter);
+        else params.delete('source');
+        const qs = params.toString();
+        const next = qs ? ('?' + qs) : window.location.pathname;
+        window.history.replaceState({}, '', next);
+      }
+    }
+
+    function _resetIntelList() {
+      _intelOffset = 0;
+      _intelFinished = false;
+      _latestPublishedAt = null;
+      document.getElementById('rt-intel-list').innerHTML = '';
+    }
+
+    function _intelListQuery(extra = '') {
+      let q = `offset=${_intelOffset}&limit=${_intelLimit}`;
+      if (_intelSourceFilter) q += `&source=${encodeURIComponent(_intelSourceFilter)}`;
+      return extra ? `${extra}&${q}` : q;
+    }
+
+    function rtLoadIntelSources() {
+      return fetch('/api/admin/news-intelligence/sources')
+        .then(r => r.json())
+        .then(data => {
+          const sel = document.getElementById('rt-intel-source-filter');
+          if (!sel) return;
+          const current = _intelSourceFilter;
+          sel.innerHTML = '';
+          const allOpt = document.createElement('option');
+          allOpt.value = '';
+          allOpt.textContent = 'Tüm Kaynaklar';
+          sel.appendChild(allOpt);
+          (data.sources || []).forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.name || '';
+            opt.textContent = `${s.name || '?'} (${Number(s.count) || 0})`;
+            sel.appendChild(opt);
+          });
+          if (current && !(data.sources || []).some(s => s.name === current)) {
+            const opt = document.createElement('option');
+            opt.value = current;
+            opt.textContent = current;
+            sel.appendChild(opt);
+          }
+          sel.value = current;
+        })
+        .catch(() => {});
+    }
+
+    function rtOnIntelSourceChange() {
+      const sel = document.getElementById('rt-intel-source-filter');
+      _setIntelSourceFilter(sel ? sel.value : '');
+      _resetIntelList();
+      rtAutoFillInitial();
+    }
 
     const _syncSvg = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>';
 
@@ -100,10 +176,8 @@
       btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Bekleniyor...';
       await new Promise(r => setTimeout(r, 12000));
 
-      _intelOffset = 0;
-      _intelFinished = false;
-      _latestPublishedAt = null;
-      document.getElementById('rt-intel-list').innerHTML = '';
+      _resetIntelList();
+      await rtLoadIntelSources();
       rtAutoFillInitial();
 
       btn.disabled = false;
@@ -179,7 +253,7 @@
         document.getElementById('rt-intel-loading').classList.remove('hidden');
 
         // Tek karma feed: category parametresi gönderilmiyor → tüm kategoriler kronolojik karışır.
-        return fetch(`/api/admin/news-intelligence/list?offset=${_intelOffset}&limit=${_intelLimit}`)
+        return fetch(`/api/admin/news-intelligence/list?${_intelListQuery()}`)
         .then(r => r.json())
         .then(data => {
           _intelLoading = false;
@@ -187,7 +261,10 @@
           const items = data.items || [];
           if(items.length < _intelLimit) _intelFinished = true;
           if(items.length === 0 && _intelOffset === 0) {
-            document.getElementById('rt-intel-list').innerHTML = '<div class="col-span-full py-12 text-center text-slate-500">Son 24 saatte haber bulunamadı.</div>';
+            const emptyMsg = _intelSourceFilter
+              ? `«${_intelSourceFilter}» kaynağında son 24 saatte haber bulunamadı.`
+              : 'Son 24 saatte haber bulunamadı.';
+            document.getElementById('rt-intel-list').innerHTML = `<div class="col-span-full py-12 text-center text-slate-500">${emptyMsg}</div>`;
             return;
           }
           if(_intelOffset === 0 && items.length > 0 && items[0].published_at) {
@@ -216,7 +293,7 @@
 
     function rtAutoRefreshNews() {
         if(!_latestPublishedAt) return;
-        const url = `/api/admin/news-intelligence/list?limit=20&since=${encodeURIComponent(_latestPublishedAt)}`;
+        const url = `/api/admin/news-intelligence/list?limit=20&since=${encodeURIComponent(_latestPublishedAt)}${_intelSourceFilter ? '&source=' + encodeURIComponent(_intelSourceFilter) : ''}`;
         fetch(url)
         .then(r => r.json())
         .then(data => {
@@ -245,7 +322,10 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-      rtAutoFillInitial();
+      _setIntelSourceFilter(_intelSourceFromUrl(), { updateUrl: false });
+      const srcSel = document.getElementById('rt-intel-source-filter');
+      if (srcSel) srcSel.addEventListener('change', rtOnIntelSourceChange);
+      rtLoadIntelSources().finally(() => rtAutoFillInitial());
       _startAutoRefresh();
     });
 </script>

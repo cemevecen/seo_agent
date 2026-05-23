@@ -104,53 +104,76 @@ def _circuit_reset(platform: str) -> None:
         _EMPTY_DATASET_UNTIL.pop(platform, None)
 
 
-# Dataset location cache — Firebase EU'da kuruluyor genelde, sorgular default US'e gidiyor.
-# Lokasyonu bir kez tespit edip cache'liyoruz, sonraki sorgular doğru bölgeye gidiyor.
+# Dataset location cache — firebase_crashlytics ve firebase_sessions ayrı lokasyonda olabilir.
 _DATASET_LOCATION_LOCK = threading.Lock()
-_DATASET_LOCATION_CACHE: dict[str, str] = {}    # platform → "EU" / "europe-west1" / "US" vb.
+_DATASET_LOCATION_CACHE: dict[str, str] = {}    # "android:firebase_sessions" → "US" vb.
+_BQ_PROBE_LOCS = ("US", "EU", "europe-west1", "us-central1")
 
 
-def _get_dataset_location(platform: str) -> str | None:
-    """Dataset'in BigQuery lokasyonunu öğren (cache'li). Bulunamazsa EU/US probe."""
+def _loc_cache_key(platform: str, dataset_id: str) -> str:
+    return f"{platform}:{dataset_id}"
+
+
+def _get_bq_dataset_location(platform: str, dataset_id: str) -> str | None:
+    """BigQuery dataset lokasyonu (cache'li). US/EU probe — Console'da US olan projeler için US önce."""
+    cache_key = _loc_cache_key(platform, dataset_id)
     with _DATASET_LOCATION_LOCK:
-        if platform in _DATASET_LOCATION_CACHE:
-            return _DATASET_LOCATION_CACHE[platform] or None
-    # 1) Önce dataset metadata API'si ile dene (en ucuz yol)
+        if cache_key in _DATASET_LOCATION_CACHE:
+            return _DATASET_LOCATION_CACHE[cache_key] or None
     try:
         from google.cloud import bigquery as _bq
         client = _get_client(platform)
         proj = _effective_project(platform)
-        ref = _bq.DatasetReference(proj, _DATASET)
+        ref = _bq.DatasetReference(proj, dataset_id)
         ds = client.get_dataset(ref)
         loc = (ds.location or "").strip()
         with _DATASET_LOCATION_LOCK:
-            _DATASET_LOCATION_CACHE[platform] = loc
-        logger.info("Dataset lokasyonu tespit edildi: %s → %s", platform, loc or "(bilinmiyor)")
+            _DATASET_LOCATION_CACHE[cache_key] = loc
+        logger.info("Dataset lokasyonu: %s.%s → %s", platform, dataset_id, loc or "(bilinmiyor)")
         return loc or None
     except Exception as exc:
-        logger.warning("Dataset lokasyonu get_dataset ile alınamadı (%s): %s — lokasyon probe başlıyor", platform, exc)
-    # 2) Metadata API başarısız olduysa yaygın Firebase konumlarını probe et.
-    #    Firebase Crashlytics EU/Avrupa projeleri için varsayılan EU olur.
-    _PROBE_LOCS = ("EU", "US", "europe-west1", "us-central1")
+        logger.warning(
+            "get_dataset lokasyonu alınamadı (%s / %s): %s — probe",
+            platform,
+            dataset_id,
+            exc,
+        )
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
-        sql = f"SELECT 1 FROM `{proj}.{_DATASET}.__TABLES__` LIMIT 1"
-        for loc_try in _PROBE_LOCS:
+        sql = f"SELECT 1 FROM `{proj}.{dataset_id}.__TABLES__` LIMIT 1"
+        for loc_try in _BQ_PROBE_LOCS:
             try:
                 job = client.query(sql, location=loc_try)
                 job.result(timeout=12)
-                logger.info("Dataset lokasyonu probe ile tespit edildi: %s → %s", platform, loc_try)
+                logger.info("Dataset lokasyonu probe: %s.%s → %s", platform, dataset_id, loc_try)
                 with _DATASET_LOCATION_LOCK:
-                    _DATASET_LOCATION_CACHE[platform] = loc_try
+                    _DATASET_LOCATION_CACHE[cache_key] = loc_try
                 return loc_try
             except Exception:
                 continue
     except Exception as exc2:
-        logger.warning("Dataset lokasyonu probe da başarısız (%s): %s", platform, exc2)
+        logger.warning("Dataset lokasyonu probe başarısız (%s / %s): %s", platform, dataset_id, exc2)
     with _DATASET_LOCATION_LOCK:
-        _DATASET_LOCATION_CACHE[platform] = ""
+        _DATASET_LOCATION_CACHE[cache_key] = ""
     return None
+
+
+def _get_dataset_location(platform: str) -> str | None:
+    """firebase_crashlytics dataset lokasyonu."""
+    return _get_bq_dataset_location(platform, _DATASET)
+
+
+def _sessions_dataset_exists(platform: str) -> bool:
+    """Console'da Include sessions açık olsa bile API ile doğrula."""
+    try:
+        from google.cloud import bigquery as _bq
+        client = _get_client(platform)
+        proj = _effective_project(platform)
+        client.get_dataset(_bq.DatasetReference(proj, _SESSIONS_DATASET))
+        return True
+    except Exception:
+        return False
 
 
 # ── Credential yükleme ────────────────────────────────────────────────────────
@@ -219,8 +242,7 @@ def _list_dataset_tables(platform: str) -> list[str]:
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
-        # _get_dataset_location zaten EU/US probe yapıyor; None dönerse EU'dan başla
-        loc = _get_dataset_location(platform) or "EU"
+        loc = _get_bq_dataset_location(platform, _DATASET) or "US"
         sql = f"SELECT table_id FROM `{proj}.{_DATASET}.__TABLES__`"
         query_job = client.query(sql, location=loc)
         return [str(r.table_id) for r in query_job.result(timeout=12)]
@@ -242,7 +264,10 @@ def diagnose_platform(platform: str) -> dict:
         "effective_project_id": _effective_project(platform),
         "hardcoded_project_id": _PLATFORM_PROJECTS.get(platform),
         "dataset_target": _DATASET,
+        "sessions_dataset_target": _SESSIONS_DATASET,
         "dataset_location": _get_dataset_location(platform),
+        "sessions_dataset_location": _get_bq_dataset_location(platform, _SESSIONS_DATASET),
+        "sessions_dataset_exists": _sessions_dataset_exists(platform),
     }
     if not info:
         return out
@@ -765,15 +790,29 @@ GROUP BY ROLLUP(error_type)
 
 
 def _list_sessions_tables(platform: str) -> list[str]:
+    if not _sessions_dataset_exists(platform):
+        return []
     try:
         client = _get_client(platform)
         proj = _effective_project(platform)
-        loc = _get_dataset_location(platform) or "EU"
+        loc = _get_bq_dataset_location(platform, _SESSIONS_DATASET) or "US"
         sql = f"SELECT table_id FROM `{proj}.{_SESSIONS_DATASET}.__TABLES__`"
         query_job = client.query(sql, location=loc)
-        return [str(r.table_id) for r in query_job.result(timeout=12)]
+        tables = [str(r.table_id) for r in query_job.result(timeout=12)]
+        if tables:
+            logger.info(
+                "firebase_sessions tabloları (%s): %s",
+                platform,
+                ", ".join(tables[:8]) + ("…" if len(tables) > 8 else ""),
+            )
+        return tables
     except Exception as exc:
-        logger.debug("Sessions dataset listesi alınamadı (%s): %s", platform, exc)
+        logger.warning(
+            "Sessions dataset listesi alınamadı (%s, loc=%s): %s",
+            platform,
+            _get_bq_dataset_location(platform, _SESSIONS_DATASET),
+            exc,
+        )
         return []
 
 
@@ -848,6 +887,107 @@ WHERE {_ts_filter(days)}
     }
 
 
+def _min_sessions_for_crash_free(days: int) -> int:
+    """Kısa dönemlerde (1g) daha düşük eşik — uzun dönemde istatistik güvenilirliği."""
+    try:
+        d = max(1, int(days))
+    except (TypeError, ValueError):
+        d = 7
+    return max(1, min(10, d * 3))
+
+
+def _query_sessions_volume(platform: str, sessions_ref: str, days: int) -> tuple[int, int] | None:
+    """Dönemdeki oturum/kurulum sayısı (crash-free teşhisi için)."""
+    sql = f"""
+SELECT
+  COUNT(DISTINCT session_id) AS total_sessions,
+  COUNT(DISTINCT instance_id) AS total_instances
+FROM {sessions_ref}
+WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+"""
+    rows, err = _run_query(platform, sql, skip_budget=True)
+    if err or not rows:
+        return None
+    r = rows[0]
+    return int(r.get("total_sessions") or 0), int(r.get("total_instances") or 0)
+
+
+def crash_free_unavailable_hint(
+    platform: str,
+    crash_table: str,
+    days: int,
+    *,
+    bundle: str = "",
+) -> str:
+    """Crash-free kartı yokken kullanıcıya net sebep mesajı."""
+    plat = (platform or "").strip().lower()
+    plat_label = plat.upper() if plat in ("ios", "android") else (platform or "?").upper()
+    bundle = (bundle or "").strip()
+    if not bundle:
+        return f"{plat_label}: Crash-free hesaplanamadı."
+
+    sessions_dataset_ok = _sessions_dataset_exists(plat)
+    sessions_tid = _discover_sessions_table_id(plat, bundle) if sessions_dataset_ok else None
+
+    if not sessions_dataset_ok:
+        return (
+            f"{plat_label}: Crash-free hesaplanamadı — Firebase Console → Integrations → "
+            "BigQuery bağlantısında «Include sessions» seçeneğini açın (firebase_sessions dataset). "
+            "Açık görünüyorsa export'un BQ'ya yansıması birkaç saat sürebilir."
+        )
+
+    sessions_ref = _sessions_table_ref(plat, bundle)
+    if not sessions_ref:
+        available = _list_sessions_tables(plat)
+        loc = _get_bq_dataset_location(plat, _SESSIONS_DATASET) or "?"
+        if available:
+            sample = ", ".join(available[:4])
+            return (
+                f"{plat_label}: firebase_sessions export açık ({loc}) ama "
+                f"«{bundle}» tablosu eşleşmedi. Mevcut tablolar: {sample}"
+                + ("…" if len(available) > 4 else "")
+                + " — BQ Teşhis ile kontrol edin."
+            )
+        return (
+            f"{plat_label}: firebase_sessions dataset var ({loc}) ama tablo listesi alınamadı — "
+            "service account yetkisini veya dataset lokasyonunu kontrol edin."
+        )
+
+    min_needed = _min_sessions_for_crash_free(days)
+    vol = _query_sessions_volume(plat, sessions_ref, days)
+    if vol is not None:
+        total_sess, total_inst = vol
+        if total_sess < min_needed and total_inst < min_needed:
+            if days <= 1:
+                return (
+                    f"{plat_label}: Son 1 günde yeterli oturum verisi yok "
+                    f"({total_sess} oturum) — Crash-free için 7g veya 30g seçin."
+                )
+            return (
+                f"{plat_label}: Son {days}g döneminde yeterli oturum verisi yok "
+                f"({total_sess} oturum, en az ~{min_needed}) — daha uzun dönem deneyin."
+            )
+
+    batch_ref = _batch_table_ref(plat, bundle) or crash_table
+    health = query_table_health_stats(plat, batch_ref, days)
+    cov = float(health.get("session_id_coverage_pct") or 0)
+    if health.get("error"):
+        return (
+            f"{plat_label}: firebase_sessions export açık görünüyor ama sorgu tamamlanamadı — "
+            "BQ Teşhis ile kontrol edin."
+        )
+    if cov < 25:
+        return (
+            f"{plat_label}: firebase_sessions var ama crash kayıtlarının yalnızca %{cov:.0f}'inde "
+            "session_id var — join zayıf; Crash-free Console ile uyuşmayabilir."
+        )
+
+    return (
+        f"{plat_label}: firebase_sessions export açık görünüyor ama Crash-free hesabı tamamlanamadı — "
+        "BQ Teşhis → platform analizi ile kontrol edin."
+    )
+
+
 def _query_crash_free_sessions(
     platform: str, crash_table: str, sessions_ref: str, days: int
 ) -> dict[str, Any] | None:
@@ -872,7 +1012,8 @@ WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DA
     crashed_sess = int(r.get("crashed_sessions") or 0)
     total_inst = int(r.get("total_instances") or 0)
     fatal_users = int(r.get("fatal_users") or 0)
-    if total_sess < 10 and total_inst < 10:
+    min_needed = _min_sessions_for_crash_free(days)
+    if total_sess < min_needed and total_inst < min_needed:
         return None
     # Oturum bazlı (Console'daki crash-free sessions'a yakın)
     cfs = round((1 - crashed_sess / total_sess) * 100, 4) if total_sess > 0 else None
@@ -951,6 +1092,19 @@ def analyze_platform_parity(product_id: str, days: int = 7) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return {"ok": False, "error": "unknown_product"}
+    if not crashlytics_product_ready(pid):
+        return {
+            "ok": False,
+            "error": "crashlytics_not_configured",
+            "product": pid,
+            "days": days,
+            "platforms": {},
+            "comparison": {},
+            "findings": [
+                "Bu ürün için BigQuery'de Crashlytics tablosu bulunamadı — "
+                "Firebase Console → BigQuery export ve bundle/package adını kontrol edin."
+            ],
+        }
     meta = APP_PRODUCTS[pid]
     android_pkg = (meta.get("android_package") or "").strip()
     ios_bundle = (meta.get("ios_bundle_id") or "").strip()
@@ -989,8 +1143,13 @@ def analyze_platform_parity(product_id: str, days: int = 7) -> dict[str, Any]:
 
         discovered = _discover_table_id(plat, bundle)
         block["discovered_crash_table"] = discovered
+        block["sessions_dataset_exists"] = _sessions_dataset_exists(plat)
+        block["sessions_dataset_location"] = _get_bq_dataset_location(plat, _SESSIONS_DATASET)
+        block["sessions_tables"] = _list_sessions_tables(plat)[:12]
         block["sessions_table_id"] = _discover_sessions_table_id(plat, bundle)
-        block["sessions_export_enabled"] = bool(block["sessions_table_id"])
+        block["sessions_export_enabled"] = bool(
+            block["sessions_dataset_exists"] and block["sessions_table_id"]
+        )
         tbl = _table(plat, bundle)
         block["query_table"] = tbl[:120] + ("…" if len(tbl) > 120 else "")
         block["uses_union"] = "UNION ALL" in tbl
@@ -1031,13 +1190,24 @@ def analyze_platform_parity(product_id: str, days: int = 7) -> dict[str, Any]:
     }
 
     findings: list[str] = []
-    if not i.get("sessions_export_enabled"):
-        findings.append(
-            "iOS'ta firebase_sessions tablosu yok — Crash-free oranı Console ile hesaplanamaz. "
-            "Firebase Console → Integrations → BigQuery → «Include sessions» açın."
-        )
-    if not a.get("sessions_export_enabled"):
-        findings.append("Android'de firebase_sessions export yok — crash-free yine de crash tablosundan tahmin edilemez.")
+    for plat_key, plat_label in (("ios", "iOS"), ("android", "Android")):
+        pblk = report["platforms"].get(plat_key, {})
+        if not pblk:
+            continue
+        if pblk.get("sessions_export_enabled"):
+            continue
+        if pblk.get("sessions_dataset_exists"):
+            tables = pblk.get("sessions_tables") or []
+            hint = f"Mevcut tablolar: {', '.join(tables[:4])}" if tables else "Tablo listesi boş"
+            findings.append(
+                f"{plat_label}: firebase_sessions dataset var ama uygulama tablosu eşleşmedi — "
+                f"{hint}. Crash-free hesaplanamaz."
+            )
+        else:
+            findings.append(
+                f"{plat_label}: firebase_sessions dataset BQ'da yok — Console'da Include sessions açık olsa "
+                "bile export henüz yansımamış veya yanlış GCP projesi (doviz-ios / doviz-android)."
+            )
 
     if i.get("crash_free_legacy") and (i["crash_free_legacy"].get("crash_free_pct") or 0) < 5:
         findings.append(
@@ -1854,6 +2024,33 @@ GROUP BY state ORDER BY event_count DESC LIMIT 5
 
 # ── Platform birleştirici ─────────────────────────────────────────────────────
 
+def crashlytics_product_ready(product_id: str) -> bool:
+    """BigQuery'de keşfedilmiş Crashlytics tablosu olan ürün."""
+    pid = (product_id or "").strip().lower()
+    meta = APP_PRODUCTS.get(pid)
+    if not meta:
+        return False
+    android_pkg = (meta.get("android_package") or "").strip()
+    ios_bundle = (meta.get("ios_bundle_id") or "").strip()
+    if android_pkg and platform_ready("android") and _discover_table_id("android", android_pkg):
+        return True
+    if ios_bundle and platform_ready("ios") and _discover_table_id("ios", ios_bundle):
+        return True
+    return False
+
+
+def list_crashlytics_products() -> list[dict[str, str]]:
+    """Firebase sayfası — yalnızca BQ'da crash tablosu bulunan ürünler."""
+    out = [
+        {"id": k, "label": v["label"]}
+        for k, v in APP_PRODUCTS.items()
+        if crashlytics_product_ready(k)
+    ]
+    if not out and "doviz" in APP_PRODUCTS:
+        return [{"id": "doviz", "label": APP_PRODUCTS["doviz"]["label"]}]
+    return out
+
+
 def _platforms_for(pid: str, platform_filter: str) -> list[tuple[str, str]]:
     """(platform_key, table) çiftleri; platform_filter=all → her ikisi."""
     meta = APP_PRODUCTS.get(pid, {})
@@ -1861,9 +2058,11 @@ def _platforms_for(pid: str, platform_filter: str) -> list[tuple[str, str]]:
     ios_bundle = (meta.get("ios_bundle_id") or "").strip()
     out = []
     if platform_filter in ("all", "android") and android_pkg and platform_ready("android"):
-        out.append(("android", _table("android", android_pkg)))
+        if _discover_table_id("android", android_pkg):
+            out.append(("android", _table("android", android_pkg)))
     if platform_filter in ("all", "ios") and ios_bundle and platform_ready("ios"):
-        out.append(("ios", _table("ios", ios_bundle)))
+        if _discover_table_id("ios", ios_bundle):
+            out.append(("ios", _table("ios", ios_bundle)))
     return out
 
 
@@ -2013,6 +2212,13 @@ def build_full_payload(
 
         platforms = _platforms_for(pid, platform_filter)
         if not platforms:
+            if not crashlytics_product_ready(pid):
+                return {
+                    "ok": False,
+                    "configured": bool(any_platform_ready()),
+                    "product": pid,
+                    "message": "Bu ürün için BigQuery Crashlytics tablosu bulunamadı.",
+                }
             return {"ok": False, "message": "Seçili platform için credential bulunamadı."}
 
         def _step(pct: int, msg: str) -> None:
@@ -2148,15 +2354,21 @@ def build_full_payload(
         crash_free_users_pct = cf_agg.get("crash_free_users_pct")
         cf_methods = {plat: (v.get("method") or "") for plat, v in crash_free_by_plat.items()}
         crash_free_method = "firebase_sessions" if any(m == "firebase_sessions" for m in cf_methods.values()) else None
+        plat_tables = {p: t for p, t in platforms}
         crash_free_hints: list[str] = []
         for plat in summary_by_plat:
             if plat not in crash_free_by_plat or not crash_free_by_plat.get(plat):
                 s = summary_by_plat[plat]
                 ev = (s.get("fatal") or 0) + (s.get("anr") or 0) + (s.get("non_fatal") or 0)
                 if ev > 0:
+                    bundle = android_pkg if plat == "android" else ios_bundle
                     crash_free_hints.append(
-                        f"{plat.upper()}: Crash-free hesaplanamadı — Firebase Console → BigQuery → "
-                        "«Include sessions» export'unu açın (firebase_sessions dataset)."
+                        crash_free_unavailable_hint(
+                            plat,
+                            plat_tables.get(plat, ""),
+                            days,
+                            bundle=bundle,
+                        )
                     )
 
         storage_mb = get_all_storage_mb()

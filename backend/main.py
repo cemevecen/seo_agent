@@ -698,9 +698,42 @@ def admin_run_news_intelligence_now():
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/admin/news-intelligence/sources")
+def get_news_intelligence_sources(hours: int = 24):
+    """Son N saatte haber içeren kaynak adlarını (ve adet) döner — dropdown için."""
+    with SessionLocal() as db:
+        from backend.models import NewsIntelligenceItem
+        from sqlalchemy import func
+        import datetime as _dt
+
+        try:
+            hours_int = int(hours)
+        except (TypeError, ValueError):
+            hours_int = 24
+
+        query = (
+            db.query(
+                NewsIntelligenceItem.source_name,
+                func.count(NewsIntelligenceItem.id).label("count"),
+            )
+            .filter(NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""]))
+            .group_by(NewsIntelligenceItem.source_name)
+            .order_by(NewsIntelligenceItem.source_name)
+        )
+        if hours_int > 0:
+            cutoff = _dt.datetime.utcnow() - _dt.timedelta(hours=hours_int)
+            query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
+
+        rows = query.all()
+        return {
+            "sources": [{"name": name, "count": int(count or 0)} for name, count in rows if name],
+        }
+
+
 @app.get("/api/admin/news-intelligence/list")
 def get_news_intelligence(
     category: str = None,
+    source: str = None,
     limit: int = 24,
     offset: int = 0,
     since: str = None,
@@ -717,6 +750,8 @@ def get_news_intelligence(
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
+        if source:
+            query = query.filter(NewsIntelligenceItem.source_name == source)
         query = query.filter(
             NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""])
         )
@@ -985,26 +1020,9 @@ def _session_key(token: str) -> str:
 
 
 def _parse_device(ua: str) -> str:
-    ua_l = ua.lower()
-    if "mobile" in ua_l or "android" in ua_l or "iphone" in ua_l:
-        device = "Mobil"
-    elif "tablet" in ua_l or "ipad" in ua_l:
-        device = "Tablet"
-    else:
-        device = "Masaüstü"
-    if "chrome" in ua_l and "edg" not in ua_l and "opr" not in ua_l:
-        browser = "Chrome"
-    elif "firefox" in ua_l:
-        browser = "Firefox"
-    elif "safari" in ua_l and "chrome" not in ua_l:
-        browser = "Safari"
-    elif "edg" in ua_l:
-        browser = "Edge"
-    elif "opr" in ua_l or "opera" in ua_l:
-        browser = "Opera"
-    else:
-        browser = "Tarayıcı"
-    return f"{device} / {browser}"
+    from backend.services.admin_access_log import parse_device_label
+
+    return parse_device_label(ua)
 
 
 def _record_session(request: Request) -> None:
@@ -1033,10 +1051,23 @@ def _record_session(request: Request) -> None:
         }
 
 
-def _get_active_sessions() -> list[dict]:
+def _get_active_sessions(request: Request | None = None) -> list[dict]:
+    from backend.services import admin_access_log as aal
+
     now = datetime.utcnow()
     cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
-    return sorted(
+    current_key = ""
+    if request:
+        token = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
+        if token:
+            current_key = _session_key(token)
+    trusted_fps: set[str] = set()
+    try:
+        with SessionLocal() as db:
+            trusted_fps = aal.trusted_fingerprints(db)
+    except Exception:
+        trusted_fps = set()
+    rows = sorted(
         [
             {**v, "key": k}
             for k, v in _active_sessions.items()
@@ -1045,6 +1076,15 @@ def _get_active_sessions() -> list[dict]:
         key=lambda x: x["last_seen"],
         reverse=True,
     )
+    return [
+        aal.enrich_active_session(
+            row,
+            trusted_fps=trusted_fps,
+            current_key=current_key,
+            session_key=str(row.get("key") or ""),
+        )
+        for row in rows
+    ]
 
 
 def _is_settings_authenticated(request: Request) -> bool:
@@ -3215,9 +3255,9 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     # Crashlytics günlük çekim — her sabah 06:15 (startup'ta çalışmaz)
     def _run_crashlytics_daily() -> None:
         from backend.services import crashlytics_bq as cbq
-        from backend.services.app_intel import APP_PRODUCTS
         LOGGER.info("Crashlytics günlük çekim başladı.")
-        for pid in APP_PRODUCTS:
+        for prod in cbq.list_crashlytics_products():
+            pid = prod["id"]
             if cbq.any_platform_ready():
                 try:
                     cbq.run_daily_refresh(pid)
@@ -3238,8 +3278,8 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     # Crashlytics cache re-warm — her 2 saatte bir (cache TTL 4 saat; soğumasın)
     def _run_crashlytics_prewarm() -> None:
         from backend.services import crashlytics_bq as cbq
-        from backend.services.app_intel import APP_PRODUCTS
-        for pid in APP_PRODUCTS:
+        for prod in cbq.list_crashlytics_products():
+            pid = prod["id"]
             if cbq.any_platform_ready():
                 try:
                     cbq.prewarm_cache(pid)
@@ -8304,6 +8344,8 @@ def alerts_refresh_status(request: Request):
 @app.get("/settings")
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
+    from backend.services import admin_access_log as aal
+
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
         payload = {
@@ -8314,7 +8356,8 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "active_sessions": _get_active_sessions(),
+            "active_sessions": _get_active_sessions(request),
+            "login_history": aal.recent_login_history(db) if admin_password_configured else [],
         }
     flash_key = (request.query_params.get("admin_pw") or "").strip()
     _admin_pw_flash_messages = {
@@ -8329,6 +8372,9 @@ def settings_page(request: Request):
         payload["admin_password_flash"] = _admin_pw_flash_messages[flash_key]
         payload["admin_password_flash_ok"] = flash_key == "saved"
         payload["admin_password_flash_info"] = flash_key == "first_setup"
+    if (request.query_params.get("device_trusted") or "").strip() == "1":
+        payload["admin_password_flash"] = "Cihaz tanıdık olarak kaydedildi."
+        payload["admin_password_flash_ok"] = True
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
 
@@ -8381,16 +8427,32 @@ def admin_auth_login_get():
 
 
 def _admin_password_login_submit(request: Request, password: str):
+    from backend.services import admin_access_log as aal
+
     if not _admin_auth_active():
         return RedirectResponse(url="/", status_code=303)
     raw_password = str(password or "").strip()
+    client_ip = _extract_client_ip(request)
+    client_ua = request.headers.get("user-agent", "")
     with SessionLocal() as db:
         if not _admin_password_configured(db):
             return JSONResponse(status_code=503, content={"ok": False, "detail": "Admin şifresi henüz ayarlanmadı."})
         if not raw_password or not _verify_admin_password(db, raw_password):
+            aal.record_access_event(
+                db,
+                event_type="login_fail",
+                ip=client_ip,
+                user_agent=client_ua,
+            )
             return JSONResponse(status_code=401, content={"ok": False, "detail": "Şifre hatalı."})
         row = _admin_auth_row(db)
         token = _build_admin_cookie_token(row.password_hash if row else "")
+        aal.record_access_event(
+            db,
+            event_type="login_ok",
+            ip=client_ip,
+            user_agent=client_ua,
+        )
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
         key=_ADMIN_AUTH_COOKIE,
@@ -8460,17 +8522,28 @@ def settings_login_page(request: Request):
 
 @app.post("/admin/settings-login")
 def settings_login_submit(request: Request, password: str = Form(default="")):
+    from backend.services import admin_access_log as aal
+
     if not _is_admin_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
-    
+
     raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
     input_pwd = str(password or "").strip()
-    
+    client_ip = _extract_client_ip(request)
+    client_ua = request.headers.get("user-agent", "")
+
     if not raw_pwd or hmac.compare_digest(input_pwd, raw_pwd):
+        with SessionLocal() as db:
+            aal.record_access_event(
+                db,
+                event_type="settings_ok",
+                ip=client_ip,
+                user_agent=client_ua,
+            )
         # Başarılı: çerezi set et
         secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
         token = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
-        
+
         response = RedirectResponse(url="/settings", status_code=303)
         response.set_cookie(
             key=_SETTINGS_AUTH_COOKIE,
@@ -8482,8 +8555,37 @@ def settings_login_submit(request: Request, password: str = Form(default="")):
             path="/",
         )
         return response
-    
+
+    with SessionLocal() as db:
+        aal.record_access_event(
+            db,
+            event_type="settings_fail",
+            ip=client_ip,
+            user_agent=client_ua,
+        )
     return RedirectResponse(url="/admin/settings-login?error=1", status_code=303)
+
+
+@app.post("/admin/trust-device")
+def admin_trust_device(request: Request, fingerprint: str = Form(default="")):
+    """Settings'ten «Bu cihaz benim» — parmak izini tanıdık olarak kaydet."""
+    from backend.services import admin_access_log as aal
+
+    if not _is_settings_authenticated(request):
+        return RedirectResponse(url="/admin/settings-login", status_code=303)
+    fp = (fingerprint or "").strip()
+    ip = _extract_client_ip(request)
+    ua = request.headers.get("user-agent", "")
+    if not fp:
+        fp = aal.device_fingerprint(ip, ua)
+    with SessionLocal() as db:
+        aal.trust_fingerprint(
+            db,
+            fp,
+            label=aal.parse_device_label(ua),
+            ip_hint=ip,
+        )
+    return RedirectResponse(url="/settings?device_trusted=1", status_code=303)
 
 
 @app.post("/api/inbox/action-auth")
@@ -9972,12 +10074,12 @@ def app_intel_page(request: Request):
 @app.get("/firebase")
 def firebase_page(request: Request):
     """Firebase Crashlytics izleme sayfası."""
-    from backend.services.app_intel import list_products
+    from backend.services import crashlytics_bq as cbq
 
     payload = {
         "site_name": "Firebase",
         "sites": get_sidebar_sites(),
-        "app_products": list_products(),
+        "crash_products": cbq.list_crashlytics_products(),
     }
     template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -12693,7 +12795,7 @@ def _run_error_report_email_job() -> None:
     """404 hata özeti maili — 13:15 ve 23:15'te tüm siteler için tek mail."""
     try:
         from backend.services.error_monitor import get_error_summary
-        from backend.services.mailer import send_email
+        from backend.services.mailer import send_email, error_report_recipients
         from backend.models import Site
 
         with SessionLocal() as db:
@@ -12786,8 +12888,9 @@ def _run_error_report_email_job() -> None:
             f'</div>'
         )
         subject = f"404 Raporu · {grand_total} URL · {now_str}"
-        send_email(subject, html)
-        LOGGER.info("404 hata raporu maili gönderildi: %d URL", grand_total)
+        recipients = error_report_recipients()
+        send_email(subject, html, recipients=recipients)
+        LOGGER.info("404 hata raporu maili gönderildi: %d URL → %s", grand_total, ", ".join(recipients))
     except Exception as exc:
         LOGGER.error("404 hata raporu mail hatası: %s", exc)
 
@@ -13665,10 +13768,10 @@ def page_boards(request: Request):
     import os
     token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
-        {"name": "Döviz Web", "path": "nokta/doviz"},
-        {"name": "Döviz iOS", "path": "ios/doviz"},
-        {"name": "Döviz Android", "path": "android/doviz"},
-        {"name": "Sinemalar Web", "path": "nokta/sinemalar"}
+        {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
+        {"name": "Döviz iOS", "path": "ios/doviz", "platform": "ios", "product": "doviz"},
+        {"name": "Döviz Android", "path": "android/doviz", "platform": "android", "product": "doviz"},
+        {"name": "Sinemalar Web", "path": "nokta/sinemalar", "platform": "web", "product": "sinemalar"},
     ]
     return templates.TemplateResponse(
         request, "pages/boards.html",

@@ -799,6 +799,34 @@ class AiTalkHistory(Base):
     last_message_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AdminLoginEvent(Base):
+    """Admin giriş denemeleri — sunucu yeniden başlasa da kalır."""
+
+    __tablename__ = "admin_login_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    device_label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
+    is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    alert_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class AdminTrustedDevice(Base):
+    """Kullanıcının «bu cihaz benim» dediği oturum parmak izleri."""
+
+    __tablename__ = "admin_trusted_devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    ip_hint: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"

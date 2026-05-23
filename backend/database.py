@@ -115,6 +115,7 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_rt_alarms_site_triggered ON realtime_alarm_logs(site_id, triggered_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_rt_page_snaps_site_profile_collected ON realtime_page_snapshots(site_id, profile, collected_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_rt_news_snaps_site_profile_collected ON realtime_news_snapshots(site_id, profile, collected_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_login_events_created ON admin_login_events(created_at DESC)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:

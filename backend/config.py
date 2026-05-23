@@ -122,12 +122,24 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("ADMIN_AUTH_ENFORCED", "admin_auth_enforced"),
     )
+    admin_login_alert_email: str = Field(
+        default="cemevecen@nokta.com",
+        validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_EMAIL", "admin_login_alert_email"),
+    )
+    admin_login_alert_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_ENABLED", "admin_login_alert_enabled"),
+    )
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     mail_from: str = ""
     mail_to: str = ""
     operations_mail_to: str = ""
+    error_report_mail_to: str = Field(
+        default="",
+        validation_alias=AliasChoices("ERROR_REPORT_MAIL_TO", "error_report_mail_to"),
+    )
     # SMTP günlük kota: Gmail tüketici ~500 mesaj/gün; Workspace ücretli kullanıcı ~2000/gün (Google duyurusu, değişebilir).
     # Workspace’te POP/IMAP/SMTP ile mesaj başına en fazla 100 alıcı (RCPT) sınırı yaygındır.
     # Referans: https://support.google.com/mail/answer/22839 — https://support.google.com/a/answer/166852

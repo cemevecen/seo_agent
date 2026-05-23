@@ -65,22 +65,84 @@
     </form>
     {% endif %}
 
+    {# Giriş geçmişi (kalıcı) #}
+    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son Girişler</h4>
+        <span class="text-[11px] text-slate-400 dark:text-slate-500">Veritabanında saklanır · son 10 kayıt</span>
+      </div>
+      {% if login_history is defined and login_history %}
+      <div class="space-y-2">
+        {% for e in login_history %}
+        <div class="flex flex-col gap-1.5 rounded-lg border px-3 py-2 text-xs
+          {% if e.is_success and e.is_trusted %}border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-950/20
+          {% elif e.is_success %}border-amber-200 bg-amber-50/80 dark:border-amber-900/40 dark:bg-amber-950/20
+          {% else %}border-rose-200 bg-rose-50/70 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
+          <div class="flex flex-wrap items-center gap-2">
+            {% if e.is_success and e.is_trusted %}
+              <span class="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">Tanıdık</span>
+            {% elif e.is_success %}
+              <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Yeni cihaz</span>
+              {% if e.alert_sent %}<span class="text-[10px] text-amber-700 dark:text-amber-300">· e-posta gönderildi</span>{% endif %}
+            {% else %}
+              <span class="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800 dark:bg-rose-900/50 dark:text-rose-200">Başarısız</span>
+            {% endif %}
+            <span class="font-medium text-slate-800 dark:text-slate-200">{{ e.event_label }}</span>
+            <span class="text-slate-500 dark:text-slate-400 sm:ml-auto">{{ e.created_at_tr }}</span>
+          </div>
+          <div class="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+            <span class="font-medium text-slate-700 dark:text-slate-300">{{ e.ip }}</span>
+            <span class="text-slate-500 dark:text-slate-400">{{ e.device }}</span>
+          </div>
+          {% if e.is_success and not e.is_trusted %}
+          <form method="post" action="/admin/trust-device" class="mt-0.5">
+            <input type="hidden" name="fingerprint" value="{{ e.fingerprint }}" />
+            <button type="submit" class="text-[11px] font-semibold text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">Bu cihaz benim</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Henüz kayıtlı giriş yok. Bir sonraki admin girişinden itibaren burada görünür.</p>
+      {% endif %}
+      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">İlk tanıdık cihaz otomatik kaydedilir. Sonraki bilinmeyen girişlerde e-posta uyarısı gider.</p>
+    </div>
+
     {# Aktif oturumlar #}
     {% if active_sessions %}
     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
       <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aktif Oturumlar</h4>
       <div class="space-y-2">
         {% for s in active_sessions %}
-        <div class="flex flex-col gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800/60 sm:flex-row sm:items-center sm:gap-4">
-          <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.ip }}</span>
-          <span class="text-slate-500 dark:text-slate-400">{{ s.device }}</span>
-          <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">
-            İlk: {{ s.first_seen.strftime('%d.%m %H:%M') }} &nbsp;·&nbsp; Son: {{ s.last_seen.strftime('%d.%m %H:%M') }}
-          </span>
+        <div class="flex flex-col gap-1.5 rounded-lg border px-3 py-2 text-xs
+          {% if s.is_trusted %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15
+          {% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/15{% endif %}">
+          <div class="flex flex-wrap items-center gap-2">
+            {% if s.is_current %}
+              <span class="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200">Bu oturum</span>
+            {% endif %}
+            {% if s.is_trusted %}
+              <span class="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">Tanıdık</span>
+            {% else %}
+              <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Tanımsız</span>
+            {% endif %}
+            <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.ip }}</span>
+            <span class="text-slate-500 dark:text-slate-400">{{ s.device }}</span>
+            <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">
+              İlk: {{ s.first_seen.strftime('%d.%m %H:%M') }} &nbsp;·&nbsp; Son: {{ s.last_seen.strftime('%d.%m %H:%M') }}
+            </span>
+          </div>
+          {% if not s.is_trusted %}
+          <form method="post" action="/admin/trust-device">
+            <input type="hidden" name="fingerprint" value="{{ s.fingerprint }}" />
+            <button type="submit" class="text-[11px] font-semibold text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">Bu cihaz benim — bir daha uyarı alma</button>
+          </form>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
-      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son {{ 30 }} dakika içinde istek gönderen oturumlar. Sunucu yeniden başlatılırsa liste sıfırlanır.</p>
+      <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son 30 dakikada istek gönderen oturumlar (bellekte). Giriş kayıtları yukarıda kalıcıdır.</p>
     </div>
     {% endif %}
   </div>

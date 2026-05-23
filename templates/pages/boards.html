@@ -43,13 +43,34 @@
 
   <div class="flex items-center gap-2 overflow-x-auto pb-2">
     <template x-for="project in configProjects" :key="project.path">
-      <button 
+      <button
         @click="activeProject = project.path"
-        :class="activeProject === project.path ? 'bg-blue-600 text-white border-blue-600 shadow-md dark:bg-blue-500 dark:border-blue-500' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'"
-        class="relative rounded-full border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 focus:outline-none dark:border-slate-700 dark:hover:bg-slate-700 transition-colors"
+        :class="tabButtonClass(project)"
+        class="gl-project-tab relative inline-flex shrink-0 items-center gap-2.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 sm:px-4 sm:py-2.5"
+        :title="tabSubtitle(project)"
       >
-        <span x-text="project.name"></span>
-        <span x-show="projectData[project.path] && projectData[project.path].loading" class="ml-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-middle opacity-50"></span>
+        <span class="gl-tab-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="tabIconClass(project)">
+          <template x-if="project.platform === 'web' && project.product === 'doviz'">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18"/><path stroke-linecap="round" d="M12 3c2.8 3.1 4.2 6.4 4.2 9s-1.4 5.9-4.2 9c-2.8-3.1-4.2-6.4-4.2-9S9.2 6.1 12 3z"/></svg>
+          </template>
+          <template x-if="project.platform === 'ios'">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 3.1c-.2 1.4-.8 2.7-1.8 3.6-1 .8-2.3 1.3-3.7 1.1-.1-1.3.6-2.6 1.5-3.4.9-.7 2.2-1.2 3.5-1.3h.5zm1.1 3.1c-1.9-.1-3.5 1.1-4.4 1.1-.9 0-2.4-1-4-1-2 0-3.9 1.2-4.9 3.1-2.1 3.7-.6 9.2 1.5 12.2 1 1.5 2.2 3.2 3.8 3.1 1.5-.1 2.1-.9 4-1 1.8 0 2.3.9 3.9.9 1.6 0 2.7-1.5 3.7-3 1.1-1.7 1.6-3.3 1.6-3.4-.1 0-3.2-1.2-3.2-4.7 0-3 2.5-4.4 2.6-4.5-1.4-2.1-3.7-2.3-4.5-2.4z"/></svg>
+          </template>
+          <template x-if="project.platform === 'android'">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.2 7.1 6.8 4.8a.6.6 0 1 1 1-.6l1.5 2.4a7.8 7.8 0 0 1 6.8 0l1.5-2.4a.6.6 0 1 1 1 .6l-1.4 2.3h.4c1.8 0 3.2 1.5 3.2 3.3v6.4c0 1.8-1.4 3.3-3.2 3.3H7.8c-1.8 0-3.2-1.5-3.2-3.3v-6.4c0-1.8 1.4-3.3 3.2-3.3h.4zM9.2 12.2a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8zm5.6 0a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8zM6.2 4.3V2.6m11.6 1.7V2.6"/></svg>
+          </template>
+          <template x-if="project.platform === 'web' && project.product === 'sinemalar'">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" d="M7 5v14M12 5v14M17 5v14M3 10h18M3 14h18"/></svg>
+          </template>
+        </span>
+        <span class="min-w-0 text-left leading-tight">
+          <span class="block truncate" x-text="project.name"></span>
+          <span class="mt-0.5 block text-[10px] font-bold uppercase tracking-wider opacity-70" x-text="tabSubtitle(project)"></span>
+        </span>
+        <span
+          x-show="projectData[project.path] && projectData[project.path].loading"
+          class="ml-0.5 inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-solid border-current border-r-transparent opacity-60"
+        ></span>
       </button>
     </template>
   </div>
@@ -152,6 +173,8 @@
   .sortable-drag { cursor: grabbing !important; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
   .sortable-list.is-dragging-over { border-color: #94a3b8; background-color: rgba(241, 245, 249, 0.8); border-style: dashed; }
   .dark .sortable-list.is-dragging-over { border-color: #475569; background-color: rgba(30, 41, 59, 0.8); }
+  .gl-project-tab:not([class*='shadow']) { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+  .dark .gl-project-tab:not([class*='shadow']) { box-shadow: none; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -165,6 +188,61 @@
       activeProject: null,
       projectData: {},
       vpnStatus: 'checking',
+
+      tabTheme(project) {
+        const key = (project && project.path) || '';
+        const themes = {
+          'nokta/doviz': {
+            active: 'bg-sky-600 text-white border-sky-600 shadow-md focus-visible:ring-sky-400',
+            idle: 'bg-white text-sky-950 border-sky-200 hover:border-sky-300 hover:bg-sky-50 dark:bg-slate-800 dark:text-sky-100 dark:border-sky-900/60 dark:hover:bg-slate-700/80',
+            iconActive: 'bg-white/20 text-white',
+            iconIdle: 'bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300',
+            subtitle: 'Web · Döviz',
+          },
+          'ios/doviz': {
+            active: 'bg-zinc-800 text-white border-zinc-700 shadow-md focus-visible:ring-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-200',
+            idle: 'bg-white text-zinc-900 border-zinc-300 hover:border-zinc-400 hover:bg-zinc-50 dark:bg-slate-800 dark:text-zinc-100 dark:border-zinc-600 dark:hover:bg-slate-700/80',
+            iconActive: 'bg-white/15 text-white dark:bg-zinc-900/10 dark:text-zinc-900',
+            iconIdle: 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100',
+            subtitle: 'iOS · Döviz',
+          },
+          'android/doviz': {
+            active: 'bg-emerald-600 text-white border-emerald-600 shadow-md focus-visible:ring-emerald-400',
+            idle: 'bg-white text-emerald-950 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 dark:bg-slate-800 dark:text-emerald-100 dark:border-emerald-900/60 dark:hover:bg-slate-700/80',
+            iconActive: 'bg-white/20 text-white',
+            iconIdle: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300',
+            subtitle: 'Android · Döviz',
+          },
+          'nokta/sinemalar': {
+            active: 'bg-violet-600 text-white border-violet-600 shadow-md focus-visible:ring-violet-400',
+            idle: 'bg-white text-violet-950 border-violet-200 hover:border-violet-300 hover:bg-violet-50 dark:bg-slate-800 dark:text-violet-100 dark:border-violet-900/60 dark:hover:bg-slate-700/80',
+            iconActive: 'bg-white/20 text-white',
+            iconIdle: 'bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-300',
+            subtitle: 'Web · Sinemalar',
+          },
+        };
+        return themes[key] || {
+          active: 'bg-blue-600 text-white border-blue-600 shadow-md focus-visible:ring-blue-400',
+          idle: 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700',
+          iconActive: 'bg-white/20 text-white',
+          iconIdle: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200',
+          subtitle: project && project.name ? project.name : 'Proje',
+        };
+      },
+
+      tabButtonClass(project) {
+        const t = this.tabTheme(project);
+        return this.activeProject === project.path ? t.active : t.idle;
+      },
+
+      tabIconClass(project) {
+        const t = this.tabTheme(project);
+        return this.activeProject === project.path ? t.iconActive : t.iconIdle;
+      },
+
+      tabSubtitle(project) {
+        return this.tabTheme(project).subtitle;
+      },
 
       async checkVpn() {
         const ctrl = new AbortController();

@@ -3,41 +3,267 @@
   .rt-viv-panel {
     position: relative;
     border-radius: 1.25rem;
-    border: 1px solid rgb(199 210 254);
+    border: 1px solid rgb(203 213 225);
     background: rgb(255 255 255);
-    padding: 1.1rem 1.35rem 1.4rem;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  }
-  .rt-viv-panel::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(135deg,
-      rgba(99, 102, 241, 0.55),
-      rgba(168, 85, 247, 0.35),
-      rgba(236, 72, 153, 0.4));
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.85;
+    padding: 0;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
   }
   html.dark .rt-viv-panel {
-    border-color: rgba(129, 140, 248, 0.35);
+    border-color: rgb(63 63 70);
     background: rgb(24 24 27);
-    box-shadow: none;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   }
-  html.dark .rt-viv-panel::before {
-    background: linear-gradient(135deg,
-      rgba(129, 140, 248, 0.55),
-      rgba(192, 132, 252, 0.4),
-      rgba(244, 114, 182, 0.45));
-    opacity: 0.7;
+
+  .rt-viv-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1.15rem 1.25rem 1.25rem;
+    border-bottom: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
   }
+  @media (min-width: 640px) {
+    .rt-viv-hero {
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 1.25rem 1.5rem;
+      padding: 1.25rem 1.5rem 1.35rem;
+    }
+  }
+  html.dark .rt-viv-hero {
+    border-bottom-color: rgb(63 63 70);
+    background: rgb(30 30 33);
+  }
+
+  .rt-viv-hero-visual {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 11.5rem;
+    margin: 0 auto;
+  }
+  @media (min-width: 640px) {
+    .rt-viv-hero-visual {
+      margin: 0;
+      max-width: 10.5rem;
+    }
+  }
+
+  .rt-viv-lottie {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+  .rt-viv-lottie .rt-viv-stroke {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rt-viv-lottie .rt-viv-app-shell {
+    fill: rgb(255 255 255);
+    stroke: rgb(148 163 184);
+    stroke-width: 1.5;
+  }
+  html.dark .rt-viv-lottie .rt-viv-app-shell {
+    fill: rgb(39 39 42);
+    stroke: rgb(113 113 122);
+  }
+  .rt-viv-lottie .rt-viv-app-screen {
+    fill: rgb(241 245 249);
+  }
+  html.dark .rt-viv-lottie .rt-viv-app-screen {
+    fill: rgb(24 24 27);
+  }
+  .rt-viv-lottie .rt-viv-app-icon {
+    fill: rgb(99 102 241);
+  }
+  html.dark .rt-viv-lottie .rt-viv-app-icon {
+    fill: rgb(129 140 248);
+  }
+  .rt-viv-lottie .rt-viv-app-icon-b {
+    fill: rgb(14 165 233);
+  }
+  html.dark .rt-viv-lottie .rt-viv-app-icon-b {
+    fill: rgb(56 189 248);
+  }
+  .rt-viv-lottie .rt-viv-star {
+    fill: rgb(251 191 36);
+  }
+  .rt-viv-lottie .rt-viv-search-ring {
+    stroke: rgb(99 102 241);
+    stroke-width: 2.5;
+    fill: none;
+    stroke-dasharray: 44 120;
+    animation: rt-viv-search-spin 2.8s linear infinite;
+    transform-origin: 100px 60px;
+  }
+  html.dark .rt-viv-lottie .rt-viv-search-ring {
+    stroke: rgb(165 180 252);
+  }
+  .rt-viv-lottie .rt-viv-compare-arrow {
+    stroke: rgb(100 116 139);
+    stroke-width: 2;
+    stroke-dasharray: 6 5;
+    animation: rt-viv-dash-flow 1.2s linear infinite;
+  }
+  html.dark .rt-viv-lottie .rt-viv-compare-arrow {
+    stroke: rgb(161 161 170);
+  }
+  .rt-viv-lottie .rt-viv-vs-badge {
+    fill: rgb(79 70 229);
+  }
+  html.dark .rt-viv-lottie .rt-viv-vs-badge {
+    fill: rgb(99 102 241);
+  }
+  .rt-viv-lottie .rt-viv-vs-text {
+    fill: rgb(255 255 255);
+    font-size: 9px;
+    font-weight: 800;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  .rt-viv-lottie .rt-viv-phone-a {
+    animation: rt-viv-float-a 2.4s ease-in-out infinite;
+    transform-origin: 42px 62px;
+  }
+  .rt-viv-lottie .rt-viv-phone-b {
+    animation: rt-viv-float-b 2.4s ease-in-out infinite;
+    transform-origin: 158px 62px;
+  }
+  .rt-viv-lottie .rt-viv-scan-line {
+    stroke: rgb(99 102 241);
+    stroke-width: 1.5;
+    opacity: 0;
+    animation: rt-viv-scan 2.4s ease-in-out infinite;
+  }
+  html.dark .rt-viv-lottie .rt-viv-scan-line {
+    stroke: rgb(165 180 252);
+  }
+  .rt-viv-lottie .rt-viv-pulse-ring {
+    fill: none;
+    stroke: rgb(99 102 241);
+    stroke-width: 1.5;
+    opacity: 0;
+    animation: rt-viv-pulse-out 2.4s ease-out infinite;
+  }
+  html.dark .rt-viv-lottie .rt-viv-pulse-ring {
+    stroke: rgb(129 140 248);
+  }
+
+  @keyframes rt-viv-float-a {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  @keyframes rt-viv-float-b {
+    0%, 100% { transform: translateY(-2px); }
+    50% { transform: translateY(2px); }
+  }
+  @keyframes rt-viv-search-spin {
+    0% { transform: rotate(0deg); stroke-dashoffset: 0; }
+    100% { transform: rotate(360deg); stroke-dashoffset: -164; }
+  }
+  @keyframes rt-viv-dash-flow {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -22; }
+  }
+  @keyframes rt-viv-scan {
+    0%, 18% { opacity: 0; transform: translateY(8px); }
+    35%, 55% { opacity: 0.85; transform: translateY(0); }
+    72%, 100% { opacity: 0; transform: translateY(-8px); }
+  }
+  @keyframes rt-viv-pulse-out {
+    0%, 55% { opacity: 0; transform: scale(0.85); }
+    65% { opacity: 0.55; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.35); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rt-viv-lottie .rt-viv-phone-a,
+    .rt-viv-lottie .rt-viv-phone-b,
+    .rt-viv-lottie .rt-viv-search-ring,
+    .rt-viv-lottie .rt-viv-compare-arrow,
+    .rt-viv-lottie .rt-viv-scan-line,
+    .rt-viv-lottie .rt-viv-pulse-ring {
+      animation: none !important;
+    }
+    .rt-viv-lottie .rt-viv-scan-line { opacity: 0.35; }
+    .rt-viv-lottie .rt-viv-pulse-ring { opacity: 0.2; transform: scale(1); }
+  }
+
+  .rt-viv-hero-copy h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: rgb(15 23 42);
+  }
+  @media (min-width: 640px) {
+    .rt-viv-hero-copy h2 { font-size: 1.2rem; }
+  }
+  html.dark .rt-viv-hero-copy h2 {
+    color: rgb(244 244 245);
+  }
+  .rt-viv-hero-lead {
+    margin: 0.45rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: rgb(71 85 105);
+    max-width: 42rem;
+  }
+  html.dark .rt-viv-hero-lead {
+    color: rgb(161 161 170);
+  }
+  .rt-viv-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+  }
+  .rt-viv-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(203 213 225);
+    background: rgb(255 255 255);
+    padding: 0.28rem 0.65rem 0.28rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgb(51 65 85);
+    white-space: nowrap;
+  }
+  html.dark .rt-viv-step {
+    border-color: rgb(63 63 70);
+    background: rgb(39 39 42);
+    color: rgb(212 212 216);
+  }
+  .rt-viv-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 9999px;
+    background: rgb(79 70 229);
+    color: rgb(255 255 255);
+    font-size: 0.6rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  html.dark .rt-viv-step-num {
+    background: rgb(99 102 241);
+  }
+
+  .rt-viv-body {
+    padding: 1.1rem 1.25rem 1.4rem;
+  }
+  @media (min-width: 640px) {
+    .rt-viv-body { padding: 1.15rem 1.5rem 1.5rem; }
+  }
+
   .rt-viv-tabs {
     display: inline-flex;
     gap: 0.25rem;
@@ -366,19 +592,59 @@
 </style>
 
 <section class="rt-viv-panel mb-4 sm:mb-5" aria-labelledby="rt-viv-heading" data-rt-viv-root>
-  <div class="flex items-center justify-between gap-3 flex-wrap">
-    <h2 id="rt-viv-heading" class="text-base sm:text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100 truncate">
-      Mağaza keşif &amp; uygulama karşılaştırma
-    </h2>
-    <p class="hidden sm:block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-      Yorumları çek · Heuristic analiz · Karşılaştır
-    </p>
-  </div>
-  <div class="mt-4 border-t border-indigo-200/60 pt-4 dark:border-indigo-900/40">
-    <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
-      <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Mağaza analiz</button>
-      <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">Uygulama karşılaştırma</button>
+  <div class="rt-viv-hero">
+    <div class="rt-viv-hero-visual" aria-hidden="true">
+      <svg class="rt-viv-lottie" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mağaza arama ve uygulama karşılaştırma animasyonu">
+        <g class="rt-viv-phone-a">
+          <rect class="rt-viv-app-shell" x="22" y="28" width="40" height="68" rx="8"/>
+          <rect class="rt-viv-app-screen" x="26" y="36" width="32" height="46" rx="4"/>
+          <rect class="rt-viv-app-icon" x="32" y="42" width="10" height="10" rx="2.5"/>
+          <rect class="rt-viv-app-icon" x="32" y="56" width="20" height="3" rx="1.5" opacity="0.45"/>
+          <rect class="rt-viv-app-icon" x="32" y="62" width="16" height="3" rx="1.5" opacity="0.3"/>
+          <polygon class="rt-viv-star" points="38,74 39.2,77.5 43,77.5 40,79.5 41.2,83 38,81 34.8,83 36,79.5 33,77.5 36.8,77.5"/>
+          <polygon class="rt-viv-star" points="44,74 45.2,77.5 49,77.5 46,79.5 47.2,83 44,81 40.8,83 42,79.5 39,77.5 42.8,77.5"/>
+        </g>
+        <g class="rt-viv-phone-b">
+          <rect class="rt-viv-app-shell" x="138" y="28" width="40" height="68" rx="8"/>
+          <rect class="rt-viv-app-screen" x="142" y="36" width="32" height="46" rx="4"/>
+          <rect class="rt-viv-app-icon-b" x="148" y="42" width="10" height="10" rx="2.5"/>
+          <rect class="rt-viv-app-icon-b" x="148" y="56" width="20" height="3" rx="1.5" opacity="0.45"/>
+          <rect class="rt-viv-app-icon-b" x="148" y="62" width="16" height="3" rx="1.5" opacity="0.3"/>
+          <polygon class="rt-viv-star" points="154,74 155.2,77.5 159,77.5 156,79.5 157.2,83 154,81 150.8,83 152,79.5 149,77.5 152.8,77.5"/>
+          <polygon class="rt-viv-star" points="160,74 161.2,77.5 165,77.5 162,79.5 163.2,83 160,81 156.8,83 158,79.5 155,77.5 158.8,77.5"/>
+        </g>
+        <line class="rt-viv-stroke rt-viv-compare-arrow" x1="66" y1="60" x2="88" y2="60"/>
+        <line class="rt-viv-stroke rt-viv-compare-arrow" x1="134" y1="60" x2="112" y2="60"/>
+        <circle class="rt-viv-pulse-ring" cx="100" cy="60" r="14"/>
+        <circle class="rt-viv-vs-badge" cx="100" cy="60" r="11"/>
+        <text class="rt-viv-vs-text" x="100" y="63.5" text-anchor="middle">VS</text>
+        <circle class="rt-viv-stroke rt-viv-search-ring" cx="100" cy="60" r="22"/>
+        <line class="rt-viv-stroke rt-viv-scan-line" x1="100" y1="48" x2="100" y2="72"/>
+      </svg>
     </div>
+    <div class="rt-viv-hero-copy">
+      <h2 id="rt-viv-heading">Mağaza keşif &amp; uygulama karşılaştırma</h2>
+      <p class="rt-viv-hero-lead">
+        Google Play ve App Store’da rakip uygulamaları arayın, mağaza yorumlarını çekip duygu analizi yapın,
+        iki uygulamayı yan yana kıyaslayın.
+      </p>
+      <div class="rt-viv-steps" aria-label="Nasıl çalışır">
+        <span class="rt-viv-step"><span class="rt-viv-step-num">1</span> Mağazada ara</span>
+        <span class="rt-viv-step"><span class="rt-viv-step-num">2</span> Yorumları analiz et</span>
+        <span class="rt-viv-step"><span class="rt-viv-step-num">3</span> Rakiple karşılaştır</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rt-viv-body">
+    <div class="rt-viv-tabs mb-4" role="tablist" aria-label="Mağaza araçları">
+      <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Tek uygulama analizi</button>
+      <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">İki uygulama karşılaştır</button>
+    </div>
+    <p class="mb-4 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+      <span data-rt-viv-tab-hint="store">Mağazada uygulama arayın → yorumları çekin → puan dağılımı ve duygu analizini görün.</span>
+      <span class="hidden" data-rt-viv-tab-hint="compare">İki sütunda ayrı arama yapın → her birinden uygulama seçin → katalog ve yorum analizini yan yana kıyaslayın.</span>
+    </p>
 
   <div data-rt-viv-panel="store">
     <div class="rt-viv-row">
@@ -561,6 +827,9 @@
     });
     root.querySelectorAll('[data-rt-viv-panel]').forEach(function (p) {
       p.classList.toggle('hidden', p.getAttribute('data-rt-viv-panel') !== tab);
+    });
+    root.querySelectorAll('[data-rt-viv-tab-hint]').forEach(function (hint) {
+      hint.classList.toggle('hidden', hint.getAttribute('data-rt-viv-tab-hint') !== tab);
     });
   }
   window.rtVivSwitchTab = rtVivSwitchTab;

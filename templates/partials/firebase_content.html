@@ -95,9 +95,9 @@
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
-        {% if app_products %}
+        {% if crash_products|length > 1 %}
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for p in app_products %}
+          {% for p in crash_products %}
           <button type="button" data-crash-product="{{ p.id }}"
             class="crash-product-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if loop.first %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400{% endif %}">{{ p.label }}</button>
           {% endfor %}
@@ -324,6 +324,12 @@
   var daysBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-days-btn"));
   var typeBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-type-btn"));
   var productBtns  = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-product-btn"));
+  if (productBtns.length) {
+    var availProducts = productBtns.map(function (b) { return (b.dataset.crashProduct || "").toLowerCase(); });
+    if (availProducts.indexOf(crashState.product) < 0) crashState.product = availProducts[0];
+  } else {
+    crashState.product = "doviz";
+  }
 
   // Aktif/pasif sınıflar — sadece bunlar toggle edilir, geri kalan sınıflar korunur
   var CLS_ON  = ["bg-slate-900", "text-white", "dark:bg-slate-600", "dark:text-slate-100"];

@@ -49,16 +49,76 @@ def test_analyze_platform_parity_findings_sessions_missing():
         with patch.object(cbq, "_circuit_open", return_value=False):
             with patch.object(cbq, "_union_incompat", side_effect=lambda p: p == "ios"):
                 with patch.object(cbq, "_discover_table_id", return_value="com_Doviz_ANDROID"):
-                    with patch.object(cbq, "_discover_sessions_table_id", return_value=None):
-                        with patch.object(cbq, "_table", return_value="`tbl`"):
-                            with patch.object(cbq, "_batch_table_ref", return_value="`batch`"):
-                                with patch.object(cbq, "query_summary", return_value={"fatal": 1}):
-                                    with patch.object(cbq, "query_table_health_stats", side_effect=health_side_effect):
-                                        with patch.object(cbq, "query_crash_free", return_value=None):
-                                            with patch.object(cbq, "_query_crash_free_crashes_only", return_value={"crash_free_pct": 0}):
-                                                report = cbq.analyze_platform_parity("doviz", days=7)
+                    with patch.object(cbq, "_sessions_dataset_exists", return_value=False):
+                        with patch.object(cbq, "_discover_sessions_table_id", return_value=None):
+                            with patch.object(cbq, "_table", return_value="`tbl`"):
+                                with patch.object(cbq, "_batch_table_ref", return_value="`batch`"):
+                                    with patch.object(cbq, "query_summary", return_value={"fatal": 1}):
+                                        with patch.object(cbq, "query_table_health_stats", side_effect=health_side_effect):
+                                            with patch.object(cbq, "query_crash_free", return_value=None):
+                                                with patch.object(cbq, "_query_crash_free_crashes_only", return_value={"crash_free_pct": 0}):
+                                                    report = cbq.analyze_platform_parity("doviz", days=7)
 
     assert report["comparison"]["ios_vs_android_pct"] == 9.0
     findings = " ".join(report["findings"])
     assert "firebase_sessions" in findings
     assert "realtime" in findings.lower() or "UNION" in findings
+
+
+def test_list_crashlytics_products_excludes_unconfigured():
+    with patch.object(cbq, "crashlytics_product_ready", side_effect=lambda p: p == "doviz"):
+        assert cbq.list_crashlytics_products() == [{"id": "doviz", "label": "Döviz"}]
+
+
+def test_crashlytics_product_ready_requires_discovered_table():
+    def discover(plat, bundle):
+        if bundle == "com.Doviz" and plat == "android":
+            return "com_Doviz_ANDROID"
+        return None
+
+    with patch.object(cbq, "platform_ready", return_value=True):
+        with patch.object(cbq, "_discover_table_id", side_effect=discover):
+            assert cbq.crashlytics_product_ready("doviz") is True
+            assert cbq.crashlytics_product_ready("sinemalar") is False
+
+
+def test_crash_free_unavailable_hint_no_sessions_export():
+    with patch.object(cbq, "_sessions_dataset_exists", return_value=False):
+        msg = cbq.crash_free_unavailable_hint("android", "`tbl`", 7, bundle="com.Doviz")
+    assert "Include sessions" in msg
+    assert "ANDROID" in msg
+
+
+def test_crash_free_unavailable_hint_dataset_exists_table_mismatch():
+    with patch.object(cbq, "_sessions_dataset_exists", return_value=True):
+        with patch.object(cbq, "_sessions_table_ref", return_value=None):
+            with patch.object(cbq, "_list_sessions_tables", return_value=["com_other_ANDROID"]):
+                with patch.object(cbq, "_get_bq_dataset_location", return_value="US"):
+                    msg = cbq.crash_free_unavailable_hint("android", "`tbl`", 7, bundle="com.Doviz")
+    assert "eşleşmedi" in msg
+    assert "Include sessions" not in msg
+
+
+def test_crash_free_unavailable_hint_short_period():
+    with patch.object(cbq, "_sessions_dataset_exists", return_value=True):
+        with patch.object(cbq, "_sessions_table_ref", return_value="`proj.firebase_sessions.app`"):
+            with patch.object(cbq, "_discover_sessions_table_id", return_value="com_Doviz_ANDROID"):
+                with patch.object(cbq, "_query_sessions_volume", return_value=(2, 1)):
+                    msg = cbq.crash_free_unavailable_hint("android", "`tbl`", 1, bundle="com.Doviz")
+    assert "1 günde" in msg or "1g" in msg
+    assert "7g" in msg or "30g" in msg
+    assert "Include sessions" not in msg
+
+
+def test_min_sessions_for_crash_free_scales_with_days():
+    assert cbq._min_sessions_for_crash_free(1) == 3
+    assert cbq._min_sessions_for_crash_free(7) == 10
+    assert cbq._min_sessions_for_crash_free(30) == 10
+
+
+def test_analyze_platform_parity_not_configured_product():
+    with patch.object(cbq, "crashlytics_product_ready", return_value=False):
+        report = cbq.analyze_platform_parity("sinemalar", days=7)
+    assert report["ok"] is False
+    assert report["error"] == "crashlytics_not_configured"
+    assert report["findings"]

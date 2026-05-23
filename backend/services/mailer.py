@@ -73,6 +73,34 @@ from backend.services.smtp_quota import (
     smtp_recipients_allowed,
 )
 
+DEFAULT_ERROR_REPORT_RECIPIENT = "cemevecen@nokta.com"
+
+
+def error_report_recipients() -> list[str]:
+    """404 günlük raporu alıcıları — yalnızca @nokta.com (MAIL_TO'daki gmail vb. hariç)."""
+    raw = (
+        (settings.error_report_mail_to or "").strip()
+        or (settings.operations_mail_to or "").strip()
+        or DEFAULT_ERROR_REPORT_RECIPIENT
+    )
+    all_recipients = [item.strip() for item in raw.split(",") if item.strip()]
+    nokta_only = [r for r in all_recipients if r.lower().endswith("@nokta.com")]
+    if nokta_only:
+        if len(nokta_only) < len(all_recipients):
+            logging.info(
+                "404 rapor alıcıları @nokta.com ile sınırlandı: %s → %s",
+                ", ".join(all_recipients),
+                ", ".join(nokta_only),
+            )
+        return nokta_only
+    if all_recipients:
+        logging.warning(
+            "404 rapor alıcılarında @nokta.com yok (%s); varsayılan kullanılıyor: %s",
+            ", ".join(all_recipients),
+            DEFAULT_ERROR_REPORT_RECIPIENT,
+        )
+    return [DEFAULT_ERROR_REPORT_RECIPIENT]
+
 
 def _smtp_message_id_host() -> str:
     """Message-ID @ sağ tarafı (mail_from içindeki alan adı)."""
@@ -256,6 +284,34 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
     finally:
         if db is None:
             session.close()
+
+
+def send_admin_security_email(subject: str, html_body: str, recipients: list[str]) -> bool:
+    """Admin güvenlik uyarıları — outbound_email_enabled kapalı olsa da SMTP/Gmail ile dener."""
+    if not recipients:
+        return False
+    if not _smtp_configured():
+        logging.warning("Admin güvenlik e-postası gönderilemedi: SMTP yapılandırması eksik")
+        return False
+    if not smtp_recipients_allowed(len(recipients)):
+        return False
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = settings.mail_from
+    message["To"] = ", ".join(recipients)
+    from backend.services.inbox_email_render import plain_text_for_mailer
+
+    message.set_content(plain_text_for_mailer(html_body, subject=subject))
+    message.add_alternative(html_body, subtype="html")
+
+    if _gmail_api_dispatch(message):
+        logging.info("Admin güvenlik e-postası Gmail API ile gönderildi: %s", subject[:100])
+        return True
+    ok = _smtp_dispatch_with_daily_quota(message)
+    if ok:
+        logging.info("Admin güvenlik e-postası gönderildi: %s", subject[:100])
+    return ok
 
 
 def send_email(subject: str, html_body: str, recipients: list[str] | None = None) -> bool:

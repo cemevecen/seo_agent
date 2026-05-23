@@ -15,20 +15,29 @@ logger = logging.getLogger(__name__)
 #
 # NOT: Aşağıdaki kaynaklar kasıtlı olarak çıkarıldı çünkü sürekli "not well-formed"
 # parse hatası veriyor (Cloudflare bot koruması, Brotli sıkıştırması veya bozuk XML):
-#   - sozcu.com.tr/rss.xml
+#   - sozcu.com.tr/rss.xml (eski URL; yeni: feeds-rss-category-gundem)
 #   - cumhuriyet.com.tr/rss/son_dakika.xml
-#   - ntv.com.tr/gundem.rss
+#   - ntv.com.tr/gundem.rss (eski parser; Atom desteği ile tekrar eklendi)
 #   - dunya.com/rss
 #   - ekonomim.com/rss
 #   - techcrunch.com/feed/
 #   - theverge.com/rss/index.xml
 # Bunlar tekrar denenmemeli; çöp veri üretiyorlardı.
+# Atom namespace (NTV vb.)
+_ATOM = "{http://www.w3.org/2005/Atom}"
+
 CATEGORY_SOURCES = {
     "Türkiye": [
         # Ajanslar
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-        # Gazeteler (sadece çalışanlar)
+        # Gazeteler — hızlı / son dakika odaklı
         "https://www.cnnturk.com/feed/rss/all/news",
+        "https://www.ensonhaber.com/rss/gundem.xml",
+        "https://www.ahaber.com.tr/rss/gundem.xml",
+        "https://www.sozcu.com.tr/feeds-rss-category-gundem",
+        "https://www.internethaber.com/rss",
+        "https://www.ntv.com.tr/gundem.rss",
+        "https://www.mynet.com/haber/rss/guncel",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
         "https://www.hurriyet.com.tr/rss/anasayfa",
         "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
@@ -41,6 +50,10 @@ CATEGORY_SOURCES = {
     "Genel": [
         "https://www.aa.com.tr/tr/rss/default?cat=guncel",
         "https://www.cnnturk.com/feed/rss/all/news",
+        "https://www.ensonhaber.com/rss/gundem.xml",
+        "https://www.ahaber.com.tr/rss/gundem.xml",
+        "https://www.internethaber.com/rss",
+        "https://www.ntv.com.tr/gundem.rss",
         "https://www.bloomberght.com/rss",
         # Google News
         "https://news.google.com/rss/headlines/section/topic/TOP_STORIES?hl=tr&gl=TR&ceid=TR:tr",
@@ -112,6 +125,109 @@ EXCLUDE_KEYWORDS = [
     "ekonomi takvimi", "ajanda", "şifreli kanal", "yayın akışı", "izle", "canlı izle"
 ]
 
+_BLACKLISTED_SOURCE_DOMAINS = (
+    "cumhuriyet.com.tr",
+    "dunya.com",
+    "ekonomim.com",
+    "techcrunch.com",
+    "theverge.com",
+)
+
+
+def feed_item_nodes(root: ET.Element) -> tuple[list[ET.Element], str]:
+    """RSS <item> veya Atom <entry> listesi."""
+    rss_items = root.findall(".//item")
+    if rss_items:
+        return rss_items, "rss"
+    atom_entries = root.findall(f".//{_ATOM}entry")
+    if atom_entries:
+        return atom_entries, "atom"
+    return [], "none"
+
+
+def parse_pub_date(pub_date_str: str) -> datetime | None:
+    pub_date_str = (pub_date_str or "").strip()
+    if not pub_date_str:
+        return None
+    if "T" in pub_date_str:
+        try:
+            return datetime.fromisoformat(pub_date_str.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    for fmt in (
+        "%a, %d %b %Y %H:%M:%S %Z",
+        "%a, %d %b %Y %H:%M:%S %z",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%d %H:%M:%S",
+    ):
+        try:
+            return datetime.strptime(pub_date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def extract_item_fields(
+    item: ET.Element,
+    fmt: str,
+    *,
+    ch_title: str,
+    ch_link: str,
+) -> tuple[str, str, str, str, str | None, str | None]:
+    """title, link, pub_date_str, description, source_name, source_url"""
+    if fmt == "rss":
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        pub_date_str = (item.findtext("pubDate") or "").strip()
+        description = ""
+        for tag in (
+            "description",
+            "{http://purl.org/rss/1.0/modules/content/}encoded",
+            "{http://www.w3.org/2005/Atom}summary",
+            "summary",
+        ):
+            el = item.find(tag)
+            if el is not None and el.text:
+                description = (el.text or "").strip()
+                if description:
+                    break
+        source_el = item.find("source")
+        if source_el is not None:
+            source_name = (source_el.text or "").strip() or ch_title or "Bilinmiyor"
+            source_url = source_el.get("url") or ch_link or None
+        else:
+            source_name = ch_title or "Bilinmiyor"
+            source_url = ch_link or None
+        return title, link, pub_date_str, description, source_name, source_url
+
+    title_el = item.find(f"{_ATOM}title")
+    title = (title_el.text or "").strip() if title_el is not None else ""
+    link = ""
+    for link_el in item.findall(f"{_ATOM}link"):
+        rel = (link_el.get("rel") or "alternate").lower()
+        href = (link_el.get("href") or "").strip()
+        if href and rel in ("alternate", ""):
+            link = href
+            break
+    if not link:
+        link_el = item.find(f"{_ATOM}link")
+        if link_el is not None:
+            link = (link_el.get("href") or "").strip()
+    pub_el = item.find(f"{_ATOM}published")
+    if pub_el is None:
+        pub_el = item.find(f"{_ATOM}updated")
+    pub_date_str = (pub_el.text or "").strip() if pub_el is not None else ""
+    description = ""
+    for tag in (f"{_ATOM}summary", f"{_ATOM}content"):
+        el = item.find(tag)
+        if el is not None and (el.text or "").strip():
+            description = (el.text or "").strip()
+            break
+    source_name = ch_title or "Bilinmiyor"
+    source_url = ch_link or None
+    return title, link, pub_date_str, description, source_name, source_url
+
+
 def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     """Çok kanallı RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
     logger.info("Starting Multi-Channel News Intelligence sync (reset=%s)...", reset)
@@ -122,20 +238,10 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         logger.info("Database cleared for news intelligence reset.")
 
     # Kronik bozulan kaynaklardan kalan eski item'leri her sync'te temizle.
-    # Bu kaynaklar artık fetch edilmiyor; DB'de duran kayıtları da çöpe atalım.
-    _BLACKLISTED_DOMAINS = (
-        "sozcu.com.tr",
-        "cumhuriyet.com.tr",
-        "ntv.com.tr",
-        "dunya.com",
-        "ekonomim.com",
-        "techcrunch.com",
-        "theverge.com",
-    )
     try:
         from sqlalchemy import or_
         conds = []
-        for dom in _BLACKLISTED_DOMAINS:
+        for dom in _BLACKLISTED_SOURCE_DOMAINS:
             pat = f"%{dom}%"
             conds.append(NewsIntelligenceItem.url.like(pat))
             conds.append(NewsIntelligenceItem.source_url.like(pat))
@@ -221,12 +327,26 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 except ET.ParseError as exc:
                     logger.warning("RSS XML parse hatası (%s): %s", exc, rss_url[:80])
                     continue
-                items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
+                items, feed_fmt = feed_item_nodes(root)
+                items = items[:MAX_ITEMS_PER_FEED]
+                if not items:
+                    logger.debug("RSS/Atom boş feed: %s", rss_url[:80])
+                    continue
 
                 # Channel-level kaynak bilgisi — item'da <source> yoksa fallback
                 channel = root.find("channel")
+                if channel is None:
+                    channel = root.find(f"{_ATOM}feed")
                 ch_title = (channel.findtext("title") or "").strip() if channel is not None else ""
-                ch_link  = (channel.findtext("link")  or "").strip() if channel is not None else ""
+                ch_link = (channel.findtext("link") or "").strip() if channel is not None else ""
+                if channel is not None and not ch_title:
+                    atom_title = channel.find(f"{_ATOM}title")
+                    if atom_title is not None and atom_title.text:
+                        ch_title = atom_title.text.strip()
+                if not ch_link and channel is not None:
+                    alt = channel.find(f"{_ATOM}link")
+                    if alt is not None:
+                        ch_link = (alt.get("href") or "").strip()
                 # Google News RSS channel title'larını temizle (TR/EN)
                 for _suffix in (" - Google News", " - Google Haberler", " - En yeni", " - Latest"):
                     if _suffix in ch_title:
@@ -241,37 +361,15 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 # --- Adım 1: Ham parse (çeviri öncesi) ---
                 pending_items = []  # (title, link, source_name, source_url, description, display_topic, published_at)
                 for item in items:
-                    title = (item.find("title").text or "") if item.find("title") is not None else ""
-                    link = (item.find("link").text or "") if item.find("link") is not None else ""
-
-                    pub_date_str = (item.find("pubDate").text or "") if item.find("pubDate") is not None else ""
-
-                    source_el = item.find("source")
-                    if source_el is not None:
-                        source_name = (source_el.text or "").strip() or ch_title or "Bilinmiyor"
-                        source_url  = source_el.get("url") or ch_link or None
-                    else:
-                        source_name = ch_title or "Bilinmiyor"
-                        source_url  = ch_link or None
-
-                    # Description için 3 kaynak: <description>, <content:encoded>, <summary>
-                    # Bazı kaynaklar (TechCrunch, ArsTechnica, Wired vb.) description yerine
-                    # content:encoded kullanır; bazı atom-style RSS'lerde summary olur.
-                    description = ""
-                    for _tag in (
-                        "description",
-                        "{http://purl.org/rss/1.0/modules/content/}encoded",
-                        "{http://www.w3.org/2005/Atom}summary",
-                        "summary",
-                    ):
-                        _el = item.find(_tag)
-                        if _el is not None and _el.text:
-                            description = _el.text or ""
-                            if description.strip():
-                                break
+                    title, link, pub_date_str, description, source_name, source_url = extract_item_fields(
+                        item, feed_fmt, ch_title=ch_title, ch_link=ch_link
+                    )
                     image_url = None
 
                     title = title.strip()
+                    link = link.strip()
+                    if not link:
+                        continue
                     for suffix in [f" - {source_name}", f" | {source_name}", f" - {source_name.upper()}", f" | {source_name.upper()}"]:
                         if title.endswith(suffix):
                             title = title[:-len(suffix)].strip()
@@ -288,16 +386,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     matched_topic = next((kw for kw in FILTER_KEYWORDS if kw in combined_text), None)
                     display_topic = matched_topic.capitalize() if matched_topic else category
 
-                    published_at = None
-                    for fmt in ["%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z",
-                                "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S"]:
-                        try:
-                            published_at = datetime.strptime(pub_date_str, fmt)
-                            break
-                        except:
-                            continue
-                    if not published_at:
-                        published_at = datetime.utcnow()
+                    published_at = parse_pub_date(pub_date_str) or datetime.utcnow()
 
                     if db.query(NewsIntelligenceItem).filter(NewsIntelligenceItem.url == link).first():
                         continue
