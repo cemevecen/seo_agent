@@ -17,6 +17,7 @@
   </div>
 
   <div id="inbox-banner" class="mb-4 hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
+  <div id="inbox-oauth-help" class="mb-4 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60"></div>
 
   <div
     id="inbox-sync-progress"
@@ -655,16 +656,48 @@
         "AI özet, taslak ve üç şablon için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY — en az birini tanımlayın (öncelik: Groq → Gemini → OpenAI)."
       );
     }
-    if (parts.length) showBanner(parts.join(" "));
-    else {
-      var oauthErr = new URLSearchParams(window.location.search).get("oauth_error");
-      if (oauthErr === "access_denied") {
-        showBanner("Google izni reddedildi. Google Cloud Console'da OAuth uygulamanız test modundaysa e-posta adresinizi \"Test Kullanıcıları\" listesine ekleyin, ardından tekrar bağlanmayı deneyin.");
-      } else if (oauthErr) {
-        showBanner("Gmail bağlantısı tamamlanamadı: " + oauthErr);
-      } else {
-        hideBanner();
+    var oauthErr = new URLSearchParams(window.location.search).get("oauth_error");
+    if (oauthErr === "access_denied") {
+      var ru = (status.redirect_uri || "").trim();
+      var hostHint = window.location.origin || "";
+      var msg =
+        "Google izni reddedildi (access_denied). Muhtemel nedenler: (1) OAuth uygulaması «Testing» modunda ve Google hesabınız Test kullanıcıları listesinde değil — " +
+        "Cloud Console → APIs & Services → OAuth consent screen → Test users → e-postanızı ekleyin. " +
+        "(2) İzin ekranında «İptal»e bastınız — tekrar «Google ile bağla» deyip tüm kutucukları onaylayın. " +
+        "(3) Authorized redirect URI eksik — aynı OAuth istemcisinde şu adres kayıtlı olmalı: " +
+        (ru || hostHint + "/api/inbox/oauth/callback") +
+        " (Credentials → OAuth 2.0 Client → Authorized redirect URIs).";
+      showBanner(msg);
+    } else if (oauthErr) {
+      showBanner("Gmail bağlantısı tamamlanamadı: " + oauthErr);
+    } else if (parts.length) {
+      showBanner(parts.join(" "));
+    } else {
+      hideBanner();
+    }
+    if (oauthErr && window.history && window.history.replaceState) {
+      try {
+        window.history.replaceState(null, "", window.location.pathname);
+      } catch (e) {
+        /* ignore */
       }
+    }
+    if (!status.connected && status.oauth_client_configured) {
+      var help = document.getElementById("inbox-oauth-help");
+      if (help) {
+        var ru2 = (status.redirect_uri || "").trim() || (window.location.origin + "/api/inbox/oauth/callback");
+        help.innerHTML =
+          '<p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">' +
+          "<strong>Gmail bağlantısı için:</strong> Google Cloud Console’da bu redirect URI kayıtlı olmalı: " +
+          '<code class="rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">' +
+          esc(ru2) +
+          "</code>. Testing modundaysanız bağlayacağınız Google hesabını Test users listesine ekleyin." +
+          "</p>";
+        help.classList.remove("hidden");
+      }
+    } else {
+      var helpHide = document.getElementById("inbox-oauth-help");
+      if (helpHide) helpHide.classList.add("hidden");
     }
   }
 
