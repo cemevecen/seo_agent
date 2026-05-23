@@ -25,7 +25,10 @@ LOGGER = logging.getLogger(__name__)
 
 INBOX_SYNC_MAX_THREADS = 50
 INBOX_LIST_LIMIT = 50
-INBOX_DEFAULT_TAB = "firebase"
+INBOX_DEFAULT_TAB = "all"
+
+# UI sekmeleri — soldan sağa sıra
+INBOX_TAB_ORDER: tuple[str, ...] = ("all", "doviz", "sinemalar", "nstat", "firebase")
 
 # Canonical route_tag değerleri (UI sekmeleriyle birebir)
 INBOX_ROUTE_FIREBASE = "firebase"
@@ -45,8 +48,11 @@ INBOX_ROUTE_LEGACY_MAP: dict[str, str] = {
 INBOX_ALERT_ROUTES = frozenset({INBOX_ROUTE_FIREBASE, INBOX_ROUTE_NSTAT})
 
 INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
-    "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
-    "nstat": 'from:noreply@doviz.com subject:"ziyaret edilen sayfalar"',
+    "all": (
+        "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
+        "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
+        "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
+    ),
     "doviz": (
         "to:info@doviz.com OR deliveredto:info@doviz.com OR "
         "to:feedback@doviz.com OR deliveredto:feedback@doviz.com"
@@ -55,20 +61,17 @@ INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
         "to:info@sinemalar.com OR deliveredto:info@sinemalar.com OR "
         "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
     ),
-    "all": (
-        "to:me -to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
-        "-to:feedback@sinemalar.com -from:firebase-noreply@google.com "
-        "-from:firebase-noreply.googleapis.com -from:noreply@doviz.com"
-    ),
+    "nstat": 'from:noreply@doviz.com subject:"ziyaret edilen sayfalar"',
+    "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
 }
 
 # UI sekmesi → veritabanı route_tag (canonical + eski kayıtlar)
 INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
-    "firebase": ("firebase",),
+    "all": ("all", "tome", "mixed"),
     "doviz": ("doviz", "info", "feedback"),
     "sinemalar": ("sinemalar",),
     "nstat": ("nstat", "ziyaret"),
-    "all": ("all", "tome", "mixed"),
+    "firebase": ("firebase",),
 }
 
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).
@@ -650,7 +653,7 @@ def iter_sync_inbox_all_routes(
     service = _gmail_service(creds)
 
     thread_refs: list[tuple[str, dict[str, Any]]] = []
-    routes = list(INBOX_ROUTE_GMAIL_QUERIES.items())
+    routes = [(route, INBOX_ROUTE_GMAIL_QUERIES[route]) for route in INBOX_TAB_ORDER]
     route_counts: dict[str, int] = {}
     for ri, (route, base_q) in enumerate(routes):
         q = _normalize_inbox_gmail_query(

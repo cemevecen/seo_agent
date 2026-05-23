@@ -1,15 +1,22 @@
 """Inbox sekme yönlendirme birim testleri."""
 
 from backend.services.inbox_sync import (
+    INBOX_DEFAULT_TAB,
     INBOX_ROUTE_ALL,
     INBOX_ROUTE_DOVIZ,
     INBOX_ROUTE_NSTAT,
     INBOX_ROUTE_SINEMALAR,
+    INBOX_TAB_ORDER,
     _finalize_route_tag,
     _route_tag_from_addrs,
     _route_tag_from_thread,
     normalize_inbox_route_tag,
 )
+
+
+def test_inbox_tab_order_and_default():
+    assert INBOX_DEFAULT_TAB == "all"
+    assert INBOX_TAB_ORDER == ("all", "doviz", "sinemalar", "nstat", "firebase")
 
 
 def test_info_sinemalar_goes_to_sinemalar_not_doviz():

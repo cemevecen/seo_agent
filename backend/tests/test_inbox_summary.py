@@ -37,6 +37,11 @@ def test_normalize_feedback_to_doviz():
     assert _normalize_summary_route("ziyaret") == "nstat"
 
 
+def test_summary_html_section_order():
+    keys = [s[0] for s in INBOX_SUMMARY_SECTIONS]
+    assert keys == ["all", "doviz", "sinemalar", "nstat", "firebase"]
+
+
 def test_summary_html_includes_all_five_sections():
     grouped = {
         "firebase": [_Thread(id=1, subject="Crash", route_tag="firebase", snippet="NPE")],
