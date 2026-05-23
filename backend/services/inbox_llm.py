@@ -137,30 +137,34 @@ def _groq_plain_text(system: str, user: str, *, model: str) -> str:
 
 def analyze_alert_thread_tr_tr(messages_plain: str, *, route_tag: str) -> str:
     """Firebase / Ziyaret uyarı e-postaları için en az 15 cümlelik durum analizi."""
+    structure = (
+        "Yanıtı Markdown biçiminde yaz; her bölüm ## başlık ile ayrılsın. "
+        "Bölümler arasında boş satır bırak. Yüzde değişimlerini aynen koru (ör. -81,42%). "
+        "Madde listeleri için - veya numaralı satır kullan."
+    )
     tag = (route_tag or "").strip().lower()
     if tag == "firebase":
         system = (
             "Sen Firebase Crashlytics ve mobil uygulama güvenilirliği uzmanısın. "
             "Aşağıdaki Firebase uyarı e-postasını Türkçe analiz et. "
             "En az 15 tam cümle yaz; daha uzun olabilir. "
-            "Şunları açıkla: hatanın ne anlama geldiği, hangi uygulama/sürüm/platform (varsa), "
-            "etkilenen kullanıcı veya olay sayısı (varsa), ANR/crash/performans türü, "
-            "olası kök nedenler, iş etkisi, aciliyet (kritik/yüksek/orta/düşük), "
-            "önerilen teknik inceleme adımları ve takip önerileri. "
+            "Şu bölümleri kullan: ## Genel özet, ## Hata profili, ## Etki ve aciliyet, "
+            "## Olası kök nedenler, ## Önerilen aksiyonlar. "
+            "Hatanın ne anlama geldiği, uygulama/sürüm/platform, etkilenen kullanıcı veya olay sayısı, "
+            "ANR/crash/performans türü, iş etkisi ve takip önerilerini açıkla. "
             "Bu e-postaya müşteri cevabı yazılmayacağını varsay; yalnızca durum değerlendirmesi yap. "
-            "Düz metin; gerekirse numaralı madde kullan."
+            + structure
         )
     elif tag == "ziyaret":
         system = (
             "Sen web analitiği ve trafik istihbaratı uzmanısın. "
             "Aşağıdaki noreply@doviz.com (Ziyaret) bildirim e-postasını Türkçe analiz et. "
             "En az 15 tam cümle yaz; daha uzun olabilir. "
-            "Verilerden önemli çıkarımlar yap: trafik hacmi/trend, dönem karşılaştırması (varsa), "
-            "anomaliler, ziyaretçi davranışı, kanal/kaynak ipuçları (varsa), "
-            "iş ve içerik stratejisi açısından anlam, dikkat gerektiren noktalar, "
-            "risk ve fırsatlar, önerilen izleme ve aksiyon adımları. "
+            "Şu bölümleri kullan: ## Genel özet, ## Desktop trafik, ## Mobil trafik, "
+            "## Trafik kaynakları, ## Anomaliler ve dikkat noktaları, ## Önerilen aksiyonlar. "
+            "Trafik hacmi/trend, dönem karşılaştırması, sayfa ve kanal vurguları, risk ve fırsatları açıkla. "
             "Bu e-postaya cevap yazılmayacağını varsay; yalnızca durum değerlendirmesi yap. "
-            "Düz metin; gerekirse numaralı madde kullan."
+            + structure
         )
     else:
         raise ValueError(f"Desteklenmeyen uyarı rotası: {route_tag}")

@@ -33,6 +33,63 @@
   .inbox-msg-body .inbox-ziyaret-wrap { max-width: 100%; overflow-x: auto; }
   .inbox-ziyaret-intro { margin: 0 0 8px; font-size: 12px; color: #475569; }
   html.dark .inbox-ziyaret-intro { color: #94a3b8; }
+  #inbox-alert-analysis-panel {
+    border: 2px solid #fbbf24;
+    background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+  }
+  html.dark #inbox-alert-analysis-panel {
+    border-color: #b45309;
+    background: linear-gradient(180deg, #451a03 0%, #1c1917 100%);
+  }
+  .inbox-analysis-title {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #b45309;
+  }
+  html.dark .inbox-analysis-title { color: #fcd34d; }
+  .inbox-alert-analysis-body { font-size: 13px; line-height: 1.65; color: #1e293b; }
+  html.dark .inbox-alert-analysis-body { color: #e2e8f0; }
+  .inbox-alert-analysis-body h3.inbox-analysis-h3 {
+    margin: 16px 0 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+    border-left: 3px solid #f59e0b;
+    padding-left: 8px;
+  }
+  html.dark .inbox-alert-analysis-body h3.inbox-analysis-h3 { color: #f8fafc; border-color: #fbbf24; }
+  .inbox-alert-analysis-body h3.inbox-analysis-h3:first-child { margin-top: 0; }
+  .inbox-alert-analysis-body h4.inbox-analysis-h4 {
+    margin: 12px 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+  }
+  html.dark .inbox-alert-analysis-body h4.inbox-analysis-h4 { color: #cbd5e1; }
+  .inbox-alert-analysis-body p { margin: 0 0 10px; }
+  .inbox-alert-analysis-body ul.inbox-analysis-ul,
+  .inbox-alert-analysis-body ol.inbox-analysis-ol {
+    margin: 0 0 12px 0;
+    padding-left: 1.25rem;
+  }
+  .inbox-alert-analysis-body li { margin-bottom: 6px; }
+  .inbox-alert-analysis-body .inbox-analysis-pct-down { color: #b91c1c; font-weight: 700; }
+  html.dark .inbox-alert-analysis-body .inbox-analysis-pct-down { color: #fca5a5; }
+  .inbox-alert-analysis-body .inbox-analysis-pct-up { color: #15803d; font-weight: 700; }
+  html.dark .inbox-alert-analysis-body .inbox-analysis-pct-up { color: #86efac; }
+  .inbox-alert-analysis-body .inbox-analysis-kpi {
+    display: inline-block;
+    margin: 0 4px 4px 0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  html.dark .inbox-alert-analysis-body .inbox-analysis-kpi { background: #334155; }
 </style>
 <div class="inbox-page mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -120,6 +177,10 @@
         <p id="inbox-ai-summary-hint" class="hidden text-[11px] text-slate-500 dark:text-slate-400">
           Özet otomatik gösterilmez. «Durum analizi» ile en az 15 cümlelik değerlendirme üretin.
         </p>
+        <div id="inbox-alert-analysis-panel" class="hidden mb-4 rounded-xl p-4 shadow-sm dark:shadow-none">
+          <h3 class="inbox-analysis-title">Durum değerlendirmesi</h3>
+          <div id="inbox-alert-analysis-body" class="inbox-alert-analysis-body"></div>
+        </div>
         <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"></div>
         <div class="my-6">
           <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
@@ -193,6 +254,113 @@
   var inboxActiveRoute = "";
   var _inboxPollBusy = false;
   var _inboxPollTimer = null;
+  var _pinnedAlertAnalysis = { id: null, text: "" };
+
+  function parseAnalysisPct(raw) {
+    var s = String(raw || "").replace(/%/g, "").trim();
+    if (!s) return NaN;
+    if (s.indexOf(",") >= 0 && s.indexOf(".") >= 0) s = s.replace(/\./g, "").replace(",", ".");
+    else if (s.indexOf(",") >= 0) s = s.replace(",", ".");
+    return parseFloat(s);
+  }
+
+  function normalizeAlertAnalysisText(raw) {
+    var text = (raw || "").trim();
+    if (!text) return "";
+    text = text.replace(/\s*(##\s+[^\n]+)/g, "\n\n$1");
+    if (text.indexOf("\n") === -1 && text.length > 350) {
+      text = text.replace(
+        /\s+((?:Genel özet|Desktop|Mobil(?: trafik)?|Trafik kaynakları|Anomal(?:i|iler)|Dikkat|Risk(?:ler)?|Fırsat(?:lar)?|Önerilen|Aksiyon(?:lar)?|Sonuç)[^:]{0,48}:)/gi,
+        "\n\n## $1"
+      );
+      if (text.indexOf("\n") === -1) {
+        text = text.replace(/([.!?])\s+(?=[A-ZİĞÜŞÖÇ0-9"«(])/g, "$1\n");
+      }
+    }
+    return text;
+  }
+
+  function highlightAnalysisInline(text) {
+    return text.replace(/(-?\d[\d.,]*\s*%)/g, function (m) {
+      var n = parseAnalysisPct(m);
+      if (isNaN(n)) return m;
+      var cls = n < 0 ? "inbox-analysis-pct-down" : n > 0 ? "inbox-analysis-pct-up" : "";
+      return cls ? '<span class="' + cls + '">' + m + "</span>" : m;
+    });
+  }
+
+  function formatAlertAnalysisHtml(raw) {
+    var text = normalizeAlertAnalysisText(raw);
+    if (!text) return "";
+    var lines = text.split(/\r?\n/);
+    var out = [];
+    var inUl = false;
+    var inOl = false;
+    function closeLists() {
+      if (inUl) { out.push("</ul>"); inUl = false; }
+      if (inOl) { out.push("</ol>"); inOl = false; }
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) {
+        closeLists();
+        continue;
+      }
+      if (/^##\s+/.test(line)) {
+        closeLists();
+        out.push('<h3 class="inbox-analysis-h3">' + esc(line.replace(/^##\s+/, "").replace(/:$/, "")) + "</h3>");
+        continue;
+      }
+      if (/^###\s+/.test(line)) {
+        closeLists();
+        out.push('<h4 class="inbox-analysis-h4">' + esc(line.replace(/^###\s+/, "").replace(/:$/, "")) + "</h4>");
+        continue;
+      }
+      if (/^[A-ZİĞÜŞÖÇ0-9][^:]{1,70}:$/.test(line)) {
+        closeLists();
+        out.push('<h4 class="inbox-analysis-h4">' + esc(line.replace(/:$/, "")) + "</h4>");
+        continue;
+      }
+      if (/^[-*•]\s+/.test(line)) {
+        if (!inUl) { closeLists(); out.push('<ul class="inbox-analysis-ul">'); inUl = true; }
+        out.push("<li>" + highlightAnalysisInline(esc(line.replace(/^[-*•]\s+/, ""))) + "</li>");
+        continue;
+      }
+      if (/^\d+[.)]\s+/.test(line)) {
+        if (!inOl) { closeLists(); out.push('<ol class="inbox-analysis-ol">'); inOl = true; }
+        out.push("<li>" + highlightAnalysisInline(esc(line.replace(/^\d+[.)]\s+/, ""))) + "</li>");
+        continue;
+      }
+      closeLists();
+      out.push("<p>" + highlightAnalysisInline(esc(line)) + "</p>");
+    }
+    closeLists();
+    return out.join("");
+  }
+
+  function hideAlertAnalysisPanel() {
+    var panel = document.getElementById("inbox-alert-analysis-panel");
+    var body = document.getElementById("inbox-alert-analysis-body");
+    if (panel) panel.classList.add("hidden");
+    if (body) body.innerHTML = "";
+  }
+
+  function showAlertAnalysisPanel(text, threadId) {
+    var panel = document.getElementById("inbox-alert-analysis-panel");
+    var body = document.getElementById("inbox-alert-analysis-body");
+    if (!panel || !body) return;
+    _pinnedAlertAnalysis = { id: threadId || selectedId, text: text || "" };
+    body.innerHTML = formatAlertAnalysisHtml(text);
+    panel.classList.remove("hidden");
+  }
+
+  function restoreAlertAnalysisIfPinned(threadId) {
+    if (_pinnedAlertAnalysis.id === threadId && (_pinnedAlertAnalysis.text || "").trim()) {
+      showAlertAnalysisPanel(_pinnedAlertAnalysis.text, threadId);
+    } else {
+      hideAlertAnalysisPanel();
+    }
+  }
 
   function inboxRouteLabel(tag) {
     var labels = {
@@ -245,13 +413,8 @@
     var alertHint = document.getElementById("inbox-ai-summary-hint");
     if (alertActions) alertActions.classList.toggle("hidden", !alertTab);
     if (alertHint) alertHint.classList.toggle("hidden", !alertTab);
-    var sum = document.getElementById("inbox-ai-summary");
-    if (sum && alertTab) {
-      sum.textContent = "";
-      sum.classList.add("hidden");
-    }
     var st = document.getElementById("inbox-analyze-alert-status");
-    if (st) st.textContent = "";
+    if (st && alertTab) st.textContent = "";
   }
 
   function showBanner(msg) {
@@ -835,13 +998,20 @@
     });
   }
 
-  async function openDetail(id) {
+  async function openDetail(id, opts) {
+    opts = opts || {};
+    var prevId = selectedId;
     selectedId = id;
+    if (prevId !== id) {
+      _pinnedAlertAnalysis = { id: null, text: "" };
+    }
     replyToGmailId = null;
-    try {
-      await jfetch("/api/inbox/threads/" + id + "/refresh-bodies", { method: "POST" });
-    } catch (e) {
-      /* Gmail yenileme isteğe bağlı; başarısız olsa da detay gösterilir */
+    if (!opts.skipRefresh) {
+      try {
+        await jfetch("/api/inbox/threads/" + id + "/refresh-bodies", { method: "POST" });
+      } catch (e) {
+        /* Gmail yenileme isteğe bağlı; başarısız olsa da detay gösterilir */
+      }
     }
     var data = await jfetch("/api/inbox/threads/" + id);
     var t = data.thread;
@@ -853,12 +1023,19 @@
     document.getElementById("inbox-detail-meta").textContent =
       "Rota: " + inboxRouteLabel(t.route_tag) + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
     toggleInboxReplyMode(t.route_tag);
-    var sum = document.getElementById("inbox-ai-summary");
-    sum.textContent = "";
-    sum.classList.add("hidden");
-    if (!isInboxAlertRoute(t.route_tag) && t.ai_summary && t.ai_summary.trim()) {
-      sum.textContent = t.ai_summary;
-      sum.classList.remove("hidden");
+    if (isInboxAlertRoute(t.route_tag)) {
+      restoreAlertAnalysisIfPinned(id);
+    } else {
+      hideAlertAnalysisPanel();
+      if (t.ai_summary && t.ai_summary.trim()) {
+        var sum = document.getElementById("inbox-ai-summary");
+        sum.textContent = t.ai_summary;
+        sum.classList.remove("hidden");
+      } else {
+        var sumHide = document.getElementById("inbox-ai-summary");
+        sumHide.textContent = "";
+        sumHide.classList.add("hidden");
+      }
     }
     // ALICI: önce gövdeden gerçek e-postayı bul, yoksa from_addr headerını kullan
     document.getElementById("inbox-send-to").value = getReplyRecipient(messages, lastInboundFrom(messages));
@@ -981,13 +1158,6 @@
     _inboxPollBusy = true;
     try {
       await loadThreads();
-      if (selectedId) {
-        try {
-          await openDetail(selectedId);
-        } catch (e) {
-          /* detay yenileme isteğe bağlı */
-        }
-      }
     } catch (e) {
       /* sessiz arka plan yenileme */
     } finally {
@@ -1089,10 +1259,10 @@
     if (st) st.textContent = "Analiz üretiliyor…";
     try {
       var out = await jfetch("/api/inbox/threads/" + selectedId + "/analyze-alert", { method: "POST" });
-      var sum = document.getElementById("inbox-ai-summary");
-      sum.textContent = out.analysis || "";
-      sum.classList.remove("hidden");
+      showAlertAnalysisPanel(out.analysis || "", selectedId);
       if (st) st.textContent = "Tamamlandı.";
+      var panel = document.getElementById("inbox-alert-analysis-panel");
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (e) {
       if (st) st.textContent = "";
       showBanner(String(e.message || e));
