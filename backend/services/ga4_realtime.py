@@ -79,6 +79,16 @@ def _sort_sites(sites: list) -> list:
     return sorted(sites, key=lambda s: _domain_sort_key(s.domain))
 
 
+def _realtime_email_thread_key(domain: str, profile: str) -> str:
+    """Site + profil için sabit Gmail iş parçacığı anahtarı (mailer `thread_kind` ile birlikte)."""
+    dom = (domain or "").strip().lower()
+    if dom.startswith("www."):
+        dom = dom[4:]
+    dom = re.sub(r"[^a-z0-9.-]", "", dom) or "site"
+    prof = re.sub(r"[^a-z0-9]", "", (profile or "web").strip().lower()) or "web"
+    return f"{dom}.{prof}"
+
+
 
     """Gmail iş parçacığı / References için site+profil anahtarı (ASCII, kısa)."""
     d = (domain or "").strip().lower()
