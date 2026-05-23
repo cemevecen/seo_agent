@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -832,8 +833,8 @@ WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DA
     if total_sess < 10 and total_inst < 10:
         return None
     # Oturum bazlı (Console'daki crash-free sessions'a yakın)
-    cfs = round((1 - crashed_sess / total_sess) * 100, 2) if total_sess > 0 else None
-    cfu = round((1 - fatal_users / total_inst) * 100, 2) if total_inst > 0 else None
+    cfs = round((1 - crashed_sess / total_sess) * 100, 4) if total_sess > 0 else None
+    cfu = round((1 - fatal_users / total_inst) * 100, 4) if total_inst > 0 else None
     pct = cfs if cfs is not None else cfu
     if pct is None:
         return None
@@ -1385,16 +1386,32 @@ LIMIT {days + 5}
     ], err
 
 
-def query_available_versions(platform: str, table: str, days: int) -> list[str]:
+def query_available_versions(platform: str, table: str, days: int, *, limit: int = 200) -> list[str]:
     sql = f"""
 SELECT DISTINCT application.display_version AS v
 FROM {table}
 WHERE {_ts_filter(days)} AND application.display_version IS NOT NULL
+  AND application.display_version != ''
 ORDER BY v DESC
-LIMIT 30
+LIMIT {limit}
 """
     rows, _ = _run_query(platform, sql, skip_budget=True)
-    return [str(r.get("v", "")) for r in rows if r.get("v")]
+    versions = [str(r.get("v", "")).strip() for r in rows if r.get("v")]
+    return _semver_sort_versions(versions)
+
+
+def _semver_sort_versions(versions: list[str]) -> list[str]:
+    def key(v: str) -> tuple:
+        parts = re.split(r"[.\-_]", v)
+        nums: list[int] = []
+        for p in parts:
+            try:
+                nums.append(int(p))
+            except ValueError:
+                nums.append(0)
+        return tuple(nums)
+
+    return sorted(set(versions), key=key, reverse=True)
 
 
 # ── Issue derinlik sorgusu (drill-down) ───────────────────────────────────────
@@ -1709,6 +1726,22 @@ def _merge_issues(results: list[tuple[str, list[dict]]], *, days: int = 7) -> li
     return [enrich_issue_row(row, days=days) for row in out]
 
 
+def _aggregate_crash_free(cfp: dict[str, dict]) -> dict[str, float | None]:
+    """Platform birleşik crash-free — users ve sessions ayrı, yüksek hassasiyet."""
+    total_sess = sum(int(v.get("total_sessions") or 0) for v in cfp.values())
+    crashed_sess = sum(int(v.get("crashed_sessions") or 0) for v in cfp.values())
+    total_inst = sum(int(v.get("total_users") or 0) for v in cfp.values())
+    crashed_inst = sum(int(v.get("crashed_users") or 0) for v in cfp.values())
+    cfs = round((1 - crashed_sess / total_sess) * 100, 4) if total_sess > 0 else None
+    cfu = round((1 - crashed_inst / total_inst) * 100, 4) if total_inst > 0 else None
+    primary = cfs if cfs is not None else cfu
+    return {
+        "crash_free_pct": primary,
+        "crash_free_sessions_pct": cfs,
+        "crash_free_users_pct": cfu,
+    }
+
+
 def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str, Any]:
     """platform=all cache'inden ios/android görünümünü bellek içi dilimle — BQ tekrar çalışmaz."""
     plat = (platform or "all").strip().lower()
@@ -1731,7 +1764,14 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
 
     cf = (data.get("crash_free_by_platform") or {}).get(plat)
     out["crash_free_by_platform"] = {plat: cf} if cf else {}
-    out["crash_free_pct"] = cf.get("crash_free_pct") if cf else None
+    if cf:
+        out["crash_free_pct"] = cf.get("crash_free_pct")
+        out["crash_free_sessions_pct"] = cf.get("crash_free_sessions_pct")
+        out["crash_free_users_pct"] = cf.get("crash_free_users_pct")
+    else:
+        out["crash_free_pct"] = None
+        out["crash_free_sessions_pct"] = None
+        out["crash_free_users_pct"] = None
     out["crash_free_method"] = cf.get("method") if cf else None
     hints = [h for h in (data.get("crash_free_hints") or []) if h.upper().startswith(plat.upper())]
     out["crash_free_hints"] = hints
@@ -1754,6 +1794,9 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
     out["device_breakdown"] = (data.get("device_breakdown_by_platform") or {}).get(plat) or []
     out["os_breakdown"] = (data.get("os_breakdown_by_platform") or {}).get(plat) or []
     out["process_state_breakdown"] = (data.get("process_state_breakdown_by_platform") or {}).get(plat) or []
+    out["filter_versions_by_platform"] = {
+        plat: (data.get("filter_versions_by_platform") or {}).get(plat) or []
+    }
     return out
 
 
@@ -1823,6 +1866,7 @@ def build_full_payload(
         device_all: list[tuple[str, list[dict]]] = []
         os_all: list[tuple[str, list[dict]]] = []
         process_all: list[tuple[str, list[dict]]] = []
+        filter_ver_all: list[tuple[str, list[str]]] = []
         oldest_days_all: list[int] = []
         errors: list[str] = []
         meta = APP_PRODUCTS.get(pid, {})
@@ -1848,13 +1892,14 @@ def build_full_payload(
                 "process_state": lambda: ("process_state", *query_process_state_breakdown(plat, batch_ref, days)),
                 "oldest_date":  lambda: ("oldest_date",  query_oldest_date(plat, tbl, days),          None),
                 "chip_versions": lambda: ("chip_versions", *query_version_breakdown(plat, tbl, chip_days)),
+                "filter_versions": lambda: ("filter_versions", query_available_versions(plat, tbl, days), None),
             }
             with ThreadPoolExecutor(max_workers=8) as sub_pool:
                 sub_futs = {sub_pool.submit(fn): name for name, fn in sub_tasks.items()}
                 for fut in as_completed(sub_futs):
                     try:
                         key, data, err = fut.result()
-                        if key in ("summary", "crash_free", "oldest_date"):
+                        if key in ("summary", "crash_free", "oldest_date", "filter_versions"):
                             out[key] = data
                         else:
                             out[key] = data
@@ -1862,7 +1907,7 @@ def build_full_payload(
                     except Exception as exc:
                         name = sub_futs[fut]
                         out[name] = [] if name != "summary" else {}
-                        if name not in ("summary", "crash_free", "oldest_date"):
+                        if name not in ("summary", "crash_free", "oldest_date", "filter_versions"):
                             out[f"{name}_err"] = str(exc)[:200]
             return out
 
@@ -1899,6 +1944,8 @@ def build_full_payload(
                         os_all.append((plat, res["os"]))
                     if res.get("process_state"):
                         process_all.append((plat, res["process_state"]))
+                    if res.get("filter_versions"):
+                        filter_ver_all.append((plat, res["filter_versions"]))
                     if res.get("oldest_date") is not None:
                         oldest_days_all.append(res["oldest_date"])
                     seen_for_plat: set[str] = set()
@@ -1929,9 +1976,10 @@ def build_full_payload(
             totals["non_fatal"] += s.get("non_fatal", 0)
             totals["affected_users"] += s.get("affected_users", 0)
 
-        cf_total_users = sum(v.get("total_users", 0) for v in crash_free_by_plat.values())
-        cf_crashed = sum(v.get("crashed_users", 0) for v in crash_free_by_plat.values())
-        crash_free_pct = round((1 - cf_crashed / cf_total_users) * 100, 2) if cf_total_users > 0 else None
+        cf_agg = _aggregate_crash_free(crash_free_by_plat) if crash_free_by_plat else {}
+        crash_free_pct = cf_agg.get("crash_free_pct")
+        crash_free_sessions_pct = cf_agg.get("crash_free_sessions_pct")
+        crash_free_users_pct = cf_agg.get("crash_free_users_pct")
         cf_methods = {plat: (v.get("method") or "") for plat, v in crash_free_by_plat.items()}
         crash_free_method = "firebase_sessions" if any(m == "firebase_sessions" for m in cf_methods.values()) else None
         crash_free_hints: list[str] = []
@@ -2010,6 +2058,8 @@ def build_full_payload(
                 key=lambda x: -x["event_count"],
             )
 
+        filter_versions_by_platform = {plat: vers for plat, vers in filter_ver_all}
+
         version_trend_merged: list[dict] = []
         for _plat, rows in version_trend_all:
             version_trend_merged.extend(rows)
@@ -2024,6 +2074,8 @@ def build_full_payload(
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "totals": totals,
             "crash_free_pct": crash_free_pct,
+            "crash_free_sessions_pct": crash_free_sessions_pct,
+            "crash_free_users_pct": crash_free_users_pct,
             "crash_free_method": crash_free_method,
             "crash_free_hints": crash_free_hints,
             "crash_free_by_platform": crash_free_by_plat,
@@ -2034,6 +2086,7 @@ def build_full_payload(
             "anr_by_platform": anr_by_platform,
             "versions": _merge_versions(ver_all),
             "versions_by_platform": {plat: rows for plat, rows in chip_ver_all},
+            "filter_versions_by_platform": filter_versions_by_platform,
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
             "version_trend": version_trend_merged,

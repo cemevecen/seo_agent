@@ -116,10 +116,16 @@
       <span class="text-[11px] text-amber-700 dark:text-amber-300">Bu dönem için BigQuery'de yeterli geçmiş veri olmayabilir — streaming export yakın zamanda etkinleştirildiğinden veriler eksik görünebilir.</span>
     </div>
 
-    {# Versiyon filtresi — Versiyonlar yüklendikten sonra JS tarafından doldurulur #}
-    <div id="crash-version-bar" class="hidden items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
-      <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
-      <div id="crash-version-chips" class="flex flex-wrap gap-1.5"></div>
+    {# Versiyon filtresi — tüm sürümler, çoklu seçim #}
+    <div id="crash-version-bar" class="hidden flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
+        <button type="button" id="crash-version-all-btn" class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600">Tümü</button>
+        <input type="search" id="crash-version-search" placeholder="Sürüm ara (ör. 7.0.0)…"
+          class="min-w-[10rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+        <span id="crash-version-count" class="text-[10px] tabular-nums text-slate-400"></span>
+      </div>
+      <div id="crash-version-chips" class="flex max-h-32 flex-wrap gap-1 overflow-y-auto overscroll-contain"></div>
     </div>
 
     {# Tüm içerik: Özet + Crash'ler + ANR + Versiyonlar dikey sıralı #}
@@ -205,9 +211,11 @@
 
   var crashState = {
     platform: "all", days: 7, type: "", version: "",
+    versions: [],
     product: (new URLSearchParams(window.location.search).get("product") || "doviz").toLowerCase(),
     pollTimer: null, debounceTimer: null,
     htmlCache: {},
+    filterVersionsByPlat: { ios: [], android: [] },
     seqs: { summary: 0, "version-chart": 0, breakdown: 0, crashes: 0, anr: 0, versions: 0 },
     detailCtx: null
   };
@@ -254,9 +262,19 @@
 
   function syncVersionChips() {
     var chipsEl = document.getElementById("crash-version-chips");
+    var allBtn = document.getElementById("crash-version-all-btn");
     if (!chipsEl) return;
+    var selected = crashState.versions || [];
+    if (allBtn) setBtnActive(allBtn, selected.length === 0);
     chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
-      setBtnActive(b, b.getAttribute("data-ver") === crashState.version);
+      var v = b.getAttribute("data-ver");
+      if (!v) return;
+      var on = selected.indexOf(v) !== -1;
+      b.classList.toggle("ring-2", on);
+      b.classList.toggle("ring-indigo-400", on);
+      b.classList.toggle("bg-indigo-100", on);
+      b.classList.toggle("dark:bg-indigo-900/40", on);
+      b.classList.toggle("border-indigo-400", on);
     });
   }
 
@@ -266,28 +284,47 @@
     var days = o.days != null ? o.days : crashState.days;
     var typ = o.type != null ? o.type : crashState.type;
     var ver = o.version != null ? o.version : crashState.version;
-  var prod = o.product != null ? o.product : crashState.product;
-    return "/api/app/crashlytics/" + name
+    var vers = o.versions != null ? o.versions : crashState.versions;
+    var prod = o.product != null ? o.product : crashState.product;
+    var base = "/api/app/crashlytics/" + name
       + "?product=" + encodeURIComponent(prod)
       + "&days=" + days
       + "&platform=" + plat
-      + "&type=" + encodeURIComponent(typ)
-      + (ver ? "&version=" + encodeURIComponent(ver) : "");
+      + "&type=" + encodeURIComponent(typ);
+    if (vers && vers.length) {
+      return base + "&versions=" + encodeURIComponent(vers.join(","));
+    }
+    if (ver) return base + "&version=" + encodeURIComponent(ver);
+    return base;
   }
 
   function cacheKey(name, overrides) {
     var o = overrides || {};
+    var vers = o.versions != null ? o.versions : crashState.versions;
+    var verKey = (vers && vers.length) ? vers.join(",") : (o.version != null ? o.version : crashState.version);
     return [
       o.product != null ? o.product : crashState.product,
       o.days != null ? o.days : crashState.days,
       o.platform != null ? o.platform : crashState.platform,
       o.type != null ? o.type : crashState.type,
-      o.version != null ? o.version : crashState.version,
+      verKey,
       name
     ].join("|");
   }
 
   function clearHtmlCache() { crashState.htmlCache = {}; }
+
+  function ingestFilterVersionsMeta(root) {
+    if (!root) return;
+    var el = root.querySelector ? root.querySelector("#crash-filter-versions-meta") : document.getElementById("crash-filter-versions-meta");
+    if (!el) return;
+    try {
+      var j = JSON.parse(el.textContent || "{}");
+      if (j.ios) crashState.filterVersionsByPlat.ios = j.ios;
+      if (j.android) crashState.filterVersionsByPlat.android = j.android;
+    } catch (_) {}
+    renderVersionChips();
+  }
 
   function setSecLoading(name) {
     var box = document.getElementById(SEC_IDS[name]);
@@ -302,6 +339,7 @@
     var key = cacheKey(name, opts.overrides);
     if (crashState.htmlCache[key] && !opts.force) {
       applySectionHtml(name, crashState.htmlCache[key]);
+      if (name === "summary") ingestFilterVersionsMeta(document.getElementById(SEC_IDS.summary));
       return;
     }
     // Önceki uçuştaki isteği iptal et
@@ -327,6 +365,7 @@
         if (!html || crashState.seqs[name] !== seq) return;
         crashState.htmlCache[key] = html;
         applySectionHtml(name, html);
+        if (name === "summary") ingestFilterVersionsMeta(box);
       })
       .catch(function (e) {
         if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
@@ -414,15 +453,19 @@
     });
   }
 
-  function makeChip(v, label) {
+  function makeVersionChip(v) {
     var btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("data-ver", v);
-    btn.textContent = label || v || "Tümü";
-    btn.className = "rounded-md px-2.5 py-1 text-[11px] font-semibold transition";
-    setBtnActive(btn, crashState.version === v);
+    btn.textContent = v;
+    btn.className = "rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
     btn.addEventListener("click", function () {
-      crashState.version = v;
+      var list = (crashState.versions || []).slice();
+      var idx = list.indexOf(v);
+      if (idx === -1) list.push(v);
+      else list.splice(idx, 1);
+      crashState.versions = list;
+      crashState.version = list.length === 1 ? list[0] : "";
       syncVersionChips();
       loadDebounced("version");
     });
@@ -439,68 +482,68 @@
     return span;
   }
 
-  function populateVersionChips(versionsBox) {
-    var bar     = document.getElementById("crash-version-bar");
+  function renderVersionChips() {
+    var bar = document.getElementById("crash-version-bar");
     var chipsEl = document.getElementById("crash-version-chips");
+    var countEl = document.getElementById("crash-version-count");
+    var searchEl = document.getElementById("crash-version-search");
     if (!bar || !chipsEl) return;
 
-    // Versiyon filtresi aktifken chip listesini yeniden çizme — sadece aktif durumu senkronize et
-    if (crashState.version) { syncVersionChips(); return; }
+    var plat = crashState.platform;
+    var iosV = crashState.filterVersionsByPlat.ios || [];
+    var andV = crashState.filterVersionsByPlat.android || [];
+    var q = (searchEl && searchEl.value || "").trim().toLowerCase();
 
-    // Per-platform version data from hidden meta element
-    var meta = versionsBox.querySelector
-      ? versionsBox.querySelector("#crash-versions-by-plat")
-      : document.getElementById("crash-versions-by-plat");
-    var iosVers = [], androidVers = [];
-    if (meta) {
-      try { iosVers     = JSON.parse(meta.getAttribute("data-ios")     || "[]"); } catch (_) {}
-      try { androidVers = JSON.parse(meta.getAttribute("data-android") || "[]"); } catch (_) {}
-    }
-    // Fallback: tüm satırlardan oku (platform farkı yok)
-    if (!iosVers.length && !androidVers.length) {
-      var seen = [];
-      versionsBox.querySelectorAll("tr[data-app-version]").forEach(function (r) {
-        var v = r.getAttribute("data-app-version");
-        if (v && seen.indexOf(v) === -1) seen.push(v);
-      });
-      androidVers = seen;
-    }
-
-    iosVers     = semverSort(iosVers).slice(0, 5);
-    androidVers = semverSort(androidVers).slice(0, 5);
-
-    if (!iosVers.length && !androidVers.length) {
-      bar.classList.add("hidden"); bar.classList.remove("flex"); return;
+    if (!iosV.length && !andV.length) {
+      bar.classList.add("hidden");
+      bar.classList.remove("flex");
+      return;
     }
 
     chipsEl.innerHTML = "";
+    var shown = 0;
 
-    // "Tümü" butonu — her iki platform sıfırlar
-    chipsEl.appendChild(makeChip("", "Tümü"));
-
-    // iOS grubu
-    if (iosVers.length) {
-      // separator
-      var sep1 = document.createElement("span");
-      sep1.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
-      chipsEl.appendChild(sep1);
-      // platform badge
-      chipsEl.appendChild(platBadge("ios"));
-      iosVers.forEach(function (v) { chipsEl.appendChild(makeChip(v)); });
+    function addGroup(platKey, vers) {
+      var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
+      if (!filtered.length) return;
+      if (plat === "all") chipsEl.appendChild(platBadge(platKey));
+      filtered.forEach(function (v) { chipsEl.appendChild(makeVersionChip(v)); shown++; });
     }
 
-    // Android grubu
-    if (androidVers.length) {
-      var sep2 = document.createElement("span");
-      sep2.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
-      chipsEl.appendChild(sep2);
-      chipsEl.appendChild(platBadge("android"));
-      androidVers.forEach(function (v) { chipsEl.appendChild(makeChip(v)); });
+    if (plat === "ios") addGroup("ios", iosV);
+    else if (plat === "android") addGroup("android", andV);
+    else {
+      addGroup("ios", iosV);
+      if (iosV.length && andV.length) {
+        var sep = document.createElement("span");
+        sep.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
+        chipsEl.appendChild(sep);
+      }
+      addGroup("android", andV);
     }
 
+    if (countEl) {
+      var sel = (crashState.versions || []).length;
+      countEl.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
+    }
     bar.classList.remove("hidden");
     bar.classList.add("flex");
-    bar.style.flexWrap = "wrap";
+    syncVersionChips();
+  }
+
+  function populateVersionChips(versionsBox) {
+    var meta = versionsBox && versionsBox.querySelector
+      ? versionsBox.querySelector("#crash-versions-by-plat")
+      : document.getElementById("crash-versions-by-plat");
+    if (meta) {
+      try {
+        var fi = JSON.parse(meta.getAttribute("data-filter-ios") || "[]");
+        var fa = JSON.parse(meta.getAttribute("data-filter-android") || "[]");
+        if (fi.length) crashState.filterVersionsByPlat.ios = fi;
+        if (fa.length) crashState.filterVersionsByPlat.android = fa;
+      } catch (_) {}
+    }
+    renderVersionChips();
   }
 
   // ── Progress bar ──
@@ -812,6 +855,7 @@
       if (b.dataset.crashPlatform === crashState.platform) return;
       crashState.platform = b.dataset.crashPlatform;
       syncBtns();
+      renderVersionChips();
       loadPlatformSections();
     });
   });
@@ -837,6 +881,15 @@
       loadDebounced("all");
     });
   });
+  var verAllBtn = document.getElementById("crash-version-all-btn");
+  if (verAllBtn) verAllBtn.addEventListener("click", function () {
+    crashState.versions = [];
+    crashState.version = "";
+    syncVersionChips();
+    loadDebounced("version");
+  });
+  var verSearch = document.getElementById("crash-version-search");
+  if (verSearch) verSearch.addEventListener("input", function () { renderVersionChips(); });
   var diagBtn = document.getElementById("crash-diagnose-btn");
   if (diagBtn) diagBtn.addEventListener("click", function () {
     var days = crashState.days || 7;

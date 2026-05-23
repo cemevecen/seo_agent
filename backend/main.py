@@ -10165,9 +10165,17 @@ def _crash_params(request: Request) -> dict:
         platform = "all"
     product = (q.get("product") or "doviz").strip().lower()
     error_type = (q.get("type") or "").strip().upper() or None
-    version = (q.get("version") or "").strip() or None
-    return {"product": product, "days": days, "platform": platform,
-            "error_type": error_type, "version": version}
+    versions_raw = (q.get("versions") or q.get("version") or "").strip()
+    versions = [v.strip() for v in versions_raw.split(",") if v.strip()]
+    version = versions[0] if len(versions) == 1 else None
+    return {
+        "product": product,
+        "days": days,
+        "platform": platform,
+        "error_type": error_type,
+        "version": version,
+        "versions": versions,
+    }
 
 
 def _crash_fetch(params: dict) -> dict:
@@ -10186,24 +10194,34 @@ def _crash_fetch(params: dict) -> dict:
         data = cbq.slice_payload_for_platform(data, plat)
 
     error_type = (params.get("error_type") or "").strip().upper() or None
+    versions = params.get("versions") or []
     version = (params.get("version") or "").strip() or None
 
-    if error_type or version:
+    if error_type or versions or version:
         data = dict(data)  # shallow copy — don't mutate cache
 
         if data.get("issues"):
             issues = data["issues"]
             if error_type:
                 issues = [i for i in issues if (i.get("error_type") or "").upper() == error_type]
-            if version:
-                issues = [i for i in issues if i.get("latest_version") == version]
+            ver_filter = set(versions) if versions else ({version} if version else set())
+            if ver_filter:
+                issues = [i for i in issues if i.get("latest_version") in ver_filter]
             data["issues"] = issues
 
-        if data.get("anr") and version:
-            data["anr"] = [r for r in data["anr"] if r.get("app_version") == version]
+        if data.get("anr"):
+            ver_filter = set(versions) if versions else ({version} if version else set())
+            if ver_filter:
+                data["anr"] = [r for r in data["anr"] if r.get("app_version") in ver_filter]
+            elif version:
+                data["anr"] = [r for r in data["anr"] if r.get("app_version") == version]
 
-        if data.get("versions") and version:
-            data["versions"] = [r for r in data["versions"] if r.get("app_version") == version]
+        if data.get("versions"):
+            ver_filter = set(versions) if versions else ({version} if version else set())
+            if ver_filter:
+                data["versions"] = [r for r in data["versions"] if r.get("app_version") in ver_filter]
+            elif version:
+                data["versions"] = [r for r in data["versions"] if r.get("app_version") == version]
 
     from backend.services.android_device_names import apply_device_friendly_labels
     return apply_device_friendly_labels(data, plat)
