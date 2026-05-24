@@ -216,9 +216,9 @@
     </div>
   </div>
 
-  {# Platform bazlı kırılım — 6 kart yan yana (üst 4'lünün altında) #}
+  {# Platform bazlı kırılım — sol iOS (3), sağ Android (3) #}
   {% if data.summary_by_platform %}
-    <div class="grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 min-[900px]:grid-cols-6 sm:gap-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {% for plat in ['ios', 'android'] %}
         {% set s = data.summary_by_platform.get(plat) %}
         {% if s %}
@@ -232,9 +232,11 @@
           {% set _ = p_anr.append(d.get('anr', 0) or 0) %}
           {% set _ = p_nf.append(d.get('non_fatal', 0) or 0) %}
         {% endfor %}
-        {{ plat_metric_card(plat, cf_p, s, s.fatal or 0, 'Fatal', 'rose', p_fatal, 'f', true) }}
-        {{ plat_metric_card(plat, cf_p, s, s.anr or 0, 'ANR', 'amber', p_anr, 'a', false) }}
-        {{ plat_metric_card(plat, cf_p, s, s.non_fatal or 0, 'Non-Fatal', 'slate', p_nf, 'n', false) }}
+        <div class="flex min-w-0 flex-col gap-2 sm:gap-3">
+          {{ plat_metric_card(plat, cf_p, s, s.fatal or 0, 'Fatal', 'rose', p_fatal, 'f', true) }}
+          {{ plat_metric_card(plat, cf_p, s, s.anr or 0, 'ANR', 'amber', p_anr, 'a', false) }}
+          {{ plat_metric_card(plat, cf_p, s, s.non_fatal or 0, 'Non-Fatal', 'slate', p_nf, 'n', false) }}
+        </div>
         {% endif %}
       {% endfor %}
     </div>
