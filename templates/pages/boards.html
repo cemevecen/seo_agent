@@ -410,6 +410,57 @@
         }
       },
 
+      async reorderIssue(encodedPath, issueIid, { move_after_id, move_before_id } = {}) {
+        const qs = new URLSearchParams();
+        if (move_after_id != null) qs.set('move_after_id', move_after_id);
+        if (move_before_id != null) qs.set('move_before_id', move_before_id);
+        if (!qs.toString()) return null;
+
+        const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}/reorder?${qs}`, {
+          method: 'PUT',
+          headers: { 'PRIVATE-TOKEN': this.token }
+        });
+        if (!res.ok) throw new Error('Sıralama kaydedilemedi');
+        return await res.json();
+      },
+
+      getReorderParamsFromList(listEl, issueIid, projectPath) {
+        const items = [...listEl.querySelectorAll('[data-id]')];
+        const idx = items.findIndex(el => String(el.dataset.id) === String(issueIid));
+        if (idx === -1) return null;
+
+        const pd = this.projectData[projectPath];
+        const globalId = (el) => {
+          const iss = pd.issues.find(i => String(i.iid) === String(el.dataset.id));
+          return iss ? iss.id : null;
+        };
+
+        const params = {};
+        if (idx > 0) params.move_before_id = globalId(items[idx - 1]);
+        if (idx < items.length - 1) params.move_after_id = globalId(items[idx + 1]);
+        return params;
+      },
+
+      applyIssueUpdate(pd, updated) {
+        if (!updated || updated.iid == null) return;
+        const idx = pd.issues.findIndex(i => i.iid == updated.iid);
+        if (idx >= 0) pd.issues[idx] = { ...pd.issues[idx], ...updated };
+        pd.issues.sort((a, b) => {
+          const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
+          const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
+          return pa - pb;
+        });
+      },
+
+      async syncIssuePosition(projectPath, listEl, issueIid) {
+        const encodedPath = encodeURIComponent(projectPath);
+        const params = this.getReorderParamsFromList(listEl, issueIid, projectPath);
+        if (!params || (!params.move_after_id && !params.move_before_id)) return;
+
+        const updated = await this.reorderIssue(encodedPath, issueIid, params);
+        if (updated) this.applyIssueUpdate(this.projectData[projectPath], updated);
+      },
+
       async createIssue(path, lst) {
         if (!lst.newIssueTitle || !lst.newIssueTitle.trim()) return;
         lst.isCreating = true;
@@ -436,7 +487,18 @@
           if (!res.ok) throw new Error("Oluşturulamadı");
           
           const newIssue = await res.json();
-          this.projectData[path].issues.push(newIssue);
+          const pd = this.projectData[path];
+          pd.issues.push(newIssue);
+
+          const columnIssues = this.getIssuesForList(path, lst).filter(i => i.iid !== newIssue.iid);
+          if (columnIssues.length > 0) {
+            const updated = await this.reorderIssue(encodedPath, newIssue.iid, {
+              move_after_id: columnIssues[0].id
+            });
+            if (updated) this.applyIssueUpdate(pd, updated);
+          } else {
+            this.applyIssueUpdate(pd, newIssue);
+          }
           
           lst.newIssueTitle = '';
           lst.showNewIssueForm = false;
@@ -477,60 +539,64 @@
           },
           onEnd: async (evt) => {
             document.querySelectorAll('.sortable-list').forEach(l => l.classList.remove('is-dragging-over'));
-            
+
             const itemEl = evt.item;
             const fromList = evt.from;
             const toList = evt.to;
-            if (fromList === toList) return; 
-            
             const issueIid = itemEl.dataset.id;
-            const fromLabel = fromList.dataset.label;
-            const toLabel = toList.dataset.label;
-            const projectPath = toList.dataset.project; // aktif proje path'i
+            const projectPath = toList.dataset.project;
             const pd = this.projectData[projectPath];
-            
+            const encodedPath = encodeURIComponent(projectPath);
+            const crossColumn = fromList !== toList;
+
             const isToVirtual = toList.dataset.virtual === "true";
             const isFromVirtual = fromList.dataset.virtual === "true";
             const isToClosed = toList.dataset.closed === "true";
             const isFromClosed = fromList.dataset.closed === "true";
-            
-            const encodedPath = encodeURIComponent(projectPath);
-            let payload = {};
-            
-            if (isToClosed && !isFromClosed) {
-              payload.state_event = 'close';
-            } else if (!isToClosed && isFromClosed) {
-              payload.state_event = 'reopen';
-            }
-            
-            const addLabels = !isToVirtual && !isToClosed ? toLabel : "";
-            const removeLabels = !isFromVirtual && !isFromClosed ? fromLabel : "";
-            
-            if (addLabels) payload.add_labels = addLabels;
-            if (removeLabels) payload.remove_labels = removeLabels;
-            
+            const fromLabel = fromList.dataset.label;
+            const toLabel = toList.dataset.label;
+
             try {
-              const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}`, {
-                method: 'PUT',
-                headers: { 'PRIVATE-TOKEN': this.token, 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
-              
-              if(!res.ok) throw new Error("Update failed");
-              
-              const issueIndex = pd.issues.findIndex(i => i.iid == issueIid);
-              if(issueIndex > -1) {
-                if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
-                if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
-                
-                let labels = pd.issues[issueIndex].labels;
-                if(removeLabels) labels = labels.filter(l => l !== removeLabels);
-                if(addLabels && !labels.includes(addLabels)) labels.push(addLabels);
-                pd.issues[issueIndex].labels = labels;
+              if (crossColumn) {
+                let payload = {};
+
+                if (isToClosed && !isFromClosed) {
+                  payload.state_event = 'close';
+                } else if (!isToClosed && isFromClosed) {
+                  payload.state_event = 'reopen';
+                }
+
+                const addLabels = !isToVirtual && !isToClosed ? toLabel : "";
+                const removeLabels = !isFromVirtual && !isFromClosed ? fromLabel : "";
+
+                if (addLabels) payload.add_labels = addLabels;
+                if (removeLabels) payload.remove_labels = removeLabels;
+
+                const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}`, {
+                  method: 'PUT',
+                  headers: { 'PRIVATE-TOKEN': this.token, 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error("Update failed");
+
+                const issueIndex = pd.issues.findIndex(i => i.iid == issueIid);
+                if (issueIndex > -1) {
+                  if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
+                  if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
+
+                  let labels = pd.issues[issueIndex].labels;
+                  if (removeLabels) labels = labels.filter(l => l !== removeLabels);
+                  if (addLabels && !labels.includes(addLabels)) labels.push(addLabels);
+                  pd.issues[issueIndex].labels = labels;
+                }
               }
-            } catch(e) {
+
+              await this.syncIssuePosition(projectPath, toList, issueIid);
+            } catch (e) {
               alert("Taşıma işlemi kaydedilemedi: " + e.message);
-              this.fetchProjectData(projectPath); // refresh data
+              pd.loaded = false;
+              this.fetchProjectData(projectPath);
             }
           }
         });

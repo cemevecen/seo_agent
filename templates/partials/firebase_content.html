@@ -173,13 +173,13 @@
 
     {# Progress bar #}
     <div id="crash-progress-wrap" class="hidden border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
-      <div class="mb-1 flex items-center justify-between">
-        <span id="crash-progress-step" class="text-[11px] text-slate-500 dark:text-slate-400">Yükleniyor…</span>
+      <div class="mb-1.5 flex flex-wrap items-center gap-2">
+        <span id="crash-progress-step" class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Yükleniyor…</span>
         <span id="crash-progress-pct" class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">0%</span>
       </div>
-      <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div id="crash-progress-bar"
-          class="h-full rounded-full bg-rose-500/80 transition-all duration-300 dark:bg-rose-400/70"
+          class="h-full rounded-full bg-rose-500/80 transition-[width] duration-300 ease-out dark:bg-rose-400/70"
           style="width:0%"></div>
       </div>
     </div>
@@ -548,13 +548,13 @@
   function secLoadingHtml(name, pct, step) {
     pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
     var text = step || ((SECTION_LABELS[name] || name) + " yükleniyor…");
-    return '<div class="crash-sec-loading space-y-2.5 py-4" data-sec="' + name + '">'
-      + '<div class="flex items-center justify-between gap-3">'
-      + '<span class="min-w-0 flex-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400" data-sec-step>' + escapeHtml(text) + '</span>'
-      + '<span class="shrink-0 text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-sec-pct>' + pct + '%</span>'
+    return '<div class="crash-sec-loading space-y-2 py-4" data-sec="' + name + '">'
+      + '<div class="flex flex-wrap items-center gap-2">'
+      + '<span class="text-[11px] leading-snug text-slate-500 dark:text-slate-400" data-sec-step>' + escapeHtml(text) + '</span>'
+      + '<span class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-sec-pct>' + pct + '%</span>'
       + '</div>'
-      + '<div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">'
-      + '<div class="crash-sec-progress-bar h-full rounded-full bg-rose-500/80 transition-all duration-300 dark:bg-rose-400/70" style="width:' + pct + '%"></div>'
+      + '<div class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">'
+      + '<div class="crash-sec-progress-bar h-full rounded-full bg-rose-500/80 transition-[width] duration-300 ease-out dark:bg-rose-400/70" style="width:' + pct + '%"></div>'
       + '</div></div>';
   }
 
@@ -563,6 +563,7 @@
     phase: "sections",
     pending: {},
     done: 0,
+    loading: {},
     bq: { running: false, pct: 0, step: "" },
     onBqComplete: null
   };
@@ -570,7 +571,77 @@
   function resetLoadPending() {
     _load.pending = {};
     _load.done = 0;
+    _load.loading = {};
     SECTIONS.forEach(function (n) { _load.pending[n] = true; });
+  }
+
+  function sectionProgressInfo(name) {
+    var total = SECTIONS.length;
+    var done = _load.done;
+    var label = SECTION_LABELS[name] || name;
+    var basePct = total ? Math.round((done / total) * 100) : 0;
+
+    if (!_load.pending[name]) {
+      return { pct: 100, step: label + " hazır" };
+    }
+
+    if (_load.phase === "bq" && (_load.bq.running || _load.bq.pct < 100)) {
+      return {
+        pct: _load.bq.pct || 0,
+        step: _load.bq.step || "BigQuery sorgulanıyor…"
+      };
+    }
+
+    var isLoading = !!_load.loading[name];
+    var nextName = SECTIONS.find(function (n) { return _load.pending[n]; });
+    var active = isLoading || name === nextName;
+    var activePct = total ? Math.round(((done + (active ? 0.35 : 0)) / total) * 100) : 0;
+
+    if (active) {
+      return {
+        pct: Math.max(basePct, activePct, 4),
+        step: label + " yükleniyor · " + done + "/" + total
+      };
+    }
+    return {
+      pct: Math.max(basePct, 2),
+      step: label + " bekliyor · " + done + "/" + total
+    };
+  }
+
+  function applyCombinedProgress() {
+    var total = SECTIONS.length;
+    var done = _load.done;
+
+    if (_load.phase === "bq" && (_load.bq.running || (_load.bq.pct > 0 && _load.bq.pct < 100))) {
+      setProgress(_load.bq.pct || 0, _load.bq.step || "BigQuery sorgulanıyor…");
+    } else if (done >= total) {
+      setProgress(100, "Tamamlandı · " + total + "/" + total);
+    } else {
+      var nextName = SECTIONS.find(function (n) { return _load.pending[n]; });
+      var loadingNames = SECTIONS.filter(function (n) { return _load.pending[n] && _load.loading[n]; });
+      var pct = total ? Math.round((done / total) * 100) : 0;
+      if (loadingNames.length) {
+        pct = Math.max(pct, Math.round(((done + 0.35) / total) * 100), 4);
+      } else if (nextName) {
+        pct = Math.max(pct, 2);
+      }
+      var step;
+      if (loadingNames.length > 1) {
+        step = loadingNames.length + " bölüm yükleniyor · " + done + "/" + total;
+      } else if (nextName) {
+        step = (SECTION_LABELS[nextName] || nextName) + " yükleniyor · " + done + "/" + total;
+      } else {
+        step = done + "/" + total;
+      }
+      setProgress(pct, step);
+    }
+
+    SECTIONS.forEach(function (n) {
+      if (!_load.pending[n]) return;
+      var info = sectionProgressInfo(n);
+      updateSecProgress(n, info.pct, info.step);
+    });
   }
 
   function setSecLoading(name, pct, step) {
@@ -597,36 +668,11 @@
     if (pctEl) pctEl.textContent = pct + "%";
   }
 
-  function applyCombinedProgress() {
-    var total = SECTIONS.length;
-    var done = _load.done;
-    var secPct = total ? Math.round((done / total) * 100) : 0;
-    var bq = _load.bq;
-    var pct, step;
-    if (bq.running || (_load.phase === "bq" && bq.pct < 100 && done === 0)) {
-      pct = bq.pct || 0;
-      step = bq.step || "BigQuery sorgulanıyor…";
-    } else if (done < total) {
-      pct = Math.max(secPct, bq.pct >= 100 ? secPct : (bq.pct || 0));
-      var next = SECTIONS.find(function (n) { return _load.pending[n]; });
-      var nextLabel = next ? SECTION_LABELS[next] : "Bölüm";
-      step = (bq.pct >= 100 && bq.step ? bq.step + " · " : "")
-        + nextLabel + " (" + done + "/" + total + ")";
-    } else {
-      pct = 100;
-      step = "Tamamlandı";
-    }
-    setProgress(pct, step);
-    SECTIONS.forEach(function (n) {
-      if (_load.pending[n]) updateSecProgress(n, pct, step);
-    });
-  }
-
   function onSectionLoaded(name) {
+    delete _load.loading[name];
     if (_load.pending[name]) {
       _load.pending[name] = false;
       _load.done++;
-      updateSecProgress(name, 100, (SECTION_LABELS[name] || name) + " hazır");
     }
     applyCombinedProgress();
     tryFinishLoadCycle();
@@ -638,7 +684,7 @@
     if (SECTIONS.some(function (n) { return _load.pending[n]; })) return;
     _load.active = false;
     stopPoll();
-    setProgress(100, "Tamamlandı");
+    setProgress(100, "Tamamlandı · " + SECTIONS.length + "/" + SECTIONS.length);
     setTimeout(function () { showProgress(false); }, 450);
   }
 
@@ -651,14 +697,19 @@
     resetLoadPending();
     _load.bq = { running: false, pct: 0, step: "" };
     showProgress(true);
-    SECTIONS.forEach(function (n) { setSecLoading(n, 0, (SECTION_LABELS[n] || n) + " bekliyor…"); });
+    SECTIONS.forEach(function (n) {
+      var info = sectionProgressInfo(n);
+      setSecLoading(n, info.pct, info.step);
+    });
     applyCombinedProgress();
-    crashState.pollTimer = setInterval(pollProgressTick, 600);
-    pollProgressTick();
+    if (_load.phase === "bq") {
+      crashState.pollTimer = setInterval(pollProgressTick, 600);
+      pollProgressTick();
+    }
   }
 
   function pollProgressTick() {
-    if (!_load.active) return;
+    if (!_load.active || _load.phase !== "bq") return;
     fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -670,6 +721,7 @@
         };
         if (_load.phase === "bq" && j.done) {
           _load.phase = "sections";
+          stopPoll();
           if (_load.onBqComplete) {
             var cb = _load.onBqComplete;
             _load.onBqComplete = null;
@@ -700,7 +752,12 @@
     if (!_load.active) beginLoadCycle();
     crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
     var seq = crashState.seqs[name];
-    if (!opts.silent) setSecLoading(name, _load.bq.pct || 0, _load.bq.step || ((SECTION_LABELS[name] || name) + " sorgulanıyor…"));
+    _load.loading[name] = true;
+    applyCombinedProgress();
+    if (!opts.silent) {
+      var info = sectionProgressInfo(name);
+      setSecLoading(name, info.pct, info.step);
+    }
     var ctrl = new AbortController();
     _abortCtrls[name] = ctrl;
     var timer = setTimeout(function () { ctrl.abort(); }, 35000);
@@ -722,8 +779,13 @@
       })
       .catch(function (e) {
         if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
+        delete _load.loading[name];
         if (!box || crashState.seqs[name] !== seq) return;
-        if (e.name === "AbortError") return;
+        if (e.name === "AbortError") {
+          delete _load.loading[name];
+          applyCombinedProgress();
+          return;
+        }
         onSectionLoaded(name);
         if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
       });

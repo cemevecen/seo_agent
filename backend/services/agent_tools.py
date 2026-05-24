@@ -882,6 +882,23 @@ def ai_talk_get_messages(session_id: str) -> list[dict]:
         return []
 
 
+def ai_talk_clear_messages(session_id: str) -> dict[str, Any]:
+    """Session sohbet geçmişini veritabanından siler."""
+    try:
+        from backend.models import AiTalkHistory
+        db = SessionLocal()
+        try:
+            record = db.query(AiTalkHistory).filter_by(session_id=session_id).first()
+            if record:
+                db.delete(record)
+                db.commit()
+            return {"ok": True}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Proaktif izleme ───────────────────────────────────────────────────────────
 
 def create_alert(alert_type: str, severity: str, title: str, summary: str, detail: dict) -> None:

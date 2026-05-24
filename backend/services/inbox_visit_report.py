@@ -175,23 +175,93 @@ class _TableCollector(HTMLParser):
             self._cell_buf.append(data)
 
 
-def _pick_table_rows(body_html: str, body_text: str) -> list[list[str]]:
+_SECTION_TITLE_RE = re.compile(
+    r"(desktop\s*(?:web|trafik)?|mobil(?:e)?\s*(?:web|trafik)?|web\s*desktop|web\s*mobil|masaüstü|masaustu)",
+    re.I,
+)
+_DEFAULT_TABLE_TITLES = ("Desktop Web", "Mobil Web")
+
+
+def _is_visit_table(rows: list[list[str]]) -> bool:
+    if len(rows) < 2:
+        return False
+    return any(_URL_RE.search(" ".join(r)) for r in rows[1:])
+
+
+def _title_from_html_chunk(chunk: str) -> str:
+    chunk = re.sub(r"(?is)<(script|style)\b[^>]*>.*?</\1>", " ", chunk or "")
+    for pat in (
+        r"(?is)<h[1-6][^>]*>([^<]+)</h[1-6]>",
+        r"(?is)<(?:b|strong)[^>]*>([^<]+)</(?:b|strong)>",
+        r"(?is)<p[^>]*>([^<]{3,120})</p>",
+        r"(?is)<td[^>]*>([^<]{3,120})</td>",
+    ):
+        for raw in reversed(re.findall(pat, chunk)):
+            clean = html.unescape(re.sub(r"\s+", " ", raw).strip())
+            if not clean or len(clean) > 120:
+                continue
+            if _SECTION_TITLE_RE.search(clean) or clean.lower() in ("desktop", "mobil", "mobile", "web"):
+                return clean
+    plain = html.unescape(re.sub(r"<[^>]+>", "\n", chunk))
+    lines = [ln.strip() for ln in plain.splitlines() if ln.strip()]
+    for ln in reversed(lines[-8:]):
+        if _SECTION_TITLE_RE.search(ln):
+            return ln
+        if len(ln) <= 48 and not _URL_RE.search(ln) and "bugün" not in ln.lower():
+            return ln
+    return ""
+
+
+def _extract_titles_before_tables(body_html: str, table_count: int) -> list[str]:
+    parts = re.split(r"(?is)<table\b", body_html or "")
+    titles: list[str] = []
+    for i in range(1, min(len(parts), table_count + 1)):
+        titles.append(_title_from_html_chunk(parts[i - 1][-1200:]))
+    while len(titles) < table_count:
+        titles.append("")
+    return titles[:table_count]
+
+
+def _guess_table_title(title_hint: str, index: int, total: int) -> str:
+    hint = (title_hint or "").strip()
+    if hint:
+        return hint
+    if total == 2 and index < 2:
+        return _DEFAULT_TABLE_TITLES[index]
+    if total > 1:
+        return f"Tablo {index + 1}"
+    return ""
+
+
+def _pick_visit_tables(body_html: str, body_text: str) -> list[tuple[str, list[list[str]]]]:
+    """E-postadaki tüm ziyaret tablolarını (Desktop + Mobil vb.) başlıkla döndürür."""
     if body_html and "<table" in body_html.lower():
         parser = _TableCollector()
         try:
             parser.feed(body_html)
         except Exception:  # noqa: BLE001
             pass
-        for table in parser.tables:
-            if len(table) >= 2 and any(_URL_RE.search(" ".join(r)) for r in table[1:]):
-                return table
+        visit_tables = [t for t in parser.tables if _is_visit_table(t)]
+        if visit_tables:
+            titles = _extract_titles_before_tables(body_html, len(visit_tables))
+            return [
+                (_guess_table_title(titles[i], i, len(visit_tables)), visit_tables[i])
+                for i in range(len(visit_tables))
+            ]
     rows = _rows_from_plain_text(body_text)
     if rows:
-        return [_ZIYARET_HEADER, *rows]
+        return [("", [_ZIYARET_HEADER, *rows])]
     return []
 
 
-def _render_table_html(rows: list[list[str]]) -> str:
+def _pick_table_rows(body_html: str, body_text: str) -> list[list[str]]:
+    tables = _pick_visit_tables(body_html, body_text)
+    if not tables:
+        return []
+    return tables[0][1]
+
+
+def _render_table_html(rows: list[list[str]], *, title: str = "") -> str:
     if not rows:
         return ""
     header = [_normalize_header_label(c) for c in rows[0]]
@@ -208,27 +278,33 @@ def _render_table_html(rows: list[list[str]]) -> str:
         for i, val in enumerate(row):
             cells.append(_cell_html(val, is_pct=(i in pct_cols), is_url_col=(i == 0)))
         tbody_parts.append(f"<tr>{''.join(cells)}</tr>")
+    title_html = (
+        f'<p class="inbox-ziyaret-section-title">{html.escape(title)}</p>'
+        if (title or "").strip()
+        else ""
+    )
     return (
+        f'<section class="inbox-ziyaret-section">{title_html}'
         '<div class="inbox-ziyaret-report">'
         '<table class="inbox-ziyaret-table"><thead><tr>'
-        f"{thead}</tr></thead><tbody>{''.join(tbody_parts)}</tbody></table></div>"
+        f"{thead}</tr></thead><tbody>{''.join(tbody_parts)}</tbody></table></div></section>"
     )
 
 
 def render_ziyaret_message_html(*, body_html: str = "", body_text: str = "") -> str:
     """Ziyaret raporu gövdesini Gmail benzeri tablo + renkli yüzde ile döndürür."""
-    rows = _pick_table_rows(body_html, body_text)
-    if not rows:
+    tables = _pick_visit_tables(body_html, body_text)
+    if not tables:
         fallback = html.escape(body_text or "").replace("\n", "<br>")
         return f'<div class="inbox-ziyaret-fallback">{fallback}</div>'
-    table = _render_table_html(rows)
+    rendered = "".join(_render_table_html(rows, title=title) for title, rows in tables)
     intro = ""
     plain = (body_text or "").strip()
     if plain:
         before_url = plain.split("https://", 1)[0].strip()
         if before_url and len(before_url) < 400 and "Bugün" not in before_url[:80]:
             intro = f'<p class="inbox-ziyaret-intro">{html.escape(before_url)}</p>'
-    return f'<div class="inbox-ziyaret-wrap">{intro}{table}</div>'
+    return f'<div class="inbox-ziyaret-wrap">{intro}{rendered}</div>'
 
 
 def ziyaret_thread_preview(body_text: str, *, max_rows: int = 2) -> str:

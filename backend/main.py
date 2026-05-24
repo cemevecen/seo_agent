@@ -6800,6 +6800,103 @@ def _home_format_int(n: float) -> str:
     return str(n)
 
 
+def _home_cf_fmt(pct: float | None) -> str:
+    if pct is None:
+        return "—"
+    try:
+        v = float(pct)
+    except (TypeError, ValueError):
+        return "—"
+    if v >= 99.995:
+        return f"{v:.4f}%"
+    return f"{v:.2f}%"
+
+
+def _home_crashlytics_card(product_id: str) -> dict:
+    """Ana sayfa Firebase/Crashlytics mini kart — cache-only, soğuksa arka planda ısıtır."""
+    from backend.services import crashlytics_bq as cbq
+    from backend.services.app_intel import APP_PRODUCTS
+
+    pid = (product_id or "doviz").strip().lower()
+    label = APP_PRODUCTS.get(pid, {}).get("label") or pid
+    out: dict = {
+        "product_id": pid,
+        "product_label": label,
+        "ok": False,
+        "warming": False,
+        "days": 7,
+    }
+    if pid not in APP_PRODUCTS:
+        out["message"] = "Ürün tanımlı değil"
+        return out
+
+    payload = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
+    if not payload:
+        if cbq.is_cache_warm(pid):
+            payload = cbq.build_full_payload(pid, days=7, platform_filter="all")
+        else:
+            cbq.prewarm_cache(pid)
+            out["warming"] = True
+            out["message"] = "Crashlytics verisi arka planda yükleniyor…"
+            return out
+
+    if not payload or payload.get("ok") is False:
+        out["message"] = (payload or {}).get("message") or "BigQuery verisi yok"
+        out["configured"] = (payload or {}).get("configured", True)
+        return out
+
+    totals = payload.get("totals") or {}
+    summary_by = payload.get("summary_by_platform") or {}
+    cf_by = payload.get("crash_free_by_platform") or {}
+    issues_by = payload.get("issues_by_platform") or {}
+
+    platforms: list[dict] = []
+    for plat, plat_label in (("ios", "iOS"), ("android", "Android")):
+        summ = summary_by.get(plat) or {}
+        cf = cf_by.get(plat) or {}
+        cf_pct = cf.get("crash_free_sessions_pct")
+        if cf_pct is None:
+            cf_pct = cf.get("crash_free_pct")
+        issues = issues_by.get(plat) or []
+        top = issues[0] if issues else None
+        platforms.append(
+            {
+                "key": plat,
+                "label": plat_label,
+                "crash_free_fmt": _home_cf_fmt(cf_pct),
+                "fatal_fmt": _home_format_int(summ.get("fatal") or 0),
+                "anr_fmt": _home_format_int(summ.get("anr") or 0),
+                "top_issue_title": ((top.get("title") or top.get("issue_title") or "")[:72] if top else None),
+                "top_issue_events_fmt": _home_format_int(top.get("event_count") or 0) if top else None,
+                "has_data": bool(summ.get("fatal") or summ.get("anr") or issues),
+            }
+        )
+
+    top_all = (payload.get("issues") or [])[:1]
+    top_global = top_all[0] if top_all else None
+
+    out.update(
+        {
+            "ok": True,
+            "days": payload.get("days") or 7,
+            "crash_free_fmt": _home_cf_fmt(
+                payload.get("crash_free_sessions_pct") or payload.get("crash_free_pct")
+            ),
+            "fatal_fmt": _home_format_int(totals.get("fatal") or 0),
+            "anr_fmt": _home_format_int(totals.get("anr") or 0),
+            "non_fatal_fmt": _home_format_int(totals.get("non_fatal") or 0),
+            "platforms": platforms,
+            "top_issue_title": (
+                (top_global.get("title") or top_global.get("issue_title") or "")[:72] if top_global else None
+            ),
+            "top_issue_events_fmt": (
+                _home_format_int(top_global.get("event_count") or 0) if top_global else None
+            ),
+        }
+    )
+    return out
+
+
 def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
     try:
         c = float(cur); p = float(prev)
@@ -7120,6 +7217,8 @@ def home_summary_payload(db) -> dict:
                 "position_drops_7d": _home_position_drops_for_site(db, site_id, limit=5),
             }
         )
+        if site_id == 1:
+            sites_out[-1]["crashlytics_7d"] = _home_crashlytics_card("doviz")
     return {
         "page": "home",
         "title": "Günün Özeti",
@@ -7217,6 +7316,24 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
         "ratings_fmt": ratings_fmt,
         "rank_fmt": rank_fmt,
     }
+
+
+@app.get("/api/home/crashlytics", response_class=HTMLResponse)
+def api_home_crashlytics(request: Request, product: str | None = None):
+    """Ana sayfa Firebase Crashlytics özeti — yalnızca doviz (Sinemalar BQ yok)."""
+    pid = (product or "doviz").strip().lower()
+    if pid != "doviz":
+        pid = "doviz"
+    card = _home_crashlytics_card(pid)
+    return templates.TemplateResponse(
+        request,
+        "partials/home/crashlytics.html",
+        context={
+            "request": request,
+            "card": card,
+            "firebase_url": f"/firebase?product={pid}",
+        },
+    )
 
 
 @app.get("/api/home/app-release", response_class=HTMLResponse)
@@ -14226,6 +14343,13 @@ def api_agent_history(session_id: str):
     from backend.services.agent_tools import ai_talk_get_messages
     messages = ai_talk_get_messages(session_id)
     return JSONResponse({"messages": messages, "count": len(messages)})
+
+
+@app.delete("/api/agent/history/{session_id}")
+def api_agent_history_clear(session_id: str):
+    """Sohbet geçmişini siler."""
+    from backend.services.agent_tools import ai_talk_clear_messages
+    return JSONResponse(ai_talk_clear_messages(session_id))
 
 
 @app.get("/api/agent/alerts")

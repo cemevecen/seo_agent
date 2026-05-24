@@ -2628,6 +2628,17 @@ def is_cache_warm(product_id: str = "doviz", days: int = 7, platform_filter: str
     return _cache_get(key) is not None or _cache_get_stale(key) is not None
 
 
+def peek_cached_payload(
+    product_id: str = "doviz",
+    days: int = 7,
+    platform_filter: str = "all",
+) -> dict[str, Any] | None:
+    """Ana sayfa gibi hafif okumalar için cache'teki payload (fresh veya stale)."""
+    pid = (product_id or "doviz").strip().lower()
+    key = f"{pid}:{days}:{platform_filter}"
+    return _cache_get(key) or _cache_get_stale(key)
+
+
 def prewarm_cache(product_id: str = "doviz") -> None:
     """Startup veya scheduled re-warm için arka planda cache'i ısıt.
     Manuel refresh'ten farklı olarak cache/circuit breaker'ı sıfırlamaz —

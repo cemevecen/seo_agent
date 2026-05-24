@@ -2,14 +2,16 @@
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo) ince çerçeve.
      Tailwind ring-1 zaten 1px box-shadow yapıyor; sadece rengini override ediyoruz. */
   section[hx-get*="site=doviz"],
-  section[hx-get="/api/home/app-release"] {
+  section[hx-get="/api/home/app-release"],
+  section[hx-get*="crashlytics?product=doviz"] {
     --tw-ring-color: rgba(59, 130, 246, 0.55) !important;   /* blue-500 @ 55% */
   }
   section[hx-get*="site=sinemalar"] {
     --tw-ring-color: rgba(159, 18, 57, 0.60) !important;    /* rose-800 (bordo) @ 60% */
   }
   html.dark section[hx-get*="site=doviz"],
-  html.dark section[hx-get="/api/home/app-release"] {
+  html.dark section[hx-get="/api/home/app-release"],
+  html.dark section[hx-get*="crashlytics?product=doviz"] {
     --tw-ring-color: rgba(96, 165, 250, 0.40) !important;   /* blue-400 @ 40% */
   }
   html.dark section[hx-get*="site=sinemalar"] {
@@ -158,7 +160,19 @@
         </section>
       </div>
 
-      {# Row 8 — Mobil uygulama: sol = doviz, sağ boş #}
+      {# Row 8 — Firebase Crashlytics (yalnızca döviz — Sinemalar BQ yok) #}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML"
+                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Firebase · Crashlytics</h3>
+          {{ _placeholder_mid | safe }}
+        </section>
+        <section class="hidden rounded-2xl border border-dashed border-slate-200 p-5 dark:border-slate-700/60 lg:flex lg:items-center lg:justify-center">
+          <p class="text-xs text-slate-400 dark:text-slate-500">Crashlytics yalnızca döviz uygulaması</p>
+        </section>
+      </div>
+
+      {# Row 9 — Mobil uygulama: sol = doviz, sağ boş #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/app-release" hx-trigger="load" hx-swap="innerHTML"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
