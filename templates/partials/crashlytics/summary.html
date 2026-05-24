@@ -65,6 +65,36 @@
   {% endif %}
 {% endmacro %}
 
+{# Platform kartı — iOS/Android × Fatal/ANR/Non-Fatal (6'lı yan yana satır) #}
+{% macro plat_metric_card(plat, cf_p, s, value, label, theme, series, suffix, show_meta=false) %}
+  {% set border_cls = 'border-rose-200 dark:border-rose-950/60' if theme == 'rose' else ('border-amber-200 dark:border-amber-950/60' if theme == 'amber' else 'border-slate-200 dark:border-slate-700/60') %}
+  {% set bg_cls = 'bg-rose-50 dark:bg-rose-950/20' if theme == 'rose' else ('bg-amber-50 dark:bg-amber-950/20' if theme == 'amber' else 'bg-slate-50 dark:bg-slate-800/40') %}
+  {% set val_cls = 'text-rose-700 dark:text-rose-300/85' if theme == 'rose' else ('text-amber-700 dark:text-amber-300/85' if theme == 'amber' else 'text-slate-700 dark:text-slate-300') %}
+  {% set lbl_cls = 'text-rose-600 dark:text-rose-400/70' if theme == 'rose' else ('text-amber-600 dark:text-amber-400/70' if theme == 'amber' else 'text-slate-500 dark:text-slate-400') %}
+  <div class="flex min-w-0 flex-col rounded-2xl border {{ border_cls }} {{ bg_cls }} px-2.5 py-3 sm:px-3 sm:py-4">
+    <div class="mb-2 flex min-h-[2.25rem] flex-col gap-0.5">
+      <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">
+        <span class="plat-badge {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}" style="width:0.75rem;height:0.75rem">
+          <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+        </span>
+        {{ plat|upper }}
+      </span>
+      {% if show_meta and cf_p %}
+        <span class="text-[8px] font-semibold leading-tight tabular-nums {% if cf_p.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf_p.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">
+          {{ cf_fmt(cf_p.crash_free_users_pct or cf_p.crash_free_pct) }}%{% if cf_p.crash_free_sessions_pct is not none %} · oturum {{ cf_fmt(cf_p.crash_free_sessions_pct) }}%{% endif %}
+        </span>
+      {% elif show_meta and s.affected_users %}
+        <span class="text-[8px] tabular-nums text-slate-400">{{ s.affected_users }} kul.</span>
+      {% endif %}
+    </div>
+    <div class="flex flex-1 flex-col items-center justify-center">
+      <p class="text-xl font-black tabular-nums sm:text-2xl {{ val_cls }}">{{ value }}</p>
+      <p class="mt-0.5 text-[9px] font-semibold uppercase tracking-wide sm:text-[10px] {{ lbl_cls }}">{{ label }}</p>
+    </div>
+    <div class="mt-1.5 opacity-90 sm:mt-2">{{ spark(series, 'p-' ~ plat ~ '-' ~ suffix, theme) }}</div>
+  </div>
+{% endmacro %}
+
 {# Storage badge — storage_mb yoksa Normal varsay #}
 {% set _storage = data.storage_mb or {} %}
 {% set total_mb = _storage.values()|sum if _storage else 0 %}
@@ -186,10 +216,12 @@
     </div>
   </div>
 
-  {# Platform bazlı kırılım + her platform için mini sparkline #}
+  {# Platform bazlı kırılım — 6 kart yan yana (üst 4'lünün altında) #}
   {% if data.summary_by_platform %}
-    <div class="grid grid-cols-1 gap-3">
-      {% for plat, s in data.summary_by_platform.items() %}
+    <div class="grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 min-[900px]:grid-cols-6 sm:gap-3">
+      {% for plat in ['ios', 'android'] %}
+        {% set s = data.summary_by_platform.get(plat) %}
+        {% if s %}
         {% set cf_p = data.crash_free_by_platform.get(plat) %}
         {% set plat_trend = trend_by_plat.get(plat) or [] %}
         {% set p_fatal = [] %}
@@ -200,43 +232,10 @@
           {% set _ = p_anr.append(d.get('anr', 0) or 0) %}
           {% set _ = p_nf.append(d.get('non_fatal', 0) or 0) %}
         {% endfor %}
-        <div class="rounded-xl border {% if plat == 'android' %}border-emerald-200 dark:border-emerald-900/50{% else %}border-slate-200 dark:border-slate-700{% endif %} bg-white p-3 sm:p-4 dark:bg-slate-900/50">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">
-              <span class="plat-badge plat-badge--lg {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}">
-                <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
-              </span>
-              {{ plat|upper }}
-            </span>
-            {% if cf_p %}
-              <span class="text-xs font-semibold {% if cf_p.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf_p.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ cf_fmt(cf_p.crash_free_users_pct or cf_p.crash_free_pct) }}%{% if cf_p.crash_free_sessions_pct is not none %} <span class="font-normal text-slate-400">(oturum {{ cf_fmt(cf_p.crash_free_sessions_pct) }}%)</span>{% endif %} crash-free</span>
-            {% endif %}
-            {% if s.affected_users %}<span class="text-[10px] tabular-nums text-slate-400">{{ s.affected_users }} kul.</span>{% endif %}
-          </div>
-          <div class="mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
-            <div class="flex min-w-0 flex-col rounded-2xl border border-rose-200 bg-rose-50 px-3 py-4 dark:border-rose-950/60 dark:bg-rose-950/20">
-              <div class="flex flex-1 flex-col items-center justify-center">
-                <p class="text-2xl font-black tabular-nums text-rose-700 dark:text-rose-300/85">{{ s.fatal or 0 }}</p>
-                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400/70">Fatal</p>
-              </div>
-              <div class="mt-2 opacity-90">{{ spark(p_fatal, 'p-' ~ plat ~ '-f', 'rose') }}</div>
-            </div>
-            <div class="flex min-w-0 flex-col rounded-2xl border border-amber-200 bg-amber-50 px-3 py-4 dark:border-amber-950/60 dark:bg-amber-950/20">
-              <div class="flex flex-1 flex-col items-center justify-center">
-                <p class="text-2xl font-black tabular-nums text-amber-700 dark:text-amber-300/85">{{ s.anr or 0 }}</p>
-                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400/70">ANR</p>
-              </div>
-              <div class="mt-2 opacity-90">{{ spark(p_anr, 'p-' ~ plat ~ '-a', 'amber') }}</div>
-            </div>
-            <div class="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
-              <div class="flex flex-1 flex-col items-center justify-center">
-                <p class="text-2xl font-black tabular-nums text-slate-700 dark:text-slate-300">{{ s.non_fatal or 0 }}</p>
-                <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Non-Fatal</p>
-              </div>
-              <div class="mt-2 opacity-90">{{ spark(p_nf, 'p-' ~ plat ~ '-n', 'slate') }}</div>
-            </div>
-          </div>
-        </div>
+        {{ plat_metric_card(plat, cf_p, s, s.fatal or 0, 'Fatal', 'rose', p_fatal, 'f', true) }}
+        {{ plat_metric_card(plat, cf_p, s, s.anr or 0, 'ANR', 'amber', p_anr, 'a', false) }}
+        {{ plat_metric_card(plat, cf_p, s, s.non_fatal or 0, 'Non-Fatal', 'slate', p_nf, 'n', false) }}
+        {% endif %}
       {% endfor %}
     </div>
   {% endif %}
