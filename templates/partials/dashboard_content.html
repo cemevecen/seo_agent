@@ -20,15 +20,13 @@
 </style>
 
 <div class="mx-auto w-full min-w-0 max-w-[1600px]">
-  <div class="flex flex-col gap-3 rounded-2xl bg-white px-6 py-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h2 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Günün Özeti</h2>
-    </div>
-    <div class="flex flex-wrap gap-2">
+  <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:px-6 sm:py-4">
+    <h2 class="min-w-0 shrink-0 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Günün Özeti</h2>
+    <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
       <a href="/alerts" hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white">Uyarılar</a>
+         class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2 sm:text-xs">Uyarılar</a>
       <a href="/realtime" hx-get="/realtime" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600">Realtime</a>
+         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 sm:px-4 sm:py-2 sm:text-xs">Realtime</a>
     </div>
   </div>
 
