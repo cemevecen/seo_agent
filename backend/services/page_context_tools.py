@@ -305,6 +305,18 @@ def page_fetch_ga4_realtime(site_id: int, window: int = 10) -> dict[str, Any]:
     )
 
 
+def page_fetch_home_dashboard() -> dict[str, Any]:
+    """Ana sayfa (Günün Özeti) — realtime, GA4, SC, pozisyon düşüşleri."""
+    try:
+        from backend.main import home_summary_payload
+
+        with SessionLocal() as db:
+            return home_summary_payload(db)
+    except Exception as exc:
+        LOGGER.exception("page_fetch_home_dashboard")
+        return {"error": str(exc)}
+
+
 def page_list_sites(limit: int = 30) -> dict[str, Any]:
     """GA4/errors sayfalarında site_id eşlemesi için site listesi."""
     from backend.models import Site

@@ -7097,6 +7097,44 @@ def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict
     return candidates[:limit]
 
 
+def home_summary_payload(db) -> dict:
+    """Ana sayfa (Günün Özeti) — AI Talk için yapılandırılmış metrik özeti."""
+    sites_out: list[dict] = []
+    for site_id, rt_profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
+        site_obj = _home_get_site(db, site_id)
+        if site_obj is None:
+            continue
+        ga4_profs = _HOME_DOVIZ_PROFILES if site_id == 1 else _HOME_SINEMA_PROFILES
+        sc_devices = []
+        for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
+            agg = _home_sc_device_aggregate(db, site_id, dev_code)
+            sc_devices.append({"label": dev_label, **agg})
+        sites_out.append(
+            {
+                "site_id": site_id,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
+                "realtime": _home_load_realtime_for_site(db, site_id, rt_profs),
+                "ga4_sessions_7d": _home_load_ga4_sessions_for_site(db, site_id, ga4_profs),
+                "search_console_7d": sc_devices,
+                "position_drops_7d": _home_position_drops_for_site(db, site_id, limit=5),
+            }
+        )
+    return {
+        "page": "home",
+        "title": "Günün Özeti",
+        "updated_at": datetime.now(ZoneInfo("Europe/Istanbul")).isoformat(),
+        "sites": sites_out,
+    }
+
+
+@app.get("/api/home/summary")
+def api_home_summary():
+    """Ana sayfa metrikleri — JSON (AI Talk + frontend context)."""
+    with SessionLocal() as db:
+        return JSONResponse(home_summary_payload(db))
+
+
 @app.get("/api/home/position-drops", response_class=HTMLResponse)
 def api_home_position_drops(request: Request, site: str | None = None):
     sites_out = []

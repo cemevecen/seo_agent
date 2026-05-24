@@ -30,7 +30,7 @@
     { prefix: '/data-explorer', page_id: 'data-explorer', label: 'Data Explorer', tool: null },
     { prefix: '/public', page_id: 'public', label: 'Public', tool: null },
     { prefix: '/admin/login', page_id: 'login', label: 'Login', tool: null },
-    { prefix: '/', page_id: 'home', label: 'Home', tool: null, exact: true },
+    { prefix: '/', page_id: 'home', label: 'Home', tool: 'page_fetch_home_dashboard', exact: true },
   ];
 
   var DEFAULT_QUICK = [
@@ -71,8 +71,8 @@
       { label: 'Takvim özeti', msg: 'Movie takviminde bu ay ve yakın dönemde öne çıkan yapımları özetle.' },
     ],
     home: [
-      { label: 'Dashboard', msg: 'Ana sayfadaki görünen metrikleri ve kartları özetle.' },
-      { label: 'Sağlık', msg: 'Sistem sağlık durumunu kontrol et' },
+      { label: 'Verileri özetle', msg: 'Ana sayfadaki Günün Özeti verilerini sayılarla özetle: doviz ve sinemalar için anlık kullanıcı, GA4 session, Search Console tıklama/gösterim, kritik pozisyon düşüşleri.' },
+      { label: 'Dikkat çeken', msg: 'Bugün dikkat çeken tek en önemli metrik hangisi ve neden?' },
     ],
   };
 

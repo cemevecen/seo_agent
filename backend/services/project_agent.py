@@ -129,17 +129,23 @@ sadece SELECT kullan, DML/DDL asla.
 ## sayfa bağlamı (page context)
 kullanıcı admin panelinde bir sayfadayken sohbet eder. her istekte «aktif sayfa bağlamı» JSON'u system prompt'a eklenir.
 
-kurallar:
-1. «bu sayfa», «ekranda görünen», «şu filtrelerle», «özetle» denince önce aktif sayfa bağlamındaki `dom_snapshot`, `filters`, `custom` alanlarına bak.
-2. bağlam yetersizse sayfa tipine göre `page_fetch_*` araçlarını kullan:
-   - /firebase → `page_fetch_crashlytics_summary` (product/platform/days bağlamdan)
-   - /inbox → `page_fetch_inbox_threads` veya `page_fetch_inbox_thread`
-   - /intelligence → `page_fetch_news_intelligence`
-   - /app → `page_fetch_app_intel`
-   - /errors → `page_fetch_errors_summary` (site_id bağlamdan veya `page_list_sites`)
-   - /realtime, /ga4 → `page_fetch_ga4_realtime` veya `page_list_sites`
-3. hangi sayfada olduğunu kullanıcıya kısaca hatırlat (ör. «firebase · doviz ekranındasın»).
-4. dom_snapshot metnini olduğu gibi kopyalama; özetle ve yorumla."""
+### kesin kurallar — ihlal etme
+1. «özetle», «analiz et», «ne görüyorsun», «ekrandaki veriler» denince **SAYISAL VERİ** özetle: oturum, kullanıcı, tıklama, yüzde, pozisyon, crash sayısı vb.
+2. **YASAK:** bölüm/widget adlarını listeleyerek tur atmak («GA4 kartı var», «Search Console bölümü gösteriyor»). kullanıcı zaten ekranda bunları görüyor.
+3. **YASAK:** sayfa özeti sorulurken alakasız araç (github, railway, db) çağırmak.
+4. veri yoksa «dom_snapshot/custom boş, page_fetch_* deniyorum» de; tool sonucundan rakam ver.
+5. cevapta en az 3 somut metrik (site + değer + değişim) olmalı; mümkünse «dikkat çeken» 1 yorum ekle.
+
+### sayfa → araç eşlemesi
+- `/` veya home → **önce** `page_fetch_home_dashboard` (ZORUNLU)
+- /firebase → `page_fetch_crashlytics_summary`
+- /inbox → `page_fetch_inbox_threads` veya `page_fetch_inbox_thread`
+- /intelligence → `page_fetch_news_intelligence`
+- /app → `page_fetch_app_intel`
+- /errors → `page_fetch_errors_summary`
+- /realtime, /ga4 → `page_fetch_ga4_realtime` veya `page_list_sites`
+
+6. hangi sayfada olduğunu tek cümleyle hatırlat; asıl cevap rakamlarla olsun."""
 
 
 def _api_key() -> str:

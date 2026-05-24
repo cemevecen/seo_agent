@@ -1275,6 +1275,11 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "page_fetch_home_dashboard",
+        "description": "Ana sayfa (Günün Özeti): doviz/sinemalar realtime, GA4 session, Search Console, pozisyon düşüşleri. «bu ekranı özetle» / home sayfası sorularında ZORUNLU.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "page_list_sites",
         "description": "Site id ↔ domain listesi.",
         "input_schema": {
@@ -1325,6 +1330,7 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "page_fetch_app_intel": lambda: pct.page_fetch_app_intel(**inputs),
         "page_fetch_errors_summary": lambda: pct.page_fetch_errors_summary(**inputs),
         "page_fetch_ga4_realtime": lambda: pct.page_fetch_ga4_realtime(**inputs),
+        "page_fetch_home_dashboard": lambda: pct.page_fetch_home_dashboard(),
         "page_list_sites": lambda: pct.page_list_sites(**inputs),
     }
     fn = dispatch.get(name)

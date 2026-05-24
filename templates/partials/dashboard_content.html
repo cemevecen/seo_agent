@@ -172,3 +172,38 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  window.__pcHomeMetrics = null;
+  function loadHomeMetrics() {
+    fetch('/api/home/summary', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j) window.__pcHomeMetrics = j; })
+      .catch(function () {});
+  }
+  loadHomeMetrics();
+  setInterval(loadHomeMetrics, 60000);
+  document.addEventListener('DOMContentLoaded', loadHomeMetrics);
+
+  window.__pcPageContext = function () {
+    var visible = [];
+    document.querySelectorAll('section[hx-get^="/api/home/"]').forEach(function (sec) {
+      var titleEl = sec.querySelector('h3');
+      var txt = (sec.innerText || '').replace(/\s+/g, ' ').trim();
+      if (txt.length > 30 && txt.indexOf('animate-pulse') < 0) {
+        visible.push({
+          section: titleEl ? (titleEl.textContent || '').trim() : '',
+          text: txt.slice(0, 700),
+        });
+      }
+    });
+    return {
+      page: 'home',
+      title: 'Günün Özeti',
+      metrics: window.__pcHomeMetrics,
+      visible_sections: visible,
+    };
+  };
+})();
+</script>
