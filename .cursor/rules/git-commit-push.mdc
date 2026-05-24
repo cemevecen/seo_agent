@@ -1,18 +1,30 @@
 ---
-description: İş bitince onay beklemeden her zaman git commit + GitHub push (main); Railway deploy.
+description: İş bitince onay beklemeden commit + push (main) → Railway otomatik deploy.
 alwaysApply: true
 ---
 
-# Git: commit ve push — onay bekleme yok
+# Git + Railway: otomatik deploy (onay yok)
 
-Bu repoda anlamlı kod, şablon veya yapılandırma değişikliği yaptıktan sonra:
+Bu repoda **canlıya gidecek** kod, şablon veya yapılandırma değişikliği yaptıktan sonra görev **commit + push tamamlanmadan bitmiş sayılmaz**.
 
-1. **Kullanıcıdan onay isteme** — “commit atayım mı?”, “pushlayım mı?” diye sorma; görev bittiğinde **doğrudan** uygula.
-2. `git status` ile neyin stage edileceğini kontrol et; `.env`, anahtarlar ve `.gitignore` ile hariç dosyaları **asla** commit etme.
-3. Anlamlı bir commit mesajı ile `git add` + `git commit` yap (Türkçe veya İngilizce, ne değiştiyse onu yaz).
-4. `git push origin main` (veya mevcut varsayılan dal) ile GitHub’a gönder; push mümkün değilse (kimlik doğrulama, ağ, çakışma) özeti yaz ve gerekirse `git pull --rebase origin main` sonra tekrar dene. **Force push kullanma.**
+## Zorunlu akış
 
-## Railway / yayın
+1. **Onay sorma** — “commit atayım mı?”, “pushlayım mı?”, “deploy edeyim mi?” diye **sorma**; kullanıcı ayrıca “commit etme” demedikçe doğrudan uygula.
+2. `git status` / `git diff` ile stage listesini kontrol et.
+3. **Asla commit etme:** `.env*`, anahtarlar, `secrets/`, `keys/`, `scratch/`, `.gitignore` ile hariç tutulan dosyalar.
+4. Anlamlı commit mesajı ile `git add` + `git commit`.
+5. `git push origin main` — Railway deploy tetiklenir.
+6. Push başarısızsa: çakışmayı çöz (`git pull --rebase origin main`), tekrar push. **Force push yok.**
 
-- Canlı dağıtım GitHub **`main`** push’una bağlıdır; iş tamamlandıysa commit + push **mutlaka** tamamlanmalıdır.
-- Deploy süresi birkaç dakika olabilir; doğrulama için Railway paneli veya uygulama health/rev kullanılabilir.
+## Deploy sonrası
+
+- Canlı: GitHub **`main`** → Railway (`projectcontrol.up.railway.app`).
+- Deploy birkaç dakika sürebilir.
+- Web uygulaması değişikliklerinde mümkünse production’da kısa doğrulama yap (Browser DevTools MCP).
+- Kullanıcıya “deploy için onay bekliyorum” deme; push yapıldıysa “push edildi, Railway deploy başladı” de.
+
+## İstisnalar (commit/push yapma)
+
+- Kullanıcı açıkça “commit etme / push etme / sadece lokal” derse.
+- Sadece soru-cevap veya kod incelemesi; dosya değişikliği yoksa.
+- WIP yarım bırakılıp bilinçli olarak durdurulduysa (nadir; kullanıcıya not düş).

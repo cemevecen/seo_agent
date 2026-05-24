@@ -160,27 +160,21 @@
         </section>
       </div>
 
-      {# Row 8 — Firebase Crashlytics (yalnızca döviz — Sinemalar BQ yok) #}
+      {# Row 8 — Firebase Crashlytics (yalnızca döviz) #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Firebase · Crashlytics</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section class="hidden rounded-2xl border border-dashed border-slate-200 p-5 dark:border-slate-700/60 lg:flex lg:items-center lg:justify-center">
-          <p class="text-xs text-slate-400 dark:text-slate-500">Crashlytics yalnızca döviz uygulaması</p>
-        </section>
       </div>
 
-      {# Row 9 — Mobil uygulama: sol = doviz, sağ boş #}
+      {# Row 9 — Mobil uygulama (yalnızca döviz) #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/app-release" hx-trigger="load" hx-swap="innerHTML"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">iOS &amp; Android Release</h3>
           <div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
-        </section>
-        <section class="hidden rounded-2xl border border-dashed border-slate-200 p-5 dark:border-slate-700/60 lg:flex lg:items-center lg:justify-center">
-          <p class="text-xs text-slate-400 dark:text-slate-500">mobil uygulama yok</p>
         </section>
       </div>
     </div>
