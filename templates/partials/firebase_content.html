@@ -1091,7 +1091,7 @@
       sectionRoot.setAttribute("data-bd-active-plat", plat);
     }
     sectionRoot.querySelectorAll("[data-bd-plat-panel]").forEach(function (p) {
-      p.classList.toggle("hidden", p.getAttribute("data-bd-plat") !== plat);
+      p.classList.toggle("hidden", p.getAttribute("data-bd-plat-panel") !== plat);
     });
   }
 
