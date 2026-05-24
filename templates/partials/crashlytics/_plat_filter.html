@@ -1,0 +1,15 @@
+{# iOS / Android sekme düğmeleri — Dağılım, Versiyon trendi, Crash'ler #}
+{% macro plat_filter_buttons(default_plat='ios') %}
+<div class="flex flex-wrap gap-1" data-crash-bd-plat-tabs>
+  {% for pkey, plabel in [('ios', 'iOS'), ('android', 'Android')] %}
+    <button type="button" data-bd-plat="{{ pkey }}"
+      class="crash-bd-plat-btn inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold transition
+        {% if pkey == default_plat %}border-slate-400 bg-slate-100 text-slate-800 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100{% else %}border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+      <span class="plat-badge {% if pkey == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}" style="width:0.65rem;height:0.65rem">
+        <svg aria-hidden="true"><use href="{% if pkey == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+      </span>
+      {{ plabel }}
+    </button>
+  {% endfor %}
+</div>
+{% endmacro %}

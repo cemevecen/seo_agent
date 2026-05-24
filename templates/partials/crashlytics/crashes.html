@@ -1,13 +1,10 @@
-{% set rows = data.issues %}
-<div class="space-y-3">
-  {% if data.errors %}
-    {% set _seen = [] %}{% set _unique = [] %}
-    {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
-      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
-    </div>
-  {% endif %}
+{% from 'partials/crashlytics/_plat_filter.html' import plat_filter_buttons %}
+{% set issues_by_plat = data.issues_by_platform or {} %}
+{% set global_plat = (params.platform or 'all')|lower %}
+{% set show_plat_filter = global_plat == 'all' and issues_by_plat %}
+{% set default_plat = 'ios' if issues_by_plat.get('ios') else 'android' %}
 
+{% macro crashes_issues_block(rows) %}
   {% if not rows %}
     <div class="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
       <p class="text-sm text-slate-400 dark:text-slate-500">
@@ -15,7 +12,6 @@
       </p>
     </div>
   {% else %}
-    {# Arama input #}
     <div class="flex items-center justify-between gap-2">
       <input type="text" data-crash-search class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
         placeholder="Issue başlığında ara..." />
@@ -49,7 +45,7 @@
               data-latest-version="{{ r.latest_version or '' }}"
               title="Detay için tıklayın">
               <td class="max-w-[260px] px-3 py-2.5">
-                <div class="flex flex-wrap items-center gap-1">
+                                <div class="flex flex-wrap items-center gap-1">
                   {% for badge in r.badges or [] %}
                     <span class="rounded px-1 py-0.5 text-[9px] font-bold uppercase
                       {% if badge == 'new' %}bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300
@@ -86,5 +82,30 @@
       </table>
     </div>
     <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} sonuç · son 30 gösterilir · satıra tıklayarak detay</p>
+  {% endif %}
+{% endmacro %}
+
+<div class="space-y-3">
+  {% if data.errors %}
+    {% set _seen = [] %}{% set _unique = [] %}
+    {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if show_plat_filter %}
+  <div class="space-y-3" data-crash-plat-root="1" data-bd-default-plat="{{ default_plat }}" data-bd-active-plat="{{ default_plat }}">
+        <div class="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200 pb-2 dark:border-slate-700">
+      {{ plat_filter_buttons(default_plat) }}
+    </div>
+    {% for pkey in ['ios', 'android'] %}
+      <div data-bd-plat-panel="{{ pkey }}" class="space-y-3{% if pkey != default_plat %} hidden{% endif %}">
+        {{ crashes_issues_block(issues_by_plat.get(pkey) or []) }}
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    {{ crashes_issues_block(data.issues or []) }}
   {% endif %}
 </div>

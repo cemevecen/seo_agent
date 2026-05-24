@@ -805,6 +805,7 @@
     wireTableEnhancements(box);
     wireBreakdownTabs(box);
     wireBreakdownExpand(box);
+    wireCrashPlatSections(box);
     if (name === "versions") populateVersionChips(box);
   }
 
@@ -1080,6 +1081,46 @@
         }
       });
     });
+  }
+
+  function syncCrashPlatPanels(sectionRoot) {
+    if (!sectionRoot) return;
+    var plat = sectionRoot.getAttribute("data-bd-active-plat");
+    if (!plat) {
+      plat = sectionRoot.getAttribute("data-bd-default-plat") || "ios";
+      sectionRoot.setAttribute("data-bd-active-plat", plat);
+    }
+    sectionRoot.querySelectorAll("[data-bd-plat-panel]").forEach(function (p) {
+      p.classList.toggle("hidden", p.getAttribute("data-bd-plat") !== plat);
+    });
+  }
+
+  function wireCrashPlatFilterRoot(sectionRoot) {
+    if (!sectionRoot || sectionRoot.getAttribute("data-crash-plat-root") !== "1") return;
+    var platTabs = sectionRoot.querySelector("[data-crash-bd-plat-tabs]");
+    if (!platTabs) return;
+    if (!sectionRoot.getAttribute("data-bd-active-plat")) {
+      sectionRoot.setAttribute("data-bd-active-plat", sectionRoot.getAttribute("data-bd-default-plat") || "ios");
+    }
+    platTabs.querySelectorAll("[data-bd-plat]").forEach(function (btn) {
+      if (btn.dataset.crashPlatBound) return;
+      btn.dataset.crashPlatBound = "1";
+      setBdPlatBtnActive(btn, btn.getAttribute("data-bd-plat") === sectionRoot.getAttribute("data-bd-active-plat"));
+      btn.addEventListener("click", function () {
+        var plat = btn.getAttribute("data-bd-plat");
+        sectionRoot.setAttribute("data-bd-active-plat", plat);
+        platTabs.querySelectorAll("[data-bd-plat]").forEach(function (b) {
+          setBdPlatBtnActive(b, b === btn);
+        });
+        syncCrashPlatPanels(sectionRoot);
+      });
+    });
+    syncCrashPlatPanels(sectionRoot);
+  }
+
+  function wireCrashPlatSections(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('[data-crash-plat-root="1"]').forEach(wireCrashPlatFilterRoot);
   }
 
   function syncBreakdownPanels(root) {

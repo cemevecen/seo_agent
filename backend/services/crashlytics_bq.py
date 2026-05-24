@@ -2483,6 +2483,7 @@ def build_full_payload(
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},
             "version_trend": version_trend_merged,
+            "version_trend_by_platform": {plat: rows for plat, rows in version_trend_all},
             "device_breakdown": device_breakdown,
             "device_breakdown_by_platform": device_breakdown_by_platform,
             "os_breakdown": os_breakdown,
@@ -2602,6 +2603,7 @@ def assemble_breakdown_payload(
         "process_state_breakdown": merge_breakdown_rows([r for _p, r in process_all], "state", limit=15),
         "versions_by_platform": {plat: rows for plat, rows in ver_all},
         "versions": _merge_versions(ver_all),
+        "version_trend_by_platform": {plat: rows for plat, rows in version_trend_all},
         "version_trend": version_trend_merged,
     }
 
