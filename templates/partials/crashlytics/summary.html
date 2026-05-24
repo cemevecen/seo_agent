@@ -11,6 +11,23 @@
   html.dark .crash-spark--neon.crash-spark--amber { filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.38)); }
   html.dark .crash-spark--neon.crash-spark--slate { filter: drop-shadow(0 0 4px rgba(148, 163, 184, 0.32)); }
   .crash-spark--muted { opacity: 0.72; }
+  /* KPI grid — mobil 2 sütun, tablet 3, geniş ekran tek satır 6 */
+  .crash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  @media (min-width: 640px) {
+    .crash-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+  }
+  @media (min-width: 1024px) {
+    .crash-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  }
+  .crash-kpi-grid .crash-kpi-cf { grid-column: span 2; }
+  @media (min-width: 640px) {
+    .crash-kpi-grid .crash-kpi-cf { grid-column: span 1; }
+  }
+  .crash-kpi-cell { min-width: 0; }
 </style>
 {% set cf = data.crash_free_pct %}
 {% set cfs = data.crash_free_sessions_pct %}
@@ -162,10 +179,10 @@
     </div>
   {% endif %}
 
-  {# Crash-Free + platform kırılım — tek satır; toplam Fatal/ANR/Non-Fatal kartları yok #}
-  <div class="flex min-w-0 gap-2 overflow-x-auto sm:gap-3">
+  {# Crash-Free + platform kırılım — responsive grid #}
+  <div class="crash-kpi-grid min-w-0">
     {% if cf is not none %}
-    <div class="flex min-w-[7.5rem] shrink-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 sm:min-w-[8.5rem] sm:flex-1 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
+    <div class="crash-kpi-cf crash-kpi-cell flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
       <div class="flex flex-1 flex-col items-center justify-center">
         <p class="text-2xl font-black tabular-nums sm:text-3xl {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ cf_fmt(cf) }}%</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
@@ -214,19 +231,19 @@
         {% endfor %}
         {% set plat_meta = namespace(show=true) %}
         {% if (s.fatal or 0) > 0 %}
-          <div class="min-w-[5.5rem] flex-1 shrink-0">
+          <div class="crash-kpi-cell">
             {{ plat_metric_card(plat, cf_p, s, s.fatal, 'Fatal', 'rose', p_fatal, 'f', plat_meta.show) }}
           </div>
           {% set plat_meta.show = false %}
         {% endif %}
         {% if (s.anr or 0) > 0 %}
-          <div class="min-w-[5.5rem] flex-1 shrink-0">
+          <div class="crash-kpi-cell">
             {{ plat_metric_card(plat, cf_p, s, s.anr, 'ANR', 'amber', p_anr, 'a', plat_meta.show) }}
           </div>
           {% set plat_meta.show = false %}
         {% endif %}
         {% if (s.non_fatal or 0) > 0 %}
-          <div class="min-w-[5.5rem] flex-1 shrink-0">
+          <div class="crash-kpi-cell">
             {{ plat_metric_card(plat, cf_p, s, s.non_fatal, 'Non-Fatal', 'slate', p_nf, 'n', plat_meta.show) }}
           </div>
           {% set plat_meta.show = false %}
@@ -238,7 +255,7 @@
 
   {# Storage bilgisi — yalnız veri varsa #}
   {% if _storage %}
-  <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-800/40">
+  <div class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between">
     <span class="text-[11px] text-slate-500 dark:text-slate-400">BigQuery Storage (10 GB limit)</span>
     <div class="flex items-center gap-2">
       {% for plat, mb in _storage.items() %}
