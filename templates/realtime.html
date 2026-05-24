@@ -627,62 +627,21 @@
     color: inherit !important;
   }
 
-  /* ── Lottie-style: yalnızca başlık radar + canlı geri sayım ─────────── */
+  /* ── Lottie-style: canlı geri sayım halkası ─────────────────────────── */
   .realtime-root {
     --rt-kl-accent: 99 102 241;
     --rt-kl-accent-2: 56 189 248;
-    --rt-cd-ratio: 1;
   }
 
-  .rt-hero-lottie {
-    width: 4.5rem;
-    height: auto;
-    flex-shrink: 0;
-    display: block;
-    overflow: visible;
-  }
-
-  .rt-kl-radar-sweep {
-    fill: none;
-    stroke: rgb(var(--rt-kl-accent));
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    transform-origin: 36px 36px;
-    animation: rt-kl-radar-spin 3s linear infinite;
-  }
-  html.dark .rt-kl-radar-sweep { stroke: rgb(var(--rt-kl-accent-2)); }
-  .rt-kl-radar-ring {
-    fill: none;
-    stroke: rgb(var(--rt-kl-accent));
-    stroke-width: 1;
-    opacity: 0.35;
-  }
-  html.dark .rt-kl-radar-ring { stroke: rgb(var(--rt-kl-accent-2)); opacity: 0.45; }
-  .rt-kl-radar-core {
-    fill: rgb(var(--rt-kl-accent));
-    animation: rt-kl-core-pulse 2.4s ease-in-out infinite;
-  }
-  html.dark .rt-kl-radar-core { fill: rgb(var(--rt-kl-accent-2)); }
-  .rt-kl-pulse {
-    fill: none;
-    stroke: rgb(var(--rt-kl-accent));
-    stroke-width: 1.5;
-    opacity: 0;
-    transform-origin: 36px 36px;
-    animation: rt-kl-pulse-out 2.4s ease-out infinite;
-  }
-  html.dark .rt-kl-pulse { stroke: rgb(var(--rt-kl-accent-2)); }
-
-  .rt-live-badge.rt-live-countdown-badge {
+  .rt-live-countdown-only {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.28rem 0.65rem 0.28rem 0.35rem;
+    line-height: 0;
   }
   .rt-live-countdown-wrap {
     position: relative;
-    width: 2rem;
-    height: 2rem;
+    width: 2.25rem;
+    height: 2.25rem;
     flex-shrink: 0;
   }
   .rt-countdown-lottie {
@@ -721,7 +680,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.62rem;
+    font-size: 0.68rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -732,28 +691,15 @@
   .rt-live-countdown-wrap .rt-cd-num--tick {
     animation: rt-cd-num-pop 0.35s ease;
   }
-  .rt-live-badge--urgent .rt-cd-ring { stroke: rgb(245 158 11); }
-  html.dark .rt-live-badge--urgent .rt-cd-ring { stroke: rgb(251 191 36); }
-  .rt-live-badge--urgent .rt-cd-num { color: rgb(180 83 9); }
-  html.dark .rt-live-badge--urgent .rt-cd-num { color: rgb(253 230 138); }
-  .rt-live-badge--refresh .rt-cd-ring {
+  .rt-live-countdown-only.rt-live-badge--urgent .rt-cd-ring { stroke: rgb(245 158 11); }
+  html.dark .rt-live-countdown-only.rt-live-badge--urgent .rt-cd-ring { stroke: rgb(251 191 36); }
+  .rt-live-countdown-only.rt-live-badge--urgent .rt-cd-num { color: rgb(180 83 9); }
+  html.dark .rt-live-countdown-only.rt-live-badge--urgent .rt-cd-num { color: rgb(253 230 138); }
+  .rt-live-countdown-only.rt-live-badge--refresh .rt-cd-ring {
     stroke: rgb(16 185 129);
     animation: rt-cd-ring-flash 0.55s ease;
   }
-  .rt-cd-meta {
-    font-size: inherit;
-    font-weight: inherit;
-    opacity: 0.92;
-  }
 
-  @keyframes rt-kl-radar-spin {
-    0% { transform: rotate(0deg); opacity: 0.9; }
-    100% { transform: rotate(360deg); opacity: 0.9; }
-  }
-  @keyframes rt-kl-core-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.12); opacity: 0.82; }
-  }
   @keyframes rt-kl-pulse-out {
     0% { opacity: 0.55; transform: scale(0.75); }
     100% { opacity: 0; transform: scale(1.45); }
@@ -768,7 +714,7 @@
     50% { opacity: 0.35; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .rt-kl-radar-sweep, .rt-kl-pulse, .rt-kl-radar-core, .rt-cd-pulse, .rt-cd-ring {
+    .rt-cd-pulse, .rt-cd-ring {
       animation: none !important;
     }
     .rt-cd-ring { transition: none; }
@@ -779,19 +725,8 @@
   {# Page header #}
   <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-3">
-      <svg class="rt-hero-lottie hidden sm:block" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
-        <circle class="rt-kl-radar-ring" cx="36" cy="36" r="28"/>
-        <circle class="rt-kl-radar-ring" cx="36" cy="36" r="18" opacity="0.5"/>
-        <circle class="rt-kl-radar-core" cx="36" cy="36" r="4"/>
-        <line class="rt-kl-radar-sweep" x1="36" y1="36" x2="36" y2="10"/>
-        <circle class="rt-kl-pulse" cx="36" cy="36" r="14"/>
-      </svg>
-      <span class="relative flex h-3.5 w-3.5 sm:hidden">
-        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-        <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500"></span>
-      </span>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rt-live-badge rt-live-countdown-badge" id="rt-live-badge" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.">
+      <span class="rt-live-countdown-only" id="rt-live-badge" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme.">
         <span class="rt-live-countdown-wrap">
           <svg class="rt-countdown-lottie" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <circle class="rt-cd-track" cx="20" cy="20" r="16"/>
@@ -800,7 +735,6 @@
           </svg>
           <span class="rt-cd-num" data-rt-live-countdown aria-live="polite">{{ ui_poll_seconds }}</span>
         </span>
-        <span class="rt-cd-meta">sn canlı · {{ interval_minutes }} dk job</span>
       </span>
     </div>
     <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
