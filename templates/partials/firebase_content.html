@@ -1082,20 +1082,78 @@
     });
   }
 
+  function syncBreakdownPanels(root) {
+    var bdRoot = root.querySelector ? root.querySelector("[data-crash-breakdown-root]") : null;
+    if (!bdRoot) return;
+    var tab = bdRoot.getAttribute("data-bd-active-tab") || "devices";
+    var plat = bdRoot.getAttribute("data-bd-active-plat");
+    if (!plat && bdRoot.getAttribute("data-bd-plat-filter") === "1") {
+      plat = bdRoot.getAttribute("data-bd-default-plat") || "ios";
+      bdRoot.setAttribute("data-bd-active-plat", plat);
+    }
+    bdRoot.querySelectorAll("[data-bd-panel]").forEach(function (p) {
+      var panelTab = p.getAttribute("data-bd-panel");
+      var panelPlat = p.getAttribute("data-bd-plat");
+      var show = panelTab === tab && (!plat || !panelPlat || panelPlat === plat);
+      p.classList.toggle("hidden", !show);
+    });
+  }
+
+  function setBdPlatBtnActive(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("border-slate-400", on);
+    btn.classList.toggle("bg-slate-100", on);
+    btn.classList.toggle("text-slate-800", on);
+    btn.classList.toggle("dark:border-slate-500", on);
+    btn.classList.toggle("dark:bg-slate-700", on);
+    btn.classList.toggle("dark:text-slate-100", on);
+    btn.classList.toggle("border-transparent", !on);
+    btn.classList.toggle("text-slate-500", !on);
+    btn.classList.toggle("dark:text-slate-400", !on);
+  }
+
+  function wireBreakdownPlatTabs(root) {
+    var bdRoot = root.querySelector ? root.querySelector("[data-crash-breakdown-root]") : null;
+    if (!bdRoot || bdRoot.getAttribute("data-bd-plat-filter") !== "1") return;
+    var platTabs = bdRoot.querySelector("[data-crash-bd-plat-tabs]");
+    if (!platTabs) return;
+    if (!bdRoot.getAttribute("data-bd-active-plat")) {
+      bdRoot.setAttribute("data-bd-active-plat", bdRoot.getAttribute("data-bd-default-plat") || "ios");
+    }
+    platTabs.querySelectorAll("[data-bd-plat]").forEach(function (btn) {
+      if (btn.dataset.bdPlatBound) return;
+      btn.dataset.bdPlatBound = "1";
+      setBdPlatBtnActive(btn, btn.getAttribute("data-bd-plat") === bdRoot.getAttribute("data-bd-active-plat"));
+      btn.addEventListener("click", function () {
+        var plat = btn.getAttribute("data-bd-plat");
+        bdRoot.setAttribute("data-bd-active-plat", plat);
+        platTabs.querySelectorAll("[data-bd-plat]").forEach(function (b) {
+          setBdPlatBtnActive(b, b === btn);
+        });
+        syncBreakdownPanels(root);
+      });
+    });
+    syncBreakdownPanels(root);
+  }
+
   function wireBreakdownTabs(root) {
     var tabs = root.querySelector("[data-crash-bd-tabs]");
     if (!tabs) return;
     tabs.querySelectorAll("[data-bd-tab]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var id = btn.getAttribute("data-bd-tab");
+        var bdRoot = root.querySelector("[data-crash-breakdown-root]");
+        if (bdRoot) bdRoot.setAttribute("data-bd-active-tab", id);
         tabs.querySelectorAll(".crash-bd-tab").forEach(function (b) {
           setBtnActive(b, b === btn);
         });
-        root.querySelectorAll("[data-bd-panel]").forEach(function (p) {
-          p.classList.toggle("hidden", p.getAttribute("data-bd-panel") !== id);
-        });
+        syncBreakdownPanels(root);
       });
     });
+    wireBreakdownPlatTabs(root);
+    if (!root.querySelector("[data-crash-breakdown-root][data-bd-plat-filter=\"1\"]")) {
+      syncBreakdownPanels(root);
+    }
   }
 
   // ── Sütun sıralama + arama + drill-down satır tıklaması ──

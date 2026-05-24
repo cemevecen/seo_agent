@@ -1,12 +1,16 @@
 {% if not data or data.ok is sameas false %}
   <p class="text-xs text-slate-400 dark:text-slate-500">Kırılım verisi yok.</p>
 {% else %}
-{% set devices = data.device_breakdown or [] %}
-{% set os_rows = data.os_breakdown or [] %}
-{% set states = data.process_state_breakdown or [] %}
+{% set dev_by_plat = data.device_breakdown_by_platform or {} %}
+{% set os_by_plat = data.os_breakdown_by_platform or {} %}
+{% set st_by_plat = data.process_state_breakdown_by_platform or {} %}
+{% set global_plat = (params.platform or 'all')|lower %}
+{% set show_plat_filter = global_plat == 'all' and (dev_by_plat or os_by_plat or st_by_plat) %}
+{% set default_plat = 'ios' if dev_by_plat.get('ios') or os_by_plat.get('ios') or st_by_plat.get('ios') else 'android' %}
+
 {% macro bar_row(label, count, pct, color, raw) %}
-  <div class="bd-bar-row space-y-1">
-    <div class="flex items-center justify-between gap-2 text-[11px]">
+      <div class="bd-bar-row space-y-1">
+        <div class="flex items-center justify-between gap-2 text-[11px]">
       <span class="truncate text-slate-600 dark:text-slate-300" title="{% if raw %}{{ raw }} → {% endif %}{{ label }}">{{ label }}</span>
       <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{{ pct }}% · {{ count }}</span>
     </div>
@@ -15,59 +19,69 @@
     </div>
   </div>
 {% endmacro %}
-<div class="space-y-4" data-crash-breakdown-root>
-  <div class="flex flex-wrap gap-1 border-b border-slate-200 pb-2 dark:border-slate-700" data-crash-bd-tabs>
-    <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Cihaz</button>
-    <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">OS</button>
-    <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Durum</button>
+
+{% macro bd_items(rows, color, label_key='label', raw_key='label_raw') %}
+  {% if rows %}
+    {% for r in rows[:15] %}
+      <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
+        {% set _raw = r[raw_key] if raw_key and raw_key in r else none %}
+        {{ bar_row(r[label_key], r.event_count, r.pct, color, _raw) }}
+      </div>
+    {% endfor %}
+    {% if rows|length > 8 %}
+      <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+        Genişlet (15)
+      </button>
+    {% endif %}
+  {% else %}
+    <p class="text-[11px] text-slate-400">Veri yok.</p>
+  {% endif %}
+{% endmacro %}
+
+{% macro bd_panel(tab, plat, rows, color, label_key, raw_key, visible=false) %}
+  <div data-bd-panel="{{ tab }}"{% if plat %} data-bd-plat="{{ plat }}"{% endif %}
+    class="space-y-2{% if not visible %} hidden{% endif %}">
+    {{ bd_items(rows, color, label_key, raw_key) }}
   </div>
-  <div data-bd-panel="devices" class="space-y-2">
-    {% if devices %}
-      {% for r in devices[:15] %}
-        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
-          {{ bar_row(r.label, r.event_count, r.pct, 'bg-indigo-500/80', r.label_raw) }}
-        </div>
-      {% endfor %}
-      {% if devices|length > 8 %}
-        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-          Genişlet (15)
+{% endmacro %}
+
+<div class="space-y-3" data-crash-breakdown-root data-bd-active-tab="devices"{% if show_plat_filter %} data-bd-plat-filter="1" data-bd-default-plat="{{ default_plat }}" data-bd-active-plat="{{ default_plat }}"{% endif %}>
+  <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2 dark:border-slate-700">
+    <div class="flex flex-wrap gap-1" data-crash-bd-tabs>
+      <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Cihaz</button>
+      <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">OS</button>
+      <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Durum</button>
+    </div>
+    {% if show_plat_filter %}
+    <div class="ml-auto flex flex-wrap gap-1" data-crash-bd-plat-tabs>
+      {% for pkey, plabel in [('ios', 'iOS'), ('android', 'Android')] %}
+        <button type="button" data-bd-plat="{{ pkey }}"
+          class="crash-bd-plat-btn inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold transition
+            {% if pkey == default_plat %}border-slate-400 bg-slate-100 text-slate-800 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100{% else %}border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+          <span class="plat-badge {% if pkey == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}" style="width:0.65rem;height:0.65rem">
+            <svg aria-hidden="true"><use href="{% if pkey == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+          </span>
+          {{ plabel }}
         </button>
-      {% endif %}
-    {% else %}
-      <p class="text-[11px] text-slate-400">Cihaz kırılımı yok.</p>
+      {% endfor %}
+    </div>
     {% endif %}
   </div>
-  <div data-bd-panel="os" class="hidden space-y-2">
-    {% if os_rows %}
-      {% for r in os_rows[:15] %}
-        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
-          {{ bar_row(r.os_version, r.event_count, r.pct, 'bg-emerald-500/80', none) }}
-        </div>
-      {% endfor %}
-      {% if os_rows|length > 8 %}
-        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-          Genişlet (15)
-        </button>
-      {% endif %}
-    {% else %}
-      <p class="text-[11px] text-slate-400">OS kırılımı yok.</p>
-    {% endif %}
-  </div>
-  <div data-bd-panel="state" class="hidden space-y-2">
-    {% if states %}
-      {% for r in states[:15] %}
-        <div class="bd-item {% if loop.index > 8 %}hidden{% endif %}" data-bd-item>
-          {{ bar_row(r.state, r.event_count, r.pct, 'bg-amber-500/80', none) }}
-        </div>
-      {% endfor %}
-      {% if states|length > 8 %}
-        <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-          Genişlet (15)
-        </button>
-      {% endif %}
-    {% else %}
-      <p class="text-[11px] text-slate-400">Process state verisi batch tabloda yok veya boş.</p>
-    {% endif %}
-  </div>
+
+  {% if show_plat_filter %}
+    {% for pkey in ['ios', 'android'] %}
+      {{ bd_panel('devices', pkey, dev_by_plat.get(pkey) or [], 'bg-indigo-500/80', 'label', 'label_raw', pkey == default_plat) }}
+    {% endfor %}
+    {% for pkey in ['ios', 'android'] %}
+      {{ bd_panel('os', pkey, os_by_plat.get(pkey) or [], 'bg-emerald-500/80', 'os_version', none, false) }}
+    {% endfor %}
+    {% for pkey in ['ios', 'android'] %}
+      {{ bd_panel('state', pkey, st_by_plat.get(pkey) or [], 'bg-amber-500/80', 'state', none, false) }}
+    {% endfor %}
+  {% else %}
+    {{ bd_panel('devices', none, data.device_breakdown or [], 'bg-indigo-500/80', 'label', 'label_raw', true) }}
+    {{ bd_panel('os', none, data.os_breakdown or [], 'bg-emerald-500/80', 'os_version', none, false) }}
+    {{ bd_panel('state', none, data.process_state_breakdown or [], 'bg-amber-500/80', 'state', none, false) }}
+  {% endif %}
 </div>
 {% endif %}
