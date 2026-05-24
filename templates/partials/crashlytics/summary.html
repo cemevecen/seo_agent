@@ -230,9 +230,9 @@
     </div>
   </div>
 
-  {# Platform bazlı kırılım — sol iOS (3), sağ Android (3); kartlar sütun içinde dikey #}
+  {# Platform kırılım — sıfır olan kartlar gizli, kalanlar tek satır #}
   {% if data.summary_by_platform %}
-    <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:items-start">
+    <div class="flex min-w-0 gap-2 overflow-x-auto sm:gap-3">
       {% for plat in ['ios', 'android'] %}
         {% set s = data.summary_by_platform.get(plat) %}
         {% if s %}
@@ -246,11 +246,25 @@
           {% set _ = p_anr.append(d.get('anr', 0) or 0) %}
           {% set _ = p_nf.append(d.get('non_fatal', 0) or 0) %}
         {% endfor %}
-        <section class="flex min-w-0 flex-col gap-2 sm:gap-3" aria-label="{{ plat|upper }} KPI">
-          {{ plat_metric_card(plat, cf_p, s, s.fatal or 0, 'Fatal', 'rose', p_fatal, 'f', true) }}
-          {{ plat_metric_card(plat, cf_p, s, s.anr or 0, 'ANR', 'amber', p_anr, 'a', false) }}
-          {{ plat_metric_card(plat, cf_p, s, s.non_fatal or 0, 'Non-Fatal', 'slate', p_nf, 'n', false) }}
-        </section>
+        {% set plat_meta = namespace(show=true) %}
+        {% if (s.fatal or 0) > 0 %}
+          <div class="min-w-[5.5rem] flex-1 shrink-0">
+            {{ plat_metric_card(plat, cf_p, s, s.fatal, 'Fatal', 'rose', p_fatal, 'f', plat_meta.show) }}
+          </div>
+          {% set plat_meta.show = false %}
+        {% endif %}
+        {% if (s.anr or 0) > 0 %}
+          <div class="min-w-[5.5rem] flex-1 shrink-0">
+            {{ plat_metric_card(plat, cf_p, s, s.anr, 'ANR', 'amber', p_anr, 'a', plat_meta.show) }}
+          </div>
+          {% set plat_meta.show = false %}
+        {% endif %}
+        {% if (s.non_fatal or 0) > 0 %}
+          <div class="min-w-[5.5rem] flex-1 shrink-0">
+            {{ plat_metric_card(plat, cf_p, s, s.non_fatal, 'Non-Fatal', 'slate', p_nf, 'n', plat_meta.show) }}
+          </div>
+          {% set plat_meta.show = false %}
+        {% endif %}
         {% endif %}
       {% endfor %}
     </div>
