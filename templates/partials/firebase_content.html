@@ -80,15 +80,20 @@
   }
   /* Dark theme: soften/remove harsh white-looking outlines in Crashlytics. */
   html.dark #app-crashlytics-root {
-    --crash-border-soft: rgba(100, 116, 139, 0.18);
+    --crash-border-soft: rgba(100, 116, 139, 0.16);
   }
-  html.dark #app-crashlytics-root :is(.border, .border-b, .border-t, .border-x, .border-y) {
+  html.midnight #app-crashlytics-root {
+    --crash-border-soft: rgba(63, 63, 70, 0.18);
+  }
+  html.dark #app-crashlytics-root:is(.border, .border-b, .border-t, .border-l, .border-r, .border-x, .border-y),
+  html.dark #app-crashlytics-root :is(.border, .border-b, .border-t, .border-l, .border-r, .border-x, .border-y) {
     border-color: var(--crash-border-soft) !important;
   }
   html.dark #app-crashlytics-root .divide-y > :not([hidden]) ~ :not([hidden]),
   html.dark #app-crashlytics-root .divide-x > :not([hidden]) ~ :not([hidden]) {
     border-color: var(--crash-border-soft) !important;
   }
+  html.dark #app-crashlytics-root.ring-1,
   html.dark #app-crashlytics-root .ring-1 {
     --tw-ring-color: transparent !important;
   }
