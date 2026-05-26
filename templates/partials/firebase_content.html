@@ -78,6 +78,21 @@
   html.dark #crash-version-mobile-list {
     background-color: #0f172a;
   }
+  html.crash-scroll-locked {
+    overscroll-behavior: none;
+  }
+  body.crash-scroll-locked {
+    overflow: hidden !important;
+    touch-action: none;
+  }
+  #crash-detail-modal {
+    overscroll-behavior: contain;
+  }
+  #crash-detail-body {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
   /* Dark theme: soften/remove harsh white-looking outlines in Crashlytics. */
   html.dark #app-crashlytics-root {
     --crash-border-soft: rgba(100, 116, 139, 0.16);
@@ -335,6 +350,79 @@
     seqs: { summary: 0, "version-chart": 0, breakdown: 0, crashes: 0, anr: 0, versions: 0 },
     detailCtx: null
   };
+  var crashScrollLock = {
+    locks: {},
+    active: false,
+    y: 0,
+    bodyStyle: {},
+    htmlStyle: {}
+  };
+
+  function setCrashPageScrollLock(key, locked) {
+    if (!key) return;
+    if (locked) crashScrollLock.locks[key] = true;
+    else delete crashScrollLock.locks[key];
+    syncCrashPageScrollLock();
+  }
+
+  function hasCrashPageScrollLocks() {
+    for (var k in crashScrollLock.locks) {
+      if (Object.prototype.hasOwnProperty.call(crashScrollLock.locks, k)) return true;
+    }
+    return false;
+  }
+
+  function syncCrashPageScrollLock() {
+    var shouldLock = hasCrashPageScrollLocks();
+    var body = document.body;
+    var html = document.documentElement;
+    if (!body || !html) return;
+    if (shouldLock && !crashScrollLock.active) {
+      crashScrollLock.y = window.scrollY || window.pageYOffset || html.scrollTop || body.scrollTop || 0;
+      crashScrollLock.bodyStyle = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+        touchAction: body.style.touchAction
+      };
+      crashScrollLock.htmlStyle = {
+        overflow: html.style.overflow,
+        overscrollBehavior: html.style.overscrollBehavior
+      };
+      html.classList.add("crash-scroll-locked");
+      body.classList.add("crash-scroll-locked");
+      html.style.overflow = "hidden";
+      html.style.overscrollBehavior = "none";
+      body.style.position = "fixed";
+      body.style.top = "-" + crashScrollLock.y + "px";
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+      crashScrollLock.active = true;
+      return;
+    }
+    if (!shouldLock && crashScrollLock.active) {
+      html.classList.remove("crash-scroll-locked");
+      body.classList.remove("crash-scroll-locked");
+      html.style.overflow = crashScrollLock.htmlStyle.overflow || "";
+      html.style.overscrollBehavior = crashScrollLock.htmlStyle.overscrollBehavior || "";
+      body.style.position = crashScrollLock.bodyStyle.position || "";
+      body.style.top = crashScrollLock.bodyStyle.top || "";
+      body.style.left = crashScrollLock.bodyStyle.left || "";
+      body.style.right = crashScrollLock.bodyStyle.right || "";
+      body.style.width = crashScrollLock.bodyStyle.width || "";
+      body.style.overflow = crashScrollLock.bodyStyle.overflow || "";
+      body.style.touchAction = crashScrollLock.bodyStyle.touchAction || "";
+      window.scrollTo(0, crashScrollLock.y || 0);
+      crashScrollLock.active = false;
+      crashScrollLock.y = 0;
+    }
+  }
 
   var SECTIONS = ["summary", "version-chart", "breakdown", "crashes", "anr", "versions"];
   var SEC_IDS  = {
@@ -482,7 +570,7 @@
     if (backdrop) backdrop.classList.toggle("hidden", !open);
     trigger.setAttribute("aria-expanded", open ? "true" : "false");
     if (chevron) chevron.classList.toggle("rotate-180", open);
-    document.body.style.overflow = open ? "hidden" : "";
+    setCrashPageScrollLock("version-mobile", open);
     if (open) {
       var mobSearch = document.getElementById("crash-version-search-mobile");
       var deskSearch = document.getElementById("crash-version-search");
@@ -1302,18 +1390,64 @@
   var detailClose = document.getElementById("crash-detail-close");
   if (detailClose) detailClose.addEventListener("click", closeIssueDetail);
   if (detailModal) detailModal.addEventListener("click", function (e) { if (e.target === detailModal) closeIssueDetail(); });
+  if (detailModal) {
+    detailModal.addEventListener("wheel", containIssueDetailWheel, { passive: false });
+    detailModal.addEventListener("touchstart", rememberIssueDetailTouch, { passive: true });
+    detailModal.addEventListener("touchmove", containIssueDetailTouch, { passive: false });
+  }
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && detailModal && detailModal.getAttribute("data-modal-state") === "open") closeIssueDetail();
   });
+  var detailTouchY = null;
+
+  function getIssueDetailScroller(target) {
+    var bodyEl = document.getElementById("crash-detail-body");
+    if (!bodyEl) return null;
+    return bodyEl.contains(target) ? bodyEl : null;
+  }
+
+  function wouldLeakScroll(scroller, deltaY) {
+    if (!scroller) return true;
+    var max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if (max <= 0) return true;
+    if (deltaY < 0 && scroller.scrollTop <= 0) return true;
+    if (deltaY > 0 && scroller.scrollTop >= max - 1) return true;
+    return false;
+  }
+
+  function containIssueDetailWheel(e) {
+    if (!detailModal || detailModal.getAttribute("data-modal-state") !== "open") return;
+    var scroller = getIssueDetailScroller(e.target);
+    if (wouldLeakScroll(scroller, e.deltaY || 0)) e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function rememberIssueDetailTouch(e) {
+    if (!detailModal || detailModal.getAttribute("data-modal-state") !== "open") return;
+    detailTouchY = e.touches && e.touches.length ? e.touches[0].clientY : null;
+  }
+
+  function containIssueDetailTouch(e) {
+    if (!detailModal || detailModal.getAttribute("data-modal-state") !== "open") return;
+    var y = e.touches && e.touches.length ? e.touches[0].clientY : null;
+    var deltaY = detailTouchY == null || y == null ? 0 : detailTouchY - y;
+    var scroller = getIssueDetailScroller(e.target);
+    if (wouldLeakScroll(scroller, deltaY)) e.preventDefault();
+    e.stopPropagation();
+    detailTouchY = y;
+  }
 
   function closeIssueDetail() {
     if (!detailModal) return;
     detailModal.classList.add("hidden"); detailModal.classList.remove("flex");
     detailModal.setAttribute("data-modal-state", "closed");
+    setCrashPageScrollLock("issue-detail", false);
+    crashState.detailCtx = null;
   }
 
   function openIssueDetail(info) {
     if (!detailModal || !info || !info.issue_id) return;
+    setCrashPageScrollLock("issue-detail", true);
     detailModal.classList.remove("hidden"); detailModal.classList.add("flex");
     detailModal.setAttribute("data-modal-state", "open");
     var titleEl = document.getElementById("crash-detail-title");
@@ -1330,7 +1464,10 @@
         + " · " + (info.event_count || 0) + " olay · " + (info.affected_users || 0) + " kullanıcı"
         + (info.latest_version ? " · v" + escapeHtml(info.latest_version) : "");
     }
-    if (bodyEl) bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Detay yükleniyor…</div>';
+    if (bodyEl) {
+      bodyEl.scrollTop = 0;
+      bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Detay yükleniyor…</div>';
+    }
     var url = "/api/app/crashlytics/issue-detail?product=" + encodeURIComponent(crashState.product)
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
@@ -1359,6 +1496,7 @@
         }
         if (bodyEl) {
           bodyEl.innerHTML = renderIssueDetail(j);
+          bodyEl.scrollTop = 0;
           wireIssueDetailTabs(bodyEl);
         }
       })
@@ -1576,7 +1714,12 @@
       }
       html += '<pre class="max-h-[50vh] overflow-auto text-[10px]">' + escapeHtml(JSON.stringify({ diagnose: j, platform_analysis: pa }, null, 2)) + '</pre>';
       if (bodyEl) bodyEl.innerHTML = html;
-      if (detailModal) { detailModal.classList.remove("hidden"); detailModal.classList.add("flex"); detailModal.setAttribute("data-modal-state", "open"); }
+      if (detailModal) {
+        setCrashPageScrollLock("issue-detail", true);
+        detailModal.classList.remove("hidden");
+        detailModal.classList.add("flex");
+        detailModal.setAttribute("data-modal-state", "open");
+      }
     });
   });
 
