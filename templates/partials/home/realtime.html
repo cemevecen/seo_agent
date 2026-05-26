@@ -9,11 +9,11 @@
   <span class="text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }} · 60s</span>
 </div>
 {% if sites %}
-  <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+  <div class="mt-4 grid grid-cols-6 gap-2 xl:gap-3">
     {% for site in sites %}
       {% for prof in site.profiles %}
         {% set _p = prof.delta_pct | default(0) | float %}
-        <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2.5 py-2.5"
+        <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5"
              style="--home-rt-duration: {{ prof.spark_motion.duration }}s; --home-rt-delay: {{ prof.spark_motion.delay }}s;">
           <div class="relative z-[1] min-w-0">
             <p class="truncate text-[10px] font-semibold uppercase tracking-wider {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ site.display_name or site.domain }}</p>
