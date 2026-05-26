@@ -6784,7 +6784,7 @@ def dashboard_measure_site(request: Request, site_id: int):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _HOME_SITE_DOMAINS = {1: ("doviz.com", "Döviz"), 2: ("www.sinemalar.com", "Sinemalar")}
-_HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("android", "Android"), ("ios", "iOS")]
+_HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("ios", "iOS"), ("android", "Android")]
 _HOME_SINEMA_PROFILES = [("web", "Web"), ("mweb", "MWeb")]
 _HOME_REALTIME_SPARK_LIMIT = 36
 
