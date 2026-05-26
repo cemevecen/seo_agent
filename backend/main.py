@@ -6786,6 +6786,7 @@ def dashboard_measure_site(request: Request, site_id: int):
 _HOME_SITE_DOMAINS = {1: ("doviz.com", "Döviz"), 2: ("www.sinemalar.com", "Sinemalar")}
 _HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("android", "Android"), ("ios", "iOS")]
 _HOME_SINEMA_PROFILES = [("web", "Web"), ("mweb", "MWeb")]
+_HOME_REALTIME_SPARK_LIMIT = 36
 
 
 def _home_format_int(n: float) -> str:
@@ -6912,6 +6913,115 @@ def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
     return (f"{sign}{pct:.1f}%", tone, round(pct, 2))
 
 
+def _home_spark_motion(site_id: int, profile: str) -> dict:
+    """Small timing variations keep adjacent realtime sparklines from moving in sync."""
+    motion_map = {
+        (1, "web"): (5.8, -0.2),
+        (1, "mweb"): (7.2, -1.4),
+        (1, "android"): (6.4, -2.1),
+        (1, "ios"): (8.0, -0.8),
+        (2, "web"): (6.7, -1.1),
+        (2, "mweb"): (7.7, -2.7),
+    }
+    duration, delay = motion_map.get((site_id, profile), (7.0, -0.5))
+    return {"duration": duration, "delay": delay}
+
+
+def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38, pad: int = 3) -> dict:
+    clean: list[float] = []
+    for value in values:
+        try:
+            clean.append(float(value or 0))
+        except (TypeError, ValueError):
+            continue
+
+    if not clean:
+        return {"has_points": False}
+    if len(clean) == 1:
+        clean = [clean[0], clean[0]]
+
+    min_v = min(clean)
+    max_v = max(clean)
+    span = max_v - min_v
+    if span <= 0:
+        span = max(abs(max_v) * 0.12, 1.0)
+        min_v = max(0.0, min_v - span / 2)
+        max_v = max_v + span / 2
+    else:
+        min_v = max(0.0, min_v - span * 0.12)
+        max_v = max_v + span * 0.12
+        span = max_v - min_v
+
+    inner_w = width - pad * 2
+    inner_h = height - pad * 2
+    denom = max(len(clean) - 1, 1)
+    points: list[tuple[float, float]] = []
+    for idx, value in enumerate(clean):
+        x = pad + (inner_w * idx / denom)
+        y = pad + inner_h - ((value - min_v) / span * inner_h)
+        points.append((round(x, 2), round(y, 2)))
+
+    if len(points) == 2:
+        path_d = "M %.2f %.2f L %.2f %.2f" % (points[0][0], points[0][1], points[1][0], points[1][1])
+    else:
+        parts = ["M %.2f %.2f" % points[0]]
+        for idx in range(1, len(points)):
+            prev_x, prev_y = points[idx - 1]
+            x, y = points[idx]
+            dx = x - prev_x
+            c1x = prev_x + dx * 0.42
+            c2x = x - dx * 0.42
+            parts.append("C %.2f %.2f %.2f %.2f %.2f %.2f" % (c1x, prev_y, c2x, y, x, y))
+        path_d = " ".join(parts)
+
+    first_x, _first_y = points[0]
+    last_x, _last_y = points[-1]
+    baseline = height - pad
+    area_path = f"{path_d} L {last_x:.2f} {baseline:.2f} L {first_x:.2f} {baseline:.2f} Z"
+    last_value = clean[-1]
+
+    return {
+        "has_points": True,
+        "path_d": path_d,
+        "area_path": area_path,
+        "end_x": points[-1][0],
+        "end_y": points[-1][1],
+        "last_value_fmt": _home_format_int(last_value),
+        "point_count": len(clean),
+    }
+
+
+def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, rows: list[RealtimeSnapshot]) -> dict:
+    if not rows:
+        return {
+            "key": prof_key,
+            "label": prof_label,
+            "value_fmt": "—",
+            "delta_fmt": None,
+            "delta_tone": "flat",
+            "delta_pct": 0.0,
+            "spark": {"has_points": False},
+            "spark_motion": _home_spark_motion(site_id, prof_key),
+        }
+
+    trend_rows = list(reversed(rows))
+    latest = rows[0]
+    cur = float(latest.active_users_current or 0)
+    prev = float(latest.active_users_previous or 0)
+    delta_fmt, tone, delta_pct = _home_pct_delta(cur, prev)
+    spark = _home_spark_paths([float(row.active_users_current or 0) for row in trend_rows])
+    return {
+        "key": prof_key,
+        "label": prof_label,
+        "value_fmt": _home_format_int(cur),
+        "delta_fmt": delta_fmt,
+        "delta_tone": tone,
+        "delta_pct": delta_pct,
+        "spark": spark,
+        "spark_motion": _home_spark_motion(site_id, prof_key),
+    }
+
+
 def _home_get_site(db, site_id: int):
     return db.query(Site).filter(Site.id == site_id).first()
 
@@ -6932,19 +7042,14 @@ def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str
     """RealtimeSnapshot tablosundan her profil için en taze snapshot'ı al."""
     out = []
     for prof_key, prof_label in profiles:
-        row = (
+        rows = (
             db.query(RealtimeSnapshot)
             .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof_key)
             .order_by(RealtimeSnapshot.collected_at.desc())
-            .first()
+            .limit(_HOME_REALTIME_SPARK_LIMIT)
+            .all()
         )
-        if row is None:
-            out.append({"label": prof_label, "value_fmt": "—", "delta_fmt": None, "delta_tone": "flat", "delta_pct": 0.0})
-            continue
-        cur = float(row.active_users_current or 0)
-        prev = float(row.active_users_previous or 0)
-        delta_fmt, tone, delta_pct = _home_pct_delta(cur, prev)
-        out.append({"label": prof_label, "value_fmt": _home_format_int(cur), "delta_fmt": delta_fmt, "delta_tone": tone, "delta_pct": delta_pct})
+        out.append(_home_build_realtime_profile(site_id, prof_key, prof_label, rows))
     return out
 
 
