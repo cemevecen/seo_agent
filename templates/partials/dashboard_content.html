@@ -17,6 +17,16 @@
   html.dark section[hx-get*="site=sinemalar"] {
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
   }
+  .home-rt-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  @media (min-width: 1280px) {
+    .home-rt-grid {
+      gap: 0.75rem;
+    }
+  }
   .home-rt-metric {
     --home-rt-c1: #60a5fa;
     --home-rt-c2: #22d3ee;
