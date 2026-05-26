@@ -141,6 +141,20 @@
     </div>
   </div>
 
+  {% set _placeholder_short = '<div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+  {% set _placeholder_mid   = '<div class="mt-4 h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+  {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+
+  {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
+  <section hx-get="/api/home/realtime" hx-trigger="load, every 60s" hx-swap="innerHTML"
+           class="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+    <div class="flex items-center gap-2">
+      <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+    </div>
+    {{ _placeholder_short | safe }}
+  </section>
+
   {# Ana içerik: dikey divider içeren wrapper #}
   <div class="relative mt-5">
     {# Dikey divider — lg ve üstünde, sol-sağ sütun ortası boyunca #}
@@ -160,24 +174,8 @@
       </div>
     </div>
 
-    {% set _placeholder_short = '<div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-    {% set _placeholder_mid   = '<div class="mt-4 h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-    {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-
     <div class="space-y-5">
-      {# Row 1 — Anlık #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/realtime" hx-trigger="load, every 60s" hx-swap="innerHTML"
-                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 lg:col-span-2">
-          <div class="flex items-center gap-2">
-            <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
-            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
-          </div>
-          {{ _placeholder_short | safe }}
-        </section>
-      </div>
-
-      {# Row 2 — GA4 #}
+      {# Row 1 — GA4 #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/ga4-sessions?site=doviz" hx-trigger="load" hx-swap="innerHTML"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
