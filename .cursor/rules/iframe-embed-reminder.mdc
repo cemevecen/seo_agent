@@ -1,15 +1,12 @@
 ---
-description: Her görev sonunda iframe/embed fikirlerini kısa hatırlat
+description: Iframe/embed konusunu kullanıcı sormadıkça hatırlatma
 alwaysApply: true
 ---
 
-# Iframe / embed hatırlatıcı
+# Iframe / embed hatırlatmasını kapat
 
-Kullanıcı iframe ile sayfaya gömülebilecek araçlar (Looker Studio, Grafana, same-origin `/embed/*` widget'ları, embed hub vb.) konusunu takip etmek istiyor.
+Kullanıcı iframe/embed hatırlatmalarının artık yapılmamasını istedi.
 
-**Her görevi tamamladığında** (kod, deploy, soru-cevap, bug fix — konu ne olursa olsun) yanıtın **sonuna** kısa bir satır ekle:
-
-> **Iframe notu:** Bu konuya geri dönmek istersen buradayım — Looker Studio / Grafana embed, `/embed/realtime` widget'ları veya embed hub sayfası için devam edebiliriz.
-
-- Tek cümle yeterli; görevle ilgisiz uzun açıklama yapma.
-- Kullanıcı o oturumda iframe konusunu zaten bitirdiyse yine de hatırlat (unutulmasın diye istedi).
+- Yanıt sonuna iframe/embed hatırlatma notu ekleme.
+- Looker Studio, Grafana, `/embed/*`, `/embed/realtime` veya embed hub konularını yalnızca kullanıcı açıkça sorarsa ele al.
+- İlgisiz görevlerin sonunda bu konuya geri dönme.
