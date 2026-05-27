@@ -124,6 +124,72 @@
     background: linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 34px rgba(0,0,0,0.18);
   }
+  .home-motion-crash-pulse {
+    position: relative;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle, #fb7185 0 28%, rgba(244,63,94,0.22) 29% 54%, transparent 55%);
+  }
+  .home-motion-crash-pulse::before,
+  .home-motion-crash-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(244, 63, 94, 0.55);
+    animation: home-motion-crash-ring 2.2s ease-out infinite;
+  }
+  .home-motion-crash-pulse::after { animation-delay: .7s; }
+  .home-motion-ga4-wave {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 1rem;
+  }
+  .home-motion-ga4-wave span {
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #34d399, #0ea5e9);
+    animation: home-motion-wave 1.45s ease-in-out infinite;
+  }
+  .home-motion-ga4-wave span:nth-child(1) { height: .35rem; animation-delay: 0s; }
+  .home-motion-ga4-wave span:nth-child(2) { height: .7rem; animation-delay: .12s; }
+  .home-motion-ga4-wave span:nth-child(3) { height: 1rem; animation-delay: .24s; }
+  .home-motion-ga4-wave span:nth-child(4) { height: .55rem; animation-delay: .36s; }
+  .home-motion-gauge {
+    position: relative;
+    width: 1.25rem;
+    height: .78rem;
+    overflow: hidden;
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: conic-gradient(from 230deg at 50% 100%, #ef4444 0 32deg, #f59e0b 32deg 64deg, #10b981 64deg 100deg, transparent 100deg);
+  }
+  .home-motion-gauge::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 1px;
+    height: .68rem;
+    background: #0f172a;
+    transform-origin: bottom;
+    transform: rotate(-42deg);
+    animation: home-motion-gauge-needle 2.4s ease-in-out infinite;
+  }
+  html.dark .home-motion-gauge::after { background: #e5e7eb; }
+  @keyframes home-motion-crash-ring {
+    0% { transform: scale(.55); opacity: .95; }
+    100% { transform: scale(1.9); opacity: 0; }
+  }
+  @keyframes home-motion-wave {
+    0%, 100% { transform: scaleY(.55); opacity: .55; }
+    50% { transform: scaleY(1.08); opacity: 1; }
+  }
+  @keyframes home-motion-gauge-needle {
+    0%, 100% { transform: rotate(-42deg); }
+    50% { transform: rotate(42deg); }
+  }
   @keyframes home-rt-aurora {
     0%, 100% { transform: translateX(-48%) rotate(8deg); opacity: 0.38; }
     50% { transform: translateX(42%) rotate(8deg); opacity: 0.72; }

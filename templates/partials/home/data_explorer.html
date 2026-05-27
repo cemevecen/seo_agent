@@ -14,7 +14,10 @@
 
 <div class="flex items-start justify-between gap-3">
   <div>
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
+    <div class="flex items-center gap-2">
+      <span class="home-motion-gauge" aria-hidden="true"></span>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Data Explorer · Core Web Vitals</h3>
+    </div>
     {% if schedule %}
       <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400" title="Sunucu her gün bu saatte PSI + CrUX verilerini otomatik yeniler.">Otomatik yenileme: her gün <span class="font-medium text-slate-700 dark:text-slate-300">{{ schedule }}</span> (TSİ)</p>
     {% endif %}

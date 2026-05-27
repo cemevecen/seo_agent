@@ -317,12 +317,39 @@ text-slate-500 dark:text-slate-400
   html.dark .dex-mat-dark [class*="from-amber-950"] {
     background-image: linear-gradient(to bottom, rgba(30,41,59,0.6), rgba(15,23,42,1)) !important;
   }
+  .dex-motion-gauge {
+    position: relative;
+    display: inline-flex;
+    width: 2.1rem;
+    height: 1.25rem;
+    overflow: hidden;
+    border-radius: 2rem 2rem 0 0;
+    background: conic-gradient(from 230deg at 50% 100%, #ef4444 0 34deg, #f59e0b 34deg 68deg, #10b981 68deg 102deg, transparent 102deg);
+    box-shadow: inset 0 -1px 0 rgba(15,23,42,.12);
+  }
+  .dex-motion-gauge::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 2px;
+    height: 1.05rem;
+    border-radius: 999px;
+    background: #0f172a;
+    transform-origin: bottom;
+    animation: dex-motion-gauge-needle 2.6s ease-in-out infinite;
+  }
+  html.dark .dex-motion-gauge::after { background: #e5e7eb; }
+  @keyframes dex-motion-gauge-needle {
+    0%, 100% { transform: rotate(-42deg); }
+    50% { transform: rotate(44deg); }
+  }
 </style>
 
 <div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">PageSpeed</p>
+      <p class="inline-flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"><span class="dex-motion-gauge" aria-hidden="true"></span><span>PageSpeed</span></p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ domain }}</h3>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
         <span class="inline-flex items-center gap-1.5">

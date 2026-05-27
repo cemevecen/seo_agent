@@ -111,6 +111,29 @@
   html.dark #app-crashlytics-root .ring-1 {
     --tw-ring-color: transparent !important;
   }
+  .crash-motion-pulse {
+    position: relative;
+    display: inline-flex;
+    height: 1.25rem;
+    width: 1.25rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: radial-gradient(circle, #fb7185 0 28%, rgba(244,63,94,0.22) 29% 55%, transparent 56%);
+  }
+  .crash-motion-pulse::before,
+  .crash-motion-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(244, 63, 94, 0.58);
+    animation: crash-motion-pulse-ring 2.1s ease-out infinite;
+  }
+  .crash-motion-pulse::after { animation-delay: .72s; }
+  @keyframes crash-motion-pulse-ring {
+    0% { transform: scale(.55); opacity: .95; }
+    100% { transform: scale(2); opacity: 0; }
+  }
 </style>
 
 {# Apple ve Android SVG sembolleri — sayfada bir kez tanımlanır, <use> ile çağrılır #}
@@ -133,7 +156,10 @@
     {# Başlık + Yenile #}
     <div class="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
       <div class="min-w-0">
-        <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
+        <div class="flex items-center gap-2">
+          <span class="crash-motion-pulse" aria-hidden="true"></span>
+          <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
+        </div>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         {% if crash_products|length > 1 %}

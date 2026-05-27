@@ -137,10 +137,50 @@
       grid-template-columns: minmax(0, 38%) minmax(0, 62%);
     }
   }
+  .inbox-motion-mail {
+    position: relative;
+    display: inline-flex;
+    height: 1.7rem;
+    width: 1.9rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, #6366f1, #4338ca);
+    box-shadow: 0 10px 24px -14px rgba(79,70,229,.8);
+    color: white;
+  }
+  .inbox-motion-mail::before,
+  .inbox-motion-mail::after {
+    content: "";
+    position: absolute;
+    inset: .35rem .35rem auto;
+    height: .55rem;
+    border-bottom: 1.5px solid rgba(255,255,255,.85);
+    transform: skewY(-24deg);
+  }
+  .inbox-motion-mail::after {
+    transform: skewY(24deg);
+  }
+  .inbox-motion-mail span {
+    position: absolute;
+    right: -.2rem;
+    top: -.2rem;
+    height: .55rem;
+    width: .55rem;
+    border-radius: 9999px;
+    background: #22c55e;
+    box-shadow: 0 0 0 0 rgba(34,197,94,.55);
+    animation: inbox-motion-pulse 1.8s ease-out infinite;
+  }
+  @keyframes inbox-motion-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); }
+    100% { box-shadow: 0 0 0 .55rem rgba(34,197,94,0); }
+  }
 </style>
 <div class="inbox-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
+    <div class="flex items-center gap-3">
+      <span class="inbox-motion-mail" aria-hidden="true"><span></span></span>
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Gelen kutusu</h1>
     </div>
     <div class="flex flex-wrap gap-2" id="inbox-toolbar">
