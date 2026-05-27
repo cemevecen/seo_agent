@@ -94,10 +94,37 @@
       flex-wrap: nowrap;
     }
   }
+  .ga4-motion-wave {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 1.35rem;
+  }
+  .ga4-motion-wave span {
+    width: 4px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #a78bfa, #14b8a6);
+    animation: ga4-motion-wave 1.45s ease-in-out infinite;
+  }
+  .ga4-motion-wave span:nth-child(1) { height: .45rem; animation-delay: 0s; }
+  .ga4-motion-wave span:nth-child(2) { height: .9rem; animation-delay: .12s; }
+  .ga4-motion-wave span:nth-child(3) { height: 1.28rem; animation-delay: .24s; }
+  .ga4-motion-wave span:nth-child(4) { height: .75rem; animation-delay: .36s; }
+  @keyframes ga4-motion-wave {
+    0%, 100% { transform: scaleY(.55); opacity: .55; }
+    50% { transform: scaleY(1.08); opacity: 1; }
+  }
 </style>
 <div data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-3">
+        <span class="ga4-motion-wave" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">GA4</p>
+          <h2 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Analytics özeti</h2>
+        </div>
+      </div>
       <button
         id="refresh-ga4-sites-button"
         type="button"

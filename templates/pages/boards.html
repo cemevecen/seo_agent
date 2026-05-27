@@ -1,44 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-  .gl-motion-flow {
-    position: relative;
-    display: inline-grid;
-    grid-template-columns: repeat(4, .42rem);
-    gap: .28rem;
-    align-items: center;
-    height: 1.1rem;
-  }
-  .gl-motion-flow span {
-    height: .42rem;
-    width: .42rem;
-    border-radius: 9999px;
-    background: #38bdf8;
-    opacity: .42;
-    animation: gl-motion-flow-dot 1.55s ease-in-out infinite;
-  }
-  .gl-motion-flow span:nth-child(2) { animation-delay: .15s; background: #60a5fa; }
-  .gl-motion-flow span:nth-child(3) { animation-delay: .3s; background: #818cf8; }
-  .gl-motion-flow span:nth-child(4) { animation-delay: .45s; background: #a78bfa; }
-  .gl-motion-flow::before {
-    content: "";
-    position: absolute;
-    left: .2rem;
-    right: .2rem;
-    top: 50%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(96,165,250,.7), transparent);
-    transform: translateY(-50%);
-  }
-  @keyframes gl-motion-flow-dot {
-    0%, 100% { transform: translateY(0) scale(.8); opacity: .42; }
-    50% { transform: translateY(-.18rem) scale(1.18); opacity: 1; }
-  }
-</style>
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5" x-data="gitlabBoards()" x-init="initBoards()">
   <div class="flex flex-col gap-2 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-4">
-      <span class="gl-motion-flow" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
       <h3 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">git.nokta.com</h3>
       <button 
         @click="refreshActiveProject()" 
