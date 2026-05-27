@@ -45,9 +45,12 @@
       display: flex;
       flex-direction: column;
     }
+    #crash-detail-panel {
+      height: 100dvh;
+      max-height: 100dvh;
+    }
     #crash-detail-body {
-      max-height: none;
-      flex: 1;
+      flex: none !important;
       min-height: 0;
     }
   }
@@ -87,9 +90,19 @@
   #crash-detail-modal {
     overscroll-behavior: contain;
   }
-  #crash-detail-body {
+  #crash-detail-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: min(92dvh, calc(100dvh - 1.5rem));
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+  #crash-detail-body {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: contain;
     touch-action: pan-y;
   }
   /* Dark theme: soften/remove harsh white-looking outlines in Crashlytics. */
@@ -346,7 +359,7 @@
       <span>Kapat</span>
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
     </button>
-    <div class="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-2xl dark:border-slate-700 dark:bg-slate-900">
+    <div id="crash-detail-panel" class="flex h-[100dvh] w-full max-w-5xl flex-col border border-slate-200 bg-white shadow-2xl sm:h-auto sm:rounded-2xl dark:border-slate-700 dark:bg-slate-900">
       <div class="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
         <div class="min-w-0 flex-1">
           <p id="crash-detail-title" class="truncate text-sm font-bold text-slate-800 dark:text-slate-100">—</p>
@@ -1434,9 +1447,9 @@
   var detailTouchY = null;
 
   function getIssueDetailScroller(target) {
-    var bodyEl = document.getElementById("crash-detail-body");
-    if (!bodyEl) return null;
-    return bodyEl.contains(target) ? bodyEl : null;
+    var panelEl = document.getElementById("crash-detail-panel");
+    if (!panelEl) return null;
+    return panelEl.contains(target) ? panelEl : null;
   }
 
   function wouldLeakScroll(scroller, deltaY) {
@@ -1486,6 +1499,7 @@
     var titleEl = document.getElementById("crash-detail-title");
     var metaEl = document.getElementById("crash-detail-meta");
     var bodyEl = document.getElementById("crash-detail-body");
+    var panelEl = document.getElementById("crash-detail-panel");
     if (titleEl) titleEl.textContent = info.issue_title || "(başlıksız)";
     if (metaEl) {
       var platLower = (info.platform || "").toLowerCase();
@@ -1501,6 +1515,7 @@
       bodyEl.scrollTop = 0;
       bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Detay yükleniyor…</div>';
     }
+    if (panelEl) panelEl.scrollTop = 0;
     var url = "/api/app/crashlytics/issue-detail?product=" + encodeURIComponent(crashState.product)
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
@@ -1529,7 +1544,7 @@
         }
         if (bodyEl) {
           bodyEl.innerHTML = renderIssueDetail(j);
-          bodyEl.scrollTop = 0;
+          if (panelEl) panelEl.scrollTop = 0;
           wireIssueDetailTabs(bodyEl);
         }
       })
