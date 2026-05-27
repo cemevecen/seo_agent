@@ -72,21 +72,10 @@
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.14);
     background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.18));
-    background:
-      radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--home-rt-c2) 18%, transparent), transparent 34%),
-      linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.18));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
   }
   .home-rt-metric::before {
-    content: "";
-    position: absolute;
-    inset: -55% -20% auto;
-    height: 90%;
-    background: linear-gradient(110deg, transparent 18%, rgba(34, 211, 238, 0.18), transparent 78%);
-    background: linear-gradient(110deg, transparent 18%, color-mix(in srgb, var(--home-rt-c2) 22%, transparent), transparent 78%);
-    opacity: 0.55;
-    transform: translateX(-45%) rotate(8deg);
-    animation: home-rt-aurora 8.5s ease-in-out infinite;
+    content: none;
   }
   .home-rt-metric--1-web { --home-rt-c1: #38bdf8; --home-rt-c2: #2563eb; --home-rt-c3: #22d3ee; }
   .home-rt-metric--1-mweb { --home-rt-c1: #2dd4bf; --home-rt-c2: #06b6d4; --home-rt-c3: #60a5fa; }
@@ -133,9 +122,6 @@
   html.dark .home-rt-metric {
     border-color: rgba(255,255,255,0.06);
     background: linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
-    background:
-      radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--home-rt-c2) 20%, transparent), transparent 35%),
-      linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 34px rgba(0,0,0,0.18);
   }
   @keyframes home-rt-aurora {
