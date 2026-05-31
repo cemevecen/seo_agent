@@ -606,7 +606,9 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "metric": "activeUsers",
         "direction": "drop",
         "threshold_pct": 40,
-        "min_baseline": 3,
+        # Önceki yarı-pencerede en az bu kadar aktif kullanıcı olmalı. Düşük tutulduğunda
+        # gece/düşük trafik anlarındaki küçük dalgalanmalar sürekli alarm üretiyordu.
+        "min_baseline": 40,
         "severity": "critical",
     },
     "traffic_spike": {
@@ -614,7 +616,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "metric": "activeUsers",
         "direction": "spike",
         "threshold_pct": 40,
-        "min_baseline": 3,
+        "min_baseline": 40,
         "severity": "warning",
     },
     "pageview_drop": {
@@ -622,7 +624,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "metric": "screenPageViews",
         "direction": "drop",
         "threshold_pct": 40,
-        "min_baseline": 5,
+        "min_baseline": 60,
         "severity": "warning",
     },
 }
@@ -762,7 +764,13 @@ def _realtime_rules_threshold_pct_for_domain(
     base_rules: dict[str, dict[str, Any]],
     site_domain: str | None,
 ) -> dict[str, dict[str, Any]]:
-    """sinemalar için tüm ``threshold_pct`` = 50; döviz için 30; mutlak tabanlar (min_*) de buna göre ölçeklenir."""
+    """sinemalar için tüm ``threshold_pct`` = 50; döviz için 30.
+
+    NOT: Mutlak tabanlar (``min_users``/``min_baseline`` vb.) ARTIK ölçeklenmez. Önceden bu
+    değerler yüzde oranıyla küçültülüyordu (ör. doviz tabanı 3 → 1), bu da 1→2 kullanıcı gibi
+    çok küçük değişikliklerin alarm tetiklemesine ve sürekli mail gelmesine yol açıyordu.
+    Tabanlar kuralda tanımlandığı gibi korunur; yalnızca yüzde eşiği domaine göre ayarlanır.
+    """
     d = (site_domain or "").strip().lower()
     if d.startswith("www."):
         d = d[4:]
@@ -777,13 +785,9 @@ def _realtime_rules_threshold_pct_for_domain(
         return base_rules
 
     out = copy.deepcopy(base_rules)
-    scale = target_pct / 100.0
     for _rid, rule in out.items():
         if "threshold_pct" in rule:
             rule["threshold_pct"] = target_pct
-        for key in ("min_users", "min_prev_users", "min_baseline", "min_peak_users"):
-            if key in rule and isinstance(rule[key], (int, float)):
-                rule[key] = max(1, int(round(float(rule[key]) * scale)))
     return out
 
 

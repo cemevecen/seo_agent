@@ -3118,7 +3118,9 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         scheduler.add_job(
             _run_ga4_realtime_check_job,
             trigger=_IntTrigger(
-                minutes=max(5, int(settings.ga4_realtime_interval_minutes)),
+                # En erken yarım saatte bir: tüm realtime alarmları bu döngüde tek mailde
+                # toplandığından, 30 dk alt sınırı "sürekli mail gelmesini" engeller.
+                minutes=max(30, int(settings.ga4_realtime_interval_minutes)),
                 timezone=timezone,
             ),
             id="ga4-realtime-check",
