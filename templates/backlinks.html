@@ -1087,6 +1087,14 @@
     });
   }
 
+  function blDomainIsIpHost(d) {
+    var s = (d || "").trim().toLowerCase();
+    if (!s) return false;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) return true;
+    if (s.indexOf(":") !== -1 && /^[0-9a-f:.[\]]+$/i.test(s)) return true;
+    return false;
+  }
+
   function blUniqueDomainsFromCache() {
     var seen = {};
     var out = [];
@@ -1097,6 +1105,9 @@
       out.push(d);
     });
     out.sort(function (a, b) {
+      var aIp = blDomainIsIpHost(a);
+      var bIp = blDomainIsIpHost(b);
+      if (aIp !== bIp) return aIp ? 1 : -1;
       return a.localeCompare(b, "tr");
     });
     return out;
