@@ -599,6 +599,22 @@ class AppIntelRawCache(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class GscCwvScreenshot(Base):
+    """Search Console CWV manuel ekran görüntüleri (Railway kalıcılığı için Postgres)."""
+
+    __tablename__ = "gsc_cwv_screenshots"
+    __table_args__ = (UniqueConstraint("site_id", "variant", name="uq_gsc_cwv_site_variant"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant: Mapped[str] = mapped_column(String(20), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False, default="image/png")
+    image_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
 class InboxGmailCredential(Base):
     """Gelen kutusu (Gmail API) için global OAuth — tek satır (id=1)."""
 

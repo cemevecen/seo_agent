@@ -1343,8 +1343,185 @@
     }
   }
 
+  function gscCwvReplaceSiteCard(siteId, html) {
+    var card = document.getElementById('sc-card-' + siteId);
+    if (!card || !html) {
+      return;
+    }
+    card.outerHTML = html;
+    var next = document.getElementById('sc-card-' + siteId);
+    if (next && window.htmx && typeof window.htmx.process === 'function') {
+      window.htmx.process(next);
+    }
+    if (typeof window.initSearchConsolePanels === 'function') {
+      var scList = document.getElementById('search-console-site-list');
+      window.initSearchConsolePanels(scList || document);
+    }
+  }
+
+  function initGscCwvMediaHandlers() {
+    if (document.body.dataset.gscCwvMediaBound === '1') {
+      return;
+    }
+    document.body.dataset.gscCwvMediaBound = '1';
+
+    document.body.addEventListener('change', function (e) {
+      var input = e.target && e.target.closest ? e.target.closest('[data-gsc-cwv-files]') : null;
+      if (!input) {
+        return;
+      }
+      var siteId = input.getAttribute('data-gsc-cwv-files');
+      if (!siteId) {
+        return;
+      }
+      var box = document.querySelector('[data-gsc-multi-upload="' + siteId + '"]');
+      if (!box) {
+        return;
+      }
+      var preview = box.querySelector('[data-gsc-upload-preview="' + siteId + '"]');
+      var saveBtn = box.querySelector('[data-gsc-upload-save="' + siteId + '"]');
+      var errEl = document.getElementById('gsc-upload-err-' + siteId);
+      if (errEl) {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+      var n = input.files ? input.files.length : 0;
+      if (saveBtn) {
+        saveBtn.disabled = n === 0;
+      }
+      if (preview) {
+        if (!n) {
+          preview.textContent = 'Henüz dosya seçilmedi.';
+        } else if (n === 1) {
+          preview.textContent = '1 dosya seçildi — Kaydet ile yüklenir.';
+        } else {
+          preview.textContent = n + ' dosya seçildi — Kaydet ile yüklenir.';
+        }
+      }
+    });
+
+    document.body.addEventListener('click', function (e) {
+      var saveBtn = e.target && e.target.closest ? e.target.closest('[data-gsc-upload-save]') : null;
+      if (saveBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var siteId = saveBtn.getAttribute('data-gsc-upload-save');
+        var input = document.getElementById('gsc-sc-files-' + siteId);
+        var box = document.querySelector('[data-gsc-multi-upload="' + siteId + '"]');
+        var errEl = document.getElementById('gsc-upload-err-' + siteId);
+        var wrap = box ? box.querySelector('[data-gsc-upload-wrap="' + siteId + '"]') : null;
+        var bar = box ? box.querySelector('[data-gsc-upload-bar="' + siteId + '"]') : null;
+        if (!input || !input.files || input.files.length === 0) {
+          if (errEl) {
+            errEl.textContent = 'Önce en az bir görsel seçin.';
+            errEl.classList.remove('hidden');
+          }
+          return;
+        }
+        var fd = new FormData();
+        for (var i = 0; i < input.files.length; i++) {
+          fd.append('files', input.files[i]);
+        }
+        saveBtn.disabled = true;
+        var prevLabel = saveBtn.textContent;
+        saveBtn.textContent = 'Kaydediliyor…';
+        if (wrap) {
+          wrap.classList.remove('hidden');
+        }
+        if (bar) {
+          bar.style.width = '3%';
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/search-console/cwv-screenshot/upload-batch/' + siteId);
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = function (ev) {
+          if (!bar || !ev.lengthComputable || !ev.total) {
+            return;
+          }
+          var pct = Math.max(3, Math.min(97, Math.round((ev.loaded / ev.total) * 100)));
+          bar.style.width = pct + '%';
+        };
+        xhr.onload = function () {
+          if (bar) {
+            bar.style.width = '100%';
+            window.setTimeout(function () {
+              bar.style.width = '0%';
+              if (wrap) {
+                wrap.classList.add('hidden');
+              }
+            }, 400);
+          }
+          saveBtn.textContent = prevLabel;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            input.value = '';
+            saveBtn.disabled = true;
+            var preview = box ? box.querySelector('[data-gsc-upload-preview="' + siteId + '"]') : null;
+            if (preview) {
+              preview.textContent = 'Yüklendi. Yeni görsel için tekrar dosya seçip Kaydet deyin.';
+            }
+            gscCwvReplaceSiteCard(siteId, xhr.responseText);
+          } else if (errEl) {
+            saveBtn.disabled = false;
+            var msg = (xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            errEl.textContent = msg.slice(0, 500) || ('Kaydet başarısız (HTTP ' + xhr.status + ')');
+            errEl.classList.remove('hidden');
+          }
+        };
+        xhr.onerror = function () {
+          if (bar) {
+            bar.style.width = '0%';
+          }
+          if (wrap) {
+            wrap.classList.add('hidden');
+          }
+          saveBtn.disabled = false;
+          saveBtn.textContent = prevLabel;
+          if (errEl) {
+            errEl.textContent = 'Ağ hatası; bağlantıyı kontrol edin.';
+            errEl.classList.remove('hidden');
+          }
+        };
+        xhr.send(fd);
+        return;
+      }
+
+      var delBtn = e.target && e.target.closest ? e.target.closest('[data-gsc-cwv-delete]') : null;
+      if (delBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var sid = delBtn.getAttribute('data-gsc-cwv-delete');
+        var variant = delBtn.getAttribute('data-gsc-cwv-variant') || 'full';
+        if (!sid || !window.confirm('Bu görseli kaldırmak istiyor musunuz?')) {
+          return;
+        }
+        delBtn.disabled = true;
+        fetch('/search-console/cwv-screenshot/delete/' + sid + '?variant=' + encodeURIComponent(variant), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'text/html', 'HX-Request': 'true' },
+        })
+          .then(function (r) {
+            return r.text().then(function (text) {
+              if (!r.ok) {
+                throw new Error(text.replace(/<[^>]+>/g, ' ').trim().slice(0, 200) || 'HTTP ' + r.status);
+              }
+              return text;
+            });
+          })
+          .then(function (html) {
+            gscCwvReplaceSiteCard(sid, html);
+          })
+          .catch(function (err) {
+            delBtn.disabled = false;
+            window.alert(err && err.message ? err.message : 'Silinemedi.');
+          });
+      }
+    });
+  }
+
   function initSearchConsolePanels(root) {
     initScCwvLightbox();
+    initGscCwvMediaHandlers();
     initSearchConsoleExpandables(root);
     initSearchConsoleSplitView(root);
     initSearchConsolePeriodSwitch(root);
@@ -1438,6 +1615,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    initGscCwvMediaHandlers();
     initSearchConsolePanels(document);
   });
   window.initSearchConsolePanels = initSearchConsolePanels;

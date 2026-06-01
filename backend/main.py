@@ -2163,24 +2163,19 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         provider="search_console",
         cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
     )
-    # GSC CWV screenshot'ları (yerel script üretir): static/gsc/<domain>-cwv-*.png
+    # GSC CWV: Postgres (Railway) + isteğe bağlı disk yedek
     import re as _re
-    from urllib.parse import quote as _quote
+
+    from backend.services import gsc_cwv_storage
 
     raw_domain = str(site.domain or "").strip()
     domain_for_property = _re.sub(r"^https?://", "", raw_domain, flags=_re.I).strip().strip("/")
-    domain_slug = _re.sub(r"^https?://", "", raw_domain.strip().lower())
-    domain_slug = domain_slug.strip("/").replace("/", "-")
-    domain_slug = _re.sub(r"[^a-z0-9._-]+", "-", domain_slug)
-    domain_slug = _re.sub(r"-{2,}", "-", domain_slug).strip("-") or "site"
+    domain_slug = _gsc_domain_slug(site.domain)
 
-    mobile_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-mobile.png"
-    desktop_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-desktop.png"
-    full_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-full.png"
-    extra_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-extra.png"
+    gsc_cwv = gsc_cwv_storage.build_gsc_cwv_urls(
+        db, site_id=site.id, domain_for_property=domain_for_property
+    )
 
-    resource_id = f"sc-domain:{domain_for_property}" if domain_for_property else ""
-    resource_param = _quote(resource_id, safe="") if resource_id else ""
     def _static_url_if_exists(path: Path) -> str:
         if not path.exists():
             return ""
@@ -2190,17 +2185,14 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
             v = int(time.time())
         return f"/static/gsc/{path.name}?v={v}"
 
-    gsc_cwv = {
-        "resource_url": (
-            f"https://search.google.com/search-console/core-web-vitals?resource_id={resource_param}&hl=en"
-            if resource_param
-            else ""
-        ),
-        "mobile_url": _static_url_if_exists(mobile_path),
-        "desktop_url": _static_url_if_exists(desktop_path),
-        "full_url": _static_url_if_exists(full_path),
-        "extra_url": _static_url_if_exists(extra_path),
-    }
+    for variant, key in (
+        ("mobile", "mobile_url"),
+        ("desktop", "desktop_url"),
+        ("full", "full_url"),
+        ("extra", "extra_url"),
+    ):
+        if not gsc_cwv.get(key):
+            gsc_cwv[key] = _static_url_if_exists(GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png")
 
     return {
         "id": site.id,
@@ -12400,10 +12392,18 @@ def _cwv_variant_from_filename(name: str) -> str | None:
     return None
 
 
-def _occupied_cwv_slots(domain_slug: str) -> set[str]:
-    """Diskte zaten dolu olan varyantlar (aynı istekte üzerine yazılacak slotlar hariç tutulur)."""
+def _occupied_cwv_slots(db, site_id: int, domain_slug: str) -> set[str]:
+    """DB veya diskte dolu CWV slotları."""
+    from backend.services import gsc_cwv_storage
+
     occ: set[str] = set()
     for v in _CWV_VARIANT_ORDER:
+        row = gsc_cwv_storage.load_screenshot(db, site_id=site_id, variant=v)
+        if row and row.image_data:
+            occ.add(v)
+    for v in _CWV_VARIANT_ORDER:
+        if v in occ:
+            continue
         p = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{v}.png"
         try:
             if p.exists() and p.stat().st_size > 0:
@@ -12413,7 +12413,9 @@ def _occupied_cwv_slots(domain_slug: str) -> set[str]:
     return occ
 
 
-def _pair_cwv_uploads_to_variants(files: list[UploadFile], domain_slug: str) -> list[tuple[str, UploadFile]]:
+def _pair_cwv_uploads_to_variants(
+    files: list[UploadFile], db, site_id: int, domain_slug: str
+) -> list[tuple[str, UploadFile]]:
     """Çoklu yüklemede dosyaları varyantlara eşle (dosya adı ipucu + diskte boş slota sırayla).
 
     İsim ipucu yoksa: önce bu istekteki explicit slotlar, sonra diskte dolu olanlar \"dolu\"
@@ -12434,7 +12436,7 @@ def _pair_cwv_uploads_to_variants(files: list[UploadFile], domain_slug: str) -> 
             explicit[v] = f
         else:
             implicit.append(f)
-    taken: set[str] = set(explicit.keys()) | _occupied_cwv_slots(domain_slug)
+    taken: set[str] = set(explicit.keys()) | _occupied_cwv_slots(db, site_id, domain_slug)
     for f in implicit:
         placed = False
         for slot in _CWV_VARIANT_ORDER:
@@ -12457,25 +12459,33 @@ async def search_console_upload_cwv_screenshot_batch(
     files: list[UploadFile] = File(...),
 ):
     """Birden fazla CWV ekran görüntüsü (aynı istekte mobile/desktop/full/extra)."""
+    from backend.services import gsc_cwv_storage
+
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
 
-    try:
-        pairs = _pair_cwv_uploads_to_variants(files, domain_slug)
-    except ValueError as exc:
-        return HTMLResponse(str(exc), status_code=400)
+        try:
+            pairs = _pair_cwv_uploads_to_variants(files, db, site_id, domain_slug)
+        except ValueError as exc:
+            return HTMLResponse(str(exc), status_code=400)
 
-    GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    for variant, upload in pairs:
-        content = await upload.read()
-        err = _validate_cwv_screenshot_bytes(content, upload.filename or "")
-        if err:
-            return HTMLResponse(f"{upload.filename or 'dosya'}: {err}", status_code=400)
-        out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
-        out_path.write_bytes(content)
+        GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        for variant, upload in pairs:
+            content = await upload.read()
+            err = _validate_cwv_screenshot_bytes(content, upload.filename or "")
+            if err:
+                return HTMLResponse(f"{upload.filename or 'dosya'}: {err}", status_code=400)
+            gsc_cwv_storage.upsert_screenshot(
+                db,
+                site_id=site_id,
+                variant=variant,
+                data=content,
+                filename=upload.filename or "",
+            )
+            gsc_cwv_storage.write_disk_copy(domain_slug, variant, content, gsc_dir=GSC_SCREENSHOT_DIR)
 
     return search_console_single_site_card(request, site_id)
 
@@ -12492,40 +12502,74 @@ async def search_console_upload_cwv_screenshot(
     if variant not in {"full", "mobile", "desktop", "extra"}:
         return HTMLResponse("Geçersiz variant.", status_code=400)
 
+    from backend.services import gsc_cwv_storage
+
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
 
-    hint = _cwv_variant_from_filename(file.filename or "")
-    if hint:
-        variant = hint
-    elif variant == "full":
-        # Eski davranış: hep full → ardışık tek dosyalar birbirini siliyordu; sıradaki boş slota yaz.
-        occupied = _occupied_cwv_slots(domain_slug)
-        for slot in _CWV_VARIANT_ORDER:
-            if slot not in occupied:
-                variant = slot
-                break
+        hint = _cwv_variant_from_filename(file.filename or "")
+        if hint:
+            variant = hint
+        elif variant == "full":
+            occupied = _occupied_cwv_slots(db, site_id, domain_slug)
+            for slot in _CWV_VARIANT_ORDER:
+                if slot not in occupied:
+                    variant = slot
+                    break
 
-    content = await file.read()
-    err = _validate_cwv_screenshot_bytes(content, file.filename or "")
-    if err:
-        return HTMLResponse(err, status_code=400)
+        content = await file.read()
+        err = _validate_cwv_screenshot_bytes(content, file.filename or "")
+        if err:
+            return HTMLResponse(err, status_code=400)
 
-    GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
-    out_path.write_bytes(content)
+        gsc_cwv_storage.upsert_screenshot(
+            db, site_id=site_id, variant=variant, data=content, filename=file.filename or ""
+        )
+        GSC_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        gsc_cwv_storage.write_disk_copy(domain_slug, variant, content, gsc_dir=GSC_SCREENSHOT_DIR)
 
     return search_console_single_site_card(request, site_id)
 
 
+@app.get("/search-console/cwv-image/{site_id}/{variant}")
+def search_console_cwv_image(site_id: int, variant: str):
+    """Postgres veya diskten CWV görseli (Railway kalıcı URL)."""
+    from fastapi.responses import Response
+
+    from backend.services import gsc_cwv_storage
+
+    variant = str(variant or "").strip().lower()
+    if variant not in gsc_cwv_storage.CWV_VARIANTS:
+        return HTMLResponse("Geçersiz variant.", status_code=404)
+    with SessionLocal() as db:
+        row = gsc_cwv_storage.load_screenshot(db, site_id=site_id, variant=variant)
+        if row and row.image_data:
+            return Response(
+                content=bytes(row.image_data),
+                media_type=row.content_type or "image/png",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("Site bulunamadı.", status_code=404)
+        domain_slug = _gsc_domain_slug(site.domain)
+    path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
+    if not path.exists():
+        return HTMLResponse("Görsel yok.", status_code=404)
+    data = path.read_bytes()
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
+
+
 @app.post("/search-console/cwv-screenshot/delete/{site_id}", response_class=HTMLResponse)
 def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant: str = "full"):
-    """Manuel yüklenen CWV screenshot dosyasını diskten siler (local)."""
+    """Manuel CWV görselini DB ve diskten siler."""
+    from backend.services import gsc_cwv_storage
+
     variant = str(variant or "full").strip().lower()
-    if variant not in {"full", "mobile", "desktop", "extra"}:
+    if variant not in gsc_cwv_storage.CWV_VARIANTS:
         return HTMLResponse("Geçersiz variant.", status_code=400)
 
     with SessionLocal() as db:
@@ -12533,13 +12577,8 @@ def search_console_delete_cwv_screenshot(request: Request, site_id: int, variant
         if site is None:
             return HTMLResponse("Site bulunamadı.", status_code=404)
         domain_slug = _gsc_domain_slug(site.domain)
-
-    path = GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png"
-    try:
-        if path.exists():
-            path.unlink()
-    except OSError as exc:
-        return HTMLResponse(f"Silinemedi: {exc}", status_code=500)
+        gsc_cwv_storage.delete_screenshot(db, site_id=site_id, variant=variant)
+        gsc_cwv_storage.delete_disk_copy(domain_slug, variant, gsc_dir=GSC_SCREENSHOT_DIR)
 
     return search_console_single_site_card(request, site_id)
 
