@@ -1112,6 +1112,100 @@ def fetch_realtime_top_pages(
     }
 
 
+def fetch_realtime_top_pages_host_path(
+    property_id: str,
+    window_minutes: int = 30,
+    *,
+    limit: int = 10,
+    sort_by: str = "activeUsers",
+    compare_previous: bool = True,
+    client: BetaAnalyticsDataClient | None = None,
+) -> dict[str, Any]:
+    """Realtime: hostName + pagePath (doviz haber.doviz.com URL eşlemesi için)."""
+    if client is None:
+        client = _build_client()
+
+    property_id = _normalize_ga4_property_id(property_id)
+    max_w = 15 if compare_previous else 29
+    w = max(1, min(window_minutes, max_w))
+
+    minute_ranges = [
+        MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+    ]
+    if compare_previous:
+        minute_ranges.append(
+            MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w)
+        )
+
+    dims = [Dimension(name="hostName"), Dimension(name="pagePath")]
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=dims,
+        metrics=[
+            Metric(name="activeUsers"),
+            Metric(name="screenPageViews"),
+        ],
+        minute_ranges=minute_ranges,
+    )
+
+    t0 = time.monotonic()
+    response = client.run_realtime_report(request)
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    metric_names = [m.name for m in response.metric_headers]
+    dim_headers = [h.name for h in response.dimension_headers]
+
+    temp_map: dict[str, dict[str, Any]] = {}
+
+    for row in response.rows:
+        dm = _realtime_row_dimensions(row, dim_headers)
+        host_val = str(dm.get("hostName", "") or "").strip()
+        path_val = str(dm.get("pagePath", "") or "").strip()
+        range_name = "current"
+        for k, v in dm.items():
+            if str(v).lower() in ("current", "previous"):
+                range_name = str(v).lower()
+                break
+
+        if path_val.lower() in ("current", "previous", ""):
+            path_val = ""
+        if not path_val:
+            continue
+
+        key = f"{host_val}\x1f{path_val}"
+        if key not in temp_map:
+            temp_map[key] = {
+                "host": host_val,
+                "page": path_val,
+                "activeUsers": 0.0,
+                "screenPageViews": 0.0,
+                "activeUsers_previous": 0.0,
+                "screenPageViews_previous": 0.0,
+            }
+        entry = temp_map[key]
+        suffix = "_previous" if range_name == "previous" else ""
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                val = float(mv.value)
+                entry[mname + suffix] = entry.get(mname + suffix, 0.0) + val
+            except (ValueError, TypeError):
+                pass
+
+    pages = list(temp_map.values())
+    pages.sort(key=lambda p: p.get(sort_by, 0), reverse=True)
+
+    return {
+        "property_id": property_id,
+        "window_minutes": w,
+        "pages": pages[:limit],
+        "total_pages": len(pages),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": elapsed_ms,
+        "comparison_enabled": compare_previous,
+    }
+
+
 _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES: tuple[str, ...] = (
     "(other)",
     "(not set)",
@@ -1154,25 +1248,69 @@ def _news_screen_exclude_prefixes_loaded() -> tuple[str, ...]:
     return _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
 
 
-def _screen_unified_news_candidate(name: str) -> bool:
-    """Yedek: unifiedScreenName path ise haber path kuralına uyar."""
-    from backend.collectors.ga4 import is_realtime_haber_path
+def _screen_unified_news_candidate_legacy(name: str) -> bool:
+    """Sinemalar vb.: unifiedScreenName başlık listesi (haber path zorunluluğu yok)."""
+    from backend.collectors.ga4 import _is_news_article_path
 
     n = (name or "").strip()
-    if n.startswith("/"):
-        return is_realtime_haber_path(n)
-    return False
+    if len(n) < 10:
+        return False
+    low = n.lower()
+    if low.startswith("/") and _is_news_article_path(n):
+        return True
+    for pre in _news_screen_exclude_prefixes_loaded():
+        if low.startswith(pre):
+            return False
+    return True
 
 
-def _news_row_link(site_domain: str, unified: str) -> str:
-    """Geçerli haber path'i için tam site URL'si."""
-    from backend.collectors.ga4 import is_realtime_haber_path
+def _news_row_link(site_domain: str, unified: str, *, host: str = "") -> str:
+    """Tam haber URL'si (doviz: ga4_canonical_page_url; diğer: site.domain + path)."""
+    from backend.collectors.ga4 import (
+        is_doviz_realtime_haber_row,
+        is_doviz_site_domain,
+        normalize_realtime_page_path,
+    )
+    from backend.services.ga4_page_urls import ga4_canonical_page_url
 
-    d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
     u = (unified or "").strip()
-    if u.startswith("/") and d and is_realtime_haber_path(u):
-        return "https://" + d + u
+    p = normalize_realtime_page_path(u)
+    h = (host or "").strip()
+    if is_doviz_site_domain(site_domain) and p:
+        if is_doviz_realtime_haber_row(h or None, p):
+            url = ga4_canonical_page_url(h or "www.doviz.com", p)
+            if url:
+                return url
+        return ""
+    d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
+    if p.startswith("/") and d:
+        return "https://" + d + p
     return ""
+
+
+def _append_news_row(
+    out: list[dict[str, Any]],
+    *,
+    site_domain: str,
+    path: str,
+    host: str,
+    metrics: dict[str, Any],
+    limit: int,
+) -> bool:
+    """Satır ekle; limit dolunca True."""
+    link = _news_row_link(site_domain, path, host=host)
+    out.append(
+        {
+            "page": path,
+            "page_path": path,
+            "activeUsers": float(metrics.get("activeUsers") or 0),
+            "screenPageViews": float(metrics.get("screenPageViews") or 0),
+            "activeUsers_previous": float(metrics.get("activeUsers_previous") or 0),
+            "screenPageViews_previous": float(metrics.get("screenPageViews_previous") or 0),
+            "link_url": link,
+        }
+    )
+    return len(out) >= max(1, min(int(limit), 250))
 
 
 def fetch_realtime_top_news_pages(
@@ -1184,29 +1322,113 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: pagePath üzerinden yalnızca URL'de «haber» geçen kategori/detay sayfaları."""
-    from backend.collectors.ga4 import is_realtime_haber_path
+    """Realtime «Haberler»: doviz.com → haber.doviz.com host+path; diğer siteler → legacy unified."""
+    from backend.collectors.ga4 import (
+        is_doviz_realtime_haber_row,
+        is_doviz_site_domain,
+        normalize_realtime_page_path,
+    )
 
     fetch_n = min(400, max(120, int(limit) * 40))
-    breakdown = "pagePath+haber_filter"
-    base: dict[str, Any]
-    try:
-        base = fetch_realtime_top_pages(
-            property_id,
-            window_minutes=window_minutes,
-            limit=fetch_n,
-            sort_by=sort_by,
-            dimension="pagePath",
-            compare_previous=True,
-            include_page_path=False,
-            client=client,
-        )
-    except Exception as exc:
-        LOGGER.warning(
-            "Realtime haber pagePath başarısız, unifiedScreenName (path-only) deneniyor: %s",
-            exc,
-        )
-        breakdown = "unifiedScreenName+haber_path_only"
+    out: list[dict[str, Any]] = []
+    breakdown = "legacy_unifiedScreenName"
+    base: dict[str, Any] = {
+        "window_minutes": window_minutes,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": 0,
+    }
+
+    if is_doviz_site_domain(site_domain):
+        breakdown = "hostName+pagePath+haber.doviz.com"
+        try:
+            base = fetch_realtime_top_pages_host_path(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                compare_previous=True,
+                client=client,
+            )
+            for p in base.get("pages") or []:
+                host = str(p.get("host") or "").strip()
+                path = normalize_realtime_page_path(str(p.get("page") or ""))
+                if not path or not is_doviz_realtime_haber_row(host, path):
+                    continue
+                if _append_news_row(
+                    out,
+                    site_domain=site_domain,
+                    path=path,
+                    host=host,
+                    metrics=p,
+                    limit=limit,
+                ):
+                    break
+        except Exception as exc:
+            LOGGER.warning("Realtime haber hostName+pagePath başarısız: %s", exc)
+            out = []
+
+        if not out:
+            breakdown = "pagePath+haber.doviz.com"
+            try:
+                base = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=fetch_n,
+                    sort_by=sort_by,
+                    dimension="pagePath",
+                    compare_previous=True,
+                    include_page_path=False,
+                    client=client,
+                )
+                for p in base.get("pages") or []:
+                    path = normalize_realtime_page_path(str(p.get("page") or ""))
+                    if not path or not is_doviz_realtime_haber_row(None, path):
+                        continue
+                    if _append_news_row(
+                        out,
+                        site_domain=site_domain,
+                        path=path,
+                        host="",
+                        metrics=p,
+                        limit=limit,
+                    ):
+                        break
+            except Exception as exc:
+                LOGGER.warning("Realtime haber pagePath başarısız: %s", exc)
+                out = []
+
+        if not out:
+            breakdown = "unifiedScreenName+path+doviz_haber"
+            try:
+                base = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=fetch_n,
+                    sort_by=sort_by,
+                    dimension="unifiedScreenName",
+                    compare_previous=True,
+                    include_page_path=False,
+                    client=client,
+                )
+                for p in base.get("pages") or []:
+                    raw = str(p.get("page") or "").strip()
+                    if not raw.startswith("/"):
+                        continue
+                    path = normalize_realtime_page_path(raw)
+                    if not path or not is_doviz_realtime_haber_row(None, path):
+                        continue
+                    if _append_news_row(
+                        out,
+                        site_domain=site_domain,
+                        path=path,
+                        host="",
+                        metrics=p,
+                        limit=limit,
+                    ):
+                        break
+            except Exception as exc:
+                LOGGER.warning("Realtime haber unified yedek başarısız: %s", exc)
+    else:
         base = fetch_realtime_top_pages(
             property_id,
             window_minutes=window_minutes,
@@ -1217,29 +1439,20 @@ def fetch_realtime_top_news_pages(
             include_page_path=False,
             client=client,
         )
-
-    out: list[dict[str, Any]] = []
-    for p in base.get("pages") or []:
-        path = str(p.get("page") or "").strip()
-        if breakdown.startswith("pagePath"):
-            if not is_realtime_haber_path(path):
+        for p in base.get("pages") or []:
+            name = str(p.get("page") or "").strip()
+            if not _screen_unified_news_candidate_legacy(name):
                 continue
-        elif not _screen_unified_news_candidate(path):
-            continue
-        link = _news_row_link(site_domain, path)
-        out.append(
-            {
-                "page": path,
-                "page_path": path,
-                "activeUsers": float(p.get("activeUsers") or 0),
-                "screenPageViews": float(p.get("screenPageViews") or 0),
-                "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
-                "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
-                "link_url": link,
-            }
-        )
-        if len(out) >= max(1, min(int(limit), 250)):
-            break
+            path = name if name.startswith("/") else ""
+            if _append_news_row(
+                out,
+                site_domain=site_domain,
+                path=path or name,
+                host="",
+                metrics=p,
+                limit=limit,
+            ):
+                break
 
     return {
         "property_id": property_id,
