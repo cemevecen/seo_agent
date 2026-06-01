@@ -17,9 +17,14 @@ from backend.services.inbox_visit_report import is_ziyaret_report_subject, ziyar
 
 logger = logging.getLogger(__name__)
 
-# UI sekmeleriyle aynı sıra: all → doviz → sinemalar → reklam → nstat → firebase
+# UI sekmeleriyle aynı sıra (inbox_sync.INBOX_TAB_ORDER): doviz → sinemalar → nstat → firebase → reklam → all
 # (key, başlık, kısa açıklama, vurgu rengi, arka plan)
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
+    ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
+    ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
+    ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
+    ("reklam", "reklam", "reklam@nokta.com", "#c026d3", "#fdf4ff"),
     (
         "all",
         "all",
@@ -27,11 +32,6 @@ INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
         "#475569",
         "#f8fafc",
     ),
-    ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
-    ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
-    ("reklam", "reklam", "reklam@nokta.com", "#c026d3", "#fdf4ff"),
-    ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
-    ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
 )
 
 
@@ -148,7 +148,8 @@ def build_inbox_summary_html(
         "max-width:680px;margin:0 auto;'>",
         "<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
         f"<p style='color:#64748b;font-size:13px;margin:0 0 16px;'>{now_str} · "
-        f"<b>{total}</b> okunmamış konuşma · sıra: all → doviz → sinemalar → nstat → firebase</p>",
+        f"<b>{total}</b> okunmamış konuşma · sıra: "
+        f"{' → '.join(inbox_sync.INBOX_TAB_ORDER)}</p>",
         _render_overview_table(grouped),
     ]
 

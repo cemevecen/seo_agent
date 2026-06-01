@@ -25,10 +25,10 @@ LOGGER = logging.getLogger(__name__)
 
 INBOX_SYNC_MAX_THREADS = 50
 INBOX_LIST_LIMIT = 50
-INBOX_DEFAULT_TAB = "all"
+INBOX_DEFAULT_TAB = "doviz"
 
 # UI sekmeleri — soldan sağa sıra
-INBOX_TAB_ORDER: tuple[str, ...] = ("all", "doviz", "sinemalar", "reklam", "nstat", "firebase")
+INBOX_TAB_ORDER: tuple[str, ...] = ("doviz", "sinemalar", "nstat", "firebase", "reklam", "all")
 
 # Canonical route_tag değerleri (UI sekmeleriyle birebir)
 INBOX_ROUTE_FIREBASE = "firebase"

@@ -16,8 +16,8 @@ from backend.services.inbox_sync import (
 
 
 def test_inbox_tab_order_and_default():
-    assert INBOX_DEFAULT_TAB == "all"
-    assert INBOX_TAB_ORDER == ("all", "doviz", "sinemalar", "reklam", "nstat", "firebase")
+    assert INBOX_DEFAULT_TAB == "doviz"
+    assert INBOX_TAB_ORDER == ("doviz", "sinemalar", "nstat", "firebase", "reklam", "all")
 
 
 def test_info_sinemalar_goes_to_sinemalar_not_doviz():
