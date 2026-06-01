@@ -21,6 +21,8 @@ from backend.services.backlink_risk import (
     ACTION_MONITOR,
     ACTION_REVIEW,
     assess_linking_url,
+    finalize_domain_risk_summary,
+    is_trusted_media_domain,
     normalize_domain,
 )
 
@@ -470,7 +472,9 @@ def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url
     if pair and pair not in url_keys:
         url_keys.add(pair)
         bucket["link_count"] += 1
-    bucket["max_risk_score"] = max(bucket["max_risk_score"], int(r.risk_score or 0))
+    score = int(r.risk_score or 0)
+    bucket["max_risk_score"] = max(bucket["max_risk_score"], score)
+    bucket["min_risk_score"] = min(int(bucket.get("min_risk_score") or 999), score)
     try:
         flags = json.loads(r.risk_flags_json or "[]")
     except json.JSONDecodeError:
@@ -478,6 +482,13 @@ def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url
     for f in flags:
         bucket["risk_flags"].add(str(f))
     rec = r.recommended_action or ACTION_MONITOR
+    ac = bucket.setdefault(
+        "action_counts",
+        {ACTION_IGNORE: 0, ACTION_MONITOR: 0, ACTION_REVIEW: 0, ACTION_DISAVOW: 0},
+    )
+    ac[rec] = ac.get(rec, 0) + 1
+    if score < 25:
+        bucket["low_risk_links"] = int(bucket.get("low_risk_links") or 0) + 1
     if _action_rank(rec) > _action_rank(bucket["recommended_action"]):
         bucket["recommended_action"] = rec
     if src and src not in bucket["sample_urls"] and len(bucket["sample_urls"]) < 3:
@@ -574,30 +585,48 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
 
     domains_out: list[dict[str, Any]] = []
     for dom, b in domain_stats.items():
+        finalize_domain_risk_summary(b)
+        samples = sorted(
+            b.get("sample_links") or [],
+            key=lambda ln: (int(ln.get("risk_score") or 0), ln.get("source_url") or ""),
+        )[:8]
         override = actions.get(dom)
         eff = _effective_action(b["recommended_action"], override)
+        ac = b.get("action_counts") or {}
         domains_out.append(
             {
                 "domain": dom,
                 "link_count": b["link_count"],
                 "raw_row_count": int(b.get("raw_row_count") or 0),
                 "max_risk_score": b["max_risk_score"],
+                "min_risk_score": int(b.get("min_risk_score") or 0),
+                "low_risk_pct": float(b.get("low_risk_pct") or 0),
+                "domain_category": b.get("domain_category") or "mixed",
+                "action_breakdown": {
+                    ACTION_IGNORE: ac.get(ACTION_IGNORE, 0),
+                    ACTION_MONITOR: ac.get(ACTION_MONITOR, 0),
+                    ACTION_REVIEW: ac.get(ACTION_REVIEW, 0),
+                    ACTION_DISAVOW: ac.get(ACTION_DISAVOW, 0),
+                },
                 "risk_flags": sorted(b["risk_flags"]),
                 "recommended_action": b["recommended_action"],
                 "effective_action": eff,
                 "operator_action": override,
+                "is_trusted_media": is_trusted_media_domain(dom),
                 "sample_urls": b["sample_urls"],
                 "sample_links": [
-                    {k: v for k, v in ln.items() if k != "risk_score"}
-                    for ln in (b.get("sample_links") or [])
+                    {k: v for k, v in ln.items() if k != "risk_score"} for ln in samples
                 ],
             }
         )
-    domains_out.sort(key=lambda x: (-x["max_risk_score"], -x["link_count"], x["domain"]))
+    domains_out.sort(key=lambda x: (-x["link_count"], -x["max_risk_score"], x["domain"]))
 
     action_counts = {ACTION_IGNORE: 0, ACTION_MONITOR: 0, ACTION_REVIEW: 0, ACTION_DISAVOW: 0}
+    category_counts = {"media": 0, "mostly_clean": 0, "mixed": 0, "spammy": 0, "unknown": 0}
     for d in domains_out:
         action_counts[d["effective_action"]] = action_counts.get(d["effective_action"], 0) + 1
+        cat = d.get("domain_category") or "unknown"
+        category_counts[cat] = category_counts.get(cat, 0) + 1
 
     rows_total = sum(int(i.row_count or 0) for i in imports)
     return {
@@ -625,6 +654,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "previous_import_id": previous.id if previous else None,
         "diff": diff,
         "action_counts": action_counts,
+        "category_counts": category_counts,
         "domains": domains_out[:500],
         "domain_total": len(domains_out),
     }
