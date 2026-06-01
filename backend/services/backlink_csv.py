@@ -38,13 +38,15 @@ _HEADER_ALIASES: dict[str, list[str]] = {
     "source_url": [
         "bağlantı verilen sayfa",
         "baglanti verilen sayfa",
+        "bağlantı sayfası",
+        "baglanti sayfasi",
+        "kaynak sayfa",
         "linking page",
         "source page",
         "referring page",
         "referrer page",
         "page url",
         "url",
-        "site",
     ],
     "target_url": [
         "hedef sayfa",
@@ -109,9 +111,27 @@ def _cell(row: list[str], idx: int | None) -> str:
     return (row[idx] or "").strip()
 
 
+def normalize_csv_text(text: str) -> str:
+    """UTF-16 / BOM ve GSC export satır sonları."""
+    raw = text or ""
+    if not raw.strip():
+        return ""
+    if "\x00" in raw:
+        try:
+            as_bytes = raw.encode("utf-8", errors="surrogateescape")
+        except UnicodeEncodeError:
+            as_bytes = raw.encode("latin-1", errors="replace")
+        if len(as_bytes) >= 2 and as_bytes[:2] in (b"\xff\xfe", b"\xfe\xff"):
+            encoding = "utf-16-le" if as_bytes[:2] == b"\xff\xfe" else "utf-16-be"
+            raw = as_bytes.decode(encoding, errors="replace")
+        else:
+            raw = as_bytes.decode("utf-16-le", errors="replace")
+    return raw.replace("\ufeff", "").replace("\r\n", "\n").strip()
+
+
 def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
     """CSV metnini satır dict listesine çevirir."""
-    raw = (text or "").strip()
+    raw = normalize_csv_text(text)
     if not raw:
         return []
     sample = raw[:4096]
@@ -125,15 +145,21 @@ def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
         return []
 
     header_idx = 0
-    header_map = _build_header_map(rows[0])
-    if not header_map.get("source_url") and not header_map.get("linking_site"):
-        for i, row in enumerate(rows[:5]):
+    header_map: dict[str, int] = {}
+    data_rows: list[list[str]] = rows
+    for i, row in enumerate(rows[:12]):
+        hm = _build_header_map(row)
+        if hm.get("source_url") or hm.get("linking_site"):
+            header_idx = i
+            header_map = hm
+            data_rows = rows[i + 1 :]
+            break
+    if not header_map:
+        for i, row in enumerate(rows[:8]):
             if any(_looks_like_url(c) for c in row):
                 header_idx = i
+                data_rows = rows[header_idx:]
                 break
-        data_rows = rows[header_idx:]
-    else:
-        data_rows = rows[1:]
 
     out: list[dict[str, Any]] = []
     for row in data_rows:
