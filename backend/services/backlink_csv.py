@@ -1076,6 +1076,62 @@ def _load_link_rows_for_target_samples(
     return db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
 
 
+def _top_pages_from_gsc_external_stats(
+    gsc: dict[str, dict[str, Any]],
+    *,
+    cap: int,
+) -> tuple[list[dict[str, Any]], int]:
+    """GSC Top target pages (dış) → top_linking_pages satırları."""
+    page_items: list[dict[str, Any]] = []
+    for st in gsc.values():
+        page_items.append(
+            {
+                "display": st["display"],
+                "external_incoming": int(st["incoming"]),
+                "external_linking_sites": int(st["linking_sites"]),
+                "internal_incoming": 0,
+                "internal_linking_sites": 0,
+            }
+        )
+    page_items.sort(
+        key=lambda b: (
+            -(b["external_incoming"] + b["internal_incoming"]),
+            -b["external_incoming"],
+            b["display"],
+        )
+    )
+    top_pages = [
+        _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
+    ]
+    return top_pages, len(page_items)
+
+
+def _attach_link_row_samples_to_top_pages(
+    top_pages: list[dict[str, Any]],
+    rows: list[BacklinkRow],
+    *,
+    site_domain: str,
+) -> None:
+    samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="all", per_target=10
+    )
+    ext_samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="external", per_target=10
+    )
+    int_samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="internal", per_target=10
+    )
+    ext_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="external")
+    int_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="internal")
+    _attach_samples_to_top_page_rows(
+        top_pages, samples, site_domain=site_domain, ext_counts=ext_c, int_counts=int_c
+    )
+    for row in top_pages:
+        tkey = row.get("target_key") or ""
+        row["sample_links_external"] = ext_samples.get(tkey) or []
+        row["sample_links_internal"] = int_samples.get(tkey) or []
+
+
 def build_top_backlink_rankings(
     db: Session,
     *,
@@ -1093,36 +1149,32 @@ def build_top_backlink_rankings(
         gsc = _load_latest_gsc_target_page_stats(
             db, site_id=site_id, report_type=rt, site_domain=site_domain
         )
-        page_items: list[dict[str, Any]] = []
-        for st in gsc.values():
-            if rt == "top_target_pages":
-                bucket = {
-                    "display": st["display"],
-                    "external_incoming": int(st["incoming"]),
-                    "external_linking_sites": int(st["linking_sites"]),
-                    "internal_incoming": 0,
-                    "internal_linking_sites": 0,
-                }
-            else:
-                bucket = {
-                    "display": st["display"],
-                    "external_incoming": 0,
-                    "external_linking_sites": 0,
-                    "internal_incoming": int(st["incoming"]),
-                    "internal_linking_sites": int(st["linking_sites"]),
-                }
-            page_items.append(bucket)
-        page_items.sort(
-            key=lambda b: (
-                -(b["external_incoming"] + b["internal_incoming"]),
-                -b["external_incoming"],
-                -b["internal_incoming"],
-                b["display"],
+        if rt == "top_target_pages":
+            top_pages, pages_total = (
+                _top_pages_from_gsc_external_stats(gsc, cap=cap) if gsc else ([], 0)
             )
-        )
-        top_pages = [
-            _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
-        ]
+        else:
+            page_items: list[dict[str, Any]] = []
+            for st in gsc.values():
+                page_items.append(
+                    {
+                        "display": st["display"],
+                        "external_incoming": 0,
+                        "external_linking_sites": 0,
+                        "internal_incoming": int(st["incoming"]),
+                        "internal_linking_sites": int(st["linking_sites"]),
+                    }
+                )
+            page_items.sort(
+                key=lambda b: (
+                    -(b["internal_incoming"]),
+                    b["display"],
+                )
+            )
+            top_pages = [
+                _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
+            ]
+            pages_total = len(page_items)
         sample_rows = _load_link_rows_for_target_samples(db, site_id=site_id, report_type=rt)
         lk = _effective_link_kind_for_target(rt, None)
         samples = _target_page_samples_from_rows(
@@ -1141,12 +1193,24 @@ def build_top_backlink_rankings(
             "top_linking_sites": [],
             "top_linking_pages": top_pages,
             "sites_total": 0,
-            "pages_total": len(page_items),
-            "pages_source": "gsc_top_target_pages" if page_items else None,
-            "pages_has_external_gsc": rt == "top_target_pages" and bool(page_items),
-            "pages_has_internal_gsc": rt == "top_target_pages_internal" and bool(page_items),
+            "pages_total": pages_total,
+            "pages_source": "gsc_top_target_pages" if pages_total else None,
+            "pages_has_external_gsc": rt == "top_target_pages" and pages_total > 0,
+            "pages_has_internal_gsc": rt == "top_target_pages_internal" and pages_total > 0,
+            "pages_gsc_report_type": rt if pages_total else None,
             "ranking_report_type": rt,
         }
+
+    gsc_ext_latest: dict[str, dict[str, Any]] | None = None
+    if rt == "latest_links":
+        ext = _load_latest_gsc_target_page_stats(
+            db,
+            site_id=site_id,
+            report_type="top_target_pages",
+            site_domain=site_domain,
+        )
+        if ext:
+            gsc_ext_latest = ext
 
     link_import_ids = [
         i.id
@@ -1155,6 +1219,23 @@ def build_top_backlink_rankings(
         .all()
     ]
     if not link_import_ids:
+        if gsc_ext_latest:
+            top_pages, pages_total = _top_pages_from_gsc_external_stats(gsc_ext_latest, cap=cap)
+            sample_rows = _load_link_rows_for_target_samples(
+                db, site_id=site_id, report_type="latest_links"
+            )
+            _attach_link_row_samples_to_top_pages(top_pages, sample_rows, site_domain=site_domain)
+            return {
+                "top_linking_sites": [],
+                "top_linking_pages": top_pages,
+                "sites_total": 0,
+                "pages_total": pages_total,
+                "pages_source": "gsc_top_target_pages",
+                "pages_has_external_gsc": pages_total > 0,
+                "pages_has_internal_gsc": False,
+                "pages_gsc_report_type": "top_target_pages",
+                "ranking_report_type": rt,
+            }
         return _empty_top_rankings(ranking_report_type=rt)
 
     rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(link_import_ids)).all()
@@ -1190,46 +1271,40 @@ def build_top_backlink_rankings(
     )
 
     link_split = _aggregate_target_links_internal_external(rows, site_domain=site_domain)
-    page_items = sorted(
-        link_split.values(),
-        key=lambda b: (
-            -(b["external_incoming"] + b["internal_incoming"]),
-            -b["external_incoming"],
-            -b["internal_incoming"],
-            b["display"],
-        ),
-    )
-    top_pages = [
-        _top_page_row_from_bucket(
-            {
-                "display": b["display"],
-                "external_incoming": int(b["external_incoming"]),
-                "external_linking_sites": int(b["external_linking_sites"]),
-                "internal_incoming": int(b["internal_incoming"]),
-                "internal_linking_sites": int(b["internal_linking_sites"]),
-            },
-            incoming_links_gsc=False,
+    pages_source = "link_rows"
+    pages_has_external_gsc = False
+    pages_gsc_report_type: str | None = None
+    if gsc_ext_latest:
+        top_pages, pages_total = _top_pages_from_gsc_external_stats(gsc_ext_latest, cap=cap)
+        pages_source = "gsc_top_target_pages"
+        pages_has_external_gsc = pages_total > 0
+        pages_gsc_report_type = "top_target_pages"
+        _attach_link_row_samples_to_top_pages(top_pages, rows, site_domain=site_domain)
+    else:
+        page_items = sorted(
+            link_split.values(),
+            key=lambda b: (
+                -(b["external_incoming"] + b["internal_incoming"]),
+                -b["external_incoming"],
+                -b["internal_incoming"],
+                b["display"],
+            ),
         )
-        for b in page_items[:cap]
-    ]
-    samples = _target_page_samples_from_rows(
-        rows, site_domain=site_domain, link_kind="all", per_target=10
-    )
-    ext_samples = _target_page_samples_from_rows(
-        rows, site_domain=site_domain, link_kind="external", per_target=10
-    )
-    int_samples = _target_page_samples_from_rows(
-        rows, site_domain=site_domain, link_kind="internal", per_target=10
-    )
-    ext_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="external")
-    int_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="internal")
-    _attach_samples_to_top_page_rows(
-        top_pages, samples, site_domain=site_domain, ext_counts=ext_c, int_counts=int_c
-    )
-    for row in top_pages:
-        tkey = row.get("target_key") or ""
-        row["sample_links_external"] = ext_samples.get(tkey) or []
-        row["sample_links_internal"] = int_samples.get(tkey) or []
+        pages_total = len(page_items)
+        top_pages = [
+            _top_page_row_from_bucket(
+                {
+                    "display": b["display"],
+                    "external_incoming": int(b["external_incoming"]),
+                    "external_linking_sites": int(b["external_linking_sites"]),
+                    "internal_incoming": int(b["internal_incoming"]),
+                    "internal_linking_sites": int(b["internal_linking_sites"]),
+                },
+                incoming_links_gsc=False,
+            )
+            for b in page_items[:cap]
+        ]
+        _attach_link_row_samples_to_top_pages(top_pages, rows, site_domain=site_domain)
 
     return {
         "top_linking_sites": [
@@ -1242,10 +1317,11 @@ def build_top_backlink_rankings(
         ],
         "top_linking_pages": top_pages,
         "sites_total": len(site_items),
-        "pages_total": len(page_items),
-        "pages_source": "link_rows" if page_items else None,
-        "pages_has_external_gsc": False,
+        "pages_total": pages_total,
+        "pages_source": pages_source if pages_total else None,
+        "pages_has_external_gsc": pages_has_external_gsc,
         "pages_has_internal_gsc": False,
+        "pages_gsc_report_type": pages_gsc_report_type,
         "ranking_report_type": rt,
     }
 

@@ -466,7 +466,7 @@
           </section>
           <section class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">En çok backlink alan sayfalar</h3>
+              <h3 id="bl-top-pages-title" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">En çok backlink alan sayfalar</h3>
               <span id="bl-top-pages-meta" class="text-[10px] text-slate-500 dark:text-slate-400"></span>
             </div>
             <div id="bl-top-pages-filters" class="mt-1.5 hidden flex flex-wrap gap-1" role="tablist" aria-label="Hedef sayfa filtresi">
@@ -1177,6 +1177,12 @@
     var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
     if (rt === "top_target_pages") return "external";
     if (rt === "top_target_pages_internal") return "internal";
+    if (
+      rt === "latest_links" &&
+      blTopRankingsCache.pages_gsc_report_type === "top_target_pages"
+    ) {
+      return "external";
+    }
     if (blTopPagesFilter === "external") return "external";
     if (blTopPagesFilter === "internal") return "internal";
     return "all";
@@ -1366,6 +1372,23 @@
     }
   }
 
+  function blUpdateTopPagesSectionTitle() {
+    var titleEl = document.getElementById("bl-top-pages-title");
+    if (!titleEl) return;
+    var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
+    var src = blTopRankingsCache.pages_source || "";
+    if (
+      (rt === "top_target_pages" || (rt === "latest_links" && src === "gsc_top_target_pages")) &&
+      src === "gsc_top_target_pages"
+    ) {
+      titleEl.textContent = "Hedef sayfalar (dış · GSC Top target pages)";
+    } else if (rt === "top_target_pages_internal" && src === "gsc_top_target_pages") {
+      titleEl.textContent = "Hedef sayfalar (iç · GSC Top linked pages)";
+    } else {
+      titleEl.textContent = "En çok backlink alan sayfalar";
+    }
+  }
+
   function renderTopPagesList() {
     var listEl = document.getElementById("bl-top-pages-list");
     var metaEl = document.getElementById("bl-top-pages-meta");
@@ -1377,12 +1400,19 @@
     var limit = blTopRankLimit(blTopPagesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     blUpdateTopPagesFilterUi();
+    blUpdateTopPagesSectionTitle();
     if (metaEl) {
       var src = blTopRankingsCache.pages_source || "";
+      var rtList = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
       if (totalAll && src === "gsc_top_target_pages") {
+        var gscNote =
+          rtList === "latest_links"
+            ? " · Latest links görünümü · veri: Hedef sayfalar (dış) importu"
+            : "";
         metaEl.textContent =
           totalAll +
-          " hedef · satıra tıklayınca GSC özeti ve bağlantı URL’leri · dış/iç" +
+          " hedef · GSC Top target pages (dış) · satıra tıklayınca özet ve URL’ler" +
+          gscNote +
           (blTopPagesFilter !== "all" ? " · filtre: " + blTopPagesFilter : "");
       } else if (totalAll) {
         metaEl.textContent = totalAll + " hedef · satıra tıklayınca bağlantı URL’leri · iç/dış";
@@ -1634,6 +1664,7 @@
     wrap.classList.remove("hidden");
     wireTopRankingsToggles();
     wireBlTopPagesFilters();
+    blUpdateTopPagesSectionTitle();
     renderTopSitesList();
     renderTopPagesList();
   }
@@ -2567,7 +2598,12 @@
     var rt = d.report_type || reportType();
     if (rt === "top_target_pages_internal") blTopPagesFilter = "internal";
     else if (rt === "top_target_pages") blTopPagesFilter = "external";
-    else blTopPagesFilter = "all";
+    else if (
+      rt === "latest_links" &&
+      (d.top_rankings || {}).pages_gsc_report_type === "top_target_pages"
+    ) {
+      blTopPagesFilter = "external";
+    } else blTopPagesFilter = "all";
     applyBlReportTypeView(d);
     syncBlReportTypeChipsUi(d.report_type || reportType());
     renderTopRankings(d.top_rankings || {}, rt);
