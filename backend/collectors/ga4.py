@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, datetime, timedelta
-from urllib.parse import urlparse
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
@@ -129,70 +128,6 @@ def _is_news_article_path(path: str) -> bool:
     if _is_news_detail_path(path):
         return True
     return _path_contains_news_marker(path)
-
-
-def is_realtime_haber_path(path: str) -> bool:
-    """Realtime «Haberler» sekmesi: path içinde «haber» geçen kategori veya detay URL'leri."""
-    p = (path or "").strip()
-    if not p:
-        return False
-    if "?" in p:
-        p = p.split("?", 1)[0]
-    if not p.startswith("/"):
-        return False
-    low = p.lower()
-    if "haber" not in low:
-        return False
-    if _is_news_detail_path(p):
-        return True
-    segments = [s for s in p.strip("/").split("/") if s]
-    if not segments:
-        return False
-    # Kategori / liste: ...-haberleri, /haber/, /gundem-haberleri vb.
-    return True
-
-
-def is_doviz_site_domain(domain: str | None) -> bool:
-    d = (domain or "").strip().lower()
-    return "doviz.com" in d
-
-
-def normalize_realtime_page_path(path: str | None) -> str:
-    """GA4 pagePath: tam URL veya göreli path → başında / olan path."""
-    p = (path or "").strip()
-    if not p:
-        return ""
-    if p.startswith(("http://", "https://")):
-        p = urlparse(p).path or "/"
-    if "?" in p:
-        p = p.split("?", 1)[0]
-    if p and not p.startswith("/"):
-        p = "/" + p
-    return p
-
-
-def is_doviz_realtime_haber_row(host: str | None, path: str | None) -> bool:
-    """doviz.com: haber.doviz.com kategori kökü, *-haberleri ve sayısal ID'li detay."""
-    from backend.services.ga4_page_urls import (
-        _doviz_rewrite_host,
-        _is_ga4_placeholder_host,
-        _is_ga4_placeholder_path,
-    )
-
-    p = normalize_realtime_page_path(path)
-    if not p or _is_ga4_placeholder_path(p):
-        return False
-    h = (host or "").strip().lower()
-    if not h or _is_ga4_placeholder_host(h):
-        h = "www.doviz.com"
-    if _doviz_rewrite_host(h, p) != "haber.doviz.com":
-        return False
-    pl = p.lower().rstrip("/") or "/"
-    if pl == "/":
-        return True
-    if _is_news_detail_path(p):
-        return True
-    return "haber" in pl
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
