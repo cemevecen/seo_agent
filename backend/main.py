@@ -48,6 +48,7 @@ from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.api.inbox import router as inbox_router
+from backend.api.backlinks import router as backlinks_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
@@ -854,6 +855,7 @@ app.include_router(sites_router, prefix="/api")
 app.include_router(ga4_router, prefix="/api")
 app.include_router(store_catalog_router, prefix="/api")
 app.include_router(inbox_router, prefix="/api")
+app.include_router(backlinks_router, prefix="/api")
 
 PERIOD_DAYS_MAP = {
     "daily": 1,
@@ -12294,6 +12296,17 @@ def settings_alert_thresholds(request: Request):
     with SessionLocal() as db:
         alert_rules = get_alert_rules(db)
     return templates.TemplateResponse(request, "partials/alert_thresholds.html", context={"request": request, "alert_rules": alert_rules})
+
+
+@app.get("/backlinks")
+def backlinks_page(request: Request):
+    with SessionLocal() as db:
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.display_name.asc()).all()
+    return templates.TemplateResponse(
+        request,
+        "backlinks.html",
+        context={"request": request, "sites": sites, "site_name": "Backlinks"},
+    )
 
 
 @app.get("/search-console")

@@ -713,6 +713,61 @@ class SupportInboxMessage(Base):
     thread: Mapped["SupportInboxThread"] = relationship("SupportInboxThread", back_populates="messages")
 
 
+class BacklinkImport(Base):
+    """GSC Links export snapshot (CSV / Sheets)."""
+
+    __tablename__ = "backlink_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    source_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="csv_upload")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
+    rows: Mapped[list["BacklinkRow"]] = relationship(
+        "BacklinkRow", back_populates="import_batch", cascade="all, delete-orphan"
+    )
+
+
+class BacklinkRow(Base):
+    """Tek backlink satırı (bağlantı verilen sayfa)."""
+
+    __tablename__ = "backlink_rows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    import_id: Mapped[int] = mapped_column(
+        ForeignKey("backlink_imports.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    target_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    anchor_text: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    last_crawled: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    risk_flags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    recommended_action: Mapped[str] = mapped_column(String(20), nullable=False, default="monitor")
+
+    import_batch: Mapped["BacklinkImport"] = relationship("BacklinkImport", back_populates="rows")
+
+
+class BacklinkDomainAction(Base):
+    """Operatörün domain bazlı aksiyon override'ı."""
+
+    __tablename__ = "backlink_domain_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False, default="monitor")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (Index("ix_backlink_domain_action_site_domain", "site_id", "domain", unique=True),)
+
+
 class SiteErrorLog(Base):
     """Tespit edilen site hataları (GA4, SC, sunucu kaynaklı)."""
     __tablename__ = "site_error_logs"

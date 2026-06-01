@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Backlinks</h1>
+    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+      Search Console → Links ekranından indirdiğiniz CSV’yi (Latest links, More sample, Top linking sites) yükleyin.
+      Sistem snapshot saklar, domain bazında spam risk skoru üretir ve önceki import ile fark çıkarır.
+    </p>
+  </div>
+
+  <div id="bl-banner" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
+
+  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+      <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Import</h2>
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Site</label>
+      <select id="bl-site" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+        {% for s in sites %}
+        <option value="{{ s.id }}">{{ s.display_name or s.domain }} ({{ s.domain }})</option>
+        {% endfor %}
+      </select>
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Rapor türü</label>
+      <select id="bl-report-type" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+        <option value="latest_links">Latest links</option>
+        <option value="more_sample">More sample links</option>
+        <option value="top_linking_sites">Top linking sites</option>
+      </select>
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">CSV dosyası</label>
+      <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-sm" />
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">veya CSV yapıştır</label>
+      <textarea id="bl-paste" rows="5" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="Bağlantı verilen sayfa, Son tarama…"></textarea>
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Google Sheets CSV export URL (opsiyonel)</label>
+      <input id="bl-sheets-url" type="url" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" />
+      <button type="button" id="bl-import-btn" class="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">Import et</button>
+      <p id="bl-import-status" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
+    </div>
+
+    <div class="space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Özet</h2>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="bl-refresh-btn" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold dark:border-slate-600">Yenile</button>
+            <a id="bl-disavow-link" href="#" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-800 dark:border-rose-700 dark:text-rose-200">disavow.txt</a>
+          </div>
+        </div>
+        <div id="bl-summary" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="rounded-lg bg-slate-50 p-2 text-center dark:bg-slate-800/60"><div class="text-[10px] uppercase text-slate-500">Domain</div><div id="bl-st-domains" class="text-lg font-bold">—</div></div>
+          <div class="rounded-lg bg-rose-50 p-2 text-center dark:bg-rose-950/40"><div class="text-[10px] uppercase text-rose-700 dark:text-rose-300">Disavow</div><div id="bl-st-disavow" class="text-lg font-bold text-rose-800 dark:text-rose-200">—</div></div>
+          <div class="rounded-lg bg-amber-50 p-2 text-center dark:bg-amber-950/40"><div class="text-[10px] uppercase text-amber-800 dark:text-amber-200">Review</div><div id="bl-st-review" class="text-lg font-bold">—</div></div>
+          <div class="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-950/40"><div class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Yeni domain</div><div id="bl-st-new" class="text-lg font-bold">—</div></div>
+        </div>
+        <p id="bl-diff-hint" class="mt-3 text-xs text-slate-500 dark:text-slate-400"></p>
+        <div id="bl-imports-list" class="mt-3 text-xs text-slate-600 dark:text-slate-300"></div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Aksiyon: ignore · monitor · review · disavow — önerilen skor + operatör override.</p>
+        <div class="mt-3 max-h-[60vh] overflow-auto">
+          <table class="w-full min-w-[640px] text-left text-xs">
+            <thead class="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <tr>
+                <th class="px-2 py-2">Domain</th>
+                <th class="px-2 py-2">Link</th>
+                <th class="px-2 py-2">Risk</th>
+                <th class="px-2 py-2">Öneri</th>
+                <th class="px-2 py-2">Aksiyon</th>
+              </tr>
+            </thead>
+            <tbody id="bl-domains-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+  function showBanner(msg) {
+    var el = document.getElementById("bl-banner");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function siteId() {
+    return parseInt(document.getElementById("bl-site").value, 10);
+  }
+  function reportType() {
+    return document.getElementById("bl-report-type").value;
+  }
+  function disavowHref() {
+    return "/api/backlinks/disavow.txt?site_id=" + siteId() + "&report_type=" + encodeURIComponent(reportType());
+  }
+  async function loadDashboard() {
+    var sid = siteId();
+    if (!sid) return;
+    document.getElementById("bl-disavow-link").href = disavowHref();
+    var r = await fetch("/api/backlinks/dashboard?site_id=" + sid + "&report_type=" + encodeURIComponent(reportType()), {
+      credentials: "same-origin",
+    });
+    var d = await r.json();
+    if (!r.ok) {
+      showBanner(d.detail || "Dashboard yüklenemedi.");
+      return;
+    }
+    document.getElementById("bl-banner").classList.add("hidden");
+    var ac = d.action_counts || {};
+    document.getElementById("bl-st-domains").textContent = String(d.domain_total || 0);
+    document.getElementById("bl-st-disavow").textContent = String(ac.disavow || 0);
+    document.getElementById("bl-st-review").textContent = String(ac.review || 0);
+    document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
+    var diff = d.diff || {};
+    var hint = diff.has_previous
+      ? "Önceki snapshot ile karşılaştırıldı: " +
+        (diff.new_domains || []).length +
+        " yeni domain, " +
+        (diff.lost_domains || []).length +
+        " kaybolan domain."
+      : "İkinci import sonrası yeni/kaybolan domain farkı görünecek.";
+    document.getElementById("bl-diff-hint").textContent = hint;
+    var imports = d.imports || [];
+    document.getElementById("bl-imports-list").innerHTML = imports.length
+      ? "<strong>Snapshots:</strong> " +
+        imports
+          .map(function (i) {
+            return "#" + i.id + " · " + i.row_count + " satır · " + (i.created_at || "").slice(0, 16);
+          })
+          .join(" · ")
+      : "Henüz import yok.";
+    var tbody = document.getElementById("bl-domains-body");
+    var domains = d.domains || [];
+    if (!domains.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = domains
+      .map(function (row) {
+        var flags = (row.risk_flags || []).join(", ");
+        var samples = (row.sample_urls || [])
+          .map(function (u) {
+            return '<a class="text-indigo-600 dark:text-indigo-300" href="' + esc(u) + '" target="_blank" rel="noopener">örnek</a>';
+          })
+          .join(" ");
+        var cur = row.operator_action || row.effective_action || row.recommended_action || "monitor";
+        return (
+          "<tr>" +
+          '<td class="px-2 py-2 font-mono text-[11px]">' +
+          esc(row.domain) +
+          (flags ? '<div class="text-[10px] text-slate-500">' + esc(flags) + "</div>" : "") +
+          (samples ? '<div class="mt-1">' + samples + "</div>" : "") +
+          "</td>" +
+          '<td class="px-2 py-2 tabular-nums">' +
+          esc(row.link_count) +
+          "</td>" +
+          '<td class="px-2 py-2 tabular-nums font-bold">' +
+          esc(row.max_risk_score) +
+          "</td>" +
+          '<td class="px-2 py-2">' +
+          esc(row.recommended_action) +
+          "</td>" +
+          '<td class="px-2 py-2"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
+          esc(row.domain) +
+          '">' +
+          ["ignore", "monitor", "review", "disavow"]
+            .map(function (a) {
+              return '<option value="' + a + '"' + (a === cur ? " selected" : "") + ">" + a + "</option>";
+            })
+            .join("") +
+          "</select></td>" +
+          "</tr>"
+        );
+      })
+      .join("");
+    Array.prototype.forEach.call(document.querySelectorAll(".bl-action-select"), function (sel) {
+      sel.addEventListener("change", async function () {
+        var domain = sel.getAttribute("data-domain");
+        var action = sel.value;
+        var pr = await fetch("/api/backlinks/domain-action", {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ site_id: siteId(), domain: domain, action: action }),
+        });
+        if (!pr.ok) {
+          var err = await pr.json();
+          showBanner(err.detail || "Aksiyon kaydedilemedi.");
+        }
+      });
+    });
+  }
+  document.getElementById("bl-refresh-btn").addEventListener("click", function () {
+    loadDashboard().catch(function (e) {
+      showBanner(String(e.message || e));
+    });
+  });
+  document.getElementById("bl-site").addEventListener("change", function () {
+    loadDashboard();
+  });
+  document.getElementById("bl-report-type").addEventListener("change", function () {
+    loadDashboard();
+  });
+  document.getElementById("bl-import-btn").addEventListener("click", async function () {
+    var btn = document.getElementById("bl-import-btn");
+    var st = document.getElementById("bl-import-status");
+    btn.disabled = true;
+    st.textContent = "Import ediliyor…";
+    try {
+      var fd = new FormData();
+      fd.append("site_id", String(siteId()));
+      fd.append("report_type", reportType());
+      var f = document.getElementById("bl-file").files[0];
+      var paste = document.getElementById("bl-paste").value.trim();
+      var sheets = document.getElementById("bl-sheets-url").value.trim();
+      if (f) fd.append("file", f);
+      if (paste) fd.append("csv_text", paste);
+      if (sheets) fd.append("sheets_url", sheets);
+      var r = await fetch("/api/backlinks/import", { method: "POST", credentials: "same-origin", body: fd });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Import başarısız");
+      st.textContent = "Tamam: " + (d.import && d.import.row_count) + " satır.";
+      await loadDashboard();
+    } catch (e) {
+      st.textContent = "";
+      showBanner(String(e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  loadDashboard().catch(function () {});
+})();
+</script>
+{% endblock %}
