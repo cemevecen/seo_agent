@@ -43,8 +43,8 @@ REPORT_TYPE_LABELS: dict[str, str] = {
     "latest_links": "Latest links",
     "more_sample": "More sample links",
     "top_linking_sites": "Top linking sites",
-    "top_target_pages": "Top target pages (external)",
-    "top_target_pages_internal": "Top target pages (internal)",
+    "top_target_pages": "Top external links",
+    "top_target_pages_internal": "Top internal links",
 }
 
 GSC_TARGET_AGG_ANCHOR_PREFIX = "gsc_agg:"

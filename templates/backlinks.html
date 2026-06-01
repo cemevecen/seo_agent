@@ -504,18 +504,16 @@
       <button type="button" role="tab" class="bl-report-type-chip" data-value="top_linking_sites" aria-selected="false" title="GSC Top linking sites CSV">
         Top linking sites
       </button>
-      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages" aria-selected="false" title="Search Console Top target pages (dış bağlantılar)">
-        Hedef sayfalar
-        <span class="bl-report-type-chip-sub">dış · GSC Top target pages</span>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages" aria-selected="false" title="GSC Bağlantılar → Top target pages export">
+        Top external links
       </button>
-      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages_internal" aria-selected="false" title="Search Console Top linked pages (iç bağlantılar)">
-        Hedef sayfalar
-        <span class="bl-report-type-chip-sub">iç · GSC Top linked pages</span>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages_internal" aria-selected="false" title="GSC İç bağlantılar → Top linked pages export">
+        Top internal links
       </button>
     </div>
     <p class="mt-3 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-      <strong>Dış hedef:</strong> Bağlantılar → Top target pages CSV.
-      <strong class="ml-1">İç hedef:</strong> İç bağlantılar → Top linked pages CSV.
+      <strong>Top external links:</strong> Bağlantılar → Top target pages CSV.
+      <strong class="ml-1">Top internal links:</strong> İç bağlantılar → Top linked pages CSV.
     </p>
   </div>
 
@@ -543,9 +541,7 @@
       </p>
       <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">CSV dosyası</label>
       <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-sm" />
-      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">veya CSV yapıştır</label>
-      <textarea id="bl-paste" rows="5" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="Bağlantı verilen sayfa, Son tarama…"></textarea>
-      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Google Sheets URL (opsiyonel)</label>
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">veya Google Sheets URL</label>
       <input id="bl-sheets-url" type="url" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="https://docs.google.com/spreadsheets/d/…/edit#gid=0" />
       <button type="button" id="bl-import-btn" class="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">Import et</button>
       <p id="bl-import-status" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
@@ -600,7 +596,7 @@
       <div id="bl-domain-list-section" class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 id="bl-domain-list-title" class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
         <p id="bl-target-mode-hint" class="mt-2 hidden text-xs text-slate-500 dark:text-slate-400">
-          Bu rapor türünde bağlantı veren domain risk tablosu yok. Özet ve «En çok backlink alan sayfalar» bu importtaki GSC hedef sayfalarını gösterir.
+          Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>Top external links</strong> / <strong>Top internal links</strong> verisinden gelir.
         </p>
         <div id="bl-domain-filters-wrap" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <label class="block text-[10px] font-bold uppercase text-slate-500">
@@ -1024,8 +1020,8 @@
       latest_links: "Latest links",
       more_sample: "More sample",
       top_linking_sites: "Top linking sites",
-      top_target_pages: "Hedef sayfalar (dış)",
-      top_target_pages_internal: "Hedef sayfalar (iç)",
+      top_target_pages: "Top external links",
+      top_target_pages_internal: "Top internal links",
     };
     return map[rt] || rt || "Rapor";
   }
@@ -1125,7 +1121,7 @@
   function blSetImportUiDisabled(disabled) {
     var btn = document.getElementById("bl-import-btn");
     if (btn) btn.disabled = !!disabled;
-    ["bl-file", "bl-paste", "bl-sheets-url"].forEach(function (id) {
+    ["bl-file", "bl-sheets-url"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = !!disabled;
     });
@@ -1567,9 +1563,9 @@
       (rt === "top_target_pages" || (rt === "latest_links" && src === "gsc_top_target_pages")) &&
       src === "gsc_top_target_pages"
     ) {
-      titleEl.textContent = "Hedef sayfalar (dış · GSC Top target pages)";
+      titleEl.textContent = "Top external links";
     } else if (rt === "top_target_pages_internal" && src === "gsc_top_target_pages") {
-      titleEl.textContent = "Hedef sayfalar (iç · GSC Top linked pages)";
+      titleEl.textContent = "Top internal links";
     } else {
       titleEl.textContent = "En çok backlink alan sayfalar";
     }
@@ -1591,13 +1587,17 @@
       var src = blTopRankingsCache.pages_source || "";
       var rtList = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
       if (totalAll && src === "gsc_top_target_pages") {
+        var linkKindLabel =
+          rtList === "top_target_pages_internal" ? "Top internal links" : "Top external links";
         var gscNote =
           rtList === "latest_links"
-            ? " · Latest links görünümü · veri: Hedef sayfalar (dış) importu"
+            ? " · Latest links görünümü · veri: Top external links importu"
             : "";
         metaEl.textContent =
           totalAll +
-          " hedef · GSC Top target pages (dış) · satıra tıklayınca özet ve URL’ler" +
+          " sayfa · " +
+          linkKindLabel +
+          " · satıra tıklayınca özet ve URL’ler" +
           gscNote +
           (blTopPagesFilter !== "all" ? " · filtre: " + blTopPagesFilter : "");
       } else if (totalAll) {
@@ -1611,10 +1611,10 @@
       var emptyMsg = "Henüz veri yok.";
       if (rt === "top_target_pages") {
         emptyMsg =
-          'Henüz veri yok. Search Console «Top target pages» exportunu rapor türü <strong>Top target pages (external)</strong> ile import edin.';
+          'Henüz veri yok. GSC «Top target pages» CSV\'sini <strong>Top external links</strong> sekmesiyle import edin.';
       } else if (rt === "top_target_pages_internal") {
         emptyMsg =
-          'Henüz veri yok. İç bağlantılar «Top linked pages» CSV\'sini rapor türü <strong>Top target pages (internal)</strong> ile import edin.';
+          'Henüz veri yok. GSC «Top linked pages» CSV\'sini <strong>Top internal links</strong> sekmesiyle import edin.';
       } else if (rt === "top_linking_sites") {
         emptyMsg = "Henüz veri yok. «Top linking sites» rapor türüyle import edin.";
       }
@@ -2077,7 +2077,11 @@
       if (isTarget) cards.innerHTML = "";
     }
     if (filterCount) filterCount.classList.toggle("hidden", isTarget);
-    if (title) title.textContent = isTarget ? "Hedef sayfalar (GSC)" : "Domain listesi";
+    if (title) {
+      if (rt === "top_target_pages") title.textContent = "Top external links";
+      else if (rt === "top_target_pages_internal") title.textContent = "Top internal links";
+      else title.textContent = isTarget ? "Hedef sayfalar" : "Domain listesi";
+    }
 
     ["bl-st-disavow-wrap", "bl-st-review-wrap", "bl-st-media-wrap"].forEach(function (id) {
       var el = document.getElementById(id);
@@ -2403,7 +2407,7 @@
     }
     if ((diff.new_domains || []).length) {
       var newTitle =
-        diff.diff_kind === "target_pages" ? "Yeni hedef sayfalar" : "Yeni domainler";
+        diff.diff_kind === "target_pages" ? "Yeni sayfalar (Top external/internal)" : "Yeni domainler";
       parts.push(
         '<section class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">' +
           '<h3 class="text-xs font-bold uppercase text-emerald-800 dark:text-emerald-200">' +
@@ -2418,7 +2422,7 @@
     }
     if ((diff.lost_domains || []).length) {
       var lostTitle =
-        diff.diff_kind === "target_pages" ? "Kayıp hedef sayfalar" : "Kayıp domainler";
+        diff.diff_kind === "target_pages" ? "Kayıp sayfalar (Top external/internal)" : "Kayıp domainler";
       parts.push(
         '<section class="rounded-xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/30">' +
           '<h3 class="text-xs font-bold uppercase text-rose-800 dark:text-rose-200">' +
@@ -2903,7 +2907,6 @@
     try {
       await runBacklinkImportWithOverlay(async function (setProgress) {
         var f = document.getElementById("bl-file").files[0];
-        var paste = document.getElementById("bl-paste").value.trim();
         var sheets = document.getElementById("bl-sheets-url").value.trim();
         var payload = {
           site_id: sid,
@@ -2921,15 +2924,11 @@
           payload.csv_text = fileText;
           payload.source_filename = f.name || "upload.csv";
           setProgress(22, "Dosya hazır", Math.round(fileText.length / 1024) + " KB okundu");
-        } else if (paste) {
-          if (paste.length > 15000000) throw new Error("Yapıştırılan metin çok büyük (max ~15MB).");
-          payload.csv_text = paste;
-          setProgress(20, "Metin hazır", Math.round(paste.length / 1024) + " KB yapıştırıldı");
         } else if (sheets) {
           payload.sheets_url = sheets;
           setProgress(18, "Google Sheets", "Sunucu CSV indirecek");
         } else {
-          throw new Error("CSV dosyası seçin, metin yapıştırın veya Sheets URL girin.");
+          throw new Error("CSV dosyası seçin veya Google Sheets URL girin.");
         }
         setProgress(26, "Sunucuya gönderiliyor", "Risk analizi ve snapshot");
         var d = await postBacklinkImportJson(payload, function (ratio, phase) {
