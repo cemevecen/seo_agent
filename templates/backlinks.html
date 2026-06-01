@@ -1,5 +1,86 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .bl-import-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+  }
+  .bl-import-overlay.hidden { display: none !important; }
+  .bl-import-overlay-card {
+    width: min(100%, 22rem);
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 1.25rem 1.15rem 1.1rem;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  }
+  html.dark .bl-import-overlay-card {
+    border-color: #475569;
+    background: #0f172a;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  }
+  #bl-import-lottie {
+    width: 7.5rem;
+    height: 7.5rem;
+    margin: 0 auto;
+  }
+  #bl-import-lottie.hidden { display: none !important; }
+  .bl-import-lottie-fallback {
+    width: 3rem;
+    height: 3rem;
+    margin: 0.75rem auto;
+    border-radius: 9999px;
+    border: 3px solid #c7d2fe;
+    border-top-color: #4f46e5;
+    animation: bl-import-spin 0.85s linear infinite;
+  }
+  @keyframes bl-import-spin { to { transform: rotate(360deg); } }
+  .bl-import-progress-track {
+    height: 0.5rem;
+    margin-top: 0.75rem;
+    border-radius: 9999px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  html.dark .bl-import-progress-track { background: #334155; }
+  .bl-import-progress-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    transition: width 0.12s ease-out;
+  }
+  .bl-import-progress-pct {
+    margin-top: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #64748b;
+  }
+  html.dark .bl-import-progress-pct { color: #94a3b8; }
+  .bl-import-overlay-status {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  html.dark .bl-import-overlay-status { color: #f1f5f9; }
+  .bl-import-overlay-sub {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: #64748b;
+  }
+  html.dark .bl-import-overlay-sub { color: #94a3b8; }
+</style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
     <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Backlinks</h1>
@@ -97,6 +178,34 @@
   </div>
 </div>
 
+<div
+  id="bl-import-overlay"
+  class="bl-import-overlay hidden"
+  aria-hidden="true"
+  role="alertdialog"
+  aria-modal="true"
+  aria-labelledby="bl-import-overlay-status"
+  data-phase="working"
+>
+  <div class="bl-import-overlay-card">
+    <lottie-player
+      id="bl-import-lottie"
+      background="transparent"
+      speed="1"
+      loop
+      autoplay
+    ></lottie-player>
+    <div id="bl-import-lottie-fallback" class="bl-import-lottie-fallback hidden" aria-hidden="true"></div>
+    <div class="bl-import-progress-track" aria-hidden="false">
+      <div id="bl-import-progress-bar" class="bl-import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+    </div>
+    <p id="bl-import-progress-pct" class="bl-import-progress-pct">0%</p>
+    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Import ediliyor…</p>
+    <p id="bl-import-overlay-sub" class="bl-import-overlay-sub">CSV hazırlanıyor</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
 <script>
 (function () {
   function esc(s) {
@@ -158,6 +267,191 @@
       })
       .join("");
   }
+  var BL_LOTTIE_WORKING = "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
+  var BL_LOTTIE_SUCCESS = "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
+  var BL_IMPORT_SUCCESS_MIN_MS = 500;
+
+  function blWaitMs(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function blImportOverlayEls() {
+    return {
+      overlay: document.getElementById("bl-import-overlay"),
+      player: document.getElementById("bl-import-lottie"),
+      fallback: document.getElementById("bl-import-lottie-fallback"),
+      bar: document.getElementById("bl-import-progress-bar"),
+      pct: document.getElementById("bl-import-progress-pct"),
+      status: document.getElementById("bl-import-overlay-status"),
+      sub: document.getElementById("bl-import-overlay-sub"),
+    };
+  }
+
+  function blLottieReady(player) {
+    return !!(player && typeof player.play === "function");
+  }
+
+  function blLottieShow(player, fallback, showPlayer) {
+    if (!player || !fallback) return;
+    if (showPlayer && blLottieReady(player)) {
+      player.classList.remove("hidden");
+      fallback.classList.add("hidden");
+    } else {
+      player.classList.add("hidden");
+      fallback.classList.remove("hidden");
+    }
+  }
+
+  function blLottiePlay(player, src, loop) {
+    if (!blLottieReady(player)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var settled = false;
+      function done() {
+        if (settled) return;
+        settled = true;
+        resolve();
+      }
+      try {
+        player.loop = !!loop;
+        player.setAttribute("src", src);
+        player.play();
+      } catch (e) {
+        done();
+        return;
+      }
+      if (!loop) {
+        player.addEventListener("complete", function onDone() {
+          player.removeEventListener("complete", onDone);
+          done();
+        });
+        setTimeout(done, 1200);
+      } else {
+        done();
+      }
+    });
+  }
+
+  function blSetImportProgress(pct, statusText, subText) {
+    var els = blImportOverlayEls();
+    var p = Math.max(0, Math.min(100, Math.round(pct)));
+    if (els.bar) {
+      els.bar.style.width = p + "%";
+      els.bar.setAttribute("aria-valuenow", String(p));
+    }
+    if (els.pct) els.pct.textContent = p + "%";
+    if (els.status && statusText) els.status.textContent = statusText;
+    if (els.sub && subText != null) els.sub.textContent = subText;
+  }
+
+  function blShowImportOverlay() {
+    var els = blImportOverlayEls();
+    if (!els.overlay) return els;
+    els.overlay.classList.remove("hidden");
+    els.overlay.setAttribute("aria-hidden", "false");
+    els.overlay.dataset.phase = "working";
+    blSetImportProgress(0, "Import ediliyor…", "Hazırlanıyor");
+    blLottieShow(els.player, els.fallback, true);
+    return els;
+  }
+
+  function blHideImportOverlay() {
+    var els = blImportOverlayEls();
+    if (!els.overlay) return;
+    els.overlay.classList.add("hidden");
+    els.overlay.setAttribute("aria-hidden", "true");
+  }
+
+  function blSetImportUiDisabled(disabled) {
+    var btn = document.getElementById("bl-import-btn");
+    if (btn) btn.disabled = !!disabled;
+    ["bl-file", "bl-paste", "bl-sheets-url", "bl-site", "bl-report-type"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = !!disabled;
+    });
+  }
+
+  function postBacklinkImportJson(payload, onProgress) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      var body = JSON.stringify(payload);
+      var serverPulse = null;
+      var serverPct = 82;
+      xhr.open("POST", "/api/backlinks/import-json");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = function (e) {
+        if (!onProgress) return;
+        if (e.lengthComputable && e.total > 0) {
+          onProgress(e.loaded / e.total, "upload");
+        }
+      };
+      xhr.upload.onload = function () {
+        if (!onProgress) return;
+        serverPulse = setInterval(function () {
+          serverPct = Math.min(94, serverPct + 0.35);
+          onProgress((serverPct - 82) / 12, "server");
+        }, 180);
+      };
+      xhr.onload = function () {
+        if (serverPulse) clearInterval(serverPulse);
+        var data = {};
+        try {
+          data = JSON.parse(xhr.responseText || "{}");
+        } catch (parseErr) {
+          reject(new Error("Sunucu yanıtı okunamadı."));
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+        } else {
+          reject(new Error(data.detail || "Import başarısız"));
+        }
+      };
+      xhr.onerror = function () {
+        if (serverPulse) clearInterval(serverPulse);
+        reject(new Error("Ağ hatası — import tamamlanamadı."));
+      };
+      xhr.onabort = function () {
+        if (serverPulse) clearInterval(serverPulse);
+        reject(new Error("Import iptal edildi."));
+      };
+      xhr.send(body);
+    });
+  }
+
+  async function runBacklinkImportWithOverlay(runFn) {
+    var els = blShowImportOverlay();
+    blSetImportUiDisabled(true);
+    await blLottiePlay(els.player, BL_LOTTIE_WORKING, true);
+    try {
+      var result = await runFn(blSetImportProgress);
+      els = blImportOverlayEls();
+      els.overlay.dataset.phase = "success";
+      blSetImportProgress(100, "Import tamam", (result && result.import && result.import.row_count) + " satır kaydedildi");
+      blLottieShow(els.player, els.fallback, true);
+      await blLottiePlay(els.player, BL_LOTTIE_SUCCESS, false);
+      await blWaitMs(BL_IMPORT_SUCCESS_MIN_MS);
+      blHideImportOverlay();
+      return result;
+    } catch (e) {
+      els = blImportOverlayEls();
+      els.overlay.dataset.phase = "error";
+      blSetImportProgress(
+        els.bar ? parseInt(els.bar.getAttribute("aria-valuenow") || "0", 10) : 0,
+        "Import başarısız",
+        String(e.message || e).slice(0, 220)
+      );
+      blLottieShow(els.player, els.fallback, false);
+      await blWaitMs(1400);
+      blHideImportOverlay();
+      throw e;
+    } finally {
+      blSetImportUiDisabled(false);
+    }
+  }
+
   var SOURCE_KIND_LABELS = {
     csv_upload: "CSV dosyası",
     csv_paste: "Yapıştırılmış CSV",
@@ -347,49 +641,58 @@
     loadDashboard();
   });
   document.getElementById("bl-import-btn").addEventListener("click", async function () {
-    var btn = document.getElementById("bl-import-btn");
     var st = document.getElementById("bl-import-status");
-    btn.disabled = true;
-    st.textContent = "Import ediliyor…";
+    st.textContent = "";
     try {
-      var f = document.getElementById("bl-file").files[0];
-      var paste = document.getElementById("bl-paste").value.trim();
-      var sheets = document.getElementById("bl-sheets-url").value.trim();
-      var payload = {
-        site_id: siteId(),
-        report_type: reportType(),
-        csv_text: null,
-        sheets_url: null,
-        source_filename: null,
-      };
-      if (f) {
-        var fileText = await f.text();
-        if (fileText.length > 15_000_000) throw new Error("Dosya çok büyük (max ~15MB).");
-        payload.csv_text = fileText;
-        payload.source_filename = f.name || "upload.csv";
-      } else if (paste) {
-        if (paste.length > 15_000_000) throw new Error("Yapıştırılan metin çok büyük (max ~15MB).");
-        payload.csv_text = paste;
-      } else if (sheets) {
-        payload.sheets_url = sheets;
-      } else {
-        throw new Error("CSV dosyası, yapıştırılmış metin veya Sheets URL girin.");
-      }
-      var r = await fetch("/api/backlinks/import-json", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      await runBacklinkImportWithOverlay(async function (setProgress) {
+        var f = document.getElementById("bl-file").files[0];
+        var paste = document.getElementById("bl-paste").value.trim();
+        var sheets = document.getElementById("bl-sheets-url").value.trim();
+        var payload = {
+          site_id: siteId(),
+          report_type: reportType(),
+          csv_text: null,
+          sheets_url: null,
+          source_filename: null,
+        };
+        setProgress(4, "Import başlıyor", "Kaynak seçiliyor");
+        if (f) {
+          setProgress(10, "Dosya okunuyor", f.name || "CSV");
+          var fileText = await f.text();
+          if (fileText.length > 15_000_000) throw new Error("Dosya çok büyük (max ~15MB).");
+          payload.csv_text = fileText;
+          payload.source_filename = f.name || "upload.csv";
+          setProgress(22, "Dosya hazır", Math.round(fileText.length / 1024) + " KB okundu");
+        } else if (paste) {
+          if (paste.length > 15_000_000) throw new Error("Yapıştırılan metin çok büyük (max ~15MB).");
+          payload.csv_text = paste;
+          setProgress(20, "Metin hazır", Math.round(paste.length / 1024) + " KB yapıştırıldı");
+        } else if (sheets) {
+          payload.sheets_url = sheets;
+          setProgress(18, "Google Sheets", "Sunucu CSV indirecek");
+        } else {
+          throw new Error("CSV dosyası, yapıştırılmış metin veya Sheets URL girin.");
+        }
+        setProgress(26, "Sunucuya gönderiliyor", "Risk analizi ve snapshot");
+        var d = await postBacklinkImportJson(payload, function (ratio, phase) {
+          if (phase === "upload") {
+            var p = 26 + ratio * 54;
+            setProgress(p, "Yükleniyor…", "CSV sunucuya aktarılıyor");
+          } else if (phase === "server") {
+            var p2 = 82 + ratio * 10;
+            setProgress(p2, "İşleniyor…", "Satırlar parse ediliyor, domain risk skoru");
+          }
+        });
+        setProgress(96, "Özet güncelleniyor", "Dashboard yenileniyor");
+        await loadDashboard();
+        setProgress(99, "Tamamlanıyor", "");
+        var stEl = document.getElementById("bl-import-status");
+        if (stEl) stEl.textContent = "Tamam: " + (d.import && d.import.row_count) + " satır.";
+        document.getElementById("bl-banner").classList.add("hidden");
+        return d;
       });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.detail || "Import başarısız");
-      st.textContent = "Tamam: " + (d.import && d.import.row_count) + " satır.";
-      await loadDashboard();
     } catch (e) {
-      st.textContent = "";
       showBanner(String(e.message || e));
-    } finally {
-      btn.disabled = false;
     }
   });
   loadDashboard().catch(function () {});
