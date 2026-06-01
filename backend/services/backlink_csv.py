@@ -442,26 +442,56 @@ def _link_fingerprint(domain: str, source_url: str, target_url: str) -> str:
     return f"{(domain or '').lower()}\t{sk}\t{tk}"
 
 
+def _normalize_last_crawled(value: str | None) -> str:
+    return (value or "").strip()[:64]
+
+
+def _last_crawled_sort_key(value: str | None) -> tuple[int, str]:
+    """Deduplicate sırasında en güncel Son tarama değerini seçmek için."""
+    s = _normalize_last_crawled(value)
+    if not s:
+        return (0, "")
+    for fmt, take in (
+        ("%Y-%m-%d", 10),
+        ("%d.%m.%Y", 10),
+        ("%d/%m/%Y", 10),
+        ("%m/%d/%Y", 10),
+    ):
+        try:
+            dt = datetime.strptime(s[:take], fmt)
+            return (2, dt.strftime("%Y-%m-%d"))
+        except ValueError:
+            continue
+    return (1, s.lower())
+
+
+def _merge_link_entry(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    if _last_crawled_sort_key(incoming.get("last_crawled")) > _last_crawled_sort_key(
+        existing.get("last_crawled")
+    ):
+        return {**existing, **incoming}
+    return existing
+
+
 def _link_entries_from_rows(rows: list[BacklinkRow]) -> list[dict[str, Any]]:
-    seen: set[str] = set()
-    out: list[dict[str, Any]] = []
+    by_fp: dict[str, dict[str, Any]] = {}
     for r in rows:
         dom = (r.domain or "").lower()
         if not dom:
             continue
         fp = _link_fingerprint(dom, r.source_url or "", r.target_url or "")
-        if fp in seen:
-            continue
-        seen.add(fp)
-        out.append(
-            {
-                "domain": dom,
-                "source_url": r.source_url or "",
-                "target_url": r.target_url or "",
-                "anchor_text": (r.anchor_text or "")[:200],
-            }
-        )
-    return out
+        entry = {
+            "domain": dom,
+            "source_url": r.source_url or "",
+            "target_url": r.target_url or "",
+            "anchor_text": (r.anchor_text or "")[:200],
+            "last_crawled": _normalize_last_crawled(r.last_crawled),
+        }
+        if fp in by_fp:
+            by_fp[fp] = _merge_link_entry(by_fp[fp], entry)
+        else:
+            by_fp[fp] = entry
+    return list(by_fp.values())
 
 
 def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url_keys: set[str]) -> None:
@@ -498,6 +528,7 @@ def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url
             "source_url": r.source_url or "",
             "target_url": r.target_url or "",
             "anchor_text": (r.anchor_text or "")[:200],
+            "last_crawled": _normalize_last_crawled(r.last_crawled),
             "risk_score": int(r.risk_score or 0),
         }
         existing_src = {x.get("source_url") for x in bucket["sample_links"]}

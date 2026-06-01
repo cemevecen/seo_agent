@@ -367,6 +367,21 @@
   function linkDisplayText(url) {
     return String(url || "").trim();
   }
+  function formatLastCrawled(raw) {
+    var s = String(raw || "").trim();
+    if (!s) return "";
+    return s;
+  }
+  function renderLastCrawledLine(ln) {
+    var crawl = formatLastCrawled(ln.last_crawled);
+    if (!crawl) return "";
+    return (
+      '<div class="bl-link-crawled mt-1 text-[10px] text-slate-500 dark:text-slate-400">' +
+      '<span class="font-semibold text-slate-600 dark:text-slate-300">Son tarama:</span> ' +
+      esc(crawl) +
+      "</div>"
+    );
+  }
   function renderSampleLinksList(links) {
     if (!links || !links.length) return '<span class="text-slate-400">—</span>';
     return links
@@ -392,6 +407,7 @@
         if (anc) {
           block += '<div class="mt-0.5 text-[10px] italic text-slate-500">«' + esc(anc) + "»</div>";
         }
+        block += renderLastCrawledLine(ln);
         return block + "</div>";
       })
       .join("");
