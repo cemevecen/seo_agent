@@ -1181,7 +1181,8 @@ def _news_row_link(site_domain: str, raw: str, *, host: str = "") -> str:
     p = normalize_realtime_page_path(raw)
     if not p or not realtime_haber_row_allowed(site_domain, host or None, p):
         return ""
-    url = ga4_canonical_page_url(host or None, p)
+    h = (host or "").strip() or "www.doviz.com"
+    url = ga4_canonical_page_url(h, p)
     if url:
         return url
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
@@ -1315,21 +1316,98 @@ def fetch_realtime_top_news_pages(
         LOGGER.debug("Realtime haber hostName+pagePath atlandı: %s", exc)
 
     if not out:
-        try:
-            base = fetch_realtime_top_pages(
-                property_id,
-                window_minutes=window_minutes,
-                limit=fetch_n,
-                sort_by=sort_by,
-                dimension="pagePath",
-                compare_previous=True,
-                include_page_path=False,
-                client=client,
-            )
-            breakdown = "pagePath+haber"
-            _consume_rows(list(base.get("pages") or []), with_host=False)
-        except Exception as exc:
-            LOGGER.warning("Realtime haber pagePath başarısız: %s", exc)
+        for compare in (True, False):
+            try:
+                base = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=fetch_n,
+                    sort_by=sort_by,
+                    dimension="pagePath",
+                    compare_previous=compare,
+                    include_page_path=False,
+                    client=client,
+                )
+                breakdown = "pagePath+haber"
+                _consume_rows(list(base.get("pages") or []), with_host=False)
+                if out:
+                    break
+            except Exception as exc:
+                LOGGER.debug("Realtime haber pagePath (compare=%s) atlandı: %s", compare, exc)
+
+    if not out:
+        for compare in (True, False):
+            try:
+                base = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=fetch_n,
+                    sort_by=sort_by,
+                    dimension="unifiedScreenName",
+                    compare_previous=compare,
+                    include_page_path=True,
+                    client=client,
+                )
+                breakdown = "unifiedScreenName+pagePath+haber"
+                for p in base.get("pages") or []:
+                    paths: list[str] = []
+                    for raw in p.get("page_paths") or []:
+                        if raw:
+                            paths.append(str(raw))
+                    page_val = str(p.get("page") or "").strip()
+                    if page_val.startswith("/"):
+                        paths.append(page_val)
+                    seen: set[str] = set()
+                    for raw_path in paths:
+                        path = normalize_realtime_page_path(raw_path)
+                        if not path or path in seen:
+                            continue
+                        seen.add(path)
+                        row = dict(p)
+                        row["page"] = path
+                        _consume_rows([row], with_host=False)
+                        if len(out) >= max(1, min(int(limit), 250)):
+                            break
+                    if len(out) >= max(1, min(int(limit), 250)):
+                        break
+                if out:
+                    break
+            except Exception as exc:
+                LOGGER.debug(
+                    "Realtime haber unifiedScreenName+pagePath (compare=%s) atlandı: %s",
+                    compare,
+                    exc,
+                )
+
+    if not out:
+        from backend.collectors.ga4 import fetch_ga4_haber_pages_intraday, is_doviz_site_domain
+
+        if is_doviz_site_domain(site_domain):
+            try:
+                intraday = fetch_ga4_haber_pages_intraday(
+                    property_id,
+                    site_domain=site_domain,
+                    limit=limit,
+                )
+                breakdown = "runReportToday+haber"
+                for row in intraday:
+                    out.append(
+                        {
+                            "page": row["page"],
+                            "page_path": row["page"],
+                            "activeUsers": float(row.get("activeUsers") or 0),
+                            "screenPageViews": float(row.get("screenPageViews") or 0),
+                            "activeUsers_previous": float(row.get("activeUsers_previous") or 0),
+                            "screenPageViews_previous": float(
+                                row.get("screenPageViews_previous") or 0
+                            ),
+                            "link_url": str(row.get("link_url") or ""),
+                        }
+                    )
+                    if len(out) >= max(1, min(int(limit), 250)):
+                        break
+            except Exception as exc:
+                LOGGER.warning("Realtime haber RunReport (bugün) yedeği başarısız: %s", exc)
 
     return {
         "property_id": property_id,
@@ -1340,6 +1418,7 @@ def fetch_realtime_top_news_pages(
         "api_ms": base.get("api_ms", 0),
         "breakdown": breakdown,
         "comparison_enabled": True,
+        "source": "live" if out else "empty",
     }
 
 

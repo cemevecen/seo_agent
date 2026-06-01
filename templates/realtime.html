@@ -1503,6 +1503,7 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
           if (d.source === 'db_snapshot') label += ' · önbellek';
+          if (d.breakdown === 'runReportToday+haber') label += ' · bugün (GA4)';
           tsEl.textContent = label;
         }
       })
@@ -1577,6 +1578,7 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
           if (d.source === 'db_snapshot') label += ' · önbellek';
+          if (d.breakdown === 'runReportToday+haber') label += ' · bugün (GA4)';
           tsEl.textContent = label;
         }
       })

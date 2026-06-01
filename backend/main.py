@@ -12105,7 +12105,8 @@ def api_ga4_realtime_top_news(
         result["site_id"] = site_id
         result["profile"] = profile
         result["type"] = type
-        return JSONResponse(result)
+        if result.get("pages"):
+            return JSONResponse(result)
     except Exception as exc:
         LOGGER.warning("Top news canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
 

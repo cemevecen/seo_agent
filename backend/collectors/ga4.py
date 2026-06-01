@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, datetime, timedelta
+from typing import Any
 from urllib.parse import urlparse
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
@@ -193,6 +194,69 @@ def realtime_haber_row_allowed(site_domain: str, host: str | None, raw: str) -> 
     if is_doviz_site_domain(site_domain):
         return is_doviz_realtime_haber_row(host, p)
     return is_realtime_haber_path(p)
+
+
+def fetch_ga4_haber_pages_intraday(
+    property_id: str,
+    *,
+    site_domain: str = "",
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Bugünün host+pagePath (RunReport) — Realtime pagePath desteklenmeyince Haberler yedeği."""
+    from backend.services.timezone_utils import report_calendar_today, report_calendar_yesterday
+
+    today = report_calendar_today().isoformat()
+    yesterday = report_calendar_yesterday().isoformat()
+    client = _client()
+    lim = max(80, min(int(limit) * 30, 250))
+    last_map = _run_landing_host_path_metric_single_range(
+        client,
+        property_id,
+        metric_name="activeUsers",
+        path_dimension="pagePath",
+        start=today,
+        end=today,
+        limit=lim,
+        dimension_filter=None,
+    )
+    prev_map = _run_landing_host_path_metric_single_range(
+        client,
+        property_id,
+        metric_name="activeUsers",
+        path_dimension="pagePath",
+        start=yesterday,
+        end=yesterday,
+        limit=lim,
+        dimension_filter=None,
+    )
+    rows: list[dict[str, Any]] = []
+    for key in set(last_map) | set(prev_map):
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        if not realtime_haber_row_allowed(site_domain, host or None, path):
+            continue
+        au = float(last_map.get(key, 0.0))
+        au_prev = float(prev_map.get(key, 0.0))
+        link = ga4_canonical_page_url(host or "www.doviz.com", path)
+        if not link:
+            continue
+        rows.append(
+            {
+                "host": host,
+                "page": path,
+                "activeUsers": au,
+                "screenPageViews": au,
+                "activeUsers_previous": au_prev,
+                "screenPageViews_previous": au_prev,
+                "link_url": link,
+            }
+        )
+    rows.sort(key=lambda r: r.get("activeUsers") or 0, reverse=True)
+    return rows[: max(1, min(int(limit), 50))]
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
