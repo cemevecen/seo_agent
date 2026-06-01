@@ -933,7 +933,147 @@ def _top_page_row_from_bucket(b: dict[str, Any], *, incoming_links_gsc: bool) ->
         "source_count": b["external_linking_sites"],
         "linking_sites_count": b["external_linking_sites"],
         "incoming_links_gsc": incoming_links_gsc,
+        "sample_links": list(b.get("sample_links") or []),
+        "target_key": b.get("target_key") or "",
     }
+
+
+def _link_kind_matches_source(source_url: str, site_domain: str, link_kind: str) -> bool:
+    lk = (link_kind or "all").strip().lower()
+    internal = referrer_belongs_to_site(source_url, site_domain)
+    if lk == "internal":
+        return internal
+    if lk == "external":
+        return not internal
+    return True
+
+
+def _effective_link_kind_for_target(report_type: str, link_kind: str | None) -> str:
+    rt = (report_type or "").strip().lower()
+    lk = (link_kind or "all").strip().lower()
+    if rt == "top_target_pages" and lk == "all":
+        return "external"
+    if rt == "top_target_pages_internal":
+        return "internal"
+    return lk or "all"
+
+
+def _link_row_import_ids_for_target_lookup(
+    db: Session,
+    *,
+    site_id: int,
+    report_type: str,
+) -> list[int]:
+    rt = (report_type or "").strip().lower()
+    imp_rows = (
+        db.query(BacklinkImport.id, BacklinkImport.report_type)
+        .filter(BacklinkImport.site_id == site_id)
+        .all()
+    )
+    if rt in _GSC_TARGET_AGG_REPORT_TYPES:
+        return [
+            iid
+            for iid, imp_rt in imp_rows
+            if (imp_rt or "") not in _GSC_TARGET_AGG_REPORT_TYPES
+        ]
+    return [iid for iid, imp_rt in imp_rows if (imp_rt or "") == rt]
+
+
+def _target_page_samples_from_rows(
+    rows: list[BacklinkRow],
+    *,
+    site_domain: str,
+    link_kind: str,
+    per_target: int = 10,
+) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    seen: dict[str, set[str]] = defaultdict(set)
+    for r in rows:
+        if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+            continue
+        src = (r.source_url or "").strip()
+        tgt = (r.target_url or "").strip()
+        if not tgt or not target_url_belongs_to_site(tgt, site_domain):
+            continue
+        if not _link_kind_matches_source(src, site_domain, link_kind):
+            continue
+        tkey = _canonical_target_key(tgt, site_domain)
+        if not tkey:
+            continue
+        dom = (r.domain or "").lower()
+        fp = _link_fingerprint(dom, src, tgt)
+        if fp in seen[tkey]:
+            continue
+        seen[tkey].add(fp)
+        if len(out[tkey]) >= per_target:
+            continue
+        out[tkey].append(
+            {
+                "source_url": src,
+                "target_url": tgt,
+                "anchor_text": (r.anchor_text or "")[:200],
+                "last_crawled": _normalize_last_crawled(r.last_crawled),
+            }
+        )
+    return out
+
+
+def _target_page_referrer_counts(
+    rows: list[BacklinkRow],
+    *,
+    site_domain: str,
+    link_kind: str,
+) -> dict[str, int]:
+    fps: dict[str, set[str]] = defaultdict(set)
+    for r in rows:
+        if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+            continue
+        src = (r.source_url or "").strip()
+        tgt = (r.target_url or "").strip()
+        if not tgt or not target_url_belongs_to_site(tgt, site_domain):
+            continue
+        if not _link_kind_matches_source(src, site_domain, link_kind):
+            continue
+        tkey = _canonical_target_key(tgt, site_domain)
+        if not tkey:
+            continue
+        dom = (r.domain or "").lower()
+        fps[tkey].add(_link_fingerprint(dom, src, tgt))
+    return {k: len(v) for k, v in fps.items()}
+
+
+def _attach_samples_to_top_page_rows(
+    page_rows: list[dict[str, Any]],
+    samples_by_key: dict[str, list[dict[str, Any]]],
+    *,
+    site_domain: str,
+    ext_counts: dict[str, int] | None = None,
+    int_counts: dict[str, int] | None = None,
+) -> None:
+    for row in page_rows:
+        url = row.get("target_url") or ""
+        tkey = _canonical_target_key(url, site_domain) or url
+        row["target_key"] = tkey
+        if not row.get("sample_links"):
+            row["sample_links"] = samples_by_key.get(tkey) or []
+        if ext_counts is not None:
+            row["referrer_link_count_external"] = int(ext_counts.get(tkey, 0))
+        if int_counts is not None:
+            row["referrer_link_count_internal"] = int(int_counts.get(tkey, 0))
+
+
+def _load_link_rows_for_target_samples(
+    db: Session,
+    *,
+    site_id: int,
+    report_type: str,
+) -> list[BacklinkRow]:
+    import_ids = _link_row_import_ids_for_target_lookup(
+        db, site_id=site_id, report_type=report_type
+    )
+    if not import_ids:
+        return []
+    return db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
 
 
 def build_top_backlink_rankings(
@@ -980,11 +1120,26 @@ def build_top_backlink_rankings(
                 b["display"],
             )
         )
+        top_pages = [
+            _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
+        ]
+        sample_rows = _load_link_rows_for_target_samples(db, site_id=site_id, report_type=rt)
+        lk = _effective_link_kind_for_target(rt, None)
+        samples = _target_page_samples_from_rows(
+            sample_rows, site_domain=site_domain, link_kind=lk, per_target=10
+        )
+        ext_c = _target_page_referrer_counts(
+            sample_rows, site_domain=site_domain, link_kind="external"
+        )
+        int_c = _target_page_referrer_counts(
+            sample_rows, site_domain=site_domain, link_kind="internal"
+        )
+        _attach_samples_to_top_page_rows(
+            top_pages, samples, site_domain=site_domain, ext_counts=ext_c, int_counts=int_c
+        )
         return {
             "top_linking_sites": [],
-            "top_linking_pages": [
-                _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
-            ],
+            "top_linking_pages": top_pages,
             "sites_total": 0,
             "pages_total": len(page_items),
             "pages_source": "gsc_top_target_pages" if page_items else None,
@@ -1044,6 +1199,37 @@ def build_top_backlink_rankings(
             b["display"],
         ),
     )
+    top_pages = [
+        _top_page_row_from_bucket(
+            {
+                "display": b["display"],
+                "external_incoming": int(b["external_incoming"]),
+                "external_linking_sites": int(b["external_linking_sites"]),
+                "internal_incoming": int(b["internal_incoming"]),
+                "internal_linking_sites": int(b["internal_linking_sites"]),
+            },
+            incoming_links_gsc=False,
+        )
+        for b in page_items[:cap]
+    ]
+    samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="all", per_target=10
+    )
+    ext_samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="external", per_target=10
+    )
+    int_samples = _target_page_samples_from_rows(
+        rows, site_domain=site_domain, link_kind="internal", per_target=10
+    )
+    ext_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="external")
+    int_c = _target_page_referrer_counts(rows, site_domain=site_domain, link_kind="internal")
+    _attach_samples_to_top_page_rows(
+        top_pages, samples, site_domain=site_domain, ext_counts=ext_c, int_counts=int_c
+    )
+    for row in top_pages:
+        tkey = row.get("target_key") or ""
+        row["sample_links_external"] = ext_samples.get(tkey) or []
+        row["sample_links_internal"] = int_samples.get(tkey) or []
 
     return {
         "top_linking_sites": [
@@ -1054,19 +1240,7 @@ def build_top_backlink_rankings(
             }
             for d, c in site_items[:cap]
         ],
-        "top_linking_pages": [
-            _top_page_row_from_bucket(
-                {
-                    "display": b["display"],
-                    "external_incoming": int(b["external_incoming"]),
-                    "external_linking_sites": int(b["external_linking_sites"]),
-                    "internal_incoming": int(b["internal_incoming"]),
-                    "internal_linking_sites": int(b["internal_linking_sites"]),
-                },
-                incoming_links_gsc=False,
-            )
-            for b in page_items[:cap]
-        ],
+        "top_linking_pages": top_pages,
         "sites_total": len(site_items),
         "pages_total": len(page_items),
         "pages_source": "link_rows" if page_items else None,
@@ -1329,6 +1503,73 @@ def list_domain_links(
     return {
         "domain": dom,
         "report_type": rt,
+        "link_count": len(links),
+        "links": links[:cap],
+        "truncated": truncated,
+    }
+
+
+def list_target_page_links(
+    db: Session,
+    *,
+    site_id: int,
+    report_type: str,
+    target_url: str,
+    link_kind: str = "all",
+    limit: int = 10000,
+) -> dict[str, Any]:
+    """Tek hedef URL için bağlantı veren kaynak URL listesi (iç/dış filtrelenebilir)."""
+    rt = (report_type or "latest_links").strip().lower()
+    site = db.query(Site).filter(Site.id == site_id).first()
+    site_domain = (site.domain if site else "") or ""
+    tgt_in = (target_url or "").strip()
+    if not tgt_in:
+        raise ValueError("Hedef URL boş.")
+    tkey = _canonical_target_key(tgt_in, site_domain)
+    if not tkey:
+        raise ValueError("Hedef URL site ile eşleşmiyor.")
+    lk = _effective_link_kind_for_target(rt, link_kind)
+    import_ids = _link_row_import_ids_for_target_lookup(
+        db, site_id=site_id, report_type=rt
+    )
+    if not import_ids:
+        return {
+            "target_url": tgt_in,
+            "target_key": tkey,
+            "report_type": rt,
+            "link_kind": lk,
+            "link_count": 0,
+            "links": [],
+            "truncated": False,
+        }
+    rows = (
+        db.query(BacklinkRow)
+        .filter(
+            BacklinkRow.site_id == site_id,
+            BacklinkRow.import_id.in_(import_ids),
+        )
+        .all()
+    )
+    matched: list[BacklinkRow] = []
+    for r in rows:
+        if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+            continue
+        tgt = (r.target_url or "").strip()
+        if not tgt or _canonical_target_key(tgt, site_domain) != tkey:
+            continue
+        src = (r.source_url or "").strip()
+        if not _link_kind_matches_source(src, site_domain, lk):
+            continue
+        matched.append(r)
+    links = _link_entries_from_rows(matched)
+    links.sort(key=lambda x: ((x.get("source_url") or "").lower(), (x.get("target_url") or "").lower()))
+    cap = max(1, min(int(limit), 50000))
+    truncated = len(links) > cap
+    return {
+        "target_url": tgt_in,
+        "target_key": tkey,
+        "report_type": rt,
+        "link_kind": lk,
         "link_count": len(links),
         "links": links[:cap],
         "truncated": truncated,

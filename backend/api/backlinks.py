@@ -141,6 +141,31 @@ def backlinks_domain_links(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/backlinks/target-page-links")
+@limiter.limit("60/minute")
+def backlinks_target_page_links(
+    request: Request,
+    site_id: int = Query(..., ge=1),
+    report_type: str = Query("latest_links"),
+    target_url: str = Query(..., min_length=1),
+    link_kind: str = Query("all", description="all|external|internal"),
+    limit: int = Query(10000, ge=1, le=50000),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    _require_internal_site(db, site_id)
+    try:
+        return backlink_csv.list_target_page_links(
+            db,
+            site_id=site_id,
+            report_type=report_type,
+            target_url=target_url,
+            link_kind=link_kind,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/backlinks/import-json")
 @limiter.limit("20/minute")
 def backlinks_import_json(

@@ -1064,14 +1064,124 @@
       if (!btn) return;
       blTopPagesFilter = btn.getAttribute("data-filter") || "all";
       blUpdateTopPagesFilterUi();
+      blTopPageOpen = {};
       renderTopPagesList();
     });
   }
 
   var blTopSiteOpen = {};
+  var blTopPageOpen = {};
 
   function blTopRankLimit(expanded) {
     return expanded ? 100 : 10;
+  }
+
+  function blTopPageLinkKind() {
+    var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
+    if (rt === "top_target_pages") return "external";
+    if (rt === "top_target_pages_internal") return "internal";
+    if (blTopPagesFilter === "external") return "external";
+    if (blTopPagesFilter === "internal") return "internal";
+    return "all";
+  }
+
+  function blTopPageSamples(row) {
+    var kind = blTopPageLinkKind();
+    if (kind === "external" && (row.sample_links_external || []).length) {
+      return row.sample_links_external;
+    }
+    if (kind === "internal" && (row.sample_links_internal || []).length) {
+      return row.sample_links_internal;
+    }
+    return row.sample_links || [];
+  }
+
+  function blTopPageReferrerTotal(row) {
+    var kind = blTopPageLinkKind();
+    if (kind === "external") {
+      return parseInt(row.referrer_link_count_external, 10) || 0;
+    }
+    if (kind === "internal") {
+      return parseInt(row.referrer_link_count_internal, 10) || 0;
+    }
+    return (
+      (parseInt(row.referrer_link_count_external, 10) || 0) +
+      (parseInt(row.referrer_link_count_internal, 10) || 0)
+    );
+  }
+
+  function blTopPageGscSummaryHtml(row) {
+    if (!row.incoming_links_gsc) return "";
+    var kind = blTopPageLinkKind();
+    var parts = [];
+    if (kind === "external" || kind === "all") {
+      if ((row.external_incoming || 0) > 0) {
+        parts.push(
+          "<strong>GSC (dış):</strong> " +
+            blFmtNum(row.external_incoming) +
+            " gelen bağlantı · " +
+            blFmtNum(row.external_linking_sites) +
+            " site"
+        );
+      }
+    }
+    if (kind === "internal" || kind === "all") {
+      if ((row.internal_incoming || 0) > 0) {
+        parts.push(
+          "<strong>GSC (iç):</strong> " +
+            blFmtNum(row.internal_incoming) +
+            " gelen bağlantı · " +
+            blFmtNum(row.internal_linking_sites) +
+            " kaynak site"
+        );
+      }
+    }
+    if (!parts.length) return "";
+    return (
+      '<div class="bl-top-page-gsc mb-2 rounded border border-slate-200 bg-white/90 px-2 py-1.5 text-[10px] leading-snug text-slate-700 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">' +
+      parts.join("<br>") +
+      "</div>"
+    );
+  }
+
+  function blTopPagePanelHtml(row, open) {
+    var url = row.target_url || row.source_url || "";
+    var key = row.target_key || url;
+    var html =
+      '<div class="bl-top-page-panel ' +
+      (open ? "" : "hidden") +
+      '" data-target-key="' +
+      esc(key) +
+      '">';
+    if (open) {
+      html += blTopPageGscSummaryHtml(row);
+      var samples = blTopPageSamples(row);
+      var refTotal = blTopPageReferrerTotal(row);
+      html +=
+        '<div class="bl-top-page-preview ml-5 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">';
+      if (samples.length) {
+        html += renderSampleLinksList(samples);
+      } else if (row.incoming_links_gsc && refTotal === 0) {
+        html +=
+          '<p class="text-[10px] leading-snug text-slate-500 dark:text-slate-400">Bu hedef için link satırı (Latest links vb.) importu yok; yalnızca GSC özet sayıları görünür.</p>';
+      } else {
+        html += '<span class="text-slate-400">Örnek bağlantı URL’si yok.</span>';
+      }
+      html += "</div>";
+      if (refTotal > samples.length) {
+        html +=
+          '<button type="button" class="bl-top-page-all-links mt-1 block text-[11px] font-semibold text-indigo-700 underline dark:text-indigo-300" data-target-url="' +
+          esc(url) +
+          '" data-total="' +
+          esc(String(refTotal)) +
+          '">Tüm bağlantı URL’lerini gör (' +
+          esc(String(refTotal)) +
+          ")</button>" +
+          '<div class="bl-top-page-all ml-5 mt-1 hidden rounded border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/40"></div>';
+      }
+    }
+    html += "</div>";
+    return html;
   }
 
   function blTopSitePanelHtml(row, open) {
@@ -1175,10 +1285,10 @@
       if (totalAll && src === "gsc_top_target_pages") {
         metaEl.textContent =
           totalAll +
-          " hedef · dış/iç ayrımı" +
+          " hedef · satıra tıklayınca GSC özeti ve bağlantı URL’leri · dış/iç" +
           (blTopPagesFilter !== "all" ? " · filtre: " + blTopPagesFilter : "");
       } else if (totalAll) {
-        metaEl.textContent = totalAll + " hedef · iç/dış link satırı";
+        metaEl.textContent = totalAll + " hedef · satıra tıklayınca bağlantı URL’leri · iç/dış";
       } else {
         metaEl.textContent = "";
       }
@@ -1202,20 +1312,28 @@
     listEl.innerHTML = slice
       .map(function (row, i) {
         var url = row.target_url || row.source_url || "";
+        var key = row.target_key || url;
         var countLabel = blFormatTargetPageCounts(row);
+        var open = !!blTopPageOpen[key];
         return (
-          '<li class="flex items-start gap-2 border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
+          '<li class="bl-top-page-item border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
+          '<button type="button" class="bl-top-page-head flex w-full items-start gap-2 text-left" data-target-key="' +
+          esc(key) +
+          '" aria-expanded="' +
+          (open ? "true" : "false") +
+          '">' +
           '<span class="w-5 shrink-0 tabular-nums text-[10px] font-bold text-slate-400">' +
           (i + 1) +
           "</span>" +
-          '<a class="min-w-0 flex-1 break-all font-mono leading-snug text-indigo-700 underline dark:text-indigo-300" href="' +
+          '<span class="min-w-0 flex-1 break-all font-mono text-[11px] font-semibold leading-snug text-slate-800 dark:text-slate-100">' +
           esc(url) +
-          '" target="_blank" rel="noopener">' +
-          esc(url) +
-          "</a>" +
+          (open ? " ▾" : " ▸") +
+          "</span>" +
           '<span class="shrink-0 max-w-[9rem] text-right text-[9px] font-bold leading-tight text-slate-600 dark:text-slate-300" title="dış: gelen bağlantı / site · iç: gelen bağlantı / kaynak site">' +
           esc(countLabel) +
-          "</span></li>"
+          "</span></button>" +
+          blTopPagePanelHtml(row, open) +
+          "</li>"
         );
       })
       .join("");
@@ -1227,6 +1345,80 @@
         btn.classList.add("hidden");
       }
     }
+  }
+
+  function wireBlTopPagesList() {
+    var listEl = document.getElementById("bl-top-pages-list");
+    if (!listEl || listEl.dataset.wiredTopPages === "1") return;
+    listEl.dataset.wiredTopPages = "1";
+    listEl.addEventListener("click", async function (ev) {
+      var linkBtn = ev.target.closest(".bl-top-page-all-links");
+      if (linkBtn) {
+        ev.preventDefault();
+        var targetUrl = linkBtn.getAttribute("data-target-url") || "";
+        var total = linkBtn.getAttribute("data-total") || "";
+        var panel = linkBtn.parentElement
+          ? linkBtn.parentElement.querySelector(".bl-top-page-all")
+          : null;
+        if (!panel) return;
+        if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
+          panel.classList.add("hidden");
+          linkBtn.textContent = "Tüm bağlantı URL’lerini gör (" + total + ")";
+          return;
+        }
+        if (panel.dataset.loaded === "1") {
+          panel.classList.remove("hidden");
+          linkBtn.textContent = "URL’leri gizle";
+          return;
+        }
+        var prev = linkBtn.textContent;
+        linkBtn.disabled = true;
+        linkBtn.textContent = "Yükleniyor…";
+        try {
+          var kind = blTopPageLinkKind();
+          var url =
+            "/api/backlinks/target-page-links?site_id=" +
+            encodeURIComponent(String(siteId())) +
+            "&report_type=" +
+            encodeURIComponent(reportType()) +
+            "&target_url=" +
+            encodeURIComponent(targetUrl) +
+            "&link_kind=" +
+            encodeURIComponent(kind);
+          var r = await fetch(url, { credentials: "same-origin" });
+          var data = await r.json();
+          if (!r.ok) {
+            showBanner(data.detail || "Bağlantılar yüklenemedi.");
+            linkBtn.textContent = prev;
+            return;
+          }
+          var links = data.links || [];
+          var note = "";
+          if (data.truncated) {
+            note =
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi (' +
+              esc(String(data.link_count || links.length)) +
+              ").</p>";
+          }
+          panel.innerHTML = note + renderSampleLinksList(links);
+          panel.dataset.loaded = "1";
+          panel.classList.remove("hidden");
+          linkBtn.textContent = "URL’leri gizle";
+        } catch (e) {
+          showBanner(String(e.message || e));
+          linkBtn.textContent = prev;
+        } finally {
+          linkBtn.disabled = false;
+        }
+        return;
+      }
+      var head = ev.target.closest(".bl-top-page-head");
+      if (!head) return;
+      var key = head.getAttribute("data-target-key") || "";
+      if (!key) return;
+      blTopPageOpen[key] = !blTopPageOpen[key];
+      renderTopPagesList();
+    });
   }
 
   function wireBlTopSitesList() {
@@ -2158,6 +2350,7 @@
       mediaEl.textContent = String((cc.media || 0) + (cc.mostly_clean || 0));
     }
     blTopSiteOpen = {};
+    blTopPageOpen = {};
     blTopSitesExpanded = false;
     blTopPagesExpanded = false;
     var rt = d.report_type || reportType();
@@ -2290,6 +2483,7 @@
   initBlDomainsTableSort();
   wireBlFilters();
   wireBlTopSitesList();
+  wireBlTopPagesList();
   wireBlTopPagesFilters();
   loadDashboard().catch(function () {});
 })();
