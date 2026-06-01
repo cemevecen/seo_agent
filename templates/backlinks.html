@@ -80,6 +80,104 @@
     color: #64748b;
   }
   html.dark .bl-import-overlay-sub { color: #94a3b8; }
+  .bl-dashboard-shell {
+    position: relative;
+    min-height: 12rem;
+  }
+  .bl-dashboard-shell.is-busy .bl-dashboard-content {
+    pointer-events: none;
+    user-select: none;
+  }
+  .bl-dashboard-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+  }
+  html.dark .bl-dashboard-loading {
+    background: rgba(15, 23, 42, 0.72);
+  }
+  .bl-dashboard-loading.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .bl-dashboard-loading:not(.hidden) {
+    opacity: 1;
+    visibility: visible;
+  }
+  .bl-dashboard-loading-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 16rem;
+  }
+  #bl-dashboard-lottie {
+    width: 5.5rem;
+    height: 5.5rem;
+    filter: drop-shadow(0 4px 14px rgba(79, 70, 229, 0.12));
+  }
+  #bl-dashboard-lottie.hidden { display: none !important; }
+  .bl-dashboard-lottie-fallback {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 9999px;
+    border: 3px solid rgba(99, 102, 241, 0.25);
+    border-top-color: #6366f1;
+    animation: bl-import-spin 0.75s linear infinite;
+  }
+  .bl-dashboard-loading-label {
+    margin-top: 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #4338ca;
+  }
+  html.dark .bl-dashboard-loading-label { color: #a5b4fc; }
+  .bl-dashboard-loading-sub {
+    margin-top: 0.15rem;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    color: #64748b;
+  }
+  html.dark .bl-dashboard-loading-sub { color: #94a3b8; }
+  .bl-dashboard-shell.is-busy::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 30;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #818cf8 35%,
+      #6366f1 50%,
+      #818cf8 65%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: bl-dashboard-shimmer 1.15s ease-in-out infinite;
+    border-radius: 0 0 2px 2px;
+  }
+  @keyframes bl-dashboard-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  .bl-report-type-chip.is-pending,
+  .bl-site-chip.is-pending {
+    opacity: 0.72;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
+  }
   .bl-sort-th {
     cursor: pointer;
     user-select: none;
@@ -421,6 +519,22 @@
     </p>
   </div>
 
+  <div id="bl-dashboard-shell" class="bl-dashboard-shell" aria-live="polite">
+    <div id="bl-dashboard-loading" class="bl-dashboard-loading hidden" aria-hidden="true" aria-busy="false">
+      <div class="bl-dashboard-loading-inner">
+        <lottie-player
+          id="bl-dashboard-lottie"
+          background="transparent"
+          speed="1.15"
+          loop
+          autoplay
+        ></lottie-player>
+        <div id="bl-dashboard-lottie-fallback" class="bl-dashboard-lottie-fallback hidden" aria-hidden="true"></div>
+        <p id="bl-dashboard-loading-label" class="bl-dashboard-loading-label">Veriler güncelleniyor…</p>
+        <p id="bl-dashboard-loading-sub" class="bl-dashboard-loading-sub">Rapor özeti hazırlanıyor</p>
+      </div>
+    </div>
+    <div class="bl-dashboard-content">
   <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
     <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Import</h2>
@@ -604,6 +718,8 @@
     <ul id="bl-import-steps" class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
       <li class="text-xs text-slate-500">Henüz adım yok.</li>
     </ul>
+  </div>
+    </div>
   </div>
 </div>
 
@@ -842,7 +958,77 @@
 
   var BL_LOTTIE_WORKING = "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
   var BL_LOTTIE_SUCCESS = "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
+  var BL_LOTTIE_DASHBOARD = "https://assets2.lottiefiles.com/packages/lf20_p8bfn5ty.json";
   var BL_IMPORT_SUCCESS_MIN_MS = 500;
+  var BL_DASHBOARD_LOAD_MIN_MS = 320;
+  var blDashboardLoadSeq = 0;
+  var blDashboardLottieStarted = false;
+
+  function blDashboardLoadingEls() {
+    return {
+      shell: document.getElementById("bl-dashboard-shell"),
+      layer: document.getElementById("bl-dashboard-loading"),
+      player: document.getElementById("bl-dashboard-lottie"),
+      fallback: document.getElementById("bl-dashboard-lottie-fallback"),
+      label: document.getElementById("bl-dashboard-loading-label"),
+      sub: document.getElementById("bl-dashboard-loading-sub"),
+    };
+  }
+
+  function blEnsureDashboardLottie() {
+    var els = blDashboardLoadingEls();
+    if (!els.player || blDashboardLottieStarted) return;
+    blDashboardLottieStarted = true;
+    blLottieShow(els.player, els.fallback, true);
+    blLottiePlay(els.player, BL_LOTTIE_DASHBOARD, true);
+  }
+
+  function blShowDashboardLoading(label, subLabel) {
+    var els = blDashboardLoadingEls();
+    if (!els.layer || !els.shell) return;
+    els.shell.classList.add("is-busy");
+    els.layer.classList.remove("hidden");
+    els.layer.setAttribute("aria-hidden", "false");
+    els.layer.setAttribute("aria-busy", "true");
+    if (els.label && label) els.label.textContent = label;
+    if (els.sub) els.sub.textContent = subLabel || "Özet ve listeler güncelleniyor";
+    blEnsureDashboardLottie();
+    if (blLottieReady(els.player)) {
+      try {
+        els.player.play();
+      } catch (e) {}
+    }
+  }
+
+  function blHideDashboardLoading() {
+    var els = blDashboardLoadingEls();
+    if (!els.layer || !els.shell) return;
+    els.shell.classList.remove("is-busy");
+    els.layer.classList.add("hidden");
+    els.layer.setAttribute("aria-hidden", "true");
+    els.layer.setAttribute("aria-busy", "false");
+    document.querySelectorAll(".bl-report-type-chip.is-pending, .bl-site-chip.is-pending").forEach(function (btn) {
+      btn.classList.remove("is-pending");
+    });
+  }
+
+  function blChipPending(selector, valueAttr, value) {
+    document.querySelectorAll(selector).forEach(function (btn) {
+      var on = (btn.getAttribute(valueAttr) || "") === String(value);
+      btn.classList.toggle("is-pending", on);
+    });
+  }
+
+  function blReportTypeHumanLabel(rt) {
+    var map = {
+      latest_links: "Latest links",
+      more_sample: "More sample",
+      top_linking_sites: "Top linking sites",
+      top_target_pages: "Hedef sayfalar (dış)",
+      top_target_pages_internal: "Hedef sayfalar (iç)",
+    };
+    return map[rt] || rt || "Rapor";
+  }
 
   function blWaitMs(ms) {
     return new Promise(function (resolve) {
@@ -1758,11 +1944,19 @@
       syncBlSiteChipsUi(next);
       return;
     }
+    blChipPending(".bl-site-chip", "data-value", next);
     syncBlSiteChipsUi(next);
     if (!opts || !opts.skipLoad) {
-      loadDashboard().catch(function (e) {
+      var nameEl = document.querySelector('.bl-site-chip[data-value="' + next + '"]');
+      var siteName = nameEl ? (nameEl.textContent || "").trim().split("\n")[0] : "Site";
+      loadDashboard({
+        loadingLabel: "Site değişiyor…",
+        loadingSub: siteName,
+      }).catch(function (e) {
         showBanner(String(e.message || e));
       });
+    } else {
+      syncBlSiteChipsUi(next);
     }
   }
 
@@ -1818,11 +2012,17 @@
       syncBlReportTypeChipsUi(next);
       return;
     }
+    blChipPending(".bl-report-type-chip", "data-value", next);
     syncBlReportTypeChipsUi(next);
     if (!opts || !opts.skipLoad) {
-      loadDashboard().catch(function (e) {
+      loadDashboard({
+        loadingLabel: "Rapor türü değişiyor…",
+        loadingSub: blReportTypeHumanLabel(next),
+      }).catch(function (e) {
         showBanner(String(e.message || e));
       });
+    } else {
+      syncBlReportTypeChipsUi(next);
     }
   }
 
@@ -2562,9 +2762,19 @@
     wireBlShowAllLinks();
   }
 
-  async function loadDashboard() {
+  async function loadDashboard(opts) {
     var sid = siteId();
     if (!sid) return;
+    var mySeq = ++blDashboardLoadSeq;
+    var showLoader = !opts || opts.showLoader !== false;
+    var t0 = Date.now();
+    if (showLoader) {
+      blShowDashboardLoading(
+        (opts && opts.loadingLabel) || "Veriler güncelleniyor…",
+        (opts && opts.loadingSub) || "Dashboard yenileniyor"
+      );
+    }
+    try {
     document.getElementById("bl-disavow-link").href = disavowHref();
     var rtParam = encodeURIComponent(reportType());
     var r = await fetch(
@@ -2577,10 +2787,13 @@
       { credentials: "same-origin", cache: "no-store" }
     );
     var d = await r.json();
+    if (mySeq !== blDashboardLoadSeq) return;
     if (!r.ok) {
       showBanner(d.detail || "Dashboard yüklenemedi.");
       return;
     }
+    syncBlSiteChipsUi(sid);
+    syncBlReportTypeChipsUi(d.report_type || reportType());
     document.getElementById("bl-banner").classList.add("hidden");
     var ac = d.action_counts || {};
     document.getElementById("bl-st-domains").textContent = String(d.domain_total || 0);
@@ -2605,7 +2818,6 @@
       blTopPagesFilter = "external";
     } else blTopPagesFilter = "all";
     applyBlReportTypeView(d);
-    syncBlReportTypeChipsUi(d.report_type || reportType());
     renderTopRankings(d.top_rankings || {}, rt);
     document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
     var lostEl = document.getElementById("bl-st-lost");
@@ -2652,9 +2864,20 @@
     } else {
       updateBlFilterCount(0, 0);
     }
+    } finally {
+      if (mySeq === blDashboardLoadSeq && showLoader) {
+        var elapsed = Date.now() - t0;
+        var wait = BL_DASHBOARD_LOAD_MIN_MS - elapsed;
+        if (wait > 0) await blWaitMs(wait);
+        if (mySeq === blDashboardLoadSeq) blHideDashboardLoading();
+      }
+    }
   }
   document.getElementById("bl-refresh-btn").addEventListener("click", function () {
-    loadDashboard().catch(function (e) {
+    loadDashboard({
+      loadingLabel: "Yenileniyor…",
+      loadingSub: "Sunucudan güncel veri alınıyor",
+    }).catch(function (e) {
       showBanner(String(e.message || e));
     });
   });
@@ -2662,6 +2885,11 @@
   wireBlSiteChips();
   syncBlReportTypeChipsUi("latest_links");
   syncBlSiteChipsUi(siteId());
+  blEnsureDashboardLottie();
+  loadDashboard({
+    loadingLabel: "Backlinks yükleniyor…",
+    loadingSub: "İlk özet hazırlanıyor",
+  }).catch(function () {});
   var blImportBtn = document.getElementById("bl-import-btn");
   if (blImportBtn) {
   blImportBtn.addEventListener("click", async function () {
@@ -2714,7 +2942,7 @@
           }
         });
         setProgress(96, "Özet güncelleniyor", "Dashboard yenileniyor");
-        await loadDashboard();
+        await loadDashboard({ showLoader: false });
         setProgress(99, "Tamamlanıyor", "");
         var stEl = document.getElementById("bl-import-status");
         if (stEl) stEl.textContent = "Tamam: " + blImportResultMessage(d.import || {});
@@ -2731,7 +2959,6 @@
   wireBlTopSitesList();
   wireBlTopPagesList();
   wireBlTopPagesFilters();
-  loadDashboard().catch(function () {});
 })();
 </script>
 {% endblock %}
