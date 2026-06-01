@@ -137,6 +137,55 @@ def _parse_count_cell(val: str) -> int:
     return int(digits) if digits else 0
 
 
+def _should_skip_top_target_row(target: str) -> bool:
+    t = (target or "").strip().lower()
+    if not t:
+        return True
+    if t in (
+        "target page",
+        "top target pages",
+        "hedef sayfa",
+        "incoming links",
+        "linking sites",
+        "gelen bağlantılar",
+        "bağlantı veren siteler",
+    ):
+        return True
+    if t.startswith("rows per page") or t.startswith("1-") and " of " in t:
+        return True
+    return False
+
+
+def _parse_incoming_and_sites_counts(row: list[str], header_map: dict[str, int]) -> tuple[int, int]:
+    """GSC Top target pages: sayılar virgüllü tek hücre veya yanlışlıkla bölünmüş olabilir."""
+    incoming = _parse_count_cell(_cell(row, header_map.get("incoming_links")))
+    sites = _parse_count_cell(_cell(row, header_map.get("linking_sites_count")))
+    if incoming or sites:
+        return incoming, sites
+    url_idx = header_map.get("target_url")
+    tail_vals: list[int] = []
+    for i, c in enumerate(row):
+        if url_idx is not None and i == url_idx:
+            continue
+        if _looks_like_url(c):
+            continue
+        if not (c or "").strip():
+            continue
+        tail_vals.append(_parse_count_cell(c))
+    if not tail_vals:
+        return 0, 0
+    if len(tail_vals) == 2:
+        return tail_vals[0], tail_vals[1]
+    if len(tail_vals) >= 4 and all(v < 10000 for v in tail_vals):
+        mid = len(tail_vals) // 2
+        inc_str = "".join(str(v) for v in tail_vals[:mid])
+        site_str = "".join(str(v) for v in tail_vals[mid:])
+        return (int(inc_str) if inc_str else 0, int(site_str) if site_str else 0)
+    if len(tail_vals) == 1:
+        return tail_vals[0], 0
+    return tail_vals[0], tail_vals[-1]
+
+
 def _header_is_top_target_pages(header_map: dict[str, int]) -> bool:
     if "target_url" not in header_map:
         return False
@@ -213,21 +262,18 @@ def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
     for row in data_rows:
         if not row or not any((c or "").strip() for c in row):
             continue
-        if top_target_mode and header_map:
-            tgt = _cell(row, header_map.get("target_url"))
+        if top_target_mode:
+            tgt = ""
+            if header_map:
+                tgt = _cell(row, header_map.get("target_url"))
             if not tgt:
                 for c in row:
                     if _looks_like_url(c):
                         tgt = c.strip()
                         break
-            if not tgt:
+            if not tgt or _should_skip_top_target_row(tgt):
                 continue
-            incoming = _parse_count_cell(_cell(row, header_map.get("incoming_links")))
-            sites = _parse_count_cell(_cell(row, header_map.get("linking_sites_count")))
-            if not incoming and len(row) >= 2:
-                incoming = _parse_count_cell(row[1])
-            if not sites and len(row) >= 3:
-                sites = _parse_count_cell(row[2])
+            incoming, sites = _parse_incoming_and_sites_counts(row, header_map or {})
             out.append(
                 {
                     "source_url": tgt,
