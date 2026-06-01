@@ -80,6 +80,24 @@
     color: #64748b;
   }
   html.dark .bl-import-overlay-sub { color: #94a3b8; }
+  .bl-sort-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .bl-sort-th:hover { color: #0f172a; }
+  html.dark .bl-sort-th:hover { color: #f1f5f9; }
+  .bl-sort-th .bl-sort-arrow {
+    margin-left: 0.2rem;
+    font-size: 0.55rem;
+    opacity: 0.35;
+    vertical-align: middle;
+  }
+  .bl-sort-th[data-sort-active="1"] .bl-sort-arrow {
+    opacity: 1;
+    color: #4f46e5;
+  }
+  html.dark .bl-sort-th[data-sort-active="1"] .bl-sort-arrow { color: #818cf8; }
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
@@ -148,15 +166,25 @@
           <strong>Risk</strong> 0–100 (yüksek = şüpheli). <strong>Öneri</strong> otomatik; <strong>Aksiyon</strong> sizin kalıcı seçiminiz (disavow.txt’ye yansır).
         </p>
         <div class="mt-3 max-h-[60vh] overflow-auto">
-          <table class="w-full min-w-[720px] text-left text-xs">
-            <thead class="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <table id="bl-domains-table" class="w-full min-w-[720px] text-left text-xs" data-bl-sortable="1">
+            <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
-                <th class="px-2 py-2">Domain</th>
-                <th class="px-2 py-2">Örnek URL’ler (kaynak → hedef)</th>
-                <th class="px-2 py-2">Adet</th>
-                <th class="px-2 py-2">Risk</th>
-                <th class="px-2 py-2">Öneri</th>
-                <th class="px-2 py-2">Aksiyon</th>
+                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="domain" data-sort-type="string" scope="col">
+                  Domain <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                </th>
+                <th class="px-2 py-2 text-left" scope="col">Örnek URL’ler (kaynak → hedef)</th>
+                <th class="bl-sort-th px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" scope="col">
+                  Adet <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                </th>
+                <th class="bl-sort-th px-2 py-2 text-right" data-sort-key="max_risk_score" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
+                  Risk <span class="bl-sort-arrow" aria-hidden="true">↓</span>
+                </th>
+                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="recommended_action" data-sort-type="action" data-default-desc="1" scope="col">
+                  Öneri <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                </th>
+                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="effective_action" data-sort-type="action" data-default-desc="1" scope="col">
+                  Aksiyon <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                </th>
               </tr>
             </thead>
             <tbody id="bl-domains-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
@@ -532,6 +560,155 @@
   function disavowHref() {
     return "/api/backlinks/disavow.txt?site_id=" + siteId() + "&report_type=" + encodeURIComponent(reportType());
   }
+
+  var blDomainsCache = [];
+  var blSortState = { key: "max_risk_score", desc: true };
+  var BL_ACTION_RANK = { ignore: 0, monitor: 1, review: 2, disavow: 3 };
+
+  function blActionRank(action) {
+    return BL_ACTION_RANK[String(action || "monitor").toLowerCase()] != null
+      ? BL_ACTION_RANK[String(action || "monitor").toLowerCase()]
+      : 1;
+  }
+
+  function blEffectiveAction(row) {
+    return (
+      row.operator_action ||
+      row.effective_action ||
+      row.recommended_action ||
+      "monitor"
+    ).toLowerCase();
+  }
+
+  function sortBlDomains(domains) {
+    var key = blSortState.key;
+    var desc = blSortState.desc;
+    var sorted = domains.slice();
+    sorted.sort(function (a, b) {
+      var cmp = 0;
+      if (key === "domain") {
+        cmp = String(a.domain || "").localeCompare(String(b.domain || ""), "tr");
+      } else if (key === "link_count" || key === "max_risk_score") {
+        cmp = (Number(a[key]) || 0) - (Number(b[key]) || 0);
+      } else if (key === "recommended_action") {
+        cmp = blActionRank(a.recommended_action) - blActionRank(b.recommended_action);
+      } else if (key === "effective_action") {
+        cmp = blActionRank(blEffectiveAction(a)) - blActionRank(blEffectiveAction(b));
+      }
+      return desc ? -cmp : cmp;
+    });
+    return sorted;
+  }
+
+  function updateBlSortHeaderUi() {
+    var tbl = document.getElementById("bl-domains-table");
+    if (!tbl) return;
+    tbl.querySelectorAll("th.bl-sort-th").forEach(function (th) {
+      var active = th.getAttribute("data-sort-key") === blSortState.key;
+      th.setAttribute("data-sort-active", active ? "1" : "0");
+      th.setAttribute("aria-sort", active ? (blSortState.desc ? "descending" : "ascending") : "none");
+      var arrow = th.querySelector(".bl-sort-arrow");
+      if (arrow) {
+        arrow.textContent = active ? (blSortState.desc ? "↓" : "↑") : "↕";
+      }
+    });
+  }
+
+  function initBlDomainsTableSort() {
+    var tbl = document.getElementById("bl-domains-table");
+    if (!tbl || tbl.dataset.sortWired === "1") return;
+    tbl.dataset.sortWired = "1";
+    tbl.querySelectorAll("th.bl-sort-th[data-sort-key]").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var key = th.getAttribute("data-sort-key");
+        if (!key) return;
+        var defaultDesc = th.getAttribute("data-default-desc") === "1";
+        if (blSortState.key === key) {
+          blSortState.desc = !blSortState.desc;
+        } else {
+          blSortState.key = key;
+          blSortState.desc = defaultDesc;
+        }
+        updateBlSortHeaderUi();
+        renderDomainsTable(blDomainsCache);
+      });
+    });
+    updateBlSortHeaderUi();
+  }
+
+  function renderDomainRow(row) {
+    var flags = (row.risk_flags || []).join(", ");
+    var cur = blEffectiveAction(row);
+    return (
+      "<tr>" +
+      '<td class="px-2 py-2 font-mono text-[11px] align-top">' +
+      esc(row.domain) +
+      (flags ? '<div class="mt-1 text-[10px] font-sans text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
+      "</td>" +
+      '<td class="max-w-md px-2 py-2 align-top">' +
+      renderSampleLinks(row) +
+      "</td>" +
+      '<td class="px-2 py-2 tabular-nums text-right align-top">' +
+      esc(row.link_count) +
+      "</td>" +
+      '<td class="px-2 py-2 tabular-nums text-right font-bold align-top">' +
+      esc(row.max_risk_score) +
+      "</td>" +
+      '<td class="px-2 py-2 align-top">' +
+      esc(row.recommended_action) +
+      "</td>" +
+      '<td class="px-2 py-2 align-top"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
+      esc(row.domain) +
+      '">' +
+      ["ignore", "monitor", "review", "disavow"]
+        .map(function (a) {
+          return '<option value="' + a + '"' + (a === cur ? " selected" : "") + ">" + a + "</option>";
+        })
+        .join("") +
+      "</select></td>" +
+      "</tr>"
+    );
+  }
+
+  function wireBlActionSelects() {
+    Array.prototype.forEach.call(document.querySelectorAll(".bl-action-select"), function (sel) {
+      if (sel.dataset.wired === "1") return;
+      sel.dataset.wired = "1";
+      sel.addEventListener("change", async function () {
+        var domain = sel.getAttribute("data-domain");
+        var action = sel.value;
+        var pr = await fetch("/api/backlinks/domain-action", {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ site_id: siteId(), domain: domain, action: action }),
+        });
+        if (!pr.ok) {
+          var err = await pr.json();
+          showBanner(err.detail || "Aksiyon kaydedilemedi.");
+          return;
+        }
+        blDomainsCache.forEach(function (row) {
+          if (row.domain === domain) row.operator_action = action;
+        });
+      });
+    });
+  }
+
+  function renderDomainsTable(domains) {
+    initBlDomainsTableSort();
+    var tbody = document.getElementById("bl-domains-body");
+    if (!tbody) return;
+    if (!domains.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+      return;
+    }
+    var sorted = sortBlDomains(domains);
+    tbody.innerHTML = sorted.map(renderDomainRow).join("");
+    wireBlActionSelects();
+  }
+
   async function loadDashboard() {
     var sid = siteId();
     if (!sid) return;
@@ -570,64 +747,8 @@
           " benzersiz domain (tüm adımlar birleşik)."
         : "";
     renderImportSteps(d.imports || []);
-    var tbody = document.getElementById("bl-domains-body");
-    var domains = d.domains || [];
-    if (!domains.length) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = domains
-      .map(function (row) {
-        var flags = (row.risk_flags || []).join(", ");
-        var cur = row.operator_action || row.effective_action || row.recommended_action || "monitor";
-        return (
-          "<tr>" +
-          '<td class="px-2 py-2 font-mono text-[11px] align-top">' +
-          esc(row.domain) +
-          (flags ? '<div class="mt-1 text-[10px] font-sans text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
-          "</td>" +
-          '<td class="max-w-md px-2 py-2 align-top">' +
-          renderSampleLinks(row) +
-          "</td>" +
-          '<td class="px-2 py-2 tabular-nums align-top">' +
-          esc(row.link_count) +
-          "</td>" +
-          '<td class="px-2 py-2 tabular-nums font-bold align-top">' +
-          esc(row.max_risk_score) +
-          "</td>" +
-          '<td class="px-2 py-2 align-top">' +
-          esc(row.recommended_action) +
-          "</td>" +
-          '<td class="px-2 py-2 align-top"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
-          esc(row.domain) +
-          '">' +
-          ["ignore", "monitor", "review", "disavow"]
-            .map(function (a) {
-              return '<option value="' + a + '"' + (a === cur ? " selected" : "") + ">" + a + "</option>";
-            })
-            .join("") +
-          "</select></td>" +
-          "</tr>"
-        );
-      })
-      .join("");
-    Array.prototype.forEach.call(document.querySelectorAll(".bl-action-select"), function (sel) {
-      sel.addEventListener("change", async function () {
-        var domain = sel.getAttribute("data-domain");
-        var action = sel.value;
-        var pr = await fetch("/api/backlinks/domain-action", {
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ site_id: siteId(), domain: domain, action: action }),
-        });
-        if (!pr.ok) {
-          var err = await pr.json();
-          showBanner(err.detail || "Aksiyon kaydedilemedi.");
-        }
-      });
-    });
+    blDomainsCache = d.domains || [];
+    renderDomainsTable(blDomainsCache);
   }
   document.getElementById("bl-refresh-btn").addEventListener("click", function () {
     loadDashboard().catch(function (e) {
@@ -695,6 +816,7 @@
       showBanner(String(e.message || e));
     }
   });
+  initBlDomainsTableSort();
   loadDashboard().catch(function () {});
 })();
 </script>
