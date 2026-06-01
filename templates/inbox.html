@@ -205,6 +205,69 @@
     0% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); }
     100% { box-shadow: 0 0 0 .55rem rgba(34,197,94,0); }
   }
+  .inbox-send-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+  }
+  .inbox-send-overlay.hidden { display: none !important; }
+  .inbox-send-overlay-card {
+    width: min(100%, 20rem);
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 1.25rem 1rem 1rem;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  }
+  html.dark .inbox-send-overlay-card {
+    border-color: #475569;
+    background: #0f172a;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  }
+  #inbox-send-lottie {
+    width: 7.5rem;
+    height: 7.5rem;
+    margin: 0 auto;
+  }
+  #inbox-send-lottie.hidden {
+    display: none !important;
+  }
+  .inbox-send-overlay-fallback {
+    width: 3rem;
+    height: 3rem;
+    margin: 1rem auto;
+    border: 3px solid #e2e8f0;
+    border-top-color: #4f46e5;
+    border-radius: 50%;
+    animation: inbox-send-spin 0.75s linear infinite;
+  }
+  html.dark .inbox-send-overlay-fallback { border-color: #334155; border-top-color: #818cf8; }
+  @keyframes inbox-send-spin { to { transform: rotate(360deg); } }
+  #inbox-send-overlay-status {
+    margin: 0.25rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  html.dark #inbox-send-overlay-status { color: #f1f5f9; }
+  #inbox-send-overlay-sub {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #64748b;
+  }
+  html.dark #inbox-send-overlay-sub { color: #94a3b8; }
+  .inbox-send-overlay[data-phase="success"] #inbox-send-overlay-status { color: #15803d; }
+  html.dark .inbox-send-overlay[data-phase="success"] #inbox-send-overlay-status { color: #86efac; }
+  .inbox-send-overlay[data-phase="error"] #inbox-send-overlay-status { color: #b91c1c; }
+  html.dark .inbox-send-overlay[data-phase="error"] #inbox-send-overlay-status { color: #fca5a5; }
 </style>
 <div class="inbox-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -357,6 +420,23 @@
   </div>
 </div>
 
+<div id="inbox-send-overlay" class="inbox-send-overlay hidden" aria-hidden="true" role="alertdialog" aria-modal="true" aria-labelledby="inbox-send-overlay-status" data-phase="sending">
+  <div class="inbox-send-overlay-card">
+    <lottie-player
+      id="inbox-send-lottie"
+      background="transparent"
+      speed="1"
+      style="width: 120px; height: 120px; margin: 0 auto;"
+      loop
+      autoplay
+    ></lottie-player>
+    <div id="inbox-send-lottie-fallback" class="inbox-send-overlay-fallback hidden" aria-hidden="true"></div>
+    <p id="inbox-send-overlay-status">Gönderiliyor…</p>
+    <p id="inbox-send-overlay-sub">Mesaj Gmail üzerinden iletiliyor</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
 <script>
 (function () {
   var selectedId = null;
@@ -557,6 +637,139 @@
     el.textContent = "";
   }
 
+  var INBOX_LOTTIE_SENDING =
+    "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
+  var INBOX_LOTTIE_SUCCESS =
+    "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
+  var INBOX_SEND_SUCCESS_MIN_MS = 550;
+  var INBOX_SEND_SUCCESS_MAX_MS = 1200;
+
+  function _waitMs(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function _inboxSendOverlayEls() {
+    return {
+      overlay: document.getElementById("inbox-send-overlay"),
+      player: document.getElementById("inbox-send-lottie"),
+      fallback: document.getElementById("inbox-send-lottie-fallback"),
+      status: document.getElementById("inbox-send-overlay-status"),
+      sub: document.getElementById("inbox-send-overlay-sub"),
+    };
+  }
+
+  function _inboxLottieReady(player) {
+    return !!(player && typeof player.play === "function");
+  }
+
+  function _inboxLottieShow(player, fallback, showPlayer) {
+    if (!player || !fallback) return;
+    if (showPlayer && _inboxLottieReady(player)) {
+      player.classList.remove("hidden");
+      fallback.classList.add("hidden");
+    } else {
+      player.classList.add("hidden");
+      fallback.classList.remove("hidden");
+    }
+  }
+
+  function _inboxLottiePlay(player, src, loop) {
+    if (!_inboxLottieReady(player)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var settled = false;
+      function done() {
+        if (settled) return;
+        settled = true;
+        resolve();
+      }
+      try {
+        player.loop = !!loop;
+        player.setAttribute("src", src);
+        player.play();
+      } catch (e) {
+        done();
+        return;
+      }
+      if (!loop) {
+        player.addEventListener("complete", function onDone() {
+          player.removeEventListener("complete", onDone);
+          done();
+        });
+        setTimeout(done, INBOX_SEND_SUCCESS_MAX_MS);
+      } else {
+        done();
+      }
+    });
+  }
+
+  function _setInboxSendOverlay(phase, statusText, subText) {
+    var els = _inboxSendOverlayEls();
+    if (!els.overlay) return els;
+    els.overlay.classList.remove("hidden");
+    els.overlay.setAttribute("aria-hidden", "false");
+    els.overlay.dataset.phase = phase || "sending";
+    if (els.status) els.status.textContent = statusText || "";
+    if (els.sub) els.sub.textContent = subText || "";
+    return els;
+  }
+
+  function _hideInboxSendOverlay() {
+    var els = _inboxSendOverlayEls();
+    if (!els.overlay) return;
+    els.overlay.classList.add("hidden");
+    els.overlay.setAttribute("aria-hidden", "true");
+  }
+
+  function _setInboxSendButtonsDisabled(disabled) {
+    var btn = document.getElementById("btn-send");
+    if (btn) btn.disabled = !!disabled;
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".inbox-send-template-btn"),
+      function (b) {
+        b.disabled = !!disabled;
+      }
+    );
+  }
+
+  async function runInboxSendWithOverlay(sendFn) {
+    var els = _setInboxSendOverlay(
+      "sending",
+      "Gönderiliyor…",
+      "Mesaj Gmail hesabınıza bağlanıyor ve iletiliyor"
+    );
+    _setInboxSendButtonsDisabled(true);
+    _inboxLottieShow(els.player, els.fallback, true);
+    await _inboxLottiePlay(els.player, INBOX_LOTTIE_SENDING, true);
+    var stageTimer = setTimeout(function () {
+      if (els.sub && els.overlay && els.overlay.dataset.phase === "sending") {
+        els.sub.textContent = "Alıcıya iletiliyor…";
+      }
+    }, 450);
+    try {
+      await sendFn();
+      clearTimeout(stageTimer);
+      els = _setInboxSendOverlay("success", "İletildi", "Liste yenileniyor…");
+      _inboxLottieShow(els.player, els.fallback, true);
+      await _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
+      await _waitMs(INBOX_SEND_SUCCESS_MIN_MS);
+      window.location.reload();
+    } catch (e) {
+      clearTimeout(stageTimer);
+      _setInboxSendOverlay(
+        "error",
+        "Gönderilemedi",
+        String(e.message || e).slice(0, 200)
+      );
+      _inboxLottieShow(els.player, els.fallback, false);
+      _setInboxSendButtonsDisabled(false);
+      await _waitMs(1600);
+      _hideInboxSendOverlay();
+      throw e;
+    }
+  }
+
   function esc(s) {
     if (!s) return "";
     return String(s)
@@ -747,9 +960,10 @@
           setTimeout(async function() {
             if (!confirm("Bu şablon Gmail üzerinden gönderilecek. Onaylıyor musunuz?")) return;
             try {
-              await sendInboxMailFromComposer();
+              await runInboxSendWithOverlay(function () {
+                return sendInboxMailFromComposer();
+              });
               replyToGmailId = null;
-              window.location.reload();
             } catch (e) {
               showBanner(String(e.message || e));
             }
@@ -1464,9 +1678,10 @@
     try { await _ensureInboxActionAuth(); } catch (e) { return; }
     if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
     try {
-      await sendInboxMailFromComposer();
+      await runInboxSendWithOverlay(function () {
+        return sendInboxMailFromComposer();
+      });
       replyToGmailId = null;
-      window.location.reload();
     } catch (e) {
       showBanner(String(e.message || e));
     }
