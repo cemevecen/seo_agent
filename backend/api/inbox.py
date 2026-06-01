@@ -36,23 +36,16 @@ def _is_nstat_route(tag: str | None) -> bool:
 def _is_alert_route(tag: str | None) -> bool:
     return _thread_route(tag) in inbox_sync.INBOX_ALERT_ROUTES
 
-_INBOX_ACTION_AUTH_COOKIE = "seo_inbox_action_auth"
+from backend.services.inbox_action_auth import (
+    INBOX_ACTION_AUTH_COOKIE,
+    inbox_action_token,
+    is_inbox_action_authenticated,
+    require_inbox_action_auth,
+)
 
 
 def _require_inbox_action_auth(request: Request) -> None:
-    """Inbox aksiyon koruması — INBOX_ACTION_PASSWORD tanımlıysa cookie doğrula."""
-    import hashlib, hmac as _hmac
-    from backend.config import settings as _settings
-    raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
-    if not raw_pwd:
-        return  # Şifre tanımlanmamışsa herkese açık
-    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
-    if not token:
-        raise HTTPException(status_code=403, detail="inbox_action_auth_required")
-    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
-    expected = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
-    if not _hmac.compare_digest(token, expected):
-        raise HTTPException(status_code=403, detail="inbox_action_auth_required")
+    require_inbox_action_auth(request)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -297,17 +290,11 @@ def inbox_oauth_callback(request: Request, db: Session = Depends(get_db)):
 @limiter.limit("120/minute")
 def inbox_action_auth_status(request: Request):
     """Inbox aksiyon şifresinin cookie'de geçerli olup olmadığını döndürür."""
-    import hashlib, hmac as _hmac
-    from backend.config import settings as _settings
-    raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
-    if not raw_pwd:
+    from backend.services.inbox_action_auth import inbox_action_password_configured
+
+    if not inbox_action_password_configured():
         return {"authenticated": True, "required": False}
-    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
-    if not token:
-        return {"authenticated": False, "required": True}
-    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
-    expected = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
-    ok = _hmac.compare_digest(token, expected)
+    ok = is_inbox_action_authenticated(request)
     return {"authenticated": ok, "required": True}
 
 
@@ -315,22 +302,20 @@ def inbox_action_auth_status(request: Request):
 @limiter.limit("20/minute")
 async def inbox_action_auth_set(request: Request):
     """Inbox aksiyon şifresini doğrula ve oturum cookie'si yaz."""
-    import hashlib, hmac as _hmac
     from backend.config import settings as _settings
+
     raw_pwd = (getattr(_settings, "inbox_action_password", "") or "").strip()
     if not raw_pwd:
-        resp = JSONResponse({"ok": True})
-        return resp
+        return JSONResponse({"ok": True})
     form = await request.form()
     submitted = str(form.get("password") or "").strip()
     if submitted != raw_pwd:
         return JSONResponse({"ok": False, "error": "Yanlış şifre"})
-    secret = str(getattr(_settings, "secret_key", "") or "").encode("utf-8")
-    token = _hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    token = inbox_action_token(raw_pwd)
     secure = request.url.scheme == "https"
     resp = JSONResponse({"ok": True})
     resp.set_cookie(
-        key=_INBOX_ACTION_AUTH_COOKIE,
+        key=INBOX_ACTION_AUTH_COOKIE,
         value=token,
         httponly=True,
         secure=secure,

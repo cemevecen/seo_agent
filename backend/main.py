@@ -1125,19 +1125,15 @@ def _is_settings_authenticated(request: Request) -> bool:
 
 
 def _inbox_action_token(raw_pwd: str) -> str:
-    secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
-    return hmac.new(secret, ("inbox_action:" + raw_pwd).encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
+    from backend.services.inbox_action_auth import inbox_action_token
+
+    return inbox_action_token(raw_pwd)
 
 
 def _is_inbox_action_authenticated(request: Request) -> bool:
-    """Inbox aksiyon koruması: INBOX_ACTION_PASSWORD tanımlıysa cookie doğrula."""
-    raw_pwd = (getattr(settings, "inbox_action_password", "") or "").strip()
-    if not raw_pwd:
-        return True  # Şifre tanımlanmamışsa herkese açık
-    token = str(request.cookies.get(_INBOX_ACTION_AUTH_COOKIE) or "")
-    if not token:
-        return False
-    return hmac.compare_digest(token, _inbox_action_token(raw_pwd))
+    from backend.services.inbox_action_auth import is_inbox_action_authenticated
+
+    return is_inbox_action_authenticated(request)
 
 
 def _admin_auth_row(db) -> AdminAuthSetting | None:

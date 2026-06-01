@@ -753,7 +753,7 @@
     modal.innerHTML = `
       <div style="background:#18181b;border:1px solid #3f3f46;border-radius:14px;padding:28px 32px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
         <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f4f4f5;">Aksiyon Şifresi</p>
-        <p style="margin:0 0 16px;font-size:12px;color:#71717a;">Bu işlemi yapmak için şifre gerekiyor.</p>
+        <p style="margin:0 0 16px;font-size:12px;color:#71717a;">Gmail bağlantısından ayrı: Railway’deki <strong>INBOX_ACTION_PASSWORD</strong> (panel giriş şifresiyle aynı olmak zorunda değil).</p>
         <input id="inbox-action-pwd-input" type="password" placeholder="Şifre" autocomplete="current-password"
           style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid #3f3f46;background:#09090b;color:#f4f4f5;font-size:14px;outline:none;margin-bottom:10px;">
         <p id="inbox-action-pwd-err" style="margin:0 0 10px;font-size:12px;color:#f87171;display:none;"></p>
@@ -819,10 +819,19 @@
     // 403 inbox_action_auth_required → şifre sor, tekrar dene
     if (r.status === 403) {
       var errText = await r.text();
-      if (errText.includes('inbox_action_auth_required')) {
+      var needsInboxPwd =
+        errText.indexOf('inbox_action_auth_required') !== -1 ||
+        (function () {
+          try {
+            var j = JSON.parse(errText);
+            return j && j.detail === 'inbox_action_auth_required';
+          } catch (e) {
+            return false;
+          }
+        })();
+      if (needsInboxPwd) {
         _inboxActionAuthed = false;
         await _ensureInboxActionAuth();
-        // Tekrar dene
         r = await fetch(url, merged);
       }
     }
@@ -1434,6 +1443,9 @@
       thread_subject: subj ? (subj.textContent || "").trim() : null,
     };
   };
+
+  window.__pcInboxJfetch = jfetch;
+  window.__pcInboxEnsureActionAuth = _ensureInboxActionAuth;
 })();
 
 (function () {
@@ -1443,36 +1455,41 @@
   var body = document.getElementById('inbox-send-body');
   if (!btn || !prompt) return;
 
-  btn.addEventListener('click', function () {
+  btn.addEventListener('click', async function () {
     var txt = (prompt.value || '').trim();
     if (!txt) { prompt.focus(); return; }
+    var jf = window.__pcInboxJfetch;
+    var ensureAuth = window.__pcInboxEnsureActionAuth;
+    if (!jf) {
+      status.textContent = '✗ Sayfa betiği yüklenemedi; sayfayı yenileyin.';
+      return;
+    }
     btn.disabled = true;
     status.textContent = 'Yazılıyor…';
-    fetch('/api/inbox/generate-from-prompt', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: txt })
-    })
-      .then(function (r) {
-        if (r.status === 403) return r.json().then(function (d) { throw new Error(d.detail || 'Yetki gerekiyor.'); });
-        if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'Hata'); });
-        return r.json();
-      })
-      .then(function (d) {
-        if (body) {
-          body.value = d.text || '';
-          body.dispatchEvent(new Event('input'));
-          var anchor = document.getElementById('inbox-compose-anchor');
-          if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        status.textContent = '✓ ' + (d.provider || '') + ' ile oluşturuldu';
-        setTimeout(function () { status.textContent = ''; }, 4000);
-      })
-      .catch(function (e) {
-        status.textContent = '✗ ' + (e.message || 'Hata');
-      })
-      .finally(function () { btn.disabled = false; });
+    try {
+      if (ensureAuth) await ensureAuth();
+      var d = await jf('/api/inbox/generate-from-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: txt }),
+      });
+      if (body) {
+        body.value = d.text || '';
+        body.dispatchEvent(new Event('input'));
+        var anchor = document.getElementById('inbox-compose-anchor');
+        if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      status.textContent = '✓ ' + (d.provider || '') + ' ile oluşturuldu';
+      setTimeout(function () { status.textContent = ''; }, 4000);
+    } catch (e) {
+      var msg = e && e.message ? e.message : 'Hata';
+      if (msg.indexOf('inbox_action_auth_required') !== -1) {
+        msg = 'Aksiyon şifresi gerekli (INBOX_ACTION_PASSWORD).';
+      }
+      status.textContent = '✗ ' + msg;
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   prompt.addEventListener('keydown', function (e) {
