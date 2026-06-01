@@ -33,17 +33,15 @@ LOGGER = logging.getLogger(__name__)
 
 REPORT_TYPES = (
     "latest_links",
-    "more_sample",
-    "top_linking_sites",
     "top_target_pages",
-    "top_target_pages_internal",
 )
 
 REPORT_TYPE_LABELS: dict[str, str] = {
     "latest_links": "Latest links",
+    "top_target_pages": "Top external links",
+    # Eski importlar (UI sekmesi kaldırıldı)
     "more_sample": "More sample links",
     "top_linking_sites": "Top linking sites",
-    "top_target_pages": "Top external links",
     "top_target_pages_internal": "Top internal links",
 }
 

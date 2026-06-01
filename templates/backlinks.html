@@ -80,6 +80,9 @@
     color: #64748b;
   }
   html.dark .bl-import-overlay-sub { color: #94a3b8; }
+  .bl-page {
+    position: relative;
+  }
   .bl-dashboard-shell {
     position: relative;
     min-height: 12rem;
@@ -89,17 +92,18 @@
     user-select: none;
   }
   .bl-dashboard-loading {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    z-index: 25;
+    z-index: 45;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    padding: 2rem 1rem;
-    background: rgba(248, 250, 252, 0.72);
+    padding: clamp(4.75rem, 11vh, 7rem) 1rem 2rem;
+    background: rgba(248, 250, 252, 0.78);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: auto;
   }
   html.dark .bl-dashboard-loading {
     background: rgba(15, 23, 42, 0.72);
@@ -118,7 +122,17 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    max-width: 16rem;
+    max-width: 18rem;
+    padding: 0.85rem 1.15rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(199, 210, 254, 0.85);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 40px rgba(79, 70, 229, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .bl-dashboard-loading-inner {
+    border-color: rgba(99, 102, 241, 0.35);
+    background: rgba(15, 23, 42, 0.88);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   }
   #bl-dashboard-lottie {
     width: 5.5rem;
@@ -136,27 +150,27 @@
   }
   .bl-dashboard-loading-label {
     margin-top: 0.35rem;
-    font-size: 0.8125rem;
-    font-weight: 700;
+    font-size: 0.9375rem;
+    font-weight: 800;
     letter-spacing: 0.01em;
     color: #4338ca;
   }
   html.dark .bl-dashboard-loading-label { color: #a5b4fc; }
   .bl-dashboard-loading-sub {
-    margin-top: 0.15rem;
-    font-size: 0.6875rem;
-    line-height: 1.35;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
     color: #64748b;
   }
   html.dark .bl-dashboard-loading-sub { color: #94a3b8; }
-  .bl-dashboard-shell.is-busy::before {
+  .bl-dashboard-loading:not(.hidden)::before {
     content: "";
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
     height: 3px;
-    z-index: 30;
+    z-index: 46;
     background: linear-gradient(
       90deg,
       transparent 0%,
@@ -167,7 +181,7 @@
     );
     background-size: 200% 100%;
     animation: bl-dashboard-shimmer 1.15s ease-in-out infinite;
-    border-radius: 0 0 2px 2px;
+    pointer-events: none;
   }
   @keyframes bl-dashboard-shimmer {
     0% { background-position: 100% 0; }
@@ -498,22 +512,12 @@
       <button type="button" role="tab" class="bl-report-type-chip" data-value="latest_links" aria-selected="true" title="GSC Latest links CSV">
         Latest links
       </button>
-      <button type="button" role="tab" class="bl-report-type-chip" data-value="more_sample" aria-selected="false" title="GSC More sample links CSV">
-        More sample
-      </button>
-      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_linking_sites" aria-selected="false" title="GSC Top linking sites CSV">
-        Top linking sites
-      </button>
       <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages" aria-selected="false" title="GSC Bağlantılar → Top target pages export">
         Top external links
-      </button>
-      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages_internal" aria-selected="false" title="GSC İç bağlantılar → Top linked pages export">
-        Top internal links
       </button>
     </div>
     <p class="mt-3 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
       <strong>Top external links:</strong> Bağlantılar → Top target pages CSV.
-      <strong class="ml-1">Top internal links:</strong> İç bağlantılar → Top linked pages CSV.
     </p>
   </div>
 
@@ -596,7 +600,7 @@
       <div id="bl-domain-list-section" class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 id="bl-domain-list-title" class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
         <p id="bl-target-mode-hint" class="mt-2 hidden text-xs text-slate-500 dark:text-slate-400">
-          Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>Top external links</strong> / <strong>Top internal links</strong> verisinden gelir.
+          Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>Top external links</strong> verisinden gelir.
         </p>
         <div id="bl-domain-filters-wrap" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <label class="block text-[10px] font-bold uppercase text-slate-500">
@@ -1015,15 +1019,28 @@
     });
   }
 
+  var BL_REPORT_TYPES_UI = ["latest_links", "top_target_pages"];
+
+  function blNormalizeReportType(rt) {
+    var v = (rt || "latest_links").trim().toLowerCase();
+    if (BL_REPORT_TYPES_UI.indexOf(v) >= 0) return v;
+    if (
+      v === "more_sample" ||
+      v === "top_linking_sites" ||
+      v === "top_target_pages_internal"
+    ) {
+      return "latest_links";
+    }
+    return "latest_links";
+  }
+
   function blReportTypeHumanLabel(rt) {
     var map = {
       latest_links: "Latest links",
-      more_sample: "More sample",
-      top_linking_sites: "Top linking sites",
       top_target_pages: "Top external links",
-      top_target_pages_internal: "Top internal links",
     };
-    return map[rt] || rt || "Rapor";
+    var key = blNormalizeReportType(rt);
+    return map[key] || key || "Rapor";
   }
 
   function blWaitMs(ms) {
@@ -1992,11 +2009,11 @@
 
   function reportType() {
     var el = document.getElementById("bl-report-type");
-    return el ? el.value : "latest_links";
+    return blNormalizeReportType(el ? el.value : "latest_links");
   }
 
   function syncBlReportTypeChipsUi(rt) {
-    var value = rt || reportType();
+    var value = blNormalizeReportType(rt || reportType());
     var hidden = document.getElementById("bl-report-type");
     if (hidden) hidden.value = value;
     document.querySelectorAll("#bl-report-type-wrap .bl-report-type-chip").forEach(function (btn) {
@@ -2007,7 +2024,7 @@
   }
 
   function setBlReportType(rt, opts) {
-    var next = (rt || "latest_links").trim();
+    var next = blNormalizeReportType(rt);
     if (next === reportType()) {
       syncBlReportTypeChipsUi(next);
       return;
@@ -2057,7 +2074,7 @@
   }
 
   function isBlTargetReportType(rt) {
-    return rt === "top_target_pages" || rt === "top_target_pages_internal";
+    return blNormalizeReportType(rt) === "top_target_pages";
   }
 
   function applyBlReportTypeView(d) {
@@ -2078,8 +2095,7 @@
     }
     if (filterCount) filterCount.classList.toggle("hidden", isTarget);
     if (title) {
-      if (rt === "top_target_pages") title.textContent = "Top external links";
-      else if (rt === "top_target_pages_internal") title.textContent = "Top internal links";
+      if (blNormalizeReportType(rt) === "top_target_pages") title.textContent = "Top external links";
       else title.textContent = isTarget ? "Hedef sayfalar" : "Domain listesi";
     }
 
@@ -2797,7 +2813,8 @@
       return;
     }
     syncBlSiteChipsUi(sid);
-    syncBlReportTypeChipsUi(d.report_type || reportType());
+    var rt = blNormalizeReportType(d.report_type || reportType());
+    syncBlReportTypeChipsUi(rt);
     document.getElementById("bl-banner").classList.add("hidden");
     var ac = d.action_counts || {};
     document.getElementById("bl-st-domains").textContent = String(d.domain_total || 0);
@@ -2812,16 +2829,14 @@
     blTopPageOpen = {};
     blTopSitesExpanded = false;
     blTopPagesExpanded = false;
-    var rt = d.report_type || reportType();
-    if (rt === "top_target_pages_internal") blTopPagesFilter = "internal";
-    else if (rt === "top_target_pages") blTopPagesFilter = "external";
+    if (rt === "top_target_pages") blTopPagesFilter = "external";
     else if (
       rt === "latest_links" &&
       (d.top_rankings || {}).pages_gsc_report_type === "top_target_pages"
     ) {
       blTopPagesFilter = "external";
     } else blTopPagesFilter = "all";
-    applyBlReportTypeView(d);
+    applyBlReportTypeView(Object.assign({}, d, { report_type: rt }));
     renderTopRankings(d.top_rankings || {}, rt);
     document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
     var lostEl = document.getElementById("bl-st-lost");
