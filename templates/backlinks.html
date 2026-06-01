@@ -297,7 +297,11 @@
         <option value="latest_links">Latest links</option>
         <option value="more_sample">More sample links</option>
         <option value="top_linking_sites">Top linking sites</option>
+        <option value="top_target_pages">Top target pages</option>
       </select>
+      <p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+        «En çok backlink alan sayfalar» için Search Console → Bağlantılar → <strong>Top target pages</strong> CSV’sini «Top target pages» olarak import edin.
+      </p>
       <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">CSV dosyası</label>
       <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-sm" />
       <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">veya CSV yapıştır</label>
@@ -998,10 +1002,18 @@
     var limit = blTopRankLimit(blTopPagesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     if (metaEl) {
-      metaEl.textContent = total ? total + " hedef sayfa · benzersiz backlink" : "";
+      var src = blTopRankingsCache.pages_source || "";
+      if (total && src === "gsc_top_target_pages") {
+        metaEl.textContent = total + " hedef · GSC gelen bağlantı / site";
+      } else if (total) {
+        metaEl.textContent = total + " hedef sayfa · benzersiz backlink";
+      } else {
+        metaEl.textContent = "";
+      }
     }
     if (!slice.length) {
-      listEl.innerHTML = '<li class="text-slate-500">Henüz veri yok.</li>';
+      listEl.innerHTML =
+        '<li class="text-slate-500 leading-snug">Henüz veri yok. Search Console «Top target pages» exportunu rapor türü <strong>Top target pages</strong> ile import edin.</li>';
       if (btn) btn.classList.add("hidden");
       return;
     }
@@ -1009,8 +1021,18 @@
       .map(function (row, i) {
         var url = row.target_url || row.source_url || "";
         var cnt = row.link_count != null ? row.link_count : 0;
-        var srcCnt = row.source_count != null ? row.source_count : cnt;
-        var countLabel = srcCnt !== cnt ? cnt + " · " + srcCnt + " kaynak" : String(cnt);
+        var sitesCnt = row.linking_sites_count != null ? row.linking_sites_count : null;
+        var countLabel;
+        if (sitesCnt != null && row.incoming_links_gsc) {
+          countLabel =
+            (Number(cnt).toLocaleString("tr-TR") || "0") +
+            " · " +
+            (Number(sitesCnt).toLocaleString("tr-TR") || "0") +
+            " site";
+        } else {
+          var srcCnt = row.source_count != null ? row.source_count : cnt;
+          countLabel = srcCnt !== cnt ? cnt + " · " + srcCnt + " kaynak" : String(cnt);
+        }
         return (
           '<li class="flex items-start gap-2 border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
           '<span class="w-5 shrink-0 tabular-nums text-[10px] font-bold text-slate-400">' +
@@ -1021,7 +1043,7 @@
           '" target="_blank" rel="noopener">' +
           esc(url) +
           "</a>" +
-          '<span class="shrink-0 tabular-nums text-[10px] font-bold text-slate-600 dark:text-slate-300" title="Benzersiz backlink · kaynak sayfa">' +
+          '<span class="shrink-0 tabular-nums text-[10px] font-bold text-slate-600 dark:text-slate-300" title="Gelen bağlantı · bağlantı veren site">' +
           esc(countLabel) +
           "</span></li>"
         );

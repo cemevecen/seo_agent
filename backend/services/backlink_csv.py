@@ -31,13 +31,16 @@ from backend.services.ga4_page_urls import ga4_site_host
 
 LOGGER = logging.getLogger(__name__)
 
-REPORT_TYPES = ("latest_links", "more_sample", "top_linking_sites")
+REPORT_TYPES = ("latest_links", "more_sample", "top_linking_sites", "top_target_pages")
 
 REPORT_TYPE_LABELS: dict[str, str] = {
     "latest_links": "Latest links",
     "more_sample": "More sample links",
     "top_linking_sites": "Top linking sites",
+    "top_target_pages": "Top target pages",
 }
+
+GSC_TARGET_AGG_ANCHOR_PREFIX = "gsc_agg:"
 
 _HEADER_ALIASES: dict[str, list[str]] = {
     "source_url": [
@@ -76,6 +79,19 @@ _HEADER_ALIASES: dict[str, list[str]] = {
         "linking site",
         "site",
         "domain",
+    ],
+    "incoming_links": [
+        "incoming links",
+        "gelen bağlantılar",
+        "gelen baglantilar",
+        "gelen bağlantı",
+        "gelen baglanti",
+    ],
+    "linking_sites_count": [
+        "linking sites",
+        "bağlantı veren siteler",
+        "baglanti veren siteler",
+        "linking site count",
     ],
 }
 
@@ -116,6 +132,31 @@ def _cell(row: list[str], idx: int | None) -> str:
     return (row[idx] or "").strip()
 
 
+def _parse_count_cell(val: str) -> int:
+    digits = re.sub(r"[^\d]", "", val or "")
+    return int(digits) if digits else 0
+
+
+def _header_is_top_target_pages(header_map: dict[str, int]) -> bool:
+    if "target_url" not in header_map:
+        return False
+    return "incoming_links" in header_map or "linking_sites_count" in header_map
+
+
+def _parse_gsc_agg_anchor(anchor: str) -> tuple[int | None, int | None]:
+    a = (anchor or "").strip()
+    if not a.startswith(GSC_TARGET_AGG_ANCHOR_PREFIX):
+        return None, None
+    rest = a[len(GSC_TARGET_AGG_ANCHOR_PREFIX) :]
+    parts = rest.split(":", 1)
+    if len(parts) != 2:
+        return None, None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None, None
+
+
 def normalize_csv_text(text: str) -> str:
     """UTF-16 / BOM ve GSC export satır sonları."""
     raw = text or ""
@@ -154,7 +195,7 @@ def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
     data_rows: list[list[str]] = rows
     for i, row in enumerate(rows[:12]):
         hm = _build_header_map(row)
-        if hm.get("source_url") or hm.get("linking_site"):
+        if hm.get("source_url") or hm.get("linking_site") or _header_is_top_target_pages(hm):
             header_idx = i
             header_map = hm
             data_rows = rows[i + 1 :]
@@ -166,9 +207,38 @@ def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
                 data_rows = rows[header_idx:]
                 break
 
+    top_target_mode = report_type == "top_target_pages" or _header_is_top_target_pages(header_map)
+
     out: list[dict[str, Any]] = []
     for row in data_rows:
         if not row or not any((c or "").strip() for c in row):
+            continue
+        if top_target_mode and header_map:
+            tgt = _cell(row, header_map.get("target_url"))
+            if not tgt:
+                for c in row:
+                    if _looks_like_url(c):
+                        tgt = c.strip()
+                        break
+            if not tgt:
+                continue
+            incoming = _parse_count_cell(_cell(row, header_map.get("incoming_links")))
+            sites = _parse_count_cell(_cell(row, header_map.get("linking_sites_count")))
+            if not incoming and len(row) >= 2:
+                incoming = _parse_count_cell(row[1])
+            if not sites and len(row) >= 3:
+                sites = _parse_count_cell(row[2])
+            out.append(
+                {
+                    "source_url": tgt,
+                    "target_url": tgt,
+                    "anchor_text": f"{GSC_TARGET_AGG_ANCHOR_PREFIX}{incoming}:{sites}",
+                    "last_crawled": "",
+                    "incoming_links": incoming,
+                    "linking_sites": sites,
+                    "is_top_target_aggregate": True,
+                }
+            )
             continue
         if not header_map and report_type == "top_linking_sites":
             domain_cell = _cell(row, 0)
@@ -360,6 +430,10 @@ def import_backlink_csv(
     if not parsed:
         raise ValueError("CSV'de geçerli bağlantı satırı bulunamadı.")
 
+    is_target_agg = rt == "top_target_pages" or any(p.get("is_top_target_aggregate") for p in parsed)
+    if is_target_agg and rt != "top_target_pages":
+        rt = "top_target_pages"
+
     imp = BacklinkImport(
         site_id=site.id,
         report_type=rt,
@@ -378,6 +452,36 @@ def import_backlink_csv(
     for item in parsed:
         src = item["source_url"]
         tgt = item.get("target_url") or ""
+        if is_target_agg:
+            tgt = (tgt or src or "").strip()
+            if not tgt or not target_url_belongs_to_site(tgt, site.domain or ""):
+                continue
+            tkey = _canonical_target_key(tgt, site.domain or "")
+            if tkey in batch_seen:
+                skipped_duplicate += 1
+                continue
+            batch_seen.add(tkey)
+            inc = int(item.get("incoming_links") or 0)
+            sites = int(item.get("linking_sites") or 0)
+            anchor = (item.get("anchor_text") or f"{GSC_TARGET_AGG_ANCHOR_PREFIX}{inc}:{sites}")[:512]
+            host_dom = (urlparse(tgt if re.match(r"^https?://", tgt, re.I) else f"https://{tgt}").hostname or "")
+            dom = (normalize_domain(host_dom or tgt) or ga4_site_host(site.domain) or "target")[:255]
+            row_models.append(
+                BacklinkRow(
+                    import_id=imp.id,
+                    site_id=site.id,
+                    source_url=tgt[:2048],
+                    target_url=tgt[:2048],
+                    domain=dom.lower(),
+                    anchor_text=anchor,
+                    last_crawled="",
+                    risk_score=0,
+                    risk_flags_json="[]",
+                    recommended_action=ACTION_IGNORE,
+                )
+            )
+            continue
+
         risk = assess_linking_url(
             src,
             anchor_text=item.get("anchor_text") or "",
@@ -656,65 +760,110 @@ def build_top_backlink_rankings(
     site_id: int,
     limit: int = 100,
 ) -> dict[str, Any]:
-    """Tüm importlar: en çok link veren domainler; sitedeki hedef URL'ler (backlink sayısı)."""
+    """Top linking domainler (link satırları) + hedef sayfalar (GSC Top target pages veya link hedefi)."""
     cap = max(1, min(int(limit), 100))
     site = db.query(Site).filter(Site.id == site_id).first()
     site_domain = (site.domain if site else "") or ""
-    import_ids = [
-        i.id
-        for i in db.query(BacklinkImport.id)
+
+    import_rows = (
+        db.query(BacklinkImport.id, BacklinkImport.report_type)
         .filter(BacklinkImport.site_id == site_id)
         .all()
-    ]
-    if not import_ids:
+    )
+    if not import_rows:
         return {
             "top_linking_sites": [],
             "top_linking_pages": [],
             "sites_total": 0,
             "pages_total": 0,
+            "pages_source": None,
         }
-    rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
-    domain_pairs: dict[str, set[str]] = defaultdict(set)
-    target_links: dict[str, set[str]] = defaultdict(set)
-    target_sources: dict[str, set[str]] = defaultdict(set)
-    target_display: dict[str, str] = {}
 
-    for r in rows:
-        dom = (r.domain or "").lower()
-        src = (r.source_url or "").strip()
-        tgt = (r.target_url or "").strip()
-        if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
-            continue
-        fp = _link_fingerprint(dom, src, tgt)
-        if dom and not domain_is_ip_host(dom):
-            domain_pairs[dom].add(fp)
-        if not target_url_belongs_to_site(tgt, site_domain):
-            continue
-        tkey = _canonical_target_key(tgt, site_domain)
-        if not tkey:
-            continue
-        target_links[tkey].add(fp)
-        if src:
-            target_sources[tkey].add(src.lower())
-        if tkey not in target_display:
-            target_display[tkey] = _display_target_url(tgt, site_domain)
+    link_import_ids = [iid for iid, rt in import_rows if rt != "top_target_pages"]
+    target_import_ids = [iid for iid, rt in import_rows if rt == "top_target_pages"]
+
+    domain_pairs: dict[str, set[str]] = defaultdict(set)
+    if link_import_ids:
+        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(link_import_ids)).all()
+        for r in rows:
+            dom = (r.domain or "").lower()
+            src = (r.source_url or "").strip()
+            tgt = (r.target_url or "").strip()
+            if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+                continue
+            fp = _link_fingerprint(dom, src, tgt)
+            if dom and not domain_is_ip_host(dom):
+                domain_pairs[dom].add(fp)
 
     site_items = sorted(
         ((d, len(pairs)) for d, pairs in domain_pairs.items()),
         key=lambda x: (-x[1], x[0]),
     )
-    page_items = sorted(
-        (
+
+    page_items: list[tuple[str, int, int, str]] = []
+    pages_source: str | None = None
+
+    if target_import_ids:
+        latest_target_imp = (
+            db.query(BacklinkImport.id)
+            .filter(
+                BacklinkImport.site_id == site_id,
+                BacklinkImport.report_type == "top_target_pages",
+            )
+            .order_by(BacklinkImport.created_at.desc())
+            .first()
+        )
+        if latest_target_imp:
+            agg_rows = (
+                db.query(BacklinkRow)
+                .filter(BacklinkRow.import_id == latest_target_imp[0])
+                .all()
+            )
+            for r in agg_rows:
+                tgt = (r.target_url or r.source_url or "").strip()
+                if not tgt or not target_url_belongs_to_site(tgt, site_domain):
+                    continue
+                inc, sites = _parse_gsc_agg_anchor(r.anchor_text or "")
+                if inc is None:
+                    continue
+                display = _display_target_url(tgt, site_domain) or tgt
+                page_items.append((display, inc, sites or 0, display))
+            pages_source = "gsc_top_target_pages"
+
+    if not page_items and link_import_ids:
+        target_links: dict[str, set[str]] = defaultdict(set)
+        target_sources: dict[str, set[str]] = defaultdict(set)
+        target_display: dict[str, str] = {}
+        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(link_import_ids)).all()
+        for r in rows:
+            dom = (r.domain or "").lower()
+            src = (r.source_url or "").strip()
+            tgt = (r.target_url or "").strip()
+            if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+                continue
+            if not target_url_belongs_to_site(tgt, site_domain):
+                continue
+            tkey = _canonical_target_key(tgt, site_domain)
+            if not tkey:
+                continue
+            fp = _link_fingerprint(dom, src, tgt)
+            target_links[tkey].add(fp)
+            if src:
+                target_sources[tkey].add(src.lower())
+            if tkey not in target_display:
+                target_display[tkey] = _display_target_url(tgt, site_domain)
+        page_items = [
             (
-                tkey,
+                target_display.get(tkey) or tkey,
                 len(target_links[tkey]),
                 len(target_sources[tkey]),
                 target_display.get(tkey) or tkey,
             )
             for tkey in target_links
-        ),
-        key=lambda x: (-x[1], -x[2], x[3]),
-    )
+        ]
+        pages_source = "link_rows"
+
+    page_items.sort(key=lambda x: (-x[1], -x[2], x[3]))
 
     return {
         "top_linking_sites": [
@@ -726,11 +875,14 @@ def build_top_backlink_rankings(
                 "source_url": display,
                 "link_count": link_cnt,
                 "source_count": src_cnt,
+                "linking_sites_count": src_cnt if pages_source == "gsc_top_target_pages" else None,
+                "incoming_links_gsc": pages_source == "gsc_top_target_pages",
             }
-            for _tkey, link_cnt, src_cnt, display in page_items[:cap]
+            for _display, link_cnt, src_cnt, display in page_items[:cap]
         ],
         "sites_total": len(site_items),
         "pages_total": len(page_items),
+        "pages_source": pages_source,
     }
 
 
