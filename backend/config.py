@@ -289,6 +289,12 @@ class Settings(BaseSettings):
     ga4_realtime_window_minutes: int = 60
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
     ga4_realtime_ui_poll_seconds: int = Field(default=60, ge=15, le=600)   # 1 dakika
+    # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Çok-istemcili/sık polling'in
+    # GA4 saatlik token kotasını tüketmesini engeller; aynı pencerede tek upstream çağrı.
+    ga4_realtime_kpi_cache_seconds: int = Field(default=30, ge=0, le=300)
+    ga4_realtime_list_cache_seconds: int = Field(default=60, ge=0, le=300)
+    # 429/hata anında son başarılı CANLI sonucun gösterileceği azami yaş (saniye).
+    ga4_realtime_last_good_seconds: int = Field(default=1800, ge=0, le=21600)
     ga4_realtime_page_alerts_enabled: bool = True
     # Haberler (unifiedScreenName): snapshot karşılaştırması + e-posta; kontrol aralığı ayrı (dakika).
     ga4_realtime_news_alerts_enabled: bool = True

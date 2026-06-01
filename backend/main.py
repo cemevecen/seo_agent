@@ -11719,14 +11719,31 @@ def inbox_page(request: Request):
 
 @app.get("/api/ga4/realtime/{site_id}")
 def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
-    """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır."""
+    """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır.
+
+    GA4 Realtime token kotasını korumak için sonuç kısa süreli (TTL) cache'lenir;
+    429/hata anında son başarılı CANLI sonuç (stale) döndürülür."""
     from backend.services.ga4_realtime import check_site_realtime, get_recent_snapshots, get_recent_alarms
+    from backend.services.realtime_cache import get_or_call
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-        result = check_site_realtime(db, site, window_minutes=window, profile=profile, skip_alarms=True)
+
+        def _produce():
+            return check_site_realtime(
+                db, site, window_minutes=window, profile=profile, skip_alarms=True
+            )
+
+        result = get_or_call(
+            f"rt:kpi:{site_id}:{profile}:{window}",
+            settings.ga4_realtime_kpi_cache_seconds,
+            _produce,
+            is_error=lambda r: bool(r.get("error")),
+            last_good_ttl=settings.ga4_realtime_last_good_seconds,
+        )
+        result = dict(result)
         result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=72)
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
     return JSONResponse(result)
@@ -11967,6 +11984,7 @@ def api_ga4_realtime_top_pages(
     """Realtime top sayfalar/linkler — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
     from backend.services.ga4_realtime import fetch_realtime_top_pages_with_app_fallback
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.realtime_cache import get_or_call
 
     sort_by = "screenPageViews" if type == "views" else "activeUsers"
 
@@ -11981,88 +11999,102 @@ def api_ga4_realtime_top_pages(
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
     cap = min(limit, 25)
-    for compare in (True, False):
-        try:
-            result = fetch_realtime_top_pages_with_app_fallback(
-                property_id,
-                profile=profile,
-                window_minutes=min(window, 30),
-                limit=cap,
-                sort_by=sort_by,
-                compare_previous=compare,
+
+    def _produce():
+        # 1) Canlı GA4 (önce karşılaştırmalı, olmazsa karşılaştırmasız)
+        for compare in (True, False):
+            try:
+                result = fetch_realtime_top_pages_with_app_fallback(
+                    property_id,
+                    profile=profile,
+                    window_minutes=min(window, 30),
+                    limit=cap,
+                    sort_by=sort_by,
+                    compare_previous=compare,
+                )
+                result["site_id"] = site_id
+                result["profile"] = profile
+                result["type"] = type
+                return result
+            except Exception as exc:
+                LOGGER.warning(
+                    "Top pages canlı API başarısız [compare=%s, site=%s, profile=%s]: %s",
+                    compare, site_id, profile, exc,
+                )
+                if not compare:
+                    break  # her iki deneme başarısız → DB fallback
+
+        # 2) DB snapshot fallback
+        from backend.models import RealtimePageSnapshot
+        from sqlalchemy import desc as _desc
+
+        with SessionLocal() as db:
+            distinct_times = (
+                db.query(RealtimePageSnapshot.collected_at)
+                .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == profile)
+                .order_by(_desc(RealtimePageSnapshot.collected_at))
+                .distinct()
+                .limit(2)
+                .all()
             )
-            result["site_id"] = site_id
-            result["profile"] = profile
-            result["type"] = type
-            return JSONResponse(result)
-        except Exception as exc:
-            LOGGER.warning(
-                "Top pages canlı API başarısız [compare=%s, site=%s, profile=%s]: %s",
-                compare, site_id, profile, exc,
+            if not distinct_times:
+                return {"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile}
+
+            curr_time = distinct_times[0][0]
+            prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
+
+            curr_rows = (
+                db.query(RealtimePageSnapshot)
+                .filter(RealtimePageSnapshot.site_id == site_id,
+                        RealtimePageSnapshot.profile == profile,
+                        RealtimePageSnapshot.collected_at == curr_time)
+                .order_by(RealtimePageSnapshot.rank)
+                .all()
             )
-            if not compare:
-                break  # her iki deneme başarısız → DB fallback
+            prev_map: dict[str, RealtimePageSnapshot] = {}
+            if prev_time:
+                prev_map = {r.page_path: r for r in db.query(RealtimePageSnapshot)
+                            .filter(RealtimePageSnapshot.site_id == site_id,
+                                    RealtimePageSnapshot.profile == profile,
+                                    RealtimePageSnapshot.collected_at == prev_time)
+                            .all()}
 
-    # DB snapshot fallback
-    from backend.models import RealtimePageSnapshot
-    from sqlalchemy import desc as _desc
+            pages = []
+            for row in curr_rows:
+                prev = prev_map.get(row.page_path)
+                path_str = str(row.page_path or "")
+                # page_path URL path'iyse (/ ile başlıyorsa) page_paths listesi olarak döndür
+                page_paths = [path_str] if path_str.startswith("/") else []
+                pages.append({
+                    "page":                   path_str,
+                    "page_paths":             page_paths,
+                    "activeUsers":            row.active_users,
+                    "screenPageViews":        row.pageviews,
+                    "activeUsers_previous":   prev.active_users if prev else None,
+                    "screenPageViews_previous": prev.pageviews if prev else None,
+                    "rank":                   row.rank,
+                })
 
-    with SessionLocal() as db:
-        distinct_times = (
-            db.query(RealtimePageSnapshot.collected_at)
-            .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == profile)
-            .order_by(_desc(RealtimePageSnapshot.collected_at))
-            .distinct()
-            .limit(2)
-            .all()
-        )
-        if not distinct_times:
-            return JSONResponse({"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile})
+            pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
+            return {
+                "site_id": site_id,
+                "profile": profile,
+                "type": type,
+                "pages": pages[:min(limit, 25)],
+                "source": "db_snapshot",
+                "fetched_at": curr_time.isoformat() if curr_time else None,
+            }
 
-        curr_time = distinct_times[0][0]
-        prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
-
-        curr_rows = (
-            db.query(RealtimePageSnapshot)
-            .filter(RealtimePageSnapshot.site_id == site_id,
-                    RealtimePageSnapshot.profile == profile,
-                    RealtimePageSnapshot.collected_at == curr_time)
-            .order_by(RealtimePageSnapshot.rank)
-            .all()
-        )
-        prev_map: dict[str, RealtimePageSnapshot] = {}
-        if prev_time:
-            prev_map = {r.page_path: r for r in db.query(RealtimePageSnapshot)
-                        .filter(RealtimePageSnapshot.site_id == site_id,
-                                RealtimePageSnapshot.profile == profile,
-                                RealtimePageSnapshot.collected_at == prev_time)
-                        .all()}
-
-        pages = []
-        for row in curr_rows:
-            prev = prev_map.get(row.page_path)
-            path_str = str(row.page_path or "")
-            # page_path URL path'iyse (/ ile başlıyorsa) page_paths listesi olarak döndür
-            page_paths = [path_str] if path_str.startswith("/") else []
-            pages.append({
-                "page":                   path_str,
-                "page_paths":             page_paths,
-                "activeUsers":            row.active_users,
-                "screenPageViews":        row.pageviews,
-                "activeUsers_previous":   prev.active_users if prev else None,
-                "screenPageViews_previous": prev.pageviews if prev else None,
-                "rank":                   row.rank,
-            })
-
-        pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
-        return JSONResponse({
-            "site_id": site_id,
-            "profile": profile,
-            "type": type,
-            "pages": pages[:min(limit, 25)],
-            "source": "db_snapshot",
-            "fetched_at": curr_time.isoformat() if curr_time else None,
-        })
+    result = get_or_call(
+        f"rt:pages:{site_id}:{profile}:{window}:{type}",
+        settings.ga4_realtime_list_cache_seconds,
+        _produce,
+        # db_snapshot da "canlı değil" sayılır: canlı son-iyi varsa o tercih edilir,
+        # ayrıca son-iyi (live) DB snapshot ile ezilmez.
+        is_error=lambda r: bool(r.get("error")) or r.get("source") == "db_snapshot",
+        last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    return JSONResponse(result)
 
 
 @app.get("/api/ga4/realtime/{site_id}/top-news")
@@ -12076,6 +12108,7 @@ def api_ga4_realtime_top_news(
     """Realtime haber sayfaları — pagePath+pageTitle; yalnızca web/mweb (GA4 haber path kuralları)."""
     from backend.services.ga4_realtime import fetch_realtime_top_news_pages
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.realtime_cache import get_or_call
 
     if profile not in ("web", "mweb"):
         return JSONResponse(
@@ -12093,82 +12126,93 @@ def api_ga4_realtime_top_news(
         property_id = properties.get(profile) or properties.get("web")
         if not property_id:
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
-
-    try:
-        result = fetch_realtime_top_news_pages(
-            property_id,
-            site_domain=(site.domain or "").strip(),
-            window_minutes=min(window, 30),
-            limit=min(limit, 25),
-            sort_by=sort_by,
-        )
-        result["site_id"] = site_id
-        result["profile"] = profile
-        result["type"] = type
-        return JSONResponse(result)
-    except Exception as exc:
-        LOGGER.warning("Top news canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
-
-    # DB snapshot fallback
-    from backend.models import RealtimeNewsSnapshot
-    from backend.services.ga4_realtime import _news_row_link
-    from sqlalchemy import desc as _desc2
-
-    with SessionLocal() as db:
-        distinct_times = (
-            db.query(RealtimeNewsSnapshot.collected_at)
-            .filter(RealtimeNewsSnapshot.site_id == site_id, RealtimeNewsSnapshot.profile == profile)
-            .order_by(_desc2(RealtimeNewsSnapshot.collected_at))
-            .distinct()
-            .limit(2)
-            .all()
-        )
-        if not distinct_times:
-            return JSONResponse({"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile})
-
-        curr_time = distinct_times[0][0]
-        prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
-
-        curr_rows = (
-            db.query(RealtimeNewsSnapshot)
-            .filter(RealtimeNewsSnapshot.site_id == site_id,
-                    RealtimeNewsSnapshot.profile == profile,
-                    RealtimeNewsSnapshot.collected_at == curr_time)
-            .order_by(RealtimeNewsSnapshot.rank)
-            .all()
-        )
-        prev_map_news: dict[str, RealtimeNewsSnapshot] = {}
-        if prev_time:
-            prev_map_news = {r.screen_title: r for r in db.query(RealtimeNewsSnapshot)
-                             .filter(RealtimeNewsSnapshot.site_id == site_id,
-                                     RealtimeNewsSnapshot.profile == profile,
-                                     RealtimeNewsSnapshot.collected_at == prev_time)
-                             .all()}
-
         site_domain_str = (site.domain or "").strip()
-        pages = []
-        for row in curr_rows:
-            prev = prev_map_news.get(row.screen_title)
-            pages.append({
-                "page": row.screen_title,
-                "page_path": row.screen_title if row.screen_title.startswith("/") else "",
-                "activeUsers": row.active_users,
-                "screenPageViews": row.pageviews,
-                "activeUsers_previous": prev.active_users if prev else None,
-                "screenPageViews_previous": prev.pageviews if prev else None,
-                "link_url": _news_row_link(site_domain_str, row.screen_title),
-                "rank": row.rank,
-            })
 
-        pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
-        return JSONResponse({
-            "site_id": site_id,
-            "profile": profile,
-            "type": type,
-            "pages": pages[:min(limit, 25)],
-            "source": "db_snapshot",
-            "fetched_at": curr_time.isoformat() if curr_time else None,
-        })
+    def _produce():
+        # 1) Canlı GA4
+        try:
+            result = fetch_realtime_top_news_pages(
+                property_id,
+                site_domain=site_domain_str,
+                window_minutes=min(window, 30),
+                limit=min(limit, 25),
+                sort_by=sort_by,
+            )
+            result["site_id"] = site_id
+            result["profile"] = profile
+            result["type"] = type
+            return result
+        except Exception as exc:
+            LOGGER.warning("Top news canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
+
+        # 2) DB snapshot fallback
+        from backend.models import RealtimeNewsSnapshot
+        from backend.services.ga4_realtime import _news_row_link
+        from sqlalchemy import desc as _desc2
+
+        with SessionLocal() as db:
+            distinct_times = (
+                db.query(RealtimeNewsSnapshot.collected_at)
+                .filter(RealtimeNewsSnapshot.site_id == site_id, RealtimeNewsSnapshot.profile == profile)
+                .order_by(_desc2(RealtimeNewsSnapshot.collected_at))
+                .distinct()
+                .limit(2)
+                .all()
+            )
+            if not distinct_times:
+                return {"error": "no_snapshot", "pages": [], "site_id": site_id, "profile": profile}
+
+            curr_time = distinct_times[0][0]
+            prev_time = distinct_times[1][0] if len(distinct_times) > 1 else None
+
+            curr_rows = (
+                db.query(RealtimeNewsSnapshot)
+                .filter(RealtimeNewsSnapshot.site_id == site_id,
+                        RealtimeNewsSnapshot.profile == profile,
+                        RealtimeNewsSnapshot.collected_at == curr_time)
+                .order_by(RealtimeNewsSnapshot.rank)
+                .all()
+            )
+            prev_map_news: dict[str, RealtimeNewsSnapshot] = {}
+            if prev_time:
+                prev_map_news = {r.screen_title: r for r in db.query(RealtimeNewsSnapshot)
+                                 .filter(RealtimeNewsSnapshot.site_id == site_id,
+                                         RealtimeNewsSnapshot.profile == profile,
+                                         RealtimeNewsSnapshot.collected_at == prev_time)
+                                 .all()}
+
+            pages = []
+            for row in curr_rows:
+                prev = prev_map_news.get(row.screen_title)
+                pages.append({
+                    "page": row.screen_title,
+                    "page_path": row.screen_title if row.screen_title.startswith("/") else "",
+                    "activeUsers": row.active_users,
+                    "screenPageViews": row.pageviews,
+                    "activeUsers_previous": prev.active_users if prev else None,
+                    "screenPageViews_previous": prev.pageviews if prev else None,
+                    "link_url": _news_row_link(site_domain_str, row.screen_title),
+                    "rank": row.rank,
+                })
+
+            pages.sort(key=lambda p: p.get(sort_by) or 0, reverse=True)
+            return {
+                "site_id": site_id,
+                "profile": profile,
+                "type": type,
+                "pages": pages[:min(limit, 25)],
+                "source": "db_snapshot",
+                "fetched_at": curr_time.isoformat() if curr_time else None,
+            }
+
+    result = get_or_call(
+        f"rt:news:{site_id}:{profile}:{window}:{type}",
+        settings.ga4_realtime_list_cache_seconds,
+        _produce,
+        is_error=lambda r: bool(r.get("error")) or r.get("source") == "db_snapshot",
+        last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    return JSONResponse(result)
 
 
 @app.get("/api/ga4/realtime/{site_id}/top-events")
@@ -12181,6 +12225,7 @@ def api_ga4_realtime_top_events(
     """Realtime etkinlik adı + eventCount — Android/iOS kartı."""
     from backend.services.ga4_realtime import fetch_realtime_top_events
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.realtime_cache import get_or_call
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -12192,28 +12237,38 @@ def api_ga4_realtime_top_events(
         if not property_id:
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
-    try:
-        result = fetch_realtime_top_events(
-            property_id,
-            window_minutes=min(window, 30),
-            limit=min(limit, 250),
-        )
-        result["site_id"] = site_id
-        result["profile"] = profile
-        return JSONResponse(result)
-    except Exception as exc:
-        LOGGER.exception("Top events hatası [site=%s, profile=%s]", site_id, profile)
-        # GA4 Standard property'lerde belirli pencere/dim kombinasyonları desteklenmez;
-        # frontend 500 yerine boş veriyi sorunsuz işleyebilsin.
-        return JSONResponse({
-            "site_id": site_id,
-            "profile": profile,
-            "events": [],
-            "window_minutes": min(window, 30),
-            "total_event_count": 0,
-            "error": "api_error",
-            "message": str(exc),
-        })
+    def _produce():
+        try:
+            result = fetch_realtime_top_events(
+                property_id,
+                window_minutes=min(window, 30),
+                limit=min(limit, 250),
+            )
+            result["site_id"] = site_id
+            result["profile"] = profile
+            return result
+        except Exception as exc:
+            LOGGER.exception("Top events hatası [site=%s, profile=%s]", site_id, profile)
+            # GA4 Standard property'lerde belirli pencere/dim kombinasyonları desteklenmez;
+            # frontend 500 yerine boş veriyi sorunsuz işleyebilsin.
+            return {
+                "site_id": site_id,
+                "profile": profile,
+                "events": [],
+                "window_minutes": min(window, 30),
+                "total_event_count": 0,
+                "error": "api_error",
+                "message": str(exc),
+            }
+
+    result = get_or_call(
+        f"rt:events:{site_id}:{profile}:{window}",
+        settings.ga4_realtime_list_cache_seconds,
+        _produce,
+        is_error=lambda r: bool(r.get("error")),
+        last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    return JSONResponse(result)
 
 
 @app.post("/api/ga4/realtime/check-all")
