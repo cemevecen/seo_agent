@@ -819,6 +819,18 @@
     });
   }
 
+  function blImportResultMessage(imp) {
+    if (!imp) return "";
+    var n = parseInt(imp.row_count, 10) || 0;
+    var skipped = parseInt(imp.rows_skipped_duplicate, 10) || 0;
+    if (!n && skipped) {
+      return "Yeni satır yok; " + skipped + " mükerrer (önceki importlarda zaten vardı).";
+    }
+    var msg = n + " yeni satır";
+    if (skipped) msg += ", " + skipped + " mükerrer atlandı";
+    return msg;
+  }
+
   async function runBacklinkImportWithOverlay(runFn) {
     var els = blShowImportOverlay();
     blSetImportUiDisabled(true);
@@ -827,7 +839,11 @@
       var result = await runFn(blSetImportProgress);
       els = blImportOverlayEls();
       els.overlay.dataset.phase = "success";
-      blSetImportProgress(100, "Import tamam", (result && result.import && result.import.row_count) + " satır kaydedildi");
+      blSetImportProgress(
+        100,
+        "Import tamam",
+        result && result.import ? blImportResultMessage(result.import) : ""
+      );
       blLottieShow(els.player, els.fallback, true);
       await blLottiePlay(els.player, BL_LOTTIE_SUCCESS, false);
       await blWaitMs(BL_IMPORT_SUCCESS_MIN_MS);

@@ -368,21 +368,31 @@ def import_backlink_csv(
     db.add(imp)
     db.flush()
 
+    existing_fps = _existing_link_fingerprints(db, site_id=site.id, report_type=rt)
+    batch_seen: set[str] = set()
     row_models: list[BacklinkRow] = []
+    skipped_duplicate = 0
     for item in parsed:
         src = item["source_url"]
+        tgt = item.get("target_url") or ""
         risk = assess_linking_url(
             src,
             anchor_text=item.get("anchor_text") or "",
-            target_url=item.get("target_url") or "",
+            target_url=tgt,
         )
+        dom = ((risk.get("domain") or normalize_domain(src)) or "").lower()[:255]
+        fp = _link_fingerprint(dom, src, tgt)
+        if fp in existing_fps or fp in batch_seen:
+            skipped_duplicate += 1
+            continue
+        batch_seen.add(fp)
         row_models.append(
             BacklinkRow(
                 import_id=imp.id,
                 site_id=site.id,
                 source_url=src[:2048],
-                target_url=(item.get("target_url") or "")[:2048],
-                domain=(risk.get("domain") or normalize_domain(src))[:255],
+                target_url=tgt[:2048],
+                domain=dom,
                 anchor_text=(item.get("anchor_text") or "")[:512],
                 last_crawled=(item.get("last_crawled") or "")[:64],
                 risk_score=int(risk.get("risk_score") or 0),
@@ -390,7 +400,8 @@ def import_backlink_csv(
                 recommended_action=str(risk.get("recommended_action") or ACTION_MONITOR),
             )
         )
-    db.bulk_save_objects(row_models)
+    if row_models:
+        db.bulk_save_objects(row_models)
     imp.row_count = len(row_models)
     db.commit()
     db.refresh(imp)
@@ -399,6 +410,8 @@ def import_backlink_csv(
     summary["import"] = {
         "id": imp.id,
         "row_count": imp.row_count,
+        "rows_in_file": len(parsed),
+        "rows_skipped_duplicate": skipped_duplicate,
         "created_at": imp.created_at.isoformat() if imp.created_at else None,
         "source_filename": imp.source_filename,
     }
@@ -440,6 +453,21 @@ def _link_pair_key(source_url: str, target_url: str) -> tuple[str, str]:
 def _link_fingerprint(domain: str, source_url: str, target_url: str) -> str:
     sk, tk = _link_pair_key(source_url, target_url)
     return f"{(domain or '').lower()}\t{sk}\t{tk}"
+
+
+def _existing_link_fingerprints(db: Session, *, site_id: int, report_type: str) -> set[str]:
+    """Bu site + rapor türü için önceki tüm importlardaki benzersiz link anahtarları."""
+    rt = (report_type or "latest_links").strip().lower()
+    rows = (
+        db.query(BacklinkRow.domain, BacklinkRow.source_url, BacklinkRow.target_url)
+        .join(BacklinkImport, BacklinkRow.import_id == BacklinkImport.id)
+        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+        .all()
+    )
+    out: set[str] = set()
+    for dom, src, tgt in rows:
+        out.add(_link_fingerprint((dom or "").lower(), src or "", tgt or ""))
+    return out
 
 
 def _normalize_last_crawled(value: str | None) -> str:
