@@ -1,11 +1,9 @@
 """GSC backlink import + risk analizi API."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -55,26 +53,31 @@ def backlinks_dashboard(
 @limiter.limit("20/minute")
 async def backlinks_import(
     request: Request,
-    site_id: int = Form(...),
-    report_type: str = Form("latest_links"),
-    file: UploadFile | None = File(None),
-    csv_text: str = Form(""),
-    sheets_url: str = Form(""),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    text = (csv_text or "").strip()
+    form = await request.form()
+    try:
+        site_id = int(form.get("site_id"))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="site_id gerekli.") from exc
+    report_type = str(form.get("report_type") or "latest_links")
+    csv_text = str(form.get("csv_text") or "").strip()
+    sheets_url = str(form.get("sheets_url") or "").strip()
+
+    text = csv_text
     fname = ""
     kind = "csv_paste"
-    if file is not None and file.filename:
-        raw = await file.read()
+    upload = form.get("file")
+    if upload is not None and getattr(upload, "filename", None):
+        raw = await upload.read()
         if len(raw) > 15_000_000:
             raise HTTPException(status_code=413, detail="Dosya çok büyük (max ~15MB).")
         text = raw.decode("utf-8", errors="replace")
-        fname = file.filename or "upload.csv"
+        fname = str(getattr(upload, "filename", None) or "upload.csv")
         kind = "csv_upload"
-    elif (sheets_url or "").strip():
+    elif sheets_url:
         try:
-            text = backlink_csv.fetch_public_sheet_csv(sheets_url.strip())
+            text = backlink_csv.fetch_public_sheet_csv(sheets_url)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"Sheets CSV alınamadı: {exc}") from exc
         fname = "google_sheets.csv"
