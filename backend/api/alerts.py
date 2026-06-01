@@ -227,12 +227,13 @@ def _build_search_console_comparison(
 
     current_label = "Son 7 Gün"
     previous_label = "Önceki 7 Gün"
+    # Karşılaştırma her zaman depodaki en güncel SC snapshot'ı ile (son alert taraması).
     if comparison_type == "weekly":
-        current_rows = _get_sc_rows_near_ts(db, site.id, "current_7d", triggered_at)
-        previous_rows = _get_sc_rows_near_ts(db, site.id, "previous_7d", triggered_at)
+        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
     else:
-        current_rows = _get_sc_rows_near_ts(db, site.id, "current_day", triggered_at)
-        previous_rows = _get_sc_rows_near_ts(db, site.id, "previous_day", triggered_at)
+        current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_day")
+        previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_day")
         current_label = "Dün"
         previous_label = "Önceki Gün"
         if not current_rows and not previous_rows:
@@ -255,7 +256,8 @@ def _build_search_console_comparison(
             _fetch_query_direct(
                 db, site.id,
                 "current_7d" if comparison_type == "weekly" else "current_day",
-                query_name, reference_ts=triggered_at,
+                query_name,
+                reference_ts=None,
             ),
             query_name,
         )
@@ -264,7 +266,8 @@ def _build_search_console_comparison(
             _fetch_query_direct(
                 db, site.id,
                 "previous_7d" if comparison_type == "weekly" else "previous_day",
-                query_name, reference_ts=triggered_at,
+                query_name,
+                reference_ts=None,
             ),
             query_name,
         )

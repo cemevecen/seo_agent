@@ -8538,7 +8538,7 @@ def alerts_page(request: Request):
     # Son alarm kayıtlarını listeler — Search Console + Threshold (Realtime + 404) iki sekmeli.
     with SessionLocal() as db:
         external_domains = _external_site_domains(db)
-        alert_rows = get_recent_alerts(db, limit=100, include_external=True)
+        alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=True)
         threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
             "site_name": "Alerts",

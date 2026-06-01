@@ -14,7 +14,17 @@ from sqlalchemy.exc import OperationalError
 LOGGER = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
-from backend.models import Alert, AlertLog, Metric, Site
+from backend.models import Alert, AlertLog, CollectorRun, Metric, Site
+
+# Search Console alert taraması (collector strategy=alerts) ile üretilen log tipleri.
+SEARCH_CONSOLE_QUERY_ALERT_TYPES: frozenset[str] = frozenset(
+    {
+        "search_console_ctr_drop",
+        "search_console_impressions_drop",
+        "search_console_position_drop",
+        "search_console_biggest_drop",
+    }
+)
 from backend.services.email_templates import data_table, note_box, render_email_shell, section, stat_cards, status_chip, summary_table
 from backend.services.mailer import send_email
 from backend.services.metric_store import get_latest_metrics
@@ -730,6 +740,56 @@ def _send_alert_emails(db: Session, site: Site, logs: list[AlertLog]) -> None:
             LOGGER.warning("Alert mail sent_mail güncellenemedi (DB lock): %s", exc)
 
 
+def get_latest_search_console_alert_run(db: Session, site_id: int) -> CollectorRun | None:
+    """Site için en son başarılı Search Console alert collector koşusu."""
+    return (
+        db.query(CollectorRun)
+        .filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider == "search_console",
+            CollectorRun.strategy == "alerts",
+            CollectorRun.status == "success",
+            CollectorRun.finished_at.isnot(None),
+        )
+        .order_by(CollectorRun.finished_at.desc())
+        .first()
+    )
+
+
+def purge_site_search_console_alert_logs(db: Session, site_id: int) -> int:
+    """Yeni SC taraması öncesi eski Search Console uyarı loglarını siler (sayfa tek batch göstersin)."""
+    alert_ids = [
+        row[0]
+        for row in db.query(Alert.id)
+        .filter(
+            Alert.site_id == site_id,
+            Alert.alert_type.in_(tuple(SEARCH_CONSOLE_QUERY_ALERT_TYPES)),
+        )
+        .all()
+    ]
+    if not alert_ids:
+        return 0
+    return int(
+        db.query(AlertLog)
+        .filter(AlertLog.alert_id.in_(alert_ids))
+        .delete(synchronize_session=False)
+    )
+
+
+def _sc_log_belongs_to_latest_scan(
+    db: Session,
+    *,
+    site_id: int,
+    triggered_at: datetime,
+) -> bool:
+    run = get_latest_search_console_alert_run(db, site_id)
+    if run is None or run.finished_at is None:
+        return False
+    start = run.requested_at - timedelta(minutes=2)
+    end = run.finished_at + timedelta(minutes=15)
+    return start <= triggered_at <= end
+
+
 def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: str) -> str:
     """Chip filtreleri için UI metrik adı — alert_type → kategori adı."""
     mt = str(presentation.get("metric_type") or "")
@@ -765,6 +825,7 @@ def get_recent_alerts(
     *,
     include_external: bool = False,
     site_id_filter: int | None = None,
+    only_latest_sc_scan: bool = False,
 ) -> list[dict]:
     # Dashboard ve alert sayfası için son alarm kayıtlarını döndürür.
     from backend.models import ExternalSite  # local import to avoid circular
@@ -785,6 +846,9 @@ def get_recent_alerts(
     for log, alert in rows:
         if alert.alert_type == "search_console_dropped_queries":
             continue
+        if only_latest_sc_scan and alert.alert_type in SEARCH_CONSOLE_QUERY_ALERT_TYPES:
+            if not _sc_log_belongs_to_latest_scan(db, site_id=alert.site_id, triggered_at=log.triggered_at):
+                continue
         is_external = alert.site_id in external_site_ids
         if is_external and not include_external:
             continue

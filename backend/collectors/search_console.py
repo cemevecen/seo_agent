@@ -1990,6 +1990,10 @@ def collect_search_console_alert_metrics(
         row_count=current_day_row_count + previous_day_row_count + current_7d_row_count + previous_7d_row_count,
     )
     db.commit()
+    from backend.services.alert_engine import purge_site_search_console_alert_logs
+
+    purge_site_search_console_alert_logs(db, site.id)
+    db.commit()
     evaluate_site_alerts(db, site, send_notifications=send_notifications)
     return {
         "site_id": site.id,
