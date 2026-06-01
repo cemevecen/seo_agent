@@ -20,6 +20,8 @@ from backend.services.crypto import decrypt_text, encrypt_text
 GMAIL_INBOX_SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
+    # Cevabı mesajın geldiği adresten (send-as alias) gönderebilmek için alias listesi okunur.
+    "https://www.googleapis.com/auth/gmail.settings.basic",
 ]
 
 LOGGER = logging.getLogger(__name__)

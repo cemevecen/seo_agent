@@ -9,6 +9,7 @@ import re
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
+from email.utils import formataddr
 from typing import Any
 
 from google.auth.transport.requests import Request
@@ -1196,6 +1197,81 @@ def trash_thread_gmail_and_delete_local(db: Session, *, thread_id: int) -> None:
     db.commit()
 
 
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+
+def _emails_in(text: str) -> list[str]:
+    """Metindeki e-posta adreslerini (küçük harf, sırayı koruyarak, tekilleştirerek) döndürür."""
+    out: list[str] = []
+    for m in _EMAIL_RE.findall(text or ""):
+        e = m.lower()
+        if e not in out:
+            out.append(e)
+    return out
+
+
+def _list_send_as_aliases(service) -> list[dict]:
+    """Hesapta TANIMLI ve doğrulanmış 'send-as' alias'larını döndürür."""
+    try:
+        resp = service.users().settings().sendAs().list(userId="me").execute()
+        return [
+            a for a in (resp.get("sendAs") or [])
+            # Sadece doğrulanmış (gönderime uygun) alias'lar; default/primary de dahil.
+            if (a.get("verificationStatus") in (None, "", "accepted") or a.get("isPrimary"))
+        ]
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Gmail sendAs alias listesi alınamadı: %s", exc)
+        return []
+
+
+def _resolve_reply_from(db: Session, service, *, gmail_thread_id: str, account_email: str) -> str:
+    """Cevabın 'From' adresini belirler.
+
+    Mesaj hangi adrese geldiyse (örn. feedback@nokta.com) cevap o adresten gider —
+    yeter ki o adres hesapta doğrulanmış bir 'send-as' alias olsun. Eşleşme yoksa
+    bağlı hesabın ana adresine düşülür.
+    """
+    thread = (
+        db.query(SupportInboxThread)
+        .filter(SupportInboxThread.gmail_thread_id == gmail_thread_id)
+        .first()
+    )
+    recipient_emails: list[str] = []
+    if thread is not None:
+        inbound = (
+            db.query(SupportInboxMessage)
+            .filter(
+                SupportInboxMessage.thread_id == thread.id,
+                SupportInboxMessage.is_outbound.is_(False),
+            )
+            .order_by(SupportInboxMessage.internal_ms.desc())
+            .all()
+        )
+        for m in inbound:
+            for e in _emails_in(m.to_addr):
+                if e not in recipient_emails:
+                    recipient_emails.append(e)
+
+    aliases = _list_send_as_aliases(service)
+    alias_map = {(a.get("sendAsEmail") or "").strip().lower(): a for a in aliases}
+
+    # Gelen mesajın ulaştığı adreslerden, hesapta send-as olarak tanımlı OLAN ilkini seç.
+    for e in recipient_emails:
+        alias = alias_map.get(e)
+        if alias:
+            email = (alias.get("sendAsEmail") or "").strip()
+            disp = (alias.get("displayName") or "").strip()
+            return formataddr((disp, email)) if disp else email
+
+    # Yedek: bağlı hesabın ana adresi (varsa display adıyla)
+    primary = next((a for a in aliases if a.get("isPrimary")), None)
+    if primary:
+        email = (primary.get("sendAsEmail") or "").strip() or account_email
+        disp = (primary.get("displayName") or "").strip()
+        return formataddr((disp, email)) if disp else email
+    return account_email
+
+
 def send_reply_plain(
     db: Session,
     *,
@@ -1213,11 +1289,16 @@ def send_reply_plain(
     cred_row = inbox_gmail_auth.get_inbox_credential_row(db)
     from_account = (cred_row.account_email if cred_row else "").strip()
 
+    # Mesaj hangi adrese geldiyse cevap o adresten gitsin (doğrulanmış send-as alias ise).
+    from_value = _resolve_reply_from(
+        db, service, gmail_thread_id=gmail_thread_id, account_email=from_account
+    )
+
     msg = MIMEText(body, "plain", "utf-8")
     msg["to"] = to_email.strip()
     msg["subject"] = subject.strip() or "Re:"
-    if from_account:
-        msg["From"] = from_account
+    if from_value:
+        msg["From"] = from_value
     if reply_to_gmail_message_id:
         rfc_mid = _rfc_message_id_header(service, gmail_message_id=reply_to_gmail_message_id.strip())
         if rfc_mid:
