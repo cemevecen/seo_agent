@@ -336,7 +336,7 @@
           </section>
           <section class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Top linking pages</h3>
+              <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">En çok backlink alan sayfalar</h3>
               <span id="bl-top-pages-meta" class="text-[10px] text-slate-500 dark:text-slate-400"></span>
             </div>
             <ol id="bl-top-pages-list" class="mt-2 space-y-1.5 text-[11px]"></ol>
@@ -942,7 +942,7 @@
   var blTopPagesExpanded = false;
 
   function blTopRankLimit(expanded) {
-    return expanded ? 40 : 10;
+    return expanded ? 100 : 10;
   }
 
   function renderTopSitesList() {
@@ -981,7 +981,7 @@
     if (btn) {
       if (total > 10 || items.length > 10) {
         btn.classList.remove("hidden");
-        btn.textContent = blTopSitesExpanded ? "Top 10 göster" : "Top 40 göster";
+        btn.textContent = blTopSitesExpanded ? "Top 10 göster" : "Top 100 göster";
       } else {
         btn.classList.add("hidden");
       }
@@ -998,7 +998,7 @@
     var limit = blTopRankLimit(blTopPagesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     if (metaEl) {
-      metaEl.textContent = total ? total + " sayfa · benzersiz link" : "";
+      metaEl.textContent = total ? total + " hedef sayfa · benzersiz backlink" : "";
     }
     if (!slice.length) {
       listEl.innerHTML = '<li class="text-slate-500">Henüz veri yok.</li>';
@@ -1007,7 +1007,10 @@
     }
     listEl.innerHTML = slice
       .map(function (row, i) {
-        var url = row.source_url || "";
+        var url = row.target_url || row.source_url || "";
+        var cnt = row.link_count != null ? row.link_count : 0;
+        var srcCnt = row.source_count != null ? row.source_count : cnt;
+        var countLabel = srcCnt !== cnt ? cnt + " · " + srcCnt + " kaynak" : String(cnt);
         return (
           '<li class="flex items-start gap-2 border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
           '<span class="w-5 shrink-0 tabular-nums text-[10px] font-bold text-slate-400">' +
@@ -1018,8 +1021,8 @@
           '" target="_blank" rel="noopener">' +
           esc(url) +
           "</a>" +
-          '<span class="shrink-0 tabular-nums text-[10px] font-bold text-slate-600 dark:text-slate-300">' +
-          esc(row.link_count) +
+          '<span class="shrink-0 tabular-nums text-[10px] font-bold text-slate-600 dark:text-slate-300" title="Benzersiz backlink · kaynak sayfa">' +
+          esc(countLabel) +
           "</span></li>"
         );
       })
@@ -1027,7 +1030,7 @@
     if (btn) {
       if (total > 10 || items.length > 10) {
         btn.classList.remove("hidden");
-        btn.textContent = blTopPagesExpanded ? "Top 10 göster" : "Top 40 göster";
+        btn.textContent = blTopPagesExpanded ? "Top 10 göster" : "Top 100 göster";
       } else {
         btn.classList.add("hidden");
       }

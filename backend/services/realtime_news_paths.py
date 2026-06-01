@@ -12,11 +12,22 @@ from backend.services.ga4_page_urls import (
 )
 
 _HABER_CATEGORY_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9-]*-haberleri$", re.I)
+_HABERLERI_IN_PATH = re.compile(r"(?:^|/)[a-z0-9][a-z0-9-]*-haberleri(?:/|$)", re.I)
 _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
 
 
-def _is_news_detail_path(path: str) -> bool:
+def is_news_detail_path(path: str) -> bool:
+    """Son segment sayısal ID ise haber makalesi (GA4 landing / realtime ortak)."""
     return bool(_NEWS_DETAIL_PATH_RE.search(path or ""))
+
+
+def _is_news_detail_path(path: str) -> bool:
+    return is_news_detail_path(path)
+
+
+def path_has_haberleri_segment(path: str) -> bool:
+    """*-haberleri kategori / etiket / detay URL yapısı."""
+    return bool(_HABERLERI_IN_PATH.search(_normalize_path(path) if path else ""))
 
 # unifiedScreenName (path değil) — finans/canlı fiyat gürültüsü
 _UNIFIED_TITLE_MARKET_FRAGMENTS: tuple[str, ...] = (
@@ -75,7 +86,10 @@ def _haber_subdomain_path_ok(path: str) -> bool:
         return True
     if len(parts) == 1:
         return bool(_HABER_CATEGORY_SEGMENT.match(parts[0]))
+    # haber.doviz.com kökünde kategori öneksiz makale: /makale-slug/837872
     if not _HABER_CATEGORY_SEGMENT.match(parts[0]):
+        if len(parts) == 2 and parts[-1].isdigit() and len(parts[0]) >= 3 and not parts[0].isdigit():
+            return True
         return False
     rest = parts[1:]
     if rest and rest[-1].lower() == "amp":
@@ -138,16 +152,13 @@ def is_realtime_news_path(path_or_label: str, *, site_domain: str = "") -> bool:
     if _path_on_haber_host(pl, site_domain=site_domain):
         return True
 
-    if _haber_subdomain_path_ok(pl):
-        parts = [x for x in pl.split("/") if x]
-        if parts and _HABER_CATEGORY_SEGMENT.match(parts[0]):
-            return True
+    if path_has_haberleri_segment(pl) and _haber_subdomain_path_ok(pl):
+        return True
 
-    low = pl.lower()
-    if "-haberleri/" in low or low.endswith("-haberleri"):
-        return _haber_subdomain_path_ok(pl)
+    if is_news_detail_path(pl) and path_has_haberleri_segment(pl):
+        return True
 
-    if _is_news_detail_path(pl) and "-haberleri/" in low:
+    if is_news_detail_path(pl) and _path_on_haber_host(pl, site_domain=site_domain):
         return True
 
     return False
@@ -173,7 +184,8 @@ def unified_screen_news_candidate(name: str, *, site_domain: str = "") -> bool:
         if frag in low:
             return False
 
-    return False
+    # Makale başlıkları (unifiedScreenName) — kategori adı değil, uzun metin
+    return len(low) >= 10
 
 
 def realtime_news_page_link(path_or_label: str, *, site_domain: str) -> str:

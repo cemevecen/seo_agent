@@ -1175,17 +1175,17 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: önce pagePath; yalnızca haber ana/kategori/detay URL'leri."""
+    """Realtime «Haberler»: pagePath + unifiedScreenName birleşik; kategori, etiket ve makale."""
     from backend.services.realtime_news_paths import (
+        is_news_detail_path,
         is_realtime_news_path,
         realtime_news_page_link,
         unified_screen_news_candidate,
     )
 
     fetch_n = min(250, max(80, int(limit) * 25))
-    breakdown = "pagePath+news_path_rules"
-    base: dict[str, Any] | None = None
-    dim_used = "pagePath"
+    breakdown_parts: list[str] = []
+    bases: list[tuple[str, dict[str, Any]]] = []
 
     for dim in ("pagePath", "unifiedScreenName"):
         try:
@@ -1200,19 +1200,12 @@ def fetch_realtime_top_news_pages(
                 client=client,
             )
             if candidate.get("pages"):
-                base = candidate
-                dim_used = dim
-                breakdown = (
-                    "pagePath+news_path_rules"
-                    if dim == "pagePath"
-                    else "unifiedScreenName+news_path_rules"
-                )
-                break
+                bases.append((dim, candidate))
+                breakdown_parts.append(dim)
         except Exception as exc:
             logger.debug("Realtime top-news dimension %s failed: %s", dim, exc)
-            continue
 
-    if base is None:
+    if not bases:
         base = fetch_realtime_top_pages(
             property_id,
             window_minutes=window_minutes,
@@ -1223,34 +1216,49 @@ def fetch_realtime_top_news_pages(
             include_page_path=False,
             client=client,
         )
-        dim_used = "unifiedScreenName"
-        breakdown = "unifiedScreenName+news_path_rules"
+        bases = [("unifiedScreenName", base)]
+        breakdown_parts = ["unifiedScreenName"]
 
-    out: list[dict[str, Any]] = []
-    for p in base.get("pages") or []:
-        key = str(p.get("page") or "").strip()
-        if not key:
-            continue
-        if dim_used == "pagePath":
-            if not is_realtime_news_path(key, site_domain=site_domain):
-                continue
-            link = realtime_news_page_link(key, site_domain=site_domain)
-            page_path = key if key.startswith("/") else ""
-        else:
-            skip = False
-            for pre in _news_screen_exclude_prefixes_loaded():
-                if key.lower().startswith(pre):
-                    skip = True
-                    break
-            if skip:
-                continue
-            if not unified_screen_news_candidate(key, site_domain=site_domain):
-                continue
-            link = realtime_news_page_link(key, site_domain=site_domain)
-            page_path = key if key.startswith("/") else ""
+    merged: dict[str, dict[str, Any]] = {}
+    window_minutes_out = window_minutes
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    api_ms = 0
 
-        out.append(
-            {
+    def _merge_key(row: dict[str, Any]) -> str:
+        link = (row.get("link_url") or "").strip().lower()
+        if link:
+            return f"url:{link}"
+        pg = str(row.get("page") or "").strip().lower()
+        return f"page:{pg}"
+
+    for dim_used, base in bases:
+        window_minutes_out = int(base.get("window_minutes") or window_minutes_out)
+        fetched_at = base.get("fetched_at") or fetched_at
+        api_ms = max(api_ms, int(base.get("api_ms") or 0))
+
+        for p in base.get("pages") or []:
+            key = str(p.get("page") or "").strip()
+            if not key:
+                continue
+            if dim_used == "pagePath":
+                if not is_realtime_news_path(key, site_domain=site_domain):
+                    continue
+                link = realtime_news_page_link(key, site_domain=site_domain)
+                page_path = key if key.startswith("/") else ""
+            else:
+                skip = False
+                for pre in _news_screen_exclude_prefixes_loaded():
+                    if key.lower().startswith(pre):
+                        skip = True
+                        break
+                if skip:
+                    continue
+                if not unified_screen_news_candidate(key, site_domain=site_domain):
+                    continue
+                link = realtime_news_page_link(key, site_domain=site_domain)
+                page_path = key if key.startswith("/") else ""
+
+            row = {
                 "page": key,
                 "page_path": page_path,
                 "activeUsers": float(p.get("activeUsers") or 0),
@@ -1258,18 +1266,36 @@ def fetch_realtime_top_news_pages(
                 "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
                 "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
                 "link_url": link,
+                "_is_detail": bool(
+                    key.startswith("/") and is_news_detail_path(key)
+                ),
             }
-        )
-        if len(out) >= max(1, min(int(limit), 250)):
-            break
+            mk = _merge_key(row)
+            prev = merged.get(mk)
+            if prev is None or float(row.get(sort_by) or 0) > float(prev.get(sort_by) or 0):
+                merged[mk] = row
+
+    out = sorted(
+        merged.values(),
+        key=lambda r: (
+            0 if r.get("_is_detail") else 1,
+            -float(r.get(sort_by) or 0),
+        ),
+    )
+    for r in out:
+        r.pop("_is_detail", None)
+    cap = max(1, min(int(limit), 250))
+    out = out[:cap]
+
+    breakdown = "+".join(breakdown_parts) + "+news_path_rules" if breakdown_parts else "news_path_rules"
 
     return {
         "property_id": property_id,
-        "window_minutes": base.get("window_minutes", window_minutes),
+        "window_minutes": window_minutes_out,
         "pages": out,
         "total_pages": len(out),
-        "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
-        "api_ms": base.get("api_ms", 0),
+        "fetched_at": fetched_at,
+        "api_ms": api_ms,
         "breakdown": breakdown,
         "comparison_enabled": True,
     }

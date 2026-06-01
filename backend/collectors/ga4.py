@@ -124,10 +124,19 @@ def _path_contains_news_marker(path: str) -> bool:
 
 
 def _is_news_article_path(path: str) -> bool:
-    """Haber detayı (sayısal ID) veya haber bölümü path'i."""
-    if _is_news_detail_path(path):
+    """Haber detayı (sayısal ID), haber bölümü path'i veya *-haberleri yapısı."""
+    from backend.services.realtime_news_paths import is_news_detail_path, path_has_haberleri_segment
+
+    if is_news_detail_path(path):
         return True
-    return _path_contains_news_marker(path)
+    if _path_contains_news_marker(path):
+        return True
+    if path_has_haberleri_segment(path):
+        return True
+    parts = [p for p in (path or "").split("/") if p]
+    if len(parts) == 2 and parts[-1].isdigit() and len(parts[0]) >= 3 and not parts[0].isdigit():
+        return True
+    return False
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
@@ -187,6 +196,18 @@ def _landing_news_include_filter(field_name: str = "landingPagePlusQueryString")
                 ),
             )
         )
+    exprs.append(
+        FilterExpression(
+            filter=Filter(
+                field_name=field_name,
+                string_filter=Filter.StringFilter(
+                    match_type=Filter.StringFilter.MatchType.CONTAINS,
+                    value="-haberleri",
+                    case_sensitive=False,
+                ),
+            ),
+        )
+    )
     if not exprs:
         return None
     if len(exprs) == 1:

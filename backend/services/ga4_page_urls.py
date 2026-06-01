@@ -206,12 +206,11 @@ def _doviz_rewrite_host(host: str, path_for_rules: str) -> str:
         return "www.doviz.com"
     if "/doviz-cevirici" in pl and h == "borsa.doviz.com":
         return "www.doviz.com"
-    # Haber URL'leri GA4'te bazen www'de görünür
-    if h in _DOVIZ_MAIN_HOSTS and (
-        pl.startswith("/gundem-haberleri")
-        or pl.startswith("/altin-ve-degerli-metal-haberleri")
-    ):
-        return "haber.doviz.com"
+    # Haber URL'leri GA4'te bazen www'de görünür — tüm *-haberleri kök segmentleri
+    if h in _DOVIZ_MAIN_HOSTS:
+        first = (pl.strip("/").split("/")[0] or "").lower()
+        if first.endswith("-haberleri") and re.match(r"^[a-z0-9][a-z0-9-]*-haberleri$", first, re.I):
+            return "haber.doviz.com"
     # Borsa hisseleri
     if pl.startswith("/hisseler") and h in (
         "www.doviz.com",

@@ -22,10 +22,12 @@ from backend.services.backlink_risk import (
     ACTION_MONITOR,
     ACTION_REVIEW,
     assess_linking_url,
+    domain_is_ip_host,
     finalize_domain_risk_summary,
     is_trusted_media_domain,
     normalize_domain,
 )
+from backend.services.ga4_page_urls import ga4_site_host
 
 LOGGER = logging.getLogger(__name__)
 
@@ -456,6 +458,82 @@ def _link_fingerprint(domain: str, source_url: str, target_url: str) -> str:
     return f"{(domain or '').lower()}\t{sk}\t{tk}"
 
 
+_RANKING_EXCLUDE_FLAGS = frozenset({"adult", "gambling", "warez", "pharma", "link_spam"})
+
+
+def _owned_site_hosts(site_domain: str) -> set[str]:
+    base = normalize_domain(site_domain) or (ga4_site_host(site_domain) or "")
+    if not base:
+        return set()
+    hosts: set[str] = {base, f"www.{base}", f"m.{base}"}
+    if base == "doviz.com" or base.endswith(".doviz.com"):
+        for sub in ("haber", "kur", "altin", "borsa", "m"):
+            hosts.add(f"{sub}.doviz.com")
+    return {h.lower() for h in hosts if h}
+
+
+def target_url_belongs_to_site(target_url: str, site_domain: str) -> bool:
+    t = (target_url or "").strip()
+    if not t:
+        return False
+    base = normalize_domain(site_domain) or (ga4_site_host(site_domain) or "")
+    if not base:
+        return t.startswith("/")
+    if not re.match(r"^https?://", t, re.I):
+        return True
+    try:
+        host = (urlparse(t).hostname or "").strip().lower()
+    except Exception:  # noqa: BLE001
+        return False
+    if not host:
+        return False
+    if host in _owned_site_hosts(site_domain):
+        return True
+    if host == base or host.endswith("." + base):
+        return True
+    return False
+
+
+def _canonical_target_key(target_url: str, site_domain: str) -> str:
+    t = (target_url or "").strip()
+    if not t:
+        return ""
+    base = normalize_domain(site_domain) or (ga4_site_host(site_domain) or "")
+    if re.match(r"^https?://", t, re.I):
+        parsed = urlparse(t)
+        host = (parsed.hostname or "").lower()
+        path = (parsed.path or "/").rstrip("/") or "/"
+        return f"{host}{path}".lower()
+    path = t.split("#")[0].split("?")[0]
+    if not path.startswith("/"):
+        path = "/" + path
+    path = path.rstrip("/") or "/"
+    return f"{base}{path}".lower() if base else path.lower()
+
+
+def _display_target_url(target_url: str, site_domain: str) -> str:
+    t = (target_url or "").strip()
+    if not t:
+        return ""
+    if re.match(r"^https?://", t, re.I):
+        return t
+    base = normalize_domain(site_domain) or (ga4_site_host(site_domain) or "")
+    if not base:
+        return t
+    path = t if t.startswith("/") else "/" + t
+    return f"https://{base}{path}"
+
+
+def _referrer_excluded_from_top_rankings(risk_flags_json: str) -> bool:
+    try:
+        flags = json.loads(risk_flags_json or "[]")
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(flags, list):
+        return False
+    return bool(_RANKING_EXCLUDE_FLAGS.intersection({str(f).lower() for f in flags}))
+
+
 def _existing_link_fingerprints(db: Session, *, site_id: int, report_type: str) -> set[str]:
     """Bu site + rapor türü için önceki tüm importlardaki benzersiz link anahtarları."""
     rt = (report_type or "latest_links").strip().lower()
@@ -576,10 +654,12 @@ def build_top_backlink_rankings(
     db: Session,
     *,
     site_id: int,
-    limit: int = 40,
+    limit: int = 100,
 ) -> dict[str, Any]:
-    """Tüm rapor türleri birleşik: en çok link veren domain ve sayfa (URL) sıralaması."""
+    """Tüm importlar: en çok link veren domainler; sitedeki hedef URL'ler (backlink sayısı)."""
     cap = max(1, min(int(limit), 100))
+    site = db.query(Site).filter(Site.id == site_id).first()
+    site_domain = (site.domain if site else "") or ""
     import_ids = [
         i.id
         for i in db.query(BacklinkImport.id)
@@ -595,27 +675,45 @@ def build_top_backlink_rankings(
         }
     rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
     domain_pairs: dict[str, set[str]] = defaultdict(set)
-    page_pairs: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    target_links: dict[str, set[str]] = defaultdict(set)
+    target_sources: dict[str, set[str]] = defaultdict(set)
+    target_display: dict[str, str] = {}
 
     for r in rows:
         dom = (r.domain or "").lower()
         src = (r.source_url or "").strip()
         tgt = (r.target_url or "").strip()
+        if _referrer_excluded_from_top_rankings(r.risk_flags_json or "[]"):
+            continue
         fp = _link_fingerprint(dom, src, tgt)
-        if dom:
+        if dom and not domain_is_ip_host(dom):
             domain_pairs[dom].add(fp)
+        if not target_url_belongs_to_site(tgt, site_domain):
+            continue
+        tkey = _canonical_target_key(tgt, site_domain)
+        if not tkey:
+            continue
+        target_links[tkey].add(fp)
         if src:
-            sk = src.lower()
-            pair = _link_pair_key(src, tgt)
-            page_pairs[sk].add(pair)
+            target_sources[tkey].add(src.lower())
+        if tkey not in target_display:
+            target_display[tkey] = _display_target_url(tgt, site_domain)
 
     site_items = sorted(
         ((d, len(pairs)) for d, pairs in domain_pairs.items()),
         key=lambda x: (-x[1], x[0]),
     )
     page_items = sorted(
-        ((url, len(pairs)) for url, pairs in page_pairs.items()),
-        key=lambda x: (-x[1], x[0]),
+        (
+            (
+                tkey,
+                len(target_links[tkey]),
+                len(target_sources[tkey]),
+                target_display.get(tkey) or tkey,
+            )
+            for tkey in target_links
+        ),
+        key=lambda x: (-x[1], -x[2], x[3]),
     )
 
     return {
@@ -624,11 +722,12 @@ def build_top_backlink_rankings(
         ],
         "top_linking_pages": [
             {
-                "source_url": url,
-                "domain": (normalize_domain(url) or "").lower(),
-                "link_count": c,
+                "target_url": display,
+                "source_url": display,
+                "link_count": link_cnt,
+                "source_count": src_cnt,
             }
-            for url, c in page_items[:cap]
+            for _tkey, link_cnt, src_cnt, display in page_items[:cap]
         ],
         "sites_total": len(site_items),
         "pages_total": len(page_items),
@@ -780,7 +879,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "category_counts": category_counts,
         "domains": domains_out,
         "domain_total": len(domains_out),
-        "top_rankings": build_top_backlink_rankings(db, site_id=site_id, limit=40),
+        "top_rankings": build_top_backlink_rankings(db, site_id=site_id, limit=100),
     }
 
 

@@ -18,6 +18,10 @@ def test_haber_doviz_category_and_article():
         "/ekonomi-haberleri/dolar-rekor-kirdi/837872",
         site_domain="www.doviz.com",
     )
+    assert is_realtime_news_path(
+        "/merkez-bankasi-faiz-karari/837872",
+        site_domain="haber.doviz.com",
+    )
     assert is_realtime_news_path("/", site_domain="haber.doviz.com")
 
 
@@ -32,6 +36,10 @@ def test_unified_title_rejects_live_rates():
     assert not unified_screen_news_candidate("Canlı Dolar — Güncel Kur", site_domain="www.doviz.com")
     assert not unified_screen_news_candidate("Güncel Altın Fiyatları", site_domain="www.doviz.com")
     assert unified_screen_news_candidate("Ekonomi Haberleri", site_domain="www.doviz.com")
+    assert unified_screen_news_candidate(
+        "Merkez Bankası faiz kararı açıklandı",
+        site_domain="www.doviz.com",
+    )
 
 
 def test_realtime_news_link_haber_host():

@@ -69,6 +69,11 @@ _RISK_PATTERNS: list[tuple[str, int, str]] = [
 _COMPILED = [(re.compile(pat, re.IGNORECASE), pts, label) for pat, pts, label in _RISK_PATTERNS]
 
 
+def domain_is_ip_host(domain_or_host: str) -> bool:
+    d = (domain_or_host or "").strip().lower()
+    return bool(_IP_HOST_RE.match(d))
+
+
 def normalize_domain(url: str) -> str:
     raw = (url or "").strip()
     if not raw:
