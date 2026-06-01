@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import re
+from collections import defaultdict
 from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -571,6 +572,69 @@ def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url
             ] + [sample]
 
 
+def build_top_backlink_rankings(
+    db: Session,
+    *,
+    site_id: int,
+    limit: int = 40,
+) -> dict[str, Any]:
+    """Tüm rapor türleri birleşik: en çok link veren domain ve sayfa (URL) sıralaması."""
+    cap = max(1, min(int(limit), 100))
+    import_ids = [
+        i.id
+        for i in db.query(BacklinkImport.id)
+        .filter(BacklinkImport.site_id == site_id)
+        .all()
+    ]
+    if not import_ids:
+        return {
+            "top_linking_sites": [],
+            "top_linking_pages": [],
+            "sites_total": 0,
+            "pages_total": 0,
+        }
+    rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
+    domain_pairs: dict[str, set[str]] = defaultdict(set)
+    page_pairs: dict[str, set[tuple[str, str]]] = defaultdict(set)
+
+    for r in rows:
+        dom = (r.domain or "").lower()
+        src = (r.source_url or "").strip()
+        tgt = (r.target_url or "").strip()
+        fp = _link_fingerprint(dom, src, tgt)
+        if dom:
+            domain_pairs[dom].add(fp)
+        if src:
+            sk = src.lower()
+            pair = _link_pair_key(src, tgt)
+            page_pairs[sk].add(pair)
+
+    site_items = sorted(
+        ((d, len(pairs)) for d, pairs in domain_pairs.items()),
+        key=lambda x: (-x[1], x[0]),
+    )
+    page_items = sorted(
+        ((url, len(pairs)) for url, pairs in page_pairs.items()),
+        key=lambda x: (-x[1], x[0]),
+    )
+
+    return {
+        "top_linking_sites": [
+            {"domain": d, "link_count": c} for d, c in site_items[:cap]
+        ],
+        "top_linking_pages": [
+            {
+                "source_url": url,
+                "domain": (normalize_domain(url) or "").lower(),
+                "link_count": c,
+            }
+            for url, c in page_items[:cap]
+        ],
+        "sites_total": len(site_items),
+        "pages_total": len(page_items),
+    }
+
+
 def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_links") -> dict[str, Any]:
     rt = (report_type or "latest_links").strip().lower()
     imports = (
@@ -716,6 +780,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "category_counts": category_counts,
         "domains": domains_out,
         "domain_total": len(domains_out),
+        "top_rankings": build_top_backlink_rankings(db, site_id=site_id, limit=40),
     }
 
 
