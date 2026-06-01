@@ -186,6 +186,50 @@
       width: calc(100% + 0.3rem);
     }
   }
+  .bl-domain-picker-panel {
+    margin-top: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.65rem 0.75rem;
+  }
+  html.dark .bl-domain-picker-panel {
+    border-color: #475569;
+    background: rgba(15, 23, 42, 0.55);
+  }
+  .bl-domain-picker-list {
+    max-height: min(50vh, 16rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .bl-domain-picker-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.35rem 0.25rem;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    cursor: pointer;
+  }
+  .bl-domain-picker-item:hover {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  html.dark .bl-domain-picker-item:hover {
+    background: rgba(99, 102, 241, 0.15);
+  }
+  .bl-domain-picker-item input {
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+  }
+  .bl-domain-picker-item span {
+    word-break: break-all;
+    font-family: ui-monospace, monospace;
+  }
 </style>
 <div class="bl-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 px-1 sm:space-y-6 sm:px-0">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
@@ -285,6 +329,37 @@
               <option value="effective_action:asc">Aksiyon (ignore önce)</option>
             </select>
           </label>
+        </div>
+        <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <button
+            type="button"
+            id="bl-domain-picker-toggle"
+            class="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-bold text-slate-800 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 sm:w-auto sm:min-w-[14rem]"
+            aria-expanded="false"
+            aria-controls="bl-domain-picker-panel"
+          >
+            <span>Bağlantı veren domain</span>
+            <span id="bl-domain-picker-summary" class="font-normal text-slate-500 dark:text-slate-400">Tümü</span>
+          </button>
+          <div id="bl-domain-picker-panel" class="bl-domain-picker-panel hidden" role="region" aria-label="Domain seçimi">
+            <input
+              id="bl-domain-picker-search"
+              type="search"
+              autocomplete="off"
+              placeholder="Domain ara…"
+              class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+            />
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button type="button" id="bl-domain-picker-select-all" class="rounded border border-slate-300 px-2 py-1 text-[10px] font-bold dark:border-slate-600">
+                Görünenleri seç
+              </button>
+              <button type="button" id="bl-domain-picker-clear" class="rounded border border-slate-300 px-2 py-1 text-[10px] font-bold dark:border-slate-600">
+                Seçimi temizle
+              </button>
+            </div>
+            <p id="bl-domain-picker-meta" class="mt-2 text-[10px] text-slate-500 dark:text-slate-400"></p>
+            <div id="bl-domain-picker-list" class="bl-domain-picker-list"></div>
+          </div>
         </div>
         <p id="bl-filter-count" class="mt-2 text-[10px] text-slate-500 dark:text-slate-400"></p>
         <div id="bl-domains-cards" class="mt-3 space-y-3 md:hidden" aria-live="polite"></div>
@@ -859,6 +934,9 @@
   var blDomainsCache = [];
   var blDiffData = { new_domains: [], lost_domains: [], new_links: [], lost_links: [] };
   var blFilters = { view: "all", action: "all", risk: "all" };
+  /** @type {Record<string, boolean>} seçili bağlantı veren domainler (boş = filtre yok) */
+  var blDomainPick = {};
+  var blDomainPickerSearch = "";
   var blSortState = { key: "link_count", desc: true };
   var BL_ACTION_RANK = { ignore: 0, monitor: 1, review: 2, disavow: 3 };
 
@@ -927,16 +1005,170 @@
         return (parseInt(r.max_risk_score, 10) || 0) >= 55;
       });
     }
+    var picked = blDomainPickKeys();
+    if (picked.length) {
+      var pickSet = {};
+      picked.forEach(function (d) {
+        pickSet[d] = true;
+      });
+      list = list.filter(function (r) {
+        return pickSet[(r.domain || "").toLowerCase()];
+      });
+    }
     return list;
+  }
+
+  function blDomainPickKeys() {
+    return Object.keys(blDomainPick).filter(function (k) {
+      return blDomainPick[k];
+    });
+  }
+
+  function blUniqueDomainsFromCache() {
+    var seen = {};
+    var out = [];
+    (blDomainsCache || []).forEach(function (r) {
+      var d = (r.domain || "").toLowerCase();
+      if (!d || seen[d]) return;
+      seen[d] = true;
+      out.push(d);
+    });
+    out.sort(function (a, b) {
+      return a.localeCompare(b, "tr");
+    });
+    return out;
+  }
+
+  function updateBlDomainPickerSummary() {
+    var summary = document.getElementById("bl-domain-picker-summary");
+    if (!summary) return;
+    var n = blDomainPickKeys().length;
+    summary.textContent = n ? n + " seçili" : "Tümü";
+  }
+
+  function renderBlDomainPickerList() {
+    var listEl = document.getElementById("bl-domain-picker-list");
+    var metaEl = document.getElementById("bl-domain-picker-meta");
+    if (!listEl) return;
+    var all = blUniqueDomainsFromCache();
+    var q = (blDomainPickerSearch || "").trim().toLowerCase();
+    var visible = q ? all.filter(function (d) { return d.indexOf(q) !== -1; }) : all;
+    if (metaEl) {
+      metaEl.textContent =
+        all.length +
+        " tekil domain" +
+        (q ? " · aramada " + visible.length : "") +
+        (blDomainPickKeys().length ? " · " + blDomainPickKeys().length + " seçili" : "");
+    }
+    if (!visible.length) {
+      listEl.innerHTML = '<p class="py-2 text-[10px] text-slate-500">Eşleşen domain yok.</p>';
+      return;
+    }
+    listEl.innerHTML = visible
+      .map(function (d) {
+        var checked = blDomainPick[d] ? " checked" : "";
+        return (
+          '<label class="bl-domain-picker-item">' +
+          '<input type="checkbox" class="bl-domain-pick-cb" value="' +
+          esc(d) +
+          '"' +
+          checked +
+          " />" +
+          "<span>" +
+          esc(d) +
+          "</span></label>"
+        );
+      })
+      .join("");
+  }
+
+  function pruneBlDomainPick() {
+    var valid = {};
+    blUniqueDomainsFromCache().forEach(function (d) {
+      valid[d] = true;
+    });
+    Object.keys(blDomainPick).forEach(function (k) {
+      if (!valid[k]) delete blDomainPick[k];
+    });
+  }
+
+  function wireBlDomainPicker() {
+    var toggle = document.getElementById("bl-domain-picker-toggle");
+    var panel = document.getElementById("bl-domain-picker-panel");
+    var search = document.getElementById("bl-domain-picker-search");
+    var listEl = document.getElementById("bl-domain-picker-list");
+    if (!toggle || !panel || toggle.dataset.wired === "1") return;
+    toggle.dataset.wired = "1";
+    toggle.addEventListener("click", function () {
+      var open = panel.classList.contains("hidden");
+      if (open) {
+        renderBlDomainPickerList();
+        panel.classList.remove("hidden");
+        toggle.setAttribute("aria-expanded", "true");
+      } else {
+        panel.classList.add("hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    if (search) {
+      search.addEventListener("input", function () {
+        blDomainPickerSearch = search.value || "";
+        renderBlDomainPickerList();
+      });
+    }
+    var btnAll = document.getElementById("bl-domain-picker-select-all");
+    if (btnAll) {
+      btnAll.addEventListener("click", function () {
+        var q = (blDomainPickerSearch || "").trim().toLowerCase();
+        var all = blUniqueDomainsFromCache();
+        var visible = q ? all.filter(function (d) { return d.indexOf(q) !== -1; }) : all;
+        visible.forEach(function (d) {
+          blDomainPick[d] = true;
+        });
+        updateBlDomainPickerSummary();
+        renderBlDomainPickerList();
+        refreshDomainsView();
+      });
+    }
+    var btnClear = document.getElementById("bl-domain-picker-clear");
+    if (btnClear) {
+      btnClear.addEventListener("click", function () {
+        blDomainPick = {};
+        updateBlDomainPickerSummary();
+        renderBlDomainPickerList();
+        refreshDomainsView();
+      });
+    }
+    if (listEl) {
+      listEl.addEventListener("change", function (ev) {
+        var t = ev.target;
+        if (!t || !t.classList || !t.classList.contains("bl-domain-pick-cb")) return;
+        var dom = (t.value || "").toLowerCase();
+        if (!dom) return;
+        if (t.checked) blDomainPick[dom] = true;
+        else delete blDomainPick[dom];
+        updateBlDomainPickerSummary();
+        renderBlDomainPickerList();
+        refreshDomainsView();
+      });
+    }
+    updateBlDomainPickerSummary();
   }
 
   function updateBlFilterCount(shown, total) {
     var el = document.getElementById("bl-filter-count");
     if (!el) return;
-    el.textContent =
+    var picked = blDomainPickKeys().length;
+    var base =
       total > 0
         ? "Gösterilen " + shown + " / " + total + " domain (filtre sonrası)."
         : "";
+    if (picked && base) {
+      base += " Domain seçimi: " + picked + " site.";
+    } else if (picked) {
+      base = "Domain seçimi: " + picked + " site.";
+    }
+    el.textContent = base;
   }
 
   function renderDiffPanels(diff) {
@@ -1015,6 +1247,7 @@
 
   function refreshDomainsView() {
     wireBlFilters();
+    wireBlDomainPicker();
     var filtered = applyBlFilters(blDomainsCache);
     updateBlFilterCount(filtered.length, blDomainsCache.length);
     renderDomainsTable(filtered);
@@ -1366,6 +1599,12 @@
     }
     renderImportSteps(d.imports || []);
     blDomainsCache = d.domains || [];
+    pruneBlDomainPick();
+    updateBlDomainPickerSummary();
+    var panel = document.getElementById("bl-domain-picker-panel");
+    if (panel && !panel.classList.contains("hidden")) {
+      renderBlDomainPickerList();
+    }
     refreshDomainsView();
   }
   document.getElementById("bl-refresh-btn").addEventListener("click", function () {
