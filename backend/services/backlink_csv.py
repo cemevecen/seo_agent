@@ -431,11 +431,44 @@ def delete_backlink_import(db: Session, *, site_id: int, import_id: int) -> dict
     return out
 
 
+def _link_pair_key(source_url: str, target_url: str) -> tuple[str, str]:
+    return ((source_url or "").strip().lower(), (target_url or "").strip().lower())
+
+
+def _link_fingerprint(domain: str, source_url: str, target_url: str) -> str:
+    sk, tk = _link_pair_key(source_url, target_url)
+    return f"{(domain or '').lower()}\t{sk}\t{tk}"
+
+
+def _link_entries_from_rows(rows: list[BacklinkRow]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        dom = (r.domain or "").lower()
+        if not dom:
+            continue
+        fp = _link_fingerprint(dom, r.source_url or "", r.target_url or "")
+        if fp in seen:
+            continue
+        seen.add(fp)
+        out.append(
+            {
+                "domain": dom,
+                "source_url": r.source_url or "",
+                "target_url": r.target_url or "",
+                "anchor_text": (r.anchor_text or "")[:200],
+            }
+        )
+    return out
+
+
 def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url_keys: set[str]) -> None:
     src = (r.source_url or "").strip()
-    url_key = src.lower()
-    if url_key and url_key not in url_keys:
-        url_keys.add(url_key)
+    dom = (r.domain or "").lower()
+    pair = _link_fingerprint(dom, src, r.target_url or "")
+    bucket["raw_row_count"] = int(bucket.get("raw_row_count") or 0) + 1
+    if pair and pair not in url_keys:
+        url_keys.add(pair)
         bucket["link_count"] += 1
     bucket["max_risk_score"] = max(bucket["max_risk_score"], int(r.risk_score or 0))
     try:
@@ -449,7 +482,7 @@ def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url
         bucket["recommended_action"] = rec
     if src and src not in bucket["sample_urls"] and len(bucket["sample_urls"]) < 3:
         bucket["sample_urls"].append(src)
-    if len(bucket["sample_links"]) < 5:
+    if len(bucket["sample_links"]) < 8:
         sample = {
             "source_url": r.source_url or "",
             "target_url": r.target_url or "",
@@ -482,7 +515,15 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
 
     domain_stats: dict[str, dict[str, Any]] = {}
     url_keys_by_domain: dict[str, set[str]] = {}
-    diff = {"new_domains": [], "lost_domains": [], "has_previous": bool(previous)}
+    diff: dict[str, Any] = {
+        "new_domains": [],
+        "lost_domains": [],
+        "new_links": [],
+        "lost_links": [],
+        "has_previous": bool(previous),
+        "latest_import_label": "",
+        "previous_import_label": "",
+    }
 
     import_ids = [i.id for i in imports]
     if import_ids:
@@ -496,6 +537,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 {
                     "domain": dom,
                     "link_count": 0,
+                    "raw_row_count": 0,
                     "max_risk_score": 0,
                     "risk_flags": set(),
                     "recommended_action": ACTION_MONITOR,
@@ -507,24 +549,28 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             _merge_row_into_domain_bucket(bucket, r, url_keys=keys)
 
         if latest and previous:
-            latest_domains = {
-                (d or "").lower()
-                for (d,) in db.query(BacklinkRow.domain)
-                .filter(BacklinkRow.import_id == latest.id)
-                .distinct()
-                .all()
-                if d
+            latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
+            prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
+            latest_entries = _link_entries_from_rows(latest_rows)
+            prev_entries = _link_entries_from_rows(prev_rows)
+            latest_fps = {
+                _link_fingerprint(e["domain"], e["source_url"], e["target_url"]): e for e in latest_entries
             }
-            prev_domains = {
-                (d or "").lower()
-                for (d,) in db.query(BacklinkRow.domain)
-                .filter(BacklinkRow.import_id == previous.id)
-                .distinct()
-                .all()
-                if d
+            prev_fps = {
+                _link_fingerprint(e["domain"], e["source_url"], e["target_url"]): e for e in prev_entries
             }
+            latest_domains = {e["domain"] for e in latest_entries}
+            prev_domains = {e["domain"] for e in prev_entries}
             diff["new_domains"] = sorted(latest_domains - prev_domains)[:200]
             diff["lost_domains"] = sorted(prev_domains - latest_domains)[:200]
+            diff["new_links"] = [
+                latest_fps[k] for k in sorted(latest_fps.keys() - prev_fps.keys())
+            ][:300]
+            diff["lost_links"] = [
+                prev_fps[k] for k in sorted(prev_fps.keys() - latest_fps.keys())
+            ][:300]
+            diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
+            diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
     domains_out: list[dict[str, Any]] = []
     for dom, b in domain_stats.items():
@@ -534,6 +580,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             {
                 "domain": dom,
                 "link_count": b["link_count"],
+                "raw_row_count": int(b.get("raw_row_count") or 0),
                 "max_risk_score": b["max_risk_score"],
                 "risk_flags": sorted(b["risk_flags"]),
                 "recommended_action": b["recommended_action"],

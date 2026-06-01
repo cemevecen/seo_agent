@@ -178,34 +178,66 @@
             <a id="bl-disavow-link" href="#" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-800 dark:border-rose-700 dark:text-rose-200">disavow.txt</a>
           </div>
         </div>
-        <div id="bl-summary" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div id="bl-summary" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <div class="rounded-lg bg-slate-50 p-2 text-center dark:bg-slate-800/60"><div class="text-[10px] uppercase text-slate-500">Domain</div><div id="bl-st-domains" class="text-lg font-bold">—</div></div>
           <div class="rounded-lg bg-rose-50 p-2 text-center dark:bg-rose-950/40"><div class="text-[10px] uppercase text-rose-700 dark:text-rose-300">Disavow</div><div id="bl-st-disavow" class="text-lg font-bold text-rose-800 dark:text-rose-200">—</div></div>
           <div class="rounded-lg bg-amber-50 p-2 text-center dark:bg-amber-950/40"><div class="text-[10px] uppercase text-amber-800 dark:text-amber-200">Review</div><div id="bl-st-review" class="text-lg font-bold">—</div></div>
           <div class="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-950/40"><div class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Yeni domain</div><div id="bl-st-new" class="text-lg font-bold">—</div></div>
+          <div class="rounded-lg bg-slate-100 p-2 text-center dark:bg-slate-800/80"><div class="text-[10px] uppercase text-slate-600 dark:text-slate-300">Kayıp domain</div><div id="bl-st-lost" class="text-lg font-bold">—</div></div>
         </div>
         <p id="bl-diff-hint" class="mt-3 text-xs text-slate-500 dark:text-slate-400"></p>
         <p id="bl-aggregate-hint" class="mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+        <div id="bl-diff-panels" class="mt-4 hidden space-y-3"></div>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
         <p class="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-          <strong>Risk</strong> 0–100 (yüksek = şüpheli). <strong>Öneri</strong> otomatik; <strong>Aksiyon</strong> sizin kalıcı seçiminiz (disavow.txt’ye yansır).
+          <strong>Toplam link</strong> = benzersiz kaynak+hedef çifti (tüm importlar birleşik). Tabloda en fazla 8 örnek URL gösterilir.
         </p>
-        <div class="mt-3 flex flex-wrap items-center gap-2 md:hidden">
-          <label for="bl-mobile-sort" class="text-[10px] font-bold uppercase text-slate-500">Sırala</label>
-          <select
-            id="bl-mobile-sort"
-            class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
-          >
-            <option value="max_risk_score:desc">Risk (yüksek → düşük)</option>
-            <option value="max_risk_score:asc">Risk (düşük → yüksek)</option>
-            <option value="link_count:desc">Adet (çok → az)</option>
-            <option value="domain:asc">Domain (A → Z)</option>
-            <option value="effective_action:desc">Aksiyon (disavow önce)</option>
-          </select>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <label class="block text-[10px] font-bold uppercase text-slate-500">
+            Görünüm
+            <select id="bl-filter-view" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+              <option value="all">Tüm domainler</option>
+              <option value="helpful">Yararlı (düşük risk / ignore·monitor)</option>
+              <option value="risky">Riskli (review·disavow veya risk ≥55)</option>
+              <option value="new_domains">Yeni domainler (son import)</option>
+              <option value="new_links_only">Yeni link içeren domainler</option>
+            </select>
+          </label>
+          <label class="block text-[10px] font-bold uppercase text-slate-500">
+            Aksiyon
+            <select id="bl-filter-action" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+              <option value="all">Tümü</option>
+              <option value="ignore">ignore</option>
+              <option value="monitor">monitor</option>
+              <option value="review">review</option>
+              <option value="disavow">disavow</option>
+            </select>
+          </label>
+          <label class="block text-[10px] font-bold uppercase text-slate-500">
+            Risk
+            <select id="bl-filter-risk" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+              <option value="all">Tümü</option>
+              <option value="low">Düşük (0–34)</option>
+              <option value="mid">Orta (35–54)</option>
+              <option value="high">Yüksek (55+)</option>
+            </select>
+          </label>
+          <label class="block text-[10px] font-bold uppercase text-slate-500 md:hidden">
+            Sırala (mobil)
+            <select id="bl-mobile-sort" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
+              <option value="max_risk_score:desc">Risk (yüksek → düşük)</option>
+              <option value="max_risk_score:asc">Risk (düşük → yüksek)</option>
+              <option value="link_count:desc">Toplam link (çok → az)</option>
+              <option value="link_count:asc">Toplam link (az → çok)</option>
+              <option value="domain:asc">Domain (A → Z)</option>
+              <option value="effective_action:asc">Aksiyon (ignore önce)</option>
+            </select>
+          </label>
         </div>
+        <p id="bl-filter-count" class="mt-2 text-[10px] text-slate-500 dark:text-slate-400"></p>
         <div id="bl-domains-cards" class="mt-3 space-y-3 md:hidden" aria-live="polite"></div>
         <div class="bl-table-scroll mt-3 hidden max-h-[60vh] md:block">
           <table id="bl-domains-table" class="text-left text-xs" data-bl-sortable="1">
@@ -216,7 +248,7 @@
                 </th>
                 <th class="bl-col-urls px-2 py-2 text-left" scope="col">Örnek URL’ler</th>
                 <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" scope="col">
-                  Adet <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                  Toplam link <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
                 <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="max_risk_score" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
                   Risk <span class="bl-sort-arrow" aria-hidden="true">↓</span>
@@ -306,7 +338,7 @@
       });
     }
     if (!links.length) return '<span class="text-slate-400">—</span>';
-    return links
+    var html = links
       .map(function (ln) {
         var src = ln.source_url || "";
         var tgt = ln.target_url || "";
@@ -336,7 +368,85 @@
         return block + "</div>";
       })
       .join("");
+    var total = parseInt(row.link_count, 10) || 0;
+    var shown = links.length;
+    if (total > shown) {
+      html +=
+        '<p class="mt-1 text-[10px] font-semibold text-slate-500">+' +
+        (total - shown) +
+        " link daha (toplam " +
+        total +
+        ")</p>";
+    }
+    return html;
   }
+
+  function formatLinkCountHtml(row) {
+    var total = parseInt(row.link_count, 10) || 0;
+    var raw = parseInt(row.raw_row_count, 10) || 0;
+    var extra =
+      raw > total
+        ? ' <span class="font-normal text-slate-400">(' + raw + " CSV satırı)</span>"
+        : "";
+    return "<strong>Toplam link:</strong> " + total + extra;
+  }
+
+  function renderDiffLinkBlock(title, items, tone) {
+    if (!items || !items.length) return "";
+    var border =
+      tone === "lost"
+        ? "border-rose-200 dark:border-rose-800"
+        : "border-emerald-200 dark:border-emerald-800";
+    var head =
+      tone === "lost"
+        ? "text-rose-800 dark:text-rose-200"
+        : "text-emerald-800 dark:text-emerald-200";
+    var body = items
+      .slice(0, 80)
+      .map(function (ln) {
+        return (
+          '<li class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900/60">' +
+          '<span class="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-200">' +
+          esc(ln.domain) +
+          "</span>" +
+          '<div class="mt-1 text-[10px]">' +
+          renderSampleLinks({
+            link_count: 1,
+            sample_links: [
+              {
+                source_url: ln.source_url,
+                target_url: ln.target_url,
+                anchor_text: ln.anchor_text || "",
+              },
+            ],
+          }) +
+          "</div></li>"
+        );
+      })
+      .join("");
+    var more =
+      items.length > 80
+        ? '<p class="mt-1 text-[10px] text-slate-500">+' + (items.length - 80) + " kayıt daha…</p>"
+        : "";
+    return (
+      '<section class="rounded-xl border ' +
+      border +
+      ' bg-slate-50/80 p-3 dark:bg-slate-800/40">' +
+      '<h3 class="text-xs font-bold uppercase ' +
+      head +
+      '">' +
+      esc(title) +
+      " (" +
+      items.length +
+      ")</h3>" +
+      '<ul class="mt-2 max-h-48 space-y-2 overflow-y-auto text-left">' +
+      body +
+      "</ul>" +
+      more +
+      "</section>"
+    );
+  }
+
   var BL_LOTTIE_WORKING = "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
   var BL_LOTTIE_SUCCESS = "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
   var BL_IMPORT_SUCCESS_MIN_MS = 500;
@@ -632,8 +742,158 @@
   }
 
   var blDomainsCache = [];
+  var blDiffData = { new_domains: [], lost_domains: [], new_links: [], lost_links: [] };
+  var blFilters = { view: "all", action: "all", risk: "all" };
   var blSortState = { key: "max_risk_score", desc: true };
   var BL_ACTION_RANK = { ignore: 0, monitor: 1, review: 2, disavow: 3 };
+
+  function blNewLinkDomainsSet() {
+    var set = {};
+    (blDiffData.new_links || []).forEach(function (ln) {
+      if (ln.domain) set[ln.domain] = true;
+    });
+    return set;
+  }
+
+  function applyBlFilters(domains) {
+    var list = domains.slice();
+    var view = blFilters.view || "all";
+    if (view === "new_domains") {
+      var nd = {};
+      (blDiffData.new_domains || []).forEach(function (d) {
+        nd[String(d).toLowerCase()] = true;
+      });
+      list = list.filter(function (r) {
+        return nd[(r.domain || "").toLowerCase()];
+      });
+    } else if (view === "new_links_only") {
+      var nls = blNewLinkDomainsSet();
+      list = list.filter(function (r) {
+        return nls[(r.domain || "").toLowerCase()];
+      });
+    } else if (view === "helpful") {
+      list = list.filter(function (r) {
+        var a = blEffectiveAction(r);
+        return (a === "ignore" || a === "monitor") && (parseInt(r.max_risk_score, 10) || 0) < 45;
+      });
+    } else if (view === "risky") {
+      list = list.filter(function (r) {
+        var a = blEffectiveAction(r);
+        return a === "disavow" || a === "review" || (parseInt(r.max_risk_score, 10) || 0) >= 55;
+      });
+    }
+    if (blFilters.action && blFilters.action !== "all") {
+      list = list.filter(function (r) {
+        return blEffectiveAction(r) === blFilters.action;
+      });
+    }
+    var risk = blFilters.risk || "all";
+    if (risk === "low") {
+      list = list.filter(function (r) {
+        return (parseInt(r.max_risk_score, 10) || 0) < 35;
+      });
+    } else if (risk === "mid") {
+      list = list.filter(function (r) {
+        var s = parseInt(r.max_risk_score, 10) || 0;
+        return s >= 35 && s < 55;
+      });
+    } else if (risk === "high") {
+      list = list.filter(function (r) {
+        return (parseInt(r.max_risk_score, 10) || 0) >= 55;
+      });
+    }
+    return list;
+  }
+
+  function updateBlFilterCount(shown, total) {
+    var el = document.getElementById("bl-filter-count");
+    if (!el) return;
+    el.textContent =
+      total > 0
+        ? "Gösterilen " + shown + " / " + total + " domain (filtre sonrası)."
+        : "";
+  }
+
+  function renderDiffPanels(diff) {
+    var wrap = document.getElementById("bl-diff-panels");
+    if (!wrap) return;
+    if (!diff || !diff.has_previous) {
+      wrap.classList.add("hidden");
+      wrap.innerHTML = "";
+      return;
+    }
+    var parts = [];
+    if ((diff.new_links || []).length) {
+      parts.push(
+        renderDiffLinkBlock(
+          "Yeni linkler · " + (diff.latest_import_label || "son import"),
+          diff.new_links,
+          "new"
+        )
+      );
+    }
+    if ((diff.lost_links || []).length) {
+      parts.push(
+        renderDiffLinkBlock(
+          "Kayıp linkler · " + (diff.previous_import_label || "önceki import"),
+          diff.lost_links,
+          "lost"
+        )
+      );
+    }
+    if ((diff.new_domains || []).length) {
+      parts.push(
+        '<section class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">' +
+          '<h3 class="text-xs font-bold uppercase text-emerald-800 dark:text-emerald-200">Yeni domainler (' +
+          diff.new_domains.length +
+          ")</h3>" +
+          '<p class="mt-1 break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
+          esc(diff.new_domains.join(", ")) +
+          "</p></section>"
+      );
+    }
+    if ((diff.lost_domains || []).length) {
+      parts.push(
+        '<section class="rounded-xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/30">' +
+          '<h3 class="text-xs font-bold uppercase text-rose-800 dark:text-rose-200">Kayıp domainler (' +
+          diff.lost_domains.length +
+          ")</h3>" +
+          '<p class="mt-1 break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
+          esc(diff.lost_domains.join(", ")) +
+          "</p></section>"
+      );
+    }
+    if (!parts.length) {
+      wrap.classList.add("hidden");
+      wrap.innerHTML = "";
+      return;
+    }
+    wrap.classList.remove("hidden");
+    wrap.innerHTML = parts.join("");
+  }
+
+  function wireBlFilters() {
+    ["bl-filter-view", "bl-filter-action", "bl-filter-risk"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || el.dataset.wired === "1") return;
+      el.dataset.wired = "1";
+      el.addEventListener("change", function () {
+        blFilters.view = (document.getElementById("bl-filter-view") || {}).value || "all";
+        blFilters.action = (document.getElementById("bl-filter-action") || {}).value || "all";
+        blFilters.risk = (document.getElementById("bl-filter-risk") || {}).value || "all";
+        var filtered = applyBlFilters(blDomainsCache);
+        updateBlFilterCount(filtered.length, blDomainsCache.length);
+        renderDomainsTable(filtered);
+      });
+    });
+  }
+
+  function refreshDomainsView() {
+    wireBlFilters();
+    var filtered = applyBlFilters(blDomainsCache);
+    updateBlFilterCount(filtered.length, blDomainsCache.length);
+    renderDomainsTable(filtered);
+  }
 
   function blActionRank(action) {
     return BL_ACTION_RANK[String(action || "monitor").toLowerCase()] != null
@@ -701,7 +961,7 @@
         }
         updateBlSortHeaderUi();
         syncBlMobileSortSelect();
-        renderDomainsTable(blDomainsCache);
+        refreshDomainsView();
       });
     });
     updateBlSortHeaderUi();
@@ -763,8 +1023,8 @@
       "</span>" +
       "</div>" +
       '<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300">' +
-      "<span><strong>Adet:</strong> " +
-      esc(row.link_count) +
+      "<span>" +
+      formatLinkCountHtml(row) +
       "</span>" +
       "<span><strong>Öneri:</strong> " +
       esc(row.recommended_action) +
@@ -802,7 +1062,7 @@
       blSortState.key = parts[0] || "max_risk_score";
       blSortState.desc = parts[1] !== "asc";
       updateBlSortHeaderUi();
-      renderDomainsTable(blDomainsCache);
+      refreshDomainsView();
     });
   }
 
@@ -840,9 +1100,9 @@
     if (!domains.length) {
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Bu filtre için domain yok. Filtreleri gevşetin veya yeni import ekleyin.</td></tr>';
       }
-      if (cards) cards.innerHTML = emptyMsg;
+      if (cards) cards.innerHTML = '<p class="text-sm text-slate-500">Bu filtre için domain yok.</p>';
       return;
     }
     var sorted = sortBlDomains(domains);
@@ -870,7 +1130,18 @@
     document.getElementById("bl-st-disavow").textContent = String(ac.disavow || 0);
     document.getElementById("bl-st-review").textContent = String(ac.review || 0);
     document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
+    var lostEl = document.getElementById("bl-st-lost");
+    if (lostEl) {
+      lostEl.textContent = String((d.diff && d.diff.lost_domains && d.diff.lost_domains.length) || 0);
+    }
     var diff = d.diff || {};
+    blDiffData = {
+      new_domains: diff.new_domains || [],
+      lost_domains: diff.lost_domains || [],
+      new_links: diff.new_links || [],
+      lost_links: diff.lost_links || [],
+    };
+    renderDiffPanels(diff);
     var agg = d.aggregate || {};
     var hint = diff.has_previous
       ? "Son iki adım (en yeni vs bir önceki): " +
@@ -891,7 +1162,7 @@
         : "";
     renderImportSteps(d.imports || []);
     blDomainsCache = d.domains || [];
-    renderDomainsTable(blDomainsCache);
+    refreshDomainsView();
   }
   document.getElementById("bl-refresh-btn").addEventListener("click", function () {
     loadDashboard().catch(function (e) {
@@ -969,6 +1240,7 @@
   });
   }
   initBlDomainsTableSort();
+  wireBlFilters();
   loadDashboard().catch(function () {});
 })();
 </script>
