@@ -142,9 +142,33 @@ def _thread_blob_for_reply_templates(msgs: list[SupportInboxMessage], focus: Sup
     return blob
 
 
+_FEEDBACK_MSG_LABEL_RE = re.compile(r"(?is)(?:^|\n|\s)mesaj\s*:\s*")
+_FEEDBACK_META_LINE_RE = re.compile(
+    r"(?im)^\s*(?:ip\s*adresi|taray[ıi]c[ıi]|e-?\s*posta|eposta|e-?mail|email|"
+    r"sayfa|ad\s*soyad|ad[ıi]\s*soyad[ıi]|isim|ad|soyad|telefon|tel|konu|tarih|"
+    r"url|referans|referrer)\s*:.*$"
+)
+
+
+def _strip_feedback_metadata(text: str | None) -> str:
+    """Geri besleme formu gövdelerinden IP / Tarayıcı / E-Posta / Sayfa gibi
+    meta satırlarını ayıklar; varsa yalnızca «Mesaj:» sonrası içeriği döndürür."""
+    raw = (text or "").replace("\r\n", "\n")
+    if not raw.strip():
+        return raw
+    m = _FEEDBACK_MSG_LABEL_RE.search(raw)
+    if m:
+        tail = raw[m.end():].strip()
+        if tail:
+            return tail
+    lines = [ln for ln in raw.split("\n") if not _FEEDBACK_META_LINE_RE.match(ln)]
+    cleaned = "\n".join(lines).strip()
+    return cleaned or raw
+
+
 def _body_preview(text: str | None, *, max_sentences: int = 2, max_chars: int = 320) -> str:
     """İlk bir–iki cümle veya kısa kesit; liste / kart önizlemesi için."""
-    raw = (text or "").replace("\r\n", "\n").strip()
+    raw = _strip_feedback_metadata(text).replace("\r\n", "\n").strip()
     if not raw:
         return ""
     one_line = re.sub(r"\s+", " ", raw).strip()
