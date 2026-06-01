@@ -98,10 +98,47 @@
     color: #4f46e5;
   }
   html.dark .bl-sort-th[data-sort-active="1"] .bl-sort-arrow { color: #818cf8; }
+  .bl-page { overflow-x: hidden; }
+  .bl-table-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+  }
+  #bl-domains-table {
+    table-layout: fixed;
+    width: 100%;
+    writing-mode: horizontal-tb;
+  }
+  #bl-domains-table th,
+  #bl-domains-table td {
+    writing-mode: horizontal-tb;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+  #bl-domains-table .bl-col-domain { width: 14%; min-width: 6.5rem; }
+  #bl-domains-table .bl-col-urls { width: 36%; min-width: 10rem; }
+  #bl-domains-table .bl-col-num { width: 7%; min-width: 3rem; }
+  #bl-domains-table .bl-col-action { width: 12%; min-width: 5.5rem; }
+  .bl-sort-th { white-space: normal; line-height: 1.25; }
+  .bl-domain-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+  }
+  html.dark .bl-domain-card {
+    border-color: #475569;
+    background: rgba(30, 41, 59, 0.45);
+  }
+  .bl-domain-card a { word-break: break-all; }
+  @media (max-width: 767px) {
+    .bl-sort-th { font-size: 0.65rem; letter-spacing: 0; text-transform: none; }
+  }
 </style>
-<div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
+<div class="bl-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 px-1 sm:space-y-6 sm:px-0">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
-    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Backlinks</h1>
+    <h1 class="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl dark:text-slate-100">Backlinks</h1>
   </div>
 
   <div id="bl-banner" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
@@ -153,27 +190,41 @@
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <p class="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
           <strong>Risk</strong> 0–100 (yüksek = şüpheli). <strong>Öneri</strong> otomatik; <strong>Aksiyon</strong> sizin kalıcı seçiminiz (disavow.txt’ye yansır).
         </p>
-        <div class="mt-3 max-h-[60vh] overflow-auto">
-          <table id="bl-domains-table" class="w-full min-w-[720px] text-left text-xs" data-bl-sortable="1">
+        <div class="mt-3 flex flex-wrap items-center gap-2 md:hidden">
+          <label for="bl-mobile-sort" class="text-[10px] font-bold uppercase text-slate-500">Sırala</label>
+          <select
+            id="bl-mobile-sort"
+            class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+          >
+            <option value="max_risk_score:desc">Risk (yüksek → düşük)</option>
+            <option value="max_risk_score:asc">Risk (düşük → yüksek)</option>
+            <option value="link_count:desc">Adet (çok → az)</option>
+            <option value="domain:asc">Domain (A → Z)</option>
+            <option value="effective_action:desc">Aksiyon (disavow önce)</option>
+          </select>
+        </div>
+        <div id="bl-domains-cards" class="mt-3 space-y-3 md:hidden" aria-live="polite"></div>
+        <div class="bl-table-scroll mt-3 hidden max-h-[60vh] md:block">
+          <table id="bl-domains-table" class="text-left text-xs" data-bl-sortable="1">
             <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
-                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="domain" data-sort-type="string" scope="col">
+                <th class="bl-sort-th bl-col-domain px-2 py-2 text-left" data-sort-key="domain" data-sort-type="string" scope="col">
                   Domain <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
-                <th class="px-2 py-2 text-left" scope="col">Örnek URL’ler (kaynak → hedef)</th>
-                <th class="bl-sort-th px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" scope="col">
+                <th class="bl-col-urls px-2 py-2 text-left" scope="col">Örnek URL’ler</th>
+                <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" scope="col">
                   Adet <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
-                <th class="bl-sort-th px-2 py-2 text-right" data-sort-key="max_risk_score" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
+                <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="max_risk_score" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
                   Risk <span class="bl-sort-arrow" aria-hidden="true">↓</span>
                 </th>
-                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="recommended_action" data-sort-type="action" data-default-desc="1" scope="col">
+                <th class="bl-sort-th bl-col-action px-2 py-2 text-left" data-sort-key="recommended_action" data-sort-type="action" data-default-desc="1" scope="col">
                   Öneri <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
-                <th class="bl-sort-th px-2 py-2 text-left" data-sort-key="effective_action" data-sort-type="action" data-default-desc="1" scope="col">
+                <th class="bl-sort-th bl-col-action px-2 py-2 text-left" data-sort-key="effective_action" data-sort-type="action" data-default-desc="1" scope="col">
                   Aksiyon <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
               </tr>
@@ -649,34 +700,18 @@
           blSortState.desc = defaultDesc;
         }
         updateBlSortHeaderUi();
+        syncBlMobileSortSelect();
         renderDomainsTable(blDomainsCache);
       });
     });
     updateBlSortHeaderUi();
+    wireBlMobileSort();
   }
 
-  function renderDomainRow(row) {
-    var flags = (row.risk_flags || []).join(", ");
+  function renderActionSelect(row) {
     var cur = blEffectiveAction(row);
     return (
-      "<tr>" +
-      '<td class="px-2 py-2 font-mono text-[11px] align-top">' +
-      esc(row.domain) +
-      (flags ? '<div class="mt-1 text-[10px] font-sans text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
-      "</td>" +
-      '<td class="max-w-md px-2 py-2 align-top">' +
-      renderSampleLinks(row) +
-      "</td>" +
-      '<td class="px-2 py-2 tabular-nums text-right align-top">' +
-      esc(row.link_count) +
-      "</td>" +
-      '<td class="px-2 py-2 tabular-nums text-right font-bold align-top">' +
-      esc(row.max_risk_score) +
-      "</td>" +
-      '<td class="px-2 py-2 align-top">' +
-      esc(row.recommended_action) +
-      "</td>" +
-      '<td class="px-2 py-2 align-top"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
+      '<select class="bl-action-select w-full max-w-[9rem] rounded border border-slate-300 bg-white px-2 py-1 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
       esc(row.domain) +
       '">' +
       ["ignore", "monitor", "review", "disavow"]
@@ -684,9 +719,91 @@
           return '<option value="' + a + '"' + (a === cur ? " selected" : "") + ">" + a + "</option>";
         })
         .join("") +
-      "</select></td>" +
+      "</select>"
+    );
+  }
+
+  function renderDomainRow(row) {
+    var flags = (row.risk_flags || []).join(", ");
+    return (
+      "<tr>" +
+      '<td class="bl-col-domain px-2 py-2 font-mono text-[11px]">' +
+      esc(row.domain) +
+      (flags ? '<div class="mt-1 text-[10px] font-sans normal-case text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
+      "</td>" +
+      '<td class="bl-col-urls px-2 py-2">' +
+      renderSampleLinks(row) +
+      "</td>" +
+      '<td class="bl-col-num px-2 py-2 tabular-nums text-right">' +
+      esc(row.link_count) +
+      "</td>" +
+      '<td class="bl-col-num px-2 py-2 tabular-nums text-right font-bold">' +
+      esc(row.max_risk_score) +
+      "</td>" +
+      '<td class="bl-col-action px-2 py-2 normal-case">' +
+      esc(row.recommended_action) +
+      "</td>" +
+      '<td class="bl-col-action px-2 py-2">' +
+      renderActionSelect(row) +
+      "</td>" +
       "</tr>"
     );
+  }
+
+  function renderDomainCard(row) {
+    var flags = (row.risk_flags || []).join(", ");
+    return (
+      '<article class="bl-domain-card">' +
+      '<div class="flex items-start justify-between gap-2">' +
+      '<p class="min-w-0 flex-1 break-all font-mono text-sm font-bold text-slate-900 dark:text-slate-100">' +
+      esc(row.domain) +
+      "</p>" +
+      '<span class="shrink-0 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold tabular-nums text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">Risk ' +
+      esc(row.max_risk_score) +
+      "</span>" +
+      "</div>" +
+      '<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300">' +
+      "<span><strong>Adet:</strong> " +
+      esc(row.link_count) +
+      "</span>" +
+      "<span><strong>Öneri:</strong> " +
+      esc(row.recommended_action) +
+      "</span>" +
+      "</div>" +
+      (flags ? '<p class="mt-1 text-[10px] text-slate-500">Bayraklar: ' + esc(flags) + "</p>" : "") +
+      '<div class="mt-2 text-[11px] leading-relaxed">' +
+      renderSampleLinks(row) +
+      "</div>" +
+      '<div class="mt-3"><span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Aksiyon</span>' +
+      renderActionSelect(row) +
+      "</div></article>"
+    );
+  }
+
+  function syncBlMobileSortSelect() {
+    var sel = document.getElementById("bl-mobile-sort");
+    if (!sel) return;
+    var val = blSortState.key + ":" + (blSortState.desc ? "desc" : "asc");
+    if (sel.value !== val) {
+      var found = false;
+      Array.prototype.forEach.call(sel.options, function (opt) {
+        if (opt.value === val) found = true;
+      });
+      if (found) sel.value = val;
+    }
+  }
+
+  function wireBlMobileSort() {
+    var sel = document.getElementById("bl-mobile-sort");
+    if (!sel || sel.dataset.wired === "1") return;
+    sel.dataset.wired = "1";
+    sel.addEventListener("change", function () {
+      var parts = (sel.value || "max_risk_score:desc").split(":");
+      blSortState.key = parts[0] || "max_risk_score";
+      blSortState.desc = parts[1] !== "asc";
+      updateBlSortHeaderUi();
+      renderDomainsTable(blDomainsCache);
+    });
   }
 
   function wireBlActionSelects() {
@@ -716,15 +833,22 @@
 
   function renderDomainsTable(domains) {
     initBlDomainsTableSort();
+    wireBlMobileSort();
     var tbody = document.getElementById("bl-domains-body");
-    if (!tbody) return;
+    var cards = document.getElementById("bl-domains-cards");
+    var emptyMsg = '<p class="px-1 py-4 text-sm text-slate-500">Import sonrası domain listesi burada görünür.</p>';
     if (!domains.length) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+      if (tbody) {
+        tbody.innerHTML =
+          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+      }
+      if (cards) cards.innerHTML = emptyMsg;
       return;
     }
     var sorted = sortBlDomains(domains);
-    tbody.innerHTML = sorted.map(renderDomainRow).join("");
+    if (tbody) tbody.innerHTML = sorted.map(renderDomainRow).join("");
+    if (cards) cards.innerHTML = sorted.map(renderDomainCard).join("");
+    syncBlMobileSortSelect();
     wireBlActionSelects();
   }
 
