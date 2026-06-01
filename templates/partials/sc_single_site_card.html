@@ -449,13 +449,15 @@
             type="file"
             multiple
             accept="image/png,image/jpeg,image/webp"
-            class="w-full min-w-0 text-xs sm:max-w-[14rem]"
+            class="relative z-10 w-full min-w-0 text-xs sm:max-w-[14rem]"
+            onchange="if (window.gscCwvSyncFileInput) window.gscCwvSyncFileInput(this)"
+            oninput="if (window.gscCwvSyncFileInput) window.gscCwvSyncFileInput(this)"
           >
           <button
             type="button"
             data-gsc-upload-save="{{ site.id }}"
-            disabled
-            class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+            data-gsc-save-ready="0"
+            class="relative z-10 w-full shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-45 hover:bg-slate-700 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           >
             Kaydet
           </button>

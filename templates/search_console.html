@@ -1353,10 +1353,63 @@
     if (next && window.htmx && typeof window.htmx.process === 'function') {
       window.htmx.process(next);
     }
+    if (next) {
+      gscCwvSyncAllFileInputs(next);
+    }
     if (typeof window.initSearchConsolePanels === 'function') {
       var scList = document.getElementById('search-console-site-list');
       window.initSearchConsolePanels(scList || document);
     }
+  }
+
+  function gscCwvSyncFileInput(input) {
+    if (!input) {
+      return;
+    }
+    var siteId = input.getAttribute('data-gsc-cwv-files');
+    if (!siteId) {
+      return;
+    }
+    var box = document.querySelector('[data-gsc-multi-upload="' + siteId + '"]');
+    if (!box) {
+      return;
+    }
+    var preview = box.querySelector('[data-gsc-upload-preview="' + siteId + '"]');
+    var saveBtn = box.querySelector('[data-gsc-upload-save="' + siteId + '"]');
+    var errEl = document.getElementById('gsc-upload-err-' + siteId);
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+    }
+    var n = input.files ? input.files.length : 0;
+    if (saveBtn) {
+      saveBtn.removeAttribute('disabled');
+      saveBtn.setAttribute('data-gsc-save-ready', n > 0 ? '1' : '0');
+      saveBtn.classList.toggle('opacity-45', n === 0);
+      saveBtn.classList.toggle('cursor-not-allowed', n === 0);
+      saveBtn.classList.toggle('hover:bg-slate-700', n > 0);
+      saveBtn.classList.toggle('dark:hover:bg-white', n > 0);
+    }
+    if (preview) {
+      if (!n) {
+        preview.textContent = 'Henüz dosya seçilmedi.';
+      } else if (n === 1) {
+        var name = input.files[0] && input.files[0].name ? input.files[0].name : '';
+        preview.textContent = name
+          ? '1 dosya seçildi (' + name + ') — Kaydet ile yüklenir.'
+          : '1 dosya seçildi — Kaydet ile yüklenir.';
+      } else {
+        preview.textContent = n + ' dosya seçildi — Kaydet ile yüklenir.';
+      }
+    }
+  }
+  window.gscCwvSyncFileInput = gscCwvSyncFileInput;
+
+  function gscCwvSyncAllFileInputs(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('[data-gsc-cwv-files]').forEach(function (input) {
+      gscCwvSyncFileInput(input);
+    });
   }
 
   function initGscCwvMediaHandlers() {
@@ -1365,40 +1418,16 @@
     }
     document.body.dataset.gscCwvMediaBound = '1';
 
-    document.body.addEventListener('change', function (e) {
+    function onFilesEvent(e) {
       var input = e.target && e.target.closest ? e.target.closest('[data-gsc-cwv-files]') : null;
       if (!input) {
         return;
       }
-      var siteId = input.getAttribute('data-gsc-cwv-files');
-      if (!siteId) {
-        return;
-      }
-      var box = document.querySelector('[data-gsc-multi-upload="' + siteId + '"]');
-      if (!box) {
-        return;
-      }
-      var preview = box.querySelector('[data-gsc-upload-preview="' + siteId + '"]');
-      var saveBtn = box.querySelector('[data-gsc-upload-save="' + siteId + '"]');
-      var errEl = document.getElementById('gsc-upload-err-' + siteId);
-      if (errEl) {
-        errEl.textContent = '';
-        errEl.classList.add('hidden');
-      }
-      var n = input.files ? input.files.length : 0;
-      if (saveBtn) {
-        saveBtn.disabled = n === 0;
-      }
-      if (preview) {
-        if (!n) {
-          preview.textContent = 'Henüz dosya seçilmedi.';
-        } else if (n === 1) {
-          preview.textContent = '1 dosya seçildi — Kaydet ile yüklenir.';
-        } else {
-          preview.textContent = n + ' dosya seçildi — Kaydet ile yüklenir.';
-        }
-      }
-    });
+      gscCwvSyncFileInput(input);
+    }
+
+    document.body.addEventListener('change', onFilesEvent);
+    document.body.addEventListener('input', onFilesEvent);
 
     document.body.addEventListener('click', function (e) {
       var saveBtn = e.target && e.target.closest ? e.target.closest('[data-gsc-upload-save]') : null;
@@ -1411,9 +1440,13 @@
         var errEl = document.getElementById('gsc-upload-err-' + siteId);
         var wrap = box ? box.querySelector('[data-gsc-upload-wrap="' + siteId + '"]') : null;
         var bar = box ? box.querySelector('[data-gsc-upload-bar="' + siteId + '"]') : null;
+        if (!input) {
+          input = box ? box.querySelector('[data-gsc-cwv-files="' + siteId + '"]') : null;
+        }
+        gscCwvSyncFileInput(input);
         if (!input || !input.files || input.files.length === 0) {
           if (errEl) {
-            errEl.textContent = 'Önce en az bir görsel seçin.';
+            errEl.textContent = 'Önce en az bir görsel seçin (Göz at…).';
             errEl.classList.remove('hidden');
           }
           return;
@@ -1422,7 +1455,9 @@
         for (var i = 0; i < input.files.length; i++) {
           fd.append('files', input.files[i]);
         }
-        saveBtn.disabled = true;
+        saveBtn.setAttribute('data-gsc-save-ready', '0');
+        saveBtn.classList.add('opacity-45');
+        saveBtn.setAttribute('aria-busy', 'true');
         var prevLabel = saveBtn.textContent;
         saveBtn.textContent = 'Kaydediliyor…';
         if (wrap) {
@@ -1452,16 +1487,18 @@
             }, 400);
           }
           saveBtn.textContent = prevLabel;
+          saveBtn.removeAttribute('aria-busy');
           if (xhr.status >= 200 && xhr.status < 300) {
             input.value = '';
-            saveBtn.disabled = true;
+            gscCwvSyncFileInput(input);
             var preview = box ? box.querySelector('[data-gsc-upload-preview="' + siteId + '"]') : null;
             if (preview) {
               preview.textContent = 'Yüklendi. Yeni görsel için tekrar dosya seçip Kaydet deyin.';
             }
             gscCwvReplaceSiteCard(siteId, xhr.responseText);
           } else if (errEl) {
-            saveBtn.disabled = false;
+            saveBtn.classList.remove('opacity-45');
+            saveBtn.setAttribute('data-gsc-save-ready', '1');
             var msg = (xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
             errEl.textContent = msg.slice(0, 500) || ('Kaydet başarısız (HTTP ' + xhr.status + ')');
             errEl.classList.remove('hidden');
@@ -1474,7 +1511,9 @@
           if (wrap) {
             wrap.classList.add('hidden');
           }
-          saveBtn.disabled = false;
+          saveBtn.classList.remove('opacity-45');
+          saveBtn.setAttribute('data-gsc-save-ready', '1');
+          saveBtn.removeAttribute('aria-busy');
           saveBtn.textContent = prevLabel;
           if (errEl) {
             errEl.textContent = 'Ağ hatası; bağlantıyı kontrol edin.';
@@ -1522,6 +1561,7 @@
   function initSearchConsolePanels(root) {
     initScCwvLightbox();
     initGscCwvMediaHandlers();
+    gscCwvSyncAllFileInputs(root || document);
     initSearchConsoleExpandables(root);
     initSearchConsoleSplitView(root);
     initSearchConsolePeriodSwitch(root);
