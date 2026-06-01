@@ -655,8 +655,57 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "diff": diff,
         "action_counts": action_counts,
         "category_counts": category_counts,
-        "domains": domains_out[:500],
+        "domains": domains_out,
         "domain_total": len(domains_out),
+    }
+
+
+def list_domain_links(
+    db: Session,
+    *,
+    site_id: int,
+    report_type: str,
+    domain: str,
+    limit: int = 10000,
+) -> dict[str, Any]:
+    """Tek domain için tüm benzersiz kaynak+hedef linkleri (tüm importlar birleşik)."""
+    rt = (report_type or "latest_links").strip().lower()
+    dom = normalize_domain(domain) or (domain or "").strip().lower()
+    if not dom:
+        raise ValueError("Domain boş.")
+    import_ids = [
+        i.id
+        for i in db.query(BacklinkImport)
+        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+        .all()
+    ]
+    if not import_ids:
+        return {
+            "domain": dom,
+            "report_type": rt,
+            "link_count": 0,
+            "links": [],
+            "truncated": False,
+        }
+    rows = (
+        db.query(BacklinkRow)
+        .filter(
+            BacklinkRow.site_id == site_id,
+            BacklinkRow.import_id.in_(import_ids),
+            BacklinkRow.domain == dom,
+        )
+        .all()
+    )
+    links = _link_entries_from_rows(rows)
+    links.sort(key=lambda x: ((x.get("source_url") or "").lower(), (x.get("target_url") or "").lower()))
+    cap = max(1, min(int(limit), 50000))
+    truncated = len(links) > cap
+    return {
+        "domain": dom,
+        "report_type": rt,
+        "link_count": len(links),
+        "links": links[:cap],
+        "truncated": truncated,
     }
 
 

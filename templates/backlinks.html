@@ -183,7 +183,7 @@
           <div class="rounded-lg bg-amber-50 p-2 text-center dark:bg-amber-950/40"><div class="text-[10px] uppercase text-amber-800 dark:text-amber-200">Review</div><div id="bl-st-review" class="text-lg font-bold">—</div></div>
           <div class="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-950/40"><div class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Yeni domain</div><div id="bl-st-new" class="text-lg font-bold">—</div></div>
           <div class="rounded-lg bg-slate-100 p-2 text-center dark:bg-slate-800/80"><div class="text-[10px] uppercase text-slate-600 dark:text-slate-300">Kayıp domain</div><div id="bl-st-lost" class="text-lg font-bold">—</div></div>
-          <div class="rounded-lg bg-sky-50 p-2 text-center dark:bg-sky-950/40"><div class="text-[10px] uppercase text-sky-800 dark:text-sky-200">Medya / haber</div><div id="bl-st-media" class="text-lg font-bold">—</div></div>
+          <div class="rounded-lg bg-sky-50 p-2 text-center dark:bg-sky-950/40"><div class="text-[10px] uppercase text-sky-800 dark:text-sky-200">Medya / haber (domain)</div><div id="bl-st-media" class="text-lg font-bold">—</div></div>
         </div>
         <p id="bl-diff-hint" class="mt-3 hidden text-xs text-slate-500 dark:text-slate-400"></p>
         <p id="bl-aggregate-hint" class="mt-1 hidden text-xs text-slate-500 dark:text-slate-400"></p>
@@ -328,15 +328,9 @@
       return u.length > 56 ? u.slice(0, 53) + "…" : u;
     }
   }
-  function renderSampleLinks(row) {
-    var links = row.sample_links || [];
-    if (!links.length && row.sample_urls && row.sample_urls.length) {
-      links = row.sample_urls.map(function (u) {
-        return { source_url: u, target_url: "", anchor_text: "" };
-      });
-    }
-    if (!links.length) return '<span class="text-slate-400">—</span>';
-    var html = links
+  function renderSampleLinksList(links) {
+    if (!links || !links.length) return '<span class="text-slate-400">—</span>';
+    return links
       .map(function (ln) {
         var src = ln.source_url || "";
         var tgt = ln.target_url || "";
@@ -366,16 +360,48 @@
         return block + "</div>";
       })
       .join("");
+  }
+
+  function renderSampleLinks(row) {
+    var links = row.sample_links || [];
+    if (!links.length && row.sample_urls && row.sample_urls.length) {
+      links = row.sample_urls.map(function (u) {
+        return { source_url: u, target_url: "", anchor_text: "" };
+      });
+    }
+    return renderSampleLinksList(links);
+  }
+
+  function blPreviewLinkCount(row) {
+    var links = row.sample_links || [];
+    if (!links.length && row.sample_urls && row.sample_urls.length) {
+      return row.sample_urls.length;
+    }
+    return links.length;
+  }
+
+  function renderLinksCell(row) {
+    var domain = row.domain || "";
     var total = parseInt(row.link_count, 10) || 0;
-    var shown = links.length;
+    var shown = blPreviewLinkCount(row);
+    var html =
+      '<div class="bl-links-cell" data-domain="' +
+      esc(domain) +
+      '"><div class="bl-links-preview">' +
+      renderSampleLinks(row) +
+      "</div>";
     if (total > shown) {
       html +=
-        '<p class="mt-1 text-[10px] font-semibold text-slate-500">+' +
-        (total - shown) +
-        " link daha (toplam " +
-        total +
-        ")</p>";
+        '<button type="button" class="bl-show-all-links mt-1.5 text-[11px] font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100" data-domain="' +
+        esc(domain) +
+        '" data-total="' +
+        esc(String(total)) +
+        '">Tüm linkleri gör (' +
+        esc(String(total)) +
+        ")</button>" +
+        '<div class="bl-links-all mt-2 hidden max-h-[28rem] overflow-y-auto rounded border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/50"></div>';
     }
+    html += "</div>";
     return html;
   }
 
@@ -1047,7 +1073,7 @@
       (flags ? '<div class="mt-0.5 text-[10px] text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
       "</td>" +
       '<td class="bl-col-urls px-2 py-2">' +
-      renderSampleLinks(row) +
+      renderLinksCell(row) +
       "</td>" +
       '<td class="bl-col-num px-2 py-2 tabular-nums text-right">' +
       esc(row.link_count) +
@@ -1099,7 +1125,7 @@
       "</div>" +
       (flags ? '<p class="mt-1 text-[10px] text-slate-500">Bayraklar: ' + esc(flags) + "</p>" : "") +
       '<div class="mt-2 text-[11px] leading-relaxed">' +
-      renderSampleLinks(row) +
+      renderLinksCell(row) +
       "</div>" +
       '<div class="mt-3"><span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Aksiyon</span>' +
       renderActionSelect(row) +
@@ -1130,6 +1156,67 @@
       blSortState.desc = parts[1] !== "asc";
       updateBlSortHeaderUi();
       refreshDomainsView();
+    });
+  }
+
+  function wireBlShowAllLinks() {
+    Array.prototype.forEach.call(document.querySelectorAll(".bl-show-all-links"), function (btn) {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", async function () {
+        var domain = btn.getAttribute("data-domain") || "";
+        var total = btn.getAttribute("data-total") || "";
+        var cell = btn.closest(".bl-links-cell");
+        if (!cell) return;
+        var panel = cell.querySelector(".bl-links-all");
+        if (!panel) return;
+        if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
+          panel.classList.add("hidden");
+          btn.textContent = "Tüm linkleri gör (" + total + ")";
+          return;
+        }
+        if (panel.dataset.loaded === "1") {
+          panel.classList.remove("hidden");
+          btn.textContent = "Linkleri gizle";
+          return;
+        }
+        var prev = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Yükleniyor…";
+        try {
+          var url =
+            "/api/backlinks/domain-links?site_id=" +
+            encodeURIComponent(String(siteId())) +
+            "&report_type=" +
+            encodeURIComponent(reportType()) +
+            "&domain=" +
+            encodeURIComponent(domain);
+          var r = await fetch(url, { credentials: "same-origin" });
+          var data = await r.json();
+          if (!r.ok) {
+            showBanner(data.detail || "Linkler yüklenemedi.");
+            btn.textContent = prev;
+            return;
+          }
+          var links = data.links || [];
+          var note = "";
+          if (data.truncated) {
+            note =
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi; tam sayı: ' +
+              esc(String(data.link_count || links.length)) +
+              ".</p>";
+          }
+          panel.innerHTML = note + renderSampleLinksList(links);
+          panel.dataset.loaded = "1";
+          panel.classList.remove("hidden");
+          btn.textContent = "Linkleri gizle";
+        } catch (e) {
+          showBanner(String(e.message || e));
+          btn.textContent = prev;
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   }
 
@@ -1177,6 +1264,7 @@
     if (cards) cards.innerHTML = sorted.map(renderDomainCard).join("");
     syncBlMobileSortSelect();
     wireBlActionSelects();
+    wireBlShowAllLinks();
   }
 
   async function loadDashboard() {
