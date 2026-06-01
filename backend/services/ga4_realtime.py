@@ -1170,90 +1170,15 @@ def _screen_unified_news_candidate(name: str) -> bool:
     return True
 
 
-def _news_row_link(site_domain: str, raw: str, *, host: str = "") -> str:
-    """Haberler sekmesi: geçerli haber path → tam URL (doviz: haber.doviz.com)."""
-    from backend.collectors.ga4 import (
-        doviz_haber_url,
-        is_doviz_site_domain,
-        normalize_realtime_page_path,
-        realtime_haber_row_allowed,
-    )
-    from backend.services.ga4_page_urls import ga4_canonical_page_url
+def _news_row_link(site_domain: str, unified: str) -> str:
+    """Yalnızca makale path'i görünürse doğrudan site URL'si; aksi halde boş (harici arama yönlendirmesi yok)."""
+    from backend.collectors.ga4 import _is_news_article_path
 
-    p = normalize_realtime_page_path(raw)
-    if not p or not realtime_haber_row_allowed(site_domain, host or None, p):
-        return ""
-    if is_doviz_site_domain(site_domain):
-        return doviz_haber_url(p, host)
-    url = ga4_canonical_page_url((host or "").strip() or None, p)
-    if url:
-        return url
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
-    if d:
-        return "https://" + d + p
+    u = (unified or "").strip()
+    if u.startswith("/") and d and _is_news_article_path(u):
+        return "https://" + d + u
     return ""
-
-
-def _fetch_realtime_host_path_rows(
-    property_id: str,
-    *,
-    window_minutes: int,
-    fetch_n: int,
-    sort_by: str,
-    client: BetaAnalyticsDataClient | None,
-) -> list[dict[str, Any]] | None:
-    """Yalnızca Haberler için hostName+pagePath; hata olursa None (diğer realtime etkilenmez)."""
-    if client is None:
-        client = _build_client()
-    property_id = _normalize_ga4_property_id(property_id)
-    w = max(1, min(window_minutes, 15))
-    minute_ranges = [
-        MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
-        MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w),
-    ]
-    request = RunRealtimeReportRequest(
-        property=f"properties/{property_id}",
-        dimensions=[Dimension(name="hostName"), Dimension(name="pagePath")],
-        metrics=[Metric(name="activeUsers"), Metric(name="screenPageViews")],
-        minute_ranges=minute_ranges,
-    )
-    response = client.run_realtime_report(request)
-    dim_headers = [h.name for h in response.dimension_headers]
-    metric_names = [m.name for m in response.metric_headers]
-    temp_map: dict[str, dict[str, Any]] = {}
-    for row in response.rows:
-        dm = _realtime_row_dimensions(row, dim_headers)
-        host_val = str(dm.get("hostName", "") or "").strip()
-        path_val = str(dm.get("pagePath", "") or "").strip()
-        range_name = "current"
-        for v in dm.values():
-            if str(v).lower() in ("current", "previous"):
-                range_name = str(v).lower()
-                break
-        if not path_val or path_val.lower() in ("current", "previous"):
-            continue
-        key = f"{host_val}\x1f{path_val}"
-        if key not in temp_map:
-            temp_map[key] = {
-                "host": host_val,
-                "page": path_val,
-                "activeUsers": 0.0,
-                "screenPageViews": 0.0,
-                "activeUsers_previous": 0.0,
-                "screenPageViews_previous": 0.0,
-            }
-        entry = temp_map[key]
-        suffix = "_previous" if range_name == "previous" else ""
-        for i, mv in enumerate(row.metric_values):
-            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
-            try:
-                val = float(mv.value)
-                entry[mname + suffix] = entry.get(mname + suffix, 0.0) + val
-            except (ValueError, TypeError):
-                pass
-    pages = list(temp_map.values())
-    pages.sort(key=lambda p: p.get(sort_by, 0), reverse=True)
-    return pages[:fetch_n]
 
 
 def fetch_realtime_top_news_pages(
@@ -1265,102 +1190,39 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: canlı başlık sıralaması + bugünün haber URL eşlemesi.
+    """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
 
-    GA4 Realtime şemasında pagePath/hostName geçerli boyut değil; web profilinde yalnızca
-    unifiedScreenName (≈ sayfa başlığı) döner. Bu yüzden canlı başlıkları, bugünün
-    RunReport (pageTitle→haber URL) eşlemesiyle birleştirip yalnızca haber satırlarını döneriz.
+    ``link_url`` yalnızca başlık site içi makale path'i ise doldurulur; aksi halde boştur.
     """
-    from backend.collectors.ga4 import (
-        _normalize_news_title_key,
-        fetch_ga4_haber_pages_intraday,
-        fetch_ga4_haber_title_url_map,
-        is_doviz_site_domain,
-        normalize_realtime_page_path,
-        realtime_haber_row_allowed,
+    fetch_n = min(250, max(80, int(limit) * 25))
+    base = fetch_realtime_top_pages(
+        property_id,
+        window_minutes=window_minutes,
+        limit=fetch_n,
+        sort_by=sort_by,
+        dimension="unifiedScreenName",
+        compare_previous=False,
+        include_page_path=False,
+        client=client,
     )
-
-    fetch_n = min(400, max(120, int(limit) * 40))
-    cap = max(1, min(int(limit), 250))
     out: list[dict[str, Any]] = []
-    breakdown = "unifiedScreenName+title_url_map"
-    base: dict[str, Any] = {
-        "window_minutes": window_minutes,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "api_ms": 0,
-    }
-
-    # 1) Canlı başlık sıralaması (unifiedScreenName — Realtime'da çalışan tek web boyutu)
-    realtime_pages: list[dict[str, Any]] = []
-    for compare in (True, False):
-        try:
-            base = fetch_realtime_top_pages(
-                property_id,
-                window_minutes=window_minutes,
-                limit=fetch_n,
-                sort_by=sort_by,
-                dimension="unifiedScreenName",
-                compare_previous=compare,
-                include_page_path=False,
-                client=client,
-            )
-            realtime_pages = list(base.get("pages") or [])
-            if realtime_pages:
-                break
-        except Exception as exc:
-            LOGGER.debug("Realtime haber başlık çekimi (compare=%s) atlandı: %s", compare, exc)
-
-    # 2) Bugünün başlık → haber URL eşlemesi
-    title_map: dict[str, dict[str, str]] = {}
-    try:
-        title_map = fetch_ga4_haber_title_url_map(
-            property_id, site_domain=site_domain, limit=250
+    for p in base.get("pages") or []:
+        title = str(p.get("page") or "").strip()
+        if not _screen_unified_news_candidate(title):
+            continue
+        out.append(
+            {
+                "page": title,
+                "page_path": title if title.startswith("/") else "",
+                "activeUsers": float(p.get("activeUsers") or 0),
+                "screenPageViews": float(p.get("screenPageViews") or 0),
+                "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
+                "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
+                "link_url": _news_row_link(site_domain, title),
+            }
         )
-    except Exception as exc:
-        LOGGER.warning("Haber başlık→URL eşlemesi başarısız: %s", exc)
-
-    # 3) Canlı başlıkları haber URL'leriyle eşle
-    if realtime_pages and title_map:
-        for p in realtime_pages:
-            title = str(p.get("page") or "").strip()
-            if not title or title.startswith("/"):
-                # Path geldiyse doğrudan haber filtresinden geçir
-                path = normalize_realtime_page_path(title)
-                if path and realtime_haber_row_allowed(site_domain, None, path):
-                    link = _news_row_link(site_domain, path)
-                    if link:
-                        out.append(_news_out_row(p, title or path, path, link))
-                if len(out) >= cap:
-                    break
-                continue
-            hit = title_map.get(_normalize_news_title_key(title))
-            if not hit:
-                continue
-            out.append(_news_out_row(p, title, hit.get("path") or "", hit.get("url") or ""))
-            if len(out) >= cap:
-                break
-
-    # 4) Eşleşme yoksa: bugünün haber sayfaları (RunReport) doğrudan listele
-    if not out:
-        try:
-            intraday = fetch_ga4_haber_pages_intraday(
-                property_id, site_domain=site_domain, limit=limit
-            )
-            if intraday:
-                breakdown = "runReportToday+haber"
-                for row in intraday:
-                    out.append(
-                        _news_out_row(
-                            row,
-                            row.get("page") or "",
-                            str(row.get("page") or ""),
-                            str(row.get("link_url") or ""),
-                        )
-                    )
-                    if len(out) >= cap:
-                        break
-        except Exception as exc:
-            LOGGER.warning("Realtime haber RunReport (bugün) yedeği başarısız: %s", exc)
+        if len(out) >= max(1, min(int(limit), 250)):
+            break
 
     return {
         "property_id": property_id,
@@ -1369,21 +1231,8 @@ def fetch_realtime_top_news_pages(
         "total_pages": len(out),
         "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
         "api_ms": base.get("api_ms", 0),
-        "breakdown": breakdown,
+        "breakdown": "unifiedScreenName+news_heuristic",
         "comparison_enabled": True,
-        "source": "live" if out else "empty",
-    }
-
-
-def _news_out_row(src: dict[str, Any], page: str, path: str, link: str) -> dict[str, Any]:
-    return {
-        "page": page,
-        "page_path": path,
-        "activeUsers": float(src.get("activeUsers") or 0),
-        "screenPageViews": float(src.get("screenPageViews") or 0),
-        "activeUsers_previous": float(src.get("activeUsers_previous") or 0),
-        "screenPageViews_previous": float(src.get("screenPageViews_previous") or 0),
-        "link_url": link,
     }
 
 

@@ -1503,7 +1503,6 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
           if (d.source === 'db_snapshot') label += ' · önbellek';
-          if (d.breakdown === 'runReportToday+haber') label += ' · bugün (GA4)';
           tsEl.textContent = label;
         }
       })
@@ -1515,7 +1514,7 @@
   function _renderNewsList(listEl, pages) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede «haber» geçen kategori veya haber detay URL’si yok (canlı GA4).</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber adayı başlık yok. İstersen .env içinde GA4_REALTIME_NEWS_SCREEN_EXCLUDE_PREFIXES ile filtreleri güncelle.</p>';
       return;
     }
     var sortKey = 'activeUsers';
@@ -1578,7 +1577,6 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           var label = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
           if (d.source === 'db_snapshot') label += ' · önbellek';
-          if (d.breakdown === 'runReportToday+haber') label += ' · bugün (GA4)';
           tsEl.textContent = label;
         }
       })
