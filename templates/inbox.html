@@ -747,8 +747,7 @@
             try {
               await sendInboxMailFromComposer();
               replyToGmailId = null;
-              await loadThreads();
-              await openDetail(selectedId);
+              window.location.reload();
             } catch (e) {
               showBanner(String(e.message || e));
             }
@@ -1084,13 +1083,7 @@
     if (!confirm(_INBOX_DELETE_CONFIRM)) return;
     try {
       await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
-      if (selectedId === id) {
-        selectedId = null;
-        replyToGmailId = null;
-        document.getElementById("inbox-detail").classList.add("hidden");
-        document.getElementById("inbox-detail-empty").classList.remove("hidden");
-      }
-      await loadThreads();
+      window.location.reload();
     } catch (e) {
       showBanner(String(e.message || e));
     }
@@ -1380,8 +1373,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ read: read }),
     });
-    await loadThreads();
-    await openDetail(selectedId);
+    window.location.reload();
   }
   document.getElementById("btn-read").addEventListener("click", function () {
     postRead(true);
@@ -1398,8 +1390,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answered: v }),
     });
-    await loadThreads();
-    await openDetail(selectedId);
+    window.location.reload();
   }
   document.getElementById("btn-answered").addEventListener("click", function () {
     patchAnswered(true);
@@ -1471,8 +1462,7 @@
     try {
       await sendInboxMailFromComposer();
       replyToGmailId = null;
-      await loadThreads();
-      await openDetail(selectedId);
+      window.location.reload();
     } catch (e) {
       showBanner(String(e.message || e));
     }
