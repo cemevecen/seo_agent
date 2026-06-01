@@ -87,6 +87,35 @@
   html.dark .inbox-analysis-title { color: #fcd34d; }
   .inbox-alert-analysis-body { font-size: 13px; line-height: 1.65; color: #1e293b; }
   html.dark .inbox-alert-analysis-body { color: #e2e8f0; }
+  .inbox-row-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+  .inbox-row-delete {
+    flex-shrink: 0;
+    align-self: center;
+    border-radius: 0.5rem;
+    border: 1px solid #e11d48;
+    background: #fff1f2;
+    padding: 0.35rem 0.55rem;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #be123c;
+    cursor: pointer;
+  }
+  .inbox-row-delete:hover {
+    background: #ffe4e6;
+  }
+  html.dark .inbox-row-delete {
+    border-color: #f43f5e;
+    background: rgba(76, 5, 25, 0.45);
+    color: #fda4af;
+  }
+  html.dark .inbox-row-delete:hover {
+    background: rgba(127, 29, 29, 0.55);
+  }
   .inbox-alert-analysis-body h3.inbox-analysis-h3 {
     margin: 16px 0 8px;
     font-size: 13px;
@@ -1041,6 +1070,51 @@
     }
   }
 
+  var _INBOX_DELETE_CONFIRM =
+    "Bu konuşma Gmail’de çöp kutusuna taşınacak ve panelden kaldırılacak. Emin misiniz?";
+
+  async function deleteInboxThread(threadId) {
+    var id = parseInt(threadId, 10);
+    if (!id || isNaN(id)) return;
+    try {
+      await _ensureInboxActionAuth();
+    } catch (e) {
+      return;
+    }
+    if (!confirm(_INBOX_DELETE_CONFIRM)) return;
+    try {
+      await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
+      if (selectedId === id) {
+        selectedId = null;
+        replyToGmailId = null;
+        document.getElementById("inbox-detail").classList.add("hidden");
+        document.getElementById("inbox-detail-empty").classList.remove("hidden");
+      }
+      await loadThreads();
+    } catch (e) {
+      showBanner(String(e.message || e));
+    }
+  }
+
+  function bindInboxListActions() {
+    var box = document.getElementById("inbox-list");
+    if (!box || box.dataset.inboxListBound === "1") return;
+    box.dataset.inboxListBound = "1";
+    box.addEventListener("click", function (ev) {
+      var delBtn = ev.target.closest("[data-inbox-delete]");
+      if (delBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        deleteInboxThread(delBtn.getAttribute("data-inbox-delete"));
+        return;
+      }
+      var row = ev.target.closest(".inbox-row");
+      if (!row) return;
+      var tid = parseInt(row.getAttribute("data-tid"), 10);
+      if (tid) openDetail(tid);
+    });
+  }
+
   async function loadThreads() {
     var route = inboxActiveRoute || INBOX_DEFAULT_ROUTE;
     var qParts = ["limit=50", "route=" + encodeURIComponent(route)];
@@ -1079,9 +1153,10 @@
         if (t.gmail_unread) flags += '<span class="ml-1 text-rose-600 dark:text-rose-400">●</span>';
         if (t.answered_flag) flags += '<span class="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 uppercase tracking-tighter">Cevaplandı</span>';
         return (
+          '<div class="inbox-row-wrap">' +
           '<button type="button" data-tid="' +
           t.id +
-          '" class="inbox-row w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-800 ' +
+          '" class="inbox-row min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-800 ' +
           unread +
           '">' +
           '<div class="flex items-start justify-between gap-2">' +
@@ -1097,16 +1172,14 @@
           '<p class="inbox-row-preview mt-1 line-clamp-3 text-xs leading-snug text-slate-600 dark:text-slate-300">' +
           esc((t.message_preview || t.snippet || "").trim() || "—") +
           "</p>" +
-          "</button>"
+          "</button>" +
+          '<button type="button" class="inbox-row-delete" data-inbox-delete="' +
+          t.id +
+          '" title="Gmail çöp kutusuna taşı ve listeden kaldır" aria-label="Sil">Sil</button>' +
+          "</div>"
         );
       })
       .join("");
-    Array.prototype.forEach.call(box.querySelectorAll(".inbox-row"), function (btn) {
-      btn.addEventListener("click", function () {
-        var id = parseInt(btn.getAttribute("data-tid"), 10);
-        openDetail(id);
-      });
-    });
   }
 
   async function openDetail(id, opts) {
@@ -1337,26 +1410,10 @@
 
   document.getElementById("btn-delete").addEventListener("click", async function () {
     if (!selectedId) return;
-    try { await _ensureInboxActionAuth(); } catch (e) { return; }
-    if (
-      !confirm(
-        "Bu konuşma Gmail’de çöp kutusuna taşınacak ve panelden kaldırılacak. Emin misiniz?"
-      )
-    ) {
-      return;
-    }
-    var id = selectedId;
-    try {
-      await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
-      selectedId = null;
-      replyToGmailId = null;
-      document.getElementById("inbox-detail").classList.add("hidden");
-      document.getElementById("inbox-detail-empty").classList.remove("hidden");
-      await loadThreads();
-    } catch (e) {
-      showBanner(String(e.message || e));
-    }
+    await deleteInboxThread(selectedId);
   });
+
+  bindInboxListActions();
 
   document.getElementById("btn-analyze-alert").addEventListener("click", async function () {
     if (!selectedId) return;
