@@ -1155,28 +1155,22 @@ def _news_screen_exclude_prefixes_loaded() -> tuple[str, ...]:
 
 
 def _screen_unified_news_candidate(name: str) -> bool:
-    """Realtime'ta yalnızca unifiedScreenName (≈ başlık) olduğundan sezgisel haber adayı."""
-    from backend.collectors.ga4 import _is_news_article_path
+    """Yedek: unifiedScreenName path ise haber path kuralına uyar."""
+    from backend.collectors.ga4 import is_realtime_haber_path
 
     n = (name or "").strip()
-    if len(n) < 10:
-        return False
-    low = n.lower()
-    if low.startswith("/") and _is_news_article_path(n):
-        return True
-    for pre in _news_screen_exclude_prefixes_loaded():
-        if low.startswith(pre):
-            return False
-    return True
+    if n.startswith("/"):
+        return is_realtime_haber_path(n)
+    return False
 
 
 def _news_row_link(site_domain: str, unified: str) -> str:
-    """Yalnızca makale path'i görünürse doğrudan site URL'si; aksi halde boş (harici arama yönlendirmesi yok)."""
-    from backend.collectors.ga4 import _is_news_article_path
+    """Geçerli haber path'i için tam site URL'si."""
+    from backend.collectors.ga4 import is_realtime_haber_path
 
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
     u = (unified or "").strip()
-    if u.startswith("/") and d and _is_news_article_path(u):
+    if u.startswith("/") and d and is_realtime_haber_path(u):
         return "https://" + d + u
     return ""
 
@@ -1190,35 +1184,58 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
+    """Realtime «Haberler»: pagePath üzerinden yalnızca URL'de «haber» geçen kategori/detay sayfaları."""
+    from backend.collectors.ga4 import is_realtime_haber_path
 
-    ``link_url`` yalnızca başlık site içi makale path'i ise doldurulur; aksi halde boştur.
-    """
-    fetch_n = min(250, max(80, int(limit) * 25))
-    base = fetch_realtime_top_pages(
-        property_id,
-        window_minutes=window_minutes,
-        limit=fetch_n,
-        sort_by=sort_by,
-        dimension="unifiedScreenName",
-        compare_previous=False,
-        include_page_path=False,
-        client=client,
-    )
+    fetch_n = min(400, max(120, int(limit) * 40))
+    breakdown = "pagePath+haber_filter"
+    base: dict[str, Any]
+    try:
+        base = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=fetch_n,
+            sort_by=sort_by,
+            dimension="pagePath",
+            compare_previous=True,
+            include_page_path=False,
+            client=client,
+        )
+    except Exception as exc:
+        LOGGER.warning(
+            "Realtime haber pagePath başarısız, unifiedScreenName (path-only) deneniyor: %s",
+            exc,
+        )
+        breakdown = "unifiedScreenName+haber_path_only"
+        base = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=fetch_n,
+            sort_by=sort_by,
+            dimension="unifiedScreenName",
+            compare_previous=True,
+            include_page_path=False,
+            client=client,
+        )
+
     out: list[dict[str, Any]] = []
     for p in base.get("pages") or []:
-        title = str(p.get("page") or "").strip()
-        if not _screen_unified_news_candidate(title):
+        path = str(p.get("page") or "").strip()
+        if breakdown.startswith("pagePath"):
+            if not is_realtime_haber_path(path):
+                continue
+        elif not _screen_unified_news_candidate(path):
             continue
+        link = _news_row_link(site_domain, path)
         out.append(
             {
-                "page": title,
-                "page_path": title if title.startswith("/") else "",
+                "page": path,
+                "page_path": path,
                 "activeUsers": float(p.get("activeUsers") or 0),
                 "screenPageViews": float(p.get("screenPageViews") or 0),
                 "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
                 "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
-                "link_url": _news_row_link(site_domain, title),
+                "link_url": link,
             }
         )
         if len(out) >= max(1, min(int(limit), 250)):
@@ -1231,7 +1248,7 @@ def fetch_realtime_top_news_pages(
         "total_pages": len(out),
         "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
         "api_ms": base.get("api_ms", 0),
-        "breakdown": "unifiedScreenName+news_heuristic",
+        "breakdown": breakdown,
         "comparison_enabled": True,
     }
 

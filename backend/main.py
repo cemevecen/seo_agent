@@ -12145,9 +12145,14 @@ def api_ga4_realtime_top_news(
                                      RealtimeNewsSnapshot.collected_at == prev_time)
                              .all()}
 
+        from backend.collectors.ga4 import is_realtime_haber_path
+
         site_domain_str = (site.domain or "").strip()
         pages = []
         for row in curr_rows:
+            path_key = (row.screen_title or "").strip()
+            if not is_realtime_haber_path(path_key):
+                continue
             prev = prev_map_news.get(row.screen_title)
             pages.append({
                 "page": row.screen_title,

@@ -130,6 +130,27 @@ def _is_news_article_path(path: str) -> bool:
     return _path_contains_news_marker(path)
 
 
+def is_realtime_haber_path(path: str) -> bool:
+    """Realtime «Haberler» sekmesi: path içinde «haber» geçen kategori veya detay URL'leri."""
+    p = (path or "").strip()
+    if not p:
+        return False
+    if "?" in p:
+        p = p.split("?", 1)[0]
+    if not p.startswith("/"):
+        return False
+    low = p.lower()
+    if "haber" not in low:
+        return False
+    if _is_news_detail_path(p):
+        return True
+    segments = [s for s in p.strip("/").split("/") if s]
+    if not segments:
+        return False
+    # Kategori / liste: ...-haberleri, /haber/, /gundem-haberleri vb.
+    return True
+
+
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:
     parts = _exclude_path_substrings()
     expressions: list[FilterExpression] = []
