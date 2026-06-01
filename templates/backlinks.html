@@ -305,6 +305,60 @@
     word-break: break-all;
     font-family: ui-monospace, monospace;
   }
+  .bl-report-type-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .bl-report-type-chip {
+    cursor: pointer;
+    border-radius: 9999px;
+    border: 2px solid rgb(203 213 225);
+    background: rgb(248 250 252);
+    padding: 0.45rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: rgb(51 65 85);
+    transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  }
+  .bl-report-type-chip:hover:not(:disabled) {
+    border-color: rgb(129 140 248);
+    background: rgb(238 242 255);
+  }
+  .bl-report-type-chip[aria-selected="true"] {
+    border-color: rgb(79 70 229);
+    background: rgb(79 70 229);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.35);
+  }
+  .bl-report-type-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  html.dark .bl-report-type-chip {
+    border-color: rgb(71 85 105);
+    background: rgb(15 23 42);
+    color: rgb(226 232 240);
+  }
+  html.dark .bl-report-type-chip:hover:not(:disabled) {
+    border-color: rgb(129 140 248);
+    background: rgb(30 27 75);
+  }
+  html.dark .bl-report-type-chip[aria-selected="true"] {
+    border-color: rgb(129 140 248);
+    background: rgb(99 102 241);
+    color: #fff;
+  }
+  .bl-report-type-chip-sub {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+  .bl-report-type-chip[aria-selected="true"] .bl-report-type-chip-sub {
+    opacity: 0.92;
+  }
 </style>
 <div class="bl-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 px-1 sm:space-y-6 sm:px-0">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
@@ -312,6 +366,39 @@
   </div>
 
   <div id="bl-banner" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Rapor türü</h2>
+        <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Görünüm ve import bu seçime göre ayrılır — tıklayarak değiştirin.</p>
+      </div>
+    </div>
+    <input type="hidden" id="bl-report-type" value="latest_links" />
+    <div id="bl-report-type-wrap" class="bl-report-type-chips mt-3" role="tablist" aria-label="Rapor türü">
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="latest_links" aria-selected="true" title="GSC Latest links CSV">
+        Latest links
+      </button>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="more_sample" aria-selected="false" title="GSC More sample links CSV">
+        More sample
+      </button>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_linking_sites" aria-selected="false" title="GSC Top linking sites CSV">
+        Top linking sites
+      </button>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages" aria-selected="false" title="Search Console Top target pages (dış bağlantılar)">
+        Hedef sayfalar
+        <span class="bl-report-type-chip-sub">dış · GSC Top target pages</span>
+      </button>
+      <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages_internal" aria-selected="false" title="Search Console Top linked pages (iç bağlantılar)">
+        Hedef sayfalar
+        <span class="bl-report-type-chip-sub">iç · GSC Top linked pages</span>
+      </button>
+    </div>
+    <p class="mt-3 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+      <strong>Dış hedef:</strong> Bağlantılar → Top target pages CSV.
+      <strong class="ml-1">İç hedef:</strong> İç bağlantılar → Top linked pages CSV.
+    </p>
+  </div>
 
   <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
     <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -322,16 +409,8 @@
         <option value="{{ s.id }}">{{ s.display_name or s.domain }} ({{ s.domain }})</option>
         {% endfor %}
       </select>
-      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Rapor türü</label>
-      <select id="bl-report-type" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-        <option value="latest_links">Latest links</option>
-        <option value="more_sample">More sample links</option>
-        <option value="top_linking_sites">Top linking sites</option>
-        <option value="top_target_pages">Top target pages (external)</option>
-        <option value="top_target_pages_internal">Top target pages (internal)</option>
-      </select>
-      <p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-        <strong>Dış:</strong> Bağlantılar → Top target pages CSV. <strong>İç:</strong> Bağlantılar → İç bağlantılar → Top linked pages CSV (aynı sütunlar). Özet listesinde dış/iç ayrı gösterilir; iç için GSC import yoksa link satırlarından tahmin edilir.
+      <p class="mt-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+        CSV, seçili <strong>rapor türüne</strong> kaydedilir (üstteki sekmeler).
       </p>
       <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">CSV dosyası</label>
       <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-sm" />
@@ -845,9 +924,12 @@
   function blSetImportUiDisabled(disabled) {
     var btn = document.getElementById("bl-import-btn");
     if (btn) btn.disabled = !!disabled;
-    ["bl-file", "bl-paste", "bl-sheets-url", "bl-site", "bl-report-type"].forEach(function (id) {
+    ["bl-file", "bl-paste", "bl-sheets-url", "bl-site"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = !!disabled;
+    });
+    document.querySelectorAll(".bl-report-type-chip").forEach(function (btn) {
+      btn.disabled = !!disabled;
     });
   }
 
@@ -1611,7 +1693,63 @@
     return parseInt(document.getElementById("bl-site").value, 10);
   }
   function reportType() {
-    return document.getElementById("bl-report-type").value;
+    var el = document.getElementById("bl-report-type");
+    return el ? el.value : "latest_links";
+  }
+
+  function syncBlReportTypeChipsUi(rt) {
+    var value = rt || reportType();
+    var hidden = document.getElementById("bl-report-type");
+    if (hidden) hidden.value = value;
+    document.querySelectorAll(".bl-report-type-chip").forEach(function (btn) {
+      var on = (btn.getAttribute("data-value") || "") === value;
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.tabIndex = on ? 0 : -1;
+    });
+  }
+
+  function setBlReportType(rt, opts) {
+    var next = (rt || "latest_links").trim();
+    if (next === reportType()) {
+      syncBlReportTypeChipsUi(next);
+      return;
+    }
+    syncBlReportTypeChipsUi(next);
+    if (!opts || !opts.skipLoad) {
+      loadDashboard().catch(function (e) {
+        showBanner(String(e.message || e));
+      });
+    }
+  }
+
+  function wireBlReportTypeChips() {
+    var wrap = document.getElementById("bl-report-type-wrap");
+    if (!wrap || wrap.dataset.wired === "1") return;
+    wrap.dataset.wired = "1";
+    wrap.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".bl-report-type-chip");
+      if (!btn || btn.disabled) return;
+      var rt = btn.getAttribute("data-value");
+      if (rt) setBlReportType(rt);
+    });
+    wrap.addEventListener("keydown", function (ev) {
+      if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      var chips = Array.prototype.slice.call(wrap.querySelectorAll(".bl-report-type-chip:not(:disabled)"));
+      if (!chips.length) return;
+      var idx = chips.findIndex(function (c) {
+        return c.getAttribute("aria-selected") === "true";
+      });
+      if (idx < 0) idx = 0;
+      ev.preventDefault();
+      var next = idx + (ev.key === "ArrowRight" ? 1 : -1);
+      if (next < 0) next = chips.length - 1;
+      if (next >= chips.length) next = 0;
+      var rt = chips[next].getAttribute("data-value");
+      if (rt) {
+        chips[next].focus();
+        setBlReportType(rt);
+      }
+    });
   }
 
   function isBlTargetReportType(rt) {
@@ -2358,6 +2496,7 @@
     else if (rt === "top_target_pages") blTopPagesFilter = "external";
     else blTopPagesFilter = "all";
     applyBlReportTypeView(d);
+    syncBlReportTypeChipsUi(d.report_type || reportType());
     renderTopRankings(d.top_rankings || {}, rt);
     document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
     var lostEl = document.getElementById("bl-st-lost");
@@ -2413,9 +2552,8 @@
   document.getElementById("bl-site").addEventListener("change", function () {
     loadDashboard();
   });
-  document.getElementById("bl-report-type").addEventListener("change", function () {
-    loadDashboard();
-  });
+  wireBlReportTypeChips();
+  syncBlReportTypeChipsUi("latest_links");
   var blImportBtn = document.getElementById("bl-import-btn");
   if (blImportBtn) {
   blImportBtn.addEventListener("click", async function () {
