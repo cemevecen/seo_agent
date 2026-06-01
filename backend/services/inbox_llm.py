@@ -200,30 +200,106 @@ def summarize_thread_tr_tr(messages_plain: str) -> str:
     return text
 
 
-def generate_email_from_prompt(prompt: str) -> tuple[str, str]:
-    """Kullanıcının kabaca yazdığı talimatı profesyonel Türkçe e-postaya çevirir.
-    (metin, kullanılan_sağlayıcı) döndürür."""
-    system = (
-        "Sen profesyonel bir Türkçe iş yazışması uzmanısın. "
-        "Kullanıcı sana kaba bir talimat veya özet verecek; sen bunu akıcı, kibar, "
-        "profesyonel bir Türkçe e-posta gövdesine dönüştür. "
-        "Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma. "
-        "Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma. "
-        "Kapanış imzası veya isim/ünvan/şirket/iletişim bilgisi ekleme. "
-        "Sadece e-posta gövdesini yaz, başka açıklama ekleme."
+def inbox_brand_key(route_tag: str | None) -> str:
+    tag = inbox_sync.normalize_inbox_route_tag(route_tag or "")
+    if tag == inbox_sync.INBOX_ROUTE_SINEMALAR:
+        return "sinemalar"
+    return "doviz"
+
+
+def _reply_style_rules() -> str:
+    return (
+        "Biçim: Selamlama 'Merhaba,'; 'Sayın ...' kullanma. "
+        "Kapanış 'İyi günler dileriz,' veya 'Teşekkür ederiz.' / 'Bilginize sunarız.'; 'Saygılarımla' kullanma. "
+        "İmza, isim, ünvan, telefon veya ek iletişim satırı ekleme. "
+        "Yalnızca müşteriye gidecek e-posta gövdesini yaz; açıklama veya meta yorum ekleme.\n"
+        "Operatör talimatı (ör. «konuyu net anlat») stil/yönlendirmedir; talimatı kelimesi kelimesine "
+        "paragrafa çevirme («…anlatılmalıdır» gibi üçüncü şahıs gereklilik cümleleri yazma)."
     )
-    return inbox_plain_text_with_failover(system, prompt.strip())
 
 
-def draft_reply_tr_tr(messages_plain: str, *, brand: str = "döviz.com") -> str:
+def _sinemalar_playbook() -> str:
+    return (
+        "Marka: Sinemalar.com — sinema seans ve içerik bilgisi paylaşan platform; "
+        "hangi yapımın hangi şehir/salonda gösterileceğine karar vermez.\n"
+        "- Gösterim talebi (film/konser/şehir/salon): ilgi için teşekkür; karar yapımcı/dağıtımcı ve "
+        "sinema işletmelerindedir; Sinemalar.com yalnızca mevcut seansları yayımlar; "
+        "talebi doğrudan ilgili sinema salonlarına iletmelerini söyle.\n"
+        "- Teknik sorun: «Yaşadığınız sorun için üzgünüz»; hangi içeriklerde olduğuna örnek; "
+        "ekran görüntüsü; işletim sistemi, tarayıcı sürümü, web mi uygulama mı — hepsini iste.\n"
+        "- Resmi site tarihi ile uyuşmazlık: kurumsal dil; sorun için üzgünüz; örnek içerik + SS iste.\n"
+        "Ton: kibar, net sınır çizen, abartısız vaat yok."
+    )
+
+
+def _doviz_playbook() -> str:
+    return (
+        "Marka: doviz.com — döviz/altın/finans veri uygulaması.\n"
+        "- Ürün/veri talebi: dinle; bazı veriler (ör. dünya katılım altın) üyelik veya API kapsamında "
+        "olabilir; konuyu ilgili iş ortağı/API ekibine ileteceğinizi belirt (İpek Hanım / dünya katılım "
+        "kontağı — doğrudan kişi adı yazma, «ilgili birim» de). Kredi/mevduat karşılaştırma verileri "
+        "enuygunfinans.com üzerinden; repo/mevduat API’de olmayabilir, paylaşılıp paylaşılamayacağı sorulur.\n"
+        "- Teknik sorun: tam olarak ne çalışmıyor (uygulama açılmıyor mu, tek ekran mı, veri mi gelmiyor); "
+        "SS veya ekran kaydı; OS, uygulama sürümü (formda varsa referans ver). "
+        "Ana sayfada ilgili alan varsa belirt; «biz değişiklik yapmadık» deme, nötr kal.\n"
+        "- Canlı yayın/kaçak link şikayeti: kaçak yayınlardan sızıntı olabildiği; yönlendirilen yayıncı "
+        "ve reklamı engellemenin sınırlı yöntem olduğu; reklama tıklamasa bile SS iletebileceği.\n"
+        "- Performans/donma: arka plan altyapı detayı (MySQL vb.) yazma; iyileştirme çalışması sürüyor de; "
+        "kullanıcıya «hâlâ yaşıyor musunuz» diye sorma.\n"
+        "- Hesap/e-posta uyuşmazlığı: güvenlik için doğrulama gerekebileceğini nazikçe belirt.\n"
+        "- KESİNLİKLE support@doviz.com veya +90 telefon ekleme.\n"
+        "İki sorun çözüldüyse bildirirken App Store / Google Play puanı rica edilebilir (kısa, baskıcı değil)."
+    )
+
+
+def _reply_system_prompt(brand: str) -> str:
+    name = "Sinemalar.com" if brand == "sinemalar" else "doviz.com"
+    playbook = _sinemalar_playbook() if brand == "sinemalar" else _doviz_playbook()
+    return (
+        f"Sen {name} müşteri destek temsilcisisin.\n"
+        + _reply_style_rules()
+        + "\n"
+        + playbook
+    )
+
+
+def generate_email_from_instruction(
+    *,
+    instruction: str,
+    thread_blob: str,
+    route_tag: str,
+    subject: str = "",
+) -> tuple[str, str]:
+    """Operatör talimatı + gelen ileti bağlamıyla müşteriye gidecek yanıt gövdesi üretir."""
+    brand = inbox_brand_key(route_tag)
     system = (
-        f"Sen {brand} müşteri iletişim temsilcisisin. Aşağıdaki e-posta zincirine profesyonel, "
-        "kibar ve çözüm odaklı bir Türkçe yanıt taslağı yaz.\n"
-        "Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma.\n"
-        "Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma.\n"
-        "ÖNEMLİ KURAL: KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
-        "Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan; isim/ünvan/şirket/iletişim bilgisi ekleme.\n"
-        "Yalnızca e-posta gövdesini yaz; konu satırı yazma."
+        _reply_system_prompt(brand)
+        + "\nGörev: Aşağıdaki e-posta bağlamındaki GELEN müşteri iletisine yanıt yaz. "
+        "Operatör talimatına uy (ton, netlik, red/rica). Talimatı meta metin olarak yazma."
+    )
+    user = (
+        f"Konu: {(subject or '').strip() or '(belirtilmedi)'}\n\n"
+        f"Operatör talimatı:\n{instruction.strip()}\n\n"
+        f"E-posta bağlamı:\n{_truncate(thread_blob)}"
+    )
+    return inbox_plain_text_with_failover(system, user)
+
+
+def generate_email_from_prompt(prompt: str) -> tuple[str, str]:
+    """Geriye dönük: bağlam yoksa doviz varsayılanı ile üretir."""
+    return generate_email_from_instruction(
+        instruction=prompt,
+        thread_blob="(Seçili konuşma yok — talimatı genel destek yanıtı olarak uygula.)",
+        route_tag=inbox_sync.INBOX_ROUTE_DOVIZ,
+        subject="",
+    )
+
+
+def draft_reply_tr_tr(messages_plain: str, *, route_tag: str | None = None, brand: str | None = None) -> str:
+    b = brand or inbox_brand_key(route_tag)
+    system = (
+        _reply_system_prompt(b)
+        + "\nGörev: Aşağıdaki e-posta zincirine doğrudan yanıt taslağı yaz."
     )
     text, _ = inbox_plain_text_with_failover(system, _truncate(messages_plain))
     return text
@@ -282,19 +358,20 @@ def inbox_plain_text_with_failover(system: str, user: str) -> tuple[str, str]:
     )
 
 
-def _reply_templates_user_prompt(thread_blob: str) -> str:
+def _reply_templates_user_prompt(thread_blob: str, *, route_tag: str | None = None) -> str:
+    brand = inbox_brand_key(route_tag)
+    name = "Sinemalar.com" if brand == "sinemalar" else "doviz.com"
     return (
-        "Görev: Aşağıdaki e-posta zincirinde, === YANITLANACAK İLETİ === bölümündeki müşteri mesajına "
-        "cevap verecek tam 3 farklı Türkçe yanıt taslağı üret.\n\n"
+        f"Görev: Aşağıdaki e-posta zincirinde, === YANITLANACAK İLETİ === bölümündeki müşteri mesajına "
+        f"cevap verecek tam 3 farklı Türkçe yanıt taslağı üret ({name}).\n\n"
         "Kurallar:\n"
         "- Yalnızca tek bir geçerli JSON nesnesi döndür; kod bloğu veya açıklama yazma.\n"
         '- Şekil: {"templates":[{"label":"kısa etiket","body":"..."},{"label":"...","body":"..."},{"label":"...","body":"..."}]}\n'
-        "- döviz.com müşteri desteği tonu; gereksiz vaat verme.\n"
-        "- Selamlama olarak 'Merhaba,' kullan; 'Sayın ...' kullanma.\n"
-        "- Kapanış olarak 'İyi günler dileriz,' kullan; 'Saygılarımla' kullanma.\n"
-        "- KESİNLİKLE 'support@doviz.com' e-posta adresini veya telefon numarasını (+90 212...) metne ekleme.\n"
-        "- Kapanış imzası olarak sadece 'Döviz Destek Ekibi' veya 'Döviz Müşteri Hizmetleri' kullan; isim/ünvan/şirket/iletişim bilgisi ekleme.\n\n"
-        "E-posta bağlamı:\n"
+        "- Etiketler: örn. «Dengeli», «Kısa», «Resmi».\n"
+        + _reply_style_rules()
+        + "\n"
+        + (_sinemalar_playbook() if brand == "sinemalar" else _doviz_playbook())
+        + "\n\nE-posta bağlamı:\n"
         + _truncate(thread_blob)
     )
 
@@ -326,7 +403,10 @@ def _coerce_three_templates(data: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def reply_templates_three_tr_tr(
-    thread_blob: str, *, preferred_provider: str | None = None
+    thread_blob: str,
+    *,
+    preferred_provider: str | None = None,
+    route_tag: str | None = None,
 ) -> tuple[list[dict[str, str]], str]:
     """Üç yanıt şablonu döndürür; (şablonlar, kullanılan_sağlayıcı)."""
     chain = _inbox_llm_chain()
@@ -339,7 +419,7 @@ def reply_templates_three_tr_tr(
             "Yanıt şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY tanımlanmalı "
             "(veya seçilen sağlayıcı yapılandırılmamış)."
         )
-    prompt = _reply_templates_user_prompt(thread_blob)
+    prompt = _reply_templates_user_prompt(thread_blob, route_tag=route_tag)
     last_err: Exception | None = None
     from backend.services.llm_json_providers import _llm_json
 

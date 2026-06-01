@@ -301,7 +301,7 @@
           <textarea
             id="inbox-freewrite-prompt"
             rows="3"
-            placeholder="Kabaca anlat: ne yazmak istiyorsun? AI profesyonel e-postaya çevirir."
+            placeholder="Örn: konuyu net anlat; ortaklık teklifini nazikçe reddet; teknik sorun için SS ve cihaz bilgisi iste"
             class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder-slate-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
           ></textarea>
           <div class="flex items-center gap-2">
@@ -1446,6 +1446,12 @@
 
   window.__pcInboxJfetch = jfetch;
   window.__pcInboxEnsureActionAuth = _ensureInboxActionAuth;
+  window.__pcInboxFreewriteContext = function () {
+    return {
+      thread_id: selectedId,
+      focus_gmail_message_id: lastInboundGmailId(currentMessages),
+    };
+  };
 })();
 
 (function () {
@@ -1458,6 +1464,11 @@
   btn.addEventListener('click', async function () {
     var txt = (prompt.value || '').trim();
     if (!txt) { prompt.focus(); return; }
+    var ctx = window.__pcInboxFreewriteContext ? window.__pcInboxFreewriteContext() : {};
+    if (!ctx.thread_id) {
+      status.textContent = '✗ Önce soldan bir konuşma seçin.';
+      return;
+    }
     var jf = window.__pcInboxJfetch;
     var ensureAuth = window.__pcInboxEnsureActionAuth;
     if (!jf) {
@@ -1471,7 +1482,11 @@
       var d = await jf('/api/inbox/generate-from-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: txt }),
+        body: JSON.stringify({
+          prompt: txt,
+          thread_id: ctx.thread_id,
+          focus_gmail_message_id: ctx.focus_gmail_message_id || null,
+        }),
       });
       if (body) {
         body.value = d.text || '';

@@ -633,7 +633,7 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
         parts.append(f"---\nKimden: {m.from_addr}\nKonu: {m.subject}\n{body}\n")
     blob = "\n".join(parts)
     try:
-        draft = inbox_llm.draft_reply_tr_tr(blob)
+        draft = inbox_llm.draft_reply_tr_tr(blob, route_tag=t.route_tag)
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("inbox draft failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -644,8 +644,8 @@ def inbox_thread_draft(request: Request, thread_id: int, db: Session = Depends(g
 
 @router.post("/generate-from-prompt")
 @limiter.limit("30/minute")
-async def inbox_generate_from_prompt(request: Request):
-    """Kabaca yazılmış talimatı profesyonel Türkçe e-postaya çevirir."""
+async def inbox_generate_from_prompt(request: Request, db: Session = Depends(get_db)):
+    """Operatör talimatı + seçili konuşma bağlamıyla müşteriye gidecek yanıt gövdesi üretir."""
     _require_inbox_action_auth(request)
     body = await request.json()
     prompt = (body.get("prompt") or "").strip()
@@ -653,8 +653,36 @@ async def inbox_generate_from_prompt(request: Request):
         raise HTTPException(status_code=422, detail="prompt boş olamaz.")
     if len(prompt) > 2000:
         raise HTTPException(status_code=422, detail="prompt en fazla 2000 karakter olabilir.")
+    thread_id_raw = body.get("thread_id")
+    focus_gmail_message_id = (body.get("focus_gmail_message_id") or "").strip() or None
+    if thread_id_raw is None:
+        raise HTTPException(status_code=422, detail="thread_id gerekli — önce bir konuşma seçin.")
     try:
-        text, provider = inbox_llm.generate_email_from_prompt(prompt)
+        thread_id = int(thread_id_raw)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Geçersiz thread_id.") from exc
+    t = _thread_or_404(db, thread_id)
+    if _is_alert_route(t.route_tag):
+        raise HTTPException(
+            status_code=400,
+            detail="firebase ve nstat iletilerinde «AI ile yaz» kullanılamaz.",
+        )
+    msgs = (
+        db.query(SupportInboxMessage)
+        .filter(SupportInboxMessage.thread_id == t.id)
+        .order_by(SupportInboxMessage.internal_ms.asc())
+        .all()
+    )
+    focus = _resolve_inbound_focus(msgs, focus_gmail_message_id)
+    blob = _thread_blob_for_reply_templates(msgs, focus)
+    subject = (focus.subject if focus else None) or t.subject or ""
+    try:
+        text, provider = inbox_llm.generate_email_from_instruction(
+            instruction=prompt,
+            thread_blob=blob,
+            route_tag=t.route_tag,
+            subject=subject,
+        )
         return {"text": text, "provider": provider}
     except Exception as exc:
         LOGGER.exception("inbox generate-from-prompt failed: %s", exc)
@@ -704,7 +732,9 @@ async def inbox_thread_reply_templates(
     focus = _resolve_inbound_focus(msgs, focus_gmail_message_id)
     blob = _thread_blob_for_reply_templates(msgs, focus)
     try:
-        templates, used = inbox_llm.reply_templates_three_tr_tr(blob, preferred_provider=pref)
+        templates, used = inbox_llm.reply_templates_three_tr_tr(
+            blob, preferred_provider=pref, route_tag=t.route_tag
+        )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("inbox reply-templates failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
