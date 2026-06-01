@@ -578,6 +578,30 @@
     #header-page-refresh {
       flex: 0 0 auto;
       touch-action: manipulation;
+      box-sizing: border-box;
+      padding: 0;
+      line-height: 0;
+    }
+    #header-page-refresh:not(.hidden) {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #header-page-refresh svg {
+      display: block;
+      flex-shrink: 0;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+    @media (min-width: 640px) {
+      #header-page-refresh svg {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
+    .header-top-actions {
+      flex: 0 0 auto;
+      align-items: center;
     }
     #pc-ptr-indicator {
       position: fixed;
@@ -773,11 +797,11 @@
               <button
                 type="button"
                 id="header-page-refresh"
-                class="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300/90 bg-white/90 text-slate-700 shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-800/90 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                class="hidden inline-flex h-9 w-9 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-full border border-slate-300/90 bg-white/90 p-0 text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 dark:border-zinc-600 dark:bg-zinc-800/90 dark:text-zinc-200 dark:hover:bg-zinc-700 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-0 lg:h-7 lg:w-7"
                 title="Sayfayı yenile"
                 aria-label="Sayfayı yenile"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                 </svg>
               </button>
