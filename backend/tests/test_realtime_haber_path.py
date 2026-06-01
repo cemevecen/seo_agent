@@ -29,9 +29,32 @@ def test_doviz_haber_host_path():
         "/gundem-haberleri/mayis-ayi-aclik-ve-yoksulluk-siniri-rakamlari-aciklandi/877640",
     )
     assert is_doviz_realtime_haber_row("haber.doviz.com", "/")
+    assert not is_doviz_realtime_haber_row("www.doviz.com", "/")
     assert realtime_haber_row_allowed(
         "www.doviz.com",
         None,
         "/gundem-haberleri/google-dan-dogaya-mudahale/877616",
     )
+    assert realtime_haber_row_allowed("www.doviz.com", None, "/dunya-haberleri")
     assert not realtime_haber_row_allowed("www.doviz.com", None, "/altin-fiyatlari")
+
+
+def test_doviz_haber_url_builder():
+    from backend.collectors.ga4 import doviz_haber_url
+
+    assert (
+        doviz_haber_url("/dunya-haberleri", "www.doviz.com")
+        == "https://haber.doviz.com/dunya-haberleri"
+    )
+    assert (
+        doviz_haber_url("/gundem-haberleri/x/877640", None)
+        == "https://haber.doviz.com/gundem-haberleri/x/877640"
+    )
+
+
+def test_normalize_news_title_key():
+    from backend.collectors.ga4 import _normalize_news_title_key
+
+    assert _normalize_news_title_key(
+        "Mayıs ayı açlık ve yoksulluk sınırı rakamları açıklandı - Döviz.com"
+    ) == _normalize_news_title_key("mayıs ayı açlık ve yoksulluk sınırı rakamları açıklandı")

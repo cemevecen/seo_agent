@@ -163,27 +163,33 @@ def is_realtime_haber_path(path: str) -> bool:
 
 
 def is_doviz_realtime_haber_row(host: str | None, path: str | None) -> bool:
-    """Kanonik host haber.doviz.com olan kategori kökü / *-haberleri / detay."""
-    from backend.services.ga4_page_urls import (
-        _doviz_rewrite_host,
-        _is_ga4_placeholder_host,
-        _is_ga4_placeholder_path,
-    )
+    """doviz: path'te «haber» geçen kategori/detay; haber.doviz.com kökü («/»)."""
+    from backend.services.ga4_page_urls import _is_ga4_placeholder_path
 
     p = normalize_realtime_page_path(path)
     if not p or _is_ga4_placeholder_path(p):
         return False
-    h = (host or "").strip().lower()
-    if not h or _is_ga4_placeholder_host(h):
-        h = "www.doviz.com"
-    if _doviz_rewrite_host(h, p) != "haber.doviz.com":
-        return False
     pl = p.lower().rstrip("/") or "/"
     if pl == "/":
-        return True
-    if _is_news_detail_path(p):
-        return True
+        return (host or "").strip().lower() == "haber.doviz.com"
     return "haber" in pl
+
+
+def doviz_haber_url(path: str | None, host: str | None = None) -> str:
+    """doviz haber satırı için tam URL — haber path'leri her zaman haber.doviz.com altında."""
+    from urllib.parse import quote
+
+    from backend.services.ga4_page_urls import _is_ga4_placeholder_host
+
+    p = normalize_realtime_page_path(path)
+    if not p:
+        return ""
+    h = (host or "").strip().lower()
+    if not h or _is_ga4_placeholder_host(h) or "doviz.com" not in h:
+        h = "haber.doviz.com"
+    if "haber" in p.lower() or p == "/":
+        h = "haber.doviz.com"
+    return "https://" + h + quote(p, safe="/-._~%?&=#@!$()*+,;:")
 
 
 def realtime_haber_row_allowed(site_domain: str, host: str | None, raw: str) -> bool:
@@ -241,7 +247,7 @@ def fetch_ga4_haber_pages_intraday(
             continue
         au = float(last_map.get(key, 0.0))
         au_prev = float(prev_map.get(key, 0.0))
-        link = ga4_canonical_page_url(host or "www.doviz.com", path)
+        link = doviz_haber_url(path, host) if is_doviz_site_domain(site_domain) else ga4_canonical_page_url(host or None, path)
         if not link:
             continue
         rows.append(
@@ -257,6 +263,70 @@ def fetch_ga4_haber_pages_intraday(
         )
     rows.sort(key=lambda r: r.get("activeUsers") or 0, reverse=True)
     return rows[: max(1, min(int(limit), 50))]
+
+
+def _normalize_news_title_key(title: str) -> str:
+    """Başlık eşleşmesi için: küçük harf, site eki at, boşluk sıkıştır."""
+    t = (title or "").strip().lower()
+    for sep in (" - ", " | ", " – ", " — "):
+        idx = t.find(sep)
+        if idx > 10:
+            t = t[:idx]
+            break
+    return " ".join(t.split())
+
+
+def fetch_ga4_haber_title_url_map(
+    property_id: str,
+    *,
+    site_domain: str = "",
+    limit: int = 250,
+) -> dict[str, dict[str, str]]:
+    """Bugünün pageTitle → haber URL eşlemesi (Realtime başlıklarına link basmak için)."""
+    from backend.services.timezone_utils import report_calendar_today
+
+    today = report_calendar_today().isoformat()
+    client = _client()
+    lim = max(50, min(int(limit), 250))
+    req = RunReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[
+            Dimension(name="pageTitle"),
+            Dimension(name="hostName"),
+            Dimension(name="pagePath"),
+        ],
+        metrics=[Metric(name="screenPageViews")],
+        date_ranges=[DateRange(start_date=today, end_date=today)],
+        limit=lim,
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True)],
+    )
+    response = client.run_report(req)
+    out: dict[str, dict[str, str]] = {}
+    for row in response.rows or []:
+        if len(row.dimension_values) < 3:
+            continue
+        title = str(row.dimension_values[0].value or "").strip()
+        host = str(row.dimension_values[1].value or "").strip()
+        path = str(row.dimension_values[2].value or "").strip()
+        if not title or not path:
+            continue
+        if not realtime_haber_row_allowed(site_domain, host or None, path):
+            continue
+        url = (
+            doviz_haber_url(path, host)
+            if is_doviz_site_domain(site_domain)
+            else ga4_canonical_page_url(host or None, path)
+        )
+        if not url:
+            continue
+        key = _normalize_news_title_key(title)
+        if key and key not in out:
+            out[key] = {
+                "url": url,
+                "path": normalize_realtime_page_path(path),
+                "title": title,
+            }
+    return out
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:

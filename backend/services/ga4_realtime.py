@@ -1171,8 +1171,10 @@ def _screen_unified_news_candidate(name: str) -> bool:
 
 
 def _news_row_link(site_domain: str, raw: str, *, host: str = "") -> str:
-    """Haberler sekmesi: geçerli haber path → tam URL (doviz: haber.doviz.com kanonik)."""
+    """Haberler sekmesi: geçerli haber path → tam URL (doviz: haber.doviz.com)."""
     from backend.collectors.ga4 import (
+        doviz_haber_url,
+        is_doviz_site_domain,
         normalize_realtime_page_path,
         realtime_haber_row_allowed,
     )
@@ -1181,8 +1183,9 @@ def _news_row_link(site_domain: str, raw: str, *, host: str = "") -> str:
     p = normalize_realtime_page_path(raw)
     if not p or not realtime_haber_row_allowed(site_domain, host or None, p):
         return ""
-    h = (host or "").strip() or "www.doviz.com"
-    url = ga4_canonical_page_url(h, p)
+    if is_doviz_site_domain(site_domain):
+        return doviz_haber_url(p, host)
+    url = ga4_canonical_page_url((host or "").strip() or None, p)
     if url:
         return url
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
@@ -1262,152 +1265,102 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: yalnızca haber kategori/detay path'leri (Sayfalar API'sine dokunmaz)."""
+    """Realtime «Haberler»: canlı başlık sıralaması + bugünün haber URL eşlemesi.
+
+    GA4 Realtime şemasında pagePath/hostName geçerli boyut değil; web profilinde yalnızca
+    unifiedScreenName (≈ sayfa başlığı) döner. Bu yüzden canlı başlıkları, bugünün
+    RunReport (pageTitle→haber URL) eşlemesiyle birleştirip yalnızca haber satırlarını döneriz.
+    """
     from backend.collectors.ga4 import (
+        _normalize_news_title_key,
+        fetch_ga4_haber_pages_intraday,
+        fetch_ga4_haber_title_url_map,
+        is_doviz_site_domain,
         normalize_realtime_page_path,
         realtime_haber_row_allowed,
     )
 
     fetch_n = min(400, max(120, int(limit) * 40))
+    cap = max(1, min(int(limit), 250))
     out: list[dict[str, Any]] = []
-    breakdown = "pagePath+haber"
+    breakdown = "unifiedScreenName+title_url_map"
     base: dict[str, Any] = {
         "window_minutes": window_minutes,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "api_ms": 0,
     }
 
-    def _consume_rows(rows: list[dict[str, Any]], *, with_host: bool) -> None:
-        nonlocal out
-        for p in rows:
-            host = str(p.get("host") or "").strip() if with_host else ""
-            path = normalize_realtime_page_path(str(p.get("page") or ""))
-            if not realtime_haber_row_allowed(site_domain, host or None, path):
-                continue
-            link = _news_row_link(site_domain, path, host=host)
-            if not link:
-                continue
-            out.append(
-                {
-                    "page": path,
-                    "page_path": path,
-                    "activeUsers": float(p.get("activeUsers") or 0),
-                    "screenPageViews": float(p.get("screenPageViews") or 0),
-                    "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
-                    "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
-                    "link_url": link,
-                }
+    # 1) Canlı başlık sıralaması (unifiedScreenName — Realtime'da çalışan tek web boyutu)
+    realtime_pages: list[dict[str, Any]] = []
+    for compare in (True, False):
+        try:
+            base = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                dimension="unifiedScreenName",
+                compare_previous=compare,
+                include_page_path=False,
+                client=client,
             )
-            if len(out) >= max(1, min(int(limit), 250)):
-                return
+            realtime_pages = list(base.get("pages") or [])
+            if realtime_pages:
+                break
+        except Exception as exc:
+            LOGGER.debug("Realtime haber başlık çekimi (compare=%s) atlandı: %s", compare, exc)
 
+    # 2) Bugünün başlık → haber URL eşlemesi
+    title_map: dict[str, dict[str, str]] = {}
     try:
-        host_rows = _fetch_realtime_host_path_rows(
-            property_id,
-            window_minutes=window_minutes,
-            fetch_n=fetch_n,
-            sort_by=sort_by,
-            client=client,
+        title_map = fetch_ga4_haber_title_url_map(
+            property_id, site_domain=site_domain, limit=250
         )
-        if host_rows:
-            breakdown = "hostName+pagePath+haber"
-            _consume_rows(host_rows, with_host=True)
     except Exception as exc:
-        LOGGER.debug("Realtime haber hostName+pagePath atlandı: %s", exc)
+        LOGGER.warning("Haber başlık→URL eşlemesi başarısız: %s", exc)
 
-    if not out:
-        for compare in (True, False):
-            try:
-                base = fetch_realtime_top_pages(
-                    property_id,
-                    window_minutes=window_minutes,
-                    limit=fetch_n,
-                    sort_by=sort_by,
-                    dimension="pagePath",
-                    compare_previous=compare,
-                    include_page_path=False,
-                    client=client,
-                )
-                breakdown = "pagePath+haber"
-                _consume_rows(list(base.get("pages") or []), with_host=False)
-                if out:
+    # 3) Canlı başlıkları haber URL'leriyle eşle
+    if realtime_pages and title_map:
+        for p in realtime_pages:
+            title = str(p.get("page") or "").strip()
+            if not title or title.startswith("/"):
+                # Path geldiyse doğrudan haber filtresinden geçir
+                path = normalize_realtime_page_path(title)
+                if path and realtime_haber_row_allowed(site_domain, None, path):
+                    link = _news_row_link(site_domain, path)
+                    if link:
+                        out.append(_news_out_row(p, title or path, path, link))
+                if len(out) >= cap:
                     break
-            except Exception as exc:
-                LOGGER.debug("Realtime haber pagePath (compare=%s) atlandı: %s", compare, exc)
+                continue
+            hit = title_map.get(_normalize_news_title_key(title))
+            if not hit:
+                continue
+            out.append(_news_out_row(p, title, hit.get("path") or "", hit.get("url") or ""))
+            if len(out) >= cap:
+                break
 
+    # 4) Eşleşme yoksa: bugünün haber sayfaları (RunReport) doğrudan listele
     if not out:
-        for compare in (True, False):
-            try:
-                base = fetch_realtime_top_pages(
-                    property_id,
-                    window_minutes=window_minutes,
-                    limit=fetch_n,
-                    sort_by=sort_by,
-                    dimension="unifiedScreenName",
-                    compare_previous=compare,
-                    include_page_path=True,
-                    client=client,
-                )
-                breakdown = "unifiedScreenName+pagePath+haber"
-                for p in base.get("pages") or []:
-                    paths: list[str] = []
-                    for raw in p.get("page_paths") or []:
-                        if raw:
-                            paths.append(str(raw))
-                    page_val = str(p.get("page") or "").strip()
-                    if page_val.startswith("/"):
-                        paths.append(page_val)
-                    seen: set[str] = set()
-                    for raw_path in paths:
-                        path = normalize_realtime_page_path(raw_path)
-                        if not path or path in seen:
-                            continue
-                        seen.add(path)
-                        row = dict(p)
-                        row["page"] = path
-                        _consume_rows([row], with_host=False)
-                        if len(out) >= max(1, min(int(limit), 250)):
-                            break
-                    if len(out) >= max(1, min(int(limit), 250)):
-                        break
-                if out:
-                    break
-            except Exception as exc:
-                LOGGER.debug(
-                    "Realtime haber unifiedScreenName+pagePath (compare=%s) atlandı: %s",
-                    compare,
-                    exc,
-                )
-
-    if not out:
-        from backend.collectors.ga4 import fetch_ga4_haber_pages_intraday, is_doviz_site_domain
-
-        if is_doviz_site_domain(site_domain):
-            try:
-                intraday = fetch_ga4_haber_pages_intraday(
-                    property_id,
-                    site_domain=site_domain,
-                    limit=limit,
-                )
+        try:
+            intraday = fetch_ga4_haber_pages_intraday(
+                property_id, site_domain=site_domain, limit=limit
+            )
+            if intraday:
                 breakdown = "runReportToday+haber"
                 for row in intraday:
                     out.append(
-                        {
-                            "page": row["page"],
-                            "page_path": row["page"],
-                            "activeUsers": float(row.get("activeUsers") or 0),
-                            "screenPageViews": float(row.get("screenPageViews") or 0),
-                            "activeUsers_previous": float(row.get("activeUsers_previous") or 0),
-                            "screenPageViews_previous": float(
-                                row.get("screenPageViews_previous") or 0
-                            ),
-                            "link_url": str(row.get("link_url") or ""),
-                        }
+                        _news_out_row(
+                            row,
+                            row.get("page") or "",
+                            str(row.get("page") or ""),
+                            str(row.get("link_url") or ""),
+                        )
                     )
-                    if len(out) >= max(1, min(int(limit), 250)):
+                    if len(out) >= cap:
                         break
-            except Exception as exc:
-                LOGGER.warning("Realtime haber RunReport (bugün) yedeği başarısız: %s", exc)
+        except Exception as exc:
+            LOGGER.warning("Realtime haber RunReport (bugün) yedeği başarısız: %s", exc)
 
     return {
         "property_id": property_id,
@@ -1419,6 +1372,18 @@ def fetch_realtime_top_news_pages(
         "breakdown": breakdown,
         "comparison_enabled": True,
         "source": "live" if out else "empty",
+    }
+
+
+def _news_out_row(src: dict[str, Any], page: str, path: str, link: str) -> dict[str, Any]:
+    return {
+        "page": page,
+        "page_path": path,
+        "activeUsers": float(src.get("activeUsers") or 0),
+        "screenPageViews": float(src.get("screenPageViews") or 0),
+        "activeUsers_previous": float(src.get("activeUsers_previous") or 0),
+        "screenPageViews_previous": float(src.get("screenPageViews_previous") or 0),
+        "link_url": link,
     }
 
 
