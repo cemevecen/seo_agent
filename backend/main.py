@@ -12331,10 +12331,25 @@ def backlinks_page(request: Request):
             for s in db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.display_name.asc()).all()
             if s.id not in external_ids
         ]
+    default_site_id: int | None = None
+    if sites:
+        for s in sites:
+            blob = f"{(s.domain or '')} {(s.display_name or '')}".lower()
+            if "doviz" in blob:
+                default_site_id = int(s.id)
+                break
+        if default_site_id is None:
+            default_site_id = int(sites[0].id)
+        sites = sorted(sites, key=lambda s: (0 if s.id == default_site_id else 1, (s.display_name or s.domain or "").lower()))
     return templates.TemplateResponse(
         request,
         "backlinks.html",
-        context={"request": request, "sites": sites, "site_name": "Backlinks"},
+        context={
+            "request": request,
+            "sites": sites,
+            "default_site_id": default_site_id,
+            "site_name": "Backlinks",
+        },
     )
 
 
