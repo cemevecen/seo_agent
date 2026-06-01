@@ -1,0 +1,18 @@
+---
+description: Harici (ExternalSite) siteleri yeni menü ve planlara dahil etme
+alwaysApply: true
+---
+
+# Harici siteler — varsayılan hariç
+
+`ExternalSite` ile işaretlenen siteler (ör. canlıdöviz) **özel istek olmadan** yeni sayfa menüleri, site seçicileri veya planlara **dahil edilmez**.
+
+## Uygulama
+
+- Site listesi: `external_ids = _external_site_ids(db)` (`backend/main.py`) veya `ExternalSite` sorgusu; `if site.id not in external_ids`.
+- Sidebar ile aynı mantık: `get_sidebar_sites()` zaten harici siteleri atlar.
+- API: harici `site_id` için 403 veya listede göstermeme.
+
+## İstisna
+
+Kullanıcı açıkça harici site / external explorer için özellik isterse o zaman dahil et.

@@ -615,6 +615,17 @@ jinja_env.filters["ai_brief_html_paragraphs"] = _ai_brief_html_paragraphs
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
+# Starlette varsayılan multipart parça limiti 1MB; büyük GSC CSV importları için artır.
+try:
+    from starlette.formparsers import MultiPartParser
+
+    _MULTIPART_MAX_BYTES = 20 * 1024 * 1024
+    MultiPartParser.max_part_size = _MULTIPART_MAX_BYTES
+    if hasattr(MultiPartParser, "max_file_size"):
+        MultiPartParser.max_file_size = _MULTIPART_MAX_BYTES
+except ImportError:
+    pass
+
 
 @app.get("/api/admin/omdb-test")
 def admin_omdb_test():
@@ -12301,7 +12312,12 @@ def settings_alert_thresholds(request: Request):
 @app.get("/backlinks")
 def backlinks_page(request: Request):
     with SessionLocal() as db:
-        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.display_name.asc()).all()
+        external_ids = _external_site_ids(db)
+        sites = [
+            s
+            for s in db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.display_name.asc()).all()
+            if s.id not in external_ids
+        ]
     return templates.TemplateResponse(
         request,
         "backlinks.html",

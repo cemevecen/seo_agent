@@ -4,9 +4,14 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
     <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Backlinks</h1>
     <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-      Search Console → Links ekranından indirdiğiniz CSV’yi (Latest links, More sample, Top linking sites) yükleyin.
-      Sistem snapshot saklar, domain bazında spam risk skoru üretir ve önceki import ile fark çıkarır.
+      <strong>Search Console → Bağlantılar</strong> ekranından ilgili raporu indirin (Latest links / More sample / Top linking sites),
+      buraya CSV olarak yükleyin veya yapıştırın. Her import bir <strong>snapshot</strong> oluşturur; domain bazında risk skoru,
+      önerilen aksiyon (ignore · monitor · review · disavow) ve bir önceki import ile <strong>yeni / kaybolan domain</strong> farkı hesaplanır.
     </p>
+    <ul class="mt-2 max-w-3xl list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
+      <li>Büyük dosyalar tarayıcıda metin olarak okunup JSON ile gönderilir (1MB multipart sınırı aşılmaz).</li>
+      <li>Google Sheets: normal paylaşım linki yeterli; özel sayfada «Bağlantısı olan herkes görüntüleyebilir» veya GA4 service account ile paylaşım gerekir.</li>
+    </ul>
   </div>
 
   <div id="bl-banner" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
@@ -30,8 +35,9 @@
       <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-sm" />
       <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">veya CSV yapıştır</label>
       <textarea id="bl-paste" rows="5" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="Bağlantı verilen sayfa, Son tarama…"></textarea>
-      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Google Sheets CSV export URL (opsiyonel)</label>
-      <input id="bl-sheets-url" type="url" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" />
+      <label class="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Google Sheets URL (opsiyonel)</label>
+      <input id="bl-sheets-url" type="url" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" placeholder="https://docs.google.com/spreadsheets/d/…/edit#gid=0" />
+      <p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">Düzenleme linki yeterli. 401 alırsanız: Dosya → Paylaş → bağlantıyla görüntüleme veya tabloyu GA4 service account e-postasına açın.</p>
       <button type="button" id="bl-import-btn" class="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">Import et</button>
       <p id="bl-import-status" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
     </div>
@@ -57,13 +63,16 @@
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Aksiyon: ignore · monitor · review · disavow — önerilen skor + operatör override.</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <strong>Risk</strong> 0–100 (yüksek = şüpheli). <strong>Öneri</strong> otomatik; <strong>Aksiyon</strong> sizin kalıcı seçiminiz (disavow.txt’ye yansır).
+        </p>
         <div class="mt-3 max-h-[60vh] overflow-auto">
-          <table class="w-full min-w-[640px] text-left text-xs">
+          <table class="w-full min-w-[720px] text-left text-xs">
             <thead class="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
                 <th class="px-2 py-2">Domain</th>
-                <th class="px-2 py-2">Link</th>
+                <th class="px-2 py-2">Örnek URL’ler (kaynak → hedef)</th>
+                <th class="px-2 py-2">Adet</th>
                 <th class="px-2 py-2">Risk</th>
                 <th class="px-2 py-2">Öneri</th>
                 <th class="px-2 py-2">Aksiyon</th>
@@ -83,6 +92,60 @@
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
+  }
+  function linkLabel(url) {
+    var u = String(url || "").trim();
+    if (!u) return "";
+    try {
+      var p = new URL(u);
+      var path = p.pathname || "/";
+      if (path.length > 42) path = path.slice(0, 39) + "…";
+      var q = p.search ? "?" : "";
+      if (q && (p.search || "").length > 20) q = "?…";
+      else if (p.search) q = p.search;
+      return p.hostname + path + (q === "?" ? "" : q);
+    } catch (e) {
+      return u.length > 56 ? u.slice(0, 53) + "…" : u;
+    }
+  }
+  function renderSampleLinks(row) {
+    var links = row.sample_links || [];
+    if (!links.length && row.sample_urls && row.sample_urls.length) {
+      links = row.sample_urls.map(function (u) {
+        return { source_url: u, target_url: "", anchor_text: "" };
+      });
+    }
+    if (!links.length) return '<span class="text-slate-400">—</span>';
+    return links
+      .map(function (ln) {
+        var src = ln.source_url || "";
+        var tgt = ln.target_url || "";
+        var anc = (ln.anchor_text || "").trim();
+        var block =
+          '<div class="mb-1.5 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">' +
+          '<a class="break-all font-medium text-indigo-700 underline dark:text-indigo-300" href="' +
+          esc(src) +
+          '" target="_blank" rel="noopener" title="' +
+          esc(src) +
+          '">' +
+          esc(linkLabel(src) || src) +
+          "</a>";
+        if (tgt) {
+          block +=
+            '<div class="mt-0.5 text-[10px] text-slate-500">→ <a class="text-slate-700 underline dark:text-slate-300" href="' +
+            esc(tgt) +
+            '" target="_blank" rel="noopener" title="' +
+            esc(tgt) +
+            '">' +
+            esc(linkLabel(tgt) || tgt) +
+            "</a></div>";
+        }
+        if (anc) {
+          block += '<div class="mt-0.5 text-[10px] italic text-slate-500">«' + esc(anc) + "»</div>";
+        }
+        return block + "</div>";
+      })
+      .join("");
   }
   function showBanner(msg) {
     var el = document.getElementById("bl-banner");
@@ -139,35 +202,32 @@
     var domains = d.domains || [];
     if (!domains.length) {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
+        '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Import sonrası domain listesi burada görünür.</td></tr>';
       return;
     }
     tbody.innerHTML = domains
       .map(function (row) {
         var flags = (row.risk_flags || []).join(", ");
-        var samples = (row.sample_urls || [])
-          .map(function (u) {
-            return '<a class="text-indigo-600 dark:text-indigo-300" href="' + esc(u) + '" target="_blank" rel="noopener">örnek</a>';
-          })
-          .join(" ");
         var cur = row.operator_action || row.effective_action || row.recommended_action || "monitor";
         return (
           "<tr>" +
-          '<td class="px-2 py-2 font-mono text-[11px]">' +
+          '<td class="px-2 py-2 font-mono text-[11px] align-top">' +
           esc(row.domain) +
-          (flags ? '<div class="text-[10px] text-slate-500">' + esc(flags) + "</div>" : "") +
-          (samples ? '<div class="mt-1">' + samples + "</div>" : "") +
+          (flags ? '<div class="mt-1 text-[10px] font-sans text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
           "</td>" +
-          '<td class="px-2 py-2 tabular-nums">' +
+          '<td class="max-w-md px-2 py-2 align-top">' +
+          renderSampleLinks(row) +
+          "</td>" +
+          '<td class="px-2 py-2 tabular-nums align-top">' +
           esc(row.link_count) +
           "</td>" +
-          '<td class="px-2 py-2 tabular-nums font-bold">' +
+          '<td class="px-2 py-2 tabular-nums font-bold align-top">' +
           esc(row.max_risk_score) +
           "</td>" +
-          '<td class="px-2 py-2">' +
+          '<td class="px-2 py-2 align-top">' +
           esc(row.recommended_action) +
           "</td>" +
-          '<td class="px-2 py-2"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
+          '<td class="px-2 py-2 align-top"><select class="bl-action-select rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-950" data-domain="' +
           esc(row.domain) +
           '">' +
           ["ignore", "monitor", "review", "disavow"]
@@ -214,16 +274,35 @@
     btn.disabled = true;
     st.textContent = "Import ediliyor…";
     try {
-      var fd = new FormData();
-      fd.append("site_id", String(siteId()));
-      fd.append("report_type", reportType());
       var f = document.getElementById("bl-file").files[0];
       var paste = document.getElementById("bl-paste").value.trim();
       var sheets = document.getElementById("bl-sheets-url").value.trim();
-      if (f) fd.append("file", f);
-      if (paste) fd.append("csv_text", paste);
-      if (sheets) fd.append("sheets_url", sheets);
-      var r = await fetch("/api/backlinks/import", { method: "POST", credentials: "same-origin", body: fd });
+      var payload = {
+        site_id: siteId(),
+        report_type: reportType(),
+        csv_text: null,
+        sheets_url: null,
+        source_filename: null,
+      };
+      if (f) {
+        var fileText = await f.text();
+        if (fileText.length > 15_000_000) throw new Error("Dosya çok büyük (max ~15MB).");
+        payload.csv_text = fileText;
+        payload.source_filename = f.name || "upload.csv";
+      } else if (paste) {
+        if (paste.length > 15_000_000) throw new Error("Yapıştırılan metin çok büyük (max ~15MB).");
+        payload.csv_text = paste;
+      } else if (sheets) {
+        payload.sheets_url = sheets;
+      } else {
+        throw new Error("CSV dosyası, yapıştırılmış metin veya Sheets URL girin.");
+      }
+      var r = await fetch("/api/backlinks/import-json", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       var d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Import başarısız");
       st.textContent = "Tamam: " + (d.import && d.import.row_count) + " satır.";

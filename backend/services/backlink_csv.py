@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from sqlalchemy.orm import Session
@@ -170,18 +170,136 @@ def parse_csv_text(text: str, *, report_type: str) -> list[dict[str, Any]]:
     return out
 
 
+def _parse_spreadsheet_url(url: str) -> tuple[str, str | None]:
+    u = (url or "").strip()
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", u)
+    if not m:
+        m = re.search(r"/spreadsheets/d/e/([a-zA-Z0-9-_]+)", u)
+    if not m:
+        raise ValueError("Geçerli Google Sheets URL değil.")
+    sheet_id = m.group(1)
+    gid: str | None = None
+    parsed = urlparse(u)
+    q = parse_qs(parsed.query)
+    if "gid" in q and q["gid"]:
+        gid = str(q["gid"][0])
+    frag = parsed.fragment or ""
+    frag_m = re.search(r"gid=(\d+)", frag)
+    if frag_m:
+        gid = frag_m.group(1)
+    return sheet_id, gid
+
+
+def _sheet_values_to_csv(values: list[list[Any]]) -> str:
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    for row in values:
+        writer.writerow(row)
+    return buf.getvalue()
+
+
+def _fetch_sheet_via_service_account(spreadsheet_id: str, gid: str | None) -> str | None:
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+
+        from backend.services.ga4_auth import _load_service_account_payload
+    except ImportError:
+        return None
+    payload = _load_service_account_payload()
+    if not payload:
+        return None
+    try:
+        creds = service_account.Credentials.from_service_account_info(
+            payload,
+            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+        )
+        service = build("sheets", "v4", credentials=creds, cache_discovery=False)
+        meta = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheets = meta.get("sheets") or []
+        title = None
+        if gid is not None:
+            for sh in sheets:
+                props = sh.get("properties") or {}
+                if str(props.get("sheetId")) == str(gid):
+                    title = props.get("title")
+                    break
+        if not title and sheets:
+            title = (sheets[0].get("properties") or {}).get("title")
+        if not title:
+            return None
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=title)
+            .execute()
+        )
+        values = result.get("values") or []
+        if not values:
+            return None
+        return _sheet_values_to_csv(values)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.info("Sheets service account fetch failed: %s", exc)
+        return None
+
+
 def fetch_public_sheet_csv(url: str, *, timeout: int = 25) -> str:
-    """Yayınlanmış Google Sheets CSV export URL'sinden metin çeker."""
+    """Google Sheets'ten CSV metni (herkese açık, gviz/export veya service account)."""
     u = (url or "").strip()
     if not u:
         raise ValueError("Sheets URL boş.")
-    if "docs.google.com/spreadsheets" in u and "export" not in u:
-        m = re.search(r"/d/([a-zA-Z0-9-_]+)", u)
-        if m:
-            u = f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=csv"
-    resp = requests.get(u, timeout=timeout)
-    resp.raise_for_status()
-    return resp.text
+
+    sheet_id: str | None = None
+    gid: str | None = None
+    if "docs.google.com/spreadsheets" in u:
+        sheet_id, gid = _parse_spreadsheet_url(u)
+    gid_q = gid if gid is not None else "0"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; SEOAgent/1.0; +https://github.com/)",
+    }
+    candidates: list[str] = []
+    if u not in candidates:
+        candidates.append(u)
+    if sheet_id:
+        candidates.extend(
+            [
+                f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&gid={gid_q}",
+                f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_q}",
+            ]
+        )
+
+    last_status: int | None = None
+    for fetch_url in candidates:
+        try:
+            resp = requests.get(fetch_url, timeout=timeout, headers=headers, allow_redirects=True)
+            last_status = resp.status_code
+            if resp.status_code in (401, 403):
+                continue
+            resp.raise_for_status()
+            text = resp.text or ""
+            low = text[:300].lower()
+            if "<!doctype html" in low or "<html" in low:
+                continue
+            if not text.strip():
+                continue
+            return text
+        except requests.RequestException:
+            continue
+
+    if sheet_id:
+        sa_text = _fetch_sheet_via_service_account(sheet_id, gid)
+        if sa_text:
+            return sa_text
+
+    hint = (
+        "Sayfa erişilemedi. Google Sheets’te: Dosya → Paylaş → «Bağlantısı olan herkes» en az "
+        "«Görüntüleyici»; veya Dosya → Web’de yayınla. Özel sayfalar için tabloyu GA4 service "
+        "account e-postasıyla paylaşın (GA4_SERVICE_ACCOUNT_JSON)."
+    )
+    if last_status in (401, 403):
+        raise ValueError(f"{hint} (HTTP {last_status})")
+    raise ValueError(hint)
 
 
 def import_backlink_csv(
@@ -296,6 +414,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                     "risk_flags": set(),
                     "recommended_action": ACTION_MONITOR,
                     "sample_urls": [],
+                    "sample_links": [],
                 },
             )
             bucket["link_count"] += 1
@@ -311,6 +430,14 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 bucket["recommended_action"] = rec
             if len(bucket["sample_urls"]) < 3:
                 bucket["sample_urls"].append(r.source_url)
+            if len(bucket["sample_links"]) < 5:
+                bucket["sample_links"].append(
+                    {
+                        "source_url": r.source_url or "",
+                        "target_url": r.target_url or "",
+                        "anchor_text": (r.anchor_text or "")[:200],
+                    }
+                )
 
         if previous:
             prev_domains = {
@@ -339,6 +466,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 "effective_action": eff,
                 "operator_action": override,
                 "sample_urls": b["sample_urls"],
+                "sample_links": b.get("sample_links") or [],
             }
         )
     domains_out.sort(key=lambda x: (-x["max_risk_score"], -x["link_count"], x["domain"]))
