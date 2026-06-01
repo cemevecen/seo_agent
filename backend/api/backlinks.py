@@ -192,6 +192,21 @@ def backlinks_domain_action(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.delete("/backlinks/imports/{import_id}")
+@limiter.limit("30/minute")
+def backlinks_delete_import(
+    request: Request,
+    import_id: int,
+    site_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    _require_internal_site(db, site_id)
+    try:
+        return backlink_csv.delete_backlink_import(db, site_id=site_id, import_id=import_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/backlinks/disavow.txt", response_class=PlainTextResponse)
 @limiter.limit("30/minute")
 def backlinks_disavow_txt(

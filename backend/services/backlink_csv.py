@@ -28,6 +28,12 @@ LOGGER = logging.getLogger(__name__)
 
 REPORT_TYPES = ("latest_links", "more_sample", "top_linking_sites")
 
+REPORT_TYPE_LABELS: dict[str, str] = {
+    "latest_links": "Latest links",
+    "more_sample": "More sample links",
+    "top_linking_sites": "Top linking sites",
+}
+
 _HEADER_ALIASES: dict[str, list[str]] = {
     "source_url": [
         "bağlantı verilen sayfa",
@@ -383,13 +389,65 @@ def _effective_action(recommended: str, override: str | None) -> str:
     return (recommended or ACTION_MONITOR).strip().lower()
 
 
+def delete_backlink_import(db: Session, *, site_id: int, import_id: int) -> dict[str, Any]:
+    imp = (
+        db.query(BacklinkImport)
+        .filter(BacklinkImport.id == import_id, BacklinkImport.site_id == site_id)
+        .first()
+    )
+    if imp is None:
+        raise ValueError("Import bulunamadı.")
+    rt = imp.report_type
+    db.delete(imp)
+    db.commit()
+    out = build_dashboard(db, site_id=site_id, report_type=rt or "latest_links")
+    out["deleted_import_id"] = import_id
+    return out
+
+
+def _merge_row_into_domain_bucket(bucket: dict[str, Any], r: BacklinkRow, *, url_keys: set[str]) -> None:
+    src = (r.source_url or "").strip()
+    url_key = src.lower()
+    if url_key and url_key not in url_keys:
+        url_keys.add(url_key)
+        bucket["link_count"] += 1
+    bucket["max_risk_score"] = max(bucket["max_risk_score"], int(r.risk_score or 0))
+    try:
+        flags = json.loads(r.risk_flags_json or "[]")
+    except json.JSONDecodeError:
+        flags = []
+    for f in flags:
+        bucket["risk_flags"].add(str(f))
+    rec = r.recommended_action or ACTION_MONITOR
+    if _action_rank(rec) > _action_rank(bucket["recommended_action"]):
+        bucket["recommended_action"] = rec
+    if src and src not in bucket["sample_urls"] and len(bucket["sample_urls"]) < 3:
+        bucket["sample_urls"].append(src)
+    if len(bucket["sample_links"]) < 5:
+        sample = {
+            "source_url": r.source_url or "",
+            "target_url": r.target_url or "",
+            "anchor_text": (r.anchor_text or "")[:200],
+            "risk_score": int(r.risk_score or 0),
+        }
+        existing_src = {x.get("source_url") for x in bucket["sample_links"]}
+        if (r.source_url or "") not in existing_src:
+            bucket["sample_links"].append(sample)
+        elif int(r.risk_score or 0) > max(
+            (x.get("risk_score") or 0 for x in bucket["sample_links"] if x.get("source_url") == r.source_url),
+            default=0,
+        ):
+            bucket["sample_links"] = [
+                x for x in bucket["sample_links"] if x.get("source_url") != r.source_url
+            ] + [sample]
+
+
 def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_links") -> dict[str, Any]:
     rt = (report_type or "latest_links").strip().lower()
     imports = (
         db.query(BacklinkImport)
         .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
         .order_by(BacklinkImport.created_at.desc())
-        .limit(10)
         .all()
     )
     actions = _domain_actions_map(db, site_id)
@@ -397,10 +455,12 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
     previous = imports[1] if len(imports) > 1 else None
 
     domain_stats: dict[str, dict[str, Any]] = {}
+    url_keys_by_domain: dict[str, set[str]] = {}
     diff = {"new_domains": [], "lost_domains": [], "has_previous": bool(previous)}
 
-    if latest:
-        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
+    import_ids = [i.id for i in imports]
+    if import_ids:
+        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
         for r in rows:
             dom = (r.domain or "").lower()
             if not dom:
@@ -417,29 +477,18 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                     "sample_links": [],
                 },
             )
-            bucket["link_count"] += 1
-            bucket["max_risk_score"] = max(bucket["max_risk_score"], int(r.risk_score or 0))
-            try:
-                flags = json.loads(r.risk_flags_json or "[]")
-            except json.JSONDecodeError:
-                flags = []
-            for f in flags:
-                bucket["risk_flags"].add(str(f))
-            rec = r.recommended_action or ACTION_MONITOR
-            if _action_rank(rec) > _action_rank(bucket["recommended_action"]):
-                bucket["recommended_action"] = rec
-            if len(bucket["sample_urls"]) < 3:
-                bucket["sample_urls"].append(r.source_url)
-            if len(bucket["sample_links"]) < 5:
-                bucket["sample_links"].append(
-                    {
-                        "source_url": r.source_url or "",
-                        "target_url": r.target_url or "",
-                        "anchor_text": (r.anchor_text or "")[:200],
-                    }
-                )
+            keys = url_keys_by_domain.setdefault(dom, set())
+            _merge_row_into_domain_bucket(bucket, r, url_keys=keys)
 
-        if previous:
+        if latest and previous:
+            latest_domains = {
+                (d or "").lower()
+                for (d,) in db.query(BacklinkRow.domain)
+                .filter(BacklinkRow.import_id == latest.id)
+                .distinct()
+                .all()
+                if d
+            }
             prev_domains = {
                 (d or "").lower()
                 for (d,) in db.query(BacklinkRow.domain)
@@ -448,9 +497,8 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 .all()
                 if d
             }
-            cur_domains = set(domain_stats.keys())
-            diff["new_domains"] = sorted(cur_domains - prev_domains)[:200]
-            diff["lost_domains"] = sorted(prev_domains - cur_domains)[:200]
+            diff["new_domains"] = sorted(latest_domains - prev_domains)[:200]
+            diff["lost_domains"] = sorted(prev_domains - latest_domains)[:200]
 
     domains_out: list[dict[str, Any]] = []
     for dom, b in domain_stats.items():
@@ -466,7 +514,10 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 "effective_action": eff,
                 "operator_action": override,
                 "sample_urls": b["sample_urls"],
-                "sample_links": b.get("sample_links") or [],
+                "sample_links": [
+                    {k: v for k, v in ln.items() if k != "risk_score"}
+                    for ln in (b.get("sample_links") or [])
+                ],
             }
         )
     domains_out.sort(key=lambda x: (-x["max_risk_score"], -x["link_count"], x["domain"]))
@@ -475,16 +526,25 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
     for d in domains_out:
         action_counts[d["effective_action"]] = action_counts.get(d["effective_action"], 0) + 1
 
+    rows_total = sum(int(i.row_count or 0) for i in imports)
     return {
         "site_id": site_id,
         "report_type": rt,
+        "report_type_label": REPORT_TYPE_LABELS.get(rt, rt),
+        "aggregate": {
+            "import_count": len(imports),
+            "rows_total": rows_total,
+            "includes_all_imports": True,
+        },
         "imports": [
             {
                 "id": i.id,
                 "row_count": i.row_count,
-                "source_filename": i.source_filename,
+                "source_filename": i.source_filename or "",
                 "source_kind": i.source_kind,
                 "created_at": i.created_at.isoformat() if i.created_at else None,
+                "report_type": i.report_type,
+                "report_type_label": REPORT_TYPE_LABELS.get(i.report_type or "", i.report_type or ""),
             }
             for i in imports
         ],
