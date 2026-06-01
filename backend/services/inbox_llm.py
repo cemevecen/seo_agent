@@ -222,6 +222,11 @@ def _sinemalar_playbook() -> str:
     return (
         "Marka: Sinemalar.com — sinema seans ve içerik bilgisi paylaşan platform; "
         "hangi yapımın hangi şehir/salonda gösterileceğine karar vermez.\n"
+        "ÖNCE gelen iletinin gerçek konusunu belirle; talebi yanlış kategoriye sokma "
+        "(ör. telif/fotoğraf kaldırma talebini «gösterim/seans talebi» sanma).\n"
+        "- Telif / içerik veya fotoğraf kaldırma talebi: talep alındığını belirt; içerik kaldırıldıysa "
+        "kaldırıldığını net biçimde teyit et; gerekiyorsa hangi sayfa/URL olduğunu sor; "
+        "seans/gösterim, sinema salonu yönlendirmesi YAPMA.\n"
         "- Gösterim talebi (film/konser/şehir/salon): ilgi için teşekkür; karar yapımcı/dağıtımcı ve "
         "sinema işletmelerindedir; Sinemalar.com yalnızca mevcut seansları yayımlar; "
         "talebi doğrudan ilgili sinema salonlarına iletmelerini söyle.\n"
@@ -235,6 +240,9 @@ def _sinemalar_playbook() -> str:
 def _doviz_playbook() -> str:
     return (
         "Marka: doviz.com — döviz/altın/finans veri uygulaması.\n"
+        "ÖNCE gelen iletinin gerçek konusunu belirle; talebi yanlış kategoriye sokma.\n"
+        "- Telif / içerik kaldırma talebi: talep alındığını belirt; içerik kaldırıldıysa kaldırıldığını "
+        "net biçimde teyit et; gerekiyorsa ilgili sayfa/URL'yi sor; konu dışı yönlendirme yapma.\n"
         "- Ürün/veri talebi: dinle; bazı veriler (ör. dünya katılım altın) üyelik veya API kapsamında "
         "olabilir; konuyu ilgili iş ortağı/API ekibine ileteceğinizi belirt (İpek Hanım / dünya katılım "
         "kontağı — doğrudan kişi adı yazma, «ilgili birim» de). Kredi/mevduat karşılaştırma verileri "
@@ -274,13 +282,22 @@ def generate_email_from_instruction(
     brand = inbox_brand_key(route_tag)
     system = (
         _reply_system_prompt(brand)
-        + "\nGörev: Aşağıdaki e-posta bağlamındaki GELEN müşteri iletisine yanıt yaz. "
-        "Operatör talimatına uy (ton, netlik, red/rica). Talimatı meta metin olarak yazma."
+        + "\nGörev: Aşağıdaki e-posta bağlamındaki GELEN müşteri iletisine yanıt yaz.\n"
+        "ÇOK ÖNEMLİ — operatör notu (talimat) en yüksek önceliklidir:\n"
+        "1) Önce GELEN iletinin gerçek konusunu/talebini doğru anla; uydurma konu ekleme. "
+        "Talebi alakasız bir kategoriye SOKMA (ör. 'fotoğraf kaldırma / telif' talebini "
+        "'seans/gösterim talebi' sanıp sinema salonuna yönlendirme).\n"
+        "2) Operatör notunu OLGUSAL GERÇEK ve alınan KARAR say. Notta bir aksiyon bildirildiyse "
+        "(ör. 'kaldırdık fotoları' → fotoğraflar kaldırıldı), yanıtı bu aksiyonun YAPILMIŞ olduğunu "
+        "müşteriye teyit edecek biçimde kur. Notla çelişen genel kalıpları (playbook) uygulama.\n"
+        "3) Playbook yalnızca yardımcı kılavuzdur; operatör notu veya iletinin gerçek konusuyla "
+        "çelişiyorsa o kısmı yok say.\n"
+        "Operatör notunu olduğu gibi gövdeye kopyalama; doğal, kibar bir müşteri yanıtına çevir."
     )
     user = (
         f"Konu: {(subject or '').strip() or '(belirtilmedi)'}\n\n"
-        f"Operatör talimatı:\n{instruction.strip()}\n\n"
-        f"E-posta bağlamı:\n{_truncate(thread_blob)}"
+        f"Operatör notu (yanıtın dayanacağı gerçek/karar):\n{instruction.strip()}\n\n"
+        f"E-posta bağlamı (GELEN iletinin konusunu buradan anla):\n{_truncate(thread_blob)}"
     )
     return inbox_plain_text_with_failover(system, user)
 
