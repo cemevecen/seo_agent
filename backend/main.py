@@ -12195,7 +12195,19 @@ def api_ga4_realtime_top_news(
                                  .all()}
 
             pages = []
+            from backend.services.realtime_news_paths import (
+                is_realtime_news_path,
+                realtime_news_page_link,
+                unified_screen_news_candidate,
+            )
+
             for row in curr_rows:
+                title = (row.screen_title or "").strip()
+                if title.startswith("/"):
+                    if not is_realtime_news_path(title, site_domain=site_domain_str):
+                        continue
+                elif not unified_screen_news_candidate(title, site_domain=site_domain_str):
+                    continue
                 prev = prev_map_news.get(row.screen_title)
                 pages.append({
                     "page": row.screen_title,
@@ -12204,7 +12216,8 @@ def api_ga4_realtime_top_news(
                     "screenPageViews": row.pageviews,
                     "activeUsers_previous": prev.active_users if prev else None,
                     "screenPageViews_previous": prev.pageviews if prev else None,
-                    "link_url": _news_row_link(site_domain_str, row.screen_title),
+                    "link_url": realtime_news_page_link(row.screen_title, site_domain=site_domain_str)
+                    or _news_row_link(site_domain_str, row.screen_title),
                     "rank": row.rank,
                 })
 

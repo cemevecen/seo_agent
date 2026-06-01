@@ -1154,31 +1154,16 @@ def _news_screen_exclude_prefixes_loaded() -> tuple[str, ...]:
     return _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
 
 
-def _screen_unified_news_candidate(name: str) -> bool:
-    """Realtime'ta yalnızca unifiedScreenName (≈ başlık) olduğundan sezgisel haber adayı."""
-    from backend.collectors.ga4 import _is_news_article_path
+def _screen_unified_news_candidate(name: str, *, site_domain: str = "") -> bool:
+    from backend.services.realtime_news_paths import unified_screen_news_candidate
 
-    n = (name or "").strip()
-    if len(n) < 10:
-        return False
-    low = n.lower()
-    if low.startswith("/") and _is_news_article_path(n):
-        return True
-    for pre in _news_screen_exclude_prefixes_loaded():
-        if low.startswith(pre):
-            return False
-    return True
+    return unified_screen_news_candidate(name, site_domain=site_domain)
 
 
 def _news_row_link(site_domain: str, unified: str) -> str:
-    """Yalnızca makale path'i görünürse doğrudan site URL'si; aksi halde boş (harici arama yönlendirmesi yok)."""
-    from backend.collectors.ga4 import _is_news_article_path
+    from backend.services.realtime_news_paths import realtime_news_page_link
 
-    d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
-    u = (unified or "").strip()
-    if u.startswith("/") and d and _is_news_article_path(u):
-        return "https://" + d + u
-    return ""
+    return realtime_news_page_link(unified, site_domain=site_domain)
 
 
 def fetch_realtime_top_news_pages(
@@ -1190,35 +1175,89 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
-
-    ``link_url`` yalnızca başlık site içi makale path'i ise doldurulur; aksi halde boştur.
-    """
-    fetch_n = min(250, max(80, int(limit) * 25))
-    base = fetch_realtime_top_pages(
-        property_id,
-        window_minutes=window_minutes,
-        limit=fetch_n,
-        sort_by=sort_by,
-        dimension="unifiedScreenName",
-        compare_previous=False,
-        include_page_path=False,
-        client=client,
+    """Realtime «Haberler»: önce pagePath; yalnızca haber ana/kategori/detay URL'leri."""
+    from backend.services.realtime_news_paths import (
+        is_realtime_news_path,
+        realtime_news_page_link,
+        unified_screen_news_candidate,
     )
+
+    fetch_n = min(250, max(80, int(limit) * 25))
+    breakdown = "pagePath+news_path_rules"
+    base: dict[str, Any] | None = None
+    dim_used = "pagePath"
+
+    for dim in ("pagePath", "unifiedScreenName"):
+        try:
+            candidate = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                compare_previous=True,
+                dimension=dim,
+                include_page_path=False,
+                client=client,
+            )
+            if candidate.get("pages"):
+                base = candidate
+                dim_used = dim
+                breakdown = (
+                    "pagePath+news_path_rules"
+                    if dim == "pagePath"
+                    else "unifiedScreenName+news_path_rules"
+                )
+                break
+        except Exception as exc:
+            logger.debug("Realtime top-news dimension %s failed: %s", dim, exc)
+            continue
+
+    if base is None:
+        base = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=fetch_n,
+            sort_by=sort_by,
+            compare_previous=True,
+            dimension="unifiedScreenName",
+            include_page_path=False,
+            client=client,
+        )
+        dim_used = "unifiedScreenName"
+        breakdown = "unifiedScreenName+news_path_rules"
+
     out: list[dict[str, Any]] = []
     for p in base.get("pages") or []:
-        title = str(p.get("page") or "").strip()
-        if not _screen_unified_news_candidate(title):
+        key = str(p.get("page") or "").strip()
+        if not key:
             continue
+        if dim_used == "pagePath":
+            if not is_realtime_news_path(key, site_domain=site_domain):
+                continue
+            link = realtime_news_page_link(key, site_domain=site_domain)
+            page_path = key if key.startswith("/") else ""
+        else:
+            skip = False
+            for pre in _news_screen_exclude_prefixes_loaded():
+                if key.lower().startswith(pre):
+                    skip = True
+                    break
+            if skip:
+                continue
+            if not unified_screen_news_candidate(key, site_domain=site_domain):
+                continue
+            link = realtime_news_page_link(key, site_domain=site_domain)
+            page_path = key if key.startswith("/") else ""
+
         out.append(
             {
-                "page": title,
-                "page_path": title if title.startswith("/") else "",
+                "page": key,
+                "page_path": page_path,
                 "activeUsers": float(p.get("activeUsers") or 0),
                 "screenPageViews": float(p.get("screenPageViews") or 0),
                 "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
                 "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
-                "link_url": _news_row_link(site_domain, title),
+                "link_url": link,
             }
         )
         if len(out) >= max(1, min(int(limit), 250)):
@@ -1231,7 +1270,7 @@ def fetch_realtime_top_news_pages(
         "total_pages": len(out),
         "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
         "api_ms": base.get("api_ms", 0),
-        "breakdown": "unifiedScreenName+news_heuristic",
+        "breakdown": breakdown,
         "comparison_enabled": True,
     }
 
