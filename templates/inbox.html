@@ -46,6 +46,30 @@
   .inbox-msg-body--html table { max-width: 100%; border-collapse: collapse; }
   .inbox-msg-body--html a { color: #2563eb; text-decoration: underline; }
   html.dark .inbox-msg-body--html a { color: #93c5fd; }
+  .inbox-image-attachments {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: .5rem;
+  }
+  .inbox-image-attachment {
+    display: block;
+    overflow: hidden;
+    border-radius: .75rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
+  html.dark .inbox-image-attachment {
+    border-color: #475569;
+    background: #020617;
+  }
+  .inbox-image-attachment img {
+    display: block;
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    background: #f8fafc;
+  }
+  html.dark .inbox-image-attachment img { background: #0f172a; }
   /* nstat ziyaret tablosu — tüm satırlar görünsün (iç scroll yok) */
   #inbox-messages.inbox-messages--nstat {
     max-height: none;
@@ -779,6 +803,39 @@
       .replace(/"/g, "&quot;");
   }
 
+  function renderInboxImageAttachments(images) {
+    images = Array.isArray(images) ? images : [];
+    images = images.filter(function (img) {
+      return img && img.data_uri;
+    });
+    if (!images.length) return "";
+    return (
+      '<div class="inbox-image-attachments mt-3">' +
+      images
+        .map(function (img, idx) {
+          var name = (img.filename || "image-" + (idx + 1)).trim();
+          var href = img.data_uri || "";
+          return (
+            '<a class="inbox-image-attachment" href="' +
+            esc(href) +
+            '" target="_blank" rel="noopener noreferrer" download="' +
+            esc(name) +
+            '" title="' +
+            esc(name) +
+            '">' +
+            '<img src="' +
+            esc(href) +
+            '" alt="' +
+            esc(name) +
+            '" loading="lazy">' +
+            "</a>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function extractEmail(fromHdr) {
     var s = (fromHdr || "").trim();
     if (!s) return "";
@@ -1453,6 +1510,7 @@
         var replyBtn = m.is_outbound || isInboxNstatRoute(t.route_tag)
           ? ""
           : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
+        var imageAttachmentsHtml = renderInboxImageAttachments(m.image_attachments);
         var bodyBlock = m.body_display_html
           ? '<div class="inbox-msg-body ' +
             (isInboxNstatRoute(t.route_tag) ? "inbox-msg-body--ziyaret" : "inbox-msg-body--html") +
@@ -1480,6 +1538,7 @@
           "</div>" +
           (m.body_display_html ? "" : previewHtml) +
           bodyBlock +
+          imageAttachmentsHtml +
           replyBtn +
           "</div>"
         );

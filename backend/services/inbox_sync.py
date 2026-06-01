@@ -261,6 +261,134 @@ def _attachment_text(service: Any, *, user_id: str, gmail_message_id: str, attac
         return ""
 
 
+_INLINE_IMAGE_MIME_TYPES = {
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+}
+
+
+def _part_header_map(part: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for h in part.get("headers") or []:
+        name = (h.get("name") or "").strip().lower()
+        if name:
+            out[name] = (h.get("value") or "").strip()
+    return out
+
+
+def _normalize_b64url_for_data_uri(raw: str | None) -> str:
+    data = (raw or "").strip()
+    if not data:
+        return ""
+    data = data.replace("-", "+").replace("_", "/")
+    pad = len(data) % 4
+    if pad:
+        data += "=" * (4 - pad)
+    return data
+
+
+def _attachment_data_b64(
+    service: Any,
+    *,
+    user_id: str,
+    gmail_message_id: str,
+    attachment_id: str,
+) -> str:
+    try:
+        att = (
+            service.users()
+            .messages()
+            .attachments()
+            .get(userId=user_id, messageId=gmail_message_id, id=attachment_id)
+            .execute()
+        )
+        return _normalize_b64url_for_data_uri(att.get("data"))
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("gmail image attachment fetch failed mid=%s aid=%s: %s", gmail_message_id, attachment_id, exc)
+        return ""
+
+
+def _extract_image_attachments_from_payload(
+    payload: dict[str, Any],
+    *,
+    service: Any,
+    gmail_message_id: str,
+    user_id: str = "me",
+) -> list[dict[str, Any]]:
+    """Gmail MIME ağacındaki image/* parçalarını data URI olarak çıkarır."""
+    images: list[dict[str, Any]] = []
+
+    def walk(part: dict[str, Any]) -> None:
+        mime = (part.get("mimeType") or "").lower().strip()
+        body = part.get("body") or {}
+        headers = _part_header_map(part)
+        if mime in _INLINE_IMAGE_MIME_TYPES:
+            raw_b64 = _normalize_b64url_for_data_uri(body.get("data"))
+            if not raw_b64 and body.get("attachmentId"):
+                raw_b64 = _attachment_data_b64(
+                    service,
+                    user_id=user_id,
+                    gmail_message_id=gmail_message_id,
+                    attachment_id=str(body.get("attachmentId") or ""),
+                )
+            if raw_b64:
+                cid = (headers.get("content-id") or "").strip().strip("<>")
+                disposition = (headers.get("content-disposition") or "").strip()
+                filename = str(part.get("filename") or "").strip()
+                images.append(
+                    {
+                        "filename": filename or "image",
+                        "mime_type": mime,
+                        "content_id": cid,
+                        "content_disposition": disposition,
+                        "size": int(body.get("size") or 0),
+                        "data_uri": f"data:{mime};base64,{raw_b64}",
+                    }
+                )
+        for child in part.get("parts") or []:
+            walk(child)
+
+    walk(payload or {})
+    return images
+
+
+def fetch_image_attachments_for_messages(
+    db: Session,
+    gmail_message_ids: list[str],
+    *,
+    user_id: str = "me",
+) -> dict[str, list[dict[str, Any]]]:
+    """Seçili thread detayında gösterilecek imaj eklerini Gmail'den çeker."""
+    ids = [str(x or "").strip() for x in gmail_message_ids if str(x or "").strip()]
+    if not ids:
+        return {}
+    creds = inbox_gmail_auth.load_inbox_credentials(db)
+    if creds is None:
+        return {}
+    creds = _ensure_fresh_creds(db, creds)
+    service = _gmail_service(creds)
+    out: dict[str, list[dict[str, Any]]] = {}
+    for gid in ids:
+        try:
+            full = service.users().messages().get(userId=user_id, id=gid, format="full").execute()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug("gmail message get for image attachments failed %s: %s", gid, exc)
+            continue
+        imgs = _extract_image_attachments_from_payload(
+            full.get("payload") or {},
+            service=service,
+            gmail_message_id=gid,
+            user_id=user_id,
+        )
+        if imgs:
+            out[gid] = imgs
+    return out
+
+
 def _extract_body_parts(
     payload: dict[str, Any],
     *,

@@ -188,6 +188,30 @@ def _body_preview(text: str | None, *, max_sentences: int = 2, max_chars: int = 
     return s
 
 
+def _inline_cid_image_attachments(body_html: str | None, images: list[dict[str, Any]]) -> str:
+    """HTML içindeki cid: image referanslarını Gmail'den çekilen data URI'larla doldurur."""
+    raw = body_html or ""
+    if not raw or not images:
+        return raw
+    cid_map = {
+        str(img.get("content_id") or "").strip("<>").lower(): str(img.get("data_uri") or "")
+        for img in images
+        if img.get("content_id") and img.get("data_uri")
+    }
+    if not cid_map:
+        return raw
+
+    def repl(match: re.Match[str]) -> str:
+        quote = match.group(1)
+        cid = (match.group(2) or "").strip().strip("<>").lower()
+        data_uri = cid_map.get(cid)
+        if not data_uri:
+            return match.group(0)
+        return f"src={quote}{data_uri}{quote}"
+
+    return re.sub(r"""src\s*=\s*(['"])cid:([^'"]+)\1""", repl, raw, flags=re.IGNORECASE)
+
+
 def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[int, str]:
     """Her konuşma için zaman damgası en yeni iletinin düz metin gövdesi."""
     if not thread_ids:
@@ -473,6 +497,38 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
         .order_by(SupportInboxMessage.internal_ms.asc())
         .all()
     )
+    try:
+        image_map = inbox_sync.fetch_image_attachments_for_messages(
+            db, [m.gmail_message_id for m in msgs]
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("inbox image attachments fetch skipped [thread=%s]: %s", thread_id, exc)
+        image_map = {}
+
+    def _message_row(m: SupportInboxMessage) -> dict[str, Any]:
+        images = image_map.get(m.gmail_message_id) or []
+        body_html = _inline_cid_image_attachments(getattr(m, "body_html", "") or "", images)
+        return {
+            "id": m.id,
+            "gmail_message_id": m.gmail_message_id,
+            "from": m.from_addr,
+            "to": m.to_addr,
+            "subject": m.subject,
+            "body_preview": _body_preview(
+                effective_plain_text(m.body_text, body_html)
+            ),
+            "body_text": effective_plain_text(m.body_text, body_html),
+            "body_display_html": render_inbox_message_html(
+                body_html=body_html,
+                body_text=m.body_text or "",
+                route_tag=t.route_tag,
+                subject=m.subject,
+            ),
+            "image_attachments": images,
+            "internal_ms": m.internal_ms,
+            "is_outbound": m.is_outbound,
+        }
+
     return {
         "thread": {
             "id": t.id,
@@ -486,28 +542,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
             "ai_draft_reply": t.ai_draft_reply,
             "last_synced_at": t.last_synced_at.isoformat() if t.last_synced_at else None,
         },
-        "messages": [
-            {
-                "id": m.id,
-                "gmail_message_id": m.gmail_message_id,
-                "from": m.from_addr,
-                "to": m.to_addr,
-                "subject": m.subject,
-                "body_preview": _body_preview(
-                    effective_plain_text(m.body_text, getattr(m, "body_html", None))
-                ),
-                "body_text": effective_plain_text(m.body_text, getattr(m, "body_html", None)),
-                "body_display_html": render_inbox_message_html(
-                    body_html=getattr(m, "body_html", "") or "",
-                    body_text=m.body_text or "",
-                    route_tag=t.route_tag,
-                    subject=m.subject,
-                ),
-                "internal_ms": m.internal_ms,
-                "is_outbound": m.is_outbound,
-            }
-            for m in msgs
-        ],
+        "messages": [_message_row(m) for m in msgs],
     }
 
 
