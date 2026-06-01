@@ -98,7 +98,8 @@ def backlinks_report_types(request: Request) -> dict[str, Any]:
             {"id": "latest_links", "label": "Latest links"},
             {"id": "more_sample", "label": "More sample links"},
             {"id": "top_linking_sites", "label": "Top linking sites"},
-            {"id": "top_target_pages", "label": "Top target pages"},
+            {"id": "top_target_pages", "label": "Top target pages (external)"},
+            {"id": "top_target_pages_internal", "label": "Top target pages (internal)"},
         ]
     }
 
