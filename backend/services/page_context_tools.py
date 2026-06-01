@@ -116,13 +116,14 @@ def page_fetch_inbox_threads(route: str = "all", limit: int = 15) -> dict[str, A
         return {"error": f"Geçersiz route: {r}"}
     lim = max(1, min(int(limit), 50))
     with SessionLocal() as db:
-        q = (
-            db.query(SupportInboxThread)
-            .filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[r]))
-            .order_by(SupportInboxThread.last_internal_ms.desc())
-        )
-        if r == inbox_sync.INBOX_ROUTE_NSTAT:
-            q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
+        q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
+        if r == inbox_sync.INBOX_ROUTE_ANSWERED:
+            q = q.filter(SupportInboxThread.answered_flag.is_(True))
+        else:
+            q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[r]))
+            q = q.filter(SupportInboxThread.answered_flag.is_(False))
+            if r == inbox_sync.INBOX_ROUTE_NSTAT:
+                q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
         rows = q.limit(lim).all()
         unread = sum(1 for t in rows if t.gmail_unread)
         unanswered = sum(1 for t in rows if not t.answered_flag)

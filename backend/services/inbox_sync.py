@@ -38,6 +38,8 @@ INBOX_ROUTE_SINEMALAR = "sinemalar"
 INBOX_ROUTE_REKLAM = "reklam"
 INBOX_ROUTE_NSTAT = "nstat"
 INBOX_ROUTE_ALL = "all"
+# Sanal sekme: cevaplanan tüm konuşmalar (tek bir route_tag değil; answered_flag'e göre).
+INBOX_ROUTE_ANSWERED = "answered"
 
 # all sekmesinde gösterilen paylaşılan destek adresleri
 INBOX_ALL_SHARED_ADDRESSES: tuple[str, ...] = (
@@ -95,6 +97,8 @@ INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
     "reklam": ("reklam",),
     "nstat": ("nstat", "ziyaret"),
     "firebase": ("firebase",),
+    # Sanal sekme: route_tag filtresi yerine answered_flag'e göre süzülür (endpoint'te özel ele alınır).
+    "answered": (),
 }
 
 # Gmail’de «cevaplandı» için kullanılan özel etiket (threads.modify ile eklenir/kaldırılır).

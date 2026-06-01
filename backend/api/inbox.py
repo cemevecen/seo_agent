@@ -424,9 +424,15 @@ def inbox_threads_list(
     if route not in inbox_sync.INBOX_TAB_ROUTE_TAGS:
         raise HTTPException(status_code=400, detail="Geçerli bir route sekmesi gerekli.")
     q = db.query(SupportInboxThread).order_by(SupportInboxThread.last_internal_ms.desc())
-    q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
-    if route == inbox_sync.INBOX_ROUTE_NSTAT:
-        q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
+    if route == inbox_sync.INBOX_ROUTE_ANSWERED:
+        # Cevaplananlar sekmesi: route'tan bağımsız, cevaplanan tüm konuşmalar.
+        q = q.filter(SupportInboxThread.answered_flag.is_(True))
+    else:
+        q = q.filter(SupportInboxThread.route_tag.in_(inbox_sync.INBOX_TAB_ROUTE_TAGS[route]))
+        # Cevaplananlar kendi sekmesinde toplanır; normal sekmelerde görünmez.
+        q = q.filter(SupportInboxThread.answered_flag.is_(False))
+        if route == inbox_sync.INBOX_ROUTE_NSTAT:
+            q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
     rows = q.limit(limit).all()
     tid_list = [t.id for t in rows]
     latest_bodies = _latest_message_body_by_thread(db, tid_list)

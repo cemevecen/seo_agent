@@ -256,6 +256,7 @@
           <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">firebase</button>
           <button type="button" role="tab" data-route="reklam" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="reklam@nokta.com">reklam</button>
           <button type="button" role="tab" data-route="all" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">all</button>
+          <button type="button" role="tab" data-route="answered" class="inbox-tab rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50" title="Cevaplanan tüm mailler (route'tan bağımsız)">cevaplananlar</button>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <span id="inbox-live-hint" class="text-[10px] text-slate-400 dark:text-slate-500 hidden">Liste ~30 sn’de bir yenilenir · Gmail senkronu ~10 dk</span>
@@ -495,6 +496,7 @@
       reklam: "reklam",
       nstat: "nstat",
       all: "all",
+      answered: "cevaplandı",
     };
     return labels[tag] || tag;
   }
@@ -1129,6 +1131,8 @@
           ? "doviz (info/feedback@doviz.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
           : route === "sinemalar"
           ? "sinemalar kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          : route === "answered"
+          ? "Henüz cevaplanan mail yok. Bir maili cevapladığında veya «Cevaplandı» işaretlediğinde buraya taşınır."
           : "Henüz kayıt yok. «Senkronize et» deyin.";
       box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">' + emptyMsg + "</p>";
       return;
