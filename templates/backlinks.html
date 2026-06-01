@@ -116,8 +116,7 @@
     overflow-wrap: anywhere;
     vertical-align: top;
   }
-  #bl-domains-table .bl-col-domain { width: 14%; min-width: 6.5rem; }
-  #bl-domains-table .bl-col-urls { width: 36%; min-width: 10rem; }
+  #bl-domains-table .bl-col-domain { width: 12%; min-width: 6.5rem; }
   #bl-domains-table .bl-col-num { width: 7%; min-width: 3rem; }
   #bl-domains-table .bl-col-action { width: 12%; min-width: 5.5rem; }
   .bl-sort-th { white-space: normal; line-height: 1.25; }
@@ -132,8 +131,60 @@
     background: rgba(30, 41, 59, 0.45);
   }
   .bl-domain-card a { word-break: break-all; }
+  .bl-links-cell {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .bl-link-url {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+  .bl-link-target {
+    font-size: 0.625rem;
+    line-height: 1.4;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+  .bl-links-all {
+    max-height: min(70vh, 36rem);
+    -webkit-overflow-scrolling: touch;
+  }
+  #bl-domains-table .bl-col-urls {
+    width: 44%;
+    min-width: 12rem;
+  }
   @media (max-width: 767px) {
     .bl-sort-th { font-size: 0.65rem; letter-spacing: 0; text-transform: none; }
+    .bl-domain-card {
+      padding: 0.85rem 0.75rem;
+    }
+    .bl-domain-card .bl-links-cell {
+      width: 100%;
+      margin-top: 0.35rem;
+    }
+    .bl-domain-card .bl-link-url {
+      font-size: 0.65rem;
+    }
+    .bl-show-all-links {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      text-align: left;
+      padding: 0.55rem 0.15rem;
+      min-height: 2.75rem;
+      line-height: 1.35;
+    }
+    .bl-links-all {
+      max-height: min(65vh, 28rem);
+      padding: 0.65rem;
+      margin-left: -0.15rem;
+      margin-right: -0.15rem;
+      width: calc(100% + 0.3rem);
+    }
   }
 </style>
 <div class="bl-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 px-1 sm:space-y-6 sm:px-0">
@@ -244,7 +295,7 @@
                 <th class="bl-sort-th bl-col-domain px-2 py-2 text-left" data-sort-key="domain" data-sort-type="string" scope="col">
                   Domain <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
-                <th class="bl-col-urls px-2 py-2 text-left" scope="col">Örnek URL’ler</th>
+                <th class="bl-col-urls px-2 py-2 text-left" scope="col">Bağlantı URL’leri</th>
                 <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
                   Toplam link <span class="bl-sort-arrow" aria-hidden="true">↓</span>
                 </th>
@@ -313,20 +364,8 @@
     d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
   }
-  function linkLabel(url) {
-    var u = String(url || "").trim();
-    if (!u) return "";
-    try {
-      var p = new URL(u);
-      var path = p.pathname || "/";
-      if (path.length > 42) path = path.slice(0, 39) + "…";
-      var q = p.search ? "?" : "";
-      if (q && (p.search || "").length > 20) q = "?…";
-      else if (p.search) q = p.search;
-      return p.hostname + path + (q === "?" ? "" : q);
-    } catch (e) {
-      return u.length > 56 ? u.slice(0, 53) + "…" : u;
-    }
+  function linkDisplayText(url) {
+    return String(url || "").trim();
   }
   function renderSampleLinksList(links) {
     if (!links || !links.length) return '<span class="text-slate-400">—</span>';
@@ -336,22 +375,18 @@
         var tgt = ln.target_url || "";
         var anc = (ln.anchor_text || "").trim();
         var block =
-          '<div class="mb-1.5 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">' +
-          '<a class="break-all font-medium text-indigo-700 underline dark:text-indigo-300" href="' +
+          '<div class="bl-link-row mb-2 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">' +
+          '<a class="bl-link-url font-medium text-indigo-700 underline dark:text-indigo-300" href="' +
           esc(src) +
-          '" target="_blank" rel="noopener" title="' +
-          esc(src) +
-          '">' +
-          esc(linkLabel(src) || src) +
+          '" target="_blank" rel="noopener">' +
+          esc(linkDisplayText(src) || src) +
           "</a>";
         if (tgt) {
           block +=
-            '<div class="mt-0.5 text-[10px] text-slate-500">→ <a class="text-slate-700 underline dark:text-slate-300" href="' +
+            '<div class="bl-link-target mt-1 text-slate-600 dark:text-slate-400">→ <a class="text-slate-800 underline dark:text-slate-200" href="' +
             esc(tgt) +
-            '" target="_blank" rel="noopener" title="' +
-            esc(tgt) +
-            '">' +
-            esc(linkLabel(tgt) || tgt) +
+            '" target="_blank" rel="noopener">' +
+            esc(linkDisplayText(tgt) || tgt) +
             "</a></div>";
         }
         if (anc) {
@@ -399,7 +434,7 @@
         '">Tüm linkleri gör (' +
         esc(String(total)) +
         ")</button>" +
-        '<div class="bl-links-all mt-2 hidden max-h-[28rem] overflow-y-auto rounded border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/50"></div>';
+        '<div class="bl-links-all mt-2 hidden overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/50"></div>';
     }
     html += "</div>";
     return html;
