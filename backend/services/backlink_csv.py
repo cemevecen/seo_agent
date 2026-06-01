@@ -783,6 +783,8 @@ def build_top_backlink_rankings(
     target_import_ids = [iid for iid, rt in import_rows if rt == "top_target_pages"]
 
     domain_pairs: dict[str, set[str]] = defaultdict(set)
+    domain_sample_links: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    domain_sample_src: dict[str, set[str]] = defaultdict(set)
     if link_import_ids:
         rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(link_import_ids)).all()
         for r in rows:
@@ -794,6 +796,18 @@ def build_top_backlink_rankings(
             fp = _link_fingerprint(dom, src, tgt)
             if dom and not domain_is_ip_host(dom):
                 domain_pairs[dom].add(fp)
+                if src and len(domain_sample_links[dom]) < 10:
+                    sk = src.lower()
+                    if sk not in domain_sample_src[dom]:
+                        domain_sample_src[dom].add(sk)
+                        domain_sample_links[dom].append(
+                            {
+                                "source_url": src,
+                                "target_url": tgt,
+                                "anchor_text": (r.anchor_text or "")[:200],
+                                "last_crawled": _normalize_last_crawled(r.last_crawled),
+                            }
+                        )
 
     site_items = sorted(
         ((d, len(pairs)) for d, pairs in domain_pairs.items()),
@@ -867,7 +881,12 @@ def build_top_backlink_rankings(
 
     return {
         "top_linking_sites": [
-            {"domain": d, "link_count": c} for d, c in site_items[:cap]
+            {
+                "domain": d,
+                "link_count": c,
+                "sample_links": domain_sample_links.get(d) or [],
+            }
+            for d, c in site_items[:cap]
         ],
         "top_linking_pages": [
             {
@@ -1042,18 +1061,27 @@ def list_domain_links(
     report_type: str,
     domain: str,
     limit: int = 10000,
+    all_link_imports: bool = False,
 ) -> dict[str, Any]:
-    """Tek domain için tüm benzersiz kaynak+hedef linkleri (tüm importlar birleşik)."""
+    """Tek domain için benzersiz kaynak+hedef linkleri."""
     rt = (report_type or "latest_links").strip().lower()
     dom = normalize_domain(domain) or (domain or "").strip().lower()
     if not dom:
         raise ValueError("Domain boş.")
-    import_ids = [
-        i.id
-        for i in db.query(BacklinkImport)
-        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
-        .all()
-    ]
+    if all_link_imports:
+        imp_rows = (
+            db.query(BacklinkImport.id, BacklinkImport.report_type)
+            .filter(BacklinkImport.site_id == site_id)
+            .all()
+        )
+        import_ids = [iid for iid, imp_rt in imp_rows if (imp_rt or "") != "top_target_pages"]
+    else:
+        import_ids = [
+            i.id
+            for i in db.query(BacklinkImport.id)
+            .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+            .all()
+        ]
     if not import_ids:
         return {
             "domain": dom,

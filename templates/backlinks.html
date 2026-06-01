@@ -186,6 +186,36 @@
       width: calc(100% + 0.3rem);
     }
   }
+  .bl-top-site-head {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 0.125rem 0;
+  }
+  .bl-top-site-head:hover .bl-top-site-domain {
+    color: #4338ca;
+  }
+  html.dark .bl-top-site-head:hover .bl-top-site-domain {
+    color: #a5b4fc;
+  }
+  .bl-top-site-panel .bl-link-url {
+    font-size: 0.65rem;
+  }
+  .bl-top-site-all {
+    max-height: min(50vh, 22rem);
+    overflow-y: auto;
+  }
+  .bl-top-site-all-links {
+    margin-left: 1.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #4338ca;
+    text-decoration: underline;
+  }
+  html.dark .bl-top-site-all-links {
+    color: #a5b4fc;
+  }
   .bl-domain-picker-wrap {
     position: relative;
   }
@@ -944,9 +974,42 @@
   var blTopRankingsCache = { top_linking_sites: [], top_linking_pages: [], sites_total: 0, pages_total: 0 };
   var blTopSitesExpanded = false;
   var blTopPagesExpanded = false;
+  var blTopSiteOpen = {};
 
   function blTopRankLimit(expanded) {
     return expanded ? 100 : 10;
+  }
+
+  function blTopSitePanelHtml(row, open) {
+    var dom = row.domain || "";
+    var total = parseInt(row.link_count, 10) || 0;
+    var samples = row.sample_links || [];
+    var shown = samples.length;
+    var html =
+      '<div class="bl-top-site-panel ' +
+      (open ? "" : "hidden") +
+      '" data-domain="' +
+      esc(dom) +
+      '">';
+    if (open) {
+      html +=
+        '<div class="bl-top-site-preview ml-5 mt-1 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">' +
+        (samples.length ? renderSampleLinksList(samples) : '<span class="text-slate-400">Örnek URL yok.</span>') +
+        "</div>";
+      if (total > shown) {
+        html +=
+          '<button type="button" class="bl-top-site-all-links mt-1 block" data-domain="' +
+          esc(dom) +
+          '" data-total="' +
+          esc(String(total)) +
+          '">Tüm linkleri gör (' +
+          esc(String(total)) +
+          ")</button>" +
+          '<div class="bl-top-site-all ml-5 mt-1 hidden rounded border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/40"></div>';
+      }
+    }
+    html += "</div>";
+    return html;
   }
 
   function renderTopSitesList() {
@@ -959,7 +1022,7 @@
     var limit = blTopRankLimit(blTopSitesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     if (metaEl) {
-      metaEl.textContent = total ? total + " domain · benzersiz link çifti" : "";
+      metaEl.textContent = total ? total + " domain · satıra tıklayınca URL listesi" : "";
     }
     if (!slice.length) {
       listEl.innerHTML = '<li class="text-slate-500">Henüz veri yok.</li>';
@@ -968,17 +1031,27 @@
     }
     listEl.innerHTML = slice
       .map(function (row, i) {
+        var dom = row.domain || "";
+        var open = !!blTopSiteOpen[dom];
         return (
-          '<li class="flex items-start gap-2 border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
+          '<li class="bl-top-site-item border-b border-slate-200/80 pb-1.5 pt-0.5 dark:border-slate-700/80">' +
+          '<button type="button" class="bl-top-site-head flex w-full items-start gap-2" data-domain="' +
+          esc(dom) +
+          '" aria-expanded="' +
+          (open ? "true" : "false") +
+          '">' +
           '<span class="w-5 shrink-0 tabular-nums text-[10px] font-bold text-slate-400">' +
           (i + 1) +
           "</span>" +
-          '<span class="min-w-0 flex-1 break-all font-mono font-semibold leading-snug text-slate-800 dark:text-slate-100">' +
-          esc(row.domain) +
+          '<span class="bl-top-site-domain min-w-0 flex-1 break-all font-mono text-[11px] font-semibold leading-snug text-slate-800 dark:text-slate-100">' +
+          esc(dom) +
+          (open ? " ▾" : " ▸") +
           "</span>" +
           '<span class="shrink-0 tabular-nums text-[10px] font-bold text-indigo-700 dark:text-indigo-300">' +
           esc(row.link_count) +
-          "</span></li>"
+          "</span></button>" +
+          blTopSitePanelHtml(row, open) +
+          "</li>"
         );
       })
       .join("");
@@ -1057,6 +1130,77 @@
         btn.classList.add("hidden");
       }
     }
+  }
+
+  function wireBlTopSitesList() {
+    var listEl = document.getElementById("bl-top-sites-list");
+    if (!listEl || listEl.dataset.wiredTopSites === "1") return;
+    listEl.dataset.wiredTopSites = "1";
+    listEl.addEventListener("click", async function (ev) {
+      var allBtn = ev.target.closest(".bl-top-site-all-links");
+      if (allBtn) {
+        ev.preventDefault();
+        var domain = allBtn.getAttribute("data-domain") || "";
+        var total = allBtn.getAttribute("data-total") || "";
+        var panel = allBtn.parentElement
+          ? allBtn.parentElement.querySelector(".bl-top-site-all")
+          : null;
+        if (!panel) return;
+        if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
+          panel.classList.add("hidden");
+          allBtn.textContent = "Tüm linkleri gör (" + total + ")";
+          return;
+        }
+        if (panel.dataset.loaded === "1") {
+          panel.classList.remove("hidden");
+          allBtn.textContent = "Linkleri gizle";
+          return;
+        }
+        var prev = allBtn.textContent;
+        allBtn.disabled = true;
+        allBtn.textContent = "Yükleniyor…";
+        try {
+          var url =
+            "/api/backlinks/domain-links?site_id=" +
+            encodeURIComponent(String(siteId())) +
+            "&report_type=" +
+            encodeURIComponent(reportType()) +
+            "&all_link_imports=true&domain=" +
+            encodeURIComponent(domain);
+          var r = await fetch(url, { credentials: "same-origin" });
+          var data = await r.json();
+          if (!r.ok) {
+            showBanner(data.detail || "Linkler yüklenemedi.");
+            allBtn.textContent = prev;
+            return;
+          }
+          var links = data.links || [];
+          var note = "";
+          if (data.truncated) {
+            note =
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi (' +
+              esc(String(data.link_count || links.length)) +
+              ").</p>";
+          }
+          panel.innerHTML = note + renderSampleLinksList(links);
+          panel.dataset.loaded = "1";
+          panel.classList.remove("hidden");
+          allBtn.textContent = "Linkleri gizle";
+        } catch (e) {
+          showBanner(String(e.message || e));
+          allBtn.textContent = prev;
+        } finally {
+          allBtn.disabled = false;
+        }
+        return;
+      }
+      var head = ev.target.closest(".bl-top-site-head");
+      if (!head) return;
+      var dom = head.getAttribute("data-domain") || "";
+      if (!dom) return;
+      blTopSiteOpen[dom] = !blTopSiteOpen[dom];
+      renderTopSitesList();
+    });
   }
 
   function wireTopRankingsToggles() {
@@ -1958,6 +2102,7 @@
   }
   initBlDomainsTableSort();
   wireBlFilters();
+  wireBlTopSitesList();
   loadDashboard().catch(function () {});
 })();
 </script>

@@ -123,6 +123,7 @@ def backlinks_domain_links(
     report_type: str = Query("latest_links"),
     domain: str = Query(..., min_length=1),
     limit: int = Query(10000, ge=1, le=50000),
+    all_link_imports: bool = Query(False, description="Tüm link importları (top target pages hariç)"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     _require_internal_site(db, site_id)
@@ -133,6 +134,7 @@ def backlinks_domain_links(
             report_type=report_type,
             domain=domain,
             limit=limit,
+            all_link_imports=all_link_imports,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
