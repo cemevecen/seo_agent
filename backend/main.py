@@ -12145,18 +12145,27 @@ def api_ga4_realtime_top_news(
                                      RealtimeNewsSnapshot.collected_at == prev_time)
                              .all()}
 
+        from backend.collectors.ga4 import normalize_realtime_page_path, realtime_haber_row_allowed
+
         site_domain_str = (site.domain or "").strip()
         pages = []
         for row in curr_rows:
+            raw = (row.screen_title or "").strip()
+            path_key = normalize_realtime_page_path(raw) if raw.startswith(("/", "http")) else ""
+            if not path_key or not realtime_haber_row_allowed(site_domain_str, None, path_key):
+                continue
+            link = _news_row_link(site_domain_str, path_key)
+            if not link:
+                continue
             prev = prev_map_news.get(row.screen_title)
             pages.append({
-                "page": row.screen_title,
-                "page_path": row.screen_title if row.screen_title.startswith("/") else "",
+                "page": path_key,
+                "page_path": path_key,
                 "activeUsers": row.active_users,
                 "screenPageViews": row.pageviews,
                 "activeUsers_previous": prev.active_users if prev else None,
                 "screenPageViews_previous": prev.pageviews if prev else None,
-                "link_url": _news_row_link(site_domain_str, row.screen_title),
+                "link_url": link,
                 "rank": row.rank,
             })
 

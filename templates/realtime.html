@@ -1514,7 +1514,7 @@
   function _renderNewsList(listEl, pages) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber adayı başlık yok. İstersen .env içinde GA4_REALTIME_NEWS_SCREEN_EXCLUDE_PREFIXES ile filtreleri güncelle.</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede «haber» geçen kategori veya haber detay URL’si yok (canlı GA4).</p>';
       return;
     }
     var sortKey = 'activeUsers';

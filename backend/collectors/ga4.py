@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
@@ -128,6 +129,70 @@ def _is_news_article_path(path: str) -> bool:
     if _is_news_detail_path(path):
         return True
     return _path_contains_news_marker(path)
+
+
+def is_doviz_site_domain(domain: str | None) -> bool:
+    return "doviz.com" in (domain or "").strip().lower()
+
+
+def normalize_realtime_page_path(path: str | None) -> str:
+    p = (path or "").strip()
+    if not p:
+        return ""
+    if p.startswith(("http://", "https://")):
+        p = urlparse(p).path or "/"
+    if "?" in p:
+        p = p.split("?", 1)[0]
+    if p and not p.startswith("/"):
+        p = "/" + p
+    return p
+
+
+def is_realtime_haber_path(path: str) -> bool:
+    """Path'te «haber» geçen kategori veya sayısal ID'li detay (Realtime Haberler)."""
+    p = normalize_realtime_page_path(path)
+    if not p:
+        return False
+    low = p.lower()
+    if "haber" not in low:
+        return False
+    if _is_news_detail_path(p):
+        return True
+    return bool([s for s in p.strip("/").split("/") if s])
+
+
+def is_doviz_realtime_haber_row(host: str | None, path: str | None) -> bool:
+    """Kanonik host haber.doviz.com olan kategori kökü / *-haberleri / detay."""
+    from backend.services.ga4_page_urls import (
+        _doviz_rewrite_host,
+        _is_ga4_placeholder_host,
+        _is_ga4_placeholder_path,
+    )
+
+    p = normalize_realtime_page_path(path)
+    if not p or _is_ga4_placeholder_path(p):
+        return False
+    h = (host or "").strip().lower()
+    if not h or _is_ga4_placeholder_host(h):
+        h = "www.doviz.com"
+    if _doviz_rewrite_host(h, p) != "haber.doviz.com":
+        return False
+    pl = p.lower().rstrip("/") or "/"
+    if pl == "/":
+        return True
+    if _is_news_detail_path(p):
+        return True
+    return "haber" in pl
+
+
+def realtime_haber_row_allowed(site_domain: str, host: str | None, raw: str) -> bool:
+    """Yalnızca path satırları; doviz'te haber.doviz.com kuralları."""
+    p = normalize_realtime_page_path(raw)
+    if not p:
+        return False
+    if is_doviz_site_domain(site_domain):
+        return is_doviz_realtime_haber_row(host, p)
+    return is_realtime_haber_path(p)
 
 
 def _landing_exclude_filter(field_name: str = "landingPagePlusQueryString") -> FilterExpression | None:

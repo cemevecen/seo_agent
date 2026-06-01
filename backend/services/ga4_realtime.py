@@ -1170,15 +1170,86 @@ def _screen_unified_news_candidate(name: str) -> bool:
     return True
 
 
-def _news_row_link(site_domain: str, unified: str) -> str:
-    """Yalnızca makale path'i görünürse doğrudan site URL'si; aksi halde boş (harici arama yönlendirmesi yok)."""
-    from backend.collectors.ga4 import _is_news_article_path
+def _news_row_link(site_domain: str, raw: str, *, host: str = "") -> str:
+    """Haberler sekmesi: geçerli haber path → tam URL (doviz: haber.doviz.com kanonik)."""
+    from backend.collectors.ga4 import (
+        normalize_realtime_page_path,
+        realtime_haber_row_allowed,
+    )
+    from backend.services.ga4_page_urls import ga4_canonical_page_url
 
+    p = normalize_realtime_page_path(raw)
+    if not p or not realtime_haber_row_allowed(site_domain, host or None, p):
+        return ""
+    url = ga4_canonical_page_url(host or None, p)
+    if url:
+        return url
     d = (site_domain or "").strip().lower().replace("https://", "").replace("http://", "").strip("/")
-    u = (unified or "").strip()
-    if u.startswith("/") and d and _is_news_article_path(u):
-        return "https://" + d + u
+    if d:
+        return "https://" + d + p
     return ""
+
+
+def _fetch_realtime_host_path_rows(
+    property_id: str,
+    *,
+    window_minutes: int,
+    fetch_n: int,
+    sort_by: str,
+    client: BetaAnalyticsDataClient | None,
+) -> list[dict[str, Any]] | None:
+    """Yalnızca Haberler için hostName+pagePath; hata olursa None (diğer realtime etkilenmez)."""
+    if client is None:
+        client = _build_client()
+    property_id = _normalize_ga4_property_id(property_id)
+    w = max(1, min(window_minutes, 15))
+    minute_ranges = [
+        MinuteRange(name="current", start_minutes_ago=w - 1, end_minutes_ago=0),
+        MinuteRange(name="previous", start_minutes_ago=2 * w - 1, end_minutes_ago=w),
+    ]
+    request = RunRealtimeReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="hostName"), Dimension(name="pagePath")],
+        metrics=[Metric(name="activeUsers"), Metric(name="screenPageViews")],
+        minute_ranges=minute_ranges,
+    )
+    response = client.run_realtime_report(request)
+    dim_headers = [h.name for h in response.dimension_headers]
+    metric_names = [m.name for m in response.metric_headers]
+    temp_map: dict[str, dict[str, Any]] = {}
+    for row in response.rows:
+        dm = _realtime_row_dimensions(row, dim_headers)
+        host_val = str(dm.get("hostName", "") or "").strip()
+        path_val = str(dm.get("pagePath", "") or "").strip()
+        range_name = "current"
+        for v in dm.values():
+            if str(v).lower() in ("current", "previous"):
+                range_name = str(v).lower()
+                break
+        if not path_val or path_val.lower() in ("current", "previous"):
+            continue
+        key = f"{host_val}\x1f{path_val}"
+        if key not in temp_map:
+            temp_map[key] = {
+                "host": host_val,
+                "page": path_val,
+                "activeUsers": 0.0,
+                "screenPageViews": 0.0,
+                "activeUsers_previous": 0.0,
+                "screenPageViews_previous": 0.0,
+            }
+        entry = temp_map[key]
+        suffix = "_previous" if range_name == "previous" else ""
+        for i, mv in enumerate(row.metric_values):
+            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            try:
+                val = float(mv.value)
+                entry[mname + suffix] = entry.get(mname + suffix, 0.0) + val
+            except (ValueError, TypeError):
+                pass
+    pages = list(temp_map.values())
+    pages.sort(key=lambda p: p.get(sort_by, 0), reverse=True)
+    return pages[:fetch_n]
 
 
 def fetch_realtime_top_news_pages(
@@ -1190,39 +1261,75 @@ def fetch_realtime_top_news_pages(
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: GA4 Realtime şemasında pagePath olmadığı için unifiedScreenName + sezgisel filtre.
-
-    ``link_url`` yalnızca başlık site içi makale path'i ise doldurulur; aksi halde boştur.
-    """
-    fetch_n = min(250, max(80, int(limit) * 25))
-    base = fetch_realtime_top_pages(
-        property_id,
-        window_minutes=window_minutes,
-        limit=fetch_n,
-        sort_by=sort_by,
-        dimension="unifiedScreenName",
-        compare_previous=False,
-        include_page_path=False,
-        client=client,
+    """Realtime «Haberler»: yalnızca haber kategori/detay path'leri (Sayfalar API'sine dokunmaz)."""
+    from backend.collectors.ga4 import (
+        normalize_realtime_page_path,
+        realtime_haber_row_allowed,
     )
+
+    fetch_n = min(400, max(120, int(limit) * 40))
     out: list[dict[str, Any]] = []
-    for p in base.get("pages") or []:
-        title = str(p.get("page") or "").strip()
-        if not _screen_unified_news_candidate(title):
-            continue
-        out.append(
-            {
-                "page": title,
-                "page_path": title if title.startswith("/") else "",
-                "activeUsers": float(p.get("activeUsers") or 0),
-                "screenPageViews": float(p.get("screenPageViews") or 0),
-                "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
-                "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
-                "link_url": _news_row_link(site_domain, title),
-            }
+    breakdown = "pagePath+haber"
+    base: dict[str, Any] = {
+        "window_minutes": window_minutes,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "api_ms": 0,
+    }
+
+    def _consume_rows(rows: list[dict[str, Any]], *, with_host: bool) -> None:
+        nonlocal out
+        for p in rows:
+            host = str(p.get("host") or "").strip() if with_host else ""
+            path = normalize_realtime_page_path(str(p.get("page") or ""))
+            if not realtime_haber_row_allowed(site_domain, host or None, path):
+                continue
+            link = _news_row_link(site_domain, path, host=host)
+            if not link:
+                continue
+            out.append(
+                {
+                    "page": path,
+                    "page_path": path,
+                    "activeUsers": float(p.get("activeUsers") or 0),
+                    "screenPageViews": float(p.get("screenPageViews") or 0),
+                    "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
+                    "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
+                    "link_url": link,
+                }
+            )
+            if len(out) >= max(1, min(int(limit), 250)):
+                return
+
+    try:
+        host_rows = _fetch_realtime_host_path_rows(
+            property_id,
+            window_minutes=window_minutes,
+            fetch_n=fetch_n,
+            sort_by=sort_by,
+            client=client,
         )
-        if len(out) >= max(1, min(int(limit), 250)):
-            break
+        if host_rows:
+            breakdown = "hostName+pagePath+haber"
+            _consume_rows(host_rows, with_host=True)
+    except Exception as exc:
+        LOGGER.debug("Realtime haber hostName+pagePath atlandı: %s", exc)
+
+    if not out:
+        try:
+            base = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                dimension="pagePath",
+                compare_previous=True,
+                include_page_path=False,
+                client=client,
+            )
+            breakdown = "pagePath+haber"
+            _consume_rows(list(base.get("pages") or []), with_host=False)
+        except Exception as exc:
+            LOGGER.warning("Realtime haber pagePath başarısız: %s", exc)
 
     return {
         "property_id": property_id,
@@ -1231,7 +1338,7 @@ def fetch_realtime_top_news_pages(
         "total_pages": len(out),
         "fetched_at": base.get("fetched_at") or datetime.now(timezone.utc).isoformat(),
         "api_ms": base.get("api_ms", 0),
-        "breakdown": "unifiedScreenName+news_heuristic",
+        "breakdown": breakdown,
         "comparison_enabled": True,
     }
 
