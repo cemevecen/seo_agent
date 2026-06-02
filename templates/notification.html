@@ -136,41 +136,78 @@
     .dark .nt-raw-text-cell:hover {
       color: rgb(129 140 248);
     }
-    .nt-cross-top-wrap { overflow-x: auto; }
-    .nt-cross-top-table {
+    .nt-cross-top-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .notification-page .nt-cross-top-table {
       table-layout: fixed;
       width: 100%;
-      min-width: 52rem;
+      min-width: 44rem;
       border-collapse: collapse;
+      border-spacing: 0;
     }
-    .nt-cross-top-table th,
-    .nt-cross-top-table td {
-      padding: 0.45rem 0.5rem;
+    .notification-page .nt-cross-top-table th,
+    .notification-page .nt-cross-top-table td {
+      min-width: 3rem !important;
+      padding: 0.5rem 0.55rem !important;
       border-bottom: 1px solid rgb(226 232 240);
-      vertical-align: top;
+      vertical-align: middle;
+      font-size: 0.75rem !important;
+      line-height: 1.35 !important;
+      color: rgb(51 65 85) !important;
+      overflow: visible !important;
     }
-    html.dark .nt-cross-top-table th,
-    html.dark .nt-cross-top-table td { border-bottom-color: rgb(63 63 70); }
-    .nt-cross-top-table thead th {
-      font-size: 10px;
+    html.dark .notification-page .nt-cross-top-table th,
+    html.dark .notification-page .nt-cross-top-table td {
+      border-bottom-color: rgb(63 63 70);
+      color: rgb(212 212 216) !important;
+    }
+    .notification-page .nt-cross-top-table thead th {
+      font-size: 10px !important;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: rgb(100 116 139);
+      color: rgb(100 116 139) !important;
       background: rgb(248 250 252);
       white-space: nowrap;
     }
-    html.dark .nt-cross-top-table thead th {
-      color: rgb(161 161 170);
+    html.dark .notification-page .nt-cross-top-table thead th {
+      color: rgb(161 161 170) !important;
       background: rgb(24 24 27);
     }
-    .nt-cross-top-table .nt-cross-num { width: 2.25rem; text-align: right; color: rgb(100 116 139); }
-    .nt-cross-top-table .nt-cross-title { width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: rgb(30 41 59); }
-    html.dark .nt-cross-top-table .nt-cross-title { color: rgb(244 244 245); }
-    .nt-cross-top-table .nt-cross-total { width: 5.5rem; text-align: right; font-weight: 800; color: rgb(67 56 202); white-space: nowrap; }
-    html.dark .nt-cross-top-table .nt-cross-total { color: rgb(165 180 252); }
-    .nt-cross-top-table .nt-cross-p { width: 4.5rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .nt-cross-top-table .nt-cross-day { width: 6.25rem; white-space: nowrap; color: rgb(100 116 139); }
+    .notification-page .nt-cross-top-table .nt-cross-num { width: 2.5rem; min-width: 2.5rem !important; text-align: right; }
+    .notification-page .nt-cross-top-table .nt-cross-title {
+      width: 36%;
+      min-width: 10rem !important;
+      max-width: 22rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+      color: rgb(30 41 59) !important;
+    }
+    html.dark .notification-page .nt-cross-top-table .nt-cross-title { color: rgb(244 244 245) !important; }
+    .notification-page .nt-cross-top-table .nt-cross-total {
+      width: 5.25rem;
+      min-width: 5.25rem !important;
+      text-align: right;
+      font-weight: 800;
+      color: rgb(67 56 202) !important;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    html.dark .notification-page .nt-cross-top-table .nt-cross-total { color: rgb(165 180 252) !important; }
+    .notification-page .nt-cross-top-table .nt-cross-p {
+      width: 4.25rem;
+      min-width: 4.25rem !important;
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .notification-page .nt-cross-top-table .nt-cross-day {
+      width: 6rem;
+      min-width: 6rem !important;
+      white-space: nowrap;
+      color: rgb(100 116 139) !important;
+    }
   </style>
   <details class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-zinc-200">Ham içerik listesi</summary>
@@ -591,11 +628,8 @@
         + '<td class="nt-cross-day">' + escapeHtml(x.lastDay || "-") + "</td>"
         + "</tr>";
     }).join("");
-    el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700">'
-      + '<table class="nt-cross-top-table"><colgroup>'
-      + '<col class="nt-cross-num" /><col class="nt-cross-title" /><col class="nt-cross-total" />'
-      + '<col class="nt-cross-p" /><col class="nt-cross-p" /><col class="nt-cross-p" /><col class="nt-cross-p" /><col class="nt-cross-day" />'
-      + "</colgroup>" + head + "<tbody>" + body + "</tbody></table></div>";
+    el.innerHTML = '<div class="nt-cross-top-wrap rounded-lg border border-slate-200 dark:border-zinc-700">'
+      + '<table class="nt-cross-top-table w-full">' + head + "<tbody>" + body + "</tbody></table></div>";
     if (!toggle) return;
     if (items.length <= CROSS_TOP_DEFAULT) {
       toggle.classList.add("hidden");
@@ -762,6 +796,7 @@
     plotTrend(rows);
     plotWeights(rows);
     renderMostLeast(rows);
+    renderCrossPlatformTop(rows);
     renderRawRows(readRows());
     window.NT = {
       readRows: readRows,
