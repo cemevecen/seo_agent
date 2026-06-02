@@ -11730,6 +11730,16 @@ def inbox_page(request: Request):
     )
 
 
+@app.get("/notification")
+def notification_page(request: Request):
+    """Manuel yapıştırılan bildirim performansını birikimli analiz et."""
+    return templates.TemplateResponse(
+        request,
+        "notification.html",
+        context={"request": request},
+    )
+
+
 @app.get("/api/ga4/realtime/{site_id}")
 def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
     """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır.

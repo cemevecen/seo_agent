@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full max-w-7xl space-y-5 notification-page" data-header-title="Notification Analytics">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-100">Notification Analytics</h1>
+    <p class="mt-1 text-sm text-slate-500 dark:text-zinc-400">
+      Panelden tablo kopyalayıp yapıştırın. Her eklemede veriler birikir, grafikler otomatik güncellenir.
+    </p>
+    <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
+      <textarea
+        id="nt-input"
+        class="col-span-1 min-h-40 rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 lg:col-span-2"
+        placeholder="Excel/tabloda satırları kopyala, buraya yapıştır (ilk satır başlık olmalı)"
+      ></textarea>
+      <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
+        <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
+        <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+        <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
+      </div>
+      <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
+        <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Veri ekle</button>
+        <button id="nt-clear-input" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Yapıştırma alanını temizle</button>
+        <button id="nt-reset-all" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950/40">Tüm birikimi sıfırla</button>
+        <p id="nt-status" class="pt-1 text-xs text-slate-500 dark:text-zinc-400">Hazır.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam kayıt</p><p id="nt-kpi-rows" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Benzersiz başlık</p><p id="nt-kpi-headlines" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam click</p><p id="nt-kpi-clicks" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam impression</p><p id="nt-kpi-impr" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-200">Platform click trend (spark model)</h2>
+      <div id="nt-trend-clicks" class="h-[280px]"></div>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-200">Platform ağırlığı (click payı)</h2>
+      <div id="nt-weight-clicks" class="h-[280px]"></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">Çıkış (en yüksek artış)</h3>
+      <div id="nt-rise-list" class="mt-2 space-y-2 text-sm"></div>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">Düşüş (en yüksek azalış)</h3>
+      <div id="nt-drop-list" class="mt-2 space-y-2 text-sm"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var STORE_KEY = "notification_analytics_rows_v1";
+  var START_KEY = "notification_analytics_start_v1";
+  var PLATFORM_KEYS = [
+    { key: "android", label: "Android App" },
+    { key: "ios", label: "iOS App" },
+    { key: "desktop", label: "Desktop" },
+    { key: "mobileweb", label: "Mobile Web" }
+  ];
+
+  function n(v) {
+    var x = Number(v);
+    return isNaN(x) ? 0 : x;
+  }
+  function fmt(v) { return n(v).toLocaleString("tr-TR"); }
+  function normalizeHeader(h) {
+    return String(h || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+  function parseDateSmart(raw) {
+    if (!raw) return null;
+    var s = String(raw).trim();
+    var direct = new Date(s);
+    if (!isNaN(direct.getTime())) return direct.toISOString();
+    var m = s.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+    if (!m) return null;
+    var year = Number(m[3]);
+    if (year < 100) year += 2000;
+    var dt = new Date(year, Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), 0);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  }
+  function readRows() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveRows(rows) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(rows));
+  }
+  function status(msg) {
+    var el = document.getElementById("nt-status");
+    if (el) el.textContent = msg;
+  }
+  function parsePastedText(text) {
+    var raw = String(text || "").trim();
+    if (!raw) return [];
+    var lines = raw.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    var delim = lines[0].indexOf("\t") >= 0 ? "\t" : ",";
+    var headers = lines[0].split(delim).map(normalizeHeader);
+    function pick(map) {
+      for (var i = 0; i < headers.length; i++) {
+        if (map.indexOf(headers[i]) >= 0) return i;
+      }
+      return -1;
+    }
+    var idx = {
+      id: pick(["id"]),
+      text: pick(["text", "title", "headline"]),
+      date: pick(["date", "datetime", "timestamp"]),
+      ai: pick(["androidappimpression"]),
+      ac: pick(["androidappclick"]),
+      atr: pick(["androidappctr"]),
+      ii: pick(["iosappimpression"]),
+      ic: pick(["iosappclick"]),
+      itr: pick(["iosappctr"]),
+      di: pick(["desktopimpression"]),
+      dc: pick(["desktopclick"]),
+      dtr: pick(["desktopctr"]),
+      mi: pick(["mobilewebimpression"]),
+      mc: pick(["mobilewebclick"]),
+      mtr: pick(["mobilewebctr"])
+    };
+    if (idx.text < 0 || idx.date < 0) return [];
+
+    var out = [];
+    for (var li = 1; li < lines.length; li++) {
+      var cols = lines[li].split(delim);
+      var iso = parseDateSmart(cols[idx.date]);
+      if (!iso) continue;
+      var item = {
+        id: idx.id >= 0 ? String(cols[idx.id] || "") : "",
+        text: String(cols[idx.text] || "").trim(),
+        date: iso,
+        platforms: {
+          android: { impression: n(cols[idx.ai]), click: n(cols[idx.ac]), ctr: n(cols[idx.atr]) },
+          ios: { impression: n(cols[idx.ii]), click: n(cols[idx.ic]), ctr: n(cols[idx.itr]) },
+          desktop: { impression: n(cols[idx.di]), click: n(cols[idx.dc]), ctr: n(cols[idx.dtr]) },
+          mobileweb: { impression: n(cols[idx.mi]), click: n(cols[idx.mc]), ctr: n(cols[idx.mtr]) }
+        }
+      };
+      if (item.text) out.push(item);
+    }
+    return out;
+  }
+  function mergeRows(existing, incoming) {
+    var map = {};
+    existing.concat(incoming).forEach(function (r) {
+      var key = (r.id || "") + "|" + r.text + "|" + r.date;
+      map[key] = r;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  }
+  function dayKey(iso) { return String(iso || "").slice(0, 10); }
+  function selectedStartDate() {
+    var val = document.getElementById("nt-start-date").value;
+    return val ? val : null;
+  }
+  function getFilteredRows() {
+    var rows = readRows();
+    var start = selectedStartDate();
+    if (!start) return rows;
+    return rows.filter(function (r) { return dayKey(r.date) >= start; });
+  }
+
+  function renderKpis(rows) {
+    var headlines = {};
+    var totalClicks = 0;
+    var totalImpr = 0;
+    rows.forEach(function (r) {
+      headlines[r.text] = 1;
+      PLATFORM_KEYS.forEach(function (p) {
+        var z = (r.platforms && r.platforms[p.key]) || {};
+        totalClicks += n(z.click);
+        totalImpr += n(z.impression);
+      });
+    });
+    document.getElementById("nt-kpi-rows").textContent = fmt(rows.length);
+    document.getElementById("nt-kpi-headlines").textContent = fmt(Object.keys(headlines).length);
+    document.getElementById("nt-kpi-clicks").textContent = fmt(totalClicks);
+    document.getElementById("nt-kpi-impr").textContent = fmt(totalImpr);
+  }
+
+  function aggregateByDay(rows) {
+    var byDay = {};
+    rows.forEach(function (r) {
+      var k = dayKey(r.date);
+      if (!byDay[k]) {
+        byDay[k] = { day: k, android: 0, ios: 0, desktop: 0, mobileweb: 0 };
+      }
+      PLATFORM_KEYS.forEach(function (p) {
+        var z = (r.platforms && r.platforms[p.key]) || {};
+        byDay[k][p.key] += n(z.click);
+      });
+    });
+    return Object.keys(byDay).sort().map(function (k) { return byDay[k]; });
+  }
+
+  function plotTrend(rows) {
+    var data = aggregateByDay(rows);
+    var x = data.map(function (d) { return d.day; });
+    var colors = { android: "#22c55e", ios: "#06b6d4", desktop: "#6366f1", mobileweb: "#f59e0b" };
+    var traces = PLATFORM_KEYS.map(function (p) {
+      return {
+        x: x,
+        y: data.map(function (d) { return d[p.key]; }),
+        mode: "lines+markers",
+        line: { width: 2, color: colors[p.key] },
+        marker: { size: 5 },
+        name: p.label
+      };
+    });
+    Plotly.newPlot("nt-trend-clicks", traces, {
+      margin: { l: 40, r: 10, t: 8, b: 40 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      xaxis: { title: "Tarih" },
+      yaxis: { title: "Click" },
+      legend: { orientation: "h" }
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  function plotWeights(rows) {
+    var weights = { android: 0, ios: 0, desktop: 0, mobileweb: 0 };
+    rows.forEach(function (r) {
+      PLATFORM_KEYS.forEach(function (p) {
+        weights[p.key] += n(((r.platforms || {})[p.key] || {}).click);
+      });
+    });
+    Plotly.newPlot("nt-weight-clicks", [{
+      type: "pie",
+      labels: PLATFORM_KEYS.map(function (p) { return p.label; }),
+      values: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }),
+      hole: 0.45
+    }], {
+      margin: { l: 10, r: 10, t: 8, b: 8 },
+      paper_bgcolor: "rgba(0,0,0,0)"
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  function renderRiseDrop(rows) {
+    var byHeadlineDay = {};
+    rows.forEach(function (r) {
+      var key = r.text;
+      var d = dayKey(r.date);
+      if (!byHeadlineDay[key]) byHeadlineDay[key] = {};
+      if (!byHeadlineDay[key][d]) byHeadlineDay[key][d] = 0;
+      PLATFORM_KEYS.forEach(function (p) {
+        byHeadlineDay[key][d] += n(((r.platforms || {})[p.key] || {}).click);
+      });
+    });
+    var deltas = [];
+    Object.keys(byHeadlineDay).forEach(function (h) {
+      var days = Object.keys(byHeadlineDay[h]).sort();
+      if (days.length < 2) return;
+      var prev = byHeadlineDay[h][days[days.length - 2]];
+      var curr = byHeadlineDay[h][days[days.length - 1]];
+      deltas.push({ headline: h, delta: curr - prev, curr: curr, prev: prev });
+    });
+    deltas.sort(function (a, b) { return b.delta - a.delta; });
+    var rises = deltas.filter(function (d) { return d.delta > 0; }).slice(0, 8);
+    var drops = deltas.filter(function (d) { return d.delta < 0; }).sort(function (a, b) { return a.delta - b.delta; }).slice(0, 8);
+
+    function renderList(targetId, list, cls) {
+      var el = document.getElementById(targetId);
+      if (!list.length) {
+        el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Karşılaştırma için en az 2 tarihli aynı başlık verisi gerekli.</p>';
+        return;
+      }
+      el.innerHTML = list.map(function (x) {
+        return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
+          + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + escapeHtml(x.headline) + '</p>'
+          + '<p class="text-xs ' + cls + '">Δ ' + (x.delta > 0 ? '+' : '') + fmt(x.delta) + ' click <span class="text-slate-400">(' + fmt(x.prev) + ' → ' + fmt(x.curr) + ')</span></p>'
+          + '</div>';
+      }).join("");
+    }
+    renderList("nt-rise-list", rises, "text-emerald-600 dark:text-emerald-400");
+    renderList("nt-drop-list", drops, "text-rose-600 dark:text-rose-400");
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = String(s || "");
+    return d.innerHTML;
+  }
+
+  function redrawAll() {
+    var rows = getFilteredRows();
+    renderKpis(rows);
+    plotTrend(rows);
+    plotWeights(rows);
+    renderRiseDrop(rows);
+  }
+
+  document.getElementById("nt-add-data").addEventListener("click", function () {
+    var txt = document.getElementById("nt-input").value;
+    var parsed = parsePastedText(txt);
+    if (!parsed.length) {
+      status("Veri parse edilemedi. Başlık satırı ve tarih sütununu kontrol edin.");
+      return;
+    }
+    var merged = mergeRows(readRows(), parsed);
+    saveRows(merged);
+    status(parsed.length + " satır eklendi. Toplam: " + merged.length);
+    redrawAll();
+  });
+
+  document.getElementById("nt-clear-input").addEventListener("click", function () {
+    document.getElementById("nt-input").value = "";
+    status("Yapıştırma alanı temizlendi.");
+  });
+
+  document.getElementById("nt-reset-all").addEventListener("click", function () {
+    localStorage.removeItem(STORE_KEY);
+    status("Birikmiş veri silindi.");
+    redrawAll();
+  });
+
+  document.getElementById("nt-apply-date").addEventListener("click", function () {
+    var val = document.getElementById("nt-start-date").value || "";
+    localStorage.setItem(START_KEY, val);
+    status(val ? ("Filtre uygulandı: " + val) : "Tarih filtresi kaldırıldı.");
+    redrawAll();
+  });
+
+  var savedStart = localStorage.getItem(START_KEY) || "";
+  if (savedStart) document.getElementById("nt-start-date").value = savedStart;
+  redrawAll();
+})();
+</script>
+{% endblock %}
