@@ -479,12 +479,6 @@
     paintTopList("nt-least-list", "nt-least-expand", cachedLeastList, "text-rose-600 dark:text-rose-400", leastListExpanded);
     renderCrossPlatformTop(rows);
   }
-  function rowTotalClicks(row) {
-    var p = row.platforms || {};
-    var sum = 0;
-    PLATFORM_KEYS.forEach(function (pk) { sum += n((p[pk.key] || {}).click); });
-    return sum;
-  }
   function buildCrossPlatformRanking(rows) {
     var by = {};
     rows.forEach(function (r) {
