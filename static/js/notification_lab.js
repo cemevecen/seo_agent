@@ -1,7 +1,25 @@
 (function () {
   function api() { return window.NT || null; }
+  var NT_PARETO_CHART_H = 320;
+
   function emptyMsg(el, msg) {
     if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "Veri yok.") + "</p>";
+  }
+
+  function clearPlotHost(el) {
+    if (!el) return;
+    if (window.Plotly) {
+      try { Plotly.purge(el); } catch (e) { /* ignore */ }
+    }
+    el.innerHTML = "";
+    el.classList.remove("nt-lab-pareto-chart--empty");
+  }
+
+  function showParetoEmpty(el, msg) {
+    if (!el) return;
+    clearPlotHost(el);
+    el.classList.add("nt-lab-pareto-chart--empty");
+    el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "Veri yok.") + "</p>";
   }
   function ntIsDark() { return document.documentElement.classList.contains("dark"); }
   function ntFont() { return { color: ntIsDark() ? "#a1a1aa" : "#475569" }; }
@@ -124,11 +142,11 @@
     var stats = buildHeadlineStats(nt, rows).sort(function (a, b) { return b.clicks - a.clicks; });
     var total = stats.reduce(function (s, x) { return s + x.clicks; }, 0);
     if (!total) {
-      Plotly.purge(el);
       if (sumEl) sumEl.textContent = "";
-      emptyMsg(el);
+      showParetoEmpty(el);
       return;
     }
+    clearPlotHost(el);
     var top = stats.slice(0, nTop);
     var cum = 0, xs = [], bar = [], line = [];
     top.forEach(function (x, i) {
@@ -138,16 +156,25 @@
       line.push((cum / total) * 100);
     });
     var lc = ntLabColors();
-    Plotly.newPlot(el, [
-      { type: "bar", x: xs, y: bar, name: "Click", marker: { color: lc.bar } },
-      { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: lc.line } }
-    ], plotLayout({
+    var layout = plotLayout({
+      height: NT_PARETO_CHART_H,
+      autosize: false,
       yaxis: ntAxis(),
       yaxis2: ntAxis({ overlaying: "y", side: "right", title: "Kümülatif %", range: [0, 100] }),
-      margin: { b: 120 },
+      margin: { l: 52, r: 48, t: 24, b: 110 },
       xaxis: ntAxis({ tickangle: -35 }),
-      legend: { font: ntFont() }
-    }), { responsive: true, displayModeBar: false });
+      legend: { font: ntFont(), orientation: "h", y: 1.12, x: 0 }
+    });
+    Plotly.newPlot(el, [
+      { type: "bar", x: xs, y: bar, name: "Click", marker: { color: lc.bar } },
+      { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: lc.line, width: 2 } }
+    ], layout, { responsive: true, displayModeBar: false });
+    window.requestAnimationFrame(function () {
+      try {
+        Plotly.Plots.resize(el);
+        Plotly.relayout(el, { height: NT_PARETO_CHART_H });
+      } catch (e) { /* ignore */ }
+    });
     var share = (top.reduce(function (s, x) { return s + x.clicks; }, 0) / total) * 100;
     if (sumEl) sumEl.textContent = "Top " + top.length + " başlık toplam click'in %" + share.toFixed(1) + "'ini taşıyor (80/20 kontrolü).";
   }

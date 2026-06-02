@@ -9,7 +9,26 @@
       <label class="font-semibold text-slate-600 dark:text-slate-300">Top N</label>
       <input id="nt-lab-pareto-n" type="number" min="5" max="200" value="30" class="w-20 rounded border border-slate-300 px-2 py-1 dark:border-slate-600 dark:bg-slate-900" />
     </div>
-    <div id="nt-lab-pareto" class="mt-3 h-[300px]"></div>
+    <style>
+      #nt-lab-pareto.nt-lab-pareto-chart {
+        width: 100%;
+        min-height: 320px;
+        height: 320px;
+        flex-shrink: 0;
+      }
+      #nt-lab-pareto.nt-lab-pareto-chart .js-plotly-plot,
+      #nt-lab-pareto.nt-lab-pareto-chart .plot-container.plotly {
+        width: 100% !important;
+        min-height: 320px !important;
+        height: 320px !important;
+      }
+      #nt-lab-pareto.nt-lab-pareto-chart--empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+    <div id="nt-lab-pareto" class="nt-lab-pareto-chart mt-3 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 dark:border-zinc-800 dark:bg-zinc-950/40"></div>
     <p id="nt-lab-pareto-summary" class="mt-2 text-xs text-slate-600 dark:text-slate-400"></p>
   </div>
 
