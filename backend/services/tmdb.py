@@ -19,10 +19,6 @@ TMDB_IMG  = "https://image.tmdb.org/t/p/w185"
 # Sinemalar.com için anlamlı diller — Hintçe/Korece/Tagalogca vs. hariç
 ACCEPTED_LANGUAGES = {"en", "tr", "fr", "de", "es", "it"}
 
-# Türkiye'deki major streaming platformları (TMDB provider ID)
-# Netflix=8, Prime=119, Disney+=337, AppleTV+=350, Mubi=11, BluTV=341, beIN=32, exxen=1869
-STREAMING_PROVIDERS_TR = "8|119|337|350|11|341|32"
-
 # Türkiye karasal + dijital-karasal kanalları (TMDB network ID)
 # ATV=1932, Kanal D=1560, Show TV=1573, Star TV=1566,
 # TRT1=545, TRT(genel)=544, FOX/NOW TV=1567, TV8=2120,
@@ -35,11 +31,7 @@ MONTH_NAMES_TR = {
     "09": "Eylül", "10": "Ekim",   "11": "Kasım",   "12": "Aralık",
 }
 
-PROVIDER_NAMES = {
-    8: "Netflix", 119: "Prime Video", 337: "Disney+",
-    350: "Apple TV+", 11: "Mubi", 341: "BluTV", 32: "beIN",
-    1869: "exxen",
-}
+PROVIDER_NAMES = dict(TR_PROVIDERS) if "TR_PROVIDERS" in dir() else {}  # noqa: updated below after TR_STREAMING_PROVIDERS
 
 
 def _headers() -> dict[str, str]:
@@ -209,6 +201,7 @@ def _popularity_label(pop: float) -> str:
 
 def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
     release = (m.get("release_date") or "")[:10]
+    prov = providers or []
     return {
         "id":               m["id"],
         "title":            m.get("title") or m.get("original_title") or "",
@@ -226,7 +219,9 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
         "country_flag":     _resolve_flag(m),
         "country_code":     _resolve_country_code(m),
         "tmdb_url":         f"https://www.themoviedb.org/movie/{m['id']}",
-        "providers":        providers or [],
+        "providers":        prov,
+        "provider_slugs":   _provider_slugs(prov),
+        "media_type":       "movie",
     }
 
 
@@ -332,20 +327,24 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     return movies
 
 
-# Platform ID → görünen isim  (watch_region=TR)
-TR_PROVIDERS: dict[int, str] = {
-    8:    "Netflix",
-    337:  "Disney+",
-    1899: "Max",           # HBO Max → Max
-    119:  "Prime Video",
-    350:  "Apple TV+",
-    11:   "Mubi",
-    341:  "BluTV",
-    32:   "beIN Connect",
-    1869: "exxen",
-    # TV+ (Turkcell) henüz TMDB'de kayıtlı değil; eklenirse buraya
-}
-STREAMING_PROVIDERS_TR = "|".join(str(k) for k in TR_PROVIDERS)
+# Türkiye OTT — TMDB watch/provider ID (watch_region=TR)
+# Sıra: UI filtre çubuğu + tarama önceliği
+TR_STREAMING_PROVIDERS: list[dict[str, Any]] = [
+    {"id": 8,    "name": "Netflix",      "slug": "netflix",  "filter_label": "Netflix"},
+    {"id": 119,  "name": "Prime Video",  "slug": "prime",    "filter_label": "Prime"},
+    {"id": 337,  "name": "Disney+",      "slug": "disney",   "filter_label": "Disney+"},
+    {"id": 1899, "name": "Max",          "slug": "max",      "filter_label": "Max (HBO)"},
+    {"id": 350,  "name": "Apple TV+",    "slug": "apple",    "filter_label": "Apple TV+"},
+    {"id": 1904, "name": "TV+",          "slug": "tvplus",   "filter_label": "TV+"},
+    {"id": 11,   "name": "Mubi",         "slug": "mubi",     "filter_label": "Mubi"},
+    {"id": 341,  "name": "BluTV",        "slug": "blutv",    "filter_label": "BluTV"},
+    {"id": 32,   "name": "beIN Connect", "slug": "bein",     "filter_label": "beIN"},
+    {"id": 1869, "name": "exxen",        "slug": "exxen",    "filter_label": "exxen"},
+]
+
+TR_PROVIDERS: dict[int, str] = {int(p["id"]): str(p["name"]) for p in TR_STREAMING_PROVIDERS}
+STREAMING_PROVIDERS_TR = "|".join(str(p["id"]) for p in TR_STREAMING_PROVIDERS)
+_PROVIDER_SLUG_BY_NAME = {p["name"]: p["slug"] for p in TR_STREAMING_PROVIDERS}
 
 # Kart üzerindeki platform rozet renkleri
 PROVIDER_COLORS: dict[str, str] = {
@@ -354,6 +353,7 @@ PROVIDER_COLORS: dict[str, str] = {
     "Max":           "bg-purple-700 text-white",
     "Prime Video":   "bg-sky-600 text-white",
     "Apple TV+":     "bg-slate-900 text-white",
+    "TV+":           "bg-cyan-700 text-white",
     "Mubi":          "bg-rose-900 text-white",
     "BluTV":         "bg-orange-500 text-white",
     "beIN Connect":  "bg-green-700 text-white",
@@ -361,75 +361,127 @@ PROVIDER_COLORS: dict[str, str] = {
 }
 
 
+def streaming_provider_filters() -> list[dict[str, str]]:
+    """UI platform filtre çubuğu — slug + görünen etiket."""
+    return [{"slug": p["slug"], "label": p["filter_label"], "name": p["name"]} for p in TR_STREAMING_PROVIDERS]
+
+
+def _provider_slugs(names: list[str]) -> str:
+    """Kart data-provider-slugs — pipe ile ayrılmış filtre anahtarları."""
+    slugs = [_PROVIDER_SLUG_BY_NAME.get(n, "") for n in names]
+    return "|".join(s for s in slugs if s)
+
+
 # ── 2. Platform yayınları (streaming) ────────────────────────────────────────
+
+def _streaming_store_key(media_type: str, item_id: int) -> str:
+    return f"{media_type}:{item_id}"
+
+
+def _attach_streaming_provider(entry: dict, provider_name: str) -> None:
+    provs = entry.setdefault("providers", [])
+    if provider_name not in provs:
+        provs.append(provider_name)
+    entry["provider_slugs"] = _provider_slugs(provs)
+
+
+def _merge_streaming_movie(
+    store: dict[str, dict],
+    raw: dict,
+    provider_name: str,
+) -> None:
+    key = _streaming_store_key("movie", raw["id"])
+    if key not in store:
+        store[key] = _enrich(raw)
+        store[key]["providers"] = []
+    _attach_streaming_provider(store[key], provider_name)
+
+
+def _merge_streaming_tv(
+    store: dict[str, dict],
+    raw: dict,
+    provider_name: str,
+) -> None:
+    key = _streaming_store_key("tv", raw["id"])
+    if key not in store:
+        entry = _enrich_tv(raw)
+        entry["providers"] = []
+        store[key] = entry
+    _attach_streaming_provider(store[key], provider_name)
+
 
 def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
-    Her platformu ayrı sorgular; hangi platformda olduğu etiketlenir.
-    Başlangıç: bu ayın 1'i (Sinema sekmesiyle aynı mantık).
+    Her OTT platformu için ayrı TMDB discover (film + dizi).
+    watch_region=TR öncelikli; eksik kalanlar global discover ile tamamlanır.
+    Platform etiketi yalnızca o sorgunun sağlayıcısından gelir (false positive yok).
     """
     date_from = _current_month_start()
     date_to   = _year_end()
+    store: dict[str, dict] = {}
 
-    # id → {movie_dict, providers:[...]}
-    all_movies: dict[int, dict] = {}
-
-    base_params = {
+    movie_base = {
         "language":      "tr-TR",
         "sort_by":       "popularity.desc",
         "include_adult": "false",
     }
+    tv_base = {
+        "language":          "tr-TR",
+        "sort_by":           "popularity.desc",
+        "include_adult":     "false",
+        "air_date.gte":      date_from,
+        "air_date.lte":      date_to,
+    }
 
-    for provider_id, provider_name in TR_PROVIDERS.items():
+    for prov in TR_STREAMING_PROVIDERS:
+        provider_id = int(prov["id"])
+        provider_name = str(prov["name"])
         pid = str(provider_id)
 
-        # A: watch_region=TR — doğru ama az veri
+        # Film — TR bölgesel yayın tarihi
         for m in _fetch_pages({
-            **base_params,
-            "watch_region":         "TR",
-            "with_watch_providers":  pid,
-            "release_date.gte":     date_from,
-            "release_date.lte":     date_to,
-        }, page_limit=4):
-            mid = m["id"]
-            if mid not in all_movies:
-                all_movies[mid] = _enrich(m)
-                all_movies[mid]["providers"] = []
-                all_movies[mid]["_provider_hits"] = 0
-            if provider_name not in all_movies[mid]["providers"]:
-                all_movies[mid]["providers"].append(provider_name)
-            all_movies[mid]["_provider_hits"] += 1
+            **movie_base,
+            "watch_region":            "TR",
+            "with_watch_providers":    pid,
+            "with_watch_monetization_types": "flatrate",
+            "release_date.gte":        date_from,
+            "release_date.lte":        date_to,
+        }, page_limit=10):
+            _merge_streaming_movie(store, m, provider_name)
 
-        # B: global (watch_region yok) — daha fazla içerik ama overlap riski var
+        # Film — global keşif (TR'de henüz tarih yoksa)
         for m in _fetch_pages({
-            **base_params,
-            "with_watch_providers":     pid,
-            "primary_release_date.gte": date_from,
-            "primary_release_date.lte": date_to,
-        }, page_limit=4):
-            mid = m["id"]
-            pop = float(m.get("popularity") or 0)
-            if mid not in all_movies:
-                all_movies[mid] = _enrich(m)
-                all_movies[mid]["providers"] = []
-                all_movies[mid]["_provider_hits"] = 0
-            if provider_name not in all_movies[mid]["providers"]:
-                all_movies[mid]["providers"].append(provider_name)
-            all_movies[mid]["_provider_hits"] += 1
+            **movie_base,
+            "with_watch_providers":         pid,
+            "with_watch_monetization_types": "flatrate",
+            "primary_release_date.gte":     date_from,
+            "primary_release_date.lte":     date_to,
+        }, page_limit=6):
+            _merge_streaming_movie(store, m, provider_name)
 
-    # 5+ farklı platformda çıkıyorsa global katalog false positive — etiketi sıfırla
-    for m in all_movies.values():
-        if len(m.get("providers", [])) >= 5:
-            m["providers"] = []
-        m.pop("_provider_hits", None)
+        # Dizi — TR
+        for m in _fetch_tv_pages({
+            **tv_base,
+            "watch_region":            "TR",
+            "with_watch_providers":    pid,
+            "with_watch_monetization_types": "flatrate",
+        }, page_limit=8):
+            _merge_streaming_tv(store, m, provider_name)
 
-    # Bu aydan önceki orijinal vizyon tarihli filmleri filtrele
-    movies = [
-        m for m in all_movies.values()
+        # Dizi — global
+        for m in _fetch_tv_pages({
+            **tv_base,
+            "with_watch_providers":         pid,
+            "with_watch_monetization_types": "flatrate",
+        }, page_limit=5):
+            _merge_streaming_tv(store, m, provider_name)
+
+    items = [
+        m for m in store.values()
         if (m.get("release_date") or "9999") >= date_from
     ]
-    movies.sort(key=lambda x: x["release_date"] or "9999")
-    return movies
+    items.sort(key=lambda x: (x.get("release_date") or "9999", -(x.get("popularity") or 0)))
+    return items
 
 
 # ── 3. Türk yapımları (tüm platformlar) ───────────────────────────────────────
@@ -493,6 +545,8 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
         "status":           TV_STATUS_TR.get(status_en, status_en),
         "seasons":          int(m.get("number_of_seasons") or 0),
         "media_type":       "tv",
+        "providers":        [],
+        "provider_slugs":   "",
     }
 
 
@@ -650,13 +704,15 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
 
     tv_upcoming.sort(key=lambda x: (-x["popularity"], x["release_date"] or "9999"))
 
-    # theatrical + streaming ID'lerini işaretle
+    # theatrical + platform film ID'lerini işaretle (diziler Türk film listesinden düşülmez)
     theatrical_ids = {m["id"] for m in theatrical}
-    streaming_ids  = {m["id"] for m in streaming}
-    known_ids      = theatrical_ids | streaming_ids
+    streaming_movie_ids = {
+        m["id"] for m in streaming if (m.get("media_type") or "movie") == "movie"
+    }
+    known_movie_ids = theatrical_ids | streaming_movie_ids
 
     # Türk yapımlarından diğerlerinde olmayanları ayır
-    turkish_only = [m for m in turkish if m["id"] not in known_ids]
+    turkish_only = [m for m in turkish if m["id"] not in known_movie_ids]
 
     # theatrical ve streaming'e de Türk işareti ekle
     for lst in (theatrical, streaming):
@@ -674,7 +730,10 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
             by_m[k].sort(key=lambda x: x["release_date"] or "9999")
         return by_m
 
-    all_combined = theatrical + [m for m in streaming if m["id"] not in theatrical_ids] + turkish_only
+    all_combined = theatrical + [
+        m for m in streaming
+        if (m.get("media_type") or "movie") == "movie" and m["id"] not in theatrical_ids
+    ] + turkish_only
     high_potential = sorted(
         [m for m in all_combined if m["popularity"] >= 100],
         key=lambda x: -x["popularity"],

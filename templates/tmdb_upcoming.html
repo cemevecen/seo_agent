@@ -21,6 +21,7 @@
   {% elif p == 'BluTV' %}bg-orange-500 text-white
   {% elif p == 'beIN Connect' %}bg-green-700 text-white
   {% elif p == 'exxen' %}bg-indigo-600 text-white
+  {% elif p == 'TV+' %}bg-cyan-700 text-white
   {% else %}bg-slate-500 text-white{% endif %}">{{ p }}</span>{% endmacro %}
 
 {% macro film_card(movie) %}
@@ -31,6 +32,7 @@
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
   data-country="{{ movie.country_code }}"
+  data-provider-slugs="{{ movie.provider_slugs or '' }}"
   data-pop="{% if movie.popularity >= 200 %}high{% elif movie.popularity >= 80 %}medium{% else %}low{% endif %}">
 
   {# Afiş #}
@@ -125,6 +127,7 @@
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
   data-country="{{ show.country_code }}"
+  data-provider-slugs="{{ show.provider_slugs or '' }}"
   data-pop="{% if show.popularity >= 200 %}high{% elif show.popularity >= 80 %}medium{% else %}low{% endif %}">
 
   {# Afiş #}
@@ -200,7 +203,7 @@
 </div>
 {% endmacro %}
 
-{% macro month_grid(by_month, card_macro, label_suffix='') %}
+{% macro month_grid(by_month, card_macro, label_suffix='', tv_macro=none) %}
   {# 1. Geçmiş ay sayısını ve toplam film sayısını hesapla #}
   {% set ns = namespace(past_months=0, past_films=0) %}
   {% for month_key, items in by_month.items() %}
@@ -233,7 +236,7 @@
             <span class="rounded-full bg-violet-100/90 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/45 dark:text-violet-300">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
           </div>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
-            {% for item in items %}{{ card_macro(item) }}{% endfor %}
+            {% for item in items %}{% if tv_macro and item.media_type == 'tv' %}{{ tv_macro(item) }}{% else %}{{ card_macro(item) }}{% endif %}{% endfor %}
           </div>
         </section>
         {% endif %}
@@ -259,7 +262,7 @@
           {% if tr_c %}<span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>{% endif %}
         </div>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
-          {% for item in items %}{{ card_macro(item) }}{% endfor %}
+          {% for item in items %}{% if tv_macro and item.media_type == 'tv' %}{{ tv_macro(item) }}{% else %}{{ card_macro(item) }}{% endif %}{% endfor %}
         </div>
       </section>
     {% endif %}
@@ -327,8 +330,12 @@
 
   {# Platform paneli #}
   <div id="panel-streaming" class="tmdb-panel hidden space-y-5">
+    <div class="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 text-xs text-violet-900 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-200">
+      Netflix · Prime · Disney+ · Max (HBO) · Apple TV+ · TV+ ve diğer OTT — film + dizi; her platform TMDB TR flatrate keşfi ile ayrı taranır.
+    </div>
+    <div id="pbar-streaming" class="tmdb-pbar flex flex-wrap gap-1.5"></div>
     <div id="cbar-streaming" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
-    {{ month_grid(data.streaming_by_month, film_card) }}
+    {{ month_grid(data.streaming_by_month, film_card, '', tv_card) }}
   </div>
 
   {# Türk filmleri paneli #}
@@ -376,11 +383,13 @@
 
 <script>
 (function () {
+  var STREAMING_PROVIDER_FILTERS = {{ streaming_provider_filters | default([]) | tojson }};
   var tabs   = document.querySelectorAll('.tmdb-tab');
   var panels = document.querySelectorAll('.tmdb-panel');
 
   /* ── Önem / popülerlik filtresi ── */
   var _activePop = 'all';
+  var _activeProvider = 'all';
   var popBtns = document.querySelectorAll('.tmdb-pop-btn');
 
   function setActivePopBtn(val) {
@@ -396,24 +405,43 @@
     });
   }
 
+  function cardVisible(card) {
+    return card.getAttribute('data-pop-hidden') !== '1'
+      && card.getAttribute('data-country-hidden') !== '1'
+      && card.getAttribute('data-provider-hidden') !== '1';
+  }
+
+  function applyCardVisibility(card) {
+    card.style.display = cardVisible(card) ? '' : 'none';
+  }
+
+  function refreshPanelSections(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('section, details.tmdb-past-group').forEach(function (sec) {
+      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(cardVisible);
+      sec.style.display = visible ? '' : 'none';
+    });
+  }
+
   function applyPopFilter() {
     document.querySelectorAll('.tmdb-card').forEach(function (card) {
       var pop = card.getAttribute('data-pop') || 'low';
       var show = _activePop === 'all' || pop === _activePop;
-      // Ülke filtresiyle çakışmasın — zaten gizliyse dokunma
-      if (card.style.display === 'none' && show) {
-        // ülke filtresi gizlemişse karışma
-      }
       card.setAttribute('data-pop-hidden', show ? '0' : '1');
-      // Her iki filtreyi birleştir
-      var countryHidden = card.getAttribute('data-country-hidden') === '1';
-      card.style.display = (show && !countryHidden) ? '' : 'none';
+      applyCardVisibility(card);
     });
-    // Boş kalan ay bölümlerini gizle (section + details accordion)
-    document.querySelectorAll('.tmdb-panel:not(.hidden) section, .tmdb-panel:not(.hidden) details.tmdb-past-group').forEach(function (sec) {
-      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
-      sec.style.display = visible ? '' : 'none';
+    document.querySelectorAll('.tmdb-panel:not(.hidden)').forEach(refreshPanelSections);
+  }
+
+  function applyProviderFilter(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var slugs = (card.getAttribute('data-provider-slugs') || '').split('|').filter(Boolean);
+      var show = _activeProvider === 'all' || slugs.indexOf(_activeProvider) >= 0;
+      card.setAttribute('data-provider-hidden', show ? '0' : '1');
+      applyCardVisibility(card);
     });
+    refreshPanelSections(panel);
   }
 
   popBtns.forEach(function (btn) {
@@ -504,22 +532,89 @@
       var cc = card.getAttribute('data-country') || '';
       var countryOk = (cf === 'all' || cc === cf);
       card.setAttribute('data-country-hidden', countryOk ? '0' : '1');
-      var popHidden = card.getAttribute('data-pop-hidden') === '1';
-      card.style.display = (countryOk && !popHidden) ? '' : 'none';
+      applyCardVisibility(card);
     });
-    panel.querySelectorAll('section, details.tmdb-past-group').forEach(function (sec) {
-      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(function (c) { return c.style.display !== 'none'; });
-      sec.style.display = visible ? '' : 'none';
+    refreshPanelSections(panel);
+  }
+
+  var PROVIDER_BTN_COLORS = {
+    netflix: '#dc2626', prime: '#0284c7', disney: '#1d4ed8', max: '#7c3aed',
+    apple: '#0f172a', tvplus: '#0891b2', mubi: '#9f1239', blutv: '#ea580c',
+    bein: '#15803d', exxen: '#4338ca'
+  };
+
+  function setActivePF(bar, slug) {
+    bar.querySelectorAll('.tmdb-pf-btn').forEach(function (b) {
+      var on = b.getAttribute('data-pf') === slug;
+      b.setAttribute('data-active-pf', on ? '1' : '0');
+      if (on) {
+        var col = PROVIDER_BTN_COLORS[slug] || '#0f172a';
+        b.style.background = col;
+        b.style.color = '#fff';
+        b.style.borderColor = col;
+        b.style.fontWeight = '700';
+      } else {
+        b.style.background = '';
+        b.style.color = '';
+        b.style.borderColor = '';
+        b.style.fontWeight = '';
+      }
+    });
+  }
+
+  function buildProviderBar(panelId) {
+    var panel = document.getElementById(panelId);
+    var bar = document.getElementById('pbar-' + panelId.replace('panel-', ''));
+    if (!panel || !bar || panelId !== 'panel-streaming') {
+      if (bar) bar.innerHTML = '';
+      return;
+    }
+
+    var counts = {};
+    panel.querySelectorAll('.tmdb-card[data-provider-slugs]').forEach(function (c) {
+      (c.getAttribute('data-provider-slugs') || '').split('|').filter(Boolean).forEach(function (s) {
+        counts[s] = (counts[s] || 0) + 1;
+      });
+    });
+
+    var html = '<button type="button" class="tmdb-pf-btn rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" data-pf="all">Tüm platformlar</button>';
+    (STREAMING_PROVIDER_FILTERS || []).forEach(function (p) {
+      var n = counts[p.slug] || 0;
+      if (!n) return;
+      html += '<button type="button" class="tmdb-pf-btn rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-300" data-pf="' + p.slug + '">'
+        + p.label + ' <span class="rounded-full bg-slate-100 px-1.5 text-[10px] dark:bg-slate-600">' + n + '</span></button>';
+    });
+    bar.innerHTML = html;
+    setActivePF(bar, 'all');
+
+    bar.querySelectorAll('.tmdb-pf-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pf = btn.getAttribute('data-pf');
+        if (btn.getAttribute('data-active-pf') === '1' && pf !== 'all') pf = 'all';
+        _activeProvider = pf;
+        setActivePF(bar, pf);
+        applyProviderFilter(panel);
+      });
     });
   }
 
   function resetCF(panelId) {
     var panel = document.getElementById(panelId);
     if (!panel) return;
-    panel.querySelectorAll('.tmdb-card').forEach(function (c) { c.style.display = ''; });
-    panel.querySelectorAll('section, details.tmdb-past-group').forEach(function (s) { s.style.display = ''; });
+    panel.querySelectorAll('.tmdb-card').forEach(function (c) {
+      c.setAttribute('data-country-hidden', '0');
+      c.setAttribute('data-provider-hidden', '0');
+      c.setAttribute('data-pop-hidden', '0');
+      applyCardVisibility(c);
+    });
+    refreshPanelSections(panel);
     var bar = document.getElementById('cbar-' + panelId.replace('panel-',''));
     if (bar) setActiveCF(bar, 'all');
+    if (panelId === 'panel-streaming') {
+      _activeProvider = 'all';
+      var pbar = document.getElementById('pbar-streaming');
+      if (pbar) setActivePF(pbar, 'all');
+    }
   }
 
   /* ── Sekme geçişi — inline style (zinc override'dan bağımsız) ── */
@@ -553,6 +648,7 @@
       if (visible) {
         resetCF(p.id);
         buildCountryBar(p.id);
+        buildProviderBar(p.id);
       }
     });
   }
@@ -640,7 +736,7 @@
     return {
       page: 'tmdb-upcoming',
       active_tab: activeTab ? activeTab.getAttribute('data-tab') : 'theatrical',
-      filters: { pop: _activePop },
+      filters: { pop: _activePop, provider: _activeProvider },
     };
   };
 })();

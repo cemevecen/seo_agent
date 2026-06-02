@@ -10497,12 +10497,15 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         except Exception:
             LOGGER.exception("OMDB merge hatası (sayfa yüklenmesini engellemez)")
 
+    from backend.services.tmdb import streaming_provider_filters
+
     payload = {
         "site_name": "Movie",
         "sites": get_sidebar_sites(),
         "data": data,
         "error": error,
         "current_month": date.today().strftime("%Y-%m"),
+        "streaming_provider_filters": streaming_provider_filters(),
     }
     return templates.TemplateResponse(request, "tmdb_upcoming.html",
                                       context={"request": request, **payload})
