@@ -284,9 +284,8 @@ class Settings(BaseSettings):
     # döngüsünde toplanıp TEK mail olarak gönderildiğinden, bu aralık aynı zamanda
     # "en erken yarım saatte bir mail" garantisini verir + her kontrolde daha çok veri birikir.
     ga4_realtime_interval_minutes: int = 30
-    # KPI karşılaştırma penceresi: 60dk (30+30 yarı). Daha geniş pencere = daha birikmiş veri;
-    # anlık küçük dalgalanmalar yerine yarım saatlik gerçek trend karşılaştırılır.
-    ga4_realtime_window_minutes: int = 60
+    # KPI toplam penceresi: GA4 Realtime UI ile aynı (max 30 dk).
+    ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
     ga4_realtime_ui_poll_seconds: int = Field(default=60, ge=15, le=600)   # 1 dakika
     # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Çok-istemcili/sık polling'in

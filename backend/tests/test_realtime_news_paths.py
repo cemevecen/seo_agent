@@ -35,6 +35,9 @@ def test_haber_doviz_rejects_market_paths():
 def test_unified_title_rejects_live_rates():
     assert not unified_screen_news_candidate("Canlı Dolar — Güncel Kur", site_domain="www.doviz.com")
     assert not unified_screen_news_candidate("Güncel Altın Fiyatları", site_domain="www.doviz.com")
+    assert not unified_screen_news_candidate("Borsa Endeksleri", site_domain="www.doviz.com")
+    assert not unified_screen_news_candidate("Gümüş Ons fiyatları", site_domain="www.doviz.com")
+    assert not unified_screen_news_candidate("Geçmiş Halka Arzlar", site_domain="www.doviz.com")
     assert unified_screen_news_candidate("Ekonomi Haberleri", site_domain="www.doviz.com")
     assert unified_screen_news_candidate(
         "Merkez Bankası faiz kararı açıklandı",

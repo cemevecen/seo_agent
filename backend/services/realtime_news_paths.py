@@ -59,6 +59,24 @@ _UNIFIED_TITLE_MARKET_FRAGMENTS: tuple[str, ...] = (
     " getirfinans",
 )
 
+_UNIFIED_TITLE_MARKET_SUBSTRINGS: tuple[str, ...] = (
+    "borsa endeks",
+    "borsa haberleri",
+    "geçmiş halka",
+    "gümüş ons",
+    "gram gümüş",
+    "kapalıçarşı",
+    "döviz kurları",
+    "serbest piyasa",
+    "ons fiyat",
+    "parite",
+    "kredi faiz",
+    "halka arz",
+    "en uygun banka",
+    "ekonomi haberleri, türkiye",
+    "ekonomi haberleri,",
+)
+
 
 def _normalize_path(path: str) -> str:
     p = (path or "").strip()
@@ -182,6 +200,10 @@ def unified_screen_news_candidate(name: str, *, site_domain: str = "") -> bool:
 
     for frag in _UNIFIED_TITLE_MARKET_FRAGMENTS:
         if frag in low:
+            return False
+
+    for sub in _UNIFIED_TITLE_MARKET_SUBSTRINGS:
+        if sub in low:
             return False
 
     # Makale başlıkları (unifiedScreenName) — kategori adı değil, uzun metin

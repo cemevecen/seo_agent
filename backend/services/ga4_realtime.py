@@ -1142,6 +1142,20 @@ _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES: tuple[str, ...] = (
     "tüm filmler",
     "tüm zamanların",
     "gündem haberleri",
+    "borsa endeks",
+    "borsa haberleri",
+    "geçmiş halka",
+    "gümüş ons",
+    "gram gümüş",
+    "kapalıçarşı",
+    "ekonomi haberleri, türkiye",
+    "en uygun banka",
+    "amerikan doları",
+    "döviz kurları",
+    "ons fiyat",
+    "parite",
+    "kredi faiz",
+    "halka arz",
 )
 
 
@@ -1187,23 +1201,22 @@ def fetch_realtime_top_news_pages(
     breakdown_parts: list[str] = []
     bases: list[tuple[str, dict[str, Any]]] = []
 
-    for dim in ("pagePath", "unifiedScreenName"):
-        try:
-            candidate = fetch_realtime_top_pages(
-                property_id,
-                window_minutes=window_minutes,
-                limit=fetch_n,
-                sort_by=sort_by,
-                compare_previous=True,
-                dimension=dim,
-                include_page_path=False,
-                client=client,
-            )
-            if candidate.get("pages"):
-                bases.append((dim, candidate))
-                breakdown_parts.append(dim)
-        except Exception as exc:
-            logger.debug("Realtime top-news dimension %s failed: %s", dim, exc)
+    try:
+        candidate = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=fetch_n,
+            sort_by=sort_by,
+            compare_previous=False,
+            dimension="unifiedScreenName",
+            include_page_path=False,
+            client=client,
+        )
+        if candidate.get("pages"):
+            bases.append(("unifiedScreenName", candidate))
+            breakdown_parts.append("unifiedScreenName")
+    except Exception as exc:
+        logger.debug("Realtime top-news unifiedScreenName failed: %s", exc)
 
     if not bases:
         base = fetch_realtime_top_pages(
@@ -1211,7 +1224,7 @@ def fetch_realtime_top_news_pages(
             window_minutes=window_minutes,
             limit=fetch_n,
             sort_by=sort_by,
-            compare_previous=True,
+            compare_previous=False,
             dimension="unifiedScreenName",
             include_page_path=False,
             client=client,
@@ -1277,10 +1290,7 @@ def fetch_realtime_top_news_pages(
 
     out = sorted(
         merged.values(),
-        key=lambda r: (
-            0 if r.get("_is_detail") else 1,
-            -float(r.get(sort_by) or 0),
-        ),
+        key=lambda r: -float(r.get(sort_by) or 0),
     )
     for r in out:
         r.pop("_is_detail", None)
@@ -1297,7 +1307,8 @@ def fetch_realtime_top_news_pages(
         "fetched_at": fetched_at,
         "api_ms": api_ms,
         "breakdown": breakdown,
-        "comparison_enabled": True,
+        "comparison_enabled": False,
+        "metric_scope": "ga4_realtime_30m",
     }
 
 
@@ -2122,12 +2133,8 @@ def check_site_realtime(
         # 'web' profili için filtreleme yapmıyoruz; varsayılan (tüm trafik) kalsın.
         dim_filter = None
     elif profile == "mweb":
-        dim_filter = FilterExpression(
-            filter=Filter(
-                field_name="deviceCategory",
-                string_filter=Filter.StringFilter(value="mobile"),
-            )
-        )
+        # Ayrı mweb property zaten mobil web stream; deviceCategory=mobile GA4 UI toplamından düşük kalır.
+        dim_filter = None
     elif profile == "android":
         dim_filter = FilterExpression(
             filter=Filter(

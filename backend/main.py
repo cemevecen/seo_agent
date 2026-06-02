@@ -12014,8 +12014,8 @@ def api_ga4_realtime_top_pages(
     cap = min(limit, 25)
 
     def _produce():
-        # 1) Canlı GA4 (önce karşılaştırmalı, olmazsa karşılaştırmasız)
-        for compare in (True, False):
+        # GA4 Realtime «Pages» ile aynı: önce 30 dk toplam (compare kapalı), gerekirse karşılaştırmalı dene.
+        for compare in (False, True):
             try:
                 result = fetch_realtime_top_pages_with_app_fallback(
                     property_id,
