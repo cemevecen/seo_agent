@@ -137,6 +137,8 @@
     </div>
     <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
   </details>
+
+  {% include "partials/notification_lab_sections.html" %}
 </div>
 
 <div id="nt-raw-text-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nt-raw-text-modal-title">
@@ -565,6 +567,27 @@
     }
     return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(row, col.key, col.type)) + '</td>';
   }
+  function applySavedView(v) {
+    if (!v) return;
+    if (v.metric) {
+      selectedMetric = v.metric;
+      localStorage.setItem(METRIC_KEY, selectedMetric);
+      renderMetricPills();
+    }
+    if (v.listPlatform) {
+      selectedListPlatform = v.listPlatform;
+      localStorage.setItem(LIST_PLATFORM_KEY, selectedListPlatform);
+      renderListPlatformPills();
+    }
+    if (v.preset) setPresetSelectors(v.preset);
+    if (v.start !== undefined) document.getElementById("nt-start-date").value = v.start || "";
+    if (v.end !== undefined) document.getElementById("nt-end-date").value = v.end || "";
+    localStorage.setItem(START_KEY, v.start || "");
+    localStorage.setItem(END_KEY, v.end || "");
+    if (v.preset) localStorage.setItem("notification_analytics_preset_v1", v.preset);
+    rawPage = 0;
+    redrawAll();
+  }
   function redrawAll() {
     var rows = getFilteredRows();
     renderKpis(rows);
@@ -572,6 +595,25 @@
     plotWeights(rows);
     renderMostLeast(rows);
     renderRawRows(readRows());
+    window.NT = {
+      readRows: readRows,
+      getFilteredRows: getFilteredRows,
+      aggregateByDay: aggregateByDay,
+      metricValueFromPlatformData: metricValueFromPlatformData,
+      mapListPlatformToDataKey: mapListPlatformToDataKey,
+      getListPlatform: function () { return selectedListPlatform; },
+      getMetric: function () { return selectedMetric; },
+      applySavedView: applySavedView,
+      PLATFORM_KEYS: PLATFORM_KEYS,
+      n: n,
+      fmt: fmt,
+      escapeHtml: escapeHtml,
+      dayKey: dayKey,
+      todayKey: todayKey,
+      minusDays: minusDays,
+      idString: idString
+    };
+    window.dispatchEvent(new CustomEvent("nt-redraw", { detail: { rows: rows } }));
   }
   function applyPresetRange(preset) {
     setPresetSelectors(preset);
@@ -650,7 +692,7 @@
       selectedListPlatform = btn.getAttribute("data-nt-list-platform") || "web";
       localStorage.setItem(LIST_PLATFORM_KEY, selectedListPlatform);
       renderListPlatformPills();
-      renderMostLeast(getFilteredRows());
+      redrawAll();
     });
   });
   document.getElementById("nt-apply-preset").addEventListener("click", function () {
@@ -729,4 +771,5 @@
   redrawAll();
 })();
 </script>
+<script src="/static/js/notification_lab.js"></script>
 {% endblock %}

@@ -1,0 +1,157 @@
+<section id="nt-lab-root" class="mt-10 space-y-5 border-t-4 border-indigo-300 pt-8 dark:border-indigo-800">
+  <div class="rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-800 dark:bg-indigo-950/30">
+    <h2 class="text-lg font-extrabold text-slate-900 dark:text-zinc-100">Analytics Lab</h2>
+    <p class="mt-1 text-xs text-slate-600 dark:text-zinc-400">Her kutu <code class="rounded bg-white/80 px-1 dark:bg-zinc-900">data-lab-name</code> ile işaretlidir. Beğenmediğiniz bölümün tamamını (dış <code>nt-lab-section</code> div) silmeniz yeterli. Üstteki filtre ve metrik seçimleri bu alanlara da uygulanır.</p>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Trend Heatmap">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Trend Heatmap] Tarih × platform yoğunluğu</h3>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Seçili metrik (üstteki Click / Impression / CTR) ile günlük ısı haritası.</p>
+    <div id="nt-lab-heatmap" class="mt-3 h-[320px]"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Leaderboard Tablosu">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Leaderboard Tablosu] Başlık sıralaması</h3>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Liste platformu seçimine göre click, impression, CTR, son gün, kayıt, 7g değişim %.</p>
+    <div id="nt-lab-leaderboard" class="mt-3 overflow-x-auto text-xs"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Volatilite Listesi">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Volatilite Listesi] En dalgalı başlıklar</h3>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Günlük click serisinin std sapması ve max-min aralığı.</p>
+    <div id="nt-lab-volatility" class="mt-3 space-y-2 text-xs"></div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Top Movers">
+      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">[Top Movers] En çok artanlar</h3>
+      <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Aralığın ilk yarısı vs ikinci yarısı (click).</p>
+      <div id="nt-lab-movers-up" class="mt-3 space-y-2 text-xs"></div>
+    </div>
+    <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Top Movers">
+      <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">[Top Movers] En çok azalanlar</h3>
+      <div id="nt-lab-movers-down" class="mt-3 space-y-2 text-xs"></div>
+    </div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Distribution Grafiği">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Distribution Grafiği] CTR dağılımı</h3>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Satır bazlı CTR histogramı ve boxplot (liste platformu).</p>
+    <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div id="nt-lab-dist-hist" class="h-[260px]"></div>
+      <div id="nt-lab-dist-box" class="h-[260px]"></div>
+    </div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Platform Payı Zaman Serisi">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Platform Payı Zaman Serisi] Stack area</h3>
+    <div id="nt-lab-stack-share" class="mt-3 h-[300px]"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Korelasyon Matrisi">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Korelasyon Matrisi] Platformlar arası click</h3>
+    <div id="nt-lab-corr" class="mt-3 h-[320px]"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Pareto Görünümü">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Pareto Görünümü] Top başlık trafik payı</h3>
+  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <label class="font-semibold text-slate-600 dark:text-zinc-300">Top N</label>
+      <input id="nt-lab-pareto-n" type="number" min="5" max="200" value="30" class="w-20 rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900" />
+    </div>
+    <div id="nt-lab-pareto" class="mt-3 h-[300px]"></div>
+    <p id="nt-lab-pareto-summary" class="mt-2 text-xs text-slate-600 dark:text-zinc-400"></p>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Cohort Benzeri Yaşlandırma">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Cohort Benzeri Yaşlandırma] İçerik ömrü (gün 1, 3, 7, 14)</h3>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Başlığın ilk göründüğü tarihten itibaren ortalama günlük click.</p>
+    <div id="nt-lab-cohort" class="mt-3 h-[280px]"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Anomali Tespiti">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Anomali Tespiti] Günlük z-score (|z|≥2)</h3>
+    <div id="nt-lab-anomaly" class="mt-3 space-y-2 text-xs"></div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Kalite Listesi">
+      <h3 class="text-sm font-bold text-amber-700 dark:text-amber-400">[Kalite Listesi] Yüksek impression, düşük CTR</h3>
+      <div id="nt-lab-quality" class="mt-3 space-y-2 text-xs"></div>
+    </div>
+    <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Fırsat Listesi">
+      <h3 class="text-sm font-bold text-sky-700 dark:text-sky-400">[Fırsat Listesi] Düşük impression, yüksek CTR</h3>
+      <div id="nt-lab-opportunity" class="mt-3 space-y-2 text-xs"></div>
+    </div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Pivot Builder">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Pivot Builder] Mini pivot</h3>
+    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+      <select id="nt-lab-pivot-row" class="rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900">
+        <option value="day">Satır: Gün</option>
+        <option value="headline">Satır: Başlık</option>
+        <option value="platform">Satır: Platform</option>
+      </select>
+      <select id="nt-lab-pivot-col" class="rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900">
+        <option value="platform">Kolon: Platform</option>
+        <option value="day">Kolon: Gün</option>
+        <option value="headline">Kolon: Başlık</option>
+      </select>
+      <select id="nt-lab-pivot-metric" class="rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900">
+        <option value="click">Metrik: Click</option>
+        <option value="impression">Metrik: Impression</option>
+        <option value="ctr">Metrik: CTR %</option>
+      </select>
+      <button type="button" id="nt-lab-pivot-run" class="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white dark:bg-zinc-200 dark:text-zinc-900">Pivot üret</button>
+    </div>
+    <div id="nt-lab-pivot-out" class="mt-3 overflow-x-auto text-xs"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Karşılaştırma Modu">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Karşılaştırma Modu] İki aralık yan yana</h3>
+    <div class="mt-3 grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
+      <div class="space-y-1 rounded-lg border border-slate-200 p-3 dark:border-zinc-700">
+        <p class="font-bold text-slate-700 dark:text-zinc-200">Aralık A</p>
+        <div class="flex gap-2">
+          <input id="nt-lab-cmp-a-start" type="date" class="w-full rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900" />
+          <input id="nt-lab-cmp-a-end" type="date" class="w-full rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900" />
+        </div>
+      </div>
+      <div class="space-y-1 rounded-lg border border-slate-200 p-3 dark:border-zinc-700">
+        <p class="font-bold text-slate-700 dark:text-zinc-200">Aralık B</p>
+        <div class="flex gap-2">
+          <input id="nt-lab-cmp-b-start" type="date" class="w-full rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900" />
+          <input id="nt-lab-cmp-b-end" type="date" class="w-full rounded border border-slate-300 px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900" />
+        </div>
+      </div>
+    </div>
+    <button type="button" id="nt-lab-cmp-run" class="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-zinc-200 dark:text-zinc-900">Karşılaştır</button>
+    <div id="nt-lab-cmp-out" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs"></div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Export Araçları">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Export Araçları] CSV dışa aktar</h3>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="button" id="nt-lab-export-filtered" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 dark:border-zinc-600 dark:hover:bg-zinc-800">Filtreli ham satırlar</button>
+      <button type="button" id="nt-lab-export-leaderboard" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 dark:border-zinc-600 dark:hover:bg-zinc-800">Leaderboard tablosu</button>
+    </div>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Kaydedilmiş Görünüm">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Kaydedilmiş Görünüm] Preset kaydet / yükle</h3>
+    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+      <input id="nt-lab-view-name" type="text" placeholder="örn. Android CTR son 1 ay" class="min-w-[200px] flex-1 rounded border border-slate-300 px-2 py-1.5 dark:border-zinc-600 dark:bg-zinc-900" />
+      <button type="button" id="nt-lab-view-save" class="rounded-lg bg-indigo-600 px-3 py-1.5 font-bold text-white">Kaydet</button>
+      <select id="nt-lab-view-list" class="rounded border border-slate-300 px-2 py-1.5 dark:border-zinc-600 dark:bg-zinc-900"></select>
+      <button type="button" id="nt-lab-view-apply" class="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white dark:bg-zinc-200 dark:text-zinc-900">Uygula</button>
+      <button type="button" id="nt-lab-view-delete" class="rounded-lg border border-rose-300 px-3 py-1.5 font-semibold text-rose-700">Sil</button>
+    </div>
+    <p id="nt-lab-view-status" class="mt-2 text-xs text-slate-500 dark:text-zinc-400"></p>
+  </div>
+
+  <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Kısa İçgörü Kartları">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Kısa İçgörü Kartları] Otomatik özet</h3>
+    <div id="nt-lab-insights" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2"></div>
+  </div>
+</section>
