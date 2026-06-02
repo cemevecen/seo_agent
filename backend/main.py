@@ -208,6 +208,7 @@ def _admin_auth_cookie_secure(request: Request) -> bool:
 
 DAILY_REFRESH_LOCK = threading.Lock()
 APP_INTEL_REFRESH_LOCK = threading.Lock()
+INBOX_SYNC_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
 EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 180
@@ -700,6 +701,48 @@ def admin_run_inbox_summary_now():
         }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
+
+
+@app.get("/api/admin/run-inbox-sync-now")
+def admin_run_inbox_sync_now():
+    """Inbox Gmail → DB senkronunu MANUEL tetikler (zamanlanmış job ile aynı yol)."""
+    try:
+        _run_inbox_scheduled_sync_job()
+        with SessionLocal() as db:
+            from backend.services import inbox_gmail_auth
+
+            row = inbox_gmail_auth.get_inbox_credential_row(db)
+            last = row.scheduled_sync_last_success_at.isoformat() if row and row.scheduled_sync_last_success_at else None
+        return {"status": "ok", "message": "Inbox senkron tamamlandı.", "scheduled_sync_last_success_at": last}
+    except Exception as exc:
+        LOGGER.exception("admin run-inbox-sync-now")
+        return {"status": "error", "message": str(exc)}
+
+
+@app.get("/api/admin/scheduler-status")
+def admin_scheduler_status():
+    """APScheduler job listesi — gece/periyodik işlerin ayakta olduğunu doğrulamak için."""
+    jobs: list[dict] = []
+    if SCHEDULER is not None:
+        for job in SCHEDULER.get_jobs():
+            nxt = job.next_run_time
+            jobs.append(
+                {
+                    "id": job.id,
+                    "name": job.name,
+                    "next_run_time": nxt.isoformat() if nxt else None,
+                    "trigger": str(job.trigger),
+                }
+            )
+        jobs.sort(key=lambda j: (j.get("id") or ""))
+    return {
+        "status": "ok",
+        "scheduler_running": SCHEDULER is not None and bool(getattr(SCHEDULER, "running", False)),
+        "job_count": len(jobs),
+        "jobs": jobs,
+        "inbox_sync_interval_minutes": settings.inbox_scheduled_sync_interval_minutes,
+        "ga4_scheduled_kpi_period_days": settings.ga4_scheduled_kpi_period_days,
+    }
 
 
 @app.get("/api/admin/run-news-intelligence-now")
@@ -1378,6 +1421,17 @@ def on_startup() -> None:
     import threading as _threading
     _threading.Thread(target=_prewarm_tmdb, daemon=True, name="tmdb-prewarm").start()
 
+    if settings.inbox_startup_sync_enabled:
+
+        def _startup_inbox_sync() -> None:
+            delay = max(10, int(settings.inbox_startup_sync_delay_seconds))
+            time.sleep(delay)
+            try:
+                _run_inbox_scheduled_sync_job()
+            except Exception as exc:
+                LOGGER.warning("Startup inbox sync: %s", exc)
+
+        _threading.Thread(target=_startup_inbox_sync, daemon=True, name="inbox-startup-sync").start()
 
 
 @app.on_event("shutdown")
@@ -2934,7 +2988,7 @@ def _run_daily_ga4_refresh_job() -> None:
 
     try:
         LOGGER.info("Daily GA4 refresh started.")
-        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
+        from backend.collectors.ga4 import collect_ga4_scheduled_site_metrics
 
         with SessionLocal() as db:
             external_site_ids = _external_site_ids(db)
@@ -2949,17 +3003,9 @@ def _run_daily_ga4_refresh_job() -> None:
             for index, site in enumerate(eligible):
                 LOGGER.info("Daily GA4 refresh processing site=%s", site.domain)
                 try:
-                    collect_ga4_channel_sessions(db, site, days=90)
-                    collect_ga4_channel_sessions(db, site, days=30)
-                    collect_ga4_channel_sessions(db, site, days=7)
+                    collect_ga4_scheduled_site_metrics(db, site)
                     db.commit()
                     any_ga4_ok = True
-                    try:
-                        collect_ga4_12m_daily_trend(db, site)
-                        db.commit()
-                    except Exception as exc_12m:  # noqa: BLE001
-                        db.rollback()
-                        LOGGER.warning("Daily GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily GA4 refresh failed for %s: %s", site.domain, exc)
@@ -3291,18 +3337,35 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Inbox senkron — her 10 dakikada bir (e-posta göndermez).
+    # Inbox senkron — varsayılan 5 dk (Gmail → DB; e-posta göndermez).
     from apscheduler.triggers.interval import IntervalTrigger as _InboxIntervalTrigger
-    scheduler.add_job(
-        _run_inbox_scheduled_sync_job,
-        trigger=_InboxIntervalTrigger(minutes=10, timezone=timezone),
-        id="inbox-scheduled-sync-10min",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=600,
-    )
-    job_count += 1
+    if settings.inbox_scheduled_sync_enabled:
+        inbox_iv = max(2, int(settings.inbox_scheduled_sync_interval_minutes))
+        scheduler.add_job(
+            _run_inbox_scheduled_sync_job,
+            trigger=_InboxIntervalTrigger(minutes=inbox_iv, timezone=timezone),
+            id="inbox-scheduled-sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=max(600, inbox_iv * 60),
+        )
+        job_count += 1
+        LOGGER.info("Inbox scheduled sync aktif: her %d dk.", inbox_iv)
+
+    if settings.inbox_firebase_sync_enabled:
+        fb_iv = max(2, int(settings.inbox_firebase_sync_interval_minutes))
+        scheduler.add_job(
+            _run_inbox_firebase_sync_job,
+            trigger=_InboxIntervalTrigger(minutes=fb_iv, timezone=timezone),
+            id="inbox-firebase-sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=max(600, fb_iv * 60),
+        )
+        job_count += 1
+        LOGGER.info("Inbox Firebase sync aktif: her %d dk.", fb_iv)
 
     # Inbox 5 sekmeli özet maili — 2 saatte bir, çeyrek geçe (:15).
     scheduler.add_job(
@@ -3323,6 +3386,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     # Eski inbox job id'lerini kaldır
     for _legacy_inbox_job in (
         "inbox-summary-30min",
+        "inbox-scheduled-sync-10min",
         "inbox-firebase-sync-3min",
         "inbox-summary-on-hour",
         "inbox-summary-on-half",
@@ -11492,7 +11556,7 @@ def _ga4_refresh_all_set_progress(*, done: int, total: int, label: str = "") -> 
 
 def _refresh_one_site_for_ga4_batch(site_id: int) -> tuple[int, dict]:
     """Tek site GA4 toplama (kendi DB session'ı). 12 ay trend hata verse bile KPI kayıtları korunur."""
-    from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
+    from backend.collectors.ga4 import collect_ga4_scheduled_site_metrics
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -11504,19 +11568,8 @@ def _refresh_one_site_for_ga4_batch(site_id: int) -> tuple[int, dict]:
         if not conn.get("connected"):
             return site_id, {"state": "skipped", "error": "not_connected"}
         try:
-            collect_ga4_channel_sessions(db, site, days=90)
-            collect_ga4_channel_sessions(db, site, days=30)
-            collect_ga4_channel_sessions(db, site, days=7)
+            collect_ga4_scheduled_site_metrics(db, site)
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-            try:
-                collect_ga4_12m_daily_trend(db, site)
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-            except Exception as exc_12m:  # noqa: BLE001
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-                LOGGER.warning("GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
             return site_id, {"state": "success"}
         except Exception as exc:  # noqa: BLE001
             try:
@@ -11649,19 +11702,11 @@ def ga4_refresh_site(request: Request, site_id: int):
         conn = get_ga4_connection_status(db, site.id)
         if not conn.get("connected"):
             return HTMLResponse("Bu site için GA4 property tanımlı değil.", status_code=422)
-        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
+        from backend.collectors.ga4 import collect_ga4_scheduled_site_metrics
 
         try:
-            collect_ga4_channel_sessions(db, site, days=90)
-            collect_ga4_channel_sessions(db, site, days=30)
-            collect_ga4_channel_sessions(db, site, days=7)
+            collect_ga4_scheduled_site_metrics(db, site)
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-            try:
-                collect_ga4_12m_daily_trend(db, site)
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-            except Exception as exc_12m:  # noqa: BLE001
-                db.rollback()
-                LOGGER.warning("GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
             bucket = ga4_digest_bucket_for_domain(site.domain)
             if bucket:
                 send_ga4_weekly_digest_emails(
@@ -14143,7 +14188,10 @@ def _run_omdb_enrichment_job() -> None:
 
 
 def _run_inbox_scheduled_sync_job() -> None:
-    """APScheduler: 10 dk inbox Gmail senkronu."""
+    """APScheduler: periyodik inbox Gmail senkronu (tüm sekmeler)."""
+    if not INBOX_SYNC_LOCK.acquire(blocking=False):
+        LOGGER.info("Inbox scheduled sync skipped: previous run still active.")
+        return
     try:
         from backend.services.inbox_summary import run_inbox_scheduled_sync
 
@@ -14151,6 +14199,8 @@ def _run_inbox_scheduled_sync_job() -> None:
             run_inbox_scheduled_sync(db)
     except Exception:
         LOGGER.exception("Inbox scheduled sync job failed")
+    finally:
+        INBOX_SYNC_LOCK.release()
 
 
 def _run_inbox_summary_email_job() -> None:
@@ -14170,7 +14220,10 @@ def _run_inbox_summary_job() -> None:
 
 
 def _run_inbox_firebase_sync_job() -> None:
-    """APScheduler: firebase-noreply@google.com uyarılarını gelen kutusuna yazar."""
+    """APScheduler: firebase-noreply@google.com uyarılarını hızlı çeker."""
+    if not INBOX_SYNC_LOCK.acquire(blocking=False):
+        LOGGER.debug("Inbox Firebase sync skipped: full inbox sync in progress.")
+        return
     try:
         from backend.services import inbox_gmail_auth, inbox_sync
 
@@ -14178,7 +14231,8 @@ def _run_inbox_firebase_sync_job() -> None:
             if inbox_gmail_auth.get_inbox_credential_row(db) is None:
                 LOGGER.debug("Inbox Firebase sync atlandı: Gmail henüz bağlı değil.")
                 return
-            inbox_sync.sync_firebase_inbox_threads(db, max_threads=30)
+            out = inbox_sync.sync_firebase_inbox_threads(db, max_threads=30)
+            LOGGER.info("Inbox Firebase sync: synced=%s", out.get("synced_threads"))
     except RuntimeError as exc:
         if "bağlı değil" in str(exc).lower():
             LOGGER.debug("Inbox Firebase sync atlandı: %s", exc)
@@ -14186,6 +14240,8 @@ def _run_inbox_firebase_sync_job() -> None:
         LOGGER.warning("Inbox Firebase sync: %s", exc)
     except Exception:
         LOGGER.exception("Inbox Firebase sync job failed")
+    finally:
+        INBOX_SYNC_LOCK.release()
 
 
 def _run_news_intelligence_job() -> None:

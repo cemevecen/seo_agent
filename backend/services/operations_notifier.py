@@ -75,6 +75,7 @@ class ScheduledSystemSpec:
     schedule_minute: int
     enabled: bool
     connected_only: bool = False
+    ga4_connected_only: bool = False
 
 
 def operations_recipients() -> list[str]:
@@ -735,7 +736,15 @@ def notify_missed_scheduled_refreshes(db: Session) -> list[str]:
         if local_now < scheduled_local + grace:
             continue
 
-        expected_sites = _active_sites(db, connected_only=spec.connected_only)
+        if spec.ga4_connected_only:
+            from backend.services.ga4_auth import get_ga4_connection_status
+
+            all_sites = _active_sites(db, connected_only=False)
+            expected_sites = [
+                site for site in all_sites if get_ga4_connection_status(db, site.id).get("connected")
+            ]
+        else:
+            expected_sites = _active_sites(db, connected_only=spec.connected_only)
         if not expected_sites:
             continue
 

@@ -7,6 +7,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -45,16 +46,29 @@ def _normalize_summary_route(route_tag: str | None) -> str:
     return inbox_sync.normalize_inbox_route_tag(route_tag)
 
 
-def run_inbox_scheduled_sync(db: Session) -> None:
-    """10 dk job: Gmail → DB senkronu (e-posta göndermez)."""
+def run_inbox_scheduled_sync(db: Session) -> dict[str, Any] | None:
+    """Zamanlanmış job: Gmail → DB senkronu (e-posta göndermez). Başarıda özet dict döner."""
     if inbox_gmail_auth.get_inbox_credential_row(db) is None:
         logger.info("Inbox sync atlandı: Gmail henüz bağlı değil.")
-        return
-    logger.info("Starting scheduled inbox sync...")
+        return None
+    logger.info("Scheduled inbox sync başladı.")
     try:
-        inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
-    except Exception as exc:
+        out = inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
+        logger.info(
+            "Scheduled inbox sync tamamlandı: synced=%s mode=%s",
+            out.get("synced_threads"),
+            out.get("sync_mode"),
+        )
+        return out
+    except RuntimeError as exc:
+        if "bağlı değil" in str(exc).lower():
+            logger.info("Inbox sync atlandı: %s", exc)
+            return None
         logger.warning("Inbox sync failed: %s", exc)
+        raise
+    except Exception as exc:
+        logger.exception("Inbox sync failed: %s", exc)
+        raise
 
 
 def _latest_inbound_message(db: Session, thread_id: int) -> SupportInboxMessage | None:

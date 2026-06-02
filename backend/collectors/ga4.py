@@ -389,6 +389,32 @@ def _fill_daily_trend_calendar(
     }
 
 
+def ga4_scheduled_kpi_period_days() -> tuple[int, ...]:
+    """Gece job ve toplu yenileme için KPI gün aralıkları (varsayılan: 1/7/30/60/90)."""
+    from backend.config import settings
+
+    raw = str(settings.ga4_scheduled_kpi_period_days or "1,7,30,60,90")
+    out: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            days = int(part)
+        except ValueError:
+            continue
+        if days > 0 and days not in out:
+            out.append(days)
+    return tuple(out or (1, 7, 30, 60, 90))
+
+
+def collect_ga4_scheduled_site_metrics(db: Session, site: Site) -> None:
+    """Gece/manuel toplu GA4: KPI dönemleri + 12 ay günlük trend."""
+    for days in ga4_scheduled_kpi_period_days():
+        collect_ga4_channel_sessions(db, site, days=days)
+    collect_ga4_12m_daily_trend(db, site)
+
+
 def collect_ga4_12m_daily_trend(db: Session, site: Site, *, profile: str | None = None) -> dict:
     """Son 12 ay günlük KPI trendi (karşılaştırma / kanal / sayfa yok)."""
     from backend.config import settings

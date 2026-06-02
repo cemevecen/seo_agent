@@ -149,6 +149,17 @@ def _firebase_only_gmail_query() -> str:
 SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS = 3
 
 
+def scheduled_sync_after_unix(last_success: datetime | None) -> int | None:
+    """Naive UTC veya aware datetime → Gmail ``after:`` unix saniyesi."""
+    if last_success is None:
+        return None
+    if last_success.tzinfo is None:
+        aware = last_success.replace(tzinfo=timezone.utc)
+    else:
+        aware = last_success.astimezone(timezone.utc)
+    return int(aware.timestamp())
+
+
 def _append_or_clause_to_query(q: str, clause: str) -> str:
     q = (q or "").strip()
     if q.startswith("(") and q.endswith(")"):
@@ -1072,22 +1083,20 @@ def sync_scheduled_inbox_threads(db: Session, *, max_threads: int = INBOX_SYNC_M
         raise RuntimeError("Gmail gelen kutusu bağlı değil.")
 
     last_success = row.scheduled_sync_last_success_at
-    after_unix: int | None = None
-    if last_success is not None:
-        after_unix = int(last_success.replace(tzinfo=timezone.utc).timestamp())
-
+    after_unix = scheduled_sync_after_unix(last_success)
     mode = "incremental" if after_unix else "initial"
+    lookback_days = SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS if after_unix is None else None
     LOGGER.info(
-        "Scheduled inbox sync (%s): lookback=%dd after=%s",
+        "Scheduled inbox sync (%s): lookback=%s after=%s",
         mode,
-        SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS,
+        f"{lookback_days}d" if lookback_days else "incremental-only",
         after_unix,
     )
     try:
         out = sync_inbox_threads(
             db,
             max_threads=max_threads,
-            lookback_days=SCHEDULED_INBOX_SYNC_LOOKBACK_DAYS,
+            lookback_days=lookback_days,
             after_unix=after_unix,
         )
         row.scheduled_sync_last_success_at = datetime.utcnow()

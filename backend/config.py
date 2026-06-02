@@ -236,6 +236,16 @@ class Settings(BaseSettings):
     ga4_scheduled_refresh_hour: int = 4
     ga4_scheduled_refresh_minute: int = 30
     ga4_scheduled_refresh_site_spacing_seconds: int = 15
+    # Gece GA4 job: KPI dönemleri (gün) + ayrıca 12 ay günlük trend (collect_ga4_12m_daily_trend).
+    ga4_scheduled_kpi_period_days: str = "1,7,30,60,90"
+
+    # Inbox Gmail → DB (e-posta göndermez).
+    inbox_scheduled_sync_enabled: bool = True
+    inbox_scheduled_sync_interval_minutes: int = Field(default=5, ge=2, le=60)
+    inbox_firebase_sync_enabled: bool = True
+    inbox_firebase_sync_interval_minutes: int = Field(default=5, ge=2, le=60)
+    inbox_startup_sync_enabled: bool = True
+    inbox_startup_sync_delay_seconds: int = Field(default=45, ge=10, le=600)
 
     # App Store + Google Play analitik günlük özet (TSİ)
     app_intel_scheduled_refresh_enabled: bool = True
