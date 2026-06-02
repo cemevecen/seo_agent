@@ -82,6 +82,21 @@
         <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
         <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
       </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</span>
+        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          <option value="all">Tümü</option>
+          <option value="1w">Son 1 hafta</option>
+          <option value="1m">Son 1 ay</option>
+          <option value="3m" selected>Son 3 ay</option>
+          <option value="6m">Son 6 ay</option>
+          <option value="1y">Son 1 yıl</option>
+          <option value="2y">Son 2 yıl</option>
+          <option value="3y">Son 3 yıl</option>
+          <option value="4y">Son 4 yıl</option>
+        </select>
+        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Hazır aralığı uygula</button>
+      </div>
     </div>
   </div>
 
@@ -223,6 +238,13 @@
         ? "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-200"
         : "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
     });
+  }
+  function setPresetSelectors(preset) {
+    var val = preset || "3m";
+    var primary = document.getElementById("nt-range-preset");
+    var secondary = document.getElementById("nt-range-preset-secondary");
+    if (primary) primary.value = val;
+    if (secondary) secondary.value = val;
   }
   function readRows() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch (e) { return []; } }
   function saveRows(rows) { localStorage.setItem(STORE_KEY, JSON.stringify(rows)); }
@@ -419,6 +441,7 @@
     renderRawRows(readRows());
   }
   function applyPresetRange(preset) {
+    setPresetSelectors(preset);
     if (preset === "all") {
       document.getElementById("nt-start-date").value = "";
       document.getElementById("nt-end-date").value = "";
@@ -470,6 +493,16 @@
     var preset = document.getElementById("nt-range-preset").value;
     applyPresetRange(preset);
   });
+  document.getElementById("nt-range-preset").addEventListener("change", function () {
+    setPresetSelectors(document.getElementById("nt-range-preset").value);
+  });
+  document.getElementById("nt-apply-preset-secondary").addEventListener("click", function () {
+    var preset = document.getElementById("nt-range-preset-secondary").value;
+    applyPresetRange(preset);
+  });
+  document.getElementById("nt-range-preset-secondary").addEventListener("change", function () {
+    setPresetSelectors(document.getElementById("nt-range-preset-secondary").value);
+  });
   document.getElementById("nt-add-data").addEventListener("click", function () {
     var fileInput = document.getElementById("nt-csv-file");
     var file = fileInput && fileInput.files && fileInput.files[0];
@@ -514,8 +547,7 @@
 
   var presetKey = "notification_analytics_preset_v1";
   var savedPreset = localStorage.getItem(presetKey) || "3m";
-  var presetEl = document.getElementById("nt-range-preset");
-  if (presetEl) presetEl.value = savedPreset;
+  setPresetSelectors(savedPreset);
   var savedStart = localStorage.getItem(START_KEY) || "";
   var savedEnd = localStorage.getItem(END_KEY) || "";
   var savedListPlatform = localStorage.getItem(LIST_PLATFORM_KEY) || "web";
