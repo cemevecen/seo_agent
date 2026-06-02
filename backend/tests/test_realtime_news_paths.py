@@ -63,6 +63,26 @@ def test_news_article_title_includes_trump_headline():
         "Canlı Emtia Fiyatları ve Emtia Piyasası",
         site_domain="www.doviz.com",
     )
+    assert not unified_screen_news_article_title(
+        "Harem Harem Gram Gümüş Fiyatı",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "Halkbank Halkbank Gram Altın Fiyatı",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "İş Bankası İş Bankası Gram Altın Fiyatı",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "Yapıkredi Yapıkredi Gram Gümüş Fiyatı",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "Dünya Katılım Dünya Katılım Gram Gümüş Fiyatı",
+        site_domain="www.doviz.com",
+    )
 
 
 def test_realtime_news_link_haber_host():

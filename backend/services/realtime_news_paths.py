@@ -14,6 +14,8 @@ from backend.services.ga4_page_urls import (
 _HABER_CATEGORY_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9-]*-haberleri$", re.I)
 _HABERLERI_IN_PATH = re.compile(r"(?:^|/)[a-z0-9][a-z0-9-]*-haberleri(?:/|$)", re.I)
 _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
+_DUP_START_WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+\1\b", re.I)
+_DUP_START_2WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+([a-zçğıöşü]{3,})\s+\1\s+\2\b", re.I)
 
 
 def is_news_detail_path(path: str) -> bool:
@@ -283,6 +285,37 @@ def _normalize_news_tab_title(title: str) -> str:
 
 def _looks_like_market_landing_title(low: str) -> bool:
     """Ana sayfa / canlı fiyat listesi başlıkları (haber makalesi değil)."""
+    if (
+        ("gram altın fiyatı" in low or "gram gümüş fiyatı" in low)
+        and (
+            _DUP_START_WORD_RE.search(low) is not None
+            or _DUP_START_2WORD_RE.search(low) is not None
+            or any(
+                b in low
+                for b in (
+                    "harem",
+                    "vakıfbank",
+                    "is bankası",
+                    "iş bankası",
+                    "i̇ş bankası",
+                    "halkbank",
+                    "ziraat",
+                    "garanti",
+                    "akbank",
+                    "yapı kredi",
+                    "qnb",
+                    "denizbank",
+                    "teb",
+                    "ing",
+                    "enpara",
+                    "kuveyt",
+                    "albaraka",
+                    "finansbank",
+                )
+            )
+        )
+    ):
+        return True
     if low.startswith(
         (
             "canlı döviz",
