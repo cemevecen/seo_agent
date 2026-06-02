@@ -4,20 +4,13 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-100">Notification Analytics</h1>
     <p class="mt-1 text-sm text-slate-500 dark:text-zinc-400">
-      Panelden tablo kopyalayıp yapıştırın. Her eklemede veriler birikir, grafikler otomatik güncellenir.
+      CSV dosyası yükleyin. Her yüklemede yeni satırlar son ID mantığıyla birikir, grafikler otomatik güncellenir.
     </p>
     <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
       <div class="col-span-1 space-y-2 lg:col-span-2">
-        <label for="nt-input-mode" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Yapıştırma türü</label>
-        <select id="nt-input-mode" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
-          <option value="csv" selected>CSV yapıştırma (önerilen)</option>
-          <option value="text" disabled>Metin yapıştırma (kapalı)</option>
-        </select>
-        <textarea
-          id="nt-input"
-          class="min-h-40 w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
-          placeholder="CSV veya Excel tablosu yapıştırın (ilk satır başlık olmalı)"
-        ></textarea>
+        <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">CSV dosyası</label>
+        <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100" />
+        <p class="text-xs text-slate-500 dark:text-zinc-400">Beklenen kolonlar: <code>id,text,date</code> ve platform click/impression/ctr alanları.</p>
       </div>
       <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
         <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
@@ -25,8 +18,8 @@
         <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
       </div>
       <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
-        <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Veri ekle</button>
-        <button id="nt-clear-input" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Yapıştırma alanını temizle</button>
+        <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">CSV yükle ve ekle</button>
+        <button id="nt-clear-file" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Dosya seçimini temizle</button>
         <button id="nt-reset-all" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950/40">Tüm birikimi sıfırla</button>
         <p id="nt-status" class="pt-1 text-xs text-slate-500 dark:text-zinc-400">Hazır.</p>
       </div>
@@ -67,6 +60,7 @@
 (function () {
   var STORE_KEY = "notification_analytics_rows_v1";
   var START_KEY = "notification_analytics_start_v1";
+  var LAST_ID_KEY = "notification_analytics_last_id_v1";
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
@@ -100,16 +94,35 @@
   function saveRows(rows) {
     localStorage.setItem(STORE_KEY, JSON.stringify(rows));
   }
+  function getLastId() {
+    return n(localStorage.getItem(LAST_ID_KEY) || 0);
+  }
+  function setLastId(v) {
+    localStorage.setItem(LAST_ID_KEY, String(n(v)));
+  }
   function status(msg) {
     var el = document.getElementById("nt-status");
     if (el) el.textContent = msg;
   }
-  function parsePastedText(text) {
+  function detectDelimiter(headerLine) {
+    var candidates = [",", ";", "\t"];
+    var best = ",";
+    var bestCount = -1;
+    candidates.forEach(function (d) {
+      var count = String(headerLine || "").split(d).length;
+      if (count > bestCount) {
+        best = d;
+        bestCount = count;
+      }
+    });
+    return best;
+  }
+  function parseCsvText(text) {
     var raw = String(text || "").trim();
     if (!raw) return [];
     var lines = raw.split(/\r?\n/).filter(Boolean);
     if (lines.length < 2) return [];
-    var delim = lines[0].indexOf("\t") >= 0 ? "\t" : ",";
+    var delim = detectDelimiter(lines[0]);
     var headers = lines[0].split(delim).map(normalizeHeader);
     function pick(map) {
       for (var i = 0; i < headers.length; i++) {
@@ -165,6 +178,12 @@
     return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
+  }
+  function highestId(rows) {
+    return rows.reduce(function (m, r) {
+      var idn = n(r.id);
+      return idn > m ? idn : m;
+    }, 0);
   }
   function dayKey(iso) { return String(iso || "").slice(0, 10); }
   function selectedStartDate() {
@@ -307,54 +326,51 @@
     renderRiseDrop(rows);
   }
 
-  function refreshInputUi() {
-    var mode = document.getElementById("nt-input-mode").value;
-    var input = document.getElementById("nt-input");
-    var addBtn = document.getElementById("nt-add-data");
-    if (mode === "csv") {
-      input.disabled = false;
-      input.placeholder = "CSV veya Excel tablosu yapıştırın (ilk satır başlık olmalı)";
-      addBtn.disabled = false;
-      addBtn.classList.remove("opacity-50", "cursor-not-allowed");
-      return;
-    }
-    input.disabled = true;
-    input.placeholder = "Metin yapıştırma şu an kapalı.";
-    addBtn.disabled = true;
-    addBtn.classList.add("opacity-50", "cursor-not-allowed");
-  }
-
-  document.getElementById("nt-input-mode").addEventListener("change", function () {
-    refreshInputUi();
-    if (this.value !== "csv") {
-      status("Sadece CSV yapıştırma aktif.");
-    }
-  });
-
   document.getElementById("nt-add-data").addEventListener("click", function () {
-    if (document.getElementById("nt-input-mode").value !== "csv") {
-      status("Sadece CSV yapıştırma aktif.");
+    var fileInput = document.getElementById("nt-csv-file");
+    var file = fileInput && fileInput.files && fileInput.files[0];
+    if (!file) {
+      status("Önce bir CSV dosyası seçin.");
       return;
     }
-    var txt = document.getElementById("nt-input").value;
-    var parsed = parsePastedText(txt);
-    if (!parsed.length) {
-      status("Veri parse edilemedi. Başlık satırı ve tarih sütununu kontrol edin.");
-      return;
-    }
-    var merged = mergeRows(readRows(), parsed);
-    saveRows(merged);
-    status(parsed.length + " satır eklendi. Toplam: " + merged.length);
-    redrawAll();
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      var parsed = parseCsvText(ev.target && ev.target.result ? ev.target.result : "");
+      if (!parsed.length) {
+        status("CSV parse edilemedi. Başlık satırı ve tarih sütununu kontrol edin.");
+        return;
+      }
+      var existing = readRows();
+      var maxIdBefore = Math.max(getLastId(), highestId(existing));
+      var byLatestId = parsed.filter(function (r) { return n(r.id) > maxIdBefore; });
+      var carryForward = parsed.filter(function (r) { return !n(r.id); });
+      var incoming = byLatestId.concat(carryForward);
+      if (!incoming.length) {
+        status("Yeni satır yok. Son ID filtresi nedeniyle ekleme yapılmadı. (Son ID: " + fmt(maxIdBefore) + ")");
+        return;
+      }
+      var merged = mergeRows(existing, incoming);
+      saveRows(merged);
+      setLastId(Math.max(maxIdBefore, highestId(merged)));
+      status(
+        incoming.length + " yeni satır eklendi (son ID > " + fmt(maxIdBefore) + "). Toplam: " + merged.length
+      );
+      redrawAll();
+    };
+    reader.onerror = function () {
+      status("CSV dosyası okunamadı.");
+    };
+    reader.readAsText(file, "utf-8");
   });
 
-  document.getElementById("nt-clear-input").addEventListener("click", function () {
-    document.getElementById("nt-input").value = "";
-    status("Yapıştırma alanı temizlendi.");
+  document.getElementById("nt-clear-file").addEventListener("click", function () {
+    document.getElementById("nt-csv-file").value = "";
+    status("Dosya seçimi temizlendi.");
   });
 
   document.getElementById("nt-reset-all").addEventListener("click", function () {
     localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem(LAST_ID_KEY);
     status("Birikmiş veri silindi.");
     redrawAll();
   });
@@ -368,7 +384,10 @@
 
   var savedStart = localStorage.getItem(START_KEY) || "";
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
-  refreshInputUi();
+  var currentRows = readRows();
+  if (currentRows.length && getLastId() < highestId(currentRows)) {
+    setLastId(highestId(currentRows));
+  }
   redrawAll();
 })();
 </script>
