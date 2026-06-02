@@ -567,27 +567,6 @@
     }
     return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(row, col.key, col.type)) + '</td>';
   }
-  function applySavedView(v) {
-    if (!v) return;
-    if (v.metric) {
-      selectedMetric = v.metric;
-      localStorage.setItem(METRIC_KEY, selectedMetric);
-      renderMetricPills();
-    }
-    if (v.listPlatform) {
-      selectedListPlatform = v.listPlatform;
-      localStorage.setItem(LIST_PLATFORM_KEY, selectedListPlatform);
-      renderListPlatformPills();
-    }
-    if (v.preset) setPresetSelectors(v.preset);
-    if (v.start !== undefined) document.getElementById("nt-start-date").value = v.start || "";
-    if (v.end !== undefined) document.getElementById("nt-end-date").value = v.end || "";
-    localStorage.setItem(START_KEY, v.start || "");
-    localStorage.setItem(END_KEY, v.end || "");
-    if (v.preset) localStorage.setItem("notification_analytics_preset_v1", v.preset);
-    rawPage = 0;
-    redrawAll();
-  }
   function redrawAll() {
     var rows = getFilteredRows();
     renderKpis(rows);
@@ -603,7 +582,6 @@
       mapListPlatformToDataKey: mapListPlatformToDataKey,
       getListPlatform: function () { return selectedListPlatform; },
       getMetric: function () { return selectedMetric; },
-      applySavedView: applySavedView,
       PLATFORM_KEYS: PLATFORM_KEYS,
       n: n,
       fmt: fmt,
