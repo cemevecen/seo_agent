@@ -57,13 +57,37 @@
       @media (min-width: 1024px) { .nt-insight-grid { grid-template-columns: repeat(3, 1fr); } }
       .nt-insight-card {
         position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: clamp(0.5rem, 2.5vw, 0.75rem);
         overflow: hidden;
         border-radius: 1rem;
         border: 1px solid rgb(226 232 240);
-        padding: 0.85rem 0.9rem 0.85rem 4.5rem;
-        min-height: 5.5rem;
+        padding: clamp(0.65rem, 2vw, 0.9rem);
+        min-height: 5.25rem;
         background: linear-gradient(135deg, rgb(248 250 252) 0%, rgb(255 255 255) 55%);
         box-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.45);
+      }
+      .nt-insight-media {
+        position: relative;
+        flex: 0 0 auto;
+        width: clamp(2.75rem, 14vw, 3.75rem);
+        height: clamp(2.75rem, 14vw, 3.75rem);
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgb(255 255 255 / 0.55);
+      }
+      html.dark .nt-insight-media {
+        background: rgb(24 24 27 / 0.65);
+      }
+      .nt-insight-content {
+        flex: 1 1 auto;
+        min-width: 0;
       }
       html.dark .nt-insight-card {
         border-color: rgb(63 63 70);
@@ -88,23 +112,25 @@
       .nt-insight-card--alert::before { background: rgb(239 68 68); }
       .nt-insight-lottie {
         position: absolute;
-        left: 0.35rem;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3.5rem;
-        height: 3.5rem;
+        inset: 0;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100%;
+        max-height: 100%;
+        margin: 0;
+        display: block;
       }
       .nt-insight-lottie-fallback {
         position: absolute;
-        left: 0.65rem;
-        top: 50%;
-        width: 2.75rem;
-        height: 2.75rem;
-        margin-top: -1.375rem;
+        inset: 12%;
+        width: auto;
+        height: auto;
+        margin: 0;
         border-radius: 9999px;
         border: 2px solid currentColor;
         opacity: 0.35;
         animation: nt-insight-pulse 1.4s ease-in-out infinite;
+        pointer-events: none;
       }
       .nt-insight-card--up .nt-insight-lottie-fallback { color: rgb(34 197 94); }
       .nt-insight-card--down .nt-insight-lottie-fallback { color: rgb(244 63 94); }

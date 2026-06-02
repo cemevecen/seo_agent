@@ -178,12 +178,15 @@
     var type = card.type || "info";
     var lottie = card.lottie || NT_LOTTIE_INFO;
     return '<article class="nt-insight-card nt-insight-card--' + type + '" role="status">'
+      + '<div class="nt-insight-media" aria-hidden="true">'
       + '<lottie-player class="nt-insight-lottie" src="' + lottie + '" background="transparent" speed="1" loop autoplay></lottie-player>'
-      + '<div class="nt-insight-lottie-fallback" aria-hidden="true"></div>'
+      + '<div class="nt-insight-lottie-fallback"></div>'
+      + "</div>"
+      + '<div class="nt-insight-content">'
       + '<span class="nt-insight-badge">' + nt.escapeHtml(card.badge || type) + "</span>"
       + '<p class="nt-insight-title">' + nt.escapeHtml(card.title || "") + "</p>"
       + '<p class="nt-insight-body">' + nt.escapeHtml(card.body || "") + "</p>"
-      + "</article>";
+      + "</div></article>";
   }
 
   function renderInsights(nt, rows) {
