@@ -1862,7 +1862,7 @@ def _build_traffic_drivers_from_page_comparison(
     if not pages:
         return {"increase": [], "decrease": []}
 
-    drivers = {"increase": [], "decrease": []}
+    candidates: list[dict[str, Any]] = []
     for page in pages:
         path = str(page.get("page") or "")
         if _is_realtime_noise_title(path):
@@ -1872,21 +1872,21 @@ def _build_traffic_drivers_from_page_comparison(
         diff = c - p
         if diff == 0:
             continue
-        drivers.append({
+        candidates.append({
             "page": path,
             "delta": diff,
             "current": c,
             "previous": p,
         })
 
-    if not drivers:
+    if not candidates:
         return {"increase": [], "decrease": []}
 
-    total_pos = sum(d["delta"] for d in drivers if d["delta"] > 0) or 1.0
-    total_neg_abs = abs(sum(d["delta"] for d in drivers if d["delta"] < 0)) or 1.0
+    total_pos = sum(d["delta"] for d in candidates if d["delta"] > 0) or 1.0
+    total_neg_abs = abs(sum(d["delta"] for d in candidates if d["delta"] < 0)) or 1.0
     inc: list[dict[str, Any]] = []
     dec: list[dict[str, Any]] = []
-    for d in drivers:
+    for d in candidates:
         if d["delta"] > 0:
             d["contribution_pct"] = (d["delta"] / total_pos) * 100
             inc.append(d)
@@ -1985,6 +1985,7 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
     # Aynı snapshot içindeki current vs previous — kayan pencere farkı değil
     site_delta = curr_snap.active_users_current - curr_snap.active_users_previous
     drivers = {"increase": [], "decrease": []}
+    driver_source = "none"
 
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
@@ -2002,7 +2003,10 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
             )
             pages = result.get("pages") or []
             if result.get("comparison_enabled") and pages:
+                save_page_snapshots(db, site.id, profile, pages)
                 drivers = _build_traffic_drivers_from_page_comparison(pages)
+                if drivers["increase"] or drivers["decrease"]:
+                    driver_source = "live_api"
         except Exception as exc:
             logger.warning(
                 "Traffic drivers canlı API hatası [%s/%s]: %s",
@@ -2013,6 +2017,8 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
 
     if not drivers["increase"] and not drivers["decrease"]:
         drivers = _analyze_traffic_drivers(db, site_id, profile, site_delta)
+        if drivers["increase"] or drivers["decrease"]:
+            driver_source = "db_snapshots"
 
     return {
         "has_data": True,
@@ -2020,6 +2026,7 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
         "current_total": curr_snap.active_users_current,
         "previous_total": curr_snap.active_users_previous,
         "collected_at": curr_snap.collected_at.isoformat() if curr_snap.collected_at else None,
+        "driver_source": driver_source,
         "drivers": (drivers["decrease"] if site_delta < 0 else drivers["increase"]),
         "drivers_increase": drivers["increase"],
         "drivers_decrease": drivers["decrease"],

@@ -1862,8 +1862,16 @@
     var dec = (d && d.drivers_decrease) ? d.drivers_decrease : [];
     inc = inc.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
     dec = dec.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
-    if (!d.has_data || (!inc.length && !dec.length)) {
-      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Karşılaştırma için henüz yeterli snapshot yok.</p>';
+    if (!d || !d.has_data) {
+      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Realtime ölçümü henüz yok — birkaç dakika sonra tekrar deneyin.</p>';
+      return;
+    }
+    if (!inc.length && !dec.length) {
+      var sd = Number(d.site_delta) || 0;
+      var emptyMsg = Math.abs(sd) < 5
+        ? 'Son 15 dakikada site genelinde belirgin sayfa değişimi yok.'
+        : 'Site toplamında değişim var; sayfa bazında net sürücü bulunamadı.';
+      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">' + emptyMsg + '</p>';
       return;
     }
     var delta = d.site_delta || 0;
