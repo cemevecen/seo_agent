@@ -459,6 +459,14 @@
     var rows = readRows(); var start = selectedStartDate(); var end = selectedEndDate();
     return rows.filter(function (r) { var d = dayKey(r.date); if (start && d < start) return false; if (end && d > end) return false; return true; });
   }
+  function rawListRows() {
+    var rows = getFilteredRows();
+    var endCap = selectedEndDate() || todayKey();
+    return rows.filter(function (r) {
+      var d = dayKey(r.date);
+      return d && d <= endCap;
+    });
+  }
 
   function renderKpis(rows) {
     var headlines = {}; var totalClicks = 0; var totalImpr = 0;
@@ -710,8 +718,9 @@
     if (rawListView === "preview") {
       chunk = sorted.slice(0, RAW_PREVIEW_SIZE);
       if (hint) {
+        var cap = selectedEndDate() || todayKey();
         hint.textContent = sorted.length
-          ? ("Gösterilen: " + chunk.length + " / " + fmt(sorted.length) + " kayıt · güncelden eskiye (tarih)")
+          ? ("Gösterilen: " + chunk.length + " / " + fmt(sorted.length) + " kayıt · " + cap + " ve öncesi, güncelden eskiye")
           : "";
       }
       if (pageInfo) pageInfo.textContent = "";
@@ -806,7 +815,7 @@
     plotWeights(rows);
     renderMostLeast(rows);
     renderCrossPlatformTop(rows);
-    renderRawRows(readRows());
+    renderRawRows(rawListRows());
     window.NT = {
       readRows: readRows,
       getFilteredRows: getFilteredRows,
@@ -873,15 +882,15 @@
     rawListView = "preview";
     rawPage = 0;
     localStorage.setItem(RAW_VIEW_KEY, rawListView);
-    renderRawRows(readRows());
+    renderRawRows(rawListRows());
   });
   document.getElementById("nt-raw-view-all").addEventListener("click", function () {
     rawListView = "full";
     localStorage.setItem(RAW_VIEW_KEY, rawListView);
-    renderRawRows(readRows());
+    renderRawRows(rawListRows());
   });
-  document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(readRows()); });
-  document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(readRows()); });
+  document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(rawListRows()); });
+  document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(rawListRows()); });
   document.getElementById("nt-raw-list").addEventListener("click", function (ev) {
     var textBtn = ev.target && ev.target.closest ? ev.target.closest(".nt-raw-text-cell") : null;
     if (textBtn) {
@@ -904,7 +913,7 @@
     localStorage.setItem(RAW_SORT_FIELD_KEY, rawSortField);
     localStorage.setItem(RAW_SORT_DIR_KEY, rawSortDir);
     rawPage = 0;
-    renderRawRows(readRows());
+    renderRawRows(rawListRows());
   });
   var rawTextModalBackdrop = document.getElementById("nt-raw-text-modal");
   if (rawTextModalBackdrop) {
