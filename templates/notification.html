@@ -9,13 +9,18 @@
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">CSV dosyası</label>
           <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100" />
         </div>
-        <div class="min-w-0 space-y-1.5 xl:col-span-2">
-          <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
-          <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
-        </div>
-        <div class="min-w-0 space-y-1.5 xl:col-span-2">
-          <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Bitiş tarihi</label>
-          <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+        <div class="min-w-0 space-y-1.5 xl:col-span-3">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
+              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Bitiş tarihi</label>
+              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+            </div>
+          </div>
+          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-2">
           <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</label>
@@ -30,11 +35,6 @@
             <option value="3y">Son 3 yıl</option>
             <option value="4y">Son 4 yıl</option>
           </select>
-        </div>
-        <div class="min-w-0 xl:col-span-1 xl:self-end">
-          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
-        </div>
-        <div class="min-w-0 xl:col-span-1 xl:self-end">
           <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Hazır aralığı uygula</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
