@@ -48,12 +48,79 @@
   </div>
 
   <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Kısa İçgörü Kartları">
-    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Kısa İçgörü Kartları] Otomatik özet</h3>
-    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Trend, uyarı ve fırsat kartları — canlı mini animasyonlu.</p>
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Otomatik özet</h3>
     <style>
-      .nt-insight-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
-      @media (min-width: 640px) { .nt-insight-grid { grid-template-columns: repeat(2, 1fr); } }
-      @media (min-width: 1024px) { .nt-insight-grid { grid-template-columns: repeat(3, 1fr); } }
+      .nt-insight-panels {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      @media (min-width: 768px) {
+        .nt-insight-panels { grid-template-columns: repeat(2, 1fr); }
+      }
+      .nt-insight-panel {
+        position: relative;
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid rgb(226 232 240);
+        padding: 0.85rem 0.9rem 0.9rem;
+        background: linear-gradient(135deg, rgb(248 250 252) 0%, rgb(255 255 255) 60%);
+        box-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.4);
+      }
+      html.dark .nt-insight-panel {
+        border-color: rgb(63 63 70);
+        background: linear-gradient(135deg, rgb(24 24 27) 0%, rgb(39 39 42) 65%);
+      }
+      .nt-insight-panel-head {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        margin-bottom: 0.65rem;
+      }
+      .nt-insight-panel--trend .nt-insight-panel-head { border-bottom: 1px solid rgb(199 210 254); padding-bottom: 0.5rem; }
+      .nt-insight-panel--alert .nt-insight-panel-head { border-bottom: 1px solid rgb(254 202 202); padding-bottom: 0.5rem; }
+      html.dark .nt-insight-panel--trend .nt-insight-panel-head { border-bottom-color: rgb(67 56 202); }
+      html.dark .nt-insight-panel--alert .nt-insight-panel-head { border-bottom-color: rgb(127 29 29); }
+      .nt-insight-panel-title {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: rgb(30 41 59);
+      }
+      html.dark .nt-insight-panel-title { color: rgb(244 244 245); }
+      .nt-insight-panel--trend .nt-insight-panel-title { color: rgb(67 56 202); }
+      html.dark .nt-insight-panel--trend .nt-insight-panel-title { color: rgb(165 180 252); }
+      .nt-insight-panel--alert .nt-insight-panel-title { color: rgb(185 28 28); }
+      html.dark .nt-insight-panel--alert .nt-insight-panel-title { color: rgb(252 165 165); }
+      .nt-insight-panel-media {
+        position: relative;
+        flex: 0 0 auto;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.65rem;
+        overflow: hidden;
+        background: rgb(255 255 255 / 0.7);
+      }
+      html.dark .nt-insight-panel-media { background: rgb(24 24 27 / 0.8); }
+      .nt-insight-panel-media .nt-insight-lottie {
+        position: absolute;
+        inset: 0;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      .nt-insight-panel-list {
+        margin: 0;
+        padding-left: 1.1rem;
+        list-style: disc;
+      }
+      .nt-insight-panel-list li {
+        margin: 0.35rem 0;
+        font-size: 11px;
+        line-height: 1.45;
+        color: rgb(71 85 105);
+      }
+      html.dark .nt-insight-panel-list li { color: rgb(161 161 170); }
       .nt-insight-card {
         position: relative;
         display: flex;
@@ -166,7 +233,7 @@
       .nt-insight-body { margin-top: 0.2rem; font-size: 11px; line-height: 1.45; color: rgb(71 85 105); }
       html.dark .nt-insight-body { color: rgb(161 161 170); }
     </style>
-    <div id="nt-lab-insights" class="nt-insight-grid mt-3"></div>
+    <div id="nt-lab-insights" class="nt-insight-panels mt-3"></div>
   </div>
 </section>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
