@@ -17,8 +17,19 @@
         <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
         <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Bitiş tarihi</label>
         <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+        <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</label>
+        <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          <option value="1w">Son 1 hafta</option>
+          <option value="1m">Son 1 ay</option>
+          <option value="3m" selected>Son 3 ay</option>
+          <option value="6m">Son 6 ay</option>
+          <option value="1y">Son 1 yıl</option>
+          <option value="2y">Son 2 yıl</option>
+          <option value="3y">Son 3 yıl</option>
+          <option value="4y">Son 4 yıl</option>
+        </select>
         <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
-        <button id="nt-last-3m" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Son 3 ay</button>
+        <button id="nt-apply-preset" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Hazır aralığı uygula</button>
       </div>
       <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
         <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">CSV yükle ve ekle</button>
@@ -89,6 +100,8 @@
   function dayKey(iso) { return String(iso || "").slice(0, 10); }
   function todayKey() { return new Date().toISOString().slice(0, 10); }
   function minusMonths(dateStr, months) { var d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); }
+  function minusYears(dateStr, years) { var d = new Date(dateStr + "T00:00:00"); d.setFullYear(d.getFullYear() - years); return d.toISOString().slice(0, 10); }
+  function minusDays(dateStr, days) { var d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); }
   function normalizeHeader(h) { return String(h || "").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
   function escapeHtml(s) { var d = document.createElement("div"); d.textContent = String(s || ""); return d.innerHTML; }
   function parseDateSmart(raw) {
@@ -258,21 +271,33 @@
     renderMostLeast(rows);
     renderRawRows(rows);
   }
-  function resetToLast3Months() {
+  function applyPresetRange(preset) {
     var end = todayKey();
     var start = minusMonths(end, 3);
+    if (preset === "1w") start = minusDays(end, 7);
+    else if (preset === "1m") start = minusMonths(end, 1);
+    else if (preset === "3m") start = minusMonths(end, 3);
+    else if (preset === "6m") start = minusMonths(end, 6);
+    else if (preset === "1y") start = minusYears(end, 1);
+    else if (preset === "2y") start = minusYears(end, 2);
+    else if (preset === "3y") start = minusYears(end, 3);
+    else if (preset === "4y") start = minusYears(end, 4);
     document.getElementById("nt-start-date").value = start;
     document.getElementById("nt-end-date").value = end;
     localStorage.setItem(START_KEY, start);
     localStorage.setItem(END_KEY, end);
+    localStorage.setItem("notification_analytics_preset_v1", preset || "3m");
     rawPage = 0;
     redrawAll();
-    status("Varsayılan aralık uygulandı: son 3 ay");
+    status("Hazır zaman dilimi uygulandı.");
   }
 
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(getFilteredRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(getFilteredRows()); });
-  document.getElementById("nt-last-3m").addEventListener("click", function () { resetToLast3Months(); });
+  document.getElementById("nt-apply-preset").addEventListener("click", function () {
+    var preset = document.getElementById("nt-range-preset").value;
+    applyPresetRange(preset);
+  });
   document.getElementById("nt-add-data").addEventListener("click", function () {
     var fileInput = document.getElementById("nt-csv-file");
     var file = fileInput && fileInput.files && fileInput.files[0];
@@ -315,11 +340,15 @@
     redrawAll();
   });
 
+  var presetKey = "notification_analytics_preset_v1";
+  var savedPreset = localStorage.getItem(presetKey) || "3m";
+  var presetEl = document.getElementById("nt-range-preset");
+  if (presetEl) presetEl.value = savedPreset;
   var savedStart = localStorage.getItem(START_KEY) || "";
   var savedEnd = localStorage.getItem(END_KEY) || "";
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
   if (savedEnd) document.getElementById("nt-end-date").value = savedEnd;
-  if (!savedStart && !savedEnd) resetToLast3Months();
+  if (!savedStart && !savedEnd) applyPresetRange(savedPreset);
   var currentRows = readRows();
   if (currentRows.length && getLastId() < highestId(currentRows)) setLastId(highestId(currentRows));
   redrawAll();
