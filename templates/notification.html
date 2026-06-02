@@ -113,6 +113,21 @@
     </div>
   </div>
 
+  <style>
+    .nt-raw-text-cell {
+      max-width: 60ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    .nt-raw-text-cell:hover {
+      color: rgb(79 70 229);
+    }
+    .dark .nt-raw-text-cell:hover {
+      color: rgb(129 140 248);
+    }
+  </style>
   <details class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-zinc-200">Ham içerik listesi</summary>
     <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -122,6 +137,16 @@
     </div>
     <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
   </details>
+</div>
+
+<div id="nt-raw-text-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nt-raw-text-modal-title">
+  <div class="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="document">
+    <div class="mb-3 flex items-start justify-between gap-3">
+      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-zinc-100">İçerik metni</h3>
+      <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Kapat</button>
+    </div>
+    <p id="nt-raw-text-modal-body" class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-zinc-200"></p>
+  </div>
 </div>
 
 <script>
@@ -468,9 +493,7 @@
     }).join("");
     var body = chunk.map(function (r) {
       return '<tr class="border-t border-slate-200 dark:border-zinc-700">'
-        + RAW_COLUMNS.map(function (c) {
-          return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(r, c.key, c.type)) + '</td>';
-        }).join("")
+        + RAW_COLUMNS.map(function (c) { return rawCellHtml(r, c); }).join("")
         + '</tr>';
     }).join("");
     el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-zinc-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
@@ -494,11 +517,43 @@
     if (key === "mobileweb_click") return n((p.mobileweb || {}).click);
     return "";
   }
+  function truncateChars(text, maxLen) {
+    var s = String(text || "");
+    if (s.length <= maxLen) return s;
+    return s.slice(0, maxLen) + "…";
+  }
+  function showRawTextModal(fullText) {
+    var modal = document.getElementById("nt-raw-text-modal");
+    var body = document.getElementById("nt-raw-text-modal-body");
+    if (!modal || !body) return;
+    body.textContent = fullText || "";
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    modal.setAttribute("aria-hidden", "false");
+  }
+  function hideRawTextModal() {
+    var modal = document.getElementById("nt-raw-text-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    modal.setAttribute("aria-hidden", "true");
+  }
   function rawDisplayValue(row, key, type) {
     var val = rawValue(row, key);
     if (key === "android_ctr") return n(val).toFixed(2);
     if (type === "number") return fmt(val);
     return String(val || "");
+  }
+  function rawCellHtml(row, col) {
+    if (col.key === "text") {
+      var full = String(row.text || "");
+      var short = truncateChars(full, 60);
+      var titleAttr = full.length > 60 ? ' title="' + escapeHtml(full).replace(/"/g, "&quot;") + '"' : "";
+      return '<td class="px-2 py-1.5 align-top text-xs text-slate-700 dark:text-zinc-200">'
+        + '<button type="button" class="nt-raw-text-cell block w-full text-left' + titleAttr
+        + ' data-full-text="' + escapeHtml(full).replace(/"/g, "&quot;") + '">' + escapeHtml(short) + '</button></td>';
+    }
+    return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(row, col.key, col.type)) + '</td>';
   }
   function redrawAll() {
     var rows = getFilteredRows();
@@ -542,6 +597,14 @@
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(readRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(readRows()); });
   document.getElementById("nt-raw-list").addEventListener("click", function (ev) {
+    var textBtn = ev.target && ev.target.closest ? ev.target.closest(".nt-raw-text-cell") : null;
+    if (textBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var full = textBtn.getAttribute("data-full-text") || "";
+      showRawTextModal(full);
+      return;
+    }
     var btn = ev.target && ev.target.closest ? ev.target.closest("[data-nt-sort]") : null;
     if (!btn) return;
     var key = btn.getAttribute("data-nt-sort");
@@ -552,6 +615,17 @@
     localStorage.setItem(RAW_SORT_DIR_KEY, rawSortDir);
     rawPage = 0;
     renderRawRows(readRows());
+  });
+  var rawTextModalBackdrop = document.getElementById("nt-raw-text-modal");
+  if (rawTextModalBackdrop) {
+    rawTextModalBackdrop.addEventListener("click", function (ev) {
+      if (ev.target === rawTextModalBackdrop) hideRawTextModal();
+    });
+  }
+  var rawTextModalClose = document.getElementById("nt-raw-text-modal-close");
+  if (rawTextModalClose) rawTextModalClose.addEventListener("click", hideRawTextModal);
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") hideRawTextModal();
   });
   document.querySelectorAll("[data-nt-metric]").forEach(function (btn) {
     btn.addEventListener("click", function () {
