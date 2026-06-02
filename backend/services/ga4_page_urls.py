@@ -48,10 +48,31 @@ _GA4_JUNK_URL_MARKERS = (
 )
 
 
+_DOVIZ_YORUM_LISTING_HOSTS = frozenset({"www.doviz.com", "doviz.com", "m.doviz.com"})
+
+
+def is_seo_audit_excluded_url(url: str | None) -> bool:
+    """SEO audit listesi/taramasından çıkarılan özel sayfalar (yalnızca tam eşleşme)."""
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urlparse(u)
+        host = (parsed.netloc or "").strip().lower().split(":")[0]
+        if host not in _DOVIZ_YORUM_LISTING_HOSTS:
+            return False
+        path = (parsed.path or "").rstrip("/") or "/"
+        return path == "/yorum"
+    except Exception:
+        return False
+
+
 def is_seo_audit_crawl_url(url: str | None) -> bool:
     """SEO audit taramasına alınabilir gerçek https URL mi? GA4 (other) vb. hayır."""
     u = (url or "").strip()
     if not u.startswith(("http://", "https://")):
+        return False
+    if is_seo_audit_excluded_url(u):
         return False
     low = u.lower()
     if any(marker in low for marker in _GA4_JUNK_URL_MARKERS):
@@ -66,8 +87,11 @@ def is_seo_audit_crawl_url(url: str | None) -> bool:
 
 
 def seo_audit_url_from_ga4(host: str | None, path: str | None) -> str:
-    """GA4 hostname + pagePath → tarama URL'si; yer tutucu ise ''."""
-    return ga4_canonical_page_url(host, path)
+    """GA4 hostname + pagePath → tarama URL'si; yer tutucu veya hariç sayfa ise ''."""
+    u = ga4_canonical_page_url(host, path)
+    if is_seo_audit_excluded_url(u):
+        return ""
+    return u
 
 
 def _is_ga4_placeholder_host(host: str) -> bool:

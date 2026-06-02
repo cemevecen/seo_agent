@@ -13,18 +13,36 @@ from urllib.parse import urlparse
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
-from backend.services.ga4_page_urls import is_seo_audit_crawl_url
+from backend.services.ga4_page_urls import is_seo_audit_crawl_url, is_seo_audit_excluded_url
 
 logger = logging.getLogger(__name__)
 
 # GA4 boyut çöplüğü — seo-audit listelerinde gösterilmez
 _JUNK_AUDIT_URL_MARKERS = ("(other)", "(not set)", "(blank)", "(not provided)", "(data not available)")
+_DOVIZ_YORUM_ROOT_HOSTS = ("www.doviz.com", "doviz.com", "m.doviz.com")
+
+
+def _exclude_yorum_listing_root_sql(q, M):
+    """www.doviz.com/yorum kökü — /yorum/alt-sayfa kayıtları kalır."""
+    for host in _DOVIZ_YORUM_ROOT_HOSTS:
+        for scheme in ("https", "http"):
+            root = f"{scheme}://{host}/yorum"
+            q = q.filter(
+                ~or_(
+                    M.url == root,
+                    M.url == f"{root}/",
+                    M.url.ilike(f"{root}?%"),
+                    M.url.ilike(f"{root}/?%"),
+                    M.url.ilike(f"{root}#%"),
+                )
+            )
+    return q
 
 
 def _exclude_junk_audit_urls(q, M):
     for marker in _JUNK_AUDIT_URL_MARKERS:
         q = q.filter(~M.url.ilike(f"%{marker}%"))
-    return q
+    return _exclude_yorum_listing_root_sql(q, M)
 
 # Sağlıklı aralıklar
 TITLE_MIN, TITLE_MAX = 20, 65
@@ -422,6 +440,8 @@ def get_changes(db: Session, site_id: int, days: int = 7) -> list[dict[str, Any]
 
     changes = []
     for url, new in new_snaps.items():
+        if is_seo_audit_excluded_url(url):
+            continue
         old = old_snaps.get(url)
         if not old:
             continue
