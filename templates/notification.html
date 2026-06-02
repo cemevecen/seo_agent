@@ -7,11 +7,18 @@
       Panelden tablo kopyalayıp yapıştırın. Her eklemede veriler birikir, grafikler otomatik güncellenir.
     </p>
     <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
-      <textarea
-        id="nt-input"
-        class="col-span-1 min-h-40 rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 lg:col-span-2"
-        placeholder="Excel/tabloda satırları kopyala, buraya yapıştır (ilk satır başlık olmalı)"
-      ></textarea>
+      <div class="col-span-1 space-y-2 lg:col-span-2">
+        <label for="nt-input-mode" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Yapıştırma türü</label>
+        <select id="nt-input-mode" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          <option value="csv" selected>CSV yapıştırma (önerilen)</option>
+          <option value="text" disabled>Metin yapıştırma (kapalı)</option>
+        </select>
+        <textarea
+          id="nt-input"
+          class="min-h-40 w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+          placeholder="CSV veya Excel tablosu yapıştırın (ilk satır başlık olmalı)"
+        ></textarea>
+      </div>
       <div class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
         <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
         <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
@@ -300,7 +307,35 @@
     renderRiseDrop(rows);
   }
 
+  function refreshInputUi() {
+    var mode = document.getElementById("nt-input-mode").value;
+    var input = document.getElementById("nt-input");
+    var addBtn = document.getElementById("nt-add-data");
+    if (mode === "csv") {
+      input.disabled = false;
+      input.placeholder = "CSV veya Excel tablosu yapıştırın (ilk satır başlık olmalı)";
+      addBtn.disabled = false;
+      addBtn.classList.remove("opacity-50", "cursor-not-allowed");
+      return;
+    }
+    input.disabled = true;
+    input.placeholder = "Metin yapıştırma şu an kapalı.";
+    addBtn.disabled = true;
+    addBtn.classList.add("opacity-50", "cursor-not-allowed");
+  }
+
+  document.getElementById("nt-input-mode").addEventListener("change", function () {
+    refreshInputUi();
+    if (this.value !== "csv") {
+      status("Sadece CSV yapıştırma aktif.");
+    }
+  });
+
   document.getElementById("nt-add-data").addEventListener("click", function () {
+    if (document.getElementById("nt-input-mode").value !== "csv") {
+      status("Sadece CSV yapıştırma aktif.");
+      return;
+    }
     var txt = document.getElementById("nt-input").value;
     var parsed = parsePastedText(txt);
     if (!parsed.length) {
@@ -333,6 +368,7 @@
 
   var savedStart = localStorage.getItem(START_KEY) || "";
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
+  refreshInputUi();
   redrawAll();
 })();
 </script>
