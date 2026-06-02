@@ -141,6 +141,7 @@ _SC_JSON_NO_CACHE_HEADERS = {
 _SC_REFRESH_ALL_LOCK = threading.Lock()
 # Toplu GSC yenileme: uzun HTTP isteği tarayıcı/proxy tarafından kesilmesin diye arka planda çalışır.
 _SC_REFRESH_ALL_JOB: dict | None = None
+_SC_REFRESH_ALL_STALE_SECONDS = 50 * 60
 
 
 def _search_console_request_wants_json(request: Request) -> bool:
@@ -12807,7 +12808,15 @@ def _refresh_one_site_for_sc_batch(site_id: int) -> tuple[int, dict]:
             return (site_id, {"state": "failed", "error": str(exc)})
 
 
-def _compute_search_console_refresh_all_payload() -> dict:
+def _sc_refresh_all_set_progress(*, done: int, total: int, label: str = "") -> None:
+    with _SC_REFRESH_ALL_LOCK:
+        job = _SC_REFRESH_ALL_JOB
+        if not job or job.get("status") != "running":
+            return
+        job["progress"] = {"done": int(done), "total": int(total), "label": str(label or "")}
+
+
+def _compute_search_console_refresh_all_payload(*, job_id: str | None = None) -> dict:
     """LIVE_REFRESH açıkken toplu GSC çekimi; JSON gövdesi (live_refresh_enabled=True).
 
     Site bazlı çekimler paralel çalıştırılır (her thread kendi DB session'ında).
@@ -12829,11 +12838,14 @@ def _compute_search_console_refresh_all_payload() -> dict:
             eligible.append(site.id)
         n_active_non_external = len([s for s in sites if s.id not in external])
 
+    _sc_refresh_all_set_progress(done=0, total=len(eligible), label="Başlatılıyor")
+
     # Paralel çekim — her site kendi session'ında, max 4 eşzamanlı (Google API kotası ve
     # DB lock'ları için makul bir tavan; tipik kurulumda site sayısı zaten <4).
     site_results: dict[int, dict] = {}
     if eligible:
         max_workers = min(4, len(eligible))
+        completed = 0
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="sc-refresh-all") as pool:
             futures = {pool.submit(_refresh_one_site_for_sc_batch, sid): sid for sid in eligible}
             for fut in as_completed(futures):
@@ -12843,6 +12855,11 @@ def _compute_search_console_refresh_all_payload() -> dict:
                     sid = futures[fut]
                     result = {"state": "failed", "error": str(exc)}
                 site_results[sid] = result
+                completed += 1
+                with SessionLocal() as db:
+                    site = db.query(Site).filter(Site.id == sid).first()
+                site_label = (site.display_name or site.domain) if site else f"site #{sid}"
+                _sc_refresh_all_set_progress(done=completed, total=len(eligible), label=site_label)
 
     refreshed_ok = sum(1 for r in site_results.values() if str(r.get("state") or "").lower() != "failed")
     failed = sum(1 for r in site_results.values() if str(r.get("state") or "").lower() == "failed")
@@ -12906,12 +12923,13 @@ def _compute_search_console_refresh_all_payload() -> dict:
 def _search_console_refresh_all_job_finish(job_id: str) -> None:
     global _SC_REFRESH_ALL_JOB
     try:
-        payload = _compute_search_console_refresh_all_payload()
+        payload = _compute_search_console_refresh_all_payload(job_id=job_id)
         with _SC_REFRESH_ALL_LOCK:
             job = _SC_REFRESH_ALL_JOB
             if job and job.get("id") == job_id:
                 job["status"] = "done"
                 job["result"] = payload
+                job["progress"] = None
     except Exception as exc:
         LOGGER.exception("Search Console refresh-all background job failed")
         with _SC_REFRESH_ALL_LOCK:
@@ -12919,10 +12937,21 @@ def _search_console_refresh_all_job_finish(job_id: str) -> None:
             if job and job.get("id") == job_id:
                 job["status"] = "error"
                 job["error"] = str(exc).strip() or "Arka plan işinde beklenmeyen hata; loglara bakın."
+                job["progress"] = None
+
+
+def _start_search_console_refresh_all_job(job_id: str) -> None:
+    """Toplu GSC yenilemesini ayrı thread'de çalıştır (uvicorn event loop'u bloklamasın)."""
+    threading.Thread(
+        target=_search_console_refresh_all_job_finish,
+        args=(job_id,),
+        daemon=True,
+        name=f"sc-refresh-all-{job_id[:8]}",
+    ).start()
 
 
 @app.post("/search-console/refresh-all")
-def search_console_refresh_all(request: Request, background_tasks: BackgroundTasks):
+def search_console_refresh_all(request: Request):
     """Toplu GSC çekimi. Uzun sürdüğü için hemen yanıt + /status ile izlenir (bağlantı kesilmesini önler)."""
     global _SC_REFRESH_ALL_JOB
     if not settings.live_refresh_enabled:
@@ -12941,14 +12970,19 @@ def search_console_refresh_all(request: Request, background_tasks: BackgroundTas
     with _SC_REFRESH_ALL_LOCK:
         cur = _SC_REFRESH_ALL_JOB
         if cur and cur.get("status") == "running":
-            return JSONResponse(
-                {
-                    "ok": False,
-                    "detail": "Başka bir toplu Search Console yenilemesi hâlâ çalışıyor; bitene kadar bekleyin.",
-                },
-                status_code=409,
-                headers=_SC_JSON_NO_CACHE_HEADERS,
-            )
+            started = float(cur.get("started") or 0.0)
+            age = time.time() - started if started > 0 else 0.0
+            if age < _SC_REFRESH_ALL_STALE_SECONDS:
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "detail": "Başka bir toplu Search Console yenilemesi hâlâ çalışıyor; bitene kadar bekleyin.",
+                    },
+                    status_code=409,
+                    headers=_SC_JSON_NO_CACHE_HEADERS,
+                )
+            cur["status"] = "error"
+            cur["error"] = "Önceki toplu yenileme zaman aşımına uğradı; yeni işlem başlatıldı."
         job_id = str(uuid4())
         _SC_REFRESH_ALL_JOB = {
             "id": job_id,
@@ -12956,8 +12990,9 @@ def search_console_refresh_all(request: Request, background_tasks: BackgroundTas
             "result": None,
             "error": None,
             "started": time.time(),
+            "progress": {"done": 0, "total": 0, "label": ""},
         }
-    background_tasks.add_task(_search_console_refresh_all_job_finish, job_id)
+    _start_search_console_refresh_all_job(job_id)
     return JSONResponse(
         {
             "ok": True,
@@ -12986,10 +13021,11 @@ def search_console_refresh_all_status(job_id: str):
                 headers=_SC_JSON_NO_CACHE_HEADERS,
             )
         if job.get("status") == "running":
-            return JSONResponse(
-                {"ok": True, "done": False, "job_id": job_id},
-                headers=_SC_JSON_NO_CACHE_HEADERS,
-            )
+            body: dict = {"ok": True, "done": False, "job_id": job_id}
+            progress = job.get("progress")
+            if isinstance(progress, dict):
+                body["progress"] = progress
+            return JSONResponse(body, headers=_SC_JSON_NO_CACHE_HEADERS)
         if job.get("status") == "error":
             return JSONResponse(
                 {

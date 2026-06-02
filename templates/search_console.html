@@ -114,7 +114,16 @@
           <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
           <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Dış kaynaktan veri çekme akışı başlatılıyor.</p>
         </div>
-        <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
+        <div class="flex shrink-0 flex-col items-end gap-2">
+          <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
+          <button
+            type="button"
+            id="search-console-progress-dismiss"
+            class="hidden rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Kapat
+          </button>
+        </div>
       </div>
       <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-sky-200/70 dark:ring-sky-900/45 shadow-inner">
         <div id="search-console-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
@@ -358,6 +367,7 @@
     const detail = document.getElementById('search-console-progress-detail');
     const percent = document.getElementById('search-console-progress-percent');
     const bar = document.getElementById('search-console-progress-bar');
+    const dismissBtn = document.getElementById('search-console-progress-dismiss');
     const steps = config.steps || [];
     let index = 0;
     let timer = null;
@@ -441,7 +451,29 @@
       }, config.interval || 900);
     }
 
+    function hidePanelNow() {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      if (hideInnerTimer) { clearTimeout(hideInnerTimer); hideInnerTimer = null; }
+      if (timer) { window.clearInterval(timer); timer = null; }
+      if (tailTimer) { window.clearInterval(tailTimer); tailTimer = null; }
+      if (clockTimer) { window.clearInterval(clockTimer); clockTimer = null; }
+      if (panel) {
+        panel.classList.add('hidden');
+        panel.style.opacity = '';
+        panel.style.transition = '';
+      }
+      if (dismissBtn) {
+        dismissBtn.classList.add('hidden');
+      }
+    }
+
+    if (dismissBtn && !dismissBtn.dataset.bound) {
+      dismissBtn.dataset.bound = '1';
+      dismissBtn.addEventListener('click', hidePanelNow);
+    }
+
     return {
+      dismiss: hidePanelNow,
       complete: function (doneTitle, doneDetail) {
         if (timer) { window.clearInterval(timer); }
         if (tailTimer) { window.clearInterval(tailTimer); }
@@ -517,6 +549,27 @@
           title: errorTitle || 'Yenileme başarısız',
           detail: errorDetail || 'Dış kaynaktan veri çekilirken bir hata oluştu.',
         });
+        if (dismissBtn) {
+          dismissBtn.classList.remove('hidden');
+        }
+      },
+      renderLive: function (pct, liveTitle, liveDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
+          tailTimer = null;
+        }
+        if (percent) {
+          percent.classList.remove('animate-pulse');
+        }
+        render({
+          percent: pct,
+          title: liveTitle,
+          detail: liveDetail,
+        });
       },
       resetTone: function () {
         if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
@@ -583,17 +636,21 @@
     var startTs = Date.now();
     var maxMs = 45 * 60 * 1000;
     var pollMs = 2000;
+    var networkRetries = 0;
+    var maxNetworkRetries = 8;
+
     function tick() {
       if (Date.now() - startTs > maxMs) {
         progress.fail(
           'Tüm siteler yenilenemedi',
-          'Zaman aşımı (45 dk). Sunucuda işlem sürüyor olabilir; docker logs ve sayfa yenilemesine bakın.'
+          'Zaman aşımı (45 dk). Sunucuda işlem sürüyor olabilir; birkaç dakika sonra sayfayı yenileyin.'
         );
         return;
       }
       fetch('/search-console/refresh-all/status/' + encodeURIComponent(jobId), {
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
+        cache: 'no-store',
       })
         .then(function (response) {
           return response.text().then(function (text) {
@@ -601,6 +658,7 @@
           });
         })
         .then(function (pack) {
+          networkRetries = 0;
           var data;
           try {
             data = JSON.parse(pack.text);
@@ -609,10 +667,19 @@
           }
           if (pack.response.status === 404) {
             var err404 = new Error('not_found');
-            err404.detail = (data && data.detail) || 'İşlem bulunamadı.';
+            err404.detail = (data && data.detail) || 'İşlem bulunamadı (sunucu yeniden başlamış olabilir). Sayfayı yenileyip tekrar deneyin.';
             throw err404;
           }
           if (!data.done) {
+            var pg = data.progress;
+            if (pg && pg.total > 0) {
+              var pct = Math.min(96, Math.max(12, Math.round((pg.done / pg.total) * 100)));
+              progress.renderLive(
+                pct,
+                'Siteler yenileniyor (' + pg.done + '/' + pg.total + ')',
+                (pg.label ? pg.label + ' tamamlandı. ' : '') + 'Arka planda Search Console API çağrıları sürüyor.'
+              );
+            }
             window.setTimeout(tick, pollMs);
             return;
           }
@@ -628,11 +695,22 @@
           reloadSearchConsolePage(450);
         })
         .catch(function (error) {
+          var msg = String((error && error.message) || '');
+          var isNetwork = /networkerror|failed to fetch|load failed/i.test(msg);
+          if (isNetwork && networkRetries < maxNetworkRetries) {
+            networkRetries += 1;
+            console.warn('Search Console refresh-all poll retry', networkRetries, error);
+            window.setTimeout(tick, pollMs + networkRetries * 500);
+            return;
+          }
           console.warn('Search Console refresh-all poll failed:', error);
           var d =
             (error && error.detail) ||
             (error && error.message) ||
             'Yenileme durumu alınamadı.';
+          if (isNetwork) {
+            d += ' Sunucuda işlem arka planda sürebilir; 1–2 dk bekleyip sayfayı yenileyin.';
+          }
           progress.fail('Tüm siteler yenilenemedi', d);
         });
     }
@@ -733,6 +811,20 @@
         }
       });
   }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var dismiss = document.getElementById('search-console-progress-dismiss');
+    if (dismiss && !dismiss.dataset.bound) {
+      dismiss.dataset.bound = '1';
+      dismiss.addEventListener('click', function () {
+        var panel = document.getElementById('search-console-progress-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        dismiss.classList.add('hidden');
+      });
+    }
+  });
 
   function fitSearchConsoleText(root) {
     const scope = root || document;
