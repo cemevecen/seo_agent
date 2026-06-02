@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mx-auto w-full max-w-7xl space-y-5 notification-page" data-header-title="Notification Analytics">
-  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-    <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-300">Notification Analytics</h1>
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70">
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
-          <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">CSV dosyası</label>
-          <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300" />
+          <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV dosyası</label>
+          <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div class="space-y-1.5">
-              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Başlangıç tarihi</label>
-              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
+              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900" />
             </div>
             <div class="space-y-1.5">
-              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Bitiş tarihi</label>
-              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
+              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
+              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900" />
             </div>
           </div>
-          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Filtreyi uygula</button>
+          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Filtreyi uygula</button>
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-2">
-          <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</label>
-          <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+          <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
+          <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
             <option value="all">Tümü</option>
             <option value="1w">Son 1 hafta</option>
             <option value="1m">Son 1 ay</option>
@@ -35,58 +35,58 @@
             <option value="3y">Son 3 yıl</option>
             <option value="4y">Son 4 yıl</option>
           </select>
-          <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Hazır aralığı uygula</button>
+          <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Hazır aralığı uygula</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
-          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-zinc-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
+          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
-          <button id="nt-clear-file" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Dosya seçimini temizle</button>
+          <button id="nt-clear-file" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Dosya seçimini temizle</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
-          <button id="nt-reset-all" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950/40">Tüm birikimi sıfırla</button>
+          <button id="nt-reset-all" class="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/50">Tüm birikimi sıfırla</button>
         </div>
-        <p id="nt-status" class="min-w-0 text-xs text-slate-500 dark:text-zinc-400 xl:col-span-12"></p>
+        <p id="nt-status" class="min-w-0 text-xs text-slate-500 dark:text-slate-400 xl:col-span-12"></p>
       </div>
     </div>
   </div>
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam kayıt</p><p id="nt-kpi-rows" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Benzersiz başlık</p><p id="nt-kpi-headlines" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam click</p><p id="nt-kpi-clicks" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam impression</p><p id="nt-kpi-impr" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500 dark:text-slate-400">Toplam kayıt</p><p id="nt-kpi-rows" class="text-2xl font-black text-slate-900 dark:text-slate-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500 dark:text-slate-400">Benzersiz başlık</p><p id="nt-kpi-headlines" class="text-2xl font-black text-slate-900 dark:text-slate-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500 dark:text-slate-400">Toplam click</p><p id="nt-kpi-clicks" class="text-2xl font-black text-slate-900 dark:text-slate-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500 dark:text-slate-400">Toplam impression</p><p id="nt-kpi-impr" class="text-2xl font-black text-slate-900 dark:text-slate-300">0</p></div>
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-200">Platform click trend (son 3 ay varsayılan)</h2>
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Platform click trend (son 3 ay varsayılan)</h2>
       <div id="nt-trend-clicks" class="h-[280px]"></div>
     </div>
-    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-200">Platform ağırlığı (click payı)</h2>
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+      <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Platform ağırlığı (click payı)</h2>
       <div id="nt-weight-clicks" class="h-[280px]"></div>
     </div>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+  <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
     <div class="space-y-2">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Metrik</span>
+        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Metrik</span>
         <button type="button" data-nt-metric="click" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Click</button>
         <button type="button" data-nt-metric="impression" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Impression</button>
         <button type="button" data-nt-metric="ctr" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">CTR</button>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Liste platformu</span>
+        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Liste platformu</span>
         <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
         <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
         <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
         <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</span>
-        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</span>
+        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
           <option value="all">Tümü</option>
           <option value="1w">Son 1 hafta</option>
           <option value="1m">Son 1 ay</option>
@@ -97,32 +97,60 @@
           <option value="3y">Son 3 yıl</option>
           <option value="4y">Son 4 yıl</option>
         </select>
-        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Hazır aralığı uygula</button>
+        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Hazır aralığı uygula</button>
       </div>
     </div>
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">En çok (Top 50)</h3>
       <div id="nt-most-list" class="mt-2 space-y-2 text-sm"></div>
       <button type="button" id="nt-most-expand" class="mt-3 hidden w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60">Top 50'yi gör / genişlet</button>
     </div>
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">En az (Top 50)</h3>
       <div id="nt-least-list" class="mt-2 space-y-2 text-sm"></div>
       <button type="button" id="nt-least-expand" class="mt-3 hidden w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60">Top 50'yi gör / genişlet</button>
     </div>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4 platform toplam click (Top 20)</h3>
-    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Desktop + Mobile Web + Android + iOS click toplamına göre içerik sıralaması · seçili tarih aralığı</p>
+    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Desktop + Mobile Web + Android + iOS click toplamına göre içerik sıralaması · seçili tarih aralığı</p>
     <div id="nt-cross-top-list" class="nt-cross-top-wrap mt-3 text-xs"></div>
     <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Top 50'yi gör / genişlet</button>
   </div>
 
   <style>
+    /* Dark mode: bg-white / bg-slate-50 — Tailwind zinc sınıfları build'de yoktu; slate + base override */
+    html.dark .notification-page .rounded-2xl.border.bg-white,
+    html.dark .notification-page .rounded-xl.border.bg-white {
+      background-color: #18181b !important;
+      border-color: #27272a !important;
+    }
+    html.dark .notification-page .nt-filter-panel {
+      background-color: #0f0f10 !important;
+      border-color: #27272a !important;
+    }
+    html.dark .notification-page .nt-filter-panel input[type="file"],
+    html.dark .notification-page .nt-filter-panel input[type="date"],
+    html.dark .notification-page .nt-filter-panel select {
+      background-color: #18181b !important;
+      border-color: #3f3f46 !important;
+      color: #e4e4e7 !important;
+    }
+    html.dark .notification-page #nt-clear-file,
+    html.dark .notification-page #nt-reset-all {
+      background-color: #27272a !important;
+    }
+    html.dark .notification-page #nt-reset-all {
+      border-color: #7f1d1d !important;
+      color: #fca5a5 !important;
+    }
+    html.dark .notification-page #nt-reset-all:hover {
+      background-color: rgba(69, 10, 10, 0.45) !important;
+    }
     .nt-raw-text-cell {
       max-width: 60ch;
       overflow: hidden;
@@ -209,17 +237,17 @@
       color: rgb(100 116 139) !important;
     }
   </style>
-  <details open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-zinc-200">Ham içerik listesi</summary>
+  <details open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>
     <div class="mt-3 flex flex-wrap items-center gap-2">
       <button type="button" id="nt-raw-view-5" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 5'e dön</button>
-      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Hepsini göster</button>
-      <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-zinc-400"></span>
+      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Hepsini göster</button>
+      <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-slate-400"></span>
     </div>
     <div id="nt-raw-pagination" class="mt-2 hidden flex flex-wrap items-center gap-2">
-      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Önceki 1000</button>
-      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Sonraki 1000</button>
-      <span id="nt-page-info" class="text-xs text-slate-500 dark:text-zinc-400"></span>
+      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Önceki 1000</button>
+      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Sonraki 1000</button>
+      <span id="nt-page-info" class="text-xs text-slate-500 dark:text-slate-400"></span>
     </div>
     <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
   </details>
@@ -228,12 +256,12 @@
 </div>
 
 <div id="nt-raw-text-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nt-raw-text-modal-title">
-  <div class="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="document">
+  <div class="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900" role="document">
     <div class="mb-3 flex items-start justify-between gap-3">
-      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-zinc-300">İçerik metni</h3>
-      <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Kapat</button>
+      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-300">İçerik metni</h3>
+      <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Kapat</button>
     </div>
-    <p id="nt-raw-text-modal-body" class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-zinc-200"></p>
+    <p id="nt-raw-text-modal-body" class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200"></p>
   </div>
 </div>
 
@@ -379,7 +407,7 @@
       var on = btn.getAttribute("data-nt-metric") === selectedMetric;
       btn.className = on
         ? "nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-200"
-        : "nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+        : "nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800";
     });
   }
   function renderListPlatformPills() {
@@ -387,7 +415,7 @@
       var on = btn.getAttribute("data-nt-list-platform") === selectedListPlatform;
       btn.className = on
         ? "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-200"
-        : "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+        : "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800";
     });
   }
   function setPresetSelectors(preset) {
@@ -643,7 +671,7 @@
     var items = cachedCrossTopList;
     if (!el) return;
     if (!items.length) {
-      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Seçilen tarih aralığında veri yok.</p>';
       if (toggle) toggle.classList.add("hidden");
       return;
     }
@@ -672,7 +700,7 @@
         + '<td class="nt-cross-day">' + escapeHtml(x.lastDay || "-") + "</td>"
         + "</tr>";
     }).join("");
-    el.innerHTML = '<div class="nt-cross-top-wrap rounded-lg border border-slate-200 dark:border-zinc-700">'
+    el.innerHTML = '<div class="nt-cross-top-wrap rounded-lg border border-slate-200 dark:border-slate-700">'
       + '<table class="nt-cross-top-table w-full">' + head + "<tbody>" + body + "</tbody></table></div>";
     if (!toggle) return;
     if (items.length <= CROSS_TOP_DEFAULT) {
@@ -690,15 +718,15 @@
     var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
     if (!el) return;
     if (!items.length) {
-      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Seçilen tarih aralığında veri yok.</p>';
       if (toggle) toggle.classList.add("hidden");
       return;
     }
     var limit = expanded ? TOP_LIST_MAX : TOP_LIST_DEFAULT;
     var shown = items.slice(0, limit);
     el.innerHTML = shown.map(function (x, idx) {
-      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
-        + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
+      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">'
+        + '<p class="text-xs font-semibold text-slate-700 dark:text-slate-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
         + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
         + '</div>';
     }).join("");
@@ -717,8 +745,8 @@
     var btnAll = document.getElementById("nt-raw-view-all");
     var pag = document.getElementById("nt-raw-pagination");
     var on5 = rawListView === "preview";
-    var btnBase = "rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
-    var btnPrimary = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-zinc-700 dark:bg-zinc-700 dark:text-zinc-200";
+    var btnBase = "rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800";
+    var btnPrimary = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200";
     if (btn5) {
       btn5.classList.toggle("hidden", on5);
       if (!on5) btn5.className = btnBase;
@@ -778,20 +806,20 @@
       }
       if (hint) hint.textContent = sorted.length ? (fmt(sorted.length) + " kayıt · 1000'lik sayfalama") : "";
     }
-    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Gösterilecek kayıt yok.</p>'; return; }
+    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Gösterilecek kayıt yok.</p>'; return; }
     var head = RAW_COLUMNS.map(function (c) {
       var active = c.key === effectiveField;
       var arrow = active ? (effectiveDir === "asc" ? "↑" : "↓") : "↕";
-      return '<th class="whitespace-nowrap px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">'
-        + '<button type="button" data-nt-sort="' + c.key + '" class="hover:text-slate-700 dark:hover:text-zinc-200">' + escapeHtml(c.label) + ' ' + arrow + '</button>'
+      return '<th class="whitespace-nowrap px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">'
+        + '<button type="button" data-nt-sort="' + c.key + '" class="hover:text-slate-700 dark:hover:text-slate-200">' + escapeHtml(c.label) + ' ' + arrow + '</button>'
         + '</th>';
     }).join("");
     var body = chunk.map(function (r) {
-      return '<tr class="border-t border-slate-200 dark:border-zinc-700">'
+      return '<tr class="border-t border-slate-200 dark:border-slate-700">'
         + RAW_COLUMNS.map(function (c) { return rawCellHtml(r, c); }).join("")
         + '</tr>';
     }).join("");
-    el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-zinc-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+    el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-slate-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
   function rawValue(row, key) {
     var p = row.platforms || {};
@@ -845,11 +873,11 @@
       var full = String(row.text || "");
       var short = truncateChars(full, 60);
       var titleAttr = full.length > 60 ? ' title="' + escapeHtml(full).replace(/"/g, "&quot;") + '"' : "";
-      return '<td class="px-2 py-1.5 align-top text-xs text-slate-700 dark:text-zinc-200">'
+      return '<td class="px-2 py-1.5 align-top text-xs text-slate-700 dark:text-slate-200">'
         + '<button type="button" class="nt-raw-text-cell block w-full text-left' + titleAttr
         + ' data-full-text="' + escapeHtml(full).replace(/"/g, "&quot;") + '">' + escapeHtml(short) + '</button></td>';
     }
-    return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(row, col.key, col.type)) + '</td>';
+    return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200">' + escapeHtml(rawDisplayValue(row, col.key, col.type)) + '</td>';
   }
   function redrawAll() {
     var rows = getFilteredRows();
