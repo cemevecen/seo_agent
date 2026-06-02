@@ -106,10 +106,12 @@
     <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
       <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">En çok (Top 50)</h3>
       <div id="nt-most-list" class="mt-2 space-y-2 text-sm"></div>
+      <button type="button" id="nt-most-expand" class="mt-3 hidden w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60">Top 50'yi gör / genişlet</button>
     </div>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
       <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">En az (Top 50)</h3>
       <div id="nt-least-list" class="mt-2 space-y-2 text-sm"></div>
+      <button type="button" id="nt-least-expand" class="mt-3 hidden w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60">Top 50'yi gör / genişlet</button>
     </div>
   </div>
 
@@ -167,6 +169,12 @@
   var selectedMetric = "click";
   var rawSortField = "date";
   var rawSortDir = "desc";
+  var TOP_LIST_DEFAULT = 10;
+  var TOP_LIST_MAX = 50;
+  var mostListExpanded = false;
+  var leastListExpanded = false;
+  var cachedMostList = [];
+  var cachedLeastList = [];
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
@@ -454,20 +462,38 @@
         latestDate: dayKey(r.date)
       };
     }).filter(function (x) { return x.metric > 0; });
-    var most = list.slice().sort(function (a, b) { return b.metric - a.metric; }).slice(0, 50);
-    var least = list.slice().sort(function (a, b) { return a.metric - b.metric; }).slice(0, 50);
-    function renderList(targetId, items, cls) {
-      var el = document.getElementById(targetId);
-      if (!items.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>'; return; }
-      el.innerHTML = items.map(function (x, idx) {
-        return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
-          + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
-          + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
-          + '</div>';
-      }).join("");
+    cachedMostList = list.slice().sort(function (a, b) { return b.metric - a.metric; }).slice(0, TOP_LIST_MAX);
+    cachedLeastList = list.slice().sort(function (a, b) { return a.metric - b.metric; }).slice(0, TOP_LIST_MAX);
+    paintTopList("nt-most-list", "nt-most-expand", cachedMostList, "text-emerald-600 dark:text-emerald-400", mostListExpanded);
+    paintTopList("nt-least-list", "nt-least-expand", cachedLeastList, "text-rose-600 dark:text-rose-400", leastListExpanded);
+  }
+  function paintTopList(listId, toggleId, items, cls, expanded) {
+    var el = document.getElementById(listId);
+    var toggle = document.getElementById(toggleId);
+    var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
+    if (!el) return;
+    if (!items.length) {
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>';
+      if (toggle) toggle.classList.add("hidden");
+      return;
     }
-    renderList("nt-most-list", most, "text-emerald-600 dark:text-emerald-400");
-    renderList("nt-least-list", least, "text-rose-600 dark:text-rose-400");
+    var limit = expanded ? TOP_LIST_MAX : TOP_LIST_DEFAULT;
+    var shown = items.slice(0, limit);
+    el.innerHTML = shown.map(function (x, idx) {
+      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
+        + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
+        + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
+        + '</div>';
+    }).join("");
+    if (!toggle) return;
+    if (items.length <= TOP_LIST_DEFAULT) {
+      toggle.classList.add("hidden");
+      return;
+    }
+    toggle.classList.remove("hidden");
+    toggle.textContent = expanded
+      ? "İlk 10'a daralt"
+      : ("Top 50'yi gör / genişlet (" + items.length + " kayıt)");
   }
   function renderRawRows(rows) {
     var el = document.getElementById("nt-raw-list");
@@ -624,6 +650,14 @@
     redrawAll();
   }
 
+  document.getElementById("nt-most-expand").addEventListener("click", function () {
+    mostListExpanded = !mostListExpanded;
+    paintTopList("nt-most-list", "nt-most-expand", cachedMostList, "text-emerald-600 dark:text-emerald-400", mostListExpanded);
+  });
+  document.getElementById("nt-least-expand").addEventListener("click", function () {
+    leastListExpanded = !leastListExpanded;
+    paintTopList("nt-least-list", "nt-least-expand", cachedLeastList, "text-rose-600 dark:text-rose-400", leastListExpanded);
+  });
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(readRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(readRows()); });
   document.getElementById("nt-raw-list").addEventListener("click", function (ev) {

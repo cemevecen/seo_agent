@@ -50,6 +50,98 @@
 
   <div class="nt-lab-section rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-lab-name="Kısa İçgörü Kartları">
     <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">[Kısa İçgörü Kartları] Otomatik özet</h3>
-    <div id="nt-lab-insights" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2"></div>
+    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Trend, uyarı ve fırsat kartları — canlı mini animasyonlu.</p>
+    <style>
+      .nt-insight-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+      @media (min-width: 640px) { .nt-insight-grid { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 1024px) { .nt-insight-grid { grid-template-columns: repeat(3, 1fr); } }
+      .nt-insight-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid rgb(226 232 240);
+        padding: 0.85rem 0.9rem 0.85rem 4.5rem;
+        min-height: 5.5rem;
+        background: linear-gradient(135deg, rgb(248 250 252) 0%, rgb(255 255 255) 55%);
+        box-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.45);
+      }
+      html.dark .nt-insight-card {
+        border-color: rgb(63 63 70);
+        background: linear-gradient(135deg, rgb(24 24 27) 0%, rgb(39 39 42) 60%);
+        box-shadow: 0 10px 28px -20px rgba(0, 0, 0, 0.65);
+      }
+      .nt-insight-card::before {
+        content: "";
+        position: absolute;
+        inset: -40% auto auto -30%;
+        width: 120px;
+        height: 120px;
+        border-radius: 9999px;
+        opacity: 0.35;
+        filter: blur(8px);
+        pointer-events: none;
+      }
+      .nt-insight-card--up::before { background: rgb(34 197 94); }
+      .nt-insight-card--down::before { background: rgb(244 63 94); }
+      .nt-insight-card--warn::before { background: rgb(245 158 11); }
+      .nt-insight-card--info::before { background: rgb(99 102 241); }
+      .nt-insight-card--alert::before { background: rgb(239 68 68); }
+      .nt-insight-lottie {
+        position: absolute;
+        left: 0.35rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3.5rem;
+        height: 3.5rem;
+      }
+      .nt-insight-lottie-fallback {
+        position: absolute;
+        left: 0.65rem;
+        top: 50%;
+        width: 2.75rem;
+        height: 2.75rem;
+        margin-top: -1.375rem;
+        border-radius: 9999px;
+        border: 2px solid currentColor;
+        opacity: 0.35;
+        animation: nt-insight-pulse 1.4s ease-in-out infinite;
+      }
+      .nt-insight-card--up .nt-insight-lottie-fallback { color: rgb(34 197 94); }
+      .nt-insight-card--down .nt-insight-lottie-fallback { color: rgb(244 63 94); }
+      .nt-insight-card--warn .nt-insight-lottie-fallback { color: rgb(245 158 11); }
+      .nt-insight-card--info .nt-insight-lottie-fallback { color: rgb(99 102 241); }
+      .nt-insight-card--alert .nt-insight-lottie-fallback { color: rgb(239 68 68); }
+      @keyframes nt-insight-pulse {
+        0%, 100% { transform: scale(0.92); opacity: 0.25; }
+        50% { transform: scale(1.08); opacity: 0.55; }
+      }
+      .nt-insight-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        padding: 0.1rem 0.45rem;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+      }
+      .nt-insight-card--up .nt-insight-badge { background: rgb(220 252 231); color: rgb(21 128 61); }
+      .nt-insight-card--down .nt-insight-badge { background: rgb(255 228 230); color: rgb(190 18 60); }
+      .nt-insight-card--warn .nt-insight-badge { background: rgb(254 243 199); color: rgb(180 83 9); }
+      .nt-insight-card--info .nt-insight-badge { background: rgb(224 231 255); color: rgb(67 56 202); }
+      .nt-insight-card--alert .nt-insight-badge { background: rgb(254 226 226); color: rgb(185 28 28); }
+      html.dark .nt-insight-card--up .nt-insight-badge { background: rgb(20 83 45 / 0.5); color: rgb(134 239 172); }
+      html.dark .nt-insight-card--down .nt-insight-badge { background: rgb(136 19 55 / 0.45); color: rgb(251 113 133); }
+      html.dark .nt-insight-card--warn .nt-insight-badge { background: rgb(120 53 15 / 0.45); color: rgb(252 211 77); }
+      html.dark .nt-insight-card--info .nt-insight-badge { background: rgb(49 46 129 / 0.45); color: rgb(165 180 252); }
+      html.dark .nt-insight-card--alert .nt-insight-badge { background: rgb(127 29 29 / 0.45); color: rgb(252 165 165); }
+      .nt-insight-title { font-size: 11px; font-weight: 800; color: rgb(30 41 59); }
+      html.dark .nt-insight-title { color: rgb(244 244 245); }
+      .nt-insight-body { margin-top: 0.2rem; font-size: 11px; line-height: 1.45; color: rgb(71 85 105); }
+      html.dark .nt-insight-body { color: rgb(161 161 170); }
+    </style>
+    <div id="nt-lab-insights" class="nt-insight-grid mt-3"></div>
   </div>
 </section>
+<script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>

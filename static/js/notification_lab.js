@@ -168,15 +168,34 @@
     out.innerHTML = "<table class='min-w-full border border-slate-200 dark:border-zinc-700'><thead>" + head + "</thead><tbody>" + body + "</tbody></table>";
   }
 
+  var NT_LOTTIE_UP = "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
+  var NT_LOTTIE_DOWN = "https://assets9.lottiefiles.com/packages/lf20_kxsdyyjr.json";
+  var NT_LOTTIE_WARN = "https://assets5.lottiefiles.com/packages/lf20_usmfx66p.json";
+  var NT_LOTTIE_INFO = "https://assets2.lottiefiles.com/packages/lf20_p8bfn5ty.json";
+  var NT_LOTTIE_ALERT = "https://assets1.lottiefiles.com/packages/lf20_qp1spzqv.json";
+
+  function insightCardHtml(nt, card) {
+    var type = card.type || "info";
+    var lottie = card.lottie || NT_LOTTIE_INFO;
+    return '<article class="nt-insight-card nt-insight-card--' + type + '" role="status">'
+      + '<lottie-player class="nt-insight-lottie" src="' + lottie + '" background="transparent" speed="1" loop autoplay></lottie-player>'
+      + '<div class="nt-insight-lottie-fallback" aria-hidden="true"></div>'
+      + '<span class="nt-insight-badge">' + nt.escapeHtml(card.badge || type) + "</span>"
+      + '<p class="nt-insight-title">' + nt.escapeHtml(card.title || "") + "</p>"
+      + '<p class="nt-insight-body">' + nt.escapeHtml(card.body || "") + "</p>"
+      + "</article>";
+  }
+
   function renderInsights(nt, rows) {
     var el = document.getElementById("nt-lab-insights");
     if (!el) return;
     if (!rows.length) { emptyMsg(el); return; }
     var pk = nt.mapListPlatformToDataKey(nt.getListPlatform());
-    var platLabel = nt.getListPlatform() === "web" ? "Web" : nt.getListPlatform();
+    var platLabel = nt.getListPlatform() === "web" ? "Web (Desktop)" : nt.getListPlatform();
     var byDay = nt.aggregateByDay(rows);
     var days = byDay.map(function (d) { return d.day; }).sort();
     var end = days[days.length - 1] || nt.todayKey();
+    var start = days[0] || end;
     var last7 = days.filter(function (d) { return d >= nt.minusDays(end, 6); });
     var prev7 = days.filter(function (d) { return d >= nt.minusDays(end, 13) && d <= nt.minusDays(end, 7); });
     function sumDays(dayList, field) {
@@ -191,18 +210,96 @@
     var stats = buildHeadlineStats(nt, rows);
     var top = stats.slice().sort(function (a, b) { return b.clicks - a.clicks; })[0];
     var totalClicks = stats.reduce(function (s, x) { return s + x.clicks; }, 0);
-    var cards = [
-      platLabel + " click son 7 günde önceki 7 güne göre " + (ch >= 0 ? "%" + ch.toFixed(1) + " arttı" : "%" + Math.abs(ch).toFixed(1) + " azaldı") + ".",
-      "Filtrede " + nt.fmt(rows.length) + " kayıt, " + nt.fmt(stats.length) + " benzersiz başlık var.",
-      top ? "En yüksek click: «" + (top.headline.length > 48 ? top.headline.slice(0, 48) + "…" : top.headline) + "» (" + nt.fmt(top.clicks) + ")." : "Başlık verisi yok.",
-      "Seçili metrik: " + nt.getMetric().toUpperCase() + " · tarih " + (days[0] || "-") + " – " + end + "."
-    ];
-    if (totalClicks > 0 && top) {
-      cards.push("Lider başlık toplam click payının %" + ((top.clicks / totalClicks) * 100).toFixed(1) + "'i.");
+    var shareTop = totalClicks > 0 && top ? (top.clicks / totalClicks) * 100 : 0;
+    var cards = [];
+    if (ch >= 10) {
+      cards.push({
+        type: "up",
+        badge: "Trend ↑",
+        title: platLabel + " click ivmesi",
+        body: "Son 7 gün önceki 7 güne göre %" + ch.toFixed(1) + " arttı (" + nt.fmt(cLast) + " vs " + nt.fmt(cPrev) + ").",
+        lottie: NT_LOTTIE_UP
+      });
+    } else if (ch <= -10) {
+      cards.push({
+        type: "down",
+        badge: "Trend ↓",
+        title: platLabel + " click düşüşü",
+        body: "Son 7 günde %" + Math.abs(ch).toFixed(1) + " azalma (" + nt.fmt(cLast) + " vs " + nt.fmt(cPrev) + ").",
+        lottie: NT_LOTTIE_DOWN
+      });
+    } else {
+      cards.push({
+        type: "info",
+        badge: "Trend ~",
+        title: platLabel + " click stabil",
+        body: "7 günlük değişim %" + ch.toFixed(1) + " — belirgin sıçrama/düşüş yok.",
+        lottie: NT_LOTTIE_INFO
+      });
     }
-    el.innerHTML = cards.map(function (t) {
-      return '<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-200">' + nt.escapeHtml(t) + "</div>";
-    }).join("");
+    if (Math.abs(ch) >= 25) {
+      cards.push({
+        type: "alert",
+        badge: "Kritik",
+        title: "Ani hareket uyarısı",
+        body: "7 günlük click değişimi eşiği aştı (%" + ch.toFixed(1) + "). Kampanya veya içerik değişimini kontrol edin.",
+        lottie: NT_LOTTIE_ALERT
+      });
+    }
+    if (shareTop >= 35) {
+      cards.push({
+        type: "warn",
+        badge: "Konsantrasyon",
+        title: "Trafik tek başlıkta toplanmış",
+        body: "Lider başlık toplam click'in %" + shareTop.toFixed(1) + "'ini taşıyor — çeşitlilik riski.",
+        lottie: NT_LOTTIE_WARN
+      });
+    }
+    if (rows.length < 30) {
+      cards.push({
+        type: "warn",
+        badge: "Veri az",
+        title: "Örneklem sınırlı",
+        body: "Filtrede yalnızca " + nt.fmt(rows.length) + " kayıt var; trend çıkarımları için daha geniş aralık deneyin.",
+        lottie: NT_LOTTIE_WARN
+      });
+    }
+    cards.push({
+      type: "info",
+      badge: "Özet",
+      title: "Hacim",
+      body: nt.fmt(rows.length) + " kayıt · " + nt.fmt(stats.length) + " benzersiz başlık · " + start + " – " + end + ".",
+      lottie: NT_LOTTIE_INFO
+    });
+    if (top) {
+      cards.push({
+        type: "up",
+        badge: "Lider",
+        title: "En yüksek click",
+        body: "«" + (top.headline.length > 56 ? top.headline.slice(0, 56) + "…" : top.headline) + "» — " + nt.fmt(top.clicks) + " click.",
+        lottie: NT_LOTTIE_UP
+      });
+    }
+    var qualityCount = stats.filter(function (s) {
+      return s.impressions > 0 && s.ctr < 1.5 && s.impressions >= 5000;
+    }).length;
+    if (qualityCount > 0) {
+      cards.push({
+        type: "warn",
+        badge: "CTR uyarısı",
+        title: "İyileştirme adayı",
+        body: qualityCount + " başlıkta yüksek gösterim + düşük CTR — Kalite Listesine bakın.",
+        lottie: NT_LOTTIE_WARN
+      });
+    }
+    cards.push({
+      type: "info",
+      badge: "Metrik",
+      title: "Aktif görünüm",
+      body: "Metrik: " + nt.getMetric().toUpperCase() + " · platform: " + platLabel + ".",
+      lottie: NT_LOTTIE_INFO
+    });
+    el.innerHTML = cards.map(function (c) { return insightCardHtml(nt, c); }).join("");
   }
 
   function renderLab(detail) {
