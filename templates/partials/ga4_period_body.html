@@ -1,4 +1,5 @@
 {% set pd = period_days | int %}
+{% set _trend_only = p.trend_only if p.trend_only is defined else false %}
 {% if pd == 1 %}
   {% set last_l = 'LAST FULL DAY' %}
   {% set prev_l = 'LAST WDAY' %}
@@ -23,14 +24,35 @@
 
 {% set _has_period = p.has_period_data if p.has_period_data is defined else p.has_snapshot %}
 {% if not _has_period %}
-  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-    {% if pd == 1 %}
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400">
+    {% if _trend_only %}
+      12 aylık trend için veri henüz yok. <strong>Refresh Data</strong> ile GA4 verisini yenileyin.
+    {% elif pd == 1 %}
       No same-weekday KPI yet. Run <strong>Refresh GA4</strong> so a snapshot includes last full day vs same weekday last week.
     {% else %}
       No {{ pd }}-day GA4 snapshot yet. Use <strong>Refresh</strong> to collect this window.
     {% endif %}
   </div>
 {% endif %}
+
+{% if _trend_only %}
+{% set dt = p.daily_trend | default({}) %}
+{% if _has_period and dt.dates and dt.dates|length > 0 %}
+  <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">
+    Günlük trend — oturum, kullanıcı, etkileşimli oturum ve etkileşim oranı (karşılaştırma yok)
+  </p>
+  <div
+    id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
+    class="ga4-kpi-trend h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
+    data-ga4-kpi-trend
+    data-ga4-daily-trend='{{ dt | tojson }}'
+  ></div>
+{% elif _has_period %}
+  <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+    Günlük seri boş. <strong>Refresh Data</strong> ile tekrar deneyin.
+  </div>
+{% endif %}
+{% else %}
 
 {% set sessions_diff = p.last_total - p.prev_total %}
 {% set users_diff = p.users_last - p.users_prev %}
@@ -359,3 +381,4 @@
   </div>
   {% endif %}{# /ios-android vs web-mweb #}
 </div>
+{% endif %}{# /trend_only #}

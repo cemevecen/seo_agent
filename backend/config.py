@@ -179,6 +179,8 @@ class Settings(BaseSettings):
     search_console_page_report_row_cap: int = 1000
     # Günlük trend: son N tam gün (date boyutu; karşılaştırma yok).
     search_console_trend_12m_days: int = 365
+    ga4_trend_12m_days: int = 365
+    ga4_trend_12m_period_days: int = 365
     search_console_refresh_cooldown_seconds: int = 21600
     search_console_live_fetch_on_read: bool = False
     search_console_scheduled_refresh_enabled: bool = True

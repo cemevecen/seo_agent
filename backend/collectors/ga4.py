@@ -340,6 +340,155 @@ def _run_daily_kpi_trend(
     }
 
 
+def _fill_daily_trend_calendar(
+    daily: dict[str, list],
+    *,
+    start: date,
+    end: date,
+) -> dict[str, list]:
+    """API'de eksik günleri sıfırla doldurur (12 ay trend grafiği için)."""
+    by_date: dict[str, dict[str, float]] = {}
+    dates_in = list(daily.get("dates") or [])
+    for idx, key in enumerate(dates_in):
+        if not key:
+            continue
+        by_date[key] = {
+            "sessions": float((daily.get("sessions") or [0])[idx] if idx < len(daily.get("sessions") or []) else 0),
+            "activeUsers": float(
+                (daily.get("activeUsers") or [0])[idx] if idx < len(daily.get("activeUsers") or []) else 0
+            ),
+            "engagedSessions": float(
+                (daily.get("engagedSessions") or [0])[idx] if idx < len(daily.get("engagedSessions") or []) else 0
+            ),
+            "engagementRate": float(
+                (daily.get("engagementRate") or [0])[idx] if idx < len(daily.get("engagementRate") or []) else 0
+            ),
+        }
+    out_dates: list[str] = []
+    out_sessions: list[float] = []
+    out_users: list[float] = []
+    out_engaged: list[float] = []
+    out_er: list[float] = []
+    day = start
+    while day <= end:
+        key = day.isoformat()
+        bucket = by_date.get(key) or {}
+        out_dates.append(key)
+        out_sessions.append(float(bucket.get("sessions") or 0.0))
+        out_users.append(float(bucket.get("activeUsers") or 0.0))
+        out_engaged.append(float(bucket.get("engagedSessions") or 0.0))
+        out_er.append(float(bucket.get("engagementRate") or 0.0))
+        day += timedelta(days=1)
+    return {
+        "mode": "last_12m",
+        "dates": out_dates,
+        "sessions": out_sessions,
+        "activeUsers": out_users,
+        "engagedSessions": out_engaged,
+        "engagementRate": out_er,
+    }
+
+
+def collect_ga4_12m_daily_trend(db: Session, site: Site, *, profile: str | None = None) -> dict:
+    """Son 12 ay günlük KPI trendi (karşılaştırma / kanal / sayfa yok)."""
+    from backend.config import settings
+    from backend.services.warehouse import save_ga4_report_snapshot
+
+    trend_days = max(30, int(settings.ga4_trend_12m_days))
+    period_days = int(settings.ga4_trend_12m_period_days)
+    collected_at = datetime.utcnow()
+    run = start_collector_run(
+        db,
+        site_id=site.id,
+        provider="ga4",
+        strategy="ga4_12m_trend",
+        target_url=site.domain,
+    )
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    if not properties:
+        finish_collector_run(
+            db,
+            run,
+            status="failed",
+            error_message="GA4 property tanımlı değil.",
+            summary={"state": "failed"},
+        )
+        return {"state": "failed", "error": "GA4 property tanımlı değil."}
+
+    def _profiles_to_fetch() -> list[tuple[str, str]]:
+        if profile:
+            key = str(profile).strip().lower()
+            prop = str(properties.get(key) or "").strip()
+            return [(key, prop)] if prop else []
+        return sorted([(k, v) for k, v in properties.items() if v], key=lambda item: item[0])
+
+    yesterday = report_calendar_yesterday()
+    last_end = yesterday
+    last_start = yesterday - timedelta(days=trend_days - 1)
+    last_start_s = last_start.isoformat()
+    last_end_s = last_end.isoformat()
+
+    summaries: dict[str, dict] = {}
+    try:
+        client = _client()
+        for profile_key, property_id in _profiles_to_fetch():
+            try:
+                daily = _run_daily_kpi_trend(
+                    client,
+                    property_id,
+                    start=last_start_s,
+                    end=last_end_s,
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("GA4 12m trend başarısız (%s / %s): %s", site.domain, profile_key, exc)
+                daily = _empty_daily_trend()
+            filled = _fill_daily_trend_calendar(daily, start=last_start, end=last_end)
+            payload = {
+                "trend_only": True,
+                "daily_trend": filled,
+            }
+            save_ga4_report_snapshot(
+                db,
+                site_id=site.id,
+                profile=profile_key,
+                period_days=period_days,
+                last_start=last_start_s,
+                last_end=last_end_s,
+                prev_start=last_start_s,
+                prev_end=last_end_s,
+                payload=payload,
+                collected_at=collected_at,
+                collector_run_id=run.id,
+            )
+            summaries[profile_key] = {
+                "property_id": property_id,
+                "days": len(filled.get("dates") or []),
+                "has_signal": any(float(v or 0) > 0 for v in (filled.get("sessions") or []))
+                or any(float(v or 0) > 0 for v in (filled.get("activeUsers") or [])),
+            }
+        finish_collector_run(
+            db,
+            run,
+            status="success",
+            finished_at=collected_at,
+            summary={"state": "success", "profiles": summaries, "trend_days": trend_days},
+            row_count=len(summaries),
+        )
+        return {"state": "success", "profiles": summaries}
+    except Exception as exc:  # noqa: BLE001
+        finish_collector_run(
+            db,
+            run,
+            status="failed",
+            finished_at=datetime.utcnow(),
+            error_message=str(exc),
+            summary={"state": "failed", "error": str(exc)},
+        )
+        return {"state": "failed", "error": str(exc)}
+
+
 def _run_dim_sessions_single_range(
     client: BetaAnalyticsDataClient,
     property_id: str,

@@ -52,6 +52,19 @@
           {{ label }}
         </button>
         {% endfor %}
+        {% set _dp = site.default_profile %}
+        {% if _dp in site.profiles and '12m' in site.profiles[_dp].periods %}
+        <button
+          type="button"
+          role="tab"
+          class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-violet-100 dark:text-slate-400 dark:hover:bg-slate-700/50"
+          data-ga4-period-toggle="12m"
+          data-active="false"
+          title="Son 12 ay günlük trend (karşılaştırma yok)"
+        >
+          12 ay
+        </button>
+        {% endif %}
       </div>
       {% endif %}
       {% if site_count is defined and site_count > 1 %}
@@ -98,14 +111,18 @@
           <div class="min-w-0 flex-1">
             {% set _dp = site.default_profile %}
             {% if _dp in site.profiles %}
-              {% for period_key in ['1', '7', '30', '90'] %}
-                {% set _pr = site.profiles[_dp].periods[period_key] if period_key in site.profiles[_dp].periods else none %}
+              {% for period_key in ['1', '7', '30', '90', '12m'] %}
+                {% if period_key not in site.profiles[_dp].periods %}{% else %}
+                {% set _pr = site.profiles[_dp].periods[period_key] %}
                 <div
                   data-ga4-period-heading="{{ period_key }}"
                   class="{% if period_key != '7' %}hidden {% endif %}text-[11px] font-bold tracking-tight text-slate-400 dark:text-slate-500"
                 >
                   {% if _pr and _pr.ranges and (_pr.ranges.last_start or _pr.ranges.last_end) %}
-                    {% if _pr.ranges.prev_start and _pr.ranges.prev_end %}
+                    {% if _pr.get('trend_only') %}
+                      {{ _pr.ranges.last_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
+                      <span class="ml-1 font-medium text-slate-400 dark:text-slate-500">· Karşılaştırma yok</span>
+                    {% elif _pr.ranges.prev_start and _pr.ranges.prev_end %}
                       {{ _pr.ranges.prev_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }}
                       <span class="mx-1 text-slate-300 dark:text-slate-700">VS</span>
                       {{ _pr.ranges.last_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
@@ -114,6 +131,7 @@
                     {% endif %}
                   {% endif %}
                 </div>
+                {% endif %}
               {% endfor %}
             {% endif %}
           </div>
@@ -144,7 +162,8 @@
           </div>
         </div>
 
-        {% for period_key in ['1', '7', '30', '90'] %}
+        {% for period_key in ['1', '7', '30', '90', '12m'] %}
+          {% if period_key not in site.profiles[site.default_profile].periods %}{% else %}
           <div
             data-ga4-period-panel="{{ period_key }}"
             class="{% if period_key != '7' %}hidden {% endif %}space-y-5"
@@ -162,6 +181,7 @@
               {% endif %}
             {% endfor %}
           </div>
+          {% endif %}
         {% endfor %}
       </div>
     {% endif %}

@@ -2924,7 +2924,7 @@ def _run_daily_ga4_refresh_job() -> None:
 
     try:
         LOGGER.info("Daily GA4 refresh started.")
-        from backend.collectors.ga4 import collect_ga4_channel_sessions
+        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
 
         with SessionLocal() as db:
             external_site_ids = _external_site_ids(db)
@@ -2942,6 +2942,7 @@ def _run_daily_ga4_refresh_job() -> None:
                     collect_ga4_channel_sessions(db, site, days=90)
                     collect_ga4_channel_sessions(db, site, days=30)
                     collect_ga4_channel_sessions(db, site, days=7)
+                    collect_ga4_12m_daily_trend(db, site)
                     db.commit()
                     any_ga4_ok = True
                 except Exception as exc:  # noqa: BLE001
@@ -9405,6 +9406,60 @@ def _ga4_profile_payload_for_same_weekday_day(
     }
 
 
+def _ga4_trend_has_signal(daily_trend: dict) -> bool:
+    for key in ("sessions", "activeUsers", "engagedSessions"):
+        for value in daily_trend.get(key) or []:
+            try:
+                if float(value or 0) > 0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+    return False
+
+
+def _ga4_profile_payload_for_12m_trend(
+    db,
+    *,
+    site_id: int,
+    profile: str,
+    prop_id: str,
+) -> dict:
+    """12 ay: yalnızca günlük trend (karşılaştırma yok)."""
+    pd = int(settings.ga4_trend_12m_period_days)
+    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=pd)
+    pl = (snap or {}).get("payload") or {}
+    daily = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
+    if daily and not daily.get("mode"):
+        daily = {**daily, "mode": "last_12m"}
+    return {
+        "property_id": prop_id,
+        "period_days": pd,
+        "trend_only": True,
+        "ranges": {
+            "last_start": (snap or {}).get("last_start") or "",
+            "last_end": (snap or {}).get("last_end") or "",
+            "prev_start": "",
+            "prev_end": "",
+        },
+        "daily_trend": daily
+        or {
+            "mode": "last_12m",
+            "dates": [],
+            "sessions": [],
+            "activeUsers": [],
+            "engagedSessions": [],
+            "engagementRate": [],
+        },
+        "has_snapshot": bool(snap),
+        "has_period_data": bool(snap) and _ga4_trend_has_signal(daily),
+        "last_total": 0.0,
+        "prev_total": 0.0,
+        "top_channels": [],
+        "pages_no_news": [],
+        "sources": [],
+    }
+
+
 def _ga4_profile_payload_for_period(
     db,
     *,
@@ -9423,6 +9478,13 @@ def _ga4_profile_payload_for_period(
             return 0.0
 
     pd = int(period_days) if int(period_days) > 0 else 30
+    if pd == int(settings.ga4_trend_12m_period_days):
+        return _ga4_profile_payload_for_12m_trend(
+            db,
+            site_id=site_id,
+            profile=profile,
+            prop_id=prop_id,
+        )
     if pd == 1:
         return _ga4_profile_payload_for_same_weekday_day(
             db, site_id=site_id, profile=profile, latest=latest, prop_id=prop_id
@@ -9700,6 +9762,14 @@ def _ga4_sites_payload(db) -> list[dict]:
                         site_id=site.id,
                         profile=profile,
                         period_days=90,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
+                    "12m": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=int(settings.ga4_trend_12m_period_days),
                         latest=latest,
                         prop_id=prop_id,
                     ),
@@ -11383,12 +11453,13 @@ def ga4_refresh_site(request: Request, site_id: int):
         conn = get_ga4_connection_status(db, site.id)
         if not conn.get("connected"):
             return HTMLResponse("Bu site için GA4 property tanımlı değil.", status_code=422)
-        from backend.collectors.ga4 import collect_ga4_channel_sessions
+        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
 
         try:
             collect_ga4_channel_sessions(db, site, days=90)
             collect_ga4_channel_sessions(db, site, days=30)
             collect_ga4_channel_sessions(db, site, days=7)
+            collect_ga4_12m_daily_trend(db, site)
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             bucket = ga4_digest_bucket_for_domain(site.domain)
             if bucket:
@@ -11429,7 +11500,7 @@ def ga4_refresh_all(request: Request):
     if not ga4_is_configured():
         return HTMLResponse("GA4 service account ayarlı değil (.env: GA4_SERVICE_ACCOUNT_FILE / JSON).", status_code=503)
     with SessionLocal() as db:
-        from backend.collectors.ga4 import collect_ga4_channel_sessions
+        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
 
         external_site_ids = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
@@ -11445,6 +11516,7 @@ def ga4_refresh_all(request: Request):
                 collect_ga4_channel_sessions(db, site, days=90)
                 collect_ga4_channel_sessions(db, site, days=30)
                 collect_ga4_channel_sessions(db, site, days=7)
+                collect_ga4_12m_daily_trend(db, site)
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
                 any_ga4_ok = True
             except Exception as exc:  # noqa: BLE001
