@@ -898,6 +898,20 @@ class AdminTrustedDevice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class NotificationAnalyticsWorkspace(Base):
+    """Notification Analytics CSV birikimi — tek paylaşımlı workspace (id=1)."""
+
+    __tablename__ = "notification_analytics_workspace"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rows_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    last_id: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    filter_start: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    filter_end: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    preset: Mapped[str] = mapped_column(String(16), nullable=False, default="3m")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"
