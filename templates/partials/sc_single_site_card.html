@@ -181,10 +181,10 @@
             class="{% if device_key != site.report.default_device %}hidden {% endif %}flex min-h-0 flex-col space-y-4 sm:space-y-5"
           >
             {% if period.get('trend_only') %}
-            <p class="text-sm text-slate-600 dark:text-slate-300">{{ period.trend_caption }}</p>
+            <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">{{ period.trend_caption }}</p>
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
-              class="h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
+              class="h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
               data-search-console-trend='{{ view.trend|tojson }}'
             ></div>
             {% if not view.has_data %}

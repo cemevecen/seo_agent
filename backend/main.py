@@ -1756,6 +1756,20 @@ def _build_search_console_top_entities(
     return rows[:limit]
 
 
+def _search_console_trend_has_signal(trend: dict) -> bool:
+    """Günlük trend serisinde en az bir gün gerçek trafik var mı."""
+    for key in ("clicks", "impressions"):
+        for value in trend.get(key) or []:
+            if value is None:
+                continue
+            try:
+                if float(value) > 0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+    return False
+
+
 def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
     if str(sanitized.get("mode") or "") in ("last_28d", "last_12m"):
@@ -2125,25 +2139,30 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
     # 12 ay: yalnızca günlük trend (karşılaştırma / sorgu tabloları yok)
     _stored_12m_rows = summary_payload.get("trend_12m_rows") or []
     _raw_12m_by_device = summary_payload.get("trend_12m_summary_by_device") or {}
+    _12m_start_iso = str(summary_payload.get("trend_12m_start_date") or "").strip()
+    _12m_end_iso = str(summary_payload.get("trend_12m_end_date") or "").strip()
     if _stored_12m_rows and not _raw_12m_by_device:
         from backend.collectors.search_console import _build_recent_trend_summary_by_device
 
         try:
-            _d12 = [r.get("date") for r in _stored_12m_rows if r.get("date")]
-            if _d12:
-                from datetime import date as _date_cls_12m
+            from datetime import date as _date_cls_12m
 
-                _s12 = _date_cls_12m.fromisoformat(min(_d12))
-                _e12 = _date_cls_12m.fromisoformat(max(_d12))
-                _raw_12m_by_device = _build_recent_trend_summary_by_device(
-                    _stored_12m_rows, start_date=_s12, end_date=_e12
-                )
-                for _dev_summary in _raw_12m_by_device.values():
-                    _dev_summary["mode"] = "last_12m"
+            if _12m_start_iso and _12m_end_iso:
+                _s12 = _date_cls_12m.fromisoformat(_12m_start_iso[:10])
+                _e12 = _date_cls_12m.fromisoformat(_12m_end_iso[:10])
+            else:
+                _d12 = [r.get("date") for r in _stored_12m_rows if r.get("date")]
+                if not _d12:
+                    raise ValueError("no dates")
+                _s12 = _date_cls_12m.fromisoformat(min(_d12)[:10])
+                _e12 = _date_cls_12m.fromisoformat(max(_d12)[:10])
+            _raw_12m_by_device = _build_recent_trend_summary_by_device(
+                _stored_12m_rows, start_date=_s12, end_date=_e12
+            )
+            for _dev_summary in _raw_12m_by_device.values():
+                _dev_summary["mode"] = "last_12m"
         except Exception:
             _raw_12m_by_device = {}
-    _12m_start_iso = str(summary_payload.get("trend_12m_start_date") or "").strip()
-    _12m_end_iso = str(summary_payload.get("trend_12m_end_date") or "").strip()
     if not _12m_start_iso and _stored_12m_rows:
         try:
             _d12 = [r.get("date") for r in _stored_12m_rows if r.get("date")]
@@ -2163,7 +2182,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         views_12m[device_key] = {
             "device_code": device_code,
             "device_label": device_label,
-            "has_data": bool(base_12m.get("dates")),
+            "has_data": _search_console_trend_has_signal(base_12m),
             "trend": base_12m,
             "range_label": _12m_range_label,
         }

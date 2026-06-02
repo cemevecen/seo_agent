@@ -564,53 +564,64 @@ def _fetch_search_console_daily_rows(
 ) -> list[dict]:
     span_days = max(1, (end_date - start_date).days + 1)
     limit = int(row_limit) if row_limit is not None else max(62, min(span_days + 2, 400))
-    body = {
-        "startDate": start_date.isoformat(),
-        "endDate": end_date.isoformat(),
-        "dimensions": ["date"] if device else ["date", "device"],
-        "rowLimit": limit,
-    }
-    if device:
-        body["dimensionFilterGroups"] = [
-            {
-                "filters": [
-                    {
-                        "dimension": "device",
-                        "expression": str(device).upper(),
-                    }
-                ]
-            }
-        ]
-    response = (
-        service.searchanalytics()
-        .query(
-            siteUrl=site_url,
-            body=body,
+    page_size = max(100, min(limit, 25000))
+    max_rows = max(span_days + 5, limit)
+    all_rows: list[dict] = []
+    start_row = 0
+
+    while start_row < max_rows:
+        body = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": ["date"] if device else ["date", "device"],
+            "rowLimit": min(page_size, max_rows - start_row),
+            "startRow": start_row,
+        }
+        if device:
+            body["dimensionFilterGroups"] = [
+                {
+                    "filters": [
+                        {
+                            "dimension": "device",
+                            "expression": str(device).upper(),
+                        }
+                    ]
+                }
+            ]
+        response = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body=body,
+            )
+            .execute()
         )
-        .execute()
-    )
-    normalized: list[dict] = []
-    for row in response.get("rows", []) or []:
-        keys = row.get("keys") or []
-        day_label = str(keys[0] if keys else "")
-        row_device = str(device or (keys[1] if len(keys) > 1 else row.get("device") or "ALL")).upper()
-        clicks = float(row.get("clicks") or 0.0)
-        impressions = float(row.get("impressions") or 0.0)
-        ctr = float(row.get("ctr") or 0.0)
-        if impressions > 0 and ctr <= 0 and clicks > 0:
-            ctr = clicks / impressions
-        normalized.append(
-            {
-                "date": day_label,
-                "device": row_device,
-                "clicks": clicks,
-                "impressions": impressions,
-                "ctr": ctr,
-                "position": float(row.get("position") or 0.0),
-                "property_url": site_url,
-            }
-        )
-    return normalized
+        rows = response.get("rows", []) or []
+        for row in rows:
+            keys = row.get("keys") or []
+            day_label = str(keys[0] if keys else "")
+            row_device = str(device or (keys[1] if len(keys) > 1 else row.get("device") or "ALL")).upper()
+            clicks = float(row.get("clicks") or 0.0)
+            impressions = float(row.get("impressions") or 0.0)
+            ctr = float(row.get("ctr") or 0.0)
+            if impressions > 0 and ctr <= 0 and clicks > 0:
+                ctr = clicks / impressions
+            all_rows.append(
+                {
+                    "date": day_label,
+                    "device": row_device,
+                    "clicks": clicks,
+                    "impressions": impressions,
+                    "ctr": ctr,
+                    "position": float(row.get("position") or 0.0),
+                    "property_url": site_url,
+                }
+            )
+        if len(rows) < body["rowLimit"]:
+            break
+        start_row += len(rows)
+
+    return all_rows
 
 
 def _resolve_latest_available_day(
