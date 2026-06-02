@@ -3,8 +3,27 @@
   function emptyMsg(el, msg) {
     if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "Veri yok.") + "</p>";
   }
+  function ntIsDark() { return document.documentElement.classList.contains("dark"); }
+  function ntFont() { return { color: ntIsDark() ? "#a1a1aa" : "#475569" }; }
+  function ntAxis(extra) {
+    var dark = ntIsDark();
+    var ax = {
+      gridcolor: dark ? "#27272a" : "#e2e8f0",
+      zerolinecolor: dark ? "#3f3f46" : "#cbd5e1",
+      linecolor: dark ? "#3f3f46" : "#cbd5e1",
+      tickfont: ntFont(),
+      titlefont: ntFont()
+    };
+    if (extra) Object.keys(extra).forEach(function (k) { ax[k] = extra[k]; });
+    return ax;
+  }
+  function ntLabColors() {
+    return ntIsDark()
+      ? { bar: "#7176c4", line: "#bf8f4a" }
+      : { bar: "#6366f1", line: "#f59e0b" };
+  }
   function plotLayout(extra) {
-    var base = { margin: { l: 50, r: 20, t: 10, b: 50 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)" };
+    var base = { margin: { l: 50, r: 20, t: 10, b: 50 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: ntFont() };
     if (!extra) return base;
     Object.keys(extra).forEach(function (k) { base[k] = extra[k]; });
     return base;
@@ -80,13 +99,16 @@
       bar.push(x.clicks);
       line.push((cum / total) * 100);
     });
+    var lc = ntLabColors();
     Plotly.newPlot(el, [
-      { type: "bar", x: xs, y: bar, name: "Click", marker: { color: "#6366f1" } },
-      { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: "#f59e0b" } }
+      { type: "bar", x: xs, y: bar, name: "Click", marker: { color: lc.bar } },
+      { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: lc.line } }
     ], plotLayout({
-      yaxis2: { overlaying: "y", side: "right", title: "Kümülatif %", range: [0, 100] },
+      yaxis: ntAxis(),
+      yaxis2: ntAxis({ overlaying: "y", side: "right", title: "Kümülatif %", range: [0, 100] }),
       margin: { b: 120 },
-      xaxis: { tickangle: -35 }
+      xaxis: ntAxis({ tickangle: -35 }),
+      legend: { font: ntFont() }
     }), { responsive: true, displayModeBar: false });
     var share = (top.reduce(function (s, x) { return s + x.clicks; }, 0) / total) * 100;
     if (sumEl) sumEl.textContent = "Top " + top.length + " başlık toplam click'in %" + share.toFixed(1) + "'ini taşıyor (80/20 kontrolü).";

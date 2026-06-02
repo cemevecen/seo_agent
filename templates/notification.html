@@ -2,12 +2,12 @@
 {% block content %}
 <div class="mx-auto w-full max-w-7xl space-y-5 notification-page" data-header-title="Notification Analytics">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-    <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-100">Notification Analytics</h1>
+    <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-300">Notification Analytics</h1>
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950/70">
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">CSV dosyası</label>
-          <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100" />
+          <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300" />
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -20,11 +20,11 @@
               <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900" />
             </div>
           </div>
-          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
+          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Filtreyi uygula</button>
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-2">
           <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</label>
-          <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
             <option value="all">Tümü</option>
             <option value="1w">Son 1 hafta</option>
             <option value="1m">Son 1 ay</option>
@@ -35,10 +35,10 @@
             <option value="3y">Son 3 yıl</option>
             <option value="4y">Son 4 yıl</option>
           </select>
-          <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Hazır aralığı uygula</button>
+          <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Hazır aralığı uygula</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
-          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">CSV yükle ve ekle</button>
+          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-zinc-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
         </div>
         <div class="min-w-0 xl:col-span-4">
           <button id="nt-clear-file" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Dosya seçimini temizle</button>
@@ -52,10 +52,10 @@
   </div>
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam kayıt</p><p id="nt-kpi-rows" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Benzersiz başlık</p><p id="nt-kpi-headlines" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam click</p><p id="nt-kpi-clicks" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam impression</p><p id="nt-kpi-impr" class="text-2xl font-black text-slate-900 dark:text-zinc-100">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam kayıt</p><p id="nt-kpi-rows" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Benzersiz başlık</p><p id="nt-kpi-headlines" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam click</p><p id="nt-kpi-clicks" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
+    <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"><p class="text-xs text-slate-500 dark:text-zinc-400">Toplam impression</p><p id="nt-kpi-impr" class="text-2xl font-black text-slate-900 dark:text-zinc-300">0</p></div>
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -86,7 +86,7 @@
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</span>
-        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
           <option value="all">Tümü</option>
           <option value="1w">Son 1 hafta</option>
           <option value="1m">Son 1 ay</option>
@@ -97,7 +97,7 @@
           <option value="3y">Son 3 yıl</option>
           <option value="4y">Son 4 yıl</option>
         </select>
-        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Hazır aralığı uygula</button>
+        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Hazır aralığı uygula</button>
       </div>
     </div>
   </div>
@@ -184,7 +184,7 @@
       font-weight: 600;
       color: rgb(30 41 59) !important;
     }
-    html.dark .notification-page .nt-cross-top-table .nt-cross-title { color: rgb(244 244 245) !important; }
+    html.dark .notification-page .nt-cross-top-table .nt-cross-title { color: rgb(212 212 216) !important; }
     .notification-page .nt-cross-top-table .nt-cross-total {
       width: 5.25rem;
       min-width: 5.25rem !important;
@@ -194,7 +194,7 @@
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
-    html.dark .notification-page .nt-cross-top-table .nt-cross-total { color: rgb(165 180 252) !important; }
+    html.dark .notification-page .nt-cross-top-table .nt-cross-total { color: rgb(129 140 248) !important; }
     .notification-page .nt-cross-top-table .nt-cross-p {
       width: 4.25rem;
       min-width: 4.25rem !important;
@@ -230,7 +230,7 @@
 <div id="nt-raw-text-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nt-raw-text-modal-title">
   <div class="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900" role="document">
     <div class="mb-3 flex items-start justify-between gap-3">
-      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-zinc-100">İçerik metni</h3>
+      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-zinc-300">İçerik metni</h3>
       <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Kapat</button>
     </div>
     <p id="nt-raw-text-modal-body" class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-zinc-200"></p>
@@ -504,14 +504,40 @@
     }
     return Object.keys(byDay).sort().map(function (k) { return byDay[k]; });
   }
+  function ntIsDark() { return document.documentElement.classList.contains("dark"); }
+  function ntChartColors() {
+    // Dark modda mat/soft tonlar; light modda canlı tonlar. Neon parlaklık dark'ta kırılır.
+    return ntIsDark()
+      ? { android: "#4f9d72", ios: "#4793a6", desktop: "#7176c4", mobileweb: "#bf8f4a" }
+      : { android: "#22c55e", ios: "#06b6d4", desktop: "#6366f1", mobileweb: "#f59e0b" };
+  }
+  function ntFont() { return { color: ntIsDark() ? "#a1a1aa" : "#475569" }; }
+  function ntAxisLayout(title) {
+    var dark = ntIsDark();
+    return {
+      title: title,
+      gridcolor: dark ? "#27272a" : "#e2e8f0",
+      zerolinecolor: dark ? "#3f3f46" : "#cbd5e1",
+      linecolor: dark ? "#3f3f46" : "#cbd5e1",
+      tickfont: ntFont(),
+      titlefont: ntFont()
+    };
+  }
   function plotTrend(rows) {
     var data = aggregateByDay(rows);
     var x = data.map(function (d) { return d.day; });
-    var colors = { android: "#22c55e", ios: "#06b6d4", desktop: "#6366f1", mobileweb: "#f59e0b" };
+    var colors = ntChartColors();
     var traces = PLATFORM_KEYS.map(function (p) {
       return { x: x, y: data.map(function (d) { return d[p.key]; }), mode: "lines+markers", line: { width: 2, color: colors[p.key] }, marker: { size: 5 }, name: p.label };
     });
-    Plotly.newPlot("nt-trend-clicks", traces, { margin: { l: 40, r: 10, t: 8, b: 40 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", xaxis: { title: "Tarih" }, yaxis: { title: selectedMetric === "ctr" ? "CTR %" : (selectedMetric === "impression" ? "Impression" : "Click") }, legend: { orientation: "h" } }, { responsive: true, displayModeBar: false });
+    Plotly.newPlot("nt-trend-clicks", traces, {
+      margin: { l: 40, r: 10, t: 8, b: 40 },
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: ntFont(),
+      xaxis: ntAxisLayout("Tarih"),
+      yaxis: ntAxisLayout(selectedMetric === "ctr" ? "CTR %" : (selectedMetric === "impression" ? "Impression" : "Click")),
+      legend: { orientation: "h", font: ntFont() }
+    }, { responsive: true, displayModeBar: false });
   }
   function plotWeights(rows) {
     var weights = { android: 0, ios: 0, desktop: 0, mobileweb: 0 };
@@ -535,11 +561,22 @@
         type: "bar",
         x: PLATFORM_KEYS.map(function (p) { return p.label; }),
         y: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }),
-        marker: { color: "#6366f1" }
-      }], { margin: { l: 30, r: 10, t: 8, b: 35 }, paper_bgcolor: "rgba(0,0,0,0)", yaxis: { title: "CTR %" } }, { responsive: true, displayModeBar: false });
+        marker: { color: ntChartColors().desktop }
+      }], { margin: { l: 30, r: 10, t: 8, b: 35 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: ntFont(), xaxis: ntAxisLayout(""), yaxis: ntAxisLayout("CTR %") }, { responsive: true, displayModeBar: false });
       return;
     }
-    Plotly.newPlot("nt-weight-clicks", [{ type: "pie", labels: PLATFORM_KEYS.map(function (p) { return p.label; }), values: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }), hole: 0.45 }], { margin: { l: 10, r: 10, t: 8, b: 8 }, paper_bgcolor: "rgba(0,0,0,0)" }, { responsive: true, displayModeBar: false });
+    var pc = ntChartColors();
+    Plotly.newPlot("nt-weight-clicks", [{
+      type: "pie",
+      labels: PLATFORM_KEYS.map(function (p) { return p.label; }),
+      values: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }),
+      hole: 0.45,
+      marker: {
+        colors: [pc.android, pc.ios, pc.desktop, pc.mobileweb],
+        line: { color: ntIsDark() ? "#18181b" : "#ffffff", width: 1 }
+      },
+      insidetextfont: { color: ntIsDark() ? "#e4e4e7" : "#ffffff" }
+    }], { margin: { l: 10, r: 10, t: 8, b: 8 }, paper_bgcolor: "rgba(0,0,0,0)", font: ntFont(), legend: { font: ntFont() } }, { responsive: true, displayModeBar: false });
   }
   function renderMostLeast(rows) {
     var dataKey = mapListPlatformToDataKey(selectedListPlatform);
@@ -681,7 +718,7 @@
     var pag = document.getElementById("nt-raw-pagination");
     var on5 = rawListView === "preview";
     var btnBase = "rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
-    var btnPrimary = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-zinc-200 dark:bg-zinc-200 dark:text-zinc-900";
+    var btnPrimary = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-zinc-700 dark:bg-zinc-700 dark:text-zinc-200";
     if (btn5) {
       btn5.classList.toggle("hidden", on5);
       if (!on5) btn5.className = btnBase;
@@ -1018,6 +1055,14 @@
   var currentRows = readRows();
   if (currentRows.length && getLastId() < highestId(currentRows)) setLastId(highestId(currentRows));
   redrawAll();
+
+  // Tema (açık/midnight) değişince grafikleri yeni renk paletiyle yeniden çiz.
+  var ntThemeTimer = null;
+  var ntThemeObserver = new MutationObserver(function () {
+    if (ntThemeTimer) clearTimeout(ntThemeTimer);
+    ntThemeTimer = setTimeout(redrawAll, 60);
+  });
+  ntThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 })();
 </script>
 <script src="/static/js/notification_lab.js"></script>
