@@ -115,6 +115,13 @@
     </div>
   </div>
 
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4 platform toplam click (Top 20)</h3>
+    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Desktop + Mobile Web + Android + iOS click toplamına göre içerik sıralaması · seçili tarih aralığı</p>
+    <div id="nt-cross-top-list" class="mt-3 space-y-2 text-sm"></div>
+    <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Top 50'yi gör / genişlet</button>
+  </div>
+
   <style>
     .nt-raw-text-cell {
       max-width: 60ch;
@@ -175,6 +182,10 @@
   var leastListExpanded = false;
   var cachedMostList = [];
   var cachedLeastList = [];
+  var CROSS_TOP_DEFAULT = 20;
+  var CROSS_TOP_MAX = 50;
+  var crossTopExpanded = false;
+  var cachedCrossTopList = [];
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
@@ -466,6 +477,81 @@
     cachedLeastList = list.slice().sort(function (a, b) { return a.metric - b.metric; }).slice(0, TOP_LIST_MAX);
     paintTopList("nt-most-list", "nt-most-expand", cachedMostList, "text-emerald-600 dark:text-emerald-400", mostListExpanded);
     paintTopList("nt-least-list", "nt-least-expand", cachedLeastList, "text-rose-600 dark:text-rose-400", leastListExpanded);
+    renderCrossPlatformTop(rows);
+  }
+  function rowTotalClicks(row) {
+    var p = row.platforms || {};
+    var sum = 0;
+    PLATFORM_KEYS.forEach(function (pk) { sum += n((p[pk.key] || {}).click); });
+    return sum;
+  }
+  function buildCrossPlatformRanking(rows) {
+    var by = {};
+    rows.forEach(function (r) {
+      var h = String(r.text || "").trim();
+      if (!h) return;
+      if (!by[h]) {
+        by[h] = { headline: h, totalClick: 0, desktop: 0, mobileweb: 0, android: 0, ios: 0, rows: 0, lastDay: "" };
+      }
+      var p = r.platforms || {};
+      by[h].desktop += n((p.desktop || {}).click);
+      by[h].mobileweb += n((p.mobileweb || {}).click);
+      by[h].android += n((p.android || {}).click);
+      by[h].ios += n((p.ios || {}).click);
+      by[h].totalClick = by[h].desktop + by[h].mobileweb + by[h].android + by[h].ios;
+      by[h].rows += 1;
+      var d = dayKey(r.date);
+      if (!by[h].lastDay || d > by[h].lastDay) by[h].lastDay = d;
+    });
+    return Object.keys(by).map(function (k) { return by[k]; })
+      .filter(function (x) { return x.totalClick > 0; })
+      .sort(function (a, b) { return b.totalClick - a.totalClick; })
+      .slice(0, CROSS_TOP_MAX);
+  }
+  function renderCrossPlatformTop(rows) {
+    cachedCrossTopList = buildCrossPlatformRanking(rows);
+    var rangeEl = document.getElementById("nt-cross-top-range");
+    if (rangeEl) {
+      var start = selectedStartDate();
+      var end = selectedEndDate();
+      var rangeTxt = (start || end) ? ((start || "…") + " – " + (end || "…")) : "Tüm tarihler";
+      rangeEl.textContent = "Desktop + Mobile Web + Android + iOS toplam click · " + rangeTxt;
+    }
+    paintCrossTopList(crossTopExpanded);
+  }
+  function paintCrossTopList(expanded) {
+    var el = document.getElementById("nt-cross-top-list");
+    var toggle = document.getElementById("nt-cross-top-expand");
+    var items = cachedCrossTopList;
+    if (!el) return;
+    if (!items.length) {
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>';
+      if (toggle) toggle.classList.add("hidden");
+      return;
+    }
+    var limit = expanded ? CROSS_TOP_MAX : CROSS_TOP_DEFAULT;
+    var shown = items.slice(0, limit);
+    el.innerHTML = shown.map(function (x, idx) {
+      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
+        + '<p class="text-xs font-semibold text-slate-800 dark:text-zinc-100">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
+        + '<p class="mt-1 text-xs font-bold text-indigo-700 dark:text-indigo-300">' + fmt(x.totalClick) + ' toplam click</p>'
+        + '<p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">'
+        + 'Web ' + fmt(x.desktop)
+        + ' · MWeb ' + fmt(x.mobileweb)
+        + ' · Android ' + fmt(x.android)
+        + ' · iOS ' + fmt(x.ios)
+        + '<span class="text-slate-400"> · son ' + (x.lastDay || "-") + ' · ' + fmt(x.rows) + ' kayıt</span>'
+        + '</p></div>';
+    }).join("");
+    if (!toggle) return;
+    if (items.length <= CROSS_TOP_DEFAULT) {
+      toggle.classList.add("hidden");
+      return;
+    }
+    toggle.classList.remove("hidden");
+    toggle.textContent = expanded
+      ? "İlk 20'ye daralt"
+      : ("Top 50'yi gör / genişlet (" + items.length + " içerik)");
   }
   function paintTopList(listId, toggleId, items, cls, expanded) {
     var el = document.getElementById(listId);
@@ -657,6 +743,10 @@
   document.getElementById("nt-least-expand").addEventListener("click", function () {
     leastListExpanded = !leastListExpanded;
     paintTopList("nt-least-list", "nt-least-expand", cachedLeastList, "text-rose-600 dark:text-rose-400", leastListExpanded);
+  });
+  document.getElementById("nt-cross-top-expand").addEventListener("click", function () {
+    crossTopExpanded = !crossTopExpanded;
+    paintCrossTopList(crossTopExpanded);
   });
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(readRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(readRows()); });
