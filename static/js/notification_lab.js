@@ -14,11 +14,6 @@
     return ((a - b) / b) * 100;
   }
 
-  function rowPlatformMetric(nt, row, platformKey, metric) {
-    var z = ((row.platforms || {})[platformKey] || {});
-    return nt.metricValueFromPlatformData(z, metric);
-  }
-
   function buildHeadlineStats(nt, rows) {
     var pk = nt.mapListPlatformToDataKey(nt.getListPlatform());
     var by = {};
@@ -116,56 +111,6 @@
     }
     listRender(qEl, quality, function (x) { return "impr " + nt.fmt(x.impressions) + " · CTR " + x.ctr.toFixed(2) + "%"; });
     listRender(oEl, opp, function (x) { return "impr " + nt.fmt(x.impressions) + " · CTR " + x.ctr.toFixed(2) + "%"; });
-  }
-
-  function runPivot(nt, rows) {
-    var out = document.getElementById("nt-lab-pivot-out");
-    if (!out) return;
-    var rowDim = (document.getElementById("nt-lab-pivot-row") || {}).value || "day";
-    var colDim = (document.getElementById("nt-lab-pivot-col") || {}).value || "platform";
-    var metric = (document.getElementById("nt-lab-pivot-metric") || {}).value || "click";
-    if (rowDim === colDim) { emptyMsg(out, "Satır ve kolon farklı olmalı."); return; }
-    function dimVal(r, dim) {
-      if (dim === "day") return nt.dayKey(r.date);
-      if (dim === "headline") return r.text || "";
-      return "platform";
-    }
-    var rowKeys = {}, colKeys = {}, grid = {};
-    if (rowDim === "platform" || colDim === "platform") {
-      rows.forEach(function (r) {
-        nt.PLATFORM_KEYS.forEach(function (p) {
-          var rv = rowDim === "platform" ? p.label : dimVal(r, rowDim);
-          var cv = colDim === "platform" ? p.label : dimVal(r, colDim);
-          rowKeys[rv] = 1; colKeys[cv] = 1;
-          var k = rv + "||" + cv;
-          if (!grid[k]) grid[k] = 0;
-          grid[k] += rowPlatformMetric(nt, r, p.key, metric);
-        });
-      });
-    } else {
-      rows.forEach(function (r) {
-        var pk = nt.mapListPlatformToDataKey(nt.getListPlatform());
-        var rv = dimVal(r, rowDim), cv = dimVal(r, colDim);
-        rowKeys[rv] = 1; colKeys[cv] = 1;
-        var k = rv + "||" + cv;
-        if (!grid[k]) grid[k] = 0;
-        grid[k] += rowPlatformMetric(nt, r, pk, metric);
-      });
-    }
-    var rks = Object.keys(rowKeys).sort();
-    var cks = Object.keys(colKeys).sort().slice(0, 40);
-    if (!rks.length || !cks.length) { emptyMsg(out); return; }
-    var head = "<tr><th class='px-2 py-1'>\\</th>" + cks.map(function (c) {
-      return "<th class='px-2 py-1'>" + nt.escapeHtml(c.length > 24 ? c.slice(0, 24) + "…" : c) + "</th>";
-    }).join("") + "</tr>";
-    var body = rks.slice(0, 80).map(function (rv) {
-      return "<tr><td class='px-2 py-1 font-semibold'>" + nt.escapeHtml(rv.length > 24 ? rv.slice(0, 24) + "…" : rv) + "</td>"
-        + cks.map(function (cv) {
-          var v = grid[rv + "||" + cv] || 0;
-          return "<td class='px-2 py-1'>" + (metric === "ctr" ? v.toFixed(2) : nt.fmt(v)) + "</td>";
-        }).join("") + "</tr>";
-    }).join("");
-    out.innerHTML = "<table class='min-w-full border border-slate-200 dark:border-zinc-700'><thead>" + head + "</thead><tbody>" + body + "</tbody></table>";
   }
 
   var NT_LOTTIE_TREND = "https://assets3.lottiefiles.com/packages/lf20_khttgaxc.json";
@@ -275,7 +220,6 @@
     var rows = (detail && detail.rows) ? detail.rows : nt.getFilteredRows();
     renderPareto(nt, rows);
     renderQualityOpportunity(nt, rows);
-    runPivot(nt, rows);
     renderInsights(nt, rows);
   }
 
