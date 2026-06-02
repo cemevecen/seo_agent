@@ -172,7 +172,7 @@
     { key: "mobileweb", label: "Mobile Web" }
   ];
   var RAW_COLUMNS = [
-    { key: "id", label: "id", type: "number" },
+    { key: "id", label: "id", type: "string" },
     { key: "text", label: "text", type: "string" },
     { key: "date", label: "date", type: "date" },
     { key: "android_click", label: "android app click", type: "number" },
@@ -224,6 +224,12 @@
     return isNaN(x) ? 0 : x;
   }
   function fmt(v) { return n(v).toLocaleString("tr-TR"); }
+  function normalizeId(raw) {
+    return String(raw == null ? "" : raw).trim().replace(/[\s\u00A0]/g, "").replace(/[.,·']/g, "");
+  }
+  function idString(row) {
+    return normalizeId(row && row.id);
+  }
   function dayKey(iso) { return String(iso || "").slice(0, 10); }
   function todayKey() { return new Date().toISOString().slice(0, 10); }
   function minusMonths(dateStr, months) { var d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); }
@@ -327,7 +333,7 @@
       var iso = parseDateSmart(cols[idx.date]);
       if (!iso) continue;
       var item = {
-        id: idx.id >= 0 ? String(cols[idx.id] || "") : "",
+        id: idx.id >= 0 ? normalizeId(cols[idx.id]) : "",
         text: String(cols[idx.text] || "").trim(),
         date: iso,
         platforms: {
@@ -469,6 +475,9 @@
       var av = rawValue(a, col.key);
       var bv = rawValue(b, col.key);
       var dir = rawSortDir === "asc" ? 1 : -1;
+      if (col.key === "id") {
+        return (n(idString(a)) - n(idString(b))) * dir;
+      }
       if (col.type === "string") {
         return String(av || "").localeCompare(String(bv || ""), "tr") * dir;
       }
@@ -500,7 +509,7 @@
   }
   function rawValue(row, key) {
     var p = row.platforms || {};
-    if (key === "id") return n(row.id);
+    if (key === "id") return idString(row);
     if (key === "text") return row.text || "";
     if (key === "date") return dayKey(row.date);
     if (key === "android_click") return n((p.android || {}).click);
@@ -539,6 +548,7 @@
     modal.setAttribute("aria-hidden", "true");
   }
   function rawDisplayValue(row, key, type) {
+    if (key === "id") return idString(row);
     var val = rawValue(row, key);
     if (key === "android_ctr") return n(val).toFixed(2);
     if (type === "number") return fmt(val);
@@ -670,11 +680,11 @@
       var byLatestId = parsed.filter(function (r) { return n(r.id) > maxIdBefore; });
       var carryForward = parsed.filter(function (r) { return !n(r.id); });
       var incoming = byLatestId.concat(carryForward);
-      if (!incoming.length) { status("Yeni satır yok. Son ID filtresi nedeniyle ekleme yapılmadı. (Son ID: " + fmt(maxIdBefore) + ")"); return; }
+      if (!incoming.length) { status("Yeni satır yok. Son ID filtresi nedeniyle ekleme yapılmadı. (Son ID: " + String(maxIdBefore) + ")"); return; }
       var merged = mergeRows(existing, incoming);
       saveRows(merged);
       setLastId(Math.max(maxIdBefore, highestId(merged)));
-      status(incoming.length + " yeni satır eklendi (son ID > " + fmt(maxIdBefore) + "). Toplam: " + merged.length);
+      status(incoming.length + " yeni satır eklendi (son ID > " + String(maxIdBefore) + "). Toplam: " + merged.length);
       rawPage = 0;
       redrawAll();
     };
