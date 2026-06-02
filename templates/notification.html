@@ -109,7 +109,43 @@
     { key: "mobileweb", label: "Mobile Web" }
   ];
 
-  function n(v) { var x = Number(v); return isNaN(x) ? 0 : x; }
+  function n(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return isNaN(v) ? 0 : v;
+    var s = String(v).trim();
+    if (!s) return 0;
+    s = s.replace(/[%\s]/g, "");
+    var hasDot = s.indexOf(".") >= 0;
+    var hasComma = s.indexOf(",") >= 0;
+    if (hasDot && hasComma) {
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else {
+        s = s.replace(/,/g, "");
+      }
+    } else if (hasDot) {
+      var dotParts = s.split(".");
+      if (dotParts.length > 1) {
+        var all3Dot = true;
+        for (var di = 1; di < dotParts.length; di++) {
+          if (!/^\d{3}$/.test(dotParts[di])) { all3Dot = false; break; }
+        }
+        if (all3Dot) s = dotParts.join("");
+      }
+    } else if (hasComma) {
+      var commaParts = s.split(",");
+      if (commaParts.length > 1) {
+        var all3Comma = true;
+        for (var ci = 1; ci < commaParts.length; ci++) {
+          if (!/^\d{3}$/.test(commaParts[ci])) { all3Comma = false; break; }
+        }
+        if (all3Comma) s = commaParts.join("");
+        else s = s.replace(",", ".");
+      }
+    }
+    var x = Number(s);
+    return isNaN(x) ? 0 : x;
+  }
   function fmt(v) { return n(v).toLocaleString("tr-TR"); }
   function dayKey(iso) { return String(iso || "").slice(0, 10); }
   function todayKey() { return new Date().toISOString().slice(0, 10); }
