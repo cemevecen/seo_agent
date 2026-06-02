@@ -132,15 +132,33 @@
   var LAST_ID_KEY = "notification_analytics_last_id_v1";
   var LIST_PLATFORM_KEY = "notification_analytics_list_platform_v1";
   var METRIC_KEY = "notification_analytics_metric_v1";
+  var RAW_SORT_FIELD_KEY = "notification_analytics_raw_sort_field_v1";
+  var RAW_SORT_DIR_KEY = "notification_analytics_raw_sort_dir_v1";
   var CHUNK_SIZE = 1000;
   var rawPage = 0;
   var selectedListPlatform = "web";
   var selectedMetric = "click";
+  var rawSortField = "date";
+  var rawSortDir = "desc";
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
     { key: "desktop", label: "Desktop" },
     { key: "mobileweb", label: "Mobile Web" }
+  ];
+  var RAW_COLUMNS = [
+    { key: "id", label: "id", type: "number" },
+    { key: "text", label: "text", type: "string" },
+    { key: "date", label: "date", type: "date" },
+    { key: "android_click", label: "android app click", type: "number" },
+    { key: "android_ctr", label: "android app ctr", type: "number" },
+    { key: "android_impression", label: "android app impression", type: "number" },
+    { key: "ios_click", label: "ios app click", type: "number" },
+    { key: "ios_impression", label: "ios app impression", type: "number" },
+    { key: "desktop_impression", label: "desktop impression", type: "number" },
+    { key: "desktop_click", label: "desktop click", type: "number" },
+    { key: "mobileweb_impression", label: "mobile web impression", type: "number" },
+    { key: "mobileweb_click", label: "mobile web click", type: "number" }
   ];
 
   function n(v) {
@@ -421,21 +439,66 @@
   function renderRawRows(rows) {
     var el = document.getElementById("nt-raw-list");
     var pageInfo = document.getElementById("nt-page-info");
-    var totalPages = Math.max(1, Math.ceil(rows.length / CHUNK_SIZE));
+    var sorted = rows.slice().sort(function (a, b) {
+      var col = RAW_COLUMNS.find(function (c) { return c.key === rawSortField; }) || RAW_COLUMNS[2];
+      var av = rawValue(a, col.key);
+      var bv = rawValue(b, col.key);
+      var dir = rawSortDir === "asc" ? 1 : -1;
+      if (col.type === "string") {
+        return String(av || "").localeCompare(String(bv || ""), "tr") * dir;
+      }
+      if (col.type === "date") {
+        return (String(av || "") > String(bv || "") ? 1 : -1) * dir;
+      }
+      return (n(av) - n(bv)) * dir;
+    });
+    var totalPages = Math.max(1, Math.ceil(sorted.length / CHUNK_SIZE));
     if (rawPage >= totalPages) rawPage = totalPages - 1;
     if (rawPage < 0) rawPage = 0;
     var start = rawPage * CHUNK_SIZE;
-    var chunk = rows.slice(start, start + CHUNK_SIZE);
+    var chunk = sorted.slice(start, start + CHUNK_SIZE);
     pageInfo.textContent = "Sayfa " + (rawPage + 1) + "/" + totalPages + " · Aralık " + (start + 1) + "-" + (start + CHUNK_SIZE);
-    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen aralıkta gösterilecek kayıt yok.</p>'; return; }
-    el.innerHTML = chunk.map(function (r, i) {
-      var totalMetric = 0;
-      PLATFORM_KEYS.forEach(function (p) { totalMetric += metricValueFromPlatformData(((r.platforms || {})[p.key] || {}), selectedMetric); });
-      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
-        + '<p class="font-semibold text-slate-700 dark:text-zinc-200">' + (start + i + 1) + '. [' + escapeHtml(r.id || '-') + '] ' + escapeHtml(r.text) + '</p>'
-        + '<p class="text-slate-500 dark:text-zinc-400">' + dayKey(r.date) + ' · ' + metricNumberText(totalMetric) + ' ' + metricLabel(selectedMetric) + '</p>'
-        + '</div>';
+    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Gösterilecek kayıt yok.</p>'; return; }
+    var head = RAW_COLUMNS.map(function (c) {
+      var active = c.key === rawSortField;
+      var arrow = active ? (rawSortDir === "asc" ? "↑" : "↓") : "↕";
+      return '<th class="whitespace-nowrap px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">'
+        + '<button type="button" data-nt-sort="' + c.key + '" class="hover:text-slate-700 dark:hover:text-zinc-200">' + escapeHtml(c.label) + ' ' + arrow + '</button>'
+        + '</th>';
     }).join("");
+    var body = chunk.map(function (r) {
+      return '<tr class="border-t border-slate-200 dark:border-zinc-700">'
+        + RAW_COLUMNS.map(function (c) {
+          return '<td class="whitespace-nowrap px-2 py-1.5 text-xs text-slate-700 dark:text-zinc-200">' + escapeHtml(rawDisplayValue(r, c.key, c.type)) + '</td>';
+        }).join("")
+        + '</tr>';
+    }).join("");
+    el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-zinc-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+  function rawValue(row, key) {
+    var p = row.platforms || {};
+    if (key === "id") return n(row.id);
+    if (key === "text") return row.text || "";
+    if (key === "date") return dayKey(row.date);
+    if (key === "android_click") return n((p.android || {}).click);
+    if (key === "android_ctr") {
+      var ac = n((p.android || {}).click); var ai = n((p.android || {}).impression);
+      return ai > 0 ? (ac / ai) * 100 : n((p.android || {}).ctr);
+    }
+    if (key === "android_impression") return n((p.android || {}).impression);
+    if (key === "ios_click") return n((p.ios || {}).click);
+    if (key === "ios_impression") return n((p.ios || {}).impression);
+    if (key === "desktop_impression") return n((p.desktop || {}).impression);
+    if (key === "desktop_click") return n((p.desktop || {}).click);
+    if (key === "mobileweb_impression") return n((p.mobileweb || {}).impression);
+    if (key === "mobileweb_click") return n((p.mobileweb || {}).click);
+    return "";
+  }
+  function rawDisplayValue(row, key, type) {
+    var val = rawValue(row, key);
+    if (key === "android_ctr") return n(val).toFixed(2);
+    if (type === "number") return fmt(val);
+    return String(val || "");
   }
   function redrawAll() {
     var rows = getFilteredRows();
@@ -476,8 +539,20 @@
     redrawAll();
   }
 
-  document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(getFilteredRows()); });
-  document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(getFilteredRows()); });
+  document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(readRows()); });
+  document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(readRows()); });
+  document.getElementById("nt-raw-list").addEventListener("click", function (ev) {
+    var btn = ev.target && ev.target.closest ? ev.target.closest("[data-nt-sort]") : null;
+    if (!btn) return;
+    var key = btn.getAttribute("data-nt-sort");
+    if (!key) return;
+    if (rawSortField === key) rawSortDir = rawSortDir === "asc" ? "desc" : "asc";
+    else { rawSortField = key; rawSortDir = "desc"; }
+    localStorage.setItem(RAW_SORT_FIELD_KEY, rawSortField);
+    localStorage.setItem(RAW_SORT_DIR_KEY, rawSortDir);
+    rawPage = 0;
+    renderRawRows(readRows());
+  });
   document.querySelectorAll("[data-nt-metric]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       selectedMetric = btn.getAttribute("data-nt-metric") || "click";
@@ -558,6 +633,8 @@
   var savedListPlatform = localStorage.getItem(LIST_PLATFORM_KEY) || "web";
   selectedListPlatform = savedListPlatform;
   selectedMetric = localStorage.getItem(METRIC_KEY) || "click";
+  rawSortField = localStorage.getItem(RAW_SORT_FIELD_KEY) || "date";
+  rawSortDir = localStorage.getItem(RAW_SORT_DIR_KEY) || "desc";
   renderMetricPills();
   renderListPlatformPills();
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
