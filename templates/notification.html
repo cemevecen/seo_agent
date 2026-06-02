@@ -16,6 +16,7 @@
         <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300">Filtreyi uygula</button>
         <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Hazır zaman dilimi</label>
         <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          <option value="all">Tümü</option>
           <option value="1w">Son 1 hafta</option>
           <option value="1m">Son 1 ay</option>
           <option value="3m" selected>Son 3 ay</option>
@@ -402,6 +403,16 @@
     renderRawRows(readRows());
   }
   function applyPresetRange(preset) {
+    if (preset === "all") {
+      document.getElementById("nt-start-date").value = "";
+      document.getElementById("nt-end-date").value = "";
+      localStorage.setItem(START_KEY, "");
+      localStorage.setItem(END_KEY, "");
+      localStorage.setItem("notification_analytics_preset_v1", "all");
+      rawPage = 0;
+      redrawAll();
+      return;
+    }
     var end = todayKey();
     var start = minusMonths(end, 3);
     if (preset === "1w") start = minusDays(end, 7);
