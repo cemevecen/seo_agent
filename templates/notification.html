@@ -313,12 +313,14 @@
     var byHeadline = {};
     rows.forEach(function (r) {
       var key = r.text;
-      if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, metric: 0, rows: 0 };
+      if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, metric: 0, rows: 0, latestDate: "" };
       var z = ((r.platforms || {})[dataKey] || {});
+      var rowDay = dayKey(r.date);
       byHeadline[key].clicks += n(z.click);
       byHeadline[key].impressions += n(z.impression);
       byHeadline[key].metric += metricValueFromPlatformData(z, selectedMetric);
       byHeadline[key].rows += 1;
+      if (!byHeadline[key].latestDate || rowDay > byHeadline[key].latestDate) byHeadline[key].latestDate = rowDay;
     });
     var list = Object.keys(byHeadline).map(function (k) { return byHeadline[k]; }).filter(function (x) { return x.metric > 0; });
     var most = list.slice().sort(function (a, b) { return b.metric - a.metric; }).slice(0, 50);
@@ -329,7 +331,7 @@
       el.innerHTML = items.map(function (x, idx) {
         return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
           + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
-          + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
+          + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
           + '</div>';
       }).join("");
     }
