@@ -234,7 +234,7 @@
   {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
 
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
-  <section hx-get="/api/home/realtime" hx-trigger="load, every 60s" hx-swap="innerHTML"
+  <section hx-get="/api/home/realtime" hx-trigger="load, every {{ ga4_realtime_ui_poll_seconds | default(60) }}s" hx-swap="innerHTML"
            class="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>

@@ -6777,6 +6777,7 @@ def dashboard(request: Request):
             "selected_site_id": selected_site_id,
             "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=7, recent_alerts=recent_alerts),
             "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
+            "ga4_realtime_ui_poll_seconds": settings.ga4_realtime_ui_poll_seconds,
         }
         ctx = {"request": request, **payload}
     if request.headers.get("HX-Request") == "true":
@@ -6883,7 +6884,7 @@ def dashboard_measure_site(request: Request, site_id: int):
 _HOME_SITE_DOMAINS = {1: ("doviz.com", "Döviz"), 2: ("www.sinemalar.com", "Sinemalar")}
 _HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("ios", "iOS"), ("android", "Android")]
 _HOME_SINEMA_PROFILES = [("web", "Web"), ("mweb", "MWeb")]
-_HOME_REALTIME_SPARK_LIMIT = 36
+_HOME_REALTIME_TREND_LIMIT = 72
 
 
 def _home_format_int(n: float) -> str:
@@ -7088,25 +7089,28 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     }
 
 
-def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, rows: list[RealtimeSnapshot]) -> dict:
-    if not rows:
-        return {
-            "key": prof_key,
-            "label": prof_label,
-            "value_fmt": "—",
-            "delta_fmt": None,
-            "delta_tone": "flat",
-            "delta_pct": 0.0,
-            "spark": {"has_points": False},
-            "spark_motion": _home_spark_motion(site_id, prof_key),
-        }
+def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, bundle: dict) -> dict:
+    from backend.services.ga4_realtime import active_users_kpi_from_realtime_result
 
-    trend_rows = list(reversed(rows))
-    latest = rows[0]
-    cur = float(latest.active_users_current or 0)
-    prev = float(latest.active_users_previous or 0)
-    delta_fmt, tone, delta_pct = _home_pct_delta(cur, prev)
-    spark = _home_spark_paths([float(row.active_users_current or 0) for row in trend_rows])
+    empty = {
+        "key": prof_key,
+        "label": prof_label,
+        "value_fmt": "—",
+        "delta_fmt": None,
+        "delta_tone": "flat",
+        "delta_pct": 0.0,
+        "spark": {"has_points": False},
+        "spark_motion": _home_spark_motion(site_id, prof_key),
+    }
+    trend = bundle.get("trend") or []
+    if bundle.get("error") and not trend:
+        return empty
+
+    cur, delta_fmt, tone, delta_pct = active_users_kpi_from_realtime_result(bundle)
+    spark = _home_spark_paths([float(t.get("active_users") or 0) for t in trend])
+    if not trend and cur <= 0 and bundle.get("error"):
+        return empty
+
     return {
         "key": prof_key,
         "label": prof_label,
@@ -7136,17 +7140,24 @@ def _home_site_filter_ids(site: str | None) -> set[int] | None:
 
 
 def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
-    """RealtimeSnapshot tablosundan her profil için en taze snapshot'ı al."""
+    """Realtime sayfası ile aynı cache + GA4 yolu; spark trend DB snapshot'larından."""
+    from backend.services.ga4_realtime import fetch_realtime_profile_bundle
+
+    site_obj = _home_get_site(db, site_id)
+    if site_obj is None:
+        return []
+    window = settings.ga4_realtime_window_minutes
     out = []
     for prof_key, prof_label in profiles:
-        rows = (
-            db.query(RealtimeSnapshot)
-            .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof_key)
-            .order_by(RealtimeSnapshot.collected_at.desc())
-            .limit(_HOME_REALTIME_SPARK_LIMIT)
-            .all()
+        bundle = fetch_realtime_profile_bundle(
+            db,
+            site_obj,
+            profile=prof_key,
+            window_minutes=window,
+            trend_limit=_HOME_REALTIME_TREND_LIMIT,
+            skip_alarms=True,
         )
-        out.append(_home_build_realtime_profile(site_id, prof_key, prof_label, rows))
+        out.append(_home_build_realtime_profile(site_id, prof_key, prof_label, bundle))
     return out
 
 
@@ -7170,7 +7181,12 @@ def api_home_realtime(request: Request, site: str | None = None):
     now_label = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
     return templates.TemplateResponse(
         request, "partials/home/realtime.html",
-        context={"request": request, "sites": sites_out, "now_label": now_label},
+        context={
+            "request": request,
+            "sites": sites_out,
+            "now_label": now_label,
+            "poll_seconds": settings.ga4_realtime_ui_poll_seconds,
+        },
     )
 
 
@@ -12116,33 +12132,22 @@ def notification_page(request: Request):
 
 
 @app.get("/api/ga4/realtime/{site_id}")
-def api_ga4_realtime(site_id: int, window: int = 10, profile: str = "web"):
+def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "web"):
     """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır.
 
     GA4 Realtime token kotasını korumak için sonuç kısa süreli (TTL) cache'lenir;
     429/hata anında son başarılı CANLI sonuç (stale) döndürülür."""
-    from backend.services.ga4_realtime import check_site_realtime, get_recent_snapshots, get_recent_alarms
-    from backend.services.realtime_cache import get_or_call
+    from backend.services.ga4_realtime import fetch_realtime_profile_bundle, get_recent_alarms
 
+    w = window if window is not None else settings.ga4_realtime_window_minutes
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
 
-        def _produce():
-            return check_site_realtime(
-                db, site, window_minutes=window, profile=profile, skip_alarms=True
-            )
-
-        result = get_or_call(
-            f"rt:kpi:{site_id}:{profile}:{window}",
-            settings.ga4_realtime_kpi_cache_seconds,
-            _produce,
-            is_error=lambda r: bool(r.get("error")),
-            last_good_ttl=settings.ga4_realtime_last_good_seconds,
+        result = fetch_realtime_profile_bundle(
+            db, site, profile=profile, window_minutes=w, trend_limit=72, skip_alarms=True
         )
-        result = dict(result)
-        result["trend"] = get_recent_snapshots(db, site_id, profile=profile, limit=72)
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
     return JSONResponse(result)
 

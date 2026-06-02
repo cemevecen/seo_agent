@@ -2370,6 +2370,90 @@ def get_recent_snapshots(
     return result
 
 
+def fetch_realtime_profile_bundle(
+    db: Session,
+    site: Any,
+    *,
+    profile: str = "web",
+    window_minutes: int | None = None,
+    trend_limit: int = 72,
+    skip_alarms: bool = True,
+) -> dict[str, Any]:
+    """Realtime sayfası ve ana sayfa KPI/spark için ortak veri yolu (TTL cache + trend)."""
+    from backend.config import settings
+    from backend.services.realtime_cache import get_or_call
+
+    w = window_minutes if window_minutes is not None else settings.ga4_realtime_window_minutes
+    sid = int(site.id)
+    prof = (profile or "web").strip()
+
+    def _produce() -> dict[str, Any]:
+        return check_site_realtime(db, site, window_minutes=w, profile=prof, skip_alarms=skip_alarms)
+
+    result = dict(
+        get_or_call(
+            f"rt:kpi:{sid}:{prof}:{w}",
+            settings.ga4_realtime_kpi_cache_seconds,
+            _produce,
+            is_error=lambda r: bool(r.get("error")),
+            last_good_ttl=settings.ga4_realtime_last_good_seconds,
+        )
+    )
+    result["trend"] = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
+    return result
+
+
+def active_users_kpi_from_realtime_result(result: dict[str, Any]) -> tuple[float, str | None, str, float]:
+    """realtime.html ``_renderKpis`` ile aynı activeUsers mantığı (toplam + comparison.change_pct)."""
+    trend = result.get("trend") or []
+    if result.get("error"):
+        if trend:
+            last = trend[-1]
+            return float(last.get("active_users") or 0), None, "flat", 0.0
+        return 0.0, None, "flat", 0.0
+
+    comp_block = (result.get("comparison") or {}).get("activeUsers")
+    total = result.get("total") or {}
+    cur_win = result.get("current") or {}
+    prev_win = result.get("previous") or {}
+
+    comp: dict[str, Any] | None
+    if comp_block is not None:
+        comp = dict(comp_block)
+    else:
+        cw = cur_win.get("activeUsers")
+        pw = prev_win.get("activeUsers")
+        totv = total.get("activeUsers")
+        if cw is not None or pw is not None:
+            cu = float(cw or 0)
+            pr = float(pw or 0)
+            pct_raw = ((cu - pr) / pr * 100.0) if pr > 0 else (100.0 if cu > 0 else 0.0)
+            comp = {"current": cu, "previous": pr, "change_pct": round(pct_raw, 1)}
+        elif totv is not None:
+            tnum = float(totv or 0)
+            comp = {"current": tnum, "previous": tnum, "change_pct": 0.0}
+        else:
+            comp = None
+
+    if total.get("activeUsers") is not None:
+        main_val = float(total["activeUsers"])
+    elif comp is not None:
+        main_val = float(comp.get("current") or 0)
+    elif trend:
+        main_val = float(trend[-1].get("active_users") or 0)
+    else:
+        main_val = 0.0
+
+    if comp is None or comp.get("change_pct") is None:
+        return main_val, None, "flat", 0.0
+
+    delta_pct = float(comp["change_pct"])
+    tone = "up" if delta_pct > 0.5 else ("down" if delta_pct < -0.5 else "flat")
+    sign = "+" if delta_pct > 0 else ""
+    delta_fmt = f"{sign}{delta_pct:.1f}%"
+    return main_val, delta_fmt, tone, delta_pct
+
+
 def _alarm_row_public_url(domain: str, metric: str) -> str:
     """Sayfa/haber alarm satırı için tarayıcıda açılabilir mutlak URL (yalnız path tabanlı satırlar)."""
     from urllib.parse import urlparse
