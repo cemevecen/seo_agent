@@ -1974,11 +1974,17 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
         .first()
     )
     if curr_snap is None:
-        return {"site_delta": 0, "drivers": [], "has_data": False}
+        return {
+            "site_delta": 0,
+            "drivers": [],
+            "drivers_increase": [],
+            "drivers_decrease": [],
+            "has_data": False,
+        }
 
     # Aynı snapshot içindeki current vs previous — kayan pencere farkı değil
     site_delta = curr_snap.active_users_current - curr_snap.active_users_previous
-    drivers: list[dict[str, Any]] = []
+    drivers = {"increase": [], "decrease": []}
 
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
