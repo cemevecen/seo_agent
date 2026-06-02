@@ -143,6 +143,14 @@ _SC_REFRESH_ALL_LOCK = threading.Lock()
 _SC_REFRESH_ALL_JOB: dict | None = None
 _SC_REFRESH_ALL_STALE_SECONDS = 50 * 60
 
+_GA4_REFRESH_ALL_LOCK = threading.Lock()
+_GA4_REFRESH_ALL_JOB: dict | None = None
+_GA4_REFRESH_ALL_STALE_SECONDS = 50 * 60
+_GA4_JSON_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
+
 
 def _search_console_request_wants_json(request: Request) -> bool:
     """Yenileme fetch'leri 401/500 gövdesini JSON okuyabilsin (admin middleware + hata ayrıntısı)."""
@@ -2942,9 +2950,14 @@ def _run_daily_ga4_refresh_job() -> None:
                     collect_ga4_channel_sessions(db, site, days=90)
                     collect_ga4_channel_sessions(db, site, days=30)
                     collect_ga4_channel_sessions(db, site, days=7)
-                    collect_ga4_12m_daily_trend(db, site)
                     db.commit()
                     any_ga4_ok = True
+                    try:
+                        collect_ga4_12m_daily_trend(db, site)
+                        db.commit()
+                    except Exception as exc_12m:  # noqa: BLE001
+                        db.rollback()
+                        LOGGER.warning("Daily GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     LOGGER.warning("Daily GA4 refresh failed for %s: %s", site.domain, exc)
@@ -11440,6 +11453,160 @@ def ga4_single_site_card(request: Request, site_id: int):
         return response
 
 
+def _ga4_refresh_all_set_progress(*, done: int, total: int, label: str = "") -> None:
+    with _GA4_REFRESH_ALL_LOCK:
+        job = _GA4_REFRESH_ALL_JOB
+        if not job or job.get("status") != "running":
+            return
+        job["progress"] = {"done": int(done), "total": int(total), "label": str(label or "")}
+
+
+def _refresh_one_site_for_ga4_batch(site_id: int) -> tuple[int, dict]:
+    """Tek site GA4 toplama (kendi DB session'ı). 12 ay trend hata verse bile KPI kayıtları korunur."""
+    from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return site_id, {"state": "failed", "error": "Site bulunamadı"}
+        if _is_external_site(db, site.id):
+            return site_id, {"state": "skipped", "error": "external"}
+        conn = get_ga4_connection_status(db, site.id)
+        if not conn.get("connected"):
+            return site_id, {"state": "skipped", "error": "not_connected"}
+        try:
+            collect_ga4_channel_sessions(db, site, days=90)
+            collect_ga4_channel_sessions(db, site, days=30)
+            collect_ga4_channel_sessions(db, site, days=7)
+            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            try:
+                collect_ga4_12m_daily_trend(db, site)
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            except Exception as exc_12m:  # noqa: BLE001
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                LOGGER.warning("GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
+            return site_id, {"state": "success"}
+        except Exception as exc:  # noqa: BLE001
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return site_id, {"state": "failed", "error": str(exc)}
+
+
+def _compute_ga4_refresh_all_payload() -> dict:
+    with SessionLocal() as db:
+        external_site_ids = _external_site_ids(db)
+        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
+        eligible: list[int] = []
+        not_connected = 0
+        for site in sites:
+            if site.id in external_site_ids:
+                continue
+            conn = get_ga4_connection_status(db, site.id)
+            if not conn.get("connected"):
+                not_connected += 1
+                continue
+            eligible.append(site.id)
+        n_active_non_external = len([s for s in sites if s.id not in external_site_ids])
+
+    _ga4_refresh_all_set_progress(done=0, total=len(eligible), label="Başlatılıyor")
+
+    site_results: dict[int, dict] = {}
+    ga4_failures: list[tuple[str, str]] = []
+    for index, sid in enumerate(eligible):
+        sid_out, result = _refresh_one_site_for_ga4_batch(sid)
+        site_results[sid_out] = result
+        if str(result.get("state") or "").lower() == "failed":
+            with SessionLocal() as db:
+                site = db.query(Site).filter(Site.id == sid_out).first()
+            ga4_failures.append(
+                ((site.display_name or site.domain) if site else f"site #{sid_out}", str(result.get("error") or ""))
+            )
+        label = ""
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == sid_out).first()
+            if site:
+                label = site.display_name or site.domain
+        _ga4_refresh_all_set_progress(done=index + 1, total=len(eligible), label=label)
+
+    refreshed_ok = sum(1 for r in site_results.values() if str(r.get("state") or "").lower() == "success")
+
+    with SessionLocal() as db:
+        try:
+            send_ga4_weekly_digest_emails(
+                db,
+                trigger_source="manual",
+                action_label="Tüm GA4 sitelerini yenile",
+                collect_failures=ga4_failures,
+            )
+        except Exception:
+            logging.warning("GA4 refresh-all: bildirim maili gönderilemedi, atlanıyor.")
+
+    failed = len(ga4_failures)
+    if refreshed_ok == 0 and failed == 0:
+        if n_active_non_external == 0:
+            title, detail = "Yenilenecek site yok", "Aktif, internal site bulunamadı."
+        elif not_connected > 0:
+            title, detail = (
+                "API çağrılmadı",
+                f"GA4 property tanımlı site yok: {not_connected} aktif site atlandı.",
+            )
+        else:
+            title, detail = "API sonucu yok", "GA4 ölçümü dönmedi; loglara bakın."
+    elif failed and refreshed_ok:
+        title = "Kısmi yenileme"
+        detail = f"{refreshed_ok} site güncellendi, {failed} sitede hata."
+    elif failed and not refreshed_ok:
+        title = "Yenileme başarısız"
+        detail = f"{failed} site için GA4 verisi alınamadı."
+    else:
+        title = "Tüm siteler güncellendi"
+        detail = f"{refreshed_ok} site GA4 verisiyle güncellendi."
+        if not_connected:
+            detail += f" {not_connected} site GA4 bağlı olmadığı için atlandı."
+    return {
+        "ok": refreshed_ok > 0 or failed == 0,
+        "refreshed": refreshed_ok,
+        "failed": failed,
+        "not_connected": not_connected,
+        "title": title,
+        "detail": detail,
+    }
+
+
+def _ga4_refresh_all_job_finish(job_id: str) -> None:
+    global _GA4_REFRESH_ALL_JOB
+    try:
+        payload = _compute_ga4_refresh_all_payload()
+        with _GA4_REFRESH_ALL_LOCK:
+            job = _GA4_REFRESH_ALL_JOB
+            if job and job.get("id") == job_id:
+                job["status"] = "done"
+                job["result"] = payload
+                job["progress"] = None
+    except Exception as exc:
+        LOGGER.exception("GA4 refresh-all background job failed")
+        with _GA4_REFRESH_ALL_LOCK:
+            job = _GA4_REFRESH_ALL_JOB
+            if job and job.get("id") == job_id:
+                job["status"] = "error"
+                job["error"] = str(exc).strip() or "Arka plan işinde beklenmeyen hata; loglara bakın."
+                job["progress"] = None
+
+
+def _start_ga4_refresh_all_job(job_id: str) -> None:
+    threading.Thread(
+        target=_ga4_refresh_all_job_finish,
+        args=(job_id,),
+        daemon=True,
+        name=f"ga4-refresh-all-{job_id[:8]}",
+    ).start()
+
+
 @app.post("/ga4/refresh/{site_id}")
 def ga4_refresh_site(request: Request, site_id: int):
     with SessionLocal() as db:
@@ -11459,8 +11626,13 @@ def ga4_refresh_site(request: Request, site_id: int):
             collect_ga4_channel_sessions(db, site, days=90)
             collect_ga4_channel_sessions(db, site, days=30)
             collect_ga4_channel_sessions(db, site, days=7)
-            collect_ga4_12m_daily_trend(db, site)
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            try:
+                collect_ga4_12m_daily_trend(db, site)
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            except Exception as exc_12m:  # noqa: BLE001
+                db.rollback()
+                LOGGER.warning("GA4 12m trend atlandı (%s): %s", site.domain, exc_12m)
             bucket = ga4_digest_bucket_for_domain(site.domain)
             if bucket:
                 send_ga4_weekly_digest_emails(
@@ -11497,46 +11669,86 @@ def ga4_refresh_site(request: Request, site_id: int):
 
 @app.post("/ga4/refresh-all")
 def ga4_refresh_all(request: Request):
+    """Toplu GA4 çekimi — uzun sürdüğü için hemen JSON + /status ile izlenir."""
+    global _GA4_REFRESH_ALL_JOB
     if not ga4_is_configured():
-        return HTMLResponse("GA4 service account ayarlı değil (.env: GA4_SERVICE_ACCOUNT_FILE / JSON).", status_code=503)
-    with SessionLocal() as db:
-        from backend.collectors.ga4 import collect_ga4_12m_daily_trend, collect_ga4_channel_sessions
-
-        external_site_ids = _external_site_ids(db)
-        sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.asc(), Site.id.asc()).all()
-        any_ga4_ok = False
-        ga4_failures: list[tuple[str, str]] = []
-        for site in sites:
-            if site.id in external_site_ids:
-                continue
-            conn = get_ga4_connection_status(db, site.id)
-            if not conn.get("connected"):
-                continue
-            try:
-                collect_ga4_channel_sessions(db, site, days=90)
-                collect_ga4_channel_sessions(db, site, days=30)
-                collect_ga4_channel_sessions(db, site, days=7)
-                collect_ga4_12m_daily_trend(db, site)
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-                any_ga4_ok = True
-            except Exception as exc:  # noqa: BLE001
-                db.rollback()
-                ga4_failures.append((site.domain, str(exc)))
-        if any_ga4_ok or ga4_failures:
-            try:
-                send_ga4_weekly_digest_emails(
-                    db,
-                    trigger_source="manual",
-                    action_label="Tüm GA4 sitelerini yenile",
-                    collect_failures=ga4_failures,
-                )
-            except Exception:
-                logging.warning("GA4 refresh-all: bildirim maili gönderilemedi, atlanıyor.")
-        return templates.TemplateResponse(
-            request,
-            "partials/ga4_site_cards.html",
-            context={"request": request, "lazy_mode": False, "ga4_sites": _ga4_sites_payload(db)},
+        return JSONResponse(
+            {
+                "ok": False,
+                "detail": "GA4 service account ayarlı değil (.env: GA4_SERVICE_ACCOUNT_FILE / JSON).",
+            },
+            status_code=503,
+            headers=_GA4_JSON_NO_CACHE_HEADERS,
         )
+    with _GA4_REFRESH_ALL_LOCK:
+        cur = _GA4_REFRESH_ALL_JOB
+        if cur and cur.get("status") == "running":
+            started = float(cur.get("started") or 0.0)
+            age = time.time() - started if started > 0 else 0.0
+            if age < _GA4_REFRESH_ALL_STALE_SECONDS:
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "detail": "Başka bir toplu GA4 yenilemesi hâlâ çalışıyor; bitene kadar bekleyin.",
+                    },
+                    status_code=409,
+                    headers=_GA4_JSON_NO_CACHE_HEADERS,
+                )
+            cur["status"] = "error"
+            cur["error"] = "Önceki toplu yenileme zaman aşımına uğradı; yeni işlem başlatıldı."
+        job_id = str(uuid4())
+        _GA4_REFRESH_ALL_JOB = {
+            "id": job_id,
+            "status": "running",
+            "result": None,
+            "error": None,
+            "started": time.time(),
+            "progress": {"done": 0, "total": 0, "label": ""},
+        }
+    _start_ga4_refresh_all_job(job_id)
+    return JSONResponse(
+        {
+            "ok": True,
+            "async": True,
+            "job_id": job_id,
+            "title": "Toplu GA4 yenileme başladı",
+            "detail": "İşlem arka planda sürüyor; birkaç dakika sürebilir — sayfayı kapatmayın.",
+        },
+        headers=_GA4_JSON_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/ga4/refresh-all/status/{job_id}")
+def ga4_refresh_all_status(job_id: str):
+    with _GA4_REFRESH_ALL_LOCK:
+        job = _GA4_REFRESH_ALL_JOB
+        if not job or job.get("id") != job_id:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "done": True,
+                    "detail": "İşlem bulunamadı (sunucu yeniden başladıysa yeniden deneyin).",
+                },
+                status_code=404,
+                headers=_GA4_JSON_NO_CACHE_HEADERS,
+            )
+        if job.get("status") == "running":
+            body: dict = {"ok": True, "done": False, "job_id": job_id}
+            progress = job.get("progress")
+            if isinstance(progress, dict):
+                body["progress"] = progress
+            return JSONResponse(body, headers=_GA4_JSON_NO_CACHE_HEADERS)
+        if job.get("status") == "error":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "done": True,
+                    "detail": job.get("error") or "Arka plan işi başarısız.",
+                },
+                headers=_GA4_JSON_NO_CACHE_HEADERS,
+            )
+        payload = job.get("result") or {}
+        return JSONResponse({"ok": True, "done": True, **payload}, headers=_GA4_JSON_NO_CACHE_HEADERS)
 
 
 @app.get("/ga4/pages/{site_id}")

@@ -528,6 +528,21 @@
     }
 
     return {
+      renderLive: function (pct, liveTitle, liveDetail) {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        if (tailTimer) {
+          window.clearInterval(tailTimer);
+          tailTimer = null;
+        }
+        render({
+          percent: pct,
+          title: liveTitle || config.pendingTitle || 'Yenileniyor',
+          detail: liveDetail || config.pendingDetail || 'İşlem sürüyor.',
+        });
+      },
       complete: function (doneTitle, doneDetail) {
         if (timer) {
           window.clearInterval(timer);
@@ -684,22 +699,124 @@
     });
   }
 
+  function pollGa4RefreshAll(jobId, progress) {
+    var startTs = Date.now();
+    var maxMs = 45 * 60 * 1000;
+    var pollMs = 2000;
+    var networkRetries = 0;
+    var maxNetworkRetries = 8;
+    var target = document.getElementById('ga4-site-list');
+
+    function finishWithReload(doneTitle, doneDetail) {
+      return reloadGa4SiteListMarkup()
+        .then(function (html) {
+          if (!isGa4CardsMarkup(html)) {
+            throw new Error('site-list markup invalid');
+          }
+          if (target) {
+            target.innerHTML = html;
+            window.setTimeout(function () {
+              initGa4Panels(target);
+            }, 50);
+          }
+          progress.complete(doneTitle, doneDetail);
+        });
+    }
+
+    function tick() {
+      if (Date.now() - startTs > maxMs) {
+        progress.fail(
+          'Yenileme tamamlanamadı',
+          'Zaman aşımı (45 dk). Sunucuda işlem sürüyor olabilir; birkaç dakika sonra sayfayı yenileyin.'
+        );
+        return;
+      }
+      fetch('/ga4/refresh-all/status/' + encodeURIComponent(jobId), {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+        .then(function (response) {
+          return response.text().then(function (text) {
+            return { response: response, text: text };
+          });
+        })
+        .then(function (pack) {
+          networkRetries = 0;
+          var data;
+          try {
+            data = JSON.parse(pack.text);
+          } catch (e) {
+            throw new Error('Durum JSON okunamadı.');
+          }
+          if (pack.response.status === 404) {
+            var err404 = new Error('not_found');
+            err404.detail =
+              (data && data.detail) ||
+              'İşlem bulunamadı (sunucu yeniden başlamış olabilir). Sayfayı yenileyip tekrar deneyin.';
+            throw err404;
+          }
+          if (!data.done) {
+            var pg = data.progress;
+            if (pg && pg.total > 0) {
+              var pct = Math.min(96, Math.max(12, Math.round((pg.done / pg.total) * 100)));
+              progress.renderLive(
+                pct,
+                'Siteler yenileniyor (' + pg.done + '/' + pg.total + ')',
+                (pg.label ? pg.label + ' tamamlandı. ' : '') + 'GA4 Data API çağrıları arka planda sürüyor.'
+              );
+            }
+            window.setTimeout(tick, pollMs);
+            return;
+          }
+          if (!data.ok) {
+            var bad = new Error('job_failed');
+            bad.detail = (data && data.detail) || 'İşlem başarısız.';
+            throw bad;
+          }
+          return finishWithReload(
+            data.title || 'Tüm siteler güncellendi',
+            data.detail || 'GA4 kartları yeni verilerle yenilendi.'
+          );
+        })
+        .catch(function (error) {
+          var msg = String((error && error.message) || '');
+          var isNetwork = /networkerror|failed to fetch|load failed/i.test(msg);
+          if (isNetwork && networkRetries < maxNetworkRetries) {
+            networkRetries += 1;
+            console.warn('GA4 refresh-all poll retry', networkRetries, error);
+            window.setTimeout(tick, pollMs + networkRetries * 500);
+            return;
+          }
+          console.warn('GA4 refresh-all poll failed:', error);
+          var d =
+            (error && error.detail) ||
+            (error && error.message) ||
+            'Yenileme durumu alınamadı.';
+          if (isNetwork) {
+            d += ' Sunucuda işlem arka planda sürebilir; 1–2 dk bekleyip sayfayı yenileyin.';
+          }
+          progress.fail('Yenileme tamamlanamadı', d);
+        });
+    }
+    tick();
+  }
+
   function refreshGa4Sites(button) {
     const trigger = button || document.getElementById('refresh-ga4-sites-button');
-    const target = document.getElementById('ga4-site-list');
     const original = trigger ? trigger.textContent : '';
     const progress = createGa4ProgressController({
       title: 'GA4 tüm siteler yenileniyor',
-      detail: 'Bağlı property’ler için Data API ile son 30 gün + önceki 30 gün raporları çekiliyor.',
+      detail: 'Bağlı property’ler için KPI (1/7/30/90 gün) ve 12 ay günlük trend arka planda çekiliyor.',
       steps: [
         { percent: 14, title: 'Bağlantılar kontrol ediliyor', detail: 'Service account ve site property eşlemeleri doğrulanıyor.' },
         { percent: 30, title: 'KPI ve kanal raporları', detail: 'Oturum, kullanıcı ve kanal kırılımları alınıyor.' },
-        { percent: 48, title: 'Sayfa ve kaynak tabloları', detail: 'Landing ve kaynak/ortam raporları (haber listesi 1/7 gün) yazılıyor.' },
+        { percent: 48, title: '12 ay trend', detail: 'Günlük oturum / kullanıcı serisi (karşılaştırma yok) yazılıyor.' },
         { percent: 64, title: 'Veritabanı', detail: 'Metrikler ve GA4 snapshot kayıtları güncelleniyor.' },
-        { percent: 82, title: 'Kartlar hazırlanıyor', detail: 'Sunucu yanıtı tamamlanıyor; liste HTML üretiliyor.' },
+        { percent: 82, title: 'Kartlar hazırlanıyor', detail: 'İşlem bitince site listesi yenilenecek.' },
       ],
       pendingTitle: 'Sunucu işliyor',
-      pendingDetail: 'Çok sayıda API çağrısı sürüyor; tamamlanınca kartlar yenilenecek.',
+      pendingDetail: 'Çok sayıda API çağrısı arka planda sürüyor; tamamlanınca kartlar yenilenecek.',
       maxPendingPercent: 97,
     });
     progress.resetTone();
@@ -710,44 +827,68 @@
 
     fetch('/ga4/refresh-all', {
       method: 'POST',
-      headers: { 'HX-Request': 'true' },
+      credentials: 'same-origin',
+      headers: { 'HX-Request': 'true', Accept: 'application/json' },
     })
       .then(function (response) {
-        if (!response.ok) {
-          throw new Error('refresh failed');
-        }
-        return response.text();
+        return response.text().then(function (text) {
+          if (response.ok) {
+            try {
+              return JSON.parse(text);
+            } catch (e) {
+              throw new Error('Sunucu JSON yanıtı okunamadı.');
+            }
+          }
+          var detail = 'HTTP ' + response.status;
+          if (response.status === 401) {
+            detail = 'Oturum yok veya süresi doldu. Sayfayı yenileyip tekrar deneyin.';
+          }
+          try {
+            var j = JSON.parse(text);
+            if (j && j.detail) {
+              detail = String(j.detail);
+            }
+          } catch (e) {
+            if (text && String(text).trim().length) {
+              detail = String(text).replace(/\s+/g, ' ').slice(0, 480);
+            }
+          }
+          var err = new Error('refresh_all_failed');
+          err.detail = detail;
+          throw err;
+        });
       })
-      .then(function (html) {
-        if (target) {
-          target.innerHTML = html;
-          window.setTimeout(function () {
-            initGa4Panels(target);
-          }, 50);
+      .then(function (data) {
+        if (data && data.async && data.job_id) {
+          pollGa4RefreshAll(String(data.job_id), progress);
+          return;
         }
-        progress.complete('Tüm siteler güncellendi', 'GA4 kartları yeni verilerle yenilendi. Operasyon özeti e-posta ile iletilebilir.');
+        if (!data || !data.ok) {
+          var bad = new Error('invalid response');
+          bad.detail = (data && data.detail) || 'Geçersiz sunucu yanıtı.';
+          throw bad;
+        }
+        return reloadGa4SiteListMarkup().then(function (html) {
+          var target = document.getElementById('ga4-site-list');
+          if (target && isGa4CardsMarkup(html)) {
+            target.innerHTML = html;
+            window.setTimeout(function () {
+              initGa4Panels(target);
+            }, 50);
+          }
+          progress.complete(
+            data.title || 'Tüm siteler güncellendi',
+            data.detail || 'GA4 kartları yeni verilerle yenilendi.'
+          );
+        });
       })
       .catch(function (error) {
         console.warn('GA4 bulk refresh failed:', error);
-        return reloadGa4SiteListMarkup()
-          .then(function (html) {
-            if (!isGa4CardsMarkup(html)) {
-              throw new Error('site-list markup invalid');
-            }
-            if (target) {
-              target.innerHTML = html;
-              window.setTimeout(function () {
-                initGa4Panels(target);
-              }, 50);
-            }
-            progress.complete(
-              'Yenileme tamamlandı',
-              'Sunucu yanıtı kesildi ancak kartlar güncel veriden yeniden yüklendi.'
-            );
-          })
-          .catch(function () {
-            progress.fail('Yenileme tamamlanamadı', 'Sunucu hatası veya GA4 ayarı eksik olabilir. Log ve .env kontrolü yap.');
-          });
+        var detail =
+          (error && error.detail) ||
+          (error && error.message) ||
+          'Sunucu hatası veya GA4 ayarı eksik olabilir.';
+        progress.fail('Yenileme tamamlanamadı', detail);
       })
       .finally(function () {
         if (trigger) {
