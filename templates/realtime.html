@@ -898,13 +898,10 @@
         {% else %}
         {# Web / mweb: Top sayfalar — tabbed #}
         <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
-          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(4,1fr)">
+          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(3,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="pages">Sayfalar</button>
-            <button type="button" onclick="rtSwitchTopTab(this,'views')"
-              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="views">Görünüm</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
@@ -924,16 +921,6 @@
               </div>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
-          </div>
-          <div data-rt-top-panel="views" class="hidden min-w-0">
-            <div class="min-w-0 space-y-1" data-rt-views-list>
-              <div class="animate-pulse space-y-2 py-2">
-                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
-                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
-                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
-              </div>
-            </div>
-            <p class="mt-2 rt-ts-foot" data-rt-views-ts></p>
           </div>
           <div data-rt-top-panel="news" class="hidden min-w-0">
             <p class="mb-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
@@ -1816,7 +1803,6 @@
       if (leg) leg.classList.remove('hidden');
     }
     _fetchTopData(siteId, profile, 'pages');
-    _fetchTopData(siteId, profile, 'views');
     _fetchTopNews(siteId, profile);
     _fetchDrivers(siteId, profile);
     _fetchInsights(siteId, profile);
