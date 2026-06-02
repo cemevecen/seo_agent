@@ -387,19 +387,22 @@
   function renderMostLeast(rows) {
     var dataKey = mapListPlatformToDataKey(selectedListPlatform);
     var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
-    var byHeadline = {};
-    rows.forEach(function (r) {
-      var key = r.text;
-      if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, metric: 0, rows: 0, latestDate: "" };
+    var list = rows.map(function (r) {
       var z = ((r.platforms || {})[dataKey] || {});
-      var rowDay = dayKey(r.date);
-      byHeadline[key].clicks += n(z.click);
-      byHeadline[key].impressions += n(z.impression);
-      byHeadline[key].metric += metricValueFromPlatformData(z, selectedMetric);
-      byHeadline[key].rows += 1;
-      if (!byHeadline[key].latestDate || rowDay > byHeadline[key].latestDate) byHeadline[key].latestDate = rowDay;
-    });
-    var list = Object.keys(byHeadline).map(function (k) { return byHeadline[k]; }).filter(function (x) { return x.metric > 0; });
+      var clicks = n(z.click);
+      var impressions = n(z.impression);
+      var metric = selectedMetric === "ctr"
+        ? (impressions > 0 ? (clicks / impressions) * 100 : 0)
+        : (selectedMetric === "impression" ? impressions : clicks);
+      return {
+        headline: r.text,
+        clicks: clicks,
+        impressions: impressions,
+        metric: metric,
+        rows: 1,
+        latestDate: dayKey(r.date)
+      };
+    }).filter(function (x) { return x.metric > 0; });
     var most = list.slice().sort(function (a, b) { return b.metric - a.metric; }).slice(0, 50);
     var least = list.slice().sort(function (a, b) { return a.metric - b.metric; }).slice(0, 50);
     function renderList(targetId, items, cls) {
