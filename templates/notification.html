@@ -58,6 +58,16 @@
     </div>
   </div>
 
+  <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Liste platformu</span>
+      <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
+      <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
+      <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
+      <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
     <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
       <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">En çok (Top 50)</h3>
@@ -86,8 +96,10 @@
   var START_KEY = "notification_analytics_start_v1";
   var END_KEY = "notification_analytics_end_v1";
   var LAST_ID_KEY = "notification_analytics_last_id_v1";
+  var LIST_PLATFORM_KEY = "notification_analytics_list_platform_v1";
   var CHUNK_SIZE = 1000;
   var rawPage = 0;
+  var selectedListPlatform = "web";
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
@@ -117,6 +129,18 @@
     return isNaN(dt.getTime()) ? null : dt.toISOString();
   }
   function status(msg) { var el = document.getElementById("nt-status"); if (el) el.textContent = msg; }
+  function mapListPlatformToDataKey(platform) {
+    if (platform === "web") return "desktop";
+    return platform;
+  }
+  function renderListPlatformPills() {
+    document.querySelectorAll("[data-nt-list-platform]").forEach(function (btn) {
+      var on = btn.getAttribute("data-nt-list-platform") === selectedListPlatform;
+      btn.className = on
+        ? "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-200"
+        : "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+    });
+  }
   function readRows() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch (e) { return []; } }
   function saveRows(rows) { localStorage.setItem(STORE_KEY, JSON.stringify(rows)); }
   function getLastId() { return n(localStorage.getItem(LAST_ID_KEY) || 0); }
@@ -217,15 +241,15 @@
     Plotly.newPlot("nt-weight-clicks", [{ type: "pie", labels: PLATFORM_KEYS.map(function (p) { return p.label; }), values: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }), hole: 0.45 }], { margin: { l: 10, r: 10, t: 8, b: 8 }, paper_bgcolor: "rgba(0,0,0,0)" }, { responsive: true, displayModeBar: false });
   }
   function renderMostLeast(rows) {
+    var dataKey = mapListPlatformToDataKey(selectedListPlatform);
+    var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
     var byHeadline = {};
     rows.forEach(function (r) {
       var key = r.text;
       if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, rows: 0 };
-      PLATFORM_KEYS.forEach(function (p) {
-        var z = ((r.platforms || {})[p.key] || {});
-        byHeadline[key].clicks += n(z.click);
-        byHeadline[key].impressions += n(z.impression);
-      });
+      var z = ((r.platforms || {})[dataKey] || {});
+      byHeadline[key].clicks += n(z.click);
+      byHeadline[key].impressions += n(z.impression);
       byHeadline[key].rows += 1;
     });
     var list = Object.keys(byHeadline).map(function (k) { return byHeadline[k]; }).filter(function (x) { return x.clicks > 0; });
@@ -237,7 +261,7 @@
       el.innerHTML = items.map(function (x, idx) {
         return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
           + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
-          + '<p class="text-xs ' + cls + '">' + fmt(x.clicks) + ' click <span class="text-slate-400">· ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
+          + '<p class="text-xs ' + cls + '">' + fmt(x.clicks) + ' click <span class="text-slate-400">· ' + platformLabel + ' · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
           + '</div>';
       }).join("");
     }
@@ -294,6 +318,14 @@
 
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(getFilteredRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(getFilteredRows()); });
+  document.querySelectorAll("[data-nt-list-platform]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      selectedListPlatform = btn.getAttribute("data-nt-list-platform") || "web";
+      localStorage.setItem(LIST_PLATFORM_KEY, selectedListPlatform);
+      renderListPlatformPills();
+      renderMostLeast(getFilteredRows());
+    });
+  });
   document.getElementById("nt-apply-preset").addEventListener("click", function () {
     var preset = document.getElementById("nt-range-preset").value;
     applyPresetRange(preset);
@@ -346,6 +378,9 @@
   if (presetEl) presetEl.value = savedPreset;
   var savedStart = localStorage.getItem(START_KEY) || "";
   var savedEnd = localStorage.getItem(END_KEY) || "";
+  var savedListPlatform = localStorage.getItem(LIST_PLATFORM_KEY) || "web";
+  selectedListPlatform = savedListPlatform;
+  renderListPlatformPills();
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
   if (savedEnd) document.getElementById("nt-end-date").value = savedEnd;
   if (!savedStart && !savedEnd) applyPresetRange(savedPreset);
