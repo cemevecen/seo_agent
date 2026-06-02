@@ -85,28 +85,30 @@
   }
   .bl-dashboard-shell {
     position: relative;
-    min-height: 12rem;
+    min-height: 14rem;
+    isolation: isolate;
   }
   .bl-dashboard-shell.is-busy .bl-dashboard-content {
     pointer-events: none;
     user-select: none;
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
   }
+  /* Yalnızca dashboard gövdesi — header / site / rapor pill’leri etkilenmez */
   .bl-dashboard-loading {
-    position: fixed;
+    position: absolute;
     inset: 0;
-    z-index: 45;
+    z-index: 5;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding: clamp(4.75rem, 11vh, 7rem) 1rem 2rem;
-    background: rgba(248, 250, 252, 0.78);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    padding: 1.5rem 1rem;
+    background: rgba(248, 250, 252, 0.55);
     transition: opacity 0.2s ease, visibility 0.2s ease;
-    pointer-events: auto;
+    pointer-events: none;
   }
   html.dark .bl-dashboard-loading {
-    background: rgba(15, 23, 42, 0.72);
+    background: rgba(15, 23, 42, 0.5);
   }
   .bl-dashboard-loading.hidden {
     opacity: 0;
@@ -165,12 +167,13 @@
   html.dark .bl-dashboard-loading-sub { color: #94a3b8; }
   .bl-dashboard-loading:not(.hidden)::before {
     content: "";
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 3px;
-    z-index: 46;
+    z-index: 6;
+    border-radius: 0.75rem 0.75rem 0 0;
     background: linear-gradient(
       90deg,
       transparent 0%,
