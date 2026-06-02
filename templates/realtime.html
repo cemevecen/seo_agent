@@ -1374,6 +1374,7 @@
     var domain = String(box.getAttribute('data-rt-domain') || '').toLowerCase();
     var isDoviz = domain.indexOf('doviz.com') !== -1;
     var isSinemalar = domain.indexOf('sinemalar.com') !== -1;
+    var useMicroBars = isDoviz || isSinemalar;
     var pulseEl = box.querySelector('[data-rt-spark-pulse]');
     var wantId = _chartId(siteId, profile);
     if (el.id && el.id !== wantId) {
@@ -1446,7 +1447,7 @@
     var y0 = Math.max(0, uMin - diff * 0.25);
     var y1 = uMax + diff * 0.25;
     var traces = [];
-    if (isDoviz) {
+    if (useMicroBars) {
       var barColors = users.map(function (_, i) {
         var tail = i >= users.length - 5;
         if (tail) return isDark ? 'rgba(16,185,129,0.95)' : 'rgba(5,150,105,0.95)';
@@ -1531,7 +1532,7 @@
       {displayModeBar: false, responsive: true, staticPlot: false}
     );
 
-    if (isSinemalar && pulseEl && revChanged) {
+    if (!useMicroBars && isSinemalar && pulseEl && revChanged) {
       pulseEl.classList.remove('is-on');
       void pulseEl.offsetWidth;
       pulseEl.classList.add('is-on');
