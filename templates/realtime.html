@@ -542,6 +542,28 @@
     position: relative;
     z-index: 1;
   }
+  .rt-spark-live-pulse {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: rgba(16, 185, 129, 0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.75);
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.9);
+    z-index: 3;
+  }
+  .rt-spark-live-pulse.is-on {
+    animation: rt-spark-pulse 0.82s ease-out;
+  }
+  @keyframes rt-spark-pulse {
+    0% { opacity: 0.95; transform: scale(0.92); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.68); }
+    70% { opacity: 0.25; transform: scale(1.08); box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+    100% { opacity: 0; transform: scale(1.12); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
   /* Özet görünüm: yalnız KPI + spark; listeler / app etkinlik kartı gizlenir */
   html.rt-view--compact [data-rt-top-section],
   html.rt-view--compact [data-rt-events-section] {
@@ -841,6 +863,7 @@
         {# Aktif kullanıcı sparkline (DB snapshot) — aurora çerçeve + Plotly #}
         <div class="rt-spark-wrap mt-3" data-rt-chart-wrap>
           <div class="rt-spark-inner">
+            <div class="rt-spark-live-pulse" data-rt-spark-pulse aria-hidden="true"></div>
             <div class="rt-spark-plot h-28 w-full min-h-[110px]" data-rt-chart aria-label="Aktif kullanıcı sparkline"></div>
           </div>
         </div>
@@ -1348,6 +1371,10 @@
     if (!window.Plotly) return;
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
+    var domain = String(box.getAttribute('data-rt-domain') || '').toLowerCase();
+    var isDoviz = domain.indexOf('doviz.com') !== -1;
+    var isSinemalar = domain.indexOf('sinemalar.com') !== -1;
+    var pulseEl = box.querySelector('[data-rt-spark-pulse]');
     var wantId = _chartId(siteId, profile);
     if (el.id && el.id !== wantId) {
       try {
@@ -1402,6 +1429,9 @@
       lastTs +
       '-' +
       String(users[users.length - 1] || 0);
+    var prevRev = el.getAttribute('data-last-rev') || '';
+    var revChanged = prevRev !== dataRevision;
+    el.setAttribute('data-last-rev', dataRevision);
     var root = document.documentElement;
     var isDark = root.classList.contains('dark');
     var uMin = Infinity;
@@ -1415,29 +1445,48 @@
     if (diff === 0) diff = uMax * 0.1 || 1;
     var y0 = Math.max(0, uMin - diff * 0.25);
     var y1 = uMax + diff * 0.25;
-    /* Yahoo Finance style line/area chart */
-    var lineColor = isDark ? '#10b981' : '#059669'; // Emerald
-    var fillColor = isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(5, 150, 105, 0.15)';
-    var mainTrace = {
-      x: xLabels,
-      y: users,
-      text: hoverTexts,
-      type: 'scatter',
-      mode: 'lines',
-      line: {
-        color: lineColor,
-        width: 2,
-        shape: 'linear'
-      },
-      fill: 'tozeroy',
-      fillcolor: fillColor,
-      name: 'Aktif kullanıcı',
-      hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
-      showlegend: false,
-    };
-
-    // İlk yüklemede çalıştır
-    var traces = [mainTrace];
+    var traces = [];
+    if (isDoviz) {
+      var barColors = users.map(function (_, i) {
+        var tail = i >= users.length - 5;
+        if (tail) return isDark ? 'rgba(16,185,129,0.95)' : 'rgba(5,150,105,0.95)';
+        return isDark ? 'rgba(16,185,129,0.45)' : 'rgba(5,150,105,0.45)';
+      });
+      traces = [{
+        x: xLabels,
+        y: users,
+        text: hoverTexts,
+        type: 'bar',
+        marker: {
+          color: barColors,
+          line: { width: 0 },
+        },
+        hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
+        showlegend: false,
+      }];
+    } else {
+      /* Yahoo Finance style line/area chart */
+      var lineColor = isDark ? '#10b981' : '#059669'; // Emerald
+      var fillColor = isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(5, 150, 105, 0.15)';
+      var mainTrace = {
+        x: xLabels,
+        y: users,
+        text: hoverTexts,
+        type: 'scatter',
+        mode: 'lines',
+        line: {
+          color: lineColor,
+          width: 2,
+          shape: 'linear'
+        },
+        fill: 'tozeroy',
+        fillcolor: fillColor,
+        name: 'Aktif kullanıcı',
+        hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
+        showlegend: false,
+      };
+      traces = [mainTrace];
+    }
 
     try {
       Plotly.purge(el);
@@ -1481,6 +1530,15 @@
       },
       {displayModeBar: false, responsive: true, staticPlot: false}
     );
+
+    if (isSinemalar && pulseEl && revChanged) {
+      pulseEl.classList.remove('is-on');
+      void pulseEl.offsetWidth;
+      pulseEl.classList.add('is-on');
+      setTimeout(function () { pulseEl.classList.remove('is-on'); }, 860);
+    } else if (pulseEl && !isSinemalar) {
+      pulseEl.classList.remove('is-on');
+    }
   }
 
   function _fetchTopNews(siteId, profile) {
