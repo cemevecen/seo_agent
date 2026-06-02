@@ -212,8 +212,8 @@
   <details open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-zinc-200">Ham içerik listesi</summary>
     <div class="mt-3 flex flex-wrap items-center gap-2">
-      <button type="button" id="nt-raw-view-5" class="rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 5</button>
-      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Hepsini gör</button>
+      <button type="button" id="nt-raw-view-5" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 5'e dön</button>
+      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Hepsini göster</button>
       <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-zinc-400"></span>
     </div>
     <div id="nt-raw-pagination" class="mt-2 hidden flex flex-wrap items-center gap-2">
@@ -249,7 +249,6 @@
   var RAW_SORT_DIR_KEY = "notification_analytics_raw_sort_dir_v1";
   var CHUNK_SIZE = 1000;
   var RAW_PREVIEW_SIZE = 5;
-  var RAW_VIEW_KEY = "notification_analytics_raw_view_v1";
   var rawPage = 0;
   var rawListView = "preview";
   var selectedListPlatform = "web";
@@ -681,10 +680,17 @@
     var btnAll = document.getElementById("nt-raw-view-all");
     var pag = document.getElementById("nt-raw-pagination");
     var on5 = rawListView === "preview";
-    var active = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-zinc-200 dark:bg-zinc-200 dark:text-zinc-900";
-    var idle = "rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
-    if (btn5) btn5.className = on5 ? active : idle;
-    if (btnAll) btnAll.className = on5 ? idle : active;
+    var btnBase = "rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+    var btnPrimary = "rounded-lg border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:border-zinc-200 dark:bg-zinc-200 dark:text-zinc-900";
+    if (btn5) {
+      btn5.classList.toggle("hidden", on5);
+      if (!on5) btn5.className = btnBase;
+    }
+    if (btnAll) {
+      btnAll.classList.toggle("hidden", !on5);
+      if (on5) btnAll.className = btnPrimary;
+      else btnAll.className = btnBase;
+    }
     if (pag) pag.classList.toggle("hidden", on5);
     if (pag) pag.classList.toggle("flex", !on5);
   }
@@ -720,7 +726,7 @@
       if (hint) {
         var cap = selectedEndDate() || todayKey();
         hint.textContent = sorted.length
-          ? ("Gösterilen: " + chunk.length + " / " + fmt(sorted.length) + " kayıt · " + cap + " ve öncesi, güncelden eskiye")
+          ? ("Son " + RAW_PREVIEW_SIZE + " kayıt (güncelden eskiye) · " + cap + " ve öncesi · toplam " + fmt(sorted.length))
           : "";
       }
       if (pageInfo) pageInfo.textContent = "";
@@ -881,12 +887,10 @@
   document.getElementById("nt-raw-view-5").addEventListener("click", function () {
     rawListView = "preview";
     rawPage = 0;
-    localStorage.setItem(RAW_VIEW_KEY, rawListView);
     renderRawRows(rawListRows());
   });
   document.getElementById("nt-raw-view-all").addEventListener("click", function () {
     rawListView = "full";
-    localStorage.setItem(RAW_VIEW_KEY, rawListView);
     renderRawRows(rawListRows());
   });
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(rawListRows()); });
@@ -904,10 +908,7 @@
     if (!btn) return;
     var key = btn.getAttribute("data-nt-sort");
     if (!key) return;
-    if (rawListView === "preview") {
-      rawListView = "full";
-      localStorage.setItem(RAW_VIEW_KEY, rawListView);
-    }
+    if (rawListView === "preview") rawListView = "full";
     if (rawSortField === key) rawSortDir = rawSortDir === "asc" ? "desc" : "asc";
     else { rawSortField = key; rawSortDir = "desc"; }
     localStorage.setItem(RAW_SORT_FIELD_KEY, rawSortField);
@@ -1008,7 +1009,7 @@
   selectedMetric = localStorage.getItem(METRIC_KEY) || "click";
   rawSortField = localStorage.getItem(RAW_SORT_FIELD_KEY) || "date";
   rawSortDir = localStorage.getItem(RAW_SORT_DIR_KEY) || "desc";
-  rawListView = localStorage.getItem(RAW_VIEW_KEY) === "full" ? "full" : "preview";
+  rawListView = "preview";
   renderMetricPills();
   renderListPlatformPills();
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
