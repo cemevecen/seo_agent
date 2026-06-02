@@ -38,6 +38,37 @@ _GA4_PLACEHOLDER_HOSTS = frozenset(
 )
 _GA4_PLACEHOLDER_PATHS = _GA4_PLACEHOLDER_HOSTS | {"(data not available)"}
 
+# SEO audit taraması / listelerinde asla kullanılmayacak URL parçaları
+_GA4_JUNK_URL_MARKERS = (
+    "(other)",
+    "(not set)",
+    "(blank)",
+    "(not provided)",
+    "(data not available)",
+)
+
+
+def is_seo_audit_crawl_url(url: str | None) -> bool:
+    """SEO audit taramasına alınabilir gerçek https URL mi? GA4 (other) vb. hayır."""
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return False
+    low = u.lower()
+    if any(marker in low for marker in _GA4_JUNK_URL_MARKERS):
+        return False
+    try:
+        host = (urlparse(u).netloc or "").strip()
+        if not host or "(" in host or ")" in host:
+            return False
+    except Exception:
+        return False
+    return True
+
+
+def seo_audit_url_from_ga4(host: str | None, path: str | None) -> str:
+    """GA4 hostname + pagePath → tarama URL'si; yer tutucu ise ''."""
+    return ga4_canonical_page_url(host, path)
+
 
 def _is_ga4_placeholder_host(host: str) -> bool:
     h = (host or "").strip().lower()

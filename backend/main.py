@@ -9852,6 +9852,7 @@ def api_seo_audit_run(site_id: int):
         import json as _json
         from backend.collectors.site_audit import _fetch_url_audit
         from backend.models import UrlAuditRecord
+        from backend.services.ga4_page_urls import is_seo_audit_crawl_url, seo_audit_url_from_ga4
         from datetime import datetime as _dt
 
         prog = {
@@ -9866,7 +9867,7 @@ def api_seo_audit_run(site_id: int):
 
             def _add(u: str):
                 u = u.split("?")[0].rstrip("/")
-                if u and u.startswith("http") and u not in seen_urls:
+                if u and is_seo_audit_crawl_url(u) and u not in seen_urls:
                     seen_urls.add(u)
                     urls.append(u)
 
@@ -9912,10 +9913,9 @@ def api_seo_audit_run(site_id: int):
                                 dims = row.dimension_values
                                 hostname = dims[0].value if dims else ""
                                 path = dims[1].value if len(dims) > 1 else ""
-                                if not path or path == "(not set)" or not hostname or hostname == "(not set)":
-                                    continue
-                                full_url = f"https://{hostname}{path}" if not path.startswith("http") else path
-                                _add(full_url)
+                                full_url = seo_audit_url_from_ga4(hostname, path)
+                                if full_url:
+                                    _add(full_url)
                             LOGGER.info("GA4 top sayfalar: profile=%s, %d URL", profile_key, len(resp.rows))
                         except Exception as exc:
                             LOGGER.warning("GA4 top pages hatası [%s]: %s", profile_key, exc)
@@ -13543,6 +13543,7 @@ def _run_seo_audit_job() -> None:
     import json as _json
     from backend.collectors.site_audit import _fetch_url_audit
     from backend.models import Site, UrlAuditRecord
+    from backend.services.ga4_page_urls import is_seo_audit_crawl_url, seo_audit_url_from_ga4
     from datetime import datetime as _dt
 
     try:
@@ -13573,7 +13574,7 @@ def _run_seo_audit_job() -> None:
 
             def _add(u: str):
                 u = u.split("?")[0].rstrip("/")
-                if u and u.startswith("http") and u not in seen_urls:
+                if u and is_seo_audit_crawl_url(u) and u not in seen_urls:
                     seen_urls.add(u)
                     urls.append(u)
 
@@ -13612,8 +13613,8 @@ def _run_seo_audit_job() -> None:
                                 dims = row.dimension_values
                                 hostname = dims[0].value if dims else ""
                                 path = dims[1].value if len(dims) > 1 else ""
-                                if path and path != "(not set)" and hostname and hostname != "(not set)":
-                                    full_url = f"https://{hostname}{path}" if not path.startswith("http") else path
+                                full_url = seo_audit_url_from_ga4(hostname, path)
+                                if full_url:
                                     _add(full_url)
                             LOGGER.info("SEO audit GA4: site=%s profile=%s %d URL", site_domain, profile_key, len(resp.rows))
                         except Exception as exc:

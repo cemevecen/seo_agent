@@ -13,7 +13,18 @@ from urllib.parse import urlparse
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
+from backend.services.ga4_page_urls import is_seo_audit_crawl_url
+
 logger = logging.getLogger(__name__)
+
+# GA4 boyut çöplüğü — seo-audit listelerinde gösterilmez
+_JUNK_AUDIT_URL_MARKERS = ("(other)", "(not set)", "(blank)", "(not provided)", "(data not available)")
+
+
+def _exclude_junk_audit_urls(q, M):
+    for marker in _JUNK_AUDIT_URL_MARKERS:
+        q = q.filter(~M.url.ilike(f"%{marker}%"))
+    return q
 
 # Sağlıklı aralıklar
 TITLE_MIN, TITLE_MAX = 20, 65
@@ -94,7 +105,8 @@ def _base_summary_query(db, M, site_id, include_h2: bool):
         exprs.append(_cnt(M.h2_count == 0).label("missing_h2"))
     else:
         exprs.append(func.count(None).label("missing_h2"))
-    return db.query(*exprs).filter(M.site_id == site_id).first()
+    q = db.query(*exprs).filter(M.site_id == site_id)
+    return _exclude_junk_audit_urls(q, M).first()
 
 
 def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
@@ -117,12 +129,12 @@ def get_audit_summary(db: Session, site_id: int) -> dict[str, Any]:
                 "duplicate_title_groups": 0, "duplicate_desc_groups": 0, "last_crawled": None}
 
     # Duplicate grup sayısı — subdomain ayrımıyla Python'da hesapla
-    _dup_rows = (
-        db.query(M.url, M.title, M.meta_description, M.has_title, M.has_meta_description)
-        .filter(M.site_id == site_id)
-        .limit(5000)
-        .all()
-    )
+    _dup_rows = _exclude_junk_audit_urls(
+        db.query(M.url, M.title, M.meta_description, M.has_title, M.has_meta_description).filter(
+            M.site_id == site_id
+        ),
+        M,
+    ).limit(5000).all()
 
     def _count_dup_groups(value_attr, has_attr):
         buckets: dict[tuple[str, str], set[str]] = {}
@@ -201,7 +213,10 @@ def get_audit_issues(
     """Filtrelenmiş URL audit listesi döner."""
     from backend.models import UrlAuditRecord
 
-    q = db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id)
+    q = _exclude_junk_audit_urls(
+        db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id),
+        UrlAuditRecord,
+    )
 
     if filter_key in _FILTER_MAP:
         q = _FILTER_MAP[filter_key](q, UrlAuditRecord)
@@ -241,7 +256,10 @@ def get_audit_issues(
 
 def get_audit_issues_count(db: Session, site_id: int, filter_key: str = "all") -> int:
     from backend.models import UrlAuditRecord
-    q = db.query(func.count(UrlAuditRecord.id)).filter(UrlAuditRecord.site_id == site_id)
+    q = _exclude_junk_audit_urls(
+        db.query(func.count(UrlAuditRecord.id)).filter(UrlAuditRecord.site_id == site_id),
+        UrlAuditRecord,
+    )
     if filter_key in _FILTER_MAP:
         q = _FILTER_MAP[filter_key](q, UrlAuditRecord)
     try:
@@ -276,13 +294,16 @@ def get_duplicates(db: Session, site_id: int) -> dict[str, Any]:
     """
     from backend.models import UrlAuditRecord
 
-    rows = (
-        db.query(UrlAuditRecord.url, UrlAuditRecord.title, UrlAuditRecord.meta_description,
-                 UrlAuditRecord.has_title, UrlAuditRecord.has_meta_description)
-        .filter(UrlAuditRecord.site_id == site_id)
-        .limit(5000)
-        .all()
-    )
+    rows = _exclude_junk_audit_urls(
+        db.query(
+            UrlAuditRecord.url,
+            UrlAuditRecord.title,
+            UrlAuditRecord.meta_description,
+            UrlAuditRecord.has_title,
+            UrlAuditRecord.has_meta_description,
+        ).filter(UrlAuditRecord.site_id == site_id),
+        UrlAuditRecord,
+    ).limit(5000).all()
 
     def _dup_groups(value_attr, has_attr):
         # key: (host, value) → normalized unique URL listesi
@@ -332,6 +353,8 @@ def take_daily_snapshot(db: Session, site_id: int) -> int:
     now = datetime.utcnow()
     count = 0
     for r in rows:
+        if not is_seo_audit_crawl_url(r.url):
+            continue
         snap = MetaTagSnapshot(
             site_id=site_id,
             url=r.url,
