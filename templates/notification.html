@@ -60,6 +60,10 @@
 
   <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
     <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Metrik</span>
+      <button type="button" data-nt-metric="click" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Click</button>
+      <button type="button" data-nt-metric="impression" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Impression</button>
+      <button type="button" data-nt-metric="ctr" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">CTR</button>
       <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Liste platformu</span>
       <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
       <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
@@ -97,9 +101,11 @@
   var END_KEY = "notification_analytics_end_v1";
   var LAST_ID_KEY = "notification_analytics_last_id_v1";
   var LIST_PLATFORM_KEY = "notification_analytics_list_platform_v1";
+  var METRIC_KEY = "notification_analytics_metric_v1";
   var CHUNK_SIZE = 1000;
   var rawPage = 0;
   var selectedListPlatform = "web";
+  var selectedMetric = "click";
   var PLATFORM_KEYS = [
     { key: "android", label: "Android App" },
     { key: "ios", label: "iOS App" },
@@ -132,6 +138,34 @@
   function mapListPlatformToDataKey(platform) {
     if (platform === "web") return "desktop";
     return platform;
+  }
+  function metricLabel(metric) {
+    if (metric === "impression") return "impr";
+    if (metric === "ctr") return "ctr";
+    return "click";
+  }
+  function metricValueFromPlatformData(z, metric) {
+    if (!z) return 0;
+    var clickVal = n(z.click);
+    var imprVal = n(z.impression);
+    if (metric === "impression") return imprVal;
+    if (metric === "ctr") {
+      if (imprVal > 0) return (clickVal / imprVal) * 100;
+      return n(z.ctr);
+    }
+    return clickVal;
+  }
+  function metricNumberText(v) {
+    if (selectedMetric === "ctr") return n(v).toFixed(2);
+    return fmt(v);
+  }
+  function renderMetricPills() {
+    document.querySelectorAll("[data-nt-metric]").forEach(function (btn) {
+      var on = btn.getAttribute("data-nt-metric") === selectedMetric;
+      btn.className = on
+        ? "nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-200"
+        : "nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+    });
   }
   function renderListPlatformPills() {
     document.querySelectorAll("[data-nt-list-platform]").forEach(function (btn) {
@@ -221,9 +255,23 @@
     var byDay = {};
     rows.forEach(function (r) {
       var k = dayKey(r.date);
-      if (!byDay[k]) byDay[k] = { day: k, android: 0, ios: 0, desktop: 0, mobileweb: 0 };
-      PLATFORM_KEYS.forEach(function (p) { byDay[k][p.key] += n(((r.platforms || {})[p.key] || {}).click); });
+      if (!byDay[k]) byDay[k] = { day: k, android: 0, ios: 0, desktop: 0, mobileweb: 0, android_click: 0, ios_click: 0, desktop_click: 0, mobileweb_click: 0, android_impr: 0, ios_impr: 0, desktop_impr: 0, mobileweb_impr: 0 };
+      PLATFORM_KEYS.forEach(function (p) {
+        var z = ((r.platforms || {})[p.key] || {});
+        byDay[k][p.key] += metricValueFromPlatformData(z, selectedMetric);
+        byDay[k][p.key + "_click"] += n(z.click);
+        byDay[k][p.key + "_impr"] += n(z.impression);
+      });
     });
+    if (selectedMetric === "ctr") {
+      Object.keys(byDay).forEach(function (k) {
+        PLATFORM_KEYS.forEach(function (p) {
+          var c = n(byDay[k][p.key + "_click"]);
+          var i = n(byDay[k][p.key + "_impr"]);
+          byDay[k][p.key] = i > 0 ? (c / i) * 100 : n(byDay[k][p.key]);
+        });
+      });
+    }
     return Object.keys(byDay).sort().map(function (k) { return byDay[k]; });
   }
   function plotTrend(rows) {
@@ -233,11 +281,34 @@
     var traces = PLATFORM_KEYS.map(function (p) {
       return { x: x, y: data.map(function (d) { return d[p.key]; }), mode: "lines+markers", line: { width: 2, color: colors[p.key] }, marker: { size: 5 }, name: p.label };
     });
-    Plotly.newPlot("nt-trend-clicks", traces, { margin: { l: 40, r: 10, t: 8, b: 40 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", xaxis: { title: "Tarih" }, yaxis: { title: "Click" }, legend: { orientation: "h" } }, { responsive: true, displayModeBar: false });
+    Plotly.newPlot("nt-trend-clicks", traces, { margin: { l: 40, r: 10, t: 8, b: 40 }, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", xaxis: { title: "Tarih" }, yaxis: { title: selectedMetric === "ctr" ? "CTR %" : (selectedMetric === "impression" ? "Impression" : "Click") }, legend: { orientation: "h" } }, { responsive: true, displayModeBar: false });
   }
   function plotWeights(rows) {
     var weights = { android: 0, ios: 0, desktop: 0, mobileweb: 0 };
-    rows.forEach(function (r) { PLATFORM_KEYS.forEach(function (p) { weights[p.key] += n(((r.platforms || {})[p.key] || {}).click); }); });
+    var clickTotals = { android: 0, ios: 0, desktop: 0, mobileweb: 0 };
+    var imprTotals = { android: 0, ios: 0, desktop: 0, mobileweb: 0 };
+    rows.forEach(function (r) {
+      PLATFORM_KEYS.forEach(function (p) {
+        var z = ((r.platforms || {})[p.key] || {});
+        weights[p.key] += metricValueFromPlatformData(z, selectedMetric);
+        clickTotals[p.key] += n(z.click);
+        imprTotals[p.key] += n(z.impression);
+      });
+    });
+    if (selectedMetric === "ctr") {
+      PLATFORM_KEYS.forEach(function (p) {
+        var c = clickTotals[p.key];
+        var i = imprTotals[p.key];
+        weights[p.key] = i > 0 ? (c / i) * 100 : weights[p.key];
+      });
+      Plotly.newPlot("nt-weight-clicks", [{
+        type: "bar",
+        x: PLATFORM_KEYS.map(function (p) { return p.label; }),
+        y: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }),
+        marker: { color: "#6366f1" }
+      }], { margin: { l: 30, r: 10, t: 8, b: 35 }, paper_bgcolor: "rgba(0,0,0,0)", yaxis: { title: "CTR %" } }, { responsive: true, displayModeBar: false });
+      return;
+    }
     Plotly.newPlot("nt-weight-clicks", [{ type: "pie", labels: PLATFORM_KEYS.map(function (p) { return p.label; }), values: PLATFORM_KEYS.map(function (p) { return weights[p.key]; }), hole: 0.45 }], { margin: { l: 10, r: 10, t: 8, b: 8 }, paper_bgcolor: "rgba(0,0,0,0)" }, { responsive: true, displayModeBar: false });
   }
   function renderMostLeast(rows) {
@@ -246,22 +317,23 @@
     var byHeadline = {};
     rows.forEach(function (r) {
       var key = r.text;
-      if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, rows: 0 };
+      if (!byHeadline[key]) byHeadline[key] = { headline: key, clicks: 0, impressions: 0, metric: 0, rows: 0 };
       var z = ((r.platforms || {})[dataKey] || {});
       byHeadline[key].clicks += n(z.click);
       byHeadline[key].impressions += n(z.impression);
+      byHeadline[key].metric += metricValueFromPlatformData(z, selectedMetric);
       byHeadline[key].rows += 1;
     });
-    var list = Object.keys(byHeadline).map(function (k) { return byHeadline[k]; }).filter(function (x) { return x.clicks > 0; });
-    var most = list.slice().sort(function (a, b) { return b.clicks - a.clicks; }).slice(0, 50);
-    var least = list.slice().sort(function (a, b) { return a.clicks - b.clicks; }).slice(0, 50);
+    var list = Object.keys(byHeadline).map(function (k) { return byHeadline[k]; }).filter(function (x) { return x.metric > 0; });
+    var most = list.slice().sort(function (a, b) { return b.metric - a.metric; }).slice(0, 50);
+    var least = list.slice().sort(function (a, b) { return a.metric - b.metric; }).slice(0, 50);
     function renderList(targetId, items, cls) {
       var el = document.getElementById(targetId);
       if (!items.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen tarih aralığında veri yok.</p>'; return; }
       el.innerHTML = items.map(function (x, idx) {
         return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
           + '<p class="text-xs font-semibold text-slate-700 dark:text-zinc-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
-          + '<p class="text-xs ' + cls + '">' + fmt(x.clicks) + ' click <span class="text-slate-400">· ' + platformLabel + ' · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
+          + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
           + '</div>';
       }).join("");
     }
@@ -279,11 +351,11 @@
     pageInfo.textContent = "Sayfa " + (rawPage + 1) + "/" + totalPages + " · Toplam " + fmt(rows.length) + " kayıt";
     if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">Seçilen aralıkta gösterilecek kayıt yok.</p>'; return; }
     el.innerHTML = chunk.map(function (r, i) {
-      var totalClick = 0;
-      PLATFORM_KEYS.forEach(function (p) { totalClick += n(((r.platforms || {})[p.key] || {}).click); });
+      var totalMetric = 0;
+      PLATFORM_KEYS.forEach(function (p) { totalMetric += metricValueFromPlatformData(((r.platforms || {})[p.key] || {}), selectedMetric); });
       return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-zinc-700">'
         + '<p class="font-semibold text-slate-700 dark:text-zinc-200">' + (start + i + 1) + '. [' + escapeHtml(r.id || '-') + '] ' + escapeHtml(r.text) + '</p>'
-        + '<p class="text-slate-500 dark:text-zinc-400">' + dayKey(r.date) + ' · ' + fmt(totalClick) + ' click</p>'
+        + '<p class="text-slate-500 dark:text-zinc-400">' + dayKey(r.date) + ' · ' + metricNumberText(totalMetric) + ' ' + metricLabel(selectedMetric) + '</p>'
         + '</div>';
     }).join("");
   }
@@ -318,6 +390,14 @@
 
   document.getElementById("nt-page-prev").addEventListener("click", function () { rawPage -= 1; renderRawRows(getFilteredRows()); });
   document.getElementById("nt-page-next").addEventListener("click", function () { rawPage += 1; renderRawRows(getFilteredRows()); });
+  document.querySelectorAll("[data-nt-metric]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      selectedMetric = btn.getAttribute("data-nt-metric") || "click";
+      localStorage.setItem(METRIC_KEY, selectedMetric);
+      renderMetricPills();
+      redrawAll();
+    });
+  });
   document.querySelectorAll("[data-nt-list-platform]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       selectedListPlatform = btn.getAttribute("data-nt-list-platform") || "web";
@@ -380,6 +460,8 @@
   var savedEnd = localStorage.getItem(END_KEY) || "";
   var savedListPlatform = localStorage.getItem(LIST_PLATFORM_KEY) || "web";
   selectedListPlatform = savedListPlatform;
+  selectedMetric = localStorage.getItem(METRIC_KEY) || "click";
+  renderMetricPills();
   renderListPlatformPills();
   if (savedStart) document.getElementById("nt-start-date").value = savedStart;
   if (savedEnd) document.getElementById("nt-end-date").value = savedEnd;
