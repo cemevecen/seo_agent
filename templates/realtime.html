@@ -1539,7 +1539,9 @@
           listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
-        var rows = Array.isArray(d.pages) ? d.pages : [];
+        var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
+          return !_isRealtimeNoiseTitle(p && p.page);
+        });
         _renderNewsList(listEl, rows, d.comparison_enabled !== false);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
@@ -1615,7 +1617,10 @@
           if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
           return;
         }
-        _renderTopPages(listEl, d.pages, isViews, domain);
+        var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
+          return !_isRealtimeNoiseTitle(p && p.page);
+        });
+        _renderTopPages(listEl, rows, isViews, domain);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent =
@@ -1677,6 +1682,11 @@
     var color = diff > 0 ? 'rt-change-up' : 'rt-change-down';
     var title = _fmt(prev) + ' \u2192 ' + _fmt(cur);
     return ' <span class="text-[10px] font-bold ' + color + '" title="' + title + '">' + arrow + _fmt(Math.abs(diff)) + '</span>';
+  }
+
+  function _isRealtimeNoiseTitle(title) {
+    var t = String(title || '').trim().toLowerCase();
+    return !t || t === '—' || t === '(other)' || t === '(not set)' || t === '(blank)' || t === 'not set';
   }
 
   function _renderEventsCard(box, siteId, profile) {
@@ -1835,7 +1845,11 @@
 
   function _renderDrivers(el, d, siteId, profile) {
     if (!el) return;
-    if (!d.has_data || !d.drivers || !d.drivers.length) {
+    var inc = (d && d.drivers_increase) ? d.drivers_increase : [];
+    var dec = (d && d.drivers_decrease) ? d.drivers_decrease : [];
+    inc = inc.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
+    dec = dec.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
+    if (!d.has_data || (!inc.length && !dec.length)) {
       el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Karşılaştırma için henüz yeterli snapshot yok.</p>';
       return;
     }
@@ -1846,19 +1860,17 @@
     var accentColor = isDrop ? '#f87171' : '#34d399';
     var dimColor = '#71717a';
 
-    var maxAbs = Math.max.apply(null, d.drivers.map(function(x){ return Math.abs(x.delta||0); })) || 1;
-
-    // Özet satırı — border'sız, sade
-    var summary = '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:8px;">'
-      + '<span style="font-size:11px;font-weight:600;color:' + dimColor + ';text-transform:uppercase;letter-spacing:.05em;">'
-      + (isDrop ? 'Düşüş kaynağı' : 'Artış kaynağı') + '</span>'
-      + '<span style="font-size:14px;font-weight:800;color:' + accentColor + ';">' + totalLabel + '</span>'
-      + '</div>';
+    var allDrivers = inc.concat(dec);
+    var maxAbs = Math.max.apply(null, allDrivers.map(function(x){ return Math.abs(x.delta||0); })) || 1;
 
     var driverBox = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     var driverDomain = driverBox ? (driverBox.getAttribute('data-rt-domain') || '') : '';
 
-    var rows = d.drivers.map(function(dr, i) {
+    function renderDriverRows(rows, heading, headingColor, barColorFor) {
+      if (!rows.length) {
+        return '<div style="font-size:11px;color:#71717a;padding:6px 0;">Bu yönde sürücü yok.</div>';
+      }
+      return rows.map(function(dr, i) {
       var path = dr.page || '';
       var shortPath = path.length > 48 ? path.substring(0, 48) + '…' : path;
       var drDelta = dr.delta || 0;
@@ -1866,7 +1878,7 @@
       var barW = Math.round(Math.abs(drDelta) / maxAbs * 100);
       var isPos = drDelta > 0;
       var numColor = isPos ? '#34d399' : '#f87171';
-      var barColor = isPos ? '#059669' : '#dc2626';
+      var barColor = barColorFor || (isPos ? '#059669' : '#dc2626');
       var dSign = drDelta >= 0 ? '+' : '';
       var pathInner = path.startsWith('/') && driverDomain
         ? '<a href="https://' + driverDomain.replace(/^https?:\/\//, '') + encodeURI(path) + '" target="_blank" rel="noopener noreferrer" style="color:#a1a1aa;text-decoration:underline;text-underline-offset:2px;" title="' + _attr(path) + '">' + _esc(shortPath) + '</a>'
@@ -1884,8 +1896,23 @@
         + '</div>'
         + '</div>';
     }).join('');
+    }
 
-    el.innerHTML = summary + rows;
+    var summary = '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:8px;">'
+      + '<span style="font-size:11px;font-weight:600;color:' + dimColor + ';text-transform:uppercase;letter-spacing:.05em;">Değişim özeti</span>'
+      + '<span style="font-size:14px;font-weight:800;color:' + accentColor + ';">' + totalLabel + '</span>'
+      + '</div>';
+
+    var increaseBlock = '<div style="margin-top:8px;">'
+      + '<div style="font-size:11px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Artış kaynağı</div>'
+      + renderDriverRows(inc, 'Artış kaynağı', '#34d399', '#059669')
+      + '</div>';
+    var decreaseBlock = '<div style="margin-top:10px;">'
+      + '<div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Düşüş kaynağı</div>'
+      + renderDriverRows(dec, 'Düşüş kaynağı', '#f87171', '#dc2626')
+      + '</div>';
+
+    el.innerHTML = summary + increaseBlock + decreaseBlock;
   }
 
   function _fetchInsights(siteId, profile) {
@@ -1929,7 +1956,9 @@
       // Sayfa katkıları
       var pageLines = '';
       if (ins.top_pages && ins.top_pages.length) {
-        pageLines = ins.top_pages.map(function(p) {
+        pageLines = ins.top_pages.filter(function (p) {
+          return !_isRealtimeNoiseTitle(p && p.page);
+        }).map(function(p) {
           var path = p.page || '';
           var short = path.length > 48 ? path.substring(0, 48) + '…' : path;
           var pSign = p.delta >= 0 ? '+' : '';

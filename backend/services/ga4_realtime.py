@@ -1064,6 +1064,8 @@ def fetch_realtime_top_pages(
 
         if not page_val:
             continue
+        if _is_realtime_noise_title(page_val):
+            continue
 
         # pagePath ikinci dimension'sa topla
         path_val = ""
@@ -1791,6 +1793,11 @@ def _build_comparison(current: dict[str, float], previous: dict[str, float]) -> 
     return result
 
 
+def _is_realtime_noise_title(page: str | None) -> bool:
+    p = str(page or "").strip().lower()
+    return p in ("", "—", "(other)", "(not set)", "(blank)", "not set")
+
+
 def evaluate_alarms(
     comparison: dict[str, dict[str, Any]],
     *,
@@ -1848,17 +1855,18 @@ def evaluate_alarms(
 
 def _build_traffic_drivers_from_page_comparison(
     pages: list[dict[str, Any]],
-    site_delta: float,
     *,
     limit: int = 5,
-) -> list[dict[str, Any]]:
-    """GA4 compare_previous sayfa listesinden site yönüyle uyumlu sürücüleri üretir."""
-    if not pages or abs(site_delta) < 1:
-        return []
+) -> dict[str, list[dict[str, Any]]]:
+    """GA4 compare_previous sayfa listesinden artış/düşüş sürücülerini üretir."""
+    if not pages:
+        return {"increase": [], "decrease": []}
 
-    drivers: list[dict[str, Any]] = []
+    drivers = {"increase": [], "decrease": []}
     for page in pages:
         path = str(page.get("page") or "")
+        if _is_realtime_noise_title(path):
+            continue
         c = float(page.get("activeUsers") or 0)
         p = float(page.get("activeUsers_previous") or 0)
         diff = c - p
@@ -1867,30 +1875,35 @@ def _build_traffic_drivers_from_page_comparison(
         drivers.append({
             "page": path,
             "delta": diff,
-            "contribution_pct": (diff / site_delta * 100) if site_delta else 0,
             "current": c,
             "previous": p,
         })
 
-    # Site düşüşünde yalnızca düşen sayfalar; artışta yalnızca artan sayfalar
-    if site_delta < 0:
-        pool = [d for d in drivers if d["delta"] < 0]
-    elif site_delta > 0:
-        pool = [d for d in drivers if d["delta"] > 0]
-    else:
-        return []
-    if not pool:
-        return []
+    if not drivers:
+        return {"increase": [], "decrease": []}
 
-    pool.sort(key=lambda x: x["delta"], reverse=site_delta > 0)
-    return pool[:limit]
+    total_pos = sum(d["delta"] for d in drivers if d["delta"] > 0) or 1.0
+    total_neg_abs = abs(sum(d["delta"] for d in drivers if d["delta"] < 0)) or 1.0
+    inc: list[dict[str, Any]] = []
+    dec: list[dict[str, Any]] = []
+    for d in drivers:
+        if d["delta"] > 0:
+            d["contribution_pct"] = (d["delta"] / total_pos) * 100
+            inc.append(d)
+        elif d["delta"] < 0:
+            d["contribution_pct"] = (abs(d["delta"]) / total_neg_abs) * 100
+            dec.append(d)
+
+    inc.sort(key=lambda x: x["delta"], reverse=True)
+    dec.sort(key=lambda x: x["delta"])
+    return {"increase": inc[:limit], "decrease": dec[:limit]}
 
 
-def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta: float) -> list[dict[str, Any]]:
+def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta: float) -> dict[str, list[dict[str, Any]]]:
     """DB snapshot yedek yolu — canlı GA4 compare_previous kullanılamazsa devreye girer."""
     try:
         if abs(site_delta) < 5:
-            return []
+            return {"increase": [], "decrease": []}
 
         from backend.models import RealtimePageSnapshot
         from sqlalchemy import desc
@@ -1908,7 +1921,7 @@ def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta
         )
 
         if len(distinct_times) < 2:
-            return []
+            return {"increase": [], "decrease": []}
 
         curr_time, prev_time = distinct_times[0][0], distinct_times[1][0]
 
@@ -1928,7 +1941,7 @@ def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta
         prev_map = _rows_to_map(prev_time)
 
         if not curr_map or not prev_map:
-            return []
+            return {"increase": [], "decrease": []}
 
         raw_pages = [
             {
@@ -1938,11 +1951,11 @@ def _analyze_traffic_drivers(db: Session, site_id: int, profile: str, site_delta
             }
             for path in set(curr_map) | set(prev_map)
         ]
-        return _build_traffic_drivers_from_page_comparison(raw_pages, site_delta)
+        return _build_traffic_drivers_from_page_comparison(raw_pages)
 
     except Exception:
         logger.exception("_analyze_traffic_drivers hatası (site_id=%s)", site_id)
-        return []
+        return {"increase": [], "decrease": []}
 
 
 def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, Any]:
@@ -1971,7 +1984,7 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
     properties = load_ga4_properties(record)
     property_id = properties.get(profile) or properties.get("web")
 
-    if property_id and abs(site_delta) >= 1:
+    if property_id:
         try:
             result = fetch_realtime_top_pages_with_app_fallback(
                 property_id,
@@ -1983,7 +1996,7 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
             )
             pages = result.get("pages") or []
             if result.get("comparison_enabled") and pages:
-                drivers = _build_traffic_drivers_from_page_comparison(pages, site_delta)
+                drivers = _build_traffic_drivers_from_page_comparison(pages)
         except Exception as exc:
             logger.warning(
                 "Traffic drivers canlı API hatası [%s/%s]: %s",
@@ -1992,7 +2005,7 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
                 exc,
             )
 
-    if not drivers:
+    if not drivers["increase"] and not drivers["decrease"]:
         drivers = _analyze_traffic_drivers(db, site_id, profile, site_delta)
 
     return {
@@ -2001,7 +2014,9 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
         "current_total": curr_snap.active_users_current,
         "previous_total": curr_snap.active_users_previous,
         "collected_at": curr_snap.collected_at.isoformat() if curr_snap.collected_at else None,
-        "drivers": drivers,
+        "drivers": (drivers["decrease"] if site_delta < 0 else drivers["increase"]),
+        "drivers_increase": drivers["increase"],
+        "drivers_decrease": drivers["decrease"],
     }
 
 def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: float) -> str:
