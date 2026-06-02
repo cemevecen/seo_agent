@@ -63,6 +63,18 @@
         >
           90d
         </button>
+        {% if '12m' in site.report.periods %}
+        <button
+          type="button"
+          role="tab"
+          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+          data-sc-period-toggle="12m"
+          data-active="false"
+          title="Son 12 ay günlük trend (karşılaştırma yok)"
+        >
+          12 ay
+        </button>
+        {% endif %}
       </div>
       {% endif %}
       {% if site_count is defined and site_count > 1 %}
@@ -102,7 +114,7 @@
     <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
         <div class="min-w-0 flex-1" data-sc-period-date-wrap>
-          {% for period_key in ['1', '7', '30', '90'] %}
+          {% for period_key in ['1', '7', '30', '90', '12m'] %}
             {% if period_key not in site.report.periods %}{% else %}
             {% set _pd = site.report.periods[period_key] %}
             {% for device_key in ['mobile', 'desktop'] %}
@@ -113,9 +125,13 @@
                 data-device="{{ device_key }}"
                 class="{% if period_key != '7' or device_key != site.report.default_device %}hidden {% endif %}text-sm font-medium tabular-nums text-slate-600 dark:text-slate-300"
               >
+                {% if _pd.get('trend_only') %}
+                <span class="tabular-nums">{{ v.range_label or _pd.label_current or "—" }}</span>
+                {% else %}
                 <span class="tabular-nums">{{ v.range_last or "—" }}</span>
                 <span class="px-0.5 text-slate-400 sm:px-1">vs</span>
                 <span class="tabular-nums">{{ v.range_prev or "—" }}</span>
+                {% endif %}
               </p>
             {% endfor %}
             {% endif %}
@@ -152,7 +168,7 @@
           </div>
         </div>
       </div>
-    {% for period_key in ['1', '7', '30', '90'] %}
+    {% for period_key in ['1', '7', '30', '90', '12m'] %}
       {% if period_key in site.report.periods %}
       {% set period = site.report.periods[period_key] %}
       <div
@@ -164,6 +180,17 @@
             data-device-panel="{{ device_key }}"
             class="{% if device_key != site.report.default_device %}hidden {% endif %}flex min-h-0 flex-col space-y-4 sm:space-y-5"
           >
+            {% if period.get('trend_only') %}
+            <p class="text-sm text-slate-600 dark:text-slate-300">{{ period.trend_caption }}</p>
+            <div
+              id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
+              class="h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
+              data-search-console-trend='{{ view.trend|tojson }}'
+            ></div>
+            {% if not view.has_data %}
+            <p class="text-center text-sm text-slate-500 dark:text-slate-400">12 aylık trend için veri henüz yok. Search Console verisini yenileyin.</p>
+            {% endif %}
+            {% else %}
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 items-stretch">
               {% set cp = (view.clicks_pct_change | default(0)) | float %}
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
@@ -377,6 +404,7 @@
               </div>
               {% endif %}
             </div>
+            {% endif %}
           </div>
         {% endfor %}
       </div>

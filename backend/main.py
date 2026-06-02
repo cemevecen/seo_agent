@@ -1758,7 +1758,7 @@ def _build_search_console_top_entities(
 
 def _sanitize_search_console_trend(trend: dict) -> dict:
     sanitized = dict(trend or {})
-    if str(sanitized.get("mode") or "") == "last_28d":
+    if str(sanitized.get("mode") or "") in ("last_28d", "last_12m"):
         clicks = list(sanitized.get("clicks") or [])
         impressions = list(sanitized.get("impressions") or [])
         ctr = list(sanitized.get("ctr") or [])
@@ -1836,7 +1836,7 @@ def _scope_range_from_rows(rows: list[dict]) -> tuple[str, str]:
 
 def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
     t = dict(trend or {})
-    if str(t.get("mode") or "") != "last_28d":
+    if str(t.get("mode") or "") not in ("last_28d", "last_12m"):
         return t
     dates = list(t.get("dates") or [])
     labels = list(t.get("labels") or [])
@@ -2119,6 +2119,64 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
             if pd_days in (1, 7)
             else ("Son 90 günün trendi (son 30 günlük detay)" if pd_days == 90 else "Son 30 günün günlük trendi"),
             "views": views,
+            "trend_only": False,
+        }
+
+    # 12 ay: yalnızca günlük trend (karşılaştırma / sorgu tabloları yok)
+    _stored_12m_rows = summary_payload.get("trend_12m_rows") or []
+    _raw_12m_by_device = summary_payload.get("trend_12m_summary_by_device") or {}
+    if _stored_12m_rows and not _raw_12m_by_device:
+        from backend.collectors.search_console import _build_recent_trend_summary_by_device
+
+        try:
+            _d12 = [r.get("date") for r in _stored_12m_rows if r.get("date")]
+            if _d12:
+                from datetime import date as _date_cls_12m
+
+                _s12 = _date_cls_12m.fromisoformat(min(_d12))
+                _e12 = _date_cls_12m.fromisoformat(max(_d12))
+                _raw_12m_by_device = _build_recent_trend_summary_by_device(
+                    _stored_12m_rows, start_date=_s12, end_date=_e12
+                )
+                for _dev_summary in _raw_12m_by_device.values():
+                    _dev_summary["mode"] = "last_12m"
+        except Exception:
+            _raw_12m_by_device = {}
+    _12m_start_iso = str(summary_payload.get("trend_12m_start_date") or "").strip()
+    _12m_end_iso = str(summary_payload.get("trend_12m_end_date") or "").strip()
+    if not _12m_start_iso and _stored_12m_rows:
+        try:
+            _d12 = [r.get("date") for r in _stored_12m_rows if r.get("date")]
+            if _d12:
+                _12m_start_iso = min(_d12)
+                _12m_end_iso = max(_d12)
+        except Exception:
+            pass
+    _12m_range_label = _format_sc_tr_date_range(_12m_start_iso, _12m_end_iso)
+    views_12m: dict[str, dict] = {}
+    for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
+        device_code = device_key.upper()
+        empty_12m = {"mode": "last_12m", "labels": [], "dates": [], "clicks": [], "position": []}
+        base_12m = _sanitize_search_console_trend(_raw_12m_by_device.get(device_code) or empty_12m)
+        if str(base_12m.get("mode") or "") != "last_12m":
+            base_12m["mode"] = "last_12m"
+        views_12m[device_key] = {
+            "device_code": device_code,
+            "device_label": device_label,
+            "has_data": bool(base_12m.get("dates")),
+            "trend": base_12m,
+            "range_label": _12m_range_label,
+        }
+    if any(v.get("has_data") for v in views_12m.values()):
+        periods["12m"] = {
+            "period_days": int(settings.search_console_trend_12m_days),
+            "heading": "Son 12 ay — günlük trend",
+            "subtitle": f"Tarih aralığı: {_12m_range_label or '—'} · Karşılaştırma yok",
+            "label_current": _12m_range_label,
+            "label_previous": "",
+            "trend_caption": "Son 12 ayın günlük metrik seyri (tıklama, gösterim, CTR, pozisyon)",
+            "views": views_12m,
+            "trend_only": True,
         }
 
     legacy_views = periods["7"]["views"]

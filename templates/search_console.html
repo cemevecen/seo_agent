@@ -780,23 +780,24 @@
         }
         try {
           const trend = JSON.parse(element.dataset.searchConsoleTrend || '{}');
-          const isLast28Days = trend.mode === 'last_28d';
+          const isDailyTrend = trend.mode === 'last_28d' || trend.mode === 'last_12m';
+          const isLongDaily = trend.mode === 'last_12m';
           const labels = trend.labels || ['1', '2', '3', '4', '5', '6', '7'];
-          const xValues = isLast28Days ? (trend.dates || labels) : labels;
+          const xValues = isDailyTrend ? (trend.dates || labels) : labels;
 
           // Current period series
-          const currentClicks      = isLast28Days ? (trend.clicks || [])       : (trend.current_clicks || []);
-          const currentImpressions = isLast28Days ? (trend.impressions || [])  : (trend.current_impressions || []);
-          const currentCtr         = isLast28Days ? (trend.ctr || [])          : (trend.current_ctr || []);
-          const currentPosition    = isLast28Days ? (trend.position || [])     : (trend.current_position || []);
+          const currentClicks      = isDailyTrend ? (trend.clicks || [])       : (trend.current_clicks || []);
+          const currentImpressions = isDailyTrend ? (trend.impressions || [])  : (trend.current_impressions || []);
+          const currentCtr         = isDailyTrend ? (trend.ctr || [])          : (trend.current_ctr || []);
+          const currentPosition    = isDailyTrend ? (trend.position || [])     : (trend.current_position || []);
 
           // Previous period series (comparison mode only)
-          const previousClicks      = isLast28Days ? [] : (trend.previous_clicks || []);
-          const previousImpressions = isLast28Days ? [] : (trend.previous_impressions || []);
-          const previousCtr         = isLast28Days ? [] : (trend.previous_ctr || []);
-          const previousPosition    = isLast28Days ? [] : (trend.previous_position || []);
+          const previousClicks      = isDailyTrend ? [] : (trend.previous_clicks || []);
+          const previousImpressions = isDailyTrend ? [] : (trend.previous_impressions || []);
+          const previousCtr         = isDailyTrend ? [] : (trend.previous_ctr || []);
+          const previousPosition    = isDailyTrend ? [] : (trend.previous_position || []);
 
-          const periodLabel = isLast28Days ? '' : ' (dönem)';
+          const periodLabel = isDailyTrend ? '' : ' (dönem)';
 
           const traces = [
             {
@@ -829,7 +830,7 @@
             },
           ];
 
-          if (!isLast28Days) {
+          if (!isDailyTrend) {
             traces.push(
               {
                 x: xValues, y: previousClicks,
@@ -887,10 +888,12 @@
               xaxis: {
                 showgrid: false,
                 automargin: true,
-                type: isLast28Days ? 'date' : 'category',
-                tickangle: isLast28Days ? -45 : 0,
-                tickfont: { size: isLast28Days ? 10 : 12, color: th.tick },
-                tickformat: isLast28Days ? '%d.%m' : undefined,
+                type: isDailyTrend ? 'date' : 'category',
+                tickangle: isDailyTrend ? -45 : 0,
+                tickfont: { size: isLongDaily ? 9 : (isDailyTrend ? 10 : 12), color: th.tick },
+                tickformat: isDailyTrend ? '%d.%m' : undefined,
+                nticks: isLongDaily ? 14 : undefined,
+                dtick: isLongDaily ? 'M1' : undefined,
               },
               // y1: Clicks (left)
               yaxis: {

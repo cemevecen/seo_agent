@@ -560,12 +560,15 @@ def _fetch_search_console_daily_rows(
     end_date: date,
     *,
     device: str | None = None,
+    row_limit: int | None = None,
 ) -> list[dict]:
+    span_days = max(1, (end_date - start_date).days + 1)
+    limit = int(row_limit) if row_limit is not None else max(62, min(span_days + 2, 400))
     body = {
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
         "dimensions": ["date"] if device else ["date", "device"],
-        "rowLimit": 62,
+        "rowLimit": limit,
     }
     if device:
         body["dimensionFilterGroups"] = [
@@ -941,6 +944,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         start_date = end_date - timedelta(days=27)
         # Günlük trend: son 30 tam gün (1d/30d grafikleri için)
         trend_start_date = end_date - timedelta(days=29)
+        trend_12m_days = max(30, int(settings.search_console_trend_12m_days))
+        trend_12m_start_date = end_date - timedelta(days=trend_12m_days - 1)
         current_date = end_date
         previous_date = end_date - timedelta(days=1)
         same_weekday_previous_date = end_date - timedelta(days=7)
@@ -970,6 +975,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         current_30d_pages_rows: list[dict] = []
         previous_30d_pages_rows: list[dict] = []
         trend_28d_rows: list[dict] = []
+        trend_12m_rows: list[dict] = []
 
         for target in targets:
             property_url = str(target.get("property_url") or "")
@@ -1061,6 +1067,16 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                     )
                 )
             trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, trend_start_date, end_date, device=device))
+            trend_12m_rows.extend(
+                _fetch_search_console_daily_rows(
+                    service,
+                    property_url,
+                    trend_12m_start_date,
+                    end_date,
+                    device=device,
+                    row_limit=min(400, trend_12m_days + 5),
+                )
+            )
 
         return {
             "rows": current_rows,
@@ -1080,6 +1096,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "current_30d_pages_rows": current_30d_pages_rows,
             "previous_30d_pages_rows": previous_30d_pages_rows,
             "trend_28d_rows": trend_28d_rows,
+            "trend_12m_rows": trend_12m_rows,
             "source": "live",
             "error": None,
             "site_url": targets[0]["property_url"] if len(targets) == 1 else "",
@@ -1088,6 +1105,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "end_date": end_date.isoformat(),
             "trend_start_date": trend_start_date.isoformat(),
             "trend_end_date": end_date.isoformat(),
+            "trend_12m_start_date": trend_12m_start_date.isoformat(),
+            "trend_12m_end_date": end_date.isoformat(),
             "current_date": current_date.isoformat(),
             "previous_date": previous_date.isoformat(),
             "same_weekday_previous_date": same_weekday_previous_date.isoformat(),
@@ -1411,6 +1430,7 @@ def collect_search_console_metrics(
     current_30d_pages_rows = payload.get("current_30d_pages_rows", [])
     previous_30d_pages_rows = payload.get("previous_30d_pages_rows", [])
     trend_28d_rows = payload.get("trend_28d_rows", [])
+    trend_12m_rows = payload.get("trend_12m_rows", [])
     source = payload.get("source", "failed")
     error = payload.get("error")
     site_url = payload.get("site_url", "")
@@ -1547,6 +1567,25 @@ def collect_search_console_metrics(
             start_date=trend_range_start,
             end_date=trend_range_end,
         )
+        try:
+            trend_12m_range_start = date.fromisoformat(str(payload.get("trend_12m_start_date") or ""))
+            trend_12m_range_end = date.fromisoformat(str(payload.get("trend_12m_end_date") or ""))
+        except (ValueError, TypeError, OSError):
+            trend_12m_range_start = trend_range_start
+            trend_12m_range_end = trend_range_end
+        trend_12m_summary = _build_recent_trend_summary(
+            trend_12m_rows,
+            start_date=trend_12m_range_start,
+            end_date=trend_12m_range_end,
+        )
+        trend_12m_summary["mode"] = "last_12m"
+        trend_12m_summary_by_device = _build_recent_trend_summary_by_device(
+            trend_12m_rows,
+            start_date=trend_12m_range_start,
+            end_date=trend_12m_range_end,
+        )
+        for device_code, device_summary in trend_12m_summary_by_device.items():
+            device_summary["mode"] = "last_12m"
         save_metrics(db, site.id, metrics, collected_at)
         current_row_count = save_search_console_query_rows(
             db,
@@ -1773,6 +1812,20 @@ def collect_search_console_metrics(
                     }
                     for r in trend_28d_rows
                 ],
+                "trend_12m_summary": trend_12m_summary,
+                "trend_12m_summary_by_device": trend_12m_summary_by_device,
+                "trend_12m_rows": [
+                    {
+                        "date": r.get("date", ""),
+                        "device": r.get("device", "ALL"),
+                        "clicks": float(r.get("clicks") or 0.0),
+                        "impressions": float(r.get("impressions") or 0.0),
+                        "position": float(r.get("position") or 0.0),
+                    }
+                    for r in trend_12m_rows
+                ],
+                "trend_12m_start_date": trend_12m_range_start.isoformat(),
+                "trend_12m_end_date": trend_12m_range_end.isoformat(),
             },
             row_count=current_row_count
             + current_day_row_count
