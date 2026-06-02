@@ -53,7 +53,7 @@
         </button>
         {% endfor %}
         {% set _dp = site.default_profile %}
-        {% if _dp in site.profiles and '12m' in site.profiles[_dp].periods %}
+        {% if site.ga4.connected and site.profiles %}
         <button
           type="button"
           role="tab"
@@ -163,14 +163,14 @@
         </div>
 
         {% for period_key in ['1', '7', '30', '90', '12m'] %}
-          {% if period_key not in site.profiles[site.default_profile].periods %}{% else %}
           <div
             data-ga4-period-panel="{{ period_key }}"
             class="{% if period_key != '7' %}hidden {% endif %}space-y-5"
           >
             {% for pk in ['web', 'mweb', 'android', 'ios'] %}
-              {% if pk in site.profiles and period_key in site.profiles[pk].periods %}
-                {% set p = site.profiles[pk].periods[period_key] %}
+              {% if pk in site.profiles %}
+                {% set p = site.profiles[pk].periods[period_key] if period_key in site.profiles[pk].periods else none %}
+                {% if p %}
                 {% set period_days = p.period_days %}
                 <div
                   data-ga4-profile-panel="{{ pk }}"
@@ -178,10 +178,10 @@
                 >
                   {% include 'partials/ga4_period_body.html' %}
                 </div>
+                {% endif %}
               {% endif %}
             {% endfor %}
           </div>
-          {% endif %}
         {% endfor %}
       </div>
     {% endif %}

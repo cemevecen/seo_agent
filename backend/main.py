@@ -11417,6 +11417,14 @@ def ga4_single_site_card(request: Request, site_id: int):
                         "7":  _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7,  latest=latest, prop_id=prop_id),
                         "30": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=30, latest=latest, prop_id=prop_id),
                         "90": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=90, latest=latest, prop_id=prop_id),
+                        "12m": _ga4_profile_payload_for_period(
+                            db,
+                            site_id=site.id,
+                            profile=profile,
+                            period_days=int(settings.ga4_trend_12m_period_days),
+                            latest=latest,
+                            prop_id=prop_id,
+                        ),
                     },
                 }
             site_data = {
