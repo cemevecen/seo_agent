@@ -910,9 +910,6 @@
               data-rt-top-tab="drivers">Değişim</button>
           </div>
           <div data-rt-top-panel="pages" class="min-w-0">
-            <p class="mb-1.5 hidden text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-pages-legend>
-              GA4 Realtime «Pages» ile aynı pencere: son 30 dk · <code class="text-[9px]">unifiedScreenName</code>
-            </p>
             <div class="min-w-0 space-y-1" data-rt-pages-list>
               <div class="animate-pulse space-y-2 py-2">
                 <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
@@ -923,9 +920,6 @@
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
           <div data-rt-top-panel="news" class="hidden min-w-0">
-            <p class="mb-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-              GA4 «Page title and screen name» (<code class="text-[9px]">unifiedScreenName</code>). Path realtime API’de yok; aktif kullanıcı sayıları GA4 «son 30 dk» penceresiyle aynıdır.
-            </p>
             <div class="min-w-0 space-y-1" data-rt-news-list>
               <div class="animate-pulse space-y-2 py-2">
                 <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
@@ -1225,7 +1219,7 @@
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-          tsEl.setAttribute('title', _rtGa4ApiFoot(d, { kpi: true }));
+          tsEl.removeAttribute('title');
         }
       })
       .catch(function (e) {
@@ -1489,39 +1483,6 @@
     );
   }
 
-  function _rtGa4ApiFoot(d, opts) {
-    if (!d) return '';
-    opts = opts || {};
-    var wm = d.window_minutes != null ? d.window_minutes : (opts.defaultWindow || LIST_WINDOW);
-    var parts = [];
-    if (opts.kpi) {
-      parts.push('GA4 Realtime KPI');
-      parts.push('toplam son ' + (d.window_minutes || WINDOW) + ' dk');
-    } else {
-      parts.push('GA4 Realtime');
-      parts.push('son ' + wm + ' dk');
-      if (d.comparison_enabled === false) {
-        parts.push('satır toplamı (GA4 Pages tablosu ile aynı)');
-      } else if (d.comparison_enabled) {
-        parts.push('önceki pencere karşılaştırmalı');
-      }
-    }
-    if (d.breakdown) parts.push(d.breakdown);
-    if (d.source === 'db_snapshot') parts.push('kaynak: DB snapshot');
-    else if (d.cached && d.stale) parts.push('önbellek · gecikmeli GA4');
-    else if (d.cached) parts.push('önbellek · GA4');
-    else parts.push('canlı GA4');
-    if (d.fetched_at) {
-      var dt = new Date(d.fetched_at);
-      if (!isNaN(dt.getTime())) {
-        parts.push(
-          'çekim ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        );
-      }
-    }
-    return parts.join(' · ');
-  }
-
   function _fetchTopNews(siteId, profile) {
     if (profile !== 'web' && profile !== 'mweb') return;
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
@@ -1546,8 +1507,7 @@
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          tsEl.setAttribute('title', _rtGa4ApiFoot(d));
-          tsEl.textContent += '\n' + _rtGa4ApiFoot(d);
+          tsEl.removeAttribute('title');
         }
       })
       .catch(function () {
@@ -1625,8 +1585,7 @@
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent =
             'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          tsEl.textContent += '\n' + _rtGa4ApiFoot(d);
-          tsEl.setAttribute('title', _rtGa4ApiFoot(d));
+          tsEl.removeAttribute('title');
         }
       })
       .catch(function () {
@@ -1807,11 +1766,6 @@
 
   function rtFetchTopPages(siteId, profile) {
     if (profile === 'ios' || profile === 'android') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
-    if (box) {
-      var leg = box.querySelector('[data-rt-pages-legend]');
-      if (leg) leg.classList.remove('hidden');
-    }
     _fetchTopData(siteId, profile, 'pages');
     _fetchTopNews(siteId, profile);
     _fetchDrivers(siteId, profile);
