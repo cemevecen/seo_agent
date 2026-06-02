@@ -77,6 +77,66 @@ _UNIFIED_TITLE_MARKET_SUBSTRINGS: tuple[str, ...] = (
     "ekonomi haberleri,",
 )
 
+# ga4_realtime ile paylaşılan — prefix elenir (haber makalesi başlıkları korunur)
+DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES: tuple[str, ...] = (
+    "(other)",
+    "(not set)",
+    "canlı döviz",
+    "canlı gram",
+    "canlı euro",
+    "canlı usd",
+    "canlı sterlin",
+    "güncel euro",
+    "güncel altın fiyatları",
+    "güncel altın",
+    "anlık altın",
+    "altın fiyatları",
+    "serbest piyasa",
+    "hisse senedi",
+    "harem ",
+    "döviz çevirici",
+    "canlı dolar",
+    "canlı borsa",
+    "çerez politikası",
+    "vizyondaki filmler",
+    "türkiye'nin sinema",
+    "en iyi animasyon",
+    "en iyi türk",
+    "en iyi korku",
+    "en iyi romantik",
+    "en iyi aksiyon",
+    "tüm filmler",
+    "tüm zamanların",
+    "gündem haberleri",
+    "borsa endeks",
+    "borsa haberleri",
+    "geçmiş halka",
+    "gümüş ons",
+    "gram gümüş",
+    "kapalıçarşı",
+    "ekonomi haberleri, türkiye",
+    "en uygun banka",
+    "amerikan doları",
+    "döviz kurları",
+    "ons fiyat",
+    "parite",
+    "kredi faiz",
+    "odacı odacı",
+    "vakıfbank vakıfbank",
+    "iş bankası iş bankası",
+    "gram altın fiyatı",
+    "gram gümüş fiyatı",
+)
+
+
+def news_screen_exclude_prefixes() -> tuple[str, ...]:
+    from backend.config import settings
+
+    raw = (getattr(settings, "ga4_realtime_news_screen_exclude_prefixes", None) or "").strip()
+    if raw:
+        return tuple(x.strip().lower() for x in raw.split(",") if x.strip())
+    return DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
+
 
 def _normalize_path(path: str) -> str:
     p = (path or "").strip()
@@ -208,6 +268,113 @@ def unified_screen_news_candidate(name: str, *, site_domain: str = "") -> bool:
 
     # Makale başlıkları (unifiedScreenName) — kategori adı değil, uzun metin
     return len(low) >= 10
+
+
+def _normalize_news_tab_title(title: str) -> str:
+    """Birleştirme: «… - Doviz.com» gibi GA4 varyantlarını tek satırda topla."""
+    t = (title or "").strip()
+    low = t.lower()
+    for suffix in (" - doviz.com", " | doviz.com"):
+        if low.endswith(suffix):
+            t = t[: len(t) - len(suffix)].strip()
+            low = t.lower()
+    return t
+
+
+def _looks_like_market_landing_title(low: str) -> bool:
+    """Ana sayfa / canlı fiyat listesi başlıkları (haber makalesi değil)."""
+    if low.startswith(
+        (
+            "canlı döviz",
+            "canlı gram",
+            "canlı euro",
+            "canlı usd",
+            "canlı dolar",
+            "canlı borsa",
+            "canlı emtia",
+            "canlı brent",
+            "canlı ons",
+            "canlı 22 ayar",
+            "güncel altın",
+            "güncel akaryakıt",
+            "anlık altın",
+            "anlık gram",
+            "anlık 22 ayar",
+            "serbest piyasa",
+            "hisse senedi",
+            "harem altın",
+            "harem döviz",
+            "döviz çevirici",
+            "kripto paralar ve canlı",
+            "bitcoin (btc) fiyatı",
+            "odacı odacı",
+            "vakıfbank vakıfbank",
+            "iş bankası iş bankası",
+        )
+    ):
+        return True
+    if low.startswith(("canlı ", "güncel ", "anlık ")) and any(
+        tok in low
+        for tok in (
+            "fiyatları",
+            "fiyatı ne kadar",
+            "kurları",
+            "piyasası",
+            "piyasa verileri",
+            "çevirici",
+            "hesaplama",
+        )
+    ):
+        return True
+    return False
+
+
+def unified_screen_news_article_title(name: str, *, site_domain: str = "") -> bool:
+    """Haberler sekmesi: GA4 path haber listesine yakın — makale başlıkları, piyasa ana sayfaları değil."""
+    n = _normalize_news_tab_title(name)
+    if not n:
+        return False
+    if n.lower() in ("(other)", "(not set)", "(blank)"):
+        return False
+    if n.startswith("/"):
+        return is_realtime_news_path(n, site_domain=site_domain)
+
+    low = n.lower()
+    if len(low) < 10:
+        return False
+
+    if _looks_like_market_landing_title(low):
+        return False
+
+    for pre in news_screen_exclude_prefixes():
+        if not low.startswith(pre):
+            continue
+        tail = low[len(pre) :].lstrip()
+        if not tail or tail[0] in ",|(":
+            return False
+        if tail.startswith(("-", "–", "—")):
+            return False
+
+    compact = low.replace(" ", "-")
+    if low.endswith(" haberleri") and len(low) < 55 and "-haberleri/" not in compact:
+        if " haberleri " not in f" {low} " or len(low) < 35:
+            return False
+
+    if len(low) >= 26:
+        return True
+
+    if "-haberleri" in compact:
+        return True
+
+    for frag in _UNIFIED_TITLE_MARKET_FRAGMENTS:
+        if frag in low:
+            return False
+
+    for sub in _UNIFIED_TITLE_MARKET_SUBSTRINGS:
+        if sub in low:
+            return False
+
+    return len(low) >= 14
 
 
 def realtime_news_page_link(path_or_label: str, *, site_domain: str) -> str:

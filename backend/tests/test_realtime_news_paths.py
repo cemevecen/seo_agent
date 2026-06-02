@@ -3,6 +3,7 @@
 from backend.services.realtime_news_paths import (
     is_realtime_news_path,
     realtime_news_page_link,
+    unified_screen_news_article_title,
     unified_screen_news_candidate,
 )
 
@@ -41,6 +42,25 @@ def test_unified_title_rejects_live_rates():
     assert unified_screen_news_candidate("Ekonomi Haberleri", site_domain="www.doviz.com")
     assert unified_screen_news_candidate(
         "Merkez Bankası faiz kararı açıklandı",
+        site_domain="www.doviz.com",
+    )
+
+
+def test_news_article_title_includes_trump_headline():
+    assert unified_screen_news_article_title(
+        "Altın fiyatlarına Trump desteği",
+        site_domain="www.doviz.com",
+    )
+    assert unified_screen_news_article_title(
+        "Havalimanlarında ücretsiz içme suyu dönemi",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "Canlı Gram Altın Fiyatı - Anlık Gram Altın Ne Kadar?",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "Canlı Emtia Fiyatları ve Emtia Piyasası",
         site_domain="www.doviz.com",
     )
 

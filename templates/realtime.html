@@ -1553,7 +1553,7 @@
           return;
         }
         var rows = Array.isArray(d.pages) ? d.pages : [];
-        _renderNewsList(listEl, rows);
+        _renderNewsList(listEl, rows, d.comparison_enabled !== false);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -1566,12 +1566,13 @@
       });
   }
 
-  function _renderNewsList(listEl, pages) {
+  function _renderNewsList(listEl, pages, showComparison) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber sayfası yok (kategori, etiket veya makale URL’leri / makale başlıkları).</p>';
       return;
     }
+    var cmp = showComparison !== false;
     var sortKey = 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
@@ -1586,8 +1587,8 @@
       var hrefAttr = primaryHref ? encodeURI(primaryHref) : '';
       var usersPrev = p.activeUsers_previous;
       var viewsPrev = p.screenPageViews_previous;
-      var usersComp = _renderComparison(p.activeUsers, usersPrev);
-      var viewsComp = _renderComparison(p.screenPageViews, viewsPrev);
+      var usersComp = cmp ? _renderComparison(p.activeUsers, usersPrev) : '';
+      var viewsComp = cmp ? _renderComparison(p.screenPageViews, viewsPrev) : '';
 
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);

@@ -1112,66 +1112,22 @@ def fetch_realtime_top_pages(
     }
 
 
-_DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES: tuple[str, ...] = (
-    "(other)",
-    "(not set)",
-    "canlı döviz",
-    "canlı gram",
-    "canlı euro",
-    "canlı usd",
-    "canlı sterlin",
-    "güncel euro",
-    "güncel altın fiyatları",
-    "güncel altın",
-    "anlık altın",
-    "altın fiyatları",
-    "serbest piyasa",
-    "hisse senedi",
-    "harem ",
-    "döviz çevirici",
-    "canlı dolar",
-    "canlı borsa",
-    "çerez politikası",
-    "vizyondaki filmler",
-    "türkiye'nin sinema",
-    "en iyi animasyon",
-    "en iyi türk",
-    "en iyi korku",
-    "en iyi romantik",
-    "en iyi aksiyon",
-    "tüm filmler",
-    "tüm zamanların",
-    "gündem haberleri",
-    "borsa endeks",
-    "borsa haberleri",
-    "geçmiş halka",
-    "gümüş ons",
-    "gram gümüş",
-    "kapalıçarşı",
-    "ekonomi haberleri, türkiye",
-    "en uygun banka",
-    "amerikan doları",
-    "döviz kurları",
-    "ons fiyat",
-    "parite",
-    "kredi faiz",
-    "halka arz",
-)
-
-
 def _news_screen_exclude_prefixes_loaded() -> tuple[str, ...]:
-    from backend.config import settings
+    from backend.services.realtime_news_paths import news_screen_exclude_prefixes
 
-    raw = (getattr(settings, "ga4_realtime_news_screen_exclude_prefixes", None) or "").strip()
-    if raw:
-        return tuple(x.strip().lower() for x in raw.split(",") if x.strip())
-    return _DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
+    return news_screen_exclude_prefixes()
 
 
 def _screen_unified_news_candidate(name: str, *, site_domain: str = "") -> bool:
     from backend.services.realtime_news_paths import unified_screen_news_candidate
 
     return unified_screen_news_candidate(name, site_domain=site_domain)
+
+
+def _screen_unified_news_article(name: str, *, site_domain: str = "") -> bool:
+    from backend.services.realtime_news_paths import unified_screen_news_article_title
+
+    return unified_screen_news_article_title(name, site_domain=site_domain)
 
 
 def _news_row_link(site_domain: str, unified: str) -> str:
@@ -1194,7 +1150,7 @@ def fetch_realtime_top_news_pages(
         is_news_detail_path,
         is_realtime_news_path,
         realtime_news_page_link,
-        unified_screen_news_candidate,
+        _normalize_news_tab_title,
     )
 
     fetch_n = min(250, max(80, int(limit) * 25))
@@ -1241,7 +1197,7 @@ def fetch_realtime_top_news_pages(
         link = (row.get("link_url") or "").strip().lower()
         if link:
             return f"url:{link}"
-        pg = str(row.get("page") or "").strip().lower()
+        pg = _normalize_news_tab_title(str(row.get("page") or "")).lower()
         return f"page:{pg}"
 
     for dim_used, base in bases:
@@ -1259,25 +1215,19 @@ def fetch_realtime_top_news_pages(
                 link = realtime_news_page_link(key, site_domain=site_domain)
                 page_path = key if key.startswith("/") else ""
             else:
-                skip = False
-                for pre in _news_screen_exclude_prefixes_loaded():
-                    if key.lower().startswith(pre):
-                        skip = True
-                        break
-                if skip:
-                    continue
-                if not unified_screen_news_candidate(key, site_domain=site_domain):
+                if not _screen_unified_news_article(key, site_domain=site_domain):
                     continue
                 link = realtime_news_page_link(key, site_domain=site_domain)
                 page_path = key if key.startswith("/") else ""
 
+            display_title = _normalize_news_tab_title(key) if not key.startswith("/") else key
             row = {
-                "page": key,
+                "page": display_title,
                 "page_path": page_path,
                 "activeUsers": float(p.get("activeUsers") or 0),
                 "screenPageViews": float(p.get("screenPageViews") or 0),
-                "activeUsers_previous": float(p.get("activeUsers_previous") or 0),
-                "screenPageViews_previous": float(p.get("screenPageViews_previous") or 0),
+                "activeUsers_previous": None,
+                "screenPageViews_previous": None,
                 "link_url": link,
                 "_is_detail": bool(
                     key.startswith("/") and is_news_detail_path(key)
@@ -1285,8 +1235,17 @@ def fetch_realtime_top_news_pages(
             }
             mk = _merge_key(row)
             prev = merged.get(mk)
-            if prev is None or float(row.get(sort_by) or 0) > float(prev.get(sort_by) or 0):
+            if prev is None:
                 merged[mk] = row
+            else:
+                for field in ("activeUsers", "screenPageViews"):
+                    prev[field] = max(
+                        float(prev.get(field) or 0),
+                        float(row.get(field) or 0),
+                    )
+                if float(row.get(sort_by) or 0) > float(prev.get(sort_by) or 0):
+                    prev["page"] = row["page"]
+                    prev["link_url"] = row.get("link_url") or prev.get("link_url")
 
     out = sorted(
         merged.values(),
