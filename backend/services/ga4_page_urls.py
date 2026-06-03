@@ -100,7 +100,7 @@ def is_seo_audit_excluded_url(url: str | None) -> bool:
 
 def is_seo_audit_crawl_url(url: str | None) -> bool:
     """SEO audit taramasına alınabilir gerçek https URL mi? GA4 (other) vb. hayır."""
-    u = repair_seo_audit_url((url or "").strip())
+    u = (url or "").strip()
     if not u.startswith(("http://", "https://")):
         return False
     if is_m_doviz_flat_product_url(u):
