@@ -1,6 +1,35 @@
 (function () {
   function api() { return window.NT || null; }
-  var NT_PARETO_CHART_H = 320;
+  var paretoResizeObs = null;
+
+  function paretoChartSize(el) {
+    if (!el) return { w: 0, h: 360 };
+    var w = el.clientWidth || (el.parentElement && el.parentElement.clientWidth) || 0;
+    var h = el.clientHeight || 0;
+    if (h < 200) h = Math.min(Math.round(window.innerHeight * 0.42), 480);
+    if (h < 280) h = 360;
+    return { w: Math.max(280, w), h: Math.max(280, h) };
+  }
+
+  function resizeParetoPlot() {
+    var el = document.getElementById("nt-lab-pareto");
+    if (!el || !window.Plotly || !el.querySelector(".js-plotly-plot")) return;
+    var sz = paretoChartSize(el);
+    try {
+      Plotly.relayout(el, { width: sz.w, height: sz.h, autosize: true });
+      Plotly.Plots.resize(el);
+    } catch (e) { /* ignore */ }
+  }
+
+  function bindParetoResize() {
+    var el = document.getElementById("nt-lab-pareto");
+    if (!el || paretoResizeObs) return;
+    if (typeof ResizeObserver !== "undefined") {
+      paretoResizeObs = new ResizeObserver(function () { resizeParetoPlot(); });
+      paretoResizeObs.observe(el);
+    }
+    window.addEventListener("resize", resizeParetoPlot);
+  }
 
   function emptyMsg(el, msg) {
     if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "Veri yok.") + "</p>";
@@ -156,25 +185,23 @@
       line.push((cum / total) * 100);
     });
     var lc = ntLabColors();
+    var sz = paretoChartSize(el);
     var layout = plotLayout({
-      height: NT_PARETO_CHART_H,
-      autosize: false,
+      width: sz.w,
+      height: sz.h,
+      autosize: true,
       yaxis: ntAxis(),
       yaxis2: ntAxis({ overlaying: "y", side: "right", title: "Kümülatif %", range: [0, 100] }),
-      margin: { l: 52, r: 48, t: 24, b: 110 },
+      margin: { l: 52, r: 48, t: 28, b: 100 },
       xaxis: ntAxis({ tickangle: -35 }),
-      legend: { font: ntFont(), orientation: "h", y: 1.12, x: 0 }
+      legend: { font: ntFont(), orientation: "h", y: 1.08, x: 0 }
     });
     Plotly.newPlot(el, [
       { type: "bar", x: xs, y: bar, name: "Click", marker: { color: lc.bar } },
       { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: lc.line, width: 2 } }
     ], layout, { responsive: true, displayModeBar: false });
-    window.requestAnimationFrame(function () {
-      try {
-        Plotly.Plots.resize(el);
-        Plotly.relayout(el, { height: NT_PARETO_CHART_H });
-      } catch (e) { /* ignore */ }
-    });
+    bindParetoResize();
+    window.requestAnimationFrame(resizeParetoPlot);
     var share = (top.reduce(function (s, x) { return s + x.clicks; }, 0) / total) * 100;
     if (sumEl) sumEl.textContent = "Top " + top.length + " başlık toplam click'in %" + share.toFixed(1) + "'ini taşıyor (80/20 kontrolü).";
   }
@@ -350,6 +377,7 @@
       return;
     }
     wireControls();
+    bindParetoResize();
     window.addEventListener("nt-redraw", function (ev) { renderLab(ev.detail || {}); });
     renderLab({ rows: api().getFilteredRows() });
   }

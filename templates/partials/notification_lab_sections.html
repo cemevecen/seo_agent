@@ -11,21 +11,27 @@
     </div>
     <style>
       #nt-lab-pareto.nt-lab-pareto-chart {
+        display: block;
+        box-sizing: border-box;
         width: 100%;
-        min-height: 320px;
-        height: 320px;
+        min-height: min(42vh, 480px);
+        height: min(42vh, 480px);
         flex-shrink: 0;
       }
       #nt-lab-pareto.nt-lab-pareto-chart .js-plotly-plot,
-      #nt-lab-pareto.nt-lab-pareto-chart .plot-container.plotly {
+      #nt-lab-pareto.nt-lab-pareto-chart .plot-container.plotly,
+      #nt-lab-pareto.nt-lab-pareto-chart .plot-container.plotly .svg-container {
         width: 100% !important;
-        min-height: 320px !important;
-        height: 320px !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        min-height: 100% !important;
       }
       #nt-lab-pareto.nt-lab-pareto-chart--empty {
         display: flex;
         align-items: center;
         justify-content: center;
+        min-height: 12rem;
+        height: auto;
       }
     </style>
     <div id="nt-lab-pareto" class="nt-lab-pareto-chart mt-3 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 dark:border-zinc-800 dark:bg-zinc-950/40"></div>
