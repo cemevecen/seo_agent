@@ -330,6 +330,9 @@
 
   {# Türk filmleri paneli #}
   <div id="panel-turkish" class="tmdb-panel hidden space-y-5">
+    <div class="rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-2.5 text-xs text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+      Türkçe veya TR yapımı tüm filmler (Sinema / Platform sekmesinde olanlar da burada listelenir).
+    </div>
     <div id="cbar-turkish" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.turkish_by_month, film_card) }}
   </div>
@@ -337,7 +340,7 @@
   {# Türk dizileri paneli #}
   <div id="panel-tv" class="tmdb-panel hidden space-y-5">
     <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
-      ATV · Kanal D · Show TV · Star TV · TRT1 · NOW TV · TV8 ve devam eden Türk dizileri dahildir.
+      Karasal kanallar + BluTV · exxen · Tabii + planlanan/yapım aşamasındaki TR dizileri + TMDB «yayında» listesi birleştirilir.
     </div>
     <div id="cbar-tv" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
     {{ month_grid(data.tv_by_month, tv_card, 'dizi') }}

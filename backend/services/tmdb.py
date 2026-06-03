@@ -257,8 +257,11 @@ def _fetch_pages(params: dict, page_limit: int = 5) -> list[dict]:
 
 
 # Film sekmeleri (Sinema, Platform, Türk Filmleri): bu ayın 1'inden başlar — _current_month_start()
-# Türk Dizileri sekmesi: yıl başından başlar — TV_YEAR_FROM (dönem başı ilerleyebilir)
-TV_YEAR_FROM = "2025-09-01"  # Türk dizileri — Eylül 2025'ten itibaren
+# Türk Dizileri — çok eski /tv/on_the_air gürültüsünü kesmek için alt sınır (first_air_date)
+TV_FIRST_AIR_FLOOR = "2024-01-01"
+
+# Dijital Türk platformları (discover/tv watch_region=TR)
+TR_OTT_TV_PROVIDER_IDS = "341|1869|4893"  # BluTV, exxen, Tabii
 
 
 def _year_end() -> str:
@@ -270,6 +273,27 @@ def _current_month_start() -> str:
     """Bugünün ayının ilk günü — örn. "2026-05-01". Her ay otomatik ilerler."""
     today = date.today()
     return today.replace(day=1).strftime("%Y-%m-%d")
+
+
+def _is_turkish_origin(m: dict) -> bool:
+    """TMDB ham kaydı: Türk yapımı (dil veya origin_country)."""
+    if (m.get("original_language") or "") == "tr":
+        return True
+    countries = m.get("origin_country") or []
+    return "TR" in countries
+
+
+_ACTIVE_TV_STATUS_TR = frozenset({
+    "Devam Ediyor", "Planlandı", "Yapım Aşamasında", "Pilot",
+})
+
+
+def _tv_keep_after_on_air_filter(m: dict) -> bool:
+    """Devam eden eski formatları ele, yeni sezon / yakın tarihli yapımları tut."""
+    first = (m.get("first_air_date") or "0000")[:10]
+    if first >= TV_FIRST_AIR_FLOOR:
+        return True
+    return (m.get("status") or "") in _ACTIVE_TV_STATUS_TR
 
 # ── 1. Sinema vizyon (theatrical) ─────────────────────────────────────────────
 
@@ -487,21 +511,45 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 # ── 3. Türk yapımları (tüm platformlar) ───────────────────────────────────────
 
 def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
-    """Türkçe orijinal dilli filmler — sinema + platform fark etmez."""
+    """Türk yapımı filmler — dil TR veya origin_country TR; vizyon + global prömiyer."""
     date_from = _current_month_start()
     date_to   = _year_end()
 
-    raw = _fetch_pages({
-        "with_original_language": "tr",
-        "release_date.gte":       date_from,
-        "release_date.lte":       date_to,
-        "sort_by":                "popularity.desc",
-        "include_adult":          "false",
-        "language":               "tr-TR",
-    }, page_limit=6)
+    seen: set[int] = set()
+    raw: list[dict] = []
+
+    queries = [
+        {
+            "with_original_language": "tr",
+            "release_date.gte":       date_from,
+            "release_date.lte":       date_to,
+        },
+        {
+            "with_origin_country":    "TR",
+            "release_date.gte":       date_from,
+            "release_date.lte":       date_to,
+        },
+        {
+            "with_original_language": "tr",
+            "primary_release_date.gte": date_from,
+            "primary_release_date.lte": date_to,
+        },
+    ]
+    common = {
+        "sort_by":       "popularity.desc",
+        "include_adult": "false",
+        "language":      "tr-TR",
+    }
+    for q in queries:
+        for m in _fetch_pages({**common, **q}, page_limit=8):
+            if not _is_turkish_origin(m):
+                continue
+            if m["id"] not in seen:
+                seen.add(m["id"])
+                raw.append(m)
 
     movies = [_enrich(m) for m in raw]
-    movies.sort(key=lambda x: x["release_date"] or "9999")
+    movies.sort(key=lambda x: (x["release_date"] or "9999", -(x.get("popularity") or 0)))
     return movies
 
 
@@ -565,17 +613,21 @@ def _fetch_tv_pages(params: dict, page_limit: int = 4) -> list[dict]:
     return results
 
 
+def _merge_turkish_tv_raw(raw: list[dict], seen: set[int], m: dict) -> None:
+    if not _is_turkish_origin(m):
+        return
+    if m["id"] not in seen:
+        seen.add(m["id"])
+        raw.append(m)
+
+
 def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     """
-    Karasal kanallarda (ATV, Kanal D, Show, Star, TRT1, NOW/FOX, TV8 …)
-    yayına girecek veya yeni sezonu başlayacak Türk dizileri.
+    Karasal + TR yapımı diziler — bölüm yayın tarihi penceresi (bu ay → yıl sonu+1).
 
-    İki kaynaktan çeker:
-    1. with_networks filtresi ile bilinen kanal ID'leri
-    2. with_original_language=tr  (ID eşleşmeyeni kurtarmak için)
-    Her ikisini birleştirip dil + popularity filtresi uygular.
+    Kaynaklar: with_networks (ATV, Kanal D, …), dil TR, origin_country TR.
     """
-    date_from = TV_YEAR_FROM   # Türk dizileri: yıl başından — bu ay filtresiz
+    date_from = _current_month_start()
     date_to   = _year_end()
 
     base_params = {
@@ -589,42 +641,69 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     seen: set[int] = set()
     raw: list[dict] = []
 
-    # 1. Bilinen karasal kanal ID'leri ile
-    for m in _fetch_tv_pages({**base_params, "with_networks": TR_KARASAL_NETWORKS}, page_limit=5):
-        if m["id"] not in seen:
-            seen.add(m["id"])
-            raw.append(m)
+    for m in _fetch_tv_pages({**base_params, "with_networks": TR_KARASAL_NETWORKS}, page_limit=8):
+        _merge_turkish_tv_raw(raw, seen, m)
+    for m in _fetch_tv_pages({**base_params, "with_original_language": "tr"}, page_limit=8):
+        _merge_turkish_tv_raw(raw, seen, m)
+    for m in _fetch_tv_pages({**base_params, "with_origin_country": "TR"}, page_limit=6):
+        _merge_turkish_tv_raw(raw, seen, m)
 
-    # 2. Türkçe orijinal dil + karasal kanalda olabilecekler
-    for m in _fetch_tv_pages({**base_params, "with_original_language": "tr"}, page_limit=4):
-        if m["id"] not in seen:
-            seen.add(m["id"])
-            raw.append(m)
-
-    # Filtrele: sadece Türkçe orijinal dilli veya Türk kanalı
-    series = []
-    for m in raw:
-        lang = m.get("original_language", "")
-        if lang == "tr":
-            series.append(_enrich_tv(m))
-
+    series = [_enrich_tv(m) for m in raw]
     series.sort(key=lambda x: (-x["popularity"], x["release_date"] or "9999"))
     return series
 
 
-def fetch_turkish_tv_returning(page_limit: int = 4) -> list[dict[str, Any]]:
+def fetch_turkish_tv_planned_production() -> list[dict[str, Any]]:
+    """Planlandı / yapım aşamasında TR dizileri — henüz air_date olmayanlar dahil."""
+    seen: set[int] = set()
+    raw: list[dict] = []
+    base = {
+        "language":          "tr-TR",
+        "sort_by":           "popularity.desc",
+        "include_adult":     "false",
+        "with_status":       "1|2",  # Planned, In Production
+    }
+    for m in _fetch_tv_pages({**base, "with_origin_country": "TR"}, page_limit=6):
+        _merge_turkish_tv_raw(raw, seen, m)
+    for m in _fetch_tv_pages({**base, "with_original_language": "tr"}, page_limit=5):
+        _merge_turkish_tv_raw(raw, seen, m)
+    return [_enrich_tv(m) for m in raw]
+
+
+def fetch_turkish_tv_ott() -> list[dict[str, Any]]:
+    """BluTV, exxen, Tabii vb. TR OTT — flatrate discover (bölüm tarihi penceresi)."""
+    date_from = _current_month_start()
+    date_to   = _year_end()
+    seen: set[int] = set()
+    raw: list[dict] = []
+    base = {
+        "language":          "tr-TR",
+        "sort_by":           "popularity.desc",
+        "include_adult":     "false",
+        "watch_region":      "TR",
+        "with_watch_monetization_types": "flatrate",
+        "air_date.gte":      date_from,
+        "air_date.lte":      date_to,
+    }
+    for pid in TR_OTT_TV_PROVIDER_IDS.split("|"):
+        for m in _fetch_tv_pages({**base, "with_watch_providers": pid}, page_limit=5):
+            _merge_turkish_tv_raw(raw, seen, m)
+    return [_enrich_tv(m) for m in raw]
+
+
+def fetch_turkish_tv_returning(page_limit: int = 8) -> list[dict[str, Any]]:
     """
-    Hâlihazırda devam eden Türk dizileri — yeni sezonu yakında başlayacaklar.
-    /tv/on_the_air + dil filtresi.
+    Hâlihazırda devam eden Türk dizileri — /tv/on_the_air (konuşulan / sezon devam).
     """
     seen: set[int] = set()
     series: list[dict] = []
     for page in range(1, page_limit + 1):
         data = _get("/tv/on_the_air", {"language": "tr-TR", "page": page})
         for m in data.get("results", []):
-            if m.get("original_language") == "tr" and m["id"] not in seen:
-                seen.add(m["id"])
-                series.append(_enrich_tv(m))
+            if not _is_turkish_origin(m) or m["id"] in seen:
+                continue
+            seen.add(m["id"])
+            series.append(_enrich_tv(m))
         if page >= data.get("total_pages", 1):
             break
     series.sort(key=lambda x: -x["popularity"])
@@ -678,29 +757,36 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
 
     # ── Diziler ──────────────────────────────────────────────────────────────
     tv_upcoming: list[dict] = []
+    tv_planned: list[dict] = []
+    tv_ott: list[dict] = []
     tv_returning: list[dict] = []
     try:
         tv_upcoming = fetch_turkish_tv_karasal(months_ahead)
     except Exception as exc:
         logger.error("TMDB TV karasal hatası: %s", exc)
     try:
+        tv_planned = fetch_turkish_tv_planned_production()
+    except Exception as exc:
+        logger.error("TMDB TV planned hatası: %s", exc)
+        tv_planned = []
+    try:
+        tv_ott = fetch_turkish_tv_ott()
+    except Exception as exc:
+        logger.error("TMDB TV OTT hatası: %s", exc)
+        tv_ott = []
+    try:
         tv_returning = fetch_turkish_tv_returning()
     except Exception as exc:
         logger.error("TMDB TV returning hatası: %s", exc)
 
-    # Birleştir: upcoming + returning (daha önce eklenmediyse)
     tv_seen = {m["id"] for m in tv_upcoming}
-    for m in tv_returning:
-        if m["id"] not in tv_seen:
-            tv_upcoming.append(m)
-            tv_seen.add(m["id"])
+    for extra_batch in (tv_planned, tv_ott, tv_returning):
+        for m in extra_batch:
+            if m["id"] not in tv_seen:
+                tv_upcoming.append(m)
+                tv_seen.add(m["id"])
 
-    # first_air_date < TV_YEAR_FROM olan eski dizileri filtrele
-    # (Survivor gibi /tv/on_the_air'den gelen 2005 tarihliler çıkar)
-    tv_upcoming = [
-        m for m in tv_upcoming
-        if (m.get("first_air_date") or "0000") >= TV_YEAR_FROM
-    ]
+    tv_upcoming = [m for m in tv_upcoming if _tv_keep_after_on_air_filter(m)]
 
     tv_upcoming.sort(key=lambda x: (-x["popularity"], x["release_date"] or "9999"))
 
@@ -712,7 +798,10 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     known_movie_ids = theatrical_ids | streaming_movie_ids
 
     # Türk yapımlarından diğerlerinde olmayanları ayır
+    # Sinema/platformda da olsa Türk Filmleri sekmesinde tam liste
     turkish_only = [m for m in turkish if m["id"] not in known_movie_ids]
+    for m in turkish:
+        m["in_theatrical_or_streaming"] = m["id"] in known_movie_ids
 
     # theatrical ve streaming'e de Türk işareti ekle
     for lst in (theatrical, streaming):
@@ -745,7 +834,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         "streaming":           streaming,
         "streaming_by_month":  group_by_month(streaming),
         "turkish_only":        turkish_only,
-        "turkish_by_month":    group_by_month(turkish_only),
+        "turkish_by_month":    group_by_month(turkish),
         "tv_series":           tv_upcoming,
         "tv_by_month":         group_by_month(tv_upcoming),
         "high_potential":      high_potential[:15],
