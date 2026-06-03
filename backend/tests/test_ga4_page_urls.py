@@ -1,6 +1,7 @@
 from backend.services.ga4_page_urls import (
     ga4_canonical_page_url,
     is_m_doviz_flat_product_url,
+    is_m_doviz_phantom_breadcrumb_url,
     repair_seo_audit_url,
     seo_audit_url_from_ga4,
 )
@@ -52,3 +53,37 @@ def test_flat_m_doviz_detected_and_repaired():
 def test_mweb_haber_root_unchanged():
     url = ga4_canonical_page_url("m.doviz.com", "/haberler/dunya")
     assert url == "https://m.doviz.com/haberler/dunya"
+
+
+def test_mweb_phantom_breadcrumb_haber_stripped():
+    bad = (
+        "https://m.doviz.com/altin/haber/altin-ve-degerli-metal-haberleri/"
+        "altin-fiyatlarina-trump-destegi/878112"
+    )
+    assert is_m_doviz_phantom_breadcrumb_url(bad)
+    fixed = repair_seo_audit_url(bad)
+    assert fixed.startswith("https://m.doviz.com/haber/")
+    assert "/altin/haber/" not in fixed
+    assert not is_m_doviz_phantom_breadcrumb_url(fixed)
+
+
+def test_mweb_phantom_breadcrumb_kur_stripped():
+    bad = "https://m.doviz.com/altin/kur/altinkaynak/amerikan-dolari"
+    assert is_m_doviz_phantom_breadcrumb_url(bad)
+    assert repair_seo_audit_url(bad) == "https://m.doviz.com/kur/altinkaynak/amerikan-dolari"
+
+
+def test_mweb_harem_under_altin_unchanged():
+    url = "https://m.doviz.com/altin/harem/ons"
+    assert not is_m_doviz_phantom_breadcrumb_url(url)
+    assert repair_seo_audit_url(url) == url
+
+
+def test_seo_audit_from_ga4_mweb_phantom_path():
+    raw = (
+        "/altin/haber/altin-ve-degerli-metal-haberleri/"
+        "altin-fiyatlarina-trump-destegi/878112"
+    )
+    u = seo_audit_url_from_ga4("m.doviz.com", raw, ga4_profile="mweb")
+    assert u.startswith("https://m.doviz.com/haber/")
+    assert "/altin/haber" not in u

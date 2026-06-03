@@ -14,7 +14,7 @@ from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from backend.services.ga4_page_urls import (
-    is_m_doviz_flat_product_url,
+    is_m_doviz_invalid_mweb_audit_url,
     is_seo_audit_crawl_url,
     is_seo_audit_excluded_url,
 )
@@ -56,7 +56,7 @@ def purge_invalid_m_doviz_audit_urls(db: Session, site_id: int) -> int:
     rows = db.query(UrlAuditRecord.id, UrlAuditRecord.url).filter(
         UrlAuditRecord.site_id == site_id,
     ).all()
-    bad_ids = [rid for rid, url in rows if is_m_doviz_flat_product_url(url)]
+    bad_ids = [rid for rid, url in rows if is_m_doviz_invalid_mweb_audit_url(url)]
     if not bad_ids:
         return 0
     try:
@@ -274,7 +274,7 @@ def get_audit_issues(
 
     result = []
     for r in rows:
-        if is_m_doviz_flat_product_url(r.url):
+        if is_m_doviz_invalid_mweb_audit_url(r.url):
             continue
         result.append({
             "url": r.url,

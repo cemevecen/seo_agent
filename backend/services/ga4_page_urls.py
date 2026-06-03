@@ -35,6 +35,7 @@ _DOVIZ_MWEB_TOP_LEVEL = frozenset({
     "kripto-paralar",
     "borsa",
     "hisseler",
+    "haber",
     "haberler",
     "yazilar",
     "makaleler",
@@ -56,6 +57,36 @@ _DOVIZ_MWEB_TOP_LEVEL = frozenset({
 })
 # www.doviz.com'da 404; yalnızca altin.doviz.com kökünde olan tek segmentli yollar (kur ile çakışmaz)
 _DOVIZ_ALTIN_ONLY_ROOT_SLUGS = frozenset({"altinkaynak"})
+
+# m.doviz.com'da /altin/ altında OLMAYAN kökler (breadcrumb / GA4 birleşik path hatası)
+_DOVIZ_MWEB_BREADCRUMB_PHANTOM_SEGMENTS = frozenset({
+    "haber",
+    "haberler",
+    "kur",
+    "kripto-paralar",
+    "borsa",
+    "emtia",
+    "emtialar",
+    "akaryakit-fiyatlari",
+    "akaryakit",
+    "doviz",
+    "pariteler",
+    "endeksler",
+    "hisseler",
+    "halka-arz",
+    "yazilar",
+    "makaleler",
+    "ekonomi-sozlugu",
+    "kredi",
+    "doviz-cevirici",
+    "arama",
+    "iletisim",
+    "cerez-politikasi",
+    "kisisel-verilerin-korunmasi",
+    "giris",
+    "uye",
+    "uyelik",
+})
 
 # GA4 boyut yer tutucuları — tıklanabilir URL üretme
 _GA4_PLACEHOLDER_HOSTS = frozenset(
@@ -103,7 +134,7 @@ def is_seo_audit_crawl_url(url: str | None) -> bool:
     u = (url or "").strip()
     if not u.startswith(("http://", "https://")):
         return False
-    if is_m_doviz_flat_product_url(u):
+    if is_m_doviz_invalid_mweb_audit_url(u):
         return False
     if is_seo_audit_excluded_url(u):
         return False
@@ -117,6 +148,51 @@ def is_seo_audit_crawl_url(url: str | None) -> bool:
     except Exception:
         return False
     return True
+
+
+def _doviz_mweb_path_parts(path: str) -> list[str]:
+    p = (path or "").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    return [x for x in p.split("/") if x]
+
+
+def _doviz_mweb_strip_phantom_breadcrumb(path: str) -> str:
+    """
+    Breadcrumb kaynaklı /altin/haber/… → /haber/… (canlı sitede /altin/ öneki yok).
+    /altin/harem/… ve /altin/{banka|ürün} dokunulmaz.
+    """
+    parts = _doviz_mweb_path_parts(path)
+    if len(parts) < 2 or parts[0].lower() != "altin":
+        return path
+    second = (parts[1] or "").split("?")[0].lower()
+    if second not in _DOVIZ_MWEB_BREADCRUMB_PHANTOM_SEGMENTS:
+        return path
+    return "/" + "/".join(parts[1:])
+
+
+def is_m_doviz_phantom_breadcrumb_url(url: str | None) -> bool:
+    """m.doviz.com — /altin/kur|haber|borsa/… gibi olmayan birleşik path (tarama öncesi)."""
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urlparse(u)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower().split(":")[0]
+    if host != _DOVIZ_MWEB_HOST:
+        return False
+    parts = _doviz_mweb_path_parts(parsed.path or "/")
+    if len(parts) < 2 or parts[0].lower() != "altin":
+        return False
+    second = (parts[1] or "").split("?")[0].lower()
+    return second in _DOVIZ_MWEB_BREADCRUMB_PHANTOM_SEGMENTS
+
+
+def is_m_doviz_invalid_mweb_audit_url(url: str | None) -> bool:
+    """DB/tarama dışı: düz slug veya breadcrumb hayalet path."""
+    return is_m_doviz_flat_product_url(url) or is_m_doviz_phantom_breadcrumb_url(url)
 
 
 def is_m_doviz_flat_product_url(url: str | None) -> bool:
@@ -182,7 +258,7 @@ def seo_audit_url_from_ga4(
     if is_seo_audit_excluded_url(u):
         return ""
     u = repair_seo_audit_url(u)
-    if is_m_doviz_flat_product_url(u):
+    if is_m_doviz_invalid_mweb_audit_url(u):
         return ""
     return u
 
@@ -443,6 +519,7 @@ def _doviz_mweb_resolve_path(path: str) -> str:
     p = path.strip()
     if not p.startswith("/"):
         p = "/" + p
+    p = _doviz_mweb_strip_phantom_breadcrumb(p)
     low = p.lower()
     if low in ("/", "/altin", "/altin/"):
         return p if low != "/altin" else "/altin/"
