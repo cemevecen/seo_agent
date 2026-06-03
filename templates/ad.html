@@ -197,6 +197,39 @@
 
 <script>
 (function () {
+  /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
+  (function adLayout() {
+    var g = document.getElementById('ad-body-grid');
+    if (!g) return;
+    var s = document.getElementById('ad-sidebar');
+    var m = document.getElementById('ad-main');
+    function apply() {
+      var wide = window.innerWidth >= 1280;
+      var P = 'important';
+      g.style.setProperty('display', wide ? 'flex' : 'block', P);
+      g.style.setProperty('flex-direction', 'row', P);
+      g.style.setProperty('gap', '1rem', P);
+      g.style.setProperty('align-items', 'flex-start', P);
+      g.style.setProperty('width', '100%', P);
+      if (s) {
+        s.style.setProperty('flex', wide ? '0 0 300px' : 'none', P);
+        s.style.setProperty('width', wide ? '300px' : '100%', P);
+        s.style.setProperty('min-width', '0', P);
+        s.style.setProperty('box-sizing', 'border-box', P);
+        s.style.setProperty('margin-bottom', wide ? '0' : '1rem', P);
+      }
+      if (m) {
+        m.style.setProperty('flex', wide ? '1 1 auto' : 'none', P);
+        m.style.setProperty('min-width', '0', P);
+        m.style.setProperty('min-height', '24rem', P);
+        m.style.setProperty('box-sizing', 'border-box', P);
+        if (!wide) m.style.setProperty('width', '100%', P);
+      }
+    }
+    apply();
+    window.addEventListener('resize', apply);
+  })();
+
   window.__seoAdPageScriptRan = true;
   var KPI_DEFS = [
     { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
