@@ -906,6 +906,8 @@ class AdReportRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     source_file: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    project: Mapped[str] = mapped_column(String(32), nullable=False, default="", index=True)
+    branch: Mapped[str] = mapped_column(String(32), nullable=False, default="", index=True)
     platform: Mapped[str] = mapped_column(String(32), nullable=False, default="mobile", index=True)
     channel: Mapped[str] = mapped_column(String(32), nullable=False, default="other", index=True)
     surface: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown", index=True)

@@ -269,4 +269,12 @@ def ensure_indexes() -> None:
         _ensure_ad_report_col("channel", "VARCHAR(32) NOT NULL DEFAULT 'other'", "VARCHAR(32) NOT NULL DEFAULT 'other'")
         _ensure_ad_report_col("surface", "VARCHAR(32) NOT NULL DEFAULT 'unknown'", "VARCHAR(32) NOT NULL DEFAULT 'unknown'")
         _ensure_ad_report_col("extra_metrics", "TEXT NOT NULL DEFAULT '{}'", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_ad_report_col("project", "VARCHAR(32) NOT NULL DEFAULT ''", "VARCHAR(32) NOT NULL DEFAULT ''")
+        _ensure_ad_report_col("branch", "VARCHAR(32) NOT NULL DEFAULT ''", "VARCHAR(32) NOT NULL DEFAULT ''")
+        conn.execute(
+            _txt(
+                "CREATE INDEX IF NOT EXISTS ix_ad_report_project_branch_date "
+                "ON ad_report_rows(project, branch, report_date)"
+            )
+        )
         conn.commit()

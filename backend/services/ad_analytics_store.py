@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Iterator
 
@@ -182,9 +183,81 @@ def _month_from_serial(val: Any) -> str:
     return d.strftime("%Y-%m") if d else ""
 
 
-def _detect_channel(filename: str) -> str:
+@dataclass(frozen=True)
+class AdStream:
+    key: str
+    project: str
+    branch: str
+    label: str
+    channel: str
+    default_surface: str
+
+
+AD_STREAMS: tuple[AdStream, ...] = (
+    AdStream("doviz:desktop", "doviz", "desktop", "Döviz · Desktop", "dovizcom", "web"),
+    AdStream("doviz:mweb", "doviz", "mweb", "Döviz · Mobil Web", "dovizcom", "mweb"),
+    AdStream("doviz:ios", "doviz", "ios", "Döviz · iOS", "ios", "ios_app"),
+    AdStream("doviz:android", "doviz", "android", "Döviz · Android", "android", "android_app"),
+    AdStream("sinemalar:desktop", "sinemalar", "desktop", "Sinemalar · Desktop", "sinemalar", "web"),
+    AdStream("sinemalar:mweb", "sinemalar", "mweb", "Sinemalar · Mobil Web", "sinemalar", "mweb"),
+)
+
+_STREAM_BY_KEY = {s.key: s for s in AD_STREAMS}
+
+
+def detect_stream(filename: str) -> AdStream | None:
+    """Dosya adından proje + dal (6 akış)."""
+    low = (filename or "").lower().replace(" ", "")
+    if "m.sinemalar" in low or "m_sinemalar" in low:
+        return _STREAM_BY_KEY["sinemalar:mweb"]
+    if "sinemalar" in low and ("desktop" in low or low.startswith("sinemalardesktop")):
+        return _STREAM_BY_KEY["sinemalar:desktop"]
+    if "m.doviz" in low or "m_doviz" in low or "mdovizcom" in low:
+        return _STREAM_BY_KEY["doviz:mweb"]
+    if "doviz_ios" in low or "doviz-ios" in low:
+        return _STREAM_BY_KEY["doviz:ios"]
+    if "doviz_android" in low or "doviz-android" in low:
+        return _STREAM_BY_KEY["doviz:android"]
+    if "dovizcom" in low or "doviz.com" in low:
+        return _STREAM_BY_KEY["doviz:desktop"]
+    return None
+
+
+def _report_period_rank(filename: str) -> int:
+    """2025 dosyası=1, 2026 güncel dosyası=2 (son import üstüne yazar)."""
     low = (filename or "").lower()
-    if "dovizcom" in low or "doviz.com" in low or "doviz_com" in low:
+    if (
+        "_2_report" in low
+        or "com2_report" in low
+        or "desktop_2_report" in low
+        or "_2_" in low and "report" in low
+    ):
+        return 2
+    if (
+        "_1_report" in low
+        or "com1_report" in low
+        or "desktop_1_report" in low
+        or "_1_" in low and "report" in low
+        or "ios_1" in low
+        or "android_1" in low
+    ):
+        return 1
+    return 9
+
+
+def _bulk_sort_key(item: tuple[bytes, str]) -> tuple[str, int, str]:
+    _data, name = item
+    stream = detect_stream(name)
+    sk = stream.key if stream else f"zzz:{name}"
+    return (sk, _report_period_rank(name), name.lower())
+
+
+def _detect_channel(filename: str) -> str:
+    stream = detect_stream(filename)
+    if stream:
+        return stream.channel
+    low = (filename or "").lower()
+    if "dovizcom" in low or "doviz.com" in low:
         return "dovizcom"
     if "android" in low:
         return "android"
@@ -233,10 +306,11 @@ def _row_fingerprint(
     report_date: date,
     ad_unit: str,
     income_type: str,
-    platform: str,
-    source_file: str,
+    project: str,
+    branch: str,
 ) -> str:
-    raw = f"{report_date.isoformat()}|{ad_unit}|{income_type}|{platform}|{source_file}"
+    """Dal içinde tekilleştirme — kaynak dosya dahil değil (güncelleme duplike etmez)."""
+    raw = f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -244,6 +318,8 @@ def _dict_from_mapped(
     mapped: dict[str, Any],
     source_file: str,
     *,
+    project: str,
+    branch: str,
     channel: str,
     platform: str,
     surface: str,
@@ -263,8 +339,8 @@ def _dict_from_mapped(
         report_date=rd,
         ad_unit=ad_unit,
         income_type=income_type,
-        platform=platform,
-        source_file=source_file,
+        project=project,
+        branch=branch,
     )
     extras = dict(extra_metrics or {})
     for key in list(extras.keys()):
@@ -273,6 +349,8 @@ def _dict_from_mapped(
     row: dict[str, Any] = {
         "fingerprint": fp,
         "source_file": source_file,
+        "project": project,
+        "branch": branch,
         "platform": platform,
         "channel": channel,
         "surface": surface,
@@ -310,6 +388,7 @@ def _row_from_values(
     extras_idx: list[tuple[str, int]],
     *,
     source_file: str,
+    stream: AdStream | None,
     channel: str,
 ) -> dict[str, Any] | None:
     mapped: dict[str, Any] = {}
@@ -325,11 +404,21 @@ def _row_from_values(
             val = values[idx]
             extra_metrics[key] = _n(val) if isinstance(val, (int, float, str)) else val
     ad_unit = (mapped.get("ad_unit") or "").strip()
-    surface = _detect_surface(ad_unit, channel)
+    if stream:
+        project, branch = stream.project, stream.branch
+        channel = stream.channel
+        surface = _detect_surface(ad_unit, channel)
+        if surface == "unknown" and stream.default_surface:
+            surface = stream.default_surface
+    else:
+        project, branch = "", ""
+        surface = _detect_surface(ad_unit, channel)
     platform = _platform_from_surface(surface, channel)
     return _dict_from_mapped(
         mapped,
         source_file,
+        project=project,
+        branch=branch,
         channel=channel,
         platform=platform,
         surface=surface,
@@ -348,11 +437,14 @@ def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[di
         col_map, extras_idx = _map_header_row(list(header_row))
         if "ad_unit" not in col_map or "income_type" not in col_map:
             return
-        channel = _detect_channel(filename)
+        stream = detect_stream(filename)
+        channel = stream.channel if stream else _detect_channel(filename)
         for row in rows_iter:
             if not row:
                 continue
-            item = _row_from_values(row, col_map, extras_idx, source_file=filename, channel=channel)
+            item = _row_from_values(
+                row, col_map, extras_idx, source_file=filename, stream=stream, channel=channel
+            )
             if item:
                 yield item
     finally:
@@ -380,22 +472,34 @@ def parse_csv_text(text: str, *, filename: str = "upload.csv") -> list[dict[str,
     col_map, extras_idx = _map_header_row(header_row)
     if "ad_unit" not in col_map or "income_type" not in col_map:
         return []
-    channel = _detect_channel(filename)
+    stream = detect_stream(filename)
+    channel = stream.channel if stream else _detect_channel(filename)
     out: list[dict[str, Any]] = []
     for cols in reader:
-        item = _row_from_values(tuple(cols), col_map, extras_idx, source_file=filename, channel=channel)
+        item = _row_from_values(
+            tuple(cols), col_map, extras_idx, source_file=filename, stream=stream, channel=channel
+        )
         if item:
             out.append(item)
     return out
 
 
-def _upsert_catalog(db: Session, filename: str, channel: str, columns: list[str], row_count: int) -> None:
+def _upsert_catalog(
+    db: Session,
+    filename: str,
+    channel: str,
+    columns: list[str],
+    row_count: int,
+    *,
+    stream: AdStream | None = None,
+) -> None:
     payload = json.dumps(columns, ensure_ascii=False)
     row = db.execute(
         select(AdReportCatalog).where(AdReportCatalog.source_file == filename)
     ).scalars().first()
+    ch = stream.key if stream else channel
     if row:
-        row.channel = channel
+        row.channel = ch
         row.columns_json = payload
         row.row_count = row_count
         row.imported_at = datetime.utcnow()
@@ -403,49 +507,65 @@ def _upsert_catalog(db: Session, filename: str, channel: str, columns: list[str]
         db.add(
             AdReportCatalog(
                 source_file=filename,
-                channel=channel,
+                channel=ch,
                 columns_json=payload,
                 row_count=row_count,
             )
         )
 
 
+_UPSERT_UPDATE_COLS = (
+    "source_file",
+    "project",
+    "branch",
+    "platform",
+    "channel",
+    "surface",
+    "month_key",
+    "ad_request",
+    "matched_request",
+    "impression",
+    "click",
+    "ad_request_ecpm",
+    "ad_impression_ecpm",
+    "ctr",
+    "coverage",
+    "viewability",
+    "net_revenue",
+    "extra_metrics",
+)
+
+
 def _flush_batch(db: Session, batch: list[dict[str, Any]]) -> tuple[int, int]:
+    """Upsert: aynı gün+ad_unit+gelir tipi güncellenir (duplike satır oluşmaz)."""
     if not batch:
         return 0, 0
     if _IS_PG:
         stmt = pg_insert(AdReportRow).values(batch)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["fingerprint"])
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["fingerprint"],
+            set_={col: getattr(stmt.excluded, col) for col in _UPSERT_UPDATE_COLS},
+        )
         res = db.execute(stmt)
         rc = res.rowcount
-        inserted = len(batch) if rc is None or rc < 0 else int(rc)
-        skipped = max(0, len(batch) - inserted)
+        affected = len(batch) if rc is None or rc < 0 else int(rc)
         db.flush()
-        return inserted, skipped
-    fps = [r["fingerprint"] for r in batch]
-    existing = {
-        r[0]
-        for r in db.execute(
-            select(AdReportRow.fingerprint).where(AdReportRow.fingerprint.in_(fps))
-        ).all()
-    }
-    inserted = 0
-    skipped = 0
-    to_add: list[AdReportRow] = []
-    for r in batch:
-        if r["fingerprint"] in existing:
-            skipped += 1
-            continue
-        to_add.append(AdReportRow(**r))
-        existing.add(r["fingerprint"])
-    if to_add:
-        db.add_all(to_add)
-        db.flush()
-        inserted = len(to_add)
-    return inserted, skipped
+        return affected, 0
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    stmt = sqlite_insert(AdReportRow).values(batch)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["fingerprint"],
+        set_={col: stmt.excluded[col] for col in _UPSERT_UPDATE_COLS},
+    )
+    res = db.execute(stmt)
+    rc = res.rowcount
+    affected = len(batch) if rc is None or rc < 0 else int(rc)
+    db.flush()
+    return affected, 0
 
 
-def import_rows(db: Session, rows: Iterable[dict[str, Any]]) -> dict[str, int]:
+def import_rows(db: Session, rows: Iterable[dict[str, Any]], *, commit: bool = True) -> dict[str, int]:
     inserted = 0
     skipped = 0
     parsed = 0
@@ -462,7 +582,8 @@ def import_rows(db: Session, rows: Iterable[dict[str, Any]]) -> dict[str, int]:
         ins, sk = _flush_batch(db, batch)
         inserted += ins
         skipped += sk
-    db.commit()
+    if commit:
+        db.commit()
     return {
         "inserted": inserted,
         "skipped": skipped,
@@ -471,9 +592,16 @@ def import_rows(db: Session, rows: Iterable[dict[str, Any]]) -> dict[str, int]:
     }
 
 
-def import_upload_file(db: Session, data: bytes, *, filename: str) -> dict[str, Any]:
+def import_upload_file(
+    db: Session,
+    data: bytes,
+    *,
+    filename: str,
+    commit: bool = True,
+) -> dict[str, Any]:
     low = filename.lower()
-    channel = _detect_channel(filename)
+    stream = detect_stream(filename)
+    channel = stream.channel if stream else _detect_channel(filename)
     if low.endswith(".xlsx") or low.endswith(".xlsm"):
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         try:
@@ -481,7 +609,7 @@ def import_upload_file(db: Session, data: bytes, *, filename: str) -> dict[str, 
             columns = [str(h or "").strip() for h in (header_row or []) if str(h or "").strip()]
         finally:
             wb.close()
-        result = import_rows(db, iter_xlsx_rows(data, filename=filename))
+        result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=commit)
     elif low.endswith(".csv") or low.endswith(".txt"):
         text = data.decode("utf-8", errors="replace")
         lines = [ln for ln in text.splitlines() if ln.strip()]
@@ -489,15 +617,58 @@ def import_upload_file(db: Session, data: bytes, *, filename: str) -> dict[str, 
         if lines:
             delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
             columns = [c.strip() for c in lines[0].split(delim)]
-        result = import_rows(db, parse_csv_text(text, filename=filename))
+        result = import_rows(db, parse_csv_text(text, filename=filename), commit=commit)
     else:
         raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
-    _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0))
-    db.commit()
+    _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0), stream=stream)
+    if commit:
+        db.commit()
     result["filename"] = filename
     result["channel"] = channel
     result["columns"] = columns
+    if stream:
+        result["stream_key"] = stream.key
+        result["project"] = stream.project
+        result["branch"] = stream.branch
+        result["period"] = _report_period_rank(filename)
+    else:
+        result["stream_key"] = None
+        result["warning"] = "Dosya adından dal tanınamadı"
     return result
+
+
+def import_upload_files_bulk(
+    db: Session,
+    files: list[tuple[bytes, str]],
+) -> dict[str, Any]:
+    """Çoklu xlsx: önce 2025 (_1), sonra 2026 (_2); çakışan günlerde son dosya geçerli."""
+    ordered = sorted(files, key=_bulk_sort_key)
+    per_file: list[dict[str, Any]] = []
+    unknown: list[str] = []
+    total_inserted = 0
+    total_parsed = 0
+    for data, name in ordered:
+        if not data:
+            per_file.append({"filename": name, "error": "boş dosya"})
+            continue
+        try:
+            out = import_upload_file(db, data, filename=name, commit=False)
+            per_file.append(out)
+            total_inserted += int(out.get("inserted") or 0)
+            total_parsed += int(out.get("parsed") or 0)
+            if not out.get("stream_key"):
+                unknown.append(name)
+        except Exception as exc:  # noqa: BLE001
+            per_file.append({"filename": name, "error": str(exc)})
+    db.commit()
+    return {
+        "files": per_file,
+        "file_count": len(ordered),
+        "inserted": total_inserted,
+        "parsed": total_parsed,
+        "total": count_rows(db),
+        "unknown_files": unknown,
+    }
 
 
 def count_rows(db: Session) -> int:
@@ -577,7 +748,36 @@ def facets(db: Session) -> dict[str, Any]:
             if slug not in seen_cols:
                 seen_cols.add(slug)
                 extra_columns.append(str(c))
+    stream_stats = db.execute(
+        select(
+            AdReportRow.project,
+            AdReportRow.branch,
+            func.min(AdReportRow.report_date),
+            func.max(AdReportRow.report_date),
+            func.count(),
+        )
+        .where(AdReportRow.project != "", AdReportRow.branch != "")
+        .group_by(AdReportRow.project, AdReportRow.branch)
+    ).all()
+    stats_map = {(r[0], r[1]): r for r in stream_stats}
+    streams_out: list[dict[str, Any]] = []
+    for meta in AD_STREAMS:
+        hit = stats_map.get((meta.project, meta.branch))
+        streams_out.append(
+            {
+                "key": meta.key,
+                "project": meta.project,
+                "branch": meta.branch,
+                "label": meta.label,
+                "min_date": hit[2].isoformat() if hit and hit[2] else None,
+                "max_date": hit[3].isoformat() if hit and hit[3] else None,
+                "row_count": int(hit[4] or 0) if hit else 0,
+                "has_data": bool(hit and hit[4]),
+            }
+        )
+
     return {
+        "streams": streams_out,
         "income_types": income,
         "platforms": platforms,
         "channels": channels,
@@ -616,7 +816,13 @@ def _apply_filters(
     surfaces: list[str],
     sources: list[str],
     search: str | None,
+    project: str | None = None,
+    branch: str | None = None,
 ):
+    if project:
+        q = q.where(AdReportRow.project == project)
+    if branch:
+        q = q.where(AdReportRow.branch == branch)
     if start:
         try:
             q = q.where(AdReportRow.report_date >= date.fromisoformat(start[:10]))
@@ -656,6 +862,8 @@ def query_summary(
     surfaces: str | None = None,
     sources: str | None = None,
     search: str | None = None,
+    project: str | None = None,
+    branch: str | None = None,
 ) -> dict[str, Any]:
     it = _parse_filter_list(income_types)
     au = _parse_filter_list(ad_units)
@@ -676,6 +884,8 @@ def query_summary(
         surfaces=su,
         sources=sf,
         search=search,
+        project=project,
+        branch=branch,
     )
     sub = base.subquery()
 
@@ -826,6 +1036,8 @@ def query_table(
     surfaces: str | None = None,
     sources: str | None = None,
     search: str | None = None,
+    project: str | None = None,
+    branch: str | None = None,
     breakdown: str | "date,month,ad_unit,income_type",
     limit: int = 500,
     offset: int = 0,
@@ -852,6 +1064,8 @@ def query_table(
         surfaces=su,
         sources=sf,
         search=search,
+        project=project,
+        branch=branch,
     )
     sub = sub.subquery()
 

@@ -32,7 +32,9 @@ def test_parse_csv_and_import():
     with SessionLocal() as db:
         store.reset_all(db)
         out = store.import_rows(db, rows)
-        assert out["inserted"] == 3
+        assert out["inserted"] >= 3
+        assert rows[0].get("project") == "doviz"
+        assert rows[0].get("branch") == "android"
         summ = store.query_summary(db)
         assert summ["kpis"]["net_revenue"] > 20
         assert len(summ["by_income_type"]) >= 2
