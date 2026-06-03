@@ -1,48 +1,14 @@
 {% extends "base.html" %}
-{% block page_head %}
-<style id="ad-page-layout-css">
-  /* Tailwind grid sınıfları eksik olsa bile /ad düzeni görünsün */
-  .ad-page #ad-body-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-    min-width: 0;
-    align-items: stretch;
-  }
-  @media (min-width: 1280px) {
-    .ad-page #ad-body-grid {
-      flex-direction: row;
-      align-items: flex-start;
-    }
-    .ad-page #ad-sidebar {
-      flex: 0 0 320px;
-      width: 320px;
-      max-width: 100%;
-      position: sticky;
-      top: 1rem;
-      max-height: calc(100vh - 2rem);
-      overflow-y: auto;
-    }
-    .ad-page #ad-main {
-      flex: 1 1 480px;
-      min-width: 0;
-    }
-  }
-  .ad-page #ad-sidebar,
-  .ad-page #ad-main { min-width: 0; }
-  .ad-page .ad-chart-plot { width: 100%; min-width: 0; }
-  .ad-page .ad-stream-tabs { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-  html.midnight .ad-page #ad-loading { background: rgba(0,0,0,0.55); }
-</style>
-{% endblock %}
 {% block content %}
-<!-- ad-layout-v3 -->
-<div class="mx-auto w-full max-w-[1600px] space-y-4 ad-page" data-header-title="Reklam Analitiği">
-  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-    <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Reklam Analitiği</h1>
-    <div id="ad-stream-tabs" class="ad-stream-tabs mt-3 flex gap-1.5 overflow-x-auto pb-1"></div>
-    <details id="ad-imports-wrap" class="group mt-2 rounded-lg border border-slate-200 bg-slate-50/80 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-zinc-950/30">
+<!-- ad-layout-v4 -->
+<div class="mx-auto w-full max-w-[1600px] ad-page" data-header-title="Reklam Analitiği" data-ad-layout-rev="4">
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+    <div class="space-y-3 p-4">
+      <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Reklam Analitiği</h1>
+      <p id="ad-header-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+      <p id="ad-layout-probe" class="text-[10px] text-slate-400 dark:text-zinc-500" aria-live="polite">Panel düzeni kontrol ediliyor…</p>
+      <div id="ad-stream-tabs" class="ad-stream-tabs flex gap-1.5 overflow-x-auto pb-1"></div>
+      <details id="ad-imports-wrap" class="group rounded-lg border border-slate-200 bg-slate-50/80 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-zinc-950/30">
       <summary class="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 marker:content-none dark:text-slate-300 [&::-webkit-details-marker]:hidden">
         <span class="inline-flex items-center gap-2">
           <span class="text-slate-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
@@ -51,10 +17,10 @@
       </summary>
       <div id="ad-imports" class="flex max-h-40 flex-wrap gap-2 overflow-y-auto border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"></div>
     </details>
-  </div>
+    </div>
 
-  <div id="ad-body-grid" class="ad-body-grid">
-    <aside id="ad-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+    <div id="ad-body-grid" class="ad-body-grid border-t border-slate-200 p-4 dark:border-zinc-700 midnight:border-zinc-800" style="display:flex;flex-direction:column;gap:1rem;width:100%;min-width:0;min-height:20rem;align-items:stretch;box-sizing:border-box;">
+      <div id="ad-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" style="flex:0 0 auto;width:100%;max-width:100%;box-sizing:border-box;">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="ad-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="ad-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Yükle ve birleştir</button>
@@ -126,9 +92,9 @@
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="ad-bd" value="surface" /> Yüzey</label>
 
       <button id="ad-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
-    </aside>
+      </div>
 
-    <div id="ad-main" class="relative min-h-[24rem] space-y-4">
+    <div id="ad-main" class="relative min-h-[24rem] space-y-4" style="flex:1 1 480px;min-width:0;min-height:24rem;position:relative;box-sizing:border-box;">
       <div id="ad-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Yükleniyor…</div>
       </div>
@@ -229,6 +195,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </div>
 
@@ -271,15 +238,28 @@
   };
 
   function showPageError(msg) {
-    var el = document.getElementById("ad-page-error");
-    if (!el) return;
-    if (msg) {
-      el.textContent = msg;
-      el.classList.remove("hidden");
-    } else {
-      el.textContent = "";
-      el.classList.add("hidden");
-    }
+    var targets = ["ad-page-error", "ad-header-error"];
+    targets.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (msg) {
+        el.textContent = msg;
+        el.classList.remove("hidden");
+      } else {
+        el.textContent = "";
+        el.classList.add("hidden");
+      }
+    });
+  }
+
+  function updateLayoutProbe(text, isError) {
+    var probe = document.getElementById("ad-layout-probe");
+    if (!probe) return;
+    probe.textContent = text;
+    probe.classList.toggle("text-rose-600", !!isError);
+    probe.classList.toggle("dark:text-rose-400", !!isError);
+    probe.classList.toggle("text-slate-400", !isError);
+    probe.classList.toggle("dark:text-zinc-500", !isError);
   }
 
   function hideBootHint() {
@@ -290,13 +270,35 @@
   function checkLayoutVisible() {
     var grid = document.getElementById("ad-body-grid");
     var sidebar = document.getElementById("ad-sidebar");
-    if (!grid || !sidebar) {
-      showPageError("Sayfa düzeni eksik — Cmd+Shift+R ile tam yenileyin.");
+    var main = document.getElementById("ad-main");
+    var rev = (document.querySelector(".ad-page") || {}).getAttribute("data-ad-layout-rev") || "?";
+    if (!grid || !sidebar || !main) {
+      var missing = [];
+      if (!grid) missing.push("ad-body-grid");
+      if (!sidebar) missing.push("ad-sidebar");
+      if (!main) missing.push("ad-main");
+      showPageError("Sayfa düzeni eksik (" + missing.join(", ") + ") — Cmd+Shift+R ile tam yenileyin.");
+      updateLayoutProbe("Düzen v" + rev + " · HATA · eksik: " + missing.join(", "), true);
       return;
     }
-    if (grid.offsetHeight < 80 || sidebar.offsetHeight < 80) {
+    var gh = grid.offsetHeight;
+    var sh = sidebar.offsetHeight;
+    var mh = main.offsetHeight;
+    if (gh < 80 || sh < 80) {
       showPageError("Panel görünmüyor — tam yenileme (Cmd+Shift+R) deneyin veya Console hatasına bakın.");
+      updateLayoutProbe("Düzen v" + rev + " · HATA · grid=" + gh + "px sidebar=" + sh + "px", true);
+      return;
     }
+    updateLayoutProbe("Düzen v" + rev + " · OK · sidebar " + sh + "px · main " + mh + "px", false);
+  }
+
+  function on(id, event, handler) {
+    var el = document.getElementById(id);
+    if (!el) {
+      console.warn("[ad] missing #" + id);
+      return;
+    }
+    el.addEventListener(event, handler);
   }
 
   function activeKpiDefs(sum) {
@@ -987,29 +989,29 @@
     }
   }
 
-  document.getElementById("ad-compare-enabled").addEventListener("change", function () {
+  on("ad-compare-enabled", "change", function () {
     updateCompareControls();
     debouncedRun();
   });
-  document.getElementById("ad-compare-mode").addEventListener("change", function () {
+  on("ad-compare-mode", "change", function () {
     updateCompareControls();
     debouncedRun();
   });
-  document.getElementById("ad-compare-start").addEventListener("change", debouncedRun);
-  document.getElementById("ad-compare-end").addEventListener("change", debouncedRun);
-  document.getElementById("ad-compare-dim").addEventListener("change", function () {
+  on("ad-compare-start", "change", debouncedRun);
+  on("ad-compare-end", "change", debouncedRun);
+  on("ad-compare-dim", "change", function () {
     if (state.lastSummary) renderCompareDim(state.lastSummary);
   });
   updateCompareControls();
 
-  document.getElementById("ad-run").addEventListener("click", runQuery);
-  document.getElementById("ad-preset").addEventListener("change", function () {
+  on("ad-run", "click", runQuery);
+  on("ad-preset", "change", function () {
     applyPreset();
     debouncedRun();
   });
-  document.getElementById("ad-start").addEventListener("change", debouncedRun);
-  document.getElementById("ad-end").addEventListener("change", debouncedRun);
-  document.getElementById("ad-search").addEventListener("input", debouncedRun);
+  on("ad-start", "change", debouncedRun);
+  on("ad-end", "change", debouncedRun);
+  on("ad-search", "input", debouncedRun);
   document.querySelectorAll(".ad-bd").forEach(function (el) {
     el.addEventListener("change", debouncedRun);
   });
@@ -1027,7 +1029,7 @@
   });
   adThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-  document.getElementById("ad-upload").addEventListener("click", async function () {
+  on("ad-upload", "click", async function () {
     var inp = document.getElementById("ad-file");
     if (!inp.files || !inp.files.length) {
       document.getElementById("ad-status").textContent = "Dosya seçin (.xlsx)";
@@ -1072,17 +1074,23 @@
     await runQuery();
   });
 
-  document.getElementById("ad-reset").addEventListener("click", async function () {
+  on("ad-reset", "click", async function () {
     if (!confirm("Tüm reklam verisi silinsin mi?")) return;
     await fetch("/api/ad-analytics/reset", { method: "POST" });
     await loadFacets();
     await runQuery();
   });
 
-  loadFacets().then(function () { runQuery(); }).catch(function (err) {
+  checkLayoutVisible();
+  loadFacets().then(function () {
+    checkLayoutVisible();
+    return runQuery();
+  }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
+    checkLayoutVisible();
   });
   window.setTimeout(checkLayoutVisible, 800);
+  window.setTimeout(checkLayoutVisible, 2500);
 })();
 </script>
 {% endblock %}
