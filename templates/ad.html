@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full max-w-[1600px] space-y-4 ad-page" data-header-title="Reklam Analitiği">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-200">Reklam Analitiği</h1>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Android, iOS, web ve mweb raporlarını ayrı yükleyin; yeni sütunlar otomatik tanınır ve <code class="text-xs">extra_metrics</code> içinde saklanır.</p>
+    <div id="ad-imports" class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400"></div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+    <aside class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 xl:col-span-3">
+      <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Dosya</p>
+      <input id="ad-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200" />
+      <button id="ad-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Yükle ve birleştir</button>
+      <button id="ad-reset" type="button" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400">Tüm veriyi sıfırla</button>
+      <p id="ad-status" class="text-xs text-slate-500 dark:text-slate-400"></p>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tarih</p>
+      <div class="grid grid-cols-2 gap-2">
+        <input id="ad-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+        <input id="ad-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+      </div>
+      <select id="ad-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
+        <option value="">Özel aralık</option>
+        <option value="7d">Son 7 gün</option>
+        <option value="30d">Son 30 gün</option>
+        <option value="90d">Son 90 gün</option>
+        <option value="1y">Son 1 yıl</option>
+        <option value="all" selected>Tüm veri</option>
+      </select>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Gelir tipi</p>
+      <div id="ad-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs"></div>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Kanal (rapor)</p>
+      <div id="ad-filter-channel" class="flex flex-wrap gap-1 text-xs"></div>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Yüzey (web/mweb/app)</p>
+      <div id="ad-filter-surface" class="flex flex-wrap gap-1 text-xs"></div>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Platform</p>
+      <div id="ad-filter-platform" class="flex flex-wrap gap-1 text-xs"></div>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Kaynak dosya</p>
+      <div id="ad-filter-source" class="max-h-24 space-y-1 overflow-y-auto text-xs"></div>
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Ad unit ara</p>
+      <input id="ad-search" type="search" placeholder="masthead, sticky…" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tablo kırılımı</p>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="date" checked /> Tarih</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="month" /> Ay</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="ad_unit" checked /> Ad unit</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="income_type" checked /> Gelir tipi</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="platform" /> Platform</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="channel" /> Kanal</label>
+      <label class="flex items-center gap-2 text-xs"><input type="checkbox" class="ad-bd" value="surface" /> Yüzey</label>
+
+      <button id="ad-run" type="button" class="mt-2 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700">Çalıştır</button>
+    </aside>
+
+    <div class="space-y-4 xl:col-span-9">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Net gelir (TL)</p><p id="ad-kpi-rev" class="text-lg font-black text-slate-900 dark:text-slate-100">0</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Gösterim</p><p id="ad-kpi-impr" class="text-lg font-black">0</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Tıklama</p><p id="ad-kpi-click" class="text-lg font-black">0</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Ad request</p><p id="ad-kpi-req" class="text-lg font-black">0</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Ort. Ad eCPM</p><p id="ad-kpi-ecpm" class="text-lg font-black">0</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">CTR %</p><p id="ad-kpi-ctr" class="text-lg font-black">0</p></div>
+      </div>
+      <p id="ad-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Günlük net gelir (çizgi)</h2>
+        <div id="ad-chart-line" class="h-[300px]"></div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Gelir tipine göre (sütun)</h2>
+          <div id="ad-chart-bar-income" class="h-[280px]"></div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Gelir tipi payı (pasta)</h2>
+          <div id="ad-chart-pie-income" class="h-[280px]"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Yüzey (mweb / web / app) — pasta</h2>
+          <div id="ad-chart-pie-surface" class="h-[280px]"></div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Kanal (dovizcom / android …) — sütun</h2>
+          <div id="ad-chart-bar-channel" class="h-[280px]"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Aylık gelir (çubuk)</h2>
+          <div id="ad-chart-bar-month" class="h-[280px]"></div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 class="mb-2 text-sm font-bold">Top ad unit — gelir (çubuk)</h2>
+          <div id="ad-chart-bar-unit" class="h-[320px]"></div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Detay tablo</h2>
+          <span id="ad-table-meta" class="text-xs text-slate-500"></span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-xs">
+            <thead id="ad-table-head" class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"></thead>
+            <tbody id="ad-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = { income: new Set(), platform: new Set(), channel: new Set(), surface: new Set(), source: new Set() };
+
+  function fmt(n, dec) {
+    if (n == null || isNaN(n)) return "0";
+    return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: dec == null ? 2 : dec });
+  }
+
+  function qs() {
+    var p = new URLSearchParams();
+    var s = document.getElementById("ad-start").value;
+    var e = document.getElementById("ad-end").value;
+    if (s) p.set("start", s);
+    if (e) p.set("end", e);
+    if (state.income.size) p.set("income_types", Array.from(state.income).join(","));
+    if (state.platform.size) p.set("platforms", Array.from(state.platform).join(","));
+    if (state.channel.size) p.set("channels", Array.from(state.channel).join(","));
+    if (state.surface.size) p.set("surfaces", Array.from(state.surface).join(","));
+    if (state.source.size) p.set("sources", Array.from(state.source).join(","));
+    var q = document.getElementById("ad-search").value.trim();
+    if (q) p.set("search", q);
+    return p;
+  }
+
+  function breakdownStr() {
+    var parts = [];
+    document.querySelectorAll(".ad-bd:checked").forEach(function (el) { parts.push(el.value); });
+    return parts.length ? parts.join(",") : "date,ad_unit,income_type";
+  }
+
+  function plotTheme() {
+    var dark = document.documentElement.classList.contains("dark");
+    return {
+      paper_bgcolor: "transparent",
+      plot_bgcolor: "transparent",
+      font: { color: dark ? "#e2e8f0" : "#334155", size: 11 },
+      margin: { l: 48, r: 16, t: 24, b: 48 },
+    };
+  }
+
+  function renderCharts(sum) {
+    if (!window.Plotly) return;
+    var th = plotTheme();
+    var dates = (sum.by_date || []).map(function (x) { return x.date; });
+    var revs = (sum.by_date || []).map(function (x) { return x.net_revenue; });
+    Plotly.newPlot("ad-chart-line", [{
+      x: dates, y: revs, type: "scatter", mode: "lines+markers",
+      line: { color: "#4f46e5", width: 2 }, marker: { size: 5 },
+      name: "Net gelir",
+    }], Object.assign({}, th, { yaxis: { title: "TL" } }), { responsive: true, displayModeBar: false });
+
+    var inc = sum.by_income_type || [];
+    Plotly.newPlot("ad-chart-bar-income", [{
+      x: inc.map(function (x) { return x.income_type; }),
+      y: inc.map(function (x) { return x.net_revenue; }),
+      type: "bar", marker: { color: "#0ea5e9" },
+    }], Object.assign({}, th, { yaxis: { title: "TL" } }), { responsive: true, displayModeBar: false });
+
+    Plotly.newPlot("ad-chart-pie-income", [{
+      labels: inc.map(function (x) { return x.income_type; }),
+      values: inc.map(function (x) { return x.net_revenue; }),
+      type: "pie", hole: 0.35,
+    }], th, { responsive: true, displayModeBar: false });
+
+    var mo = sum.by_month || [];
+    Plotly.newPlot("ad-chart-bar-month", [{
+      x: mo.map(function (x) { return x.month; }),
+      y: mo.map(function (x) { return x.net_revenue; }),
+      type: "bar", marker: { color: "#10b981" },
+    }], Object.assign({}, th, { yaxis: { title: "TL" } }), { responsive: true, displayModeBar: false });
+
+    var units = (sum.by_ad_unit || []).slice(0, 15);
+    Plotly.newPlot("ad-chart-bar-unit", [{
+      x: units.map(function (x) { return x.net_revenue; }),
+      y: units.map(function (x) { return x.ad_unit; }),
+      type: "bar", orientation: "h", marker: { color: "#f59e0b" },
+    }], Object.assign({}, th, { margin: { l: 180, r: 16, t: 24, b: 40 } }), { responsive: true, displayModeBar: false });
+
+    var surf = sum.by_surface || [];
+    Plotly.newPlot("ad-chart-pie-surface", [{
+      labels: surf.map(function (x) { return x.surface; }),
+      values: surf.map(function (x) { return x.net_revenue; }),
+      type: "pie", hole: 0.35,
+    }], th, { responsive: true, displayModeBar: false });
+
+    var ch = sum.by_channel || [];
+    Plotly.newPlot("ad-chart-bar-channel", [{
+      x: ch.map(function (x) { return x.channel; }),
+      y: ch.map(function (x) { return x.net_revenue; }),
+      type: "bar", marker: { color: "#6366f1" },
+    }], Object.assign({}, th, { yaxis: { title: "TL" } }), { responsive: true, displayModeBar: false });
+  }
+
+  function renderKpis(k) {
+    document.getElementById("ad-kpi-rev").textContent = fmt(k.net_revenue, 2);
+    document.getElementById("ad-kpi-impr").textContent = fmt(k.impressions, 0);
+    document.getElementById("ad-kpi-click").textContent = fmt(k.clicks, 0);
+    document.getElementById("ad-kpi-req").textContent = fmt(k.ad_requests, 0);
+    document.getElementById("ad-kpi-ecpm").textContent = fmt(k.avg_ad_ecpm, 3);
+    document.getElementById("ad-kpi-ctr").textContent = fmt(k.ctr_pct, 3);
+  }
+
+  function renderTable(data) {
+    var rows = data.rows || [];
+    document.getElementById("ad-table-meta").textContent = rows.length + " satır (toplam " + (data.total || 0) + ")";
+    var keys = [];
+    if (rows.length) keys = Object.keys(rows[0]);
+    var head = document.getElementById("ad-table-head");
+    head.innerHTML = "<tr>" + keys.map(function (k) {
+      return "<th class=\"px-2 py-2 font-bold text-slate-600 dark:text-slate-300\">" + k + "</th>";
+    }).join("") + "</tr>";
+    var body = document.getElementById("ad-table-body");
+    body.innerHTML = rows.map(function (r) {
+      return "<tr>" + keys.map(function (k) {
+        var v = r[k];
+        if (typeof v === "number") v = fmt(v, k.indexOf("ecpm") >= 0 ? 3 : (k === "ctr" || k === "coverage" ? 2 : 0));
+        return "<td class=\"px-2 py-1.5 text-slate-700 dark:text-slate-300\">" + (v == null ? "" : v) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+  }
+
+  function filterBox(containerId, items, set, key) {
+    var el = document.getElementById(containerId);
+    el.innerHTML = "";
+    items.forEach(function (name) {
+      var id = containerId + "-" + name.replace(/[^a-z0-9]+/gi, "_");
+      var lab = document.createElement("label");
+      lab.className = "flex items-center gap-2";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = set.size === 0 || set.has(name);
+      cb.id = id;
+      cb.addEventListener("change", function () {
+        if (cb.checked) set.add(name); else set.delete(name);
+      });
+      if (cb.checked && set.size === 0) set.add(name);
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(name));
+      el.appendChild(lab);
+    });
+  }
+
+  function applyPreset() {
+    var v = document.getElementById("ad-preset").value;
+    var end = document.getElementById("ad-end");
+    var start = document.getElementById("ad-start");
+    var max = end.getAttribute("data-max") || end.value;
+    if (!v || v === "all") {
+      start.value = document.getElementById("ad-start").getAttribute("data-min") || "";
+      end.value = max || "";
+      return;
+    }
+    var d = max ? new Date(max) : new Date();
+    var s = new Date(d);
+    if (v === "7d") s.setDate(s.getDate() - 7);
+    else if (v === "30d") s.setDate(s.getDate() - 30);
+    else if (v === "90d") s.setDate(s.getDate() - 90);
+    else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
+    start.value = s.toISOString().slice(0, 10);
+    end.value = d.toISOString().slice(0, 10);
+  }
+
+  async function loadFacets() {
+    var r = await fetch("/api/ad-analytics/facets");
+    var f = await r.json();
+    document.getElementById("ad-status").textContent = "DB: " + (f.total_rows || 0) + " satır";
+    if (f.min_date) {
+      document.getElementById("ad-start").setAttribute("data-min", f.min_date);
+      document.getElementById("ad-start").value = f.min_date;
+    }
+    if (f.max_date) {
+      document.getElementById("ad-end").setAttribute("data-max", f.max_date);
+      document.getElementById("ad-end").value = f.max_date;
+    }
+    state.income = new Set(f.income_types || []);
+    state.platform = new Set(f.platforms || []);
+    state.channel = new Set(f.channels || []);
+    state.surface = new Set(f.surfaces || []);
+    state.source = new Set(f.source_files || []);
+    filterBox("ad-filter-income", f.income_types || [], state.income, "income");
+    filterBox("ad-filter-channel", f.channels || [], state.channel, "channel");
+    filterBox("ad-filter-surface", f.surfaces || [], state.surface, "surface");
+    filterBox("ad-filter-platform", f.platforms || [], state.platform, "platform");
+    filterBox("ad-filter-source", f.source_files || [], state.source, "source");
+    var imp = document.getElementById("ad-imports");
+    imp.innerHTML = (f.imports || []).map(function (x) {
+      return "<span class=\"rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-600\">" +
+        x.channel + " · " + x.source_file + " · " + x.row_count + " satır</span>";
+    }).join("");
+    if ((f.extra_columns || []).length) {
+      imp.innerHTML += "<span class=\"w-full text-[10px]\">Ek sütunlar: " + f.extra_columns.join(", ") + "</span>";
+    }
+    var lbl = [];
+    if (f.min_date && f.max_date) lbl.push(f.min_date + " — " + f.max_date);
+    document.getElementById("ad-range-label").textContent = lbl.join(" · ");
+  }
+
+  async function runQuery() {
+    applyPreset();
+    var base = qs().toString();
+    var sumR = await fetch("/api/ad-analytics/summary?" + base);
+    var sum = await sumR.json();
+    renderKpis(sum.kpis || {});
+    renderCharts(sum);
+    var tb = breakdownStr();
+    var tabR = await fetch("/api/ad-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800");
+    var tab = await tabR.json();
+    renderTable(tab);
+  }
+
+  document.getElementById("ad-run").addEventListener("click", runQuery);
+  document.getElementById("ad-preset").addEventListener("change", applyPreset);
+
+  document.getElementById("ad-upload").addEventListener("click", async function () {
+    var inp = document.getElementById("ad-file");
+    if (!inp.files || !inp.files[0]) {
+      document.getElementById("ad-status").textContent = "Dosya seçin (.xlsx / .csv)";
+      return;
+    }
+    var fd = new FormData();
+    fd.append("file", inp.files[0]);
+    document.getElementById("ad-status").textContent = "Yükleniyor…";
+    var r = await fetch("/api/ad-analytics/upload", { method: "POST", body: fd });
+    var j = await r.json();
+    if (!r.ok) {
+      document.getElementById("ad-status").textContent = j.detail || "Hata";
+      return;
+    }
+    document.getElementById("ad-status").textContent =
+      "Eklendi: " + j.inserted + ", atlanan: " + j.skipped + ", toplam: " + j.total;
+    await loadFacets();
+    await runQuery();
+  });
+
+  document.getElementById("ad-reset").addEventListener("click", async function () {
+    if (!confirm("Tüm reklam verisi silinsin mi?")) return;
+    await fetch("/api/ad-analytics/reset", { method: "POST" });
+    await loadFacets();
+    await runQuery();
+  });
+
+  loadFacets().then(runQuery);
+})();
+</script>
+{% endblock %}

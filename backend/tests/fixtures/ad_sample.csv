@@ -1,0 +1,4 @@
+Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue
+test_sticky_unit,45658,45658,Open Auction,100,80,50,2,1.5,2.0,0.04,0.8,0.9,12.5
+test_sticky_unit,45658,45658,Mediation,200,150,120,1,0.5,1.2,0.008,0.75,0.85,8.25
+other_banner,45659,45659,Programmatic Direct,50,50,40,0,0,0,0,1,0,5.0

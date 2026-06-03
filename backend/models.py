@@ -898,6 +898,48 @@ class AdminTrustedDevice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AdReportRow(Base):
+    """Reklam raporu satırı (Excel/CSV — günlük ad unit × income type)."""
+
+    __tablename__ = "ad_report_rows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    source_file: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, default="mobile", index=True)
+    channel: Mapped[str] = mapped_column(String(32), nullable=False, default="other", index=True)
+    surface: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown", index=True)
+    ad_unit: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    month_key: Mapped[str] = mapped_column(String(7), nullable=False, default="", index=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    income_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    ad_request: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    matched_request: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    impression: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    click: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    ad_request_ecpm: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    ad_impression_ecpm: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    ctr: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    coverage: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    viewability: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    net_revenue: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    extra_metrics: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AdReportCatalog(Base):
+    """Yüklenen rapor başlıkları — yeni sütunlar için esnek şema kaydı."""
+
+    __tablename__ = "ad_report_catalog"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_file: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    channel: Mapped[str] = mapped_column(String(32), nullable=False, default="other")
+    columns_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class NotificationAnalyticsWorkspace(Base):
     """Notification Analytics CSV birikimi — tek paylaşımlı workspace (id=1)."""
 

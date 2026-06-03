@@ -118,6 +118,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_admin_login_events_created ON admin_login_events(created_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_backlink_imports_site_type_created ON backlink_imports(site_id, report_type, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_backlink_rows_import_domain ON backlink_rows(import_id, domain)",
+        "CREATE INDEX IF NOT EXISTS ix_ad_report_date_income ON ad_report_rows(report_date, income_type)",
+        "CREATE INDEX IF NOT EXISTS ix_ad_report_unit_date ON ad_report_rows(ad_unit, report_date)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:
@@ -239,4 +241,32 @@ def ensure_indexes() -> None:
         _ensure_ai_brief_run_col("approx_try", "FLOAT NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0")
         _ensure_ai_brief_run_col("llm_calls", "INTEGER NOT NULL DEFAULT 1", "INTEGER NOT NULL DEFAULT 1")
         _ensure_ai_brief_run_col("run_detail", "TEXT NOT NULL DEFAULT ''", "VARCHAR(255) NOT NULL DEFAULT ''")
+
+        def _ensure_ad_report_col(name: str, sqlite_ddl: str, pg_ddl: str) -> None:
+            try:
+                if _IS_SQLITE:
+                    rc = conn.execute(
+                        _txt("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ad_report_rows'")
+                    )
+                    if not rc.fetchone():
+                        return
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt("PRAGMA table_info(ad_report_rows)")).fetchall()
+                    }
+                    if name not in cols:
+                        conn.execute(_txt(f"ALTER TABLE ad_report_rows ADD COLUMN {name} {sqlite_ddl}"))
+                else:
+                    try:
+                        conn.execute(
+                            _txt(f"ALTER TABLE ad_report_rows ADD COLUMN IF NOT EXISTS {name} {pg_ddl}")
+                        )
+                    except Exception:  # noqa: BLE001
+                        conn.execute(_txt(f"ALTER TABLE ad_report_rows ADD COLUMN {name} {pg_ddl}"))
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("ad_report_rows ADD COLUMN %s atlandı: %s", name, exc)
+
+        _ensure_ad_report_col("channel", "VARCHAR(32) NOT NULL DEFAULT 'other'", "VARCHAR(32) NOT NULL DEFAULT 'other'")
+        _ensure_ad_report_col("surface", "VARCHAR(32) NOT NULL DEFAULT 'unknown'", "VARCHAR(32) NOT NULL DEFAULT 'unknown'")
+        _ensure_ad_report_col("extra_metrics", "TEXT NOT NULL DEFAULT '{}'", "TEXT NOT NULL DEFAULT '{}'")
         conn.commit()
