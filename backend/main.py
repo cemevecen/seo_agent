@@ -12206,6 +12206,7 @@ def ad_analytics_page(request: Request):
         request,
         "ad.html",
         context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
 

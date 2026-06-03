@@ -1,5 +1,43 @@
 {% extends "base.html" %}
+{% block page_head %}
+<style id="ad-page-layout-css">
+  /* Tailwind grid sınıfları eksik olsa bile /ad düzeni görünsün */
+  .ad-page #ad-body-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+  }
+  @media (min-width: 1280px) {
+    .ad-page #ad-body-grid {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+    .ad-page #ad-sidebar {
+      flex: 0 0 320px;
+      width: 320px;
+      max-width: 100%;
+      position: sticky;
+      top: 1rem;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+    }
+    .ad-page #ad-main {
+      flex: 1 1 480px;
+      min-width: 0;
+    }
+  }
+  .ad-page #ad-sidebar,
+  .ad-page #ad-main { min-width: 0; }
+  .ad-page .ad-chart-plot { width: 100%; min-width: 0; }
+  .ad-page .ad-stream-tabs { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  html.midnight .ad-page #ad-loading { background: rgba(0,0,0,0.55); }
+</style>
+{% endblock %}
 {% block content %}
+<!-- ad-layout-v3 -->
 <div class="mx-auto w-full max-w-[1600px] space-y-4 ad-page" data-header-title="Reklam Analitiği">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Reklam Analitiği</h1>
@@ -15,8 +53,8 @@
     </details>
   </div>
 
-  <div id="ad-body-grid" class="ad-body-grid grid grid-cols-1 gap-4 xl:grid-cols-12">
-    <aside id="ad-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+  <div id="ad-body-grid" class="ad-body-grid">
+    <aside id="ad-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="ad-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="ad-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Yükle ve birleştir</button>
@@ -90,13 +128,16 @@
       <button id="ad-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
     </aside>
 
-    <div id="ad-main" class="relative space-y-4 xl:col-span-9">
+    <div id="ad-main" class="relative min-h-[24rem] space-y-4">
       <div id="ad-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Yükleniyor…</div>
       </div>
+      <p id="ad-boot-hint" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">KPI ve grafikler yükleniyor…</p>
       <p id="ad-import-audit" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"></p>
       <p id="ad-page-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
-      <div id="ad-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+      <div id="ad-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <p id="ad-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
+      </div>
       <p id="ad-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
       <p id="ad-compare-range-label" class="hidden text-xs font-semibold text-indigo-700 dark:text-indigo-300"></p>
 
@@ -191,31 +232,9 @@
   </div>
 </div>
 
-<style>
-  .ad-page .ad-chart-plot { width: 100%; min-width: 0; }
-  .ad-page .ad-stream-tabs { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-  html.midnight .ad-page #ad-loading { background: rgba(0,0,0,0.55); }
-  /* Tailwind build gecikse bile ana düzen görünsün */
-  .ad-page .ad-body-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
-    width: 100%;
-    min-width: 0;
-  }
-  @media (min-width: 1280px) {
-    .ad-page .ad-body-grid {
-      grid-template-columns: minmax(260px, 1fr) minmax(0, 2.4fr);
-    }
-    .ad-page #ad-sidebar { grid-column: 1; }
-    .ad-page #ad-main { grid-column: 2; }
-  }
-  .ad-page #ad-sidebar,
-  .ad-page #ad-main { min-width: 0; }
-</style>
-
 <script>
 (function () {
+  window.__seoAdPageScriptRan = true;
   var KPI_DEFS = [
     { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
     { key: "empower_unique_visitor", label: "Empower Unique Visitor", dec: 0, axis: "" },
@@ -260,6 +279,23 @@
     } else {
       el.textContent = "";
       el.classList.add("hidden");
+    }
+  }
+
+  function hideBootHint() {
+    var boot = document.getElementById("ad-boot-hint");
+    if (boot) boot.classList.add("hidden");
+  }
+
+  function checkLayoutVisible() {
+    var grid = document.getElementById("ad-body-grid");
+    var sidebar = document.getElementById("ad-sidebar");
+    if (!grid || !sidebar) {
+      showPageError("Sayfa düzeni eksik — Cmd+Shift+R ile tam yenileyin.");
+      return;
+    }
+    if (grid.offsetHeight < 80 || sidebar.offsetHeight < 80) {
+      showPageError("Panel görünmüyor — tam yenileme (Cmd+Shift+R) deneyin veya Console hatasına bakın.");
     }
   }
 
@@ -671,6 +707,8 @@
     var defs = activeKpiDefs(sum);
     ensureActiveKpi(defs);
     var grid = document.getElementById("ad-kpi-grid");
+    var ph = document.getElementById("ad-kpi-placeholder");
+    if (ph) ph.remove();
     grid.innerHTML = "";
     defs.forEach(function (def) {
       var card = document.createElement("button");
@@ -847,68 +885,75 @@
       showPageError("");
       state.streams = f.streams || [];
       state.kpiUnion = f.kpi_union || [];
-    if (!state.activeStream && state.streams.length) {
-      state.activeStream = state.streams.find(function (s) { return s.has_data; }) || state.streams[0];
-    }
-    renderStreamTabs();
-    updateScopeUi();
-    document.getElementById("ad-status").textContent = "DB: " + (f.total_rows || 0).toLocaleString("tr-TR") + " satır";
-    if (state.activeStream && state.activeStream.min_date) {
-      document.getElementById("ad-start").setAttribute("data-min", state.activeStream.min_date);
-      document.getElementById("ad-start").value = state.activeStream.min_date;
-      document.getElementById("ad-end").setAttribute("data-max", state.activeStream.max_date);
-      document.getElementById("ad-end").value = state.activeStream.max_date;
-    } else if (f.min_date) {
-      document.getElementById("ad-start").setAttribute("data-min", f.min_date);
-      document.getElementById("ad-start").value = f.min_date;
-      document.getElementById("ad-end").setAttribute("data-max", f.max_date);
-      document.getElementById("ad-end").value = f.max_date;
-    }
-    state.income = new Set(f.income_types || []);
-    state.platform = new Set(f.platforms || []);
-    state.channel = new Set(f.channels || []);
-    state.surface = new Set(f.surfaces || []);
-    state.source = new Set(f.source_files || []);
-    filterBox("ad-filter-income", f.income_types || [], state.income);
-    filterChips("ad-filter-channel", f.channels || [], state.channel);
-    filterChips("ad-filter-surface", f.surfaces || [], state.surface);
-    filterChips("ad-filter-platform", f.platforms || [], state.platform);
-    filterBox("ad-filter-source", f.source_files || [], state.source);
-    var imports = f.imports || [];
-    var countEl = document.getElementById("ad-imports-count");
-    if (countEl) countEl.textContent = String(imports.length);
-    var imp = document.getElementById("ad-imports");
-    if (!imports.length) {
-      imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi.</span>";
-    } else {
-      imp.innerHTML = imports.map(function (x) {
-        return "<span class=\"rounded-full border border-slate-200 px-2 py-0.5 dark:border-zinc-600 midnight:border-zinc-700\">" +
-          x.channel + " · " + x.source_file + " · " + x.row_count + " satır</span>";
-      }).join("");
-      if ((f.extra_columns || []).length) {
-        imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
-          f.extra_columns.join(", ") + "</span>";
+      if (!state.activeStream && state.streams.length) {
+        state.activeStream = state.streams.find(function (s) { return s.has_data; }) || state.streams[0];
       }
-    }
-    var lbl = [];
-    if (f.min_date && f.max_date) lbl.push(f.min_date + " — " + f.max_date);
-    if (state.activeStream) {
-      lbl.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
-    }
-    document.getElementById("ad-range-label").textContent = lbl.join(" · ");
-    var auditEl = document.getElementById("ad-import-audit");
-    var audit = f.import_audit || [];
-    if (audit.length) {
-      auditEl.classList.remove("hidden");
-      auditEl.textContent =
-        "Uyarı: " + audit.length + " dosyada proje/dal eşlemesi beklenenden farklı (yeniden yükleme gerekebilir).";
-    } else {
-      auditEl.classList.add("hidden");
-      auditEl.textContent = "";
-    }
+      renderStreamTabs();
+      updateScopeUi();
+      var statusEl = document.getElementById("ad-status");
+      if (statusEl) statusEl.textContent = "DB: " + (f.total_rows || 0).toLocaleString("tr-TR") + " satır";
+      if (state.activeStream && state.activeStream.min_date) {
+        document.getElementById("ad-start").setAttribute("data-min", state.activeStream.min_date);
+        document.getElementById("ad-start").value = state.activeStream.min_date;
+        document.getElementById("ad-end").setAttribute("data-max", state.activeStream.max_date);
+        document.getElementById("ad-end").value = state.activeStream.max_date;
+      } else if (f.min_date) {
+        document.getElementById("ad-start").setAttribute("data-min", f.min_date);
+        document.getElementById("ad-start").value = f.min_date;
+        document.getElementById("ad-end").setAttribute("data-max", f.max_date);
+        document.getElementById("ad-end").value = f.max_date;
+      }
+      state.income = new Set(f.income_types || []);
+      state.platform = new Set(f.platforms || []);
+      state.channel = new Set(f.channels || []);
+      state.surface = new Set(f.surfaces || []);
+      state.source = new Set(f.source_files || []);
+      filterBox("ad-filter-income", f.income_types || [], state.income);
+      filterChips("ad-filter-channel", f.channels || [], state.channel);
+      filterChips("ad-filter-surface", f.surfaces || [], state.surface);
+      filterChips("ad-filter-platform", f.platforms || [], state.platform);
+      filterBox("ad-filter-source", f.source_files || [], state.source);
+      var imports = f.imports || [];
+      var countEl = document.getElementById("ad-imports-count");
+      if (countEl) countEl.textContent = String(imports.length);
+      var imp = document.getElementById("ad-imports");
+      if (imp) {
+        if (!imports.length) {
+          imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi.</span>";
+        } else {
+          imp.innerHTML = imports.map(function (x) {
+            return "<span class=\"rounded-full border border-slate-200 px-2 py-0.5 dark:border-zinc-600 midnight:border-zinc-700\">" +
+              x.channel + " · " + x.source_file + " · " + x.row_count + " satır</span>";
+          }).join("");
+          if ((f.extra_columns || []).length) {
+            imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
+              f.extra_columns.join(", ") + "</span>";
+          }
+        }
+      }
+      var lbl = [];
+      if (f.min_date && f.max_date) lbl.push(f.min_date + " — " + f.max_date);
+      if (state.activeStream) {
+        lbl.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
+      }
+      var rangeLbl = document.getElementById("ad-range-label");
+      if (rangeLbl) rangeLbl.textContent = lbl.join(" · ");
+      var auditEl = document.getElementById("ad-import-audit");
+      var audit = f.import_audit || [];
+      if (auditEl) {
+        if (audit.length) {
+          auditEl.classList.remove("hidden");
+          auditEl.textContent =
+            "Uyarı: " + audit.length + " dosyada proje/dal eşlemesi beklenenden farklı (yeniden yükleme gerekebilir).";
+        } else {
+          auditEl.classList.add("hidden");
+          auditEl.textContent = "";
+        }
+      }
     } catch (err) {
       showPageError((err && err.message) || "Filtreler yüklenemedi");
-      document.getElementById("ad-status").textContent = (err && err.message) || "Filtreler yüklenemedi";
+      var statusEl = document.getElementById("ad-status");
+      if (statusEl) statusEl.textContent = (err && err.message) || "Filtreler yüklenemedi";
     }
   }
 
@@ -938,6 +983,7 @@
       showPageError(msg);
     } finally {
       setLoading(false);
+      hideBootHint();
     }
   }
 
@@ -1036,6 +1082,7 @@
   loadFacets().then(function () { runQuery(); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
   });
+  window.setTimeout(checkLayoutVisible, 800);
 })();
 </script>
 {% endblock %}
