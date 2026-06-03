@@ -3,6 +3,11 @@ module.exports = {
   darkMode: "class",
   content: ["./templates/**/*.html"],
   safelist: [
+    // /ad — xl grid düzeni (ad.html)
+    "xl:grid-cols-12",
+    "xl:col-span-3",
+    "xl:col-span-9",
+    "xl:grid-cols-5",
     // ASC kart renkleri — JS'de dinamik olarak oluşturulduğu için safelist gerekiyor
     {
       pattern:

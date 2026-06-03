@@ -855,8 +855,8 @@ def facets(db: Session) -> dict[str, Any]:
         hit = stats_map.get((meta.project, meta.branch))
         stream_kpis: list[str] = []
         if hit and hit[4]:
-            stream_kpis = scan_stream_kpis(db, meta.project, meta.branch)
-            kpi_union.update(stream_kpis)
+            # KPI uygunluğu facets'te ağır JSON taraması yapılmaz — query_summary döner.
+            stream_kpis = []
         streams_out.append(
             {
                 "key": meta.key,
@@ -1210,12 +1210,13 @@ def _norm_ratio_sql(col):
 
 def _extra_json_expr(sub, key: str):
     """Tek JSON anahtarı → Float ifadesi (subquery satırı)."""
-    from sqlalchemy import Float, String, cast
+    from sqlalchemy import Float, cast
 
     if _IS_PG:
         from sqlalchemy.dialects.postgresql import JSONB
 
-        raw = cast(sub.c.extra_metrics, JSONB)[key].astext
+        safe_json = func.coalesce(func.nullif(sub.c.extra_metrics, ""), "{}")
+        raw = cast(safe_json, JSONB)[key].astext
         return cast(func.nullif(raw, ""), Float)
     return cast(func.nullif(func.json_extract(sub.c.extra_metrics, f"$.{key}"), ""), Float)
 
@@ -1298,7 +1299,7 @@ def _derive_kpi_availability(
 
 
 def scan_stream_kpis(db: Session, project: str, branch: str) -> list[str]:
-    """Dal için DB'de gerçekten var olan KPI kaynaklarını tespit et."""
+    """Dal için DB'de gerçekten var olan KPI kaynaklarını tespit et (hızlı kolon + tek JSON turu)."""
     base = select(AdReportRow).where(
         AdReportRow.project == project,
         AdReportRow.branch == branch,
@@ -1318,6 +1319,8 @@ def scan_stream_kpis(db: Session, project: str, branch: str) -> list[str]:
             func.coalesce(func.sum(norm_view * sub.c.impression), 0),
             func.coalesce(func.sum(norm_cov * sub.c.ad_request), 0),
             func.coalesce(_weighted_extra_ratio(sub, "above_the_fold_ratio", sub.c.impression), 0),
+            func.coalesce(_sum_extra_multi(sub, "pageview_ecpm"), 0),
+            func.coalesce(_sum_extra_multi(sub, "unique_visitor_ecpm"), 0),
         )
     ).one()
     vals = [float(x or 0) for x in row]
@@ -1332,8 +1335,8 @@ def scan_stream_kpis(db: Session, project: str, branch: str) -> list[str]:
         view_w_sum=vals[7],
         cov_w_sum=vals[8],
         atf_w_sum=vals[9],
-        has_pageview_ecpm_extra=_has_extra_data(db, base, "pageview_ecpm"),
-        has_uv_ecpm_extra=_has_extra_data(db, base, "unique_visitor_ecpm"),
+        has_pageview_ecpm_extra=vals[10] > 0,
+        has_uv_ecpm_extra=vals[11] > 0,
     )
 
 
@@ -1441,8 +1444,8 @@ def query_summary(
     viewability_pct = (view_w_sum / impr * 100.0) if impr > 0 else 0.0
     atf_pct = (atf_w_sum / impr * 100.0) if impr > 0 else 0.0
 
-    has_pv_ecpm_extra = pv_ecpm_sum > 0 or _has_extra_data(db, base, "pageview_ecpm")
-    has_uv_ecpm_extra = uv_ecpm_sum > 0 or _has_extra_data(db, base, "unique_visitor_ecpm")
+    has_pv_ecpm_extra = pv_ecpm_sum > 0
+    has_uv_ecpm_extra = uv_ecpm_sum > 0
     kpi_available = _derive_kpi_availability(
         net_rev=net_rev,
         impr=impr,
