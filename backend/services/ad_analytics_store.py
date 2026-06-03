@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import re
+import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Iterator
@@ -23,6 +24,18 @@ from backend.models import AdReportCatalog, AdReportRow
 _IS_PG = "postgresql" in str(engine.url)
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _load_workbook_bytes(data: bytes):
+    """Ad platformu xlsx dosyalarında openpyxl 'no default style' uyarısı zararsızdır."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Workbook contains no default style*",
+            category=UserWarning,
+        )
+        return load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+
 
 HEADERS_MAP = {
     "adunit": "ad_unit",
@@ -427,7 +440,7 @@ def _row_from_values(
 
 
 def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[dict[str, Any]]:
-    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    wb = _load_workbook_bytes(data)
     try:
         ws = wb.active
         rows_iter = ws.iter_rows(values_only=True)
@@ -603,13 +616,20 @@ def import_upload_file(
     stream = detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
     if low.endswith(".xlsx") or low.endswith(".xlsm"):
-        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        columns: list[str] = []
+        wb = _load_workbook_bytes(data)
         try:
             header_row = next(wb.active.iter_rows(values_only=True), None)
             columns = [str(h or "").strip() for h in (header_row or []) if str(h or "").strip()]
         finally:
             wb.close()
         result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=commit)
+        LOGGER.info(
+            "Ad xlsx import: %s stream=%s parsed=%s",
+            filename,
+            stream.key if stream else "?",
+            result.get("parsed"),
+        )
     elif low.endswith(".csv") or low.endswith(".txt"):
         text = data.decode("utf-8", errors="replace")
         lines = [ln for ln in text.splitlines() if ln.strip()]
@@ -658,9 +678,22 @@ def import_upload_files_bulk(
             total_parsed += int(out.get("parsed") or 0)
             if not out.get("stream_key"):
                 unknown.append(name)
+            LOGGER.info(
+                "Ad bulk file ok: %s stream=%s parsed=%s",
+                name,
+                out.get("stream_key"),
+                out.get("parsed"),
+            )
         except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Ad bulk file failed: %s — %s", name, exc)
             per_file.append({"filename": name, "error": str(exc)})
     db.commit()
+    LOGGER.info(
+        "Ad bulk import done: files=%s parsed=%s total_rows=%s",
+        len(ordered),
+        total_parsed,
+        count_rows(db),
+    )
     return {
         "files": per_file,
         "file_count": len(ordered),

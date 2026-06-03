@@ -401,8 +401,15 @@
       fd.append("file", inp.files[0]);
     }
     document.getElementById("ad-status").textContent =
-      "Yükleniyor… (" + inp.files.length + " dosya, bu birkaç dakika sürebilir)";
-    var r = await fetch(url, { method: "POST", body: fd });
+      "Yükleniyor… (" + inp.files.length + " dosya; 1–5 dk sürebilir, sayfayı kapatmayın)";
+    var r;
+    try {
+      r = await fetch(url, { method: "POST", body: fd });
+    } catch (err) {
+      document.getElementById("ad-status").textContent =
+        "Ağ hatası veya zaman aşımı — dosya sayısını azaltıp tekrar deneyin.";
+      return;
+    }
     var j = await r.json();
     if (!r.ok) {
       document.getElementById("ad-status").textContent =
