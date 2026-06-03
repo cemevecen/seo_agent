@@ -1,5 +1,7 @@
 from backend.services.ga4_page_urls import (
     ga4_canonical_page_url,
+    is_m_doviz_flat_product_url,
+    repair_seo_audit_url,
     seo_audit_url_from_ga4,
 )
 
@@ -31,8 +33,20 @@ def test_altin_subdomain_still_strips_altin_prefix():
 
 
 def test_seo_audit_url_from_ga4_mweb():
-    u = seo_audit_url_from_ga4("m.doviz.com", "/besli-altin")
+    u = seo_audit_url_from_ga4("m.doviz.com", "/besli-altin", ga4_profile="mweb")
     assert u == "https://m.doviz.com/altin/besli-altin"
+
+
+def test_seo_audit_mweb_profile_forces_mobile_host():
+    u = seo_audit_url_from_ga4("www.doviz.com", "/22-ayar-bilezik", ga4_profile="mweb")
+    assert u == "https://m.doviz.com/altin/22-ayar-bilezik"
+
+
+def test_flat_m_doviz_detected_and_repaired():
+    bad = "https://m.doviz.com/akbank"
+    assert is_m_doviz_flat_product_url(bad)
+    assert repair_seo_audit_url(bad) == "https://m.doviz.com/altin/akbank"
+    assert not is_m_doviz_flat_product_url(repair_seo_audit_url(bad))
 
 
 def test_mweb_haber_root_unchanged():

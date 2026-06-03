@@ -100,8 +100,10 @@ def is_seo_audit_excluded_url(url: str | None) -> bool:
 
 def is_seo_audit_crawl_url(url: str | None) -> bool:
     """SEO audit taramasına alınabilir gerçek https URL mi? GA4 (other) vb. hayır."""
-    u = (url or "").strip()
+    u = repair_seo_audit_url((url or "").strip())
     if not u.startswith(("http://", "https://")):
+        return False
+    if is_m_doviz_flat_product_url(u):
         return False
     if is_seo_audit_excluded_url(u):
         return False
@@ -117,10 +119,70 @@ def is_seo_audit_crawl_url(url: str | None) -> bool:
     return True
 
 
-def seo_audit_url_from_ga4(host: str | None, path: str | None) -> str:
-    """GA4 hostname + pagePath → tarama URL'si; yer tutucu veya hariç sayfa ise ''."""
-    u = ga4_canonical_page_url(host, path)
+def is_m_doviz_flat_product_url(url: str | None) -> bool:
+    """
+    Mobil sitede /altin/ öneki olmadan ürün/banka slug'ı (ör. /22-ayar-bilezik).
+    GA4 veya eski taramadan kalan hatalı audit URL'leri.
+    """
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urlparse(u)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower().split(":")[0]
+    if host != _DOVIZ_MWEB_HOST:
+        return False
+    path = (parsed.path or "").strip() or "/"
+    low = path.lower()
+    if low.startswith("/altin/") or low in ("/altin", "/altin/"):
+        return False
+    parts = [p for p in path.split("/") if p]
+    if not parts:
+        return False
+    if parts[0].lower() in _DOVIZ_MWEB_TOP_LEVEL:
+        return False
+    return True
+
+
+def repair_seo_audit_url(url: str | None) -> str:
+    """Audit tarama URL'sini düzelt (m.doviz mobil path)."""
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return u
+    try:
+        parsed = urlparse(u)
+    except Exception:
+        return u
+    host = (parsed.netloc or "").lower().split(":")[0]
+    if host != _DOVIZ_MWEB_HOST:
+        return u
+    path = parsed.path or "/"
+    fixed = _doviz_mweb_resolve_path(path)
+    if fixed == path:
+        return u
+    return f"https://{_DOVIZ_MWEB_HOST}{quote(fixed, safe='/-._~%?&=#@!$()*+,;:')}"
+
+
+def seo_audit_url_from_ga4(
+    host: str | None,
+    path: str | None,
+    *,
+    ga4_profile: str | None = None,
+) -> str:
+    """GA4 hostName + pagePath → tarama URL'si; yer tutucu veya hariç sayfa ise ''."""
+    h = (host or "").strip()
+    profile = (ga4_profile or "").strip().lower()
+    if profile == "mweb":
+        h_low = h.lower()
+        if not h_low or _is_ga4_placeholder_host(h_low) or h_low in ("www.doviz.com", "doviz.com"):
+            h = _DOVIZ_MWEB_HOST
+    u = ga4_canonical_page_url(h, path)
     if is_seo_audit_excluded_url(u):
+        return ""
+    u = repair_seo_audit_url(u)
+    if is_m_doviz_flat_product_url(u):
         return ""
     return u
 

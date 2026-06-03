@@ -13,7 +13,11 @@ from urllib.parse import urlparse
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
-from backend.services.ga4_page_urls import is_seo_audit_crawl_url, is_seo_audit_excluded_url
+from backend.services.ga4_page_urls import (
+    is_m_doviz_flat_product_url,
+    is_seo_audit_crawl_url,
+    is_seo_audit_excluded_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,29 @@ def _exclude_junk_audit_urls(q, M):
     for marker in _JUNK_AUDIT_URL_MARKERS:
         q = q.filter(~M.url.ilike(f"%{marker}%"))
     return _exclude_yorum_listing_root_sql(q, M)
+
+
+def purge_invalid_m_doviz_audit_urls(db: Session, site_id: int) -> int:
+    """DB'deki hatalı m.doviz kök slug audit kayıtlarını siler."""
+    from backend.models import UrlAuditRecord
+
+    rows = db.query(UrlAuditRecord.id, UrlAuditRecord.url).filter(
+        UrlAuditRecord.site_id == site_id,
+    ).all()
+    bad_ids = [rid for rid, url in rows if is_m_doviz_flat_product_url(url)]
+    if not bad_ids:
+        return 0
+    try:
+        db.query(UrlAuditRecord).filter(UrlAuditRecord.id.in_(bad_ids)).delete(
+            synchronize_session=False,
+        )
+        db.commit()
+        logger.info("SEO audit: site_id=%s hatalı m.doviz URL silindi: %d", site_id, len(bad_ids))
+        return len(bad_ids)
+    except Exception:
+        db.rollback()
+        logger.exception("purge_invalid_m_doviz_audit_urls")
+        return 0
 
 # Sağlıklı aralıklar
 TITLE_MIN, TITLE_MAX = 20, 65
@@ -247,6 +274,8 @@ def get_audit_issues(
 
     result = []
     for r in rows:
+        if is_m_doviz_flat_product_url(r.url):
+            continue
         result.append({
             "url": r.url,
             "title": r.title,

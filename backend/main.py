@@ -10026,7 +10026,12 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
 @app.get("/seo-audit")
 def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "all", page: int = 1):
     """SEO meta tag denetim sayfası."""
-    from backend.services.meta_audit import get_audit_summary, get_audit_issues, get_audit_issues_count
+    from backend.services.meta_audit import (
+        get_audit_summary,
+        get_audit_issues,
+        get_audit_issues_count,
+        purge_invalid_m_doviz_audit_urls,
+    )
     from backend.models import Site
 
     sidebar_sites = get_sidebar_sites()
@@ -10050,6 +10055,9 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
             site_id = all_sites[0]["id"]
 
         if site_id:
+            site_row = db.query(Site).filter(Site.id == site_id).first()
+            if site_row and "doviz" in (site_row.domain or "").lower():
+                purge_invalid_m_doviz_audit_urls(db, site_id)
             summary = get_audit_summary(db, site_id)
             issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
             total_count = get_audit_issues_count(db, site_id, filter_key=filter)
@@ -10095,7 +10103,12 @@ def api_seo_audit_run(site_id: int):
         import json as _json
         from backend.collectors.site_audit import _fetch_url_audit
         from backend.models import UrlAuditRecord
-        from backend.services.ga4_page_urls import is_seo_audit_crawl_url, seo_audit_url_from_ga4
+        from backend.services.ga4_page_urls import (
+            is_seo_audit_crawl_url,
+            repair_seo_audit_url,
+            seo_audit_url_from_ga4,
+        )
+        from backend.services.meta_audit import purge_invalid_m_doviz_audit_urls
         from datetime import datetime as _dt
 
         prog = {
@@ -10109,12 +10122,18 @@ def api_seo_audit_run(site_id: int):
             urls: list[str] = []
 
             def _add(u: str):
-                u = u.split("?")[0].rstrip("/")
+                u = repair_seo_audit_url(u.split("?")[0].rstrip("/"))
                 if u and is_seo_audit_crawl_url(u) and u not in seen_urls:
                     seen_urls.add(u)
                     urls.append(u)
 
             base = f"https://{site_domain}"
+
+            if "doviz" in (site_domain or "").lower():
+                with SessionLocal() as db:
+                    n = purge_invalid_m_doviz_audit_urls(db, site_id)
+                    if n:
+                        LOGGER.info("SEO audit: %d hatalı m.doviz URL temizlendi", n)
 
             # 1. GA4'ten web + mweb top 250 sayfaları çek
             prog["current"] = "GA4'ten trafik verileri çekiliyor…"
@@ -10145,7 +10164,7 @@ def api_seo_audit_run(site_id: int):
                                 property=pid,
                                 date_ranges=[DateRange(start_date="7daysAgo", end_date="today")],
                                 dimensions=[
-                                    Dimension(name="hostname"),
+                                    Dimension(name="hostName"),
                                     Dimension(name="pagePath"),
                                 ],
                                 metrics=[Metric(name="sessions")],
@@ -10156,7 +10175,9 @@ def api_seo_audit_run(site_id: int):
                                 dims = row.dimension_values
                                 hostname = dims[0].value if dims else ""
                                 path = dims[1].value if len(dims) > 1 else ""
-                                full_url = seo_audit_url_from_ga4(hostname, path)
+                                full_url = seo_audit_url_from_ga4(
+                                    hostname, path, ga4_profile=profile_key,
+                                )
                                 if full_url:
                                     _add(full_url)
                             LOGGER.info("GA4 top sayfalar: profile=%s, %d URL", profile_key, len(resp.rows))
@@ -13993,7 +14014,12 @@ def _run_seo_audit_job() -> None:
     import json as _json
     from backend.collectors.site_audit import _fetch_url_audit
     from backend.models import Site, UrlAuditRecord
-    from backend.services.ga4_page_urls import is_seo_audit_crawl_url, seo_audit_url_from_ga4
+    from backend.services.ga4_page_urls import (
+        is_seo_audit_crawl_url,
+        repair_seo_audit_url,
+        seo_audit_url_from_ga4,
+    )
+    from backend.services.meta_audit import purge_invalid_m_doviz_audit_urls
     from datetime import datetime as _dt
 
     try:
@@ -14023,10 +14049,14 @@ def _run_seo_audit_job() -> None:
             urls: list[str] = []
 
             def _add(u: str):
-                u = u.split("?")[0].rstrip("/")
+                u = repair_seo_audit_url(u.split("?")[0].rstrip("/"))
                 if u and is_seo_audit_crawl_url(u) and u not in seen_urls:
                     seen_urls.add(u)
                     urls.append(u)
+
+            if "doviz" in (site_domain or "").lower():
+                with SessionLocal() as db:
+                    purge_invalid_m_doviz_audit_urls(db, site_id)
 
             # GA4'ten top 250 web + 250 mweb
             prog["current"] = "GA4 top sayfalar çekiliyor…"
@@ -14054,7 +14084,7 @@ def _run_seo_audit_job() -> None:
                             resp = client.run_report(RunReportRequest(
                                 property=pid,
                                 date_ranges=[DateRange(start_date="7daysAgo", end_date="today")],
-                                dimensions=[Dimension(name="hostname"), Dimension(name="pagePath")],
+                                dimensions=[Dimension(name="hostName"), Dimension(name="pagePath")],
                                 metrics=[Metric(name="sessions")],
                                 order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
                                 limit=250,
@@ -14063,7 +14093,9 @@ def _run_seo_audit_job() -> None:
                                 dims = row.dimension_values
                                 hostname = dims[0].value if dims else ""
                                 path = dims[1].value if len(dims) > 1 else ""
-                                full_url = seo_audit_url_from_ga4(hostname, path)
+                                full_url = seo_audit_url_from_ga4(
+                                    hostname, path, ga4_profile=profile_key,
+                                )
                                 if full_url:
                                     _add(full_url)
                             LOGGER.info("SEO audit GA4: site=%s profile=%s %d URL", site_domain, profile_key, len(resp.rows))

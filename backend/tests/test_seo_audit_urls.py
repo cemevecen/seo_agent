@@ -31,3 +31,5 @@ def test_seo_audit_excludes_yorum_listing_only():
     assert seo_audit_url_from_ga4("www.doviz.com", "/yorum/123") == "https://www.doviz.com/yorum/123"
     assert not is_seo_audit_crawl_url("https://www.doviz.com/yorum")
     assert is_seo_audit_crawl_url("https://www.doviz.com/yorum/456")
+    assert not is_seo_audit_crawl_url("https://m.doviz.com/22-ayar-bilezik")
+    assert is_seo_audit_crawl_url("https://m.doviz.com/altin/22-ayar-bilezik")
