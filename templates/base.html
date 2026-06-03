@@ -558,34 +558,47 @@
     }
   </style>
   <style id="seo-ad-page-layout">
-    /* /ad — Tailwind xl grid sınıfları yüklenmese de 12 sütun düzeni */
+    /* /ad düzeni — prod app.css purge/çakışması ya da grid quirk'i olsa bile içerik
+       KESİN görünür. !important app.css'i ezer; kırılgan parçalar (12 sütun span-math,
+       sticky+overflow+max-height, arbitrary sınıflar) kaldırıldı.
+       Mobil: block (her zaman görünür). Masaüstü: basit 300px + 1fr 2 sütun. */
     .ad-page #ad-body-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 1rem;
-      width: 100%;
+      display: block !important;
+      width: 100% !important;
       min-width: 0;
-    }
-    @media (min-width: 1280px) {
-      .ad-page #ad-body-grid {
-        grid-template-columns: repeat(12, minmax(0, 1fr));
-      }
-      .ad-page #ad-sidebar {
-        grid-column: span 3 / span 3;
-        position: sticky;
-        top: 1rem;
-        max-height: calc(100vh - 2rem);
-        overflow-y: auto;
-        align-self: start;
-      }
-      .ad-page #ad-main {
-        grid-column: span 9 / span 9;
-        min-width: 0;
-      }
     }
     .ad-page #ad-sidebar,
     .ad-page #ad-main {
+      display: block !important;
+      width: 100% !important;
       min-width: 0;
+      box-sizing: border-box;
+    }
+    .ad-page #ad-sidebar {
+      margin-bottom: 1rem;
+    }
+    .ad-page #ad-main {
+      min-height: 24rem;
+    }
+    @media (min-width: 1280px) {
+      .ad-page #ad-body-grid {
+        display: grid !important;
+        grid-template-columns: 300px minmax(0, 1fr) !important;
+        gap: 1rem;
+        align-items: start;
+      }
+      .ad-page #ad-sidebar {
+        grid-column: 1 !important;
+        width: auto !important;
+        margin-bottom: 0;
+        position: sticky;
+        top: 1rem;
+        align-self: start;
+      }
+      .ad-page #ad-main {
+        grid-column: 2 !important;
+        width: auto !important;
+      }
     }
     .ad-page .ad-chart-plot {
       width: 100%;
