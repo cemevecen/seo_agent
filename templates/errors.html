@@ -203,26 +203,16 @@ function _renderSummary(d) {
     var hasBreakdown = _errHasBreakdown(e);
     var hasDetail = allRefs.length > 3 || allCh.length > 0 || unknown > 0 || hasBreakdown;
     var detailBtn = hasDetail
-      ? '<button type="button" class="mt-1 text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-500" onclick="toggleErrDetail(this)" aria-expanded="false">Detay</button>' : '';
+      ? '<button type="button" class="mt-1.5 inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-sky-700 shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-sky-400 dark:hover:bg-zinc-700" onclick="toggleErrDetail(this)" aria-expanded="false">Detay</button>' : '';
     var srcCell = compactRefs || compactCh || unknownHint || directDevHint || landingHint
       ? compactRefs + compactCh + unknownHint + directDevHint + landingHint + unknownTail + detailBtn
       : '<span class="text-xs text-slate-300 dark:text-zinc-600">—</span>';
-    var detailRefs = allRefs.map(function(it) { return _renderRefLine(it, false); }).join('');
-    var detailCh = allCh.map(_renderChLine).join('');
-    var detailMeta = unknown
-      ? '<p class="text-[10px] text-slate-400 dark:text-zinc-500 mb-2">GA4 referrer boş: '+unknown+' kullanıcı — Direct kırılımı aşağıda</p>' : '';
-    var queryBadge = urlQuery
-      ? '<p class="text-[10px] font-mono text-teal-700 dark:text-teal-400 mb-2 truncate" title="'+_esc(urlQuery)+'">Landing query: '+_esc(urlQuery.length > 80 ? urlQuery.slice(0,80)+'…' : urlQuery)+'</p>' : '';
-    var detailBlocks = _errDetailBreakdownHtml(e);
+    var detailPanel = hasDetail ? _errDetailPanelHtml(e, { refs: allRefs, channels: allCh, unknown: unknown, urlQuery: urlQuery }) : '';
     var detailRow = hasDetail
-      ? '<tr class="err-detail-row hidden bg-slate-50/80 dark:bg-zinc-800/40" data-url="'+_esc((e.url||'').toLowerCase())+'">'
-        +'<td colspan="5" class="px-4 py-3 border-t border-slate-100 dark:border-zinc-800/50">'
-        +detailMeta + queryBadge
-        +'<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-5xl">'
-        +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Referrer</p>'+(detailRefs || '<span class="text-xs text-slate-400">—</span>')+'</div>'
-        +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Oturum kanalı</p>'+(detailCh || '<span class="text-xs text-slate-400">—</span>')+'</div>'
-        +detailBlocks
-        +'</div></td></tr>' : '';
+      ? '<tr class="err-detail-row hidden" data-url="'+_esc((e.url||'').toLowerCase())+'">'
+        +'<td colspan="5" class="p-0 border-t border-slate-200/80 dark:border-zinc-700/50">'
+        +'<div class="bg-slate-50/90 px-4 py-4 dark:bg-zinc-950/50">'+detailPanel+'</div>'
+        +'</td></tr>' : '';
     var lastSeen = (e.last_seen || '—').slice(0,10);
     var title = e.page_title && !['Sayfa Bulunamadı','Sayfa Bulunamadı - Sinemalar.com'].includes(e.page_title)
       ? '<span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">'+_esc(e.page_title)+'</span>' : '';
@@ -291,31 +281,57 @@ function _normLabelItem(x) {
   return { label: x.label || x.channel || '', users: x.users || 0 };
 }
 
-function _renderLabelLine(item) {
-  if (!item.label) return '';
-  return '<span class="block truncate text-xs text-slate-500 dark:text-zinc-400 leading-5">'+_esc(item.label)+' <span class="text-slate-400 dark:text-zinc-500">('+item.users+')</span></span>';
+function _renderMetricRows(items, key) {
+  var list = (items || []).map(function(x) {
+    if (key === 'channel') return _normChItem(x);
+    return _normLabelItem(x);
+  }).filter(function(x) {
+    return key === 'channel' ? x.channel : x.label;
+  });
+  if (!list.length) return '';
+  var maxU = 0;
+  list.forEach(function(x) { maxU = Math.max(maxU, x.users || 0); });
+  return '<ul class="divide-y divide-slate-100 dark:divide-zinc-800/80">'
+    + list.map(function(x) {
+      var label = key === 'channel' ? x.channel : x.label;
+      var users = x.users || 0;
+      var pct = maxU > 0 ? Math.max(6, Math.round((users / maxU) * 100)) : 0;
+      return '<li class="py-2 first:pt-0 last:pb-0">'
+        + '<div class="flex items-center justify-between gap-2 mb-1">'
+        + '<span class="min-w-0 truncate text-xs font-medium text-slate-800 dark:text-zinc-200" title="'+_esc(label)+'">'+_esc(label)+'</span>'
+        + '<span class="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-slate-700 dark:bg-zinc-800 dark:text-zinc-200">'+users+'</span>'
+        + '</div>'
+        + '<div class="h-1 overflow-hidden rounded-full bg-slate-200/80 dark:bg-zinc-800">'
+        + '<div class="h-full rounded-full bg-sky-500/70 dark:bg-sky-500/50" style="width:'+pct+'%"></div>'
+        + '</div></li>';
+    }).join('')
+    + '</ul>';
 }
 
-function _errBreakdownSection(title, items) {
-  var list = (items || []).map(_normLabelItem).filter(function(x) { return x.label; });
-  if (!list.length) return '';
-  return '<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">'+_esc(title)+'</p>'
-    + list.map(_renderLabelLine).join('') + '</div>';
+function _errMiniBlock(title, items, key) {
+  var body = _renderMetricRows(items, key || 'label');
+  if (!body) return '';
+  return '<div class="rounded-lg border border-slate-200/90 bg-white p-2.5 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/90">'
+    + '<p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">'+_esc(title)+'</p>'
+    + body + '</div>';
 }
 
 var _ERR_BREAKDOWN_KEYS = [
-  ['direct_devices', 'Direct · cihaz'],
-  ['direct_os', 'Direct · işletim sistemi'],
-  ['direct_browsers', 'Direct · tarayıcı'],
-  ['direct_platforms', 'Direct · platform'],
-  ['direct_source_medium', 'Direct · kaynak / medya'],
-  ['devices', 'Tüm trafik · cihaz'],
-  ['operating_systems', 'Tüm trafik · OS'],
-  ['browsers', 'Tüm trafik · tarayıcı'],
-  ['platforms', 'Tüm trafik · platform'],
-  ['source_medium', 'Tüm trafik · kaynak / medya'],
-  ['landing_params', 'Landing query (utm, fbclid…)']
+  ['direct_devices', 'Cihaz'],
+  ['direct_os', 'İşletim sistemi'],
+  ['direct_browsers', 'Tarayıcı'],
+  ['direct_platforms', 'Platform'],
+  ['direct_source_medium', 'Kaynak / medya'],
+  ['devices', 'Cihaz'],
+  ['operating_systems', 'İşletim sistemi'],
+  ['browsers', 'Tarayıcı'],
+  ['platforms', 'Platform'],
+  ['source_medium', 'Kaynak / medya'],
+  ['landing_params', 'Parametre']
 ];
+
+var _ERR_DIRECT_KEYS = _ERR_BREAKDOWN_KEYS.slice(0, 5);
+var _ERR_ALL_KEYS = _ERR_BREAKDOWN_KEYS.slice(5, 10);
 
 function _errHasBreakdown(e) {
   for (var i = 0; i < _ERR_BREAKDOWN_KEYS.length; i++) {
@@ -324,12 +340,103 @@ function _errHasBreakdown(e) {
   return false;
 }
 
-function _errDetailBreakdownHtml(e) {
-  var html = '';
-  for (var i = 0; i < _ERR_BREAKDOWN_KEYS.length; i++) {
-    html += _errBreakdownSection(_ERR_BREAKDOWN_KEYS[i][1], e[_ERR_BREAKDOWN_KEYS[i][0]]);
+function _errGroupPanel(title, subtitle, badgeCls, keys, e) {
+  var blocks = [];
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i][0];
+    var label = keys[i][1];
+    if ((e[k] || []).length) blocks.push(_errMiniBlock(label, e[k], 'label'));
   }
-  return html;
+  if (!blocks.length) return '';
+  return '<section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-700/70 dark:bg-zinc-900/80">'
+    + '<div class="mb-3 flex flex-wrap items-start justify-between gap-2">'
+    + '<div><h4 class="text-xs font-bold text-slate-900 dark:text-zinc-100">'+_esc(title)+'</h4>'
+    + (subtitle ? '<p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">'+_esc(subtitle)+'</p>' : '')
+    + '</div>'
+    + '<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase '+badgeCls+'">'+blocks.length+' alan</span>'
+    + '</div>'
+    + '<div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">'+blocks.join('')+'</div>'
+    + '</section>';
+}
+
+function _errDetailPanelHtml(e, ctx) {
+  ctx = ctx || {};
+  var parts = [];
+  var unknown = ctx.unknown || 0;
+  var allRefs = ctx.refs || [];
+  var allCh = ctx.channels || [];
+  var urlQuery = ctx.urlQuery || '';
+
+  if (unknown) {
+    parts.push(
+      '<div class="flex gap-3 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2.5 dark:border-amber-800/50 dark:bg-amber-950/25">'
+      + '<span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-200/80 text-[11px] font-black text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">!</span>'
+      + '<div class="min-w-0"><p class="text-xs font-semibold text-amber-950 dark:text-amber-100">Referrer ölçülmedi</p>'
+      + '<p class="mt-0.5 text-[11px] leading-relaxed text-amber-900/80 dark:text-amber-200/80">'
+      + '<strong class="tabular-nums">'+unknown+'</strong> kullanıcı için GA4 önceki sayfa URL’si göndermiyor. '
+      + 'Aşağıdaki <span class="font-semibold">Direct</span> ve <span class="font-semibold">kanal</span> kırılımları ipucu verir; tam geliş linki çoğu zaman yoktur.'
+      + '</p></div></div>'
+    );
+  }
+
+  if (urlQuery) {
+    parts.push(
+      '<div class="rounded-xl border border-teal-200/90 bg-teal-50/80 px-3 py-2 dark:border-teal-800/40 dark:bg-teal-950/20">'
+      + '<p class="text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300">Landing query</p>'
+      + '<p class="mt-1 break-all font-mono text-xs text-teal-900 dark:text-teal-100">'+_esc(urlQuery)+'</p>'
+      + '</div>'
+    );
+  }
+
+  var landing = (e.landing_params || []).map(_normLabelItem).filter(function(x) { return x.label; });
+  if (landing.length) {
+    parts.push(
+      '<section class="rounded-xl border border-teal-200/90 bg-white p-3 shadow-sm dark:border-teal-800/40 dark:bg-zinc-900/80">'
+      + '<h4 class="text-xs font-bold text-teal-900 dark:text-teal-200">Kampanya / izleme parametreleri</h4>'
+      + '<p class="mt-0.5 mb-2 text-[11px] text-slate-500 dark:text-zinc-400">utm, fbclid, gclid vb. ile gelen oturumlar</p>'
+      + _renderMetricRows(landing, 'label')
+      + '</section>'
+    );
+  }
+
+  var refBody = allRefs.length
+    ? '<div class="space-y-1">'+allRefs.map(function(it) { return _renderRefLine(it, false); }).join('')+'</div>'
+    : '<p class="text-xs text-slate-500 dark:text-zinc-500">Kayıt yok — trafik doğrudan veya ölçülemeyen kaynakta.</p>';
+  var chBody = allCh.length ? _renderMetricRows(allCh, 'channel') : '<p class="text-xs text-slate-500 dark:text-zinc-500">—</p>';
+
+  parts.push(
+    '<div class="grid gap-3 lg:grid-cols-2">'
+    + '<section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-700/70 dark:bg-zinc-900/80">'
+    + '<h4 class="text-xs font-bold text-slate-900 dark:text-zinc-100">Referrer</h4>'
+    + '<p class="mt-0.5 mb-2 text-[11px] text-slate-500 dark:text-zinc-400">Önceki sayfa (tam URL mümkünse)</p>'
+    + refBody
+    + '</section>'
+    + '<section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-700/70 dark:bg-zinc-900/80">'
+    + '<h4 class="text-xs font-bold text-slate-900 dark:text-zinc-100">Oturum kanalı</h4>'
+    + '<p class="mt-0.5 mb-2 text-[11px] text-slate-500 dark:text-zinc-400">Direct, Organic Search, …</p>'
+    + chBody
+    + '</section></div>'
+  );
+
+  var directPanel = _errGroupPanel(
+    'Direct oturumlar',
+    'Yalnızca kanalı Direct olan kullanıcılar',
+    'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
+    _ERR_DIRECT_KEYS,
+    e
+  );
+  var allPanel = _errGroupPanel(
+    'Tüm trafik',
+    'Bu 404 URL’sine gelen tüm oturumlar',
+    'bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300',
+    _ERR_ALL_KEYS,
+    e
+  );
+  if (directPanel || allPanel) {
+    parts.push('<div class="grid gap-3 lg:grid-cols-2">'+directPanel+allPanel+'</div>');
+  }
+
+  return '<div class="max-w-5xl space-y-3">'+parts.join('')+'</div>';
 }
 
 function toggleErrDetail(btn) {
