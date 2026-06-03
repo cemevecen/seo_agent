@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -120,6 +121,67 @@ def test_query_summary_with_compare():
         assert "compare" in summ
         assert summ["compare"]["deltas"]["net_revenue"]["compare"] == 20.0
         assert summ["compare"]["deltas"]["net_revenue"]["current"] == 80.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
+def test_empower_metrics_from_extra_header():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "Ad Unit",
+            "Date",
+            "Income Type",
+            "Impression",
+            "Net Revenue",
+            "Empower Pageviews",
+        ]
+    )
+    d = date(2026, 2, 1)
+    serial = (d - date(1899, 12, 30)).days
+    ws.append(["web_x", serial, "Open Auction", 100, 50.0, 1200])
+    buf = io.BytesIO()
+    wb.save(buf)
+    rows = store.parse_xlsx_bytes(buf.getvalue(), filename="dovizcom1_Report_2026.xlsx")
+    assert len(rows) == 1
+    extras = json.loads(rows[0]["extra_metrics"])
+    assert extras.get("empower_pageview") == 1200.0
+
+
+def test_kpi_available_omits_missing_empower():
+    init_db()
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        "unit_a,1,45658,Open Auction,10,8,10,1,0,0,0,0,0,50\n"
+    )
+    rows = store.parse_csv_text(text, filename="dovizcom1_Report_2026.xlsx")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        summ = store.query_summary(db)
+        assert "empower_pageview" not in summ["kpi_available"]
+        assert "net_revenue" in summ["kpi_available"]
+        assert "impression" in summ["kpi_available"]
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
+def test_viewability_coverage_percent_scale():
+    init_db()
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        "unit_a,1,45658,Open Auction,100,80,100,1,0,0,0,80,90,50\n"
+    )
+    rows = store.parse_csv_text(text, filename="dovizcom1_Report_2026.xlsx")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        summ = store.query_summary(db)
+        assert summ["kpis"]["coverage_pct"] == 80.0
+        assert summ["kpis"]["viewability_pct"] == 90.0
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()
 

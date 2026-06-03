@@ -400,15 +400,9 @@ def _dict_from_mapped(
         "viewability": _n(mapped.get("viewability")),
         "net_revenue": _n(mapped.get("net_revenue")),
     }
-    for opt in (
-        "empower_pageview",
-        "empower_unique_visitor",
-        "pageview_ecpm",
-        "unique_visitor_ecpm",
-        "above_the_fold_ratio",
-    ):
+    for opt in _OPTIONAL_EXTRA_FIELDS:
         if opt in mapped and mapped.get(opt) not in (None, ""):
-            extras[_slug_metric_key(opt)] = _n(mapped.get(opt))
+            extras[opt] = _n(mapped.get(opt))
     row["extra_metrics"] = json.dumps(extras, ensure_ascii=False)
     return row
 
@@ -431,6 +425,11 @@ def _row_from_values(
         mapped["month_key"] = _month_from_serial(values[col_map["month"]])
     for label, idx in extras_idx:
         if idx < len(values):
+            norm = _normalize_header(label)
+            field = _resolve_field(norm, label)
+            if field in _OPTIONAL_EXTRA_FIELDS:
+                mapped[field] = values[idx]
+                continue
             key = _slug_metric_key(label)
             val = values[idx]
             extra_metrics[key] = _n(val) if isinstance(val, (int, float, str)) else val
@@ -851,8 +850,13 @@ def facets(db: Session) -> dict[str, Any]:
     ).all()
     stats_map = {(r[0], r[1]): r for r in stream_stats}
     streams_out: list[dict[str, Any]] = []
+    kpi_union: set[str] = set()
     for meta in AD_STREAMS:
         hit = stats_map.get((meta.project, meta.branch))
+        stream_kpis: list[str] = []
+        if hit and hit[4]:
+            stream_kpis = scan_stream_kpis(db, meta.project, meta.branch)
+            kpi_union.update(stream_kpis)
         streams_out.append(
             {
                 "key": meta.key,
@@ -865,6 +869,7 @@ def facets(db: Session) -> dict[str, Any]:
                 "max_date": hit[3].isoformat() if hit and hit[3] else None,
                 "row_count": int(hit[4] or 0) if hit else 0,
                 "has_data": bool(hit and hit[4]),
+                "available_kpis": stream_kpis,
             }
         )
 
@@ -894,6 +899,7 @@ def facets(db: Session) -> dict[str, Any]:
 
     return {
         "streams": streams_out,
+        "kpi_union": sorted(kpi_union, key=lambda k: {x: i for i, x in enumerate(KPI_METRIC_KEYS)}.get(k, 999)),
         "import_audit": import_audit,
         "income_types": income,
         "platforms": platforms,
@@ -966,6 +972,34 @@ def _apply_filters(
         q = q.where(AdReportRow.ad_unit.ilike(f"%{search}%"))
     return q
 
+
+_OPTIONAL_EXTRA_FIELDS = frozenset(
+    {
+        "empower_pageview",
+        "empower_unique_visitor",
+        "pageview_ecpm",
+        "unique_visitor_ecpm",
+        "above_the_fold_ratio",
+    }
+)
+
+# extra_metrics JSON anahtarları export başlıklarına göre farklı yazılabilir
+_EXTRA_JSON_ALIASES: dict[str, tuple[str, ...]] = {
+    "empower_pageview": ("empower_pageview", "empower_pageviews", "empowerpageview"),
+    "empower_unique_visitor": (
+        "empower_unique_visitor",
+        "empower_unique_visitors",
+        "empoweruniquevisitor",
+    ),
+    "pageview_ecpm": ("pageview_ecpm", "pageviewecpm"),
+    "unique_visitor_ecpm": ("unique_visitor_ecpm", "uniquevisitorecpm"),
+    "above_the_fold_ratio": (
+        "above_the_fold_ratio",
+        "above_the_fold",
+        "abovethefoldratio",
+        "abovethefold",
+    ),
+}
 
 KPI_METRIC_KEYS = (
     "empower_pageview",
@@ -1168,6 +1202,141 @@ def _attach_compare_block(
     }
 
 
+def _norm_ratio_sql(col):
+    from sqlalchemy import case
+
+    return case((col > 1, col / 100.0), else_=col)
+
+
+def _extra_json_expr(sub, key: str):
+    """Tek JSON anahtarı → Float ifadesi (subquery satırı)."""
+    from sqlalchemy import Float, String, cast
+
+    if _IS_PG:
+        from sqlalchemy.dialects.postgresql import JSONB
+
+        raw = cast(sub.c.extra_metrics, JSONB)[key].astext
+        return cast(func.nullif(raw, ""), Float)
+    return cast(func.nullif(func.json_extract(sub.c.extra_metrics, f"$.{key}"), ""), Float)
+
+
+def _extra_json_expr_multi(sub, canonical: str):
+    """Bilinen alias'larla extra JSON alanı (satır başına coalesce)."""
+    keys = _EXTRA_JSON_ALIASES.get(canonical, (canonical,))
+    expr = _extra_json_expr(sub, keys[0])
+    for alias in keys[1:]:
+        expr = func.coalesce(expr, _extra_json_expr(sub, alias))
+    return expr
+
+
+def _sum_extra_multi(sub, canonical: str):
+    return func.coalesce(func.sum(_extra_json_expr_multi(sub, canonical)), 0)
+
+
+def _weighted_extra_ratio(sub, canonical: str, weight_col):
+    """Oran metrikleri impression/ad_request ile ağırlıklı topla (0–100 normalize)."""
+    val = _extra_json_expr_multi(sub, canonical)
+    norm = _norm_ratio_sql(val)
+    return func.coalesce(func.sum(norm * weight_col), 0)
+
+
+def _has_extra_data(db: Session, q, canonical: str) -> bool:
+    sub = q.subquery()
+    total = db.scalar(select(_sum_extra_multi(sub, canonical)))
+    return float(total or 0) > 0
+
+
+def _derive_kpi_availability(
+    *,
+    net_rev: float,
+    impr: float,
+    clicks: float,
+    ad_req: float,
+    matched_req: float,
+    empower_pv: float,
+    empower_uv: float,
+    view_w_sum: float,
+    cov_w_sum: float,
+    atf_w_sum: float,
+    has_pageview_ecpm_extra: bool,
+    has_uv_ecpm_extra: bool,
+) -> list[str]:
+    avail: list[str] = []
+    if net_rev != 0:
+        avail.append("net_revenue")
+    if ad_req > 0:
+        avail.append("ad_request")
+        if net_rev != 0:
+            avail.append("ad_request_ecpm")
+    if matched_req > 0:
+        avail.append("matched_request")
+    if impr > 0:
+        avail.extend(["impression", "ad_ecpm", "ctr_pct"])
+    if clicks > 0 or impr > 0:
+        avail.append("click")
+    if empower_pv > 0:
+        avail.append("empower_pageview")
+        if net_rev != 0:
+            avail.append("pageview_ecpm")
+    elif has_pageview_ecpm_extra:
+        avail.append("pageview_ecpm")
+    if empower_uv > 0:
+        avail.append("empower_unique_visitor")
+        if net_rev != 0:
+            avail.append("unique_visitor_ecpm")
+    elif has_uv_ecpm_extra:
+        avail.append("unique_visitor_ecpm")
+    if impr > 0 and view_w_sum > 0:
+        avail.append("viewability_pct")
+    if ad_req > 0 and cov_w_sum > 0:
+        avail.append("coverage_pct")
+    if impr > 0 and atf_w_sum > 0:
+        avail.append("above_the_fold_ratio_pct")
+    # sıra KPI kartları ile uyumlu
+    order = {k: i for i, k in enumerate(KPI_METRIC_KEYS)}
+    return sorted(set(avail), key=lambda k: order.get(k, 999))
+
+
+def scan_stream_kpis(db: Session, project: str, branch: str) -> list[str]:
+    """Dal için DB'de gerçekten var olan KPI kaynaklarını tespit et."""
+    base = select(AdReportRow).where(
+        AdReportRow.project == project,
+        AdReportRow.branch == branch,
+    )
+    sub = base.subquery()
+    norm_view = _norm_ratio_sql(sub.c.viewability)
+    norm_cov = _norm_ratio_sql(sub.c.coverage)
+    row = db.execute(
+        select(
+            func.coalesce(func.sum(sub.c.net_revenue), 0),
+            func.coalesce(func.sum(sub.c.impression), 0),
+            func.coalesce(func.sum(sub.c.click), 0),
+            func.coalesce(func.sum(sub.c.ad_request), 0),
+            func.coalesce(func.sum(sub.c.matched_request), 0),
+            func.coalesce(_sum_extra_multi(sub, "empower_pageview"), 0),
+            func.coalesce(_sum_extra_multi(sub, "empower_unique_visitor"), 0),
+            func.coalesce(func.sum(norm_view * sub.c.impression), 0),
+            func.coalesce(func.sum(norm_cov * sub.c.ad_request), 0),
+            func.coalesce(_weighted_extra_ratio(sub, "above_the_fold_ratio", sub.c.impression), 0),
+        )
+    ).one()
+    vals = [float(x or 0) for x in row]
+    return _derive_kpi_availability(
+        net_rev=vals[0],
+        impr=vals[1],
+        clicks=vals[2],
+        ad_req=vals[3],
+        matched_req=vals[4],
+        empower_pv=vals[5],
+        empower_uv=vals[6],
+        view_w_sum=vals[7],
+        cov_w_sum=vals[8],
+        atf_w_sum=vals[9],
+        has_pageview_ecpm_extra=_has_extra_data(db, base, "pageview_ecpm"),
+        has_uv_ecpm_extra=_has_extra_data(db, base, "unique_visitor_ecpm"),
+    )
+
+
 def query_summary(
     db: Session,
     *,
@@ -1210,16 +1379,8 @@ def query_summary(
     )
     sub = base.subquery()
 
-    def _sum_extra(key: str):
-        if _IS_PG:
-            from sqlalchemy import Float, cast
-            from sqlalchemy.dialects.postgresql import JSONB
-
-            raw = cast(sub.c.extra_metrics, JSONB)[key].astext
-            return func.sum(cast(func.nullif(raw, ""), Float))
-        from sqlalchemy import Float, cast
-
-        return func.sum(cast(func.json_extract(sub.c.extra_metrics, f"$.{key}"), Float))
+    norm_view = _norm_ratio_sql(sub.c.viewability)
+    norm_cov = _norm_ratio_sql(sub.c.coverage)
 
     totals = db.execute(
         select(
@@ -1228,11 +1389,13 @@ def query_summary(
             func.coalesce(func.sum(sub.c.click), 0),
             func.coalesce(func.sum(sub.c.ad_request), 0),
             func.coalesce(func.sum(sub.c.matched_request), 0),
-            func.coalesce(_sum_extra("empower_pageview"), 0),
-            func.coalesce(_sum_extra("empower_unique_visitor"), 0),
-            func.coalesce(func.sum(sub.c.viewability * sub.c.impression), 0),
-            func.coalesce(func.sum(sub.c.coverage * sub.c.ad_request), 0),
-            func.coalesce(_sum_extra("above_the_fold_ratio"), 0),
+            func.coalesce(_sum_extra_multi(sub, "empower_pageview"), 0),
+            func.coalesce(_sum_extra_multi(sub, "empower_unique_visitor"), 0),
+            func.coalesce(func.sum(norm_view * sub.c.impression), 0),
+            func.coalesce(func.sum(norm_cov * sub.c.ad_request), 0),
+            func.coalesce(_weighted_extra_ratio(sub, "above_the_fold_ratio", sub.c.impression), 0),
+            func.coalesce(_sum_extra_multi(sub, "pageview_ecpm"), 0),
+            func.coalesce(_sum_extra_multi(sub, "unique_visitor_ecpm"), 0),
         )
     ).one()
     (
@@ -1245,16 +1408,55 @@ def query_summary(
         empower_uv,
         view_w_sum,
         cov_w_sum,
-        atf_sum,
+        atf_w_sum,
+        pv_ecpm_sum,
+        uv_ecpm_sum,
     ) = [float(x or 0) for x in totals]
     avg_ecpm = (net_rev / impr * 1000.0) if impr > 0 else 0.0
     ctr = (clicks / impr * 100.0) if impr > 0 else 0.0
     req_ecpm = (net_rev / ad_req * 1000.0) if ad_req > 0 else 0.0
-    pv_ecpm = (net_rev / empower_pv * 1000.0) if empower_pv > 0 else 0.0
-    uv_ecpm = (net_rev / empower_uv * 1000.0) if empower_uv > 0 else 0.0
-    coverage_pct = (cov_w_sum / ad_req) if ad_req > 0 else 0.0
-    viewability_pct = (view_w_sum / impr) if impr > 0 else 0.0
-    atf_pct = (atf_sum / impr) if impr > 0 else 0.0
+    if empower_pv > 0:
+        pv_ecpm = net_rev / empower_pv * 1000.0
+    elif pv_ecpm_sum > 0:
+        cnt_pv = db.scalar(
+            select(func.count())
+            .select_from(sub)
+            .where(_extra_json_expr_multi(sub, "pageview_ecpm") > 0)
+        )
+        pv_ecpm = pv_ecpm_sum / float(cnt_pv or 1)
+    else:
+        pv_ecpm = 0.0
+    if empower_uv > 0:
+        uv_ecpm = net_rev / empower_uv * 1000.0
+    elif uv_ecpm_sum > 0:
+        cnt_uv = db.scalar(
+            select(func.count())
+            .select_from(sub)
+            .where(_extra_json_expr_multi(sub, "unique_visitor_ecpm") > 0)
+        )
+        uv_ecpm = uv_ecpm_sum / float(cnt_uv or 1)
+    else:
+        uv_ecpm = 0.0
+    coverage_pct = (cov_w_sum / ad_req * 100.0) if ad_req > 0 else 0.0
+    viewability_pct = (view_w_sum / impr * 100.0) if impr > 0 else 0.0
+    atf_pct = (atf_w_sum / impr * 100.0) if impr > 0 else 0.0
+
+    has_pv_ecpm_extra = pv_ecpm_sum > 0 or _has_extra_data(db, base, "pageview_ecpm")
+    has_uv_ecpm_extra = uv_ecpm_sum > 0 or _has_extra_data(db, base, "unique_visitor_ecpm")
+    kpi_available = _derive_kpi_availability(
+        net_rev=net_rev,
+        impr=impr,
+        clicks=clicks,
+        ad_req=ad_req,
+        matched_req=matched_req,
+        empower_pv=empower_pv,
+        empower_uv=empower_uv,
+        view_w_sum=view_w_sum,
+        cov_w_sum=cov_w_sum,
+        atf_w_sum=atf_w_sum,
+        has_pageview_ecpm_extra=has_pv_ecpm_extra,
+        has_uv_ecpm_extra=has_uv_ecpm_extra,
+    )
 
     by_date = db.execute(
         select(
@@ -1264,11 +1466,11 @@ def query_summary(
             func.sum(sub.c.click),
             func.sum(sub.c.ad_request),
             func.sum(sub.c.matched_request),
-            _sum_extra("empower_pageview"),
-            _sum_extra("empower_unique_visitor"),
-            func.sum(sub.c.viewability * sub.c.impression),
-            func.sum(sub.c.coverage * sub.c.ad_request),
-            _sum_extra("above_the_fold_ratio"),
+            _sum_extra_multi(sub, "empower_pageview"),
+            _sum_extra_multi(sub, "empower_unique_visitor"),
+            func.sum(norm_view * sub.c.impression),
+            func.sum(norm_cov * sub.c.ad_request),
+            _weighted_extra_ratio(sub, "above_the_fold_ratio", sub.c.impression),
         )
         .group_by(sub.c.report_date)
         .order_by(sub.c.report_date)
@@ -1335,8 +1537,7 @@ def query_summary(
         d_euv = float(row[7] or 0)
         d_view_w = float(row[8] or 0)
         d_cov_w = float(row[9] or 0)
-        d_cov_w = float(row[9] or 0)
-        d_atf = float(row[10] or 0)
+        d_atf_w = float(row[10] or 0)
         return {
             "date": row[0].isoformat(),
             "net_revenue": round(d_rev, 2),
@@ -1351,13 +1552,14 @@ def query_summary(
             "unique_visitor_ecpm": round((d_rev / d_euv * 1000.0) if d_euv > 0 else 0.0, 3),
             "ad_ecpm": round((d_rev / d_impr * 1000.0) if d_impr > 0 else 0.0, 3),
             "ctr_pct": round((d_clk / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
-            "coverage_pct": round((d_cov_w / d_req) if d_req > 0 else 0.0, 3),
-            "viewability_pct": round((d_view_w / d_impr) if d_impr > 0 else 0.0, 3),
-            "above_the_fold_ratio_pct": round((d_atf / d_impr) if d_impr > 0 else 0.0, 3),
+            "coverage_pct": round((d_cov_w / d_req * 100.0) if d_req > 0 else 0.0, 3),
+            "viewability_pct": round((d_view_w / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
+            "above_the_fold_ratio_pct": round((d_atf_w / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
         }
 
     payload: dict[str, Any] = {
         "range": {"start": start, "end": end},
+        "kpi_available": kpi_available,
         "kpis": {
             "empower_pageview": int(empower_pv),
             "empower_unique_visitor": int(empower_uv),

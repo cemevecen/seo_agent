@@ -229,7 +229,32 @@
     lastSummary: null,
     lastTable: null,
     loading: false,
+    kpiUnion: [],
+    kpiAvailable: [],
   };
+
+  function activeKpiDefs(sum) {
+    var keys = null;
+    if (sum && sum.kpi_available && sum.kpi_available.length) {
+      keys = sum.kpi_available;
+    } else if (state.activeStream && state.activeStream.available_kpis && state.activeStream.available_kpis.length) {
+      keys = state.activeStream.available_kpis;
+    } else if (state.kpiUnion && state.kpiUnion.length) {
+      keys = state.kpiUnion;
+    }
+    if (!keys || !keys.length) return KPI_DEFS;
+    var set = {};
+    keys.forEach(function (k) { set[k] = true; });
+    return KPI_DEFS.filter(function (d) { return set[d.key]; });
+  }
+
+  function ensureActiveKpi(defs) {
+    if (!defs.length) return;
+    if (!defs.some(function (d) { return d.key === state.activeKpiKey; })) {
+      var preferred = defs.find(function (d) { return d.key === "net_revenue"; });
+      state.activeKpiKey = (preferred || defs[0]).key;
+    }
+  }
 
   var runTimer = null;
   function debouncedRun(ms) {
@@ -558,7 +583,7 @@
       rangeLbl.classList.remove("hidden");
       rangeLbl.textContent = "Karşılaştırma: " + cmp.range.start + " — " + cmp.range.end;
     }
-    body.innerHTML = KPI_DEFS.map(function (def) {
+    body.innerHTML = activeKpiDefs(sum).map(function (def) {
       var d = (cmp.deltas || {})[def.key] || {};
       return "<tr>" +
         "<td class=\"px-2 py-1.5 font-semibold\">" + def.label + "</td>" +
@@ -612,9 +637,11 @@
 
   function renderKpis(k, sum) {
     var cmp = sum ? compareBlock(sum) : null;
+    var defs = activeKpiDefs(sum);
+    ensureActiveKpi(defs);
     var grid = document.getElementById("ad-kpi-grid");
     grid.innerHTML = "";
-    KPI_DEFS.forEach(function (def) {
+    defs.forEach(function (def) {
       var card = document.createElement("button");
       card.type = "button";
       card.className =
@@ -767,6 +794,7 @@
       btn.textContent = st.label + " · " + badge;
       btn.addEventListener("click", function () {
         state.activeStream = st;
+        ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
         if (st.min_date) {
@@ -784,6 +812,7 @@
     var r = await fetch("/api/ad-analytics/facets");
     var f = await r.json();
     state.streams = f.streams || [];
+    state.kpiUnion = f.kpi_union || [];
     if (!state.activeStream && state.streams.length) {
       state.activeStream = state.streams.find(function (s) { return s.has_data; }) || state.streams[0];
     }
@@ -854,6 +883,7 @@
       if (!sumR.ok) throw new Error("Özet alınamadı");
       var sum = await sumR.json();
       state.lastSummary = sum;
+      state.kpiAvailable = sum.kpi_available || [];
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
