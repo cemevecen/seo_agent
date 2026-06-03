@@ -647,7 +647,8 @@ Retention: 90 gün.
 GA4 Analytics Data API — iki ayrı sorgu:
 
 1. **Ana sorgu:** `pagePathPlusQueryString` + `pageTitle` + `screenPageViews` + `totalUsers`
-2. **Referrer sorgusu:** Aynı filtre + `pageReferrer` (referrer listesi max 20 saklanır)
+2. **Referrer sorgusu:** Aynı filtre + `pageReferrer` + `totalUsers` (referrer başına kullanıcı, max 20)
+3. **Kanal sorgusu:** `sessionDefaultChannelGroup` + `totalUsers` (referrer boş trafik için, max 15)
 
 Filtreler:
 - Path'te `/404` geçen

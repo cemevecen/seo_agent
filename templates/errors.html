@@ -90,7 +90,7 @@
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kod</th>
             <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap w-[260px] max-w-[260px]">404 olan URL</th>
             <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Kul.</th>
-            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap w-[260px] max-w-[260px]">Referrer</th>
+            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap w-[260px] max-w-[260px]">Kaynak</th>
             <th class="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap">Son Görülme</th>
           </tr>
         </thead>
@@ -184,15 +184,33 @@ function _renderSummary(d) {
                : srcRaw === 'sc'        ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
                : 'bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500';
     var urlPath = (e.url || '').split('?')[0];
-    var refs = (e.referrers || []).slice(0,5).map(function(ref) {
-      if (!ref) return '';
-      if (ref.startsWith('http')) {
-        var clean = ref.replace('https://','').replace('http://','');
-        return '<a href="'+_esc(ref)+'" target="_blank" rel="noopener" class="block truncate text-xs text-slate-500 hover:text-sky-600 hover:underline dark:text-zinc-400 dark:hover:text-sky-500 leading-5" title="'+_esc(ref)+'">'+_esc(clean)+'</a>';
-      }
-      return '<span class="block truncate text-xs text-slate-400 dark:text-zinc-500 leading-5" title="'+_esc(ref)+'">'+_esc(ref)+'</span>';
-    }).join('');
-    var more = (e.referrers || []).length > 5 ? '<span class="text-[10px] text-slate-400 dark:text-zinc-600">+'+(e.referrers.length-5)+' kaynak daha</span>' : '';
+    var allRefs = (e.referrers || []).map(_normRefItem).filter(function(x) { return x.ref; });
+    var allCh = (e.channels || []).map(_normChItem).filter(function(x) { return x.channel; });
+    var unknown = e.referrer_unknown_users || 0;
+    var compactRefs = allRefs.slice(0, 3).map(function(it) { return _renderRefLine(it, true); }).join('');
+    var compactCh = (!allRefs.length && allCh.length) ? allCh.slice(0, 2).map(_renderChLine).join('') : '';
+    var unknownHint = unknown && !allRefs.length
+      ? '<span class="block text-[10px] text-slate-400 dark:text-zinc-500">Referrer yok: '+unknown+' kul.</span>' : '';
+    var unknownTail = unknown && allRefs.length
+      ? '<span class="block text-[10px] text-slate-400 dark:text-zinc-500">+'+unknown+' ölçülmedi</span>' : '';
+    var hasDetail = allRefs.length > 3 || allCh.length > 0 || unknown > 0;
+    var detailBtn = hasDetail
+      ? '<button type="button" class="mt-1 text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-500" onclick="toggleErrDetail(this)" aria-expanded="false">Detay</button>' : '';
+    var srcCell = compactRefs || compactCh || unknownHint
+      ? compactRefs + compactCh + unknownHint + unknownTail + detailBtn
+      : '<span class="text-xs text-slate-300 dark:text-zinc-600">—</span>';
+    var detailRefs = allRefs.map(function(it) { return _renderRefLine(it, false); }).join('');
+    var detailCh = allCh.map(_renderChLine).join('');
+    var detailMeta = unknown
+      ? '<p class="text-[10px] text-slate-400 dark:text-zinc-500 mb-1">GA4 referrer boş: '+unknown+' kullanıcı</p>' : '';
+    var detailRow = hasDetail
+      ? '<tr class="err-detail-row hidden bg-slate-50/80 dark:bg-zinc-800/40" data-url="'+_esc((e.url||'').toLowerCase())+'">'
+        +'<td colspan="5" class="px-4 py-2 border-t border-slate-100 dark:border-zinc-800/50">'
+        +detailMeta
+        +'<div class="grid gap-3 sm:grid-cols-2 max-w-3xl">'
+        +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Referrer</p>'+(detailRefs || '<span class="text-xs text-slate-400">—</span>')+'</div>'
+        +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Oturum kanalı</p>'+(detailCh || '<span class="text-xs text-slate-400">—</span>')+'</div>'
+        +'</div></td></tr>' : '';
     var lastSeen = (e.last_seen || '—').slice(0,10);
     var title = e.page_title && !['Sayfa Bulunamadı','Sayfa Bulunamadı - Sinemalar.com'].includes(e.page_title)
       ? '<span class="block truncate text-xs text-slate-400 dark:text-zinc-500 mt-0.5">'+_esc(e.page_title)+'</span>' : '';
@@ -200,9 +218,9 @@ function _renderSummary(d) {
       +'<td class="px-2 py-2"><span class="rounded-md px-2 py-0.5 text-xs font-bold whitespace-nowrap '+codeCls+'">'+e.status_code+'</span></td>'
       +'<td class="px-3 py-2 min-w-0 max-w-[260px] overflow-hidden"><a href="https://'+_esc(_errDomain)+_esc(e.url||'')+'" target="_blank" rel="noopener" class="flex items-center gap-1 group min-w-0"><span class="truncate font-mono text-xs text-sky-600 group-hover:underline dark:text-sky-600">'+_esc(urlPath)+'</span><svg class="h-3 w-3 flex-none text-slate-300 dark:text-zinc-600 group-hover:text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>'+title+'</td>'
       +'<td class="px-2 py-2 text-right whitespace-nowrap"><span class="text-sm font-bold '+hitCls+'">'+e.hit_count+'</span></td>'
-      +'<td class="px-3 py-2 min-w-0 max-w-[260px] overflow-hidden">'+(refs||more ? refs+more : '<span class="text-xs text-slate-300 dark:text-zinc-600">—</span>')+'</td>'
+      +'<td class="px-3 py-2 min-w-0 max-w-[260px] overflow-hidden">'+srcCell+'</td>'
       +'<td class="px-2 py-2 whitespace-nowrap"><div class="text-xs text-slate-400 dark:text-zinc-500">'+_esc(lastSeen)+'</div><span class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase whitespace-nowrap '+srcCls+'">'+_esc(srcLabel)+'</span></td>'
-      +'</tr>';
+      +'</tr>'+detailRow;
   }).join('');
 
   document.getElementById('err-table-wrap').classList.remove('hidden');
@@ -217,10 +235,58 @@ function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function _normRefItem(x) {
+  if (!x) return { ref: '', users: 0, internal: false };
+  if (typeof x === 'string') return { ref: x, users: 0, internal: false };
+  return { ref: x.ref || x.url || '', users: x.users || 0, internal: !!x.internal };
+}
+
+function _normChItem(x) {
+  if (!x) return { channel: '', users: 0 };
+  if (typeof x === 'string') return { channel: x, users: 0 };
+  return { channel: x.channel || x.label || '', users: x.users || 0 };
+}
+
+function _refDisplayLabel(ref) {
+  if (!ref) return '';
+  if (ref.indexOf('http') === 0) return ref.replace(/^https?:\/\//, '');
+  return ref;
+}
+
+function _renderRefLine(item, compact) {
+  var ref = item.ref;
+  if (!ref) return '';
+  var users = item.users ? ' <span class="text-slate-400 dark:text-zinc-500">(' + item.users + ')</span>' : '';
+  var intBadge = item.internal
+    ? ' <span class="rounded px-1 text-[9px] font-semibold uppercase bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">iç</span>'
+    : '';
+  var cls = 'block truncate text-xs leading-5 ' + (compact ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-600 dark:text-zinc-300');
+  if (ref.indexOf('http') === 0) {
+    return '<a href="'+_esc(ref)+'" target="_blank" rel="noopener" class="'+cls+' hover:text-sky-600 hover:underline dark:hover:text-sky-500" title="'+_esc(ref)+'">'+_esc(_refDisplayLabel(ref))+users+intBadge+'</a>';
+  }
+  return '<span class="'+cls+'" title="'+_esc(ref)+'">'+_esc(ref)+users+intBadge+'</span>';
+}
+
+function _renderChLine(item) {
+  if (!item.channel) return '';
+  var users = item.users ? ' (' + item.users + ')' : '';
+  return '<span class="block truncate text-xs text-slate-500 dark:text-zinc-400 leading-5">◎ '+_esc(item.channel)+_esc(users)+'</span>';
+}
+
+function toggleErrDetail(btn) {
+  var tr = btn.closest('tr');
+  var next = tr && tr.nextElementSibling;
+  if (!next || !next.classList.contains('err-detail-row')) return;
+  var hidden = next.classList.toggle('hidden');
+  btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+  btn.textContent = hidden ? 'Detay' : 'Gizle';
+}
+
 function filterErrors(q) {
   var lq = q.toLowerCase();
-  document.querySelectorAll('.err-row').forEach(function(r) {
-    r.style.display = (!lq || r.getAttribute('data-url').includes(lq)) ? '' : 'none';
+  document.querySelectorAll('.err-row, .err-detail-row').forEach(function(r) {
+    var url = (r.getAttribute('data-url') || '').toLowerCase();
+    r.style.display = (!lq || url.includes(lq)) ? '' : 'none';
   });
 }
 

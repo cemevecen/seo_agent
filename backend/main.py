@@ -13813,7 +13813,7 @@ def _get_error_summary_for_card(db, site_id: int, days: int = 7) -> dict:
 def _run_error_report_email_job() -> None:
     """404 hata özeti maili — 13:15 ve 23:15'te tüm siteler için tek mail."""
     try:
-        from backend.services.error_monitor import get_error_summary
+        from backend.services.error_monitor import get_error_summary, format_error_sources_html
         from backend.services.mailer import send_email, error_report_recipients
         from backend.models import Site
 
@@ -13834,17 +13834,7 @@ def _run_error_report_email_job() -> None:
                 rows = ""
                 for e in errors[:15]:
                     url = e.get("url", "")
-                    refs = e.get("referrers") or []
-                    ref_html = ""
-                    if refs:
-                        ref_items = "".join(
-                            f'<div style="font-size:10px;color:#64748b;font-family:monospace;margin-top:1px">'
-                            f'↳ {r[:70]}{"…" if len(r) > 70 else ""}</div>'
-                            for r in refs[:3]
-                        )
-                        ref_html = f'<div style="margin-top:2px">{ref_items}</div>'
-                        if len(refs) > 3:
-                            ref_html += f'<div style="font-size:10px;color:#94a3b8">+{len(refs)-3} kaynak daha</div>'
+                    ref_html = format_error_sources_html(e, max_refs=3, max_channels=3)
 
                     cnt = e.get("hit_count", 0)
                     cnt_color = "#dc2626" if cnt >= 20 else "#ea580c" if cnt >= 5 else "#475569"
