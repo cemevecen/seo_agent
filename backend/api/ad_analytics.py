@@ -163,11 +163,12 @@ async def post_ad_analytics_upload_bulk(
             raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
         payload.append((raw, name))
     try:
-        result = store.import_upload_files_bulk(db, payload)
+        result = store.import_upload_files_bulk(payload)
         if result.get("parsed", 0) <= 0:
             raise HTTPException(status_code=400, detail="Hiçbir dosyadan satır okunamadı")
         return result
     except HTTPException:
+        db.rollback()
         raise
     except Exception as exc:  # noqa: BLE001
         db.rollback()

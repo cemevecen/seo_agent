@@ -18,12 +18,14 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from backend.database import engine
+from backend.database import SessionLocal, engine
 from backend.models import AdReportCatalog, AdReportRow
 
 _IS_PG = "postgresql" in str(engine.url)
 
 LOGGER = logging.getLogger(__name__)
+
+_IMPORT_BATCH_SIZE = 400
 
 
 def _load_workbook_bytes(data: bytes):
@@ -583,20 +585,24 @@ def import_rows(db: Session, rows: Iterable[dict[str, Any]], *, commit: bool = T
     skipped = 0
     parsed = 0
     batch: list[dict[str, Any]] = []
-    for r in rows:
-        parsed += 1
-        batch.append(r)
-        if len(batch) >= 800:
+    try:
+        for r in rows:
+            parsed += 1
+            batch.append(r)
+            if len(batch) >= _IMPORT_BATCH_SIZE:
+                ins, sk = _flush_batch(db, batch)
+                inserted += ins
+                skipped += sk
+                batch.clear()
+        if batch:
             ins, sk = _flush_batch(db, batch)
             inserted += ins
             skipped += sk
-            batch.clear()
-    if batch:
-        ins, sk = _flush_batch(db, batch)
-        inserted += ins
-        skipped += sk
-    if commit:
-        db.commit()
+        if commit:
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {
         "inserted": inserted,
         "skipped": skipped,
@@ -615,34 +621,38 @@ def import_upload_file(
     low = filename.lower()
     stream = detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
-    if low.endswith(".xlsx") or low.endswith(".xlsm"):
-        columns: list[str] = []
-        wb = _load_workbook_bytes(data)
-        try:
-            header_row = next(wb.active.iter_rows(values_only=True), None)
-            columns = [str(h or "").strip() for h in (header_row or []) if str(h or "").strip()]
-        finally:
-            wb.close()
-        result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=commit)
-        LOGGER.info(
-            "Ad xlsx import: %s stream=%s parsed=%s",
-            filename,
-            stream.key if stream else "?",
-            result.get("parsed"),
-        )
-    elif low.endswith(".csv") or low.endswith(".txt"):
-        text = data.decode("utf-8", errors="replace")
-        lines = [ln for ln in text.splitlines() if ln.strip()]
-        columns = []
-        if lines:
-            delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
-            columns = [c.strip() for c in lines[0].split(delim)]
-        result = import_rows(db, parse_csv_text(text, filename=filename), commit=commit)
-    else:
-        raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
-    _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0), stream=stream)
-    if commit:
-        db.commit()
+    try:
+        if low.endswith(".xlsx") or low.endswith(".xlsm"):
+            columns: list[str] = []
+            wb = _load_workbook_bytes(data)
+            try:
+                header_row = next(wb.active.iter_rows(values_only=True), None)
+                columns = [str(h or "").strip() for h in (header_row or []) if str(h or "").strip()]
+            finally:
+                wb.close()
+            result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=False)
+            LOGGER.info(
+                "Ad xlsx import: %s stream=%s parsed=%s",
+                filename,
+                stream.key if stream else "?",
+                result.get("parsed"),
+            )
+        elif low.endswith(".csv") or low.endswith(".txt"):
+            text = data.decode("utf-8", errors="replace")
+            lines = [ln for ln in text.splitlines() if ln.strip()]
+            columns = []
+            if lines:
+                delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
+                columns = [c.strip() for c in lines[0].split(delim)]
+            result = import_rows(db, parse_csv_text(text, filename=filename), commit=False)
+        else:
+            raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
+        _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0), stream=stream)
+        if commit:
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
     result["filename"] = filename
     result["channel"] = channel
     result["columns"] = columns
@@ -657,11 +667,8 @@ def import_upload_file(
     return result
 
 
-def import_upload_files_bulk(
-    db: Session,
-    files: list[tuple[bytes, str]],
-) -> dict[str, Any]:
-    """Çoklu xlsx: önce 2025 (_1), sonra 2026 (_2); çakışan günlerde son dosya geçerli."""
+def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
+    """Çoklu xlsx: dosya başına ayrı transaction (hata sonrası invalid session kalmaz)."""
     ordered = sorted(files, key=_bulk_sort_key)
     per_file: list[dict[str, Any]] = []
     unknown: list[str] = []
@@ -671,35 +678,38 @@ def import_upload_files_bulk(
         if not data:
             per_file.append({"filename": name, "error": "boş dosya"})
             continue
-        try:
-            out = import_upload_file(db, data, filename=name, commit=False)
-            per_file.append(out)
-            total_inserted += int(out.get("inserted") or 0)
-            total_parsed += int(out.get("parsed") or 0)
-            if not out.get("stream_key"):
-                unknown.append(name)
-            LOGGER.info(
-                "Ad bulk file ok: %s stream=%s parsed=%s",
-                name,
-                out.get("stream_key"),
-                out.get("parsed"),
-            )
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.warning("Ad bulk file failed: %s — %s", name, exc)
-            per_file.append({"filename": name, "error": str(exc)})
-    db.commit()
+        with SessionLocal() as db:
+            try:
+                out = import_upload_file(db, data, filename=name, commit=True)
+                per_file.append(out)
+                total_inserted += int(out.get("inserted") or 0)
+                total_parsed += int(out.get("parsed") or 0)
+                if not out.get("stream_key"):
+                    unknown.append(name)
+                LOGGER.info(
+                    "Ad bulk file ok: %s stream=%s parsed=%s",
+                    name,
+                    out.get("stream_key"),
+                    out.get("parsed"),
+                )
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                LOGGER.warning("Ad bulk file failed: %s — %s", name, exc)
+                per_file.append({"filename": name, "error": str(exc)})
+    with SessionLocal() as db:
+        total_rows = count_rows(db)
     LOGGER.info(
         "Ad bulk import done: files=%s parsed=%s total_rows=%s",
         len(ordered),
         total_parsed,
-        count_rows(db),
+        total_rows,
     )
     return {
         "files": per_file,
         "file_count": len(ordered),
         "inserted": total_inserted,
         "parsed": total_parsed,
-        "total": count_rows(db),
+        "total": total_rows,
         "unknown_files": unknown,
     }
 
