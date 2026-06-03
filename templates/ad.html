@@ -847,10 +847,7 @@
           : st.has_data
             ? "border-slate-300 bg-white text-slate-700 hover:border-indigo-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 midnight:border-zinc-700 midnight:bg-zinc-950"
             : "border-slate-200 bg-slate-50 text-slate-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500");
-      var badge = st.has_data
-        ? (st.min_date + " → " + st.max_date + " · " + (st.row_count || 0).toLocaleString("tr-TR") + " satır")
-        : "veri yok";
-      btn.textContent = st.label + " · " + badge;
+      btn.textContent = st.label;
       btn.addEventListener("click", function () {
         state.activeStream = st;
         ensureActiveKpi(activeKpiDefs(null));
