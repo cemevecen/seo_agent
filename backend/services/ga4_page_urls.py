@@ -22,7 +22,38 @@ def ga4_site_host(domain: str | None) -> str | None:
 
 
 _DOVIZ_MAIN_HOSTS = frozenset({"www.doviz.com", "doviz.com", "m.doviz.com"})
+_DOVIZ_MWEB_HOST = "m.doviz.com"
 _DOVIZ_ALTIN_HOST = "altin.doviz.com"
+# m.doviz.com üzerinde /altin/ öneki olmadan geçerli kök segmentler (haber, borsa, döviz vb.)
+_DOVIZ_MWEB_TOP_LEVEL = frozenset({
+    "altin",
+    "doviz",
+    "kur",
+    "emtia",
+    "emtialar",
+    "pariteler",
+    "kripto-paralar",
+    "borsa",
+    "hisseler",
+    "haberler",
+    "yazilar",
+    "makaleler",
+    "ekonomi-sozlugu",
+    "kredi",
+    "akaryakit",
+    "akaryakit-fiyatlari",
+    "halka-arz",
+    "endeksler",
+    "harem",
+    "doviz-cevirici",
+    "giris",
+    "uye",
+    "uyelik",
+    "arama",
+    "iletisim",
+    "cerez-politikasi",
+    "kisisel-verilerin-korunmasi",
+})
 # www.doviz.com'da 404; yalnızca altin.doviz.com kökünde olan tek segmentli yollar (kur ile çakışmaz)
 _DOVIZ_ALTIN_ONLY_ROOT_SLUGS = frozenset({"altinkaynak"})
 
@@ -222,6 +253,10 @@ def _doviz_rewrite_host(host: str, path_for_rules: str) -> str:
     if not pl.startswith("/"):
         pl = "/" + pl
 
+    # Mobil web ayrı yayın; GA4 mweb hostname altin/kur/borsa host'una taşınmaz
+    if h == _DOVIZ_MWEB_HOST:
+        return h
+
     # www/m: /altinkaynak gibi yalnızca altin kökünde olan tek segment (kur.doviz.com/altinkaynak ayrı sayfa)
     if h in _DOVIZ_MAIN_HOSTS and _doviz_altin_only_single_segment_root(pl):
         return _DOVIZ_ALTIN_HOST
@@ -326,7 +361,8 @@ def _doviz_normalize_path(path: str, host: str | None = None) -> str:
         if h == "kur.doviz.com":
             return "/harem"
         return "/harem/gram-altin"
-    if low.startswith("/altin/"):
+    # altin.doviz.com kökünde /altin/ öneki yok; m.doviz.com'da ürünler /altin/… altında
+    if low.startswith("/altin/") and h != _DOVIZ_MWEB_HOST:
         rest = p[len("/altin/") :].lstrip("/")
         if rest:
             return "/" + rest
@@ -335,6 +371,27 @@ def _doviz_normalize_path(path: str, host: str | None = None) -> str:
     if low.startswith("/emtialar/brent-petrol"):
         return "/emtia/brent-petrol"
     return p
+
+
+def _doviz_mweb_resolve_path(path: str) -> str:
+    """
+    m.doviz.com: GA4 çoğu altın/banka slug'ını kök path (/22-ayar-bilezik) verir;
+    canlı sitede yol /altin/22-ayar-bilezik.
+    """
+    p = path.strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    low = p.lower()
+    if low in ("/", "/altin", "/altin/"):
+        return p if low != "/altin" else "/altin/"
+    if low.startswith("/altin/"):
+        return p
+    parts = [x for x in p.split("/") if x]
+    if not parts:
+        return p
+    if parts[0].lower() in _DOVIZ_MWEB_TOP_LEVEL:
+        return p
+    return "/altin/" + "/".join(parts)
 
 
 def ga4_canonical_page_url(host: str | None, path: str | None) -> str:
@@ -351,6 +408,8 @@ def ga4_canonical_page_url(host: str | None, path: str | None) -> str:
     h_raw = (host or "").strip().lower()
     if h_raw.endswith("doviz.com"):
         p = _doviz_normalize_path(p, h_raw)
+        if h_raw == _DOVIZ_MWEB_HOST:
+            p = _doviz_mweb_resolve_path(p)
     if not h_raw or _is_ga4_placeholder_host(h_raw):
         return ""
     if h_raw.endswith("doviz.com"):
@@ -394,6 +453,8 @@ def ga4_fallback_page_url(path: str | None, domain: str | None) -> str:
         p = "/" + p
     if d.endswith("doviz.com"):
         p = _doviz_normalize_path(p, d)
+        if d == _DOVIZ_MWEB_HOST:
+            p = _doviz_mweb_resolve_path(p)
         d = _doviz_rewrite_host(d, p)
     return f"https://{d}{quote(p, safe='/-._~%?&=#@!$()*+,;:')}"
 
