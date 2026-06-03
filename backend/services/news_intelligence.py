@@ -2,7 +2,7 @@ import gzip
 import logging
 import re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from sqlalchemy.orm import Session
@@ -14,6 +14,22 @@ logger = logging.getLogger(__name__)
 
 # Intelligence sayfası yalnızca son 12 saati tutar; daha eski kayıtlar sync sırasında silinir.
 RETENTION_HOURS = 12
+
+
+def _utc_naive_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _to_utc_naive(dt: datetime) -> datetime:
+    """DB TIMESTAMP WITHOUT TIME ZONE + karşılaştırmalar için naive UTC."""
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _is_disk_full_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "diskfull" in msg or "no space left on device" in msg
 
 
 def normalize_headline_for_dedup(headline: str) -> str:
@@ -44,7 +60,7 @@ def dedupe_news_rows(items: list) -> list:
 
 
 def headline_exists_for_source(db: Session, source_name: str, headline: str, *, hours: int = RETENTION_HOURS) -> bool:
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = _utc_naive_now() - timedelta(hours=hours)
     norm = normalize_headline_for_dedup(headline)
     rows = (
         db.query(NewsIntelligenceItem.headline)
@@ -59,7 +75,7 @@ def headline_exists_for_source(db: Session, source_name: str, headline: str, *, 
 
 def cleanup_duplicate_news_items(db: Session, *, hours: int = RETENTION_HOURS) -> int:
     """Aynı kaynak+başlık tekrarlarını sil; en yeni published_at kalır."""
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = _utc_naive_now() - timedelta(hours=hours)
     rows = (
         db.query(NewsIntelligenceItem)
         .filter(NewsIntelligenceItem.published_at >= cutoff)
@@ -85,7 +101,7 @@ def cleanup_duplicate_news_items(db: Session, *, hours: int = RETENTION_HOURS) -
 
 def cleanup_old_news_items(db: Session, *, hours: int = RETENTION_HOURS) -> int:
     """Retention penceresinin dışındaki haberleri kalıcı olarak siler."""
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = _utc_naive_now() - timedelta(hours=hours)
     deleted_count = db.query(NewsIntelligenceItem).filter(
         NewsIntelligenceItem.published_at < cutoff
     ).delete(synchronize_session=False)
@@ -234,7 +250,7 @@ def parse_pub_date(pub_date_str: str) -> datetime | None:
         return None
     if "T" in pub_date_str:
         try:
-            return datetime.fromisoformat(pub_date_str.replace("Z", "+00:00"))
+            return _to_utc_naive(datetime.fromisoformat(pub_date_str.replace("Z", "+00:00")))
         except ValueError:
             pass
     for fmt in (
@@ -244,7 +260,7 @@ def parse_pub_date(pub_date_str: str) -> datetime | None:
         "%Y-%m-%d %H:%M:%S",
     ):
         try:
-            return datetime.strptime(pub_date_str, fmt)
+            return _to_utc_naive(datetime.strptime(pub_date_str, fmt))
         except ValueError:
             continue
     return None
@@ -389,7 +405,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
             logger.warning("RSS fetch hatası: %s — %s", url[:80], exc)
             return None
 
-    retention_cutoff = datetime.utcnow() - timedelta(hours=RETENTION_HOURS)
+    retention_cutoff = _utc_naive_now() - timedelta(hours=RETENTION_HOURS)
 
     # Her kategori için tüm kaynakları tara
     _gnews_count = 0  # Google News istekleri arasında throttle
@@ -471,7 +487,8 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     matched_topic = next((kw for kw in FILTER_KEYWORDS if kw in combined_text), None)
                     display_topic = matched_topic.capitalize() if matched_topic else category
 
-                    published_at = parse_pub_date(pub_date_str) or datetime.utcnow()
+                    published_at = parse_pub_date(pub_date_str) or _utc_naive_now()
+                    published_at = _to_utc_naive(published_at)
                     if published_at < retention_cutoff:
                         continue
 
@@ -531,8 +548,15 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 if new_count > 0:
                     logger.info("Synced %d new items for category: %s from source: %s", new_count, category, rss_url[:40])
             except Exception as e:
-                logger.warning("RSS sync hatası (%s / %s): %s", category, rss_url[:60], e)
                 db.rollback()
+                if _is_disk_full_error(e):
+                    logger.error(
+                        "RSS sync durduruldu: Postgres disk dolu (%s). "
+                        "Volume artırın veya cleanup/vacuum yapın.",
+                        e,
+                    )
+                    return
+                logger.warning("RSS sync hatası (%s / %s): %s", category, rss_url[:60], e)
 
     # Yinelenen başlıkları temizle (aynı kaynak, farklı URL)
     try:

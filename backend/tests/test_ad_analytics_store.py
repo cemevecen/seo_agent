@@ -1,11 +1,47 @@
+import io
 from datetime import date
 from pathlib import Path
+
+from openpyxl import Workbook
 
 from backend.database import SessionLocal, init_db
 from backend.models import AdReportRow
 from backend.services import ad_analytics_store as store
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ad_sample.csv"
+
+
+def test_xlsx_header_after_title_rows():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Rapor özeti"])
+    ws.append(["Dönem", "2025"])
+    ws.append([])
+    ws.append(
+        [
+            "Ad Unit",
+            "Date",
+            "Income Type",
+            "Net Revenue",
+        ]
+    )
+    ws.append(["web_unit_1", 45658, "Open Auction", 10.5])
+    buf = io.BytesIO()
+    wb.save(buf)
+    rows = store.parse_xlsx_bytes(buf.getvalue(), filename="dovizcom1_Report_2025.xlsx")
+    assert len(rows) == 1
+    assert rows[0]["ad_unit"] == "web_unit_1"
+
+
+def test_xlsx_turkish_headers():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Reklam birimi", "Tarih", "Gelir tipi", "Net gelir"])
+    ws.append(["web_test", 45658, "Mediation", 3.0])
+    buf = io.BytesIO()
+    wb.save(buf)
+    rows = store.parse_xlsx_bytes(buf.getvalue(), filename="dovizcom2_Report_2026.xlsx")
+    assert len(rows) == 1
 
 
 def test_channel_and_surface_from_filename_and_ad_unit():

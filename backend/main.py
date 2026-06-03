@@ -14519,26 +14519,39 @@ def admin_db_size():
         return JSONResponse({"total_mb": round(size_bytes / 1024 / 1024, 2), "engine": "sqlite"})
 
     from backend.database import engine
-    result = {}
-    with engine.connect() as conn:
-        # Toplam DB boyutu
-        row = conn.execute(text("SELECT pg_database_size(current_database())")).fetchone()
-        result["total_mb"] = round(row[0] / 1024 / 1024, 2) if row else 0
+    result: dict[str, object] = {"status": "ok"}
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT pg_database_size(current_database())")).fetchone()
+            result["total_mb"] = round(row[0] / 1024 / 1024, 2) if row else 0
 
-        # WAL dizini (pg_wal dolunca recovery yazamaz; volume artır veya retention kısalt)
-        try:
-            wal_row = conn.execute(text("SELECT COALESCE(SUM(size), 0) FROM pg_ls_waldir()")).fetchone()
-            result["wal_size_mb"] = round((wal_row[0] or 0) / 1024 / 1024, 2) if wal_row else 0
-        except Exception:
-            result["wal_size_mb"] = None
+            try:
+                wal_row = conn.execute(
+                    text("SELECT COALESCE(SUM(size), 0) FROM pg_ls_waldir()")
+                ).fetchone()
+                result["wal_size_mb"] = round((wal_row[0] or 0) / 1024 / 1024, 2) if wal_row else 0
+            except Exception:
+                result["wal_size_mb"] = None
 
-        # Tablo bazlı boyut
-        tables = conn.execute(text(
-            "SELECT relname, pg_total_relation_size(relid) AS size "
-            "FROM pg_catalog.pg_statio_user_tables ORDER BY size DESC"
-        )).fetchall()
-        result["tables"] = [{"table": t[0], "size_mb": round(t[1] / 1024 / 1024, 2)} for t in tables]
-
+            tables = conn.execute(
+                text(
+                    "SELECT relname, pg_total_relation_size(relid) AS size "
+                    "FROM pg_catalog.pg_statio_user_tables ORDER BY size DESC"
+                )
+            ).fetchall()
+            result["tables"] = [
+                {"table": t[0], "size_mb": round(t[1] / 1024 / 1024, 2)} for t in tables
+            ]
+    except Exception as exc:
+        logging.exception("admin/db-size sorgusu başarısız")
+        return JSONResponse(
+            {
+                "status": "error",
+                "detail": str(exc),
+                "hint": "Postgres volume dolu veya recovery modunda olabilir; Railway Postgres restart + volume artır.",
+            },
+            status_code=503,
+        )
     return JSONResponse(result)
 
 

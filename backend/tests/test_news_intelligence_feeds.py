@@ -1,5 +1,7 @@
 """News intelligence RSS/Atom parse testleri."""
 
+from datetime import timedelta
+
 import xml.etree.ElementTree as ET
 
 from backend.services import news_intelligence as ni
@@ -70,3 +72,11 @@ def test_dedupe_news_rows_keeps_newest_first():
 
 def test_retention_hours_is_twelve():
     assert ni.RETENTION_HOURS == 12
+
+
+def test_parse_pub_date_aware_vs_naive_cutoff():
+    published = ni.parse_pub_date("2026-06-03T19:39:15+03:00")
+    assert published is not None
+    assert published.tzinfo is None
+    cutoff = ni._utc_naive_now() - timedelta(hours=ni.RETENTION_HOURS)
+    assert published >= cutoff  # offset-naive vs aware karşılaştırma patlamamalı

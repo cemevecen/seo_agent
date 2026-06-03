@@ -41,9 +41,17 @@ def _load_workbook_bytes(data: bytes):
 
 HEADERS_MAP = {
     "adunit": "ad_unit",
+    "adunitname": "ad_unit",
+    "reklambirimi": "ad_unit",
+    "reklambirim": "ad_unit",
     "month": "month",
+    "ay": "month",
     "date": "report_date",
+    "tarih": "report_date",
     "incometype": "income_type",
+    "gelirtipi": "income_type",
+    "gelirturu": "income_type",
+    "gelirtur": "income_type",
     "adrequest": "ad_request",
     "matchedrequest": "matched_request",
     "impression": "impression",
@@ -88,10 +96,18 @@ _CORE_FIELDS = frozenset(
     }
 )
 
+_HEADER_SCAN_MAX_ROWS = 30
+
 _HEADER_SUBSTRING_RULES: list[tuple[str, str]] = [
     ("netrevenue", "net_revenue"),
+    ("toplamgelir", "net_revenue"),
+    ("totalrevenue", "net_revenue"),
+    ("netgelir", "net_revenue"),
     ("adunit", "ad_unit"),
+    ("reklambirim", "ad_unit"),
     ("incometype", "income_type"),
+    ("gelirtip", "income_type"),
+    ("gelirtur", "income_type"),
     ("adrequest", "ad_request"),
     ("matchedrequest", "matched_request"),
     ("impression", "impression"),
@@ -343,7 +359,7 @@ def _dict_from_mapped(
     ad_unit = (mapped.get("ad_unit") or "").strip()
     income_type = (mapped.get("income_type") or "").strip()
     rd = mapped.get("report_date")
-    if isinstance(rd, str):
+    if not isinstance(rd, date):
         rd = _excel_serial_to_date(rd)
     if not isinstance(rd, date):
         rd = _excel_serial_to_date(mapped.get("month"))
@@ -441,17 +457,35 @@ def _row_from_values(
     )
 
 
+def _locate_header_in_rows(
+    rows_iter: Iterator[tuple[Any, ...]],
+) -> tuple[dict[str, int], list[tuple[str, int]], Iterator[tuple[Any, ...]], list[str]] | None:
+    """Ad Manager exportlarında başlık genelde 1. satırda değil; ilk N satırı tarar."""
+    for i, row in enumerate(rows_iter):
+        if i >= _HEADER_SCAN_MAX_ROWS:
+            break
+        if not row or not any(c is not None and str(c).strip() for c in row):
+            continue
+        col_map, extras_idx = _map_header_row(list(row))
+        if "ad_unit" in col_map and "income_type" in col_map:
+            labels = [str(h or "").strip() for h in row if str(h or "").strip()]
+            return col_map, extras_idx, rows_iter, labels
+    return None
+
+
 def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[dict[str, Any]]:
     wb = _load_workbook_bytes(data)
     try:
         ws = wb.active
-        rows_iter = ws.iter_rows(values_only=True)
-        header_row = next(rows_iter, None)
-        if not header_row:
+        located = _locate_header_in_rows(ws.iter_rows(values_only=True))
+        if not located:
+            LOGGER.warning(
+                "Ad xlsx: %s — ilk %s satırda Ad Unit + Income Type başlığı yok",
+                filename,
+                _HEADER_SCAN_MAX_ROWS,
+            )
             return
-        col_map, extras_idx = _map_header_row(list(header_row))
-        if "ad_unit" not in col_map or "income_type" not in col_map:
-            return
+        col_map, extras_idx, rows_iter, _header_labels = located
         stream = detect_stream(filename)
         channel = stream.channel if stream else _detect_channel(filename)
         for row in rows_iter:
@@ -626,11 +660,24 @@ def import_upload_file(
             columns: list[str] = []
             wb = _load_workbook_bytes(data)
             try:
-                header_row = next(wb.active.iter_rows(values_only=True), None)
-                columns = [str(h or "").strip() for h in (header_row or []) if str(h or "").strip()]
+                rows_it = wb.active.iter_rows(values_only=True)
+                located = _locate_header_in_rows(rows_it)
+                if located:
+                    _col_map, _extras, _, columns = located
+                else:
+                    preview = next(wb.active.iter_rows(values_only=True), None)
+                    columns = [
+                        str(h or "").strip() for h in (preview or []) if str(h or "").strip()
+                    ][:20]
             finally:
                 wb.close()
             result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=False)
+            if not result.get("parsed"):
+                result["parse_error"] = (
+                    "Excel başlığı okunamadı (ilk satırda veya sonraki 30 satırda "
+                    "'Ad Unit' / 'Reklam birimi' ve 'Income Type' / 'Gelir tipi' aranır). "
+                    f"İlk satır önizleme: {columns[:8]!r}"
+                )
             LOGGER.info(
                 "Ad xlsx import: %s stream=%s parsed=%s",
                 filename,

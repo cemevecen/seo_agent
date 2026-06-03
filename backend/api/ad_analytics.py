@@ -165,7 +165,19 @@ async def post_ad_analytics_upload_bulk(
     try:
         result = store.import_upload_files_bulk(payload)
         if result.get("parsed", 0) <= 0:
-            raise HTTPException(status_code=400, detail="Hiçbir dosyadan satır okunamadı")
+            hints: list[str] = []
+            for item in result.get("files") or []:
+                name = item.get("filename") or "?"
+                if item.get("error"):
+                    hints.append(f"{name}: {item['error']}")
+                elif item.get("parse_error"):
+                    hints.append(f"{name}: {item['parse_error']}")
+                elif item.get("columns"):
+                    hints.append(f"{name}: başlık={item['columns'][:6]}")
+            detail = "Hiçbir dosyadan satır okunamadı"
+            if hints:
+                detail += " — " + "; ".join(hints[:4])
+            raise HTTPException(status_code=400, detail=detail)
         return result
     except HTTPException:
         db.rollback()
