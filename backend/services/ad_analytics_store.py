@@ -967,6 +967,207 @@ def _apply_filters(
     return q
 
 
+KPI_METRIC_KEYS = (
+    "empower_pageview",
+    "empower_unique_visitor",
+    "ad_request",
+    "matched_request",
+    "impression",
+    "click",
+    "net_revenue",
+    "ad_request_ecpm",
+    "pageview_ecpm",
+    "unique_visitor_ecpm",
+    "ad_ecpm",
+    "viewability_pct",
+    "above_the_fold_ratio_pct",
+    "ctr_pct",
+    "coverage_pct",
+)
+
+COMPARE_MODES = frozenset({"previous_period", "previous_year", "custom"})
+
+
+def _parse_iso_date(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw)[:10])
+    except ValueError:
+        return None
+
+
+def resolve_compare_range(
+    primary_start: str | None,
+    primary_end: str | None,
+    mode: str | None,
+    custom_start: str | None = None,
+    custom_end: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Karşılaştırma dönemi ISO tarihleri (primary ile aynı uzunlukta veya özel aralık)."""
+    if not mode or mode not in COMPARE_MODES:
+        return None, None
+    if mode == "custom":
+        cs = _parse_iso_date(custom_start)
+        ce = _parse_iso_date(custom_end)
+        if cs and ce:
+            return cs.isoformat(), ce.isoformat()
+        return None, None
+    ps = _parse_iso_date(primary_start)
+    pe = _parse_iso_date(primary_end)
+    if not ps or not pe:
+        return None, None
+    span_days = (pe - ps).days + 1
+    if mode == "previous_period":
+        cmp_end = ps - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=span_days - 1)
+        return cmp_start.isoformat(), cmp_end.isoformat()
+    if mode == "previous_year":
+        try:
+            cmp_start = ps.replace(year=ps.year - 1)
+            cmp_end = pe.replace(year=pe.year - 1)
+        except ValueError:
+            cmp_start = ps - timedelta(days=365)
+            cmp_end = pe - timedelta(days=365)
+        return cmp_start.isoformat(), cmp_end.isoformat()
+    return None, None
+
+
+def _kpi_delta(current: float, previous: float) -> dict[str, Any]:
+    abs_d = current - previous
+    if previous == 0:
+        pct = 100.0 if current > 0 else (0.0 if current == 0 else -100.0)
+    else:
+        pct = (abs_d / abs(previous)) * 100.0
+    return {
+        "current": current,
+        "compare": previous,
+        "abs": round(abs_d, 6),
+        "pct": round(pct, 2),
+    }
+
+
+def compute_kpi_deltas(primary: dict[str, Any], compare: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key in KPI_METRIC_KEYS:
+        if key in primary or key in compare:
+            out[key] = _kpi_delta(float(primary.get(key) or 0), float(compare.get(key) or 0))
+    return out
+
+
+def _merge_breakdown(
+    primary_rows: list[dict[str, Any]],
+    compare_rows: list[dict[str, Any]],
+    key_field: str,
+    metrics: tuple[str, ...] = ("net_revenue", "impression"),
+) -> list[dict[str, Any]]:
+    cmap = {r.get(key_field): r for r in compare_rows if r.get(key_field) is not None}
+    keys: list[str] = []
+    seen: set[str] = set()
+    for row in primary_rows + compare_rows:
+        k = row.get(key_field)
+        if k is None or k in seen:
+            continue
+        seen.add(str(k))
+        keys.append(str(k))
+
+    def _fmt_metric(name: str, val: float) -> float | int:
+        if name == "net_revenue":
+            return round(val, 2)
+        if name == "impression":
+            return int(val)
+        return round(val, 3)
+
+    merged: list[dict[str, Any]] = []
+    for key in keys:
+        prow = next((x for x in primary_rows if str(x.get(key_field)) == key), {})
+        crow = cmap.get(key, {})
+        item: dict[str, Any] = {key_field: key}
+        for metric in metrics:
+            pv = float(prow.get(metric) or 0)
+            cv = float(crow.get(metric) or 0)
+            item[metric] = _fmt_metric(metric, pv)
+            item[f"{metric}_compare"] = _fmt_metric(metric, cv)
+            item[f"{metric}_delta_pct"] = _kpi_delta(pv, cv)["pct"]
+        merged.append(item)
+    merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
+    return merged
+
+
+def align_by_date_series(
+    primary: list[dict[str, Any]],
+    compare: list[dict[str, Any]],
+    kpi_key: str,
+) -> list[dict[str, Any]]:
+    """İki dönemin günlük serisini gün indeksi ile hizalar (tarih bazlı trend karşılaştırması)."""
+    n = max(len(primary), len(compare))
+    aligned: list[dict[str, Any]] = []
+    for i in range(n):
+        p = primary[i] if i < len(primary) else {}
+        c = compare[i] if i < len(compare) else {}
+        pv = float(p.get(kpi_key) or 0)
+        cv = float(c.get(kpi_key) or 0)
+        aligned.append(
+            {
+                "day_index": i + 1,
+                "primary_date": p.get("date"),
+                "compare_date": c.get("date"),
+                "primary": round(pv, 6),
+                "compare": round(cv, 6),
+                "delta_pct": _kpi_delta(pv, cv)["pct"],
+            }
+        )
+    return aligned
+
+
+def _attach_compare_block(
+    primary: dict[str, Any],
+    compare: dict[str, Any],
+    *,
+    range_start: str,
+    range_end: str,
+    mode: str,
+) -> dict[str, Any]:
+    pk = primary.get("kpis") or {}
+    ck = compare.get("kpis") or {}
+    return {
+        "mode": mode,
+        "range": {"start": range_start, "end": range_end},
+        "kpis": ck,
+        "deltas": compute_kpi_deltas(pk, ck),
+        "by_date": compare.get("by_date") or [],
+        "by_date_aligned": {
+            k: align_by_date_series(primary.get("by_date") or [], compare.get("by_date") or [], k)
+            for k in KPI_METRIC_KEYS
+        },
+        "by_income_type": _merge_breakdown(
+            primary.get("by_income_type") or [],
+            compare.get("by_income_type") or [],
+            "income_type",
+        ),
+        "by_ad_unit": _merge_breakdown(
+            primary.get("by_ad_unit") or [],
+            compare.get("by_ad_unit") or [],
+            "ad_unit",
+        ),
+        "by_month": _merge_breakdown(
+            primary.get("by_month") or [],
+            compare.get("by_month") or [],
+            "month",
+        ),
+        "by_surface": _merge_breakdown(
+            primary.get("by_surface") or [],
+            compare.get("by_surface") or [],
+            "surface",
+        ),
+        "by_channel": _merge_breakdown(
+            primary.get("by_channel") or [],
+            compare.get("by_channel") or [],
+            "channel",
+        ),
+    }
+
+
 def query_summary(
     db: Session,
     *,
@@ -981,6 +1182,9 @@ def query_summary(
     search: str | None = None,
     project: str | None = None,
     branch: str | None = None,
+    compare_mode: str | None = None,
+    compare_start: str | None = None,
+    compare_end: str | None = None,
 ) -> dict[str, Any]:
     it = _parse_filter_list(income_types)
     au = _parse_filter_list(ad_units)
@@ -1152,7 +1356,8 @@ def query_summary(
             "above_the_fold_ratio_pct": round((d_atf / d_impr) if d_impr > 0 else 0.0, 3),
         }
 
-    return {
+    payload: dict[str, Any] = {
+        "range": {"start": start, "end": end},
         "kpis": {
             "empower_pageview": int(empower_pv),
             "empower_unique_visitor": int(empower_uv),
@@ -1218,6 +1423,35 @@ def query_summary(
         ],
     }
 
+    cmp_start, cmp_end = resolve_compare_range(
+        start, end, compare_mode, compare_start, compare_end
+    )
+    if cmp_start and cmp_end and compare_mode in COMPARE_MODES:
+        compare_payload = query_summary(
+            db,
+            start=cmp_start,
+            end=cmp_end,
+            income_types=income_types,
+            ad_units=ad_units,
+            platforms=platforms,
+            channels=channels,
+            surfaces=surfaces,
+            sources=sources,
+            search=search,
+            project=project,
+            branch=branch,
+            compare_mode=None,
+        )
+        payload["compare"] = _attach_compare_block(
+            payload,
+            compare_payload,
+            range_start=cmp_start,
+            range_end=cmp_end,
+            mode=compare_mode,
+        )
+
+    return payload
+
 
 def query_table(
     db: Session,
@@ -1236,6 +1470,9 @@ def query_table(
     breakdown: str | "date,month,ad_unit,income_type",
     limit: int = 500,
     offset: int = 0,
+    compare_mode: str | None = None,
+    compare_start: str | None = None,
+    compare_end: str | None = None,
 ) -> dict[str, Any]:
     it = _parse_filter_list(income_types)
     au = _parse_filter_list(ad_units)
@@ -1246,6 +1483,7 @@ def query_table(
     parts = [p.strip() for p in (breakdown or "").split(",") if p.strip()]
     allowed = {"date", "month", "ad_unit", "income_type", "platform", "channel", "surface"}
     group_cols = [p for p in parts if p in allowed] or ["date", "ad_unit", "income_type"]
+    dim_fields = [c for c in group_cols]
 
     sub = select(AdReportRow)
     sub = _apply_filters(
@@ -1348,4 +1586,95 @@ def query_table(
             item["computed_ecpm"] = 0.0
         out_rows.append(item)
 
-    return {"rows": out_rows, "total": int(total), "limit": limit, "offset": offset}
+    result: dict[str, Any] = {
+        "rows": out_rows,
+        "total": int(total),
+        "limit": limit,
+        "offset": offset,
+        "breakdown": group_cols,
+    }
+
+    cmp_start, cmp_end = resolve_compare_range(
+        start, end, compare_mode, compare_start, compare_end
+    )
+    if cmp_start and cmp_end and compare_mode in COMPARE_MODES:
+        cmp_table = query_table(
+            db,
+            start=cmp_start,
+            end=cmp_end,
+            income_types=income_types,
+            ad_units=ad_units,
+            platforms=platforms,
+            channels=channels,
+            surfaces=surfaces,
+            sources=sources,
+            search=search,
+            project=project,
+            branch=branch,
+            breakdown=breakdown,
+            limit=limit,
+            offset=offset,
+            compare_mode=None,
+        )
+        result["compare_range"] = {"start": cmp_start, "end": cmp_end}
+        result["rows"] = _merge_table_rows(out_rows, cmp_table.get("rows") or [], dim_fields)
+
+    return result
+
+
+def _table_dimension_key(row: dict[str, Any], dim_fields: list[str]) -> str:
+    parts: list[str] = []
+    for field in dim_fields:
+        if field == "date":
+            parts.append(str(row.get("date") or ""))
+        else:
+            parts.append(str(row.get(field) or ""))
+    return "|".join(parts)
+
+
+def _merge_table_rows(
+    primary_rows: list[dict[str, Any]],
+    compare_rows: list[dict[str, Any]],
+    dim_fields: list[str],
+) -> list[dict[str, Any]]:
+    numeric_metrics = (
+        "ad_request",
+        "matched_request",
+        "impression",
+        "click",
+        "net_revenue",
+        "ad_impression_ecpm",
+        "ctr",
+        "coverage",
+        "viewability",
+        "computed_ecpm",
+    )
+    cmap = {_table_dimension_key(r, dim_fields): r for r in compare_rows}
+    keys: list[str] = []
+    seen: set[str] = set()
+    for row in primary_rows + compare_rows:
+        k = _table_dimension_key(row, dim_fields)
+        if k in seen:
+            continue
+        seen.add(k)
+        keys.append(k)
+
+    merged: list[dict[str, Any]] = []
+    for key in keys:
+        prow = next((x for x in primary_rows if _table_dimension_key(x, dim_fields) == key), {})
+        crow = cmap.get(key, {})
+        item: dict[str, Any] = {}
+        for field in dim_fields:
+            if field == "date":
+                item["date"] = prow.get("date") or crow.get("date")
+            else:
+                item[field] = prow.get(field) or crow.get(field)
+        for metric in numeric_metrics:
+            pv = float(prow.get(metric) or 0)
+            cv = float(crow.get(metric) or 0)
+            item[metric] = prow.get(metric, 0) if prow else 0
+            item[f"{metric}_compare"] = crow.get(metric, 0) if crow else 0
+            item[f"{metric}_delta_pct"] = _kpi_delta(pv, cv)["pct"]
+        merged.append(item)
+    merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
+    return merged

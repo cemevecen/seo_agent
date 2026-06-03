@@ -1,5 +1,5 @@
 import io
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -56,6 +56,72 @@ def test_channel_and_surface_from_filename_and_ad_unit():
     assert rows[0]["channel"] == "dovizcom"
     assert rows[0]["surface"] == "mweb"
     assert rows[1]["surface"] == "web"
+
+
+def test_resolve_compare_range_previous_period():
+    start, end = store.resolve_compare_range("2026-01-10", "2026-01-16", "previous_period")
+    assert start == "2026-01-03"
+    assert end == "2026-01-09"
+
+
+def test_resolve_compare_range_previous_year():
+    start, end = store.resolve_compare_range("2025-03-01", "2025-03-07", "previous_year")
+    assert start == "2024-03-01"
+    assert end == "2024-03-07"
+
+
+def test_resolve_compare_range_custom():
+    start, end = store.resolve_compare_range(
+        "2026-01-01",
+        "2026-01-31",
+        "custom",
+        "2025-06-01",
+        "2025-06-30",
+    )
+    assert start == "2025-06-01"
+    assert end == "2025-06-30"
+
+
+def test_compute_kpi_deltas():
+    deltas = store.compute_kpi_deltas(
+        {"net_revenue": 150.0, "impression": 1000},
+        {"net_revenue": 100.0, "impression": 800},
+    )
+    assert deltas["net_revenue"]["pct"] == 50.0
+    assert deltas["impression"]["abs"] == 200
+
+
+def _excel_serial(d: date) -> int:
+    return (d - date(1899, 12, 30)).days
+
+
+def test_query_summary_with_compare():
+    init_db()
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    d1 = date(2026, 1, 5)
+    d2 = date(2026, 1, 12)
+    d0 = date(2025, 12, 29)
+    text += f"unit_a,1,{_excel_serial(d1)},Open Auction,10,10,10,1,0,0,0,0,0,50\n"
+    text += f"unit_a,1,{_excel_serial(d2)},Open Auction,10,10,10,1,0,0,0,0,0,30\n"
+    text += f"unit_a,1,{_excel_serial(d0)},Open Auction,10,10,10,1,0,0,0,0,0,20\n"
+    rows = store.parse_csv_text(text, filename="dovizcom1_Report_2026.xlsx")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        summ = store.query_summary(
+            db,
+            start=d1.isoformat(),
+            end=d2.isoformat(),
+            compare_mode="previous_period",
+        )
+        assert "compare" in summ
+        assert summ["compare"]["deltas"]["net_revenue"]["compare"] == 20.0
+        assert summ["compare"]["deltas"]["net_revenue"]["current"] == 80.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
 
 
 def test_parse_csv_and_import():

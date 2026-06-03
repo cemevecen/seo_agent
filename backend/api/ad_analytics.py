@@ -59,6 +59,12 @@ def get_ad_analytics_summary(
     search: str | None = Query(None),
     project: str | None = Query(None),
     branch: str | None = Query(None),
+    compare_mode: str | None = Query(
+        None,
+        description="previous_period | previous_year | custom",
+    ),
+    compare_start: str | None = Query(None),
+    compare_end: str | None = Query(None),
 ):
     return store.query_summary(
         db,
@@ -75,6 +81,9 @@ def get_ad_analytics_summary(
             project=project,
             branch=branch,
         ),
+        compare_mode=compare_mode,
+        compare_start=compare_start,
+        compare_end=compare_end,
     )
 
 
@@ -95,6 +104,9 @@ def get_ad_analytics_table(
     breakdown: str = Query("date,ad_unit,income_type"),
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
+    compare_mode: str | None = Query(None),
+    compare_start: str | None = Query(None),
+    compare_end: str | None = Query(None),
 ):
     return store.query_table(
         db,
@@ -114,6 +126,9 @@ def get_ad_analytics_table(
         breakdown=breakdown,
         limit=limit,
         offset=offset,
+        compare_mode=compare_mode,
+        compare_start=compare_start,
+        compare_end=compare_end,
     )
 
 
