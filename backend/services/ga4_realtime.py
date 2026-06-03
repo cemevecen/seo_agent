@@ -2182,9 +2182,12 @@ def check_site_realtime(
         if active_users_alarm:
             delta = active_users_alarm["current_value"] - active_users_alarm["previous_value"]
             drivers = _analyze_traffic_drivers(db, site.id, profile, delta)
-            if drivers:
+            # _analyze_traffic_drivers {"increase": [...], "decrease": [...]} döndürür;
+            # mail body düz bir sürücü listesi bekler (delta işaretine göre seç).
+            driver_list = drivers["decrease"] if delta < 0 else drivers["increase"]
+            if driver_list:
                 # İlk alarma sürücüleri ekle (mail body'de kullanmak için)
-                alarms[0]["drivers"] = drivers
+                alarms[0]["drivers"] = driver_list
                 
         logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
         if not skip_emails:
