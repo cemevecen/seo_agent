@@ -859,6 +859,8 @@ def facets(db: Session) -> dict[str, Any]:
                 "project": meta.project,
                 "branch": meta.branch,
                 "label": meta.label,
+                "channel": meta.channel,
+                "default_surface": meta.default_surface,
                 "min_date": hit[2].isoformat() if hit and hit[2] else None,
                 "max_date": hit[3].isoformat() if hit and hit[3] else None,
                 "row_count": int(hit[4] or 0) if hit else 0,
@@ -866,8 +868,33 @@ def facets(db: Session) -> dict[str, Any]:
             }
         )
 
+    file_rows = db.execute(
+        select(
+            AdReportRow.source_file,
+            AdReportRow.project,
+            AdReportRow.branch,
+            func.count(),
+        )
+        .where(AdReportRow.source_file != "")
+        .group_by(AdReportRow.source_file, AdReportRow.project, AdReportRow.branch)
+    ).all()
+    import_audit: list[dict[str, Any]] = []
+    for fn, proj, br, cnt in file_rows:
+        expected = detect_stream(fn)
+        if expected and (expected.project != proj or expected.branch != br):
+            import_audit.append(
+                {
+                    "source_file": fn,
+                    "expected_stream": expected.key,
+                    "actual_project": proj,
+                    "actual_branch": br,
+                    "row_count": int(cnt or 0),
+                }
+            )
+
     return {
         "streams": streams_out,
+        "import_audit": import_audit,
         "income_types": income,
         "platforms": platforms,
         "channels": channels,
@@ -979,17 +1006,51 @@ def query_summary(
     )
     sub = base.subquery()
 
+    def _sum_extra(key: str):
+        if _IS_PG:
+            from sqlalchemy import Float, cast
+            from sqlalchemy.dialects.postgresql import JSONB
+
+            raw = cast(sub.c.extra_metrics, JSONB)[key].astext
+            return func.sum(cast(func.nullif(raw, ""), Float))
+        from sqlalchemy import Float, cast
+
+        return func.sum(cast(func.json_extract(sub.c.extra_metrics, f"$.{key}"), Float))
+
     totals = db.execute(
         select(
             func.coalesce(func.sum(sub.c.net_revenue), 0),
             func.coalesce(func.sum(sub.c.impression), 0),
             func.coalesce(func.sum(sub.c.click), 0),
             func.coalesce(func.sum(sub.c.ad_request), 0),
+            func.coalesce(func.sum(sub.c.matched_request), 0),
+            func.coalesce(_sum_extra("empower_pageview"), 0),
+            func.coalesce(_sum_extra("empower_unique_visitor"), 0),
+            func.coalesce(func.sum(sub.c.viewability * sub.c.impression), 0),
+            func.coalesce(func.sum(sub.c.coverage * sub.c.ad_request), 0),
+            func.coalesce(_sum_extra("above_the_fold_ratio"), 0),
         )
     ).one()
-    net_rev, impr, clicks, ad_req = [float(x or 0) for x in totals]
+    (
+        net_rev,
+        impr,
+        clicks,
+        ad_req,
+        matched_req,
+        empower_pv,
+        empower_uv,
+        view_w_sum,
+        cov_w_sum,
+        atf_sum,
+    ) = [float(x or 0) for x in totals]
     avg_ecpm = (net_rev / impr * 1000.0) if impr > 0 else 0.0
     ctr = (clicks / impr * 100.0) if impr > 0 else 0.0
+    req_ecpm = (net_rev / ad_req * 1000.0) if ad_req > 0 else 0.0
+    pv_ecpm = (net_rev / empower_pv * 1000.0) if empower_pv > 0 else 0.0
+    uv_ecpm = (net_rev / empower_uv * 1000.0) if empower_uv > 0 else 0.0
+    coverage_pct = (cov_w_sum / ad_req) if ad_req > 0 else 0.0
+    viewability_pct = (view_w_sum / impr) if impr > 0 else 0.0
+    atf_pct = (atf_sum / impr) if impr > 0 else 0.0
 
     by_date = db.execute(
         select(
@@ -997,6 +1058,13 @@ def query_summary(
             func.sum(sub.c.net_revenue),
             func.sum(sub.c.impression),
             func.sum(sub.c.click),
+            func.sum(sub.c.ad_request),
+            func.sum(sub.c.matched_request),
+            _sum_extra("empower_pageview"),
+            _sum_extra("empower_unique_visitor"),
+            func.sum(sub.c.viewability * sub.c.impression),
+            func.sum(sub.c.coverage * sub.c.ad_request),
+            _sum_extra("above_the_fold_ratio"),
         )
         .group_by(sub.c.report_date)
         .order_by(sub.c.report_date)
@@ -1053,24 +1121,61 @@ def query_summary(
         .order_by(func.sum(sub.c.net_revenue).desc())
     ).all()
 
+    def _day_series(row: tuple) -> dict[str, Any]:
+        d_rev = float(row[1] or 0)
+        d_impr = float(row[2] or 0)
+        d_clk = float(row[3] or 0)
+        d_req = float(row[4] or 0)
+        d_match = float(row[5] or 0)
+        d_epv = float(row[6] or 0)
+        d_euv = float(row[7] or 0)
+        d_view_w = float(row[8] or 0)
+        d_cov_w = float(row[9] or 0)
+        d_cov_w = float(row[9] or 0)
+        d_atf = float(row[10] or 0)
+        return {
+            "date": row[0].isoformat(),
+            "net_revenue": round(d_rev, 2),
+            "impression": int(d_impr),
+            "click": int(d_clk),
+            "ad_request": int(d_req),
+            "matched_request": int(d_match),
+            "empower_pageview": int(d_epv),
+            "empower_unique_visitor": int(d_euv),
+            "ad_request_ecpm": round((d_rev / d_req * 1000.0) if d_req > 0 else 0.0, 3),
+            "pageview_ecpm": round((d_rev / d_epv * 1000.0) if d_epv > 0 else 0.0, 3),
+            "unique_visitor_ecpm": round((d_rev / d_euv * 1000.0) if d_euv > 0 else 0.0, 3),
+            "ad_ecpm": round((d_rev / d_impr * 1000.0) if d_impr > 0 else 0.0, 3),
+            "ctr_pct": round((d_clk / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
+            "coverage_pct": round((d_cov_w / d_req) if d_req > 0 else 0.0, 3),
+            "viewability_pct": round((d_view_w / d_impr) if d_impr > 0 else 0.0, 3),
+            "above_the_fold_ratio_pct": round((d_atf / d_impr) if d_impr > 0 else 0.0, 3),
+        }
+
     return {
         "kpis": {
+            "empower_pageview": int(empower_pv),
+            "empower_unique_visitor": int(empower_uv),
+            "ad_request": int(ad_req),
+            "matched_request": int(matched_req),
+            "impression": int(impr),
+            "click": int(clicks),
             "net_revenue": round(net_rev, 2),
+            "ad_request_ecpm": round(req_ecpm, 3),
+            "pageview_ecpm": round(pv_ecpm, 3),
+            "unique_visitor_ecpm": round(uv_ecpm, 3),
+            "ad_ecpm": round(avg_ecpm, 3),
+            "viewability_pct": round(viewability_pct, 3),
+            "above_the_fold_ratio_pct": round(atf_pct, 3),
+            "ctr_pct": round(ctr, 3),
+            "coverage_pct": round(coverage_pct, 3),
+            # geriye uyumluluk
             "impressions": int(impr),
             "clicks": int(clicks),
             "ad_requests": int(ad_req),
             "avg_ad_ecpm": round(avg_ecpm, 3),
-            "ctr_pct": round(ctr, 3),
         },
-        "by_date": [
-            {
-                "date": r[0].isoformat(),
-                "net_revenue": round(float(r[1] or 0), 2),
-                "impression": int(r[2] or 0),
-                "click": int(r[3] or 0),
-            }
-            for r in by_date
-        ],
+        "by_date": [_day_series(r) for r in by_date],
         "by_income_type": [
             {
                 "income_type": r[0],

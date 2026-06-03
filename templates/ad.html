@@ -68,18 +68,12 @@
     </aside>
 
     <div class="space-y-4 xl:col-span-9">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Net gelir (TL)</p><p id="ad-kpi-rev" class="text-lg font-black text-slate-900 dark:text-slate-100">0</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Gösterim</p><p id="ad-kpi-impr" class="text-lg font-black">0</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Tıklama</p><p id="ad-kpi-click" class="text-lg font-black">0</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Ad request</p><p id="ad-kpi-req" class="text-lg font-black">0</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">Ort. Ad eCPM</p><p id="ad-kpi-ecpm" class="text-lg font-black">0</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"><p class="text-xs text-slate-500">CTR %</p><p id="ad-kpi-ctr" class="text-lg font-black">0</p></div>
-      </div>
+      <p id="ad-import-audit" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"></p>
+      <div id="ad-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
       <p id="ad-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Günlük net gelir (çizgi)</h2>
+        <h2 id="ad-chart-line-title" class="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Günlük trend (çizgi)</h2>
         <div id="ad-chart-line" class="h-[300px]"></div>
       </div>
 
@@ -134,6 +128,24 @@
 
 <script>
 (function () {
+  var KPI_DEFS = [
+    { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
+    { key: "empower_unique_visitor", label: "Empower Unique Visitor", dec: 0, axis: "" },
+    { key: "ad_request", label: "Ad Request", dec: 0, axis: "" },
+    { key: "matched_request", label: "Matched Request", dec: 0, axis: "" },
+    { key: "impression", label: "Impression", dec: 0, axis: "" },
+    { key: "click", label: "Click", dec: 0, axis: "" },
+    { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
+    { key: "ad_request_ecpm", label: "Ad Request eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "pageview_ecpm", label: "Pageview eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "unique_visitor_ecpm", label: "Unique Visitor eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "ad_ecpm", label: "Ad eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "viewability_pct", label: "Viewability (%)", dec: 3, axis: "%" },
+    { key: "above_the_fold_ratio_pct", label: "Above The Fold (%)", dec: 3, axis: "%" },
+    { key: "ctr_pct", label: "CTR (%)", dec: 3, axis: "%" },
+    { key: "coverage_pct", label: "Coverage (%)", dec: 3, axis: "%" },
+  ];
+
   var state = {
     income: new Set(),
     platform: new Set(),
@@ -142,6 +154,8 @@
     source: new Set(),
     activeStream: null,
     streams: [],
+    activeKpiKey: "net_revenue",
+    lastByDate: [],
   };
 
   function fmt(n, dec) {
@@ -160,9 +174,12 @@
     if (s) p.set("start", s);
     if (e) p.set("end", e);
     if (state.income.size) p.set("income_types", Array.from(state.income).join(","));
-    if (state.platform.size) p.set("platforms", Array.from(state.platform).join(","));
-    if (state.channel.size) p.set("channels", Array.from(state.channel).join(","));
-    if (state.surface.size) p.set("surfaces", Array.from(state.surface).join(","));
+    // Dal sekmesi aktifken kanal/yüzey filtresi gönderme (android/sinemalar kapalıyken 0 KPI hatası)
+    if (!state.activeStream) {
+      if (state.platform.size) p.set("platforms", Array.from(state.platform).join(","));
+      if (state.channel.size) p.set("channels", Array.from(state.channel).join(","));
+      if (state.surface.size) p.set("surfaces", Array.from(state.surface).join(","));
+    }
     if (state.source.size) p.set("sources", Array.from(state.source).join(","));
     var q = document.getElementById("ad-search").value.trim();
     if (q) p.set("search", q);
@@ -185,16 +202,26 @@
     };
   }
 
+  function renderLineChart(byDate, kpiKey) {
+    if (!window.Plotly) return;
+    var def = KPI_DEFS.find(function (d) { return d.key === kpiKey; }) || KPI_DEFS[6];
+    var th = plotTheme();
+    var dates = (byDate || []).map(function (x) { return x.date; });
+    var vals = (byDate || []).map(function (x) { return x[kpiKey] != null ? x[kpiKey] : 0; });
+    document.getElementById("ad-chart-line-title").textContent =
+      "Günlük trend — " + def.label;
+    Plotly.newPlot("ad-chart-line", [{
+      x: dates, y: vals, type: "scatter", mode: "lines+markers",
+      line: { color: "#4f46e5", width: 2 }, marker: { size: 4 },
+      name: def.label,
+    }], Object.assign({}, th, { yaxis: { title: def.axis || "" } }), { responsive: true, displayModeBar: false });
+  }
+
   function renderCharts(sum) {
     if (!window.Plotly) return;
+    state.lastByDate = sum.by_date || [];
+    renderLineChart(state.lastByDate, state.activeKpiKey);
     var th = plotTheme();
-    var dates = (sum.by_date || []).map(function (x) { return x.date; });
-    var revs = (sum.by_date || []).map(function (x) { return x.net_revenue; });
-    Plotly.newPlot("ad-chart-line", [{
-      x: dates, y: revs, type: "scatter", mode: "lines+markers",
-      line: { color: "#4f46e5", width: 2 }, marker: { size: 5 },
-      name: "Net gelir",
-    }], Object.assign({}, th, { yaxis: { title: "TL" } }), { responsive: true, displayModeBar: false });
 
     var inc = sum.by_income_type || [];
     Plotly.newPlot("ad-chart-bar-income", [{
@@ -239,12 +266,27 @@
   }
 
   function renderKpis(k) {
-    document.getElementById("ad-kpi-rev").textContent = fmt(k.net_revenue, 2);
-    document.getElementById("ad-kpi-impr").textContent = fmt(k.impressions, 0);
-    document.getElementById("ad-kpi-click").textContent = fmt(k.clicks, 0);
-    document.getElementById("ad-kpi-req").textContent = fmt(k.ad_requests, 0);
-    document.getElementById("ad-kpi-ecpm").textContent = fmt(k.avg_ad_ecpm, 3);
-    document.getElementById("ad-kpi-ctr").textContent = fmt(k.ctr_pct, 3);
+    var grid = document.getElementById("ad-kpi-grid");
+    grid.innerHTML = "";
+    KPI_DEFS.forEach(function (def) {
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className =
+        "rounded-xl border p-3 text-left transition " +
+        (state.activeKpiKey === def.key
+          ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-400 dark:bg-indigo-950/40"
+          : "border-slate-200 bg-white hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900");
+      card.innerHTML =
+        "<p class=\"text-[10px] font-semibold uppercase tracking-wide text-slate-500\">" + def.label + "</p>" +
+        "<p class=\"mt-1 text-base font-black text-slate-900 dark:text-slate-100\">" +
+        fmt(k[def.key], def.dec) + "</p>";
+      card.addEventListener("click", function () {
+        state.activeKpiKey = def.key;
+        renderKpis(k);
+        renderLineChart(state.lastByDate, state.activeKpiKey);
+      });
+      grid.appendChild(card);
+    });
   }
 
   function renderTable(data) {
@@ -327,6 +369,7 @@
           document.getElementById("ad-start").value = st.min_date;
           document.getElementById("ad-end").value = st.max_date || st.min_date;
         }
+        document.getElementById("ad-preset").value = "all";
         runQuery();
       });
       wrap.appendChild(btn);
@@ -381,7 +424,20 @@
     }
     var lbl = [];
     if (f.min_date && f.max_date) lbl.push(f.min_date + " — " + f.max_date);
+    if (state.activeStream) {
+      lbl.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
+    }
     document.getElementById("ad-range-label").textContent = lbl.join(" · ");
+    var auditEl = document.getElementById("ad-import-audit");
+    var audit = f.import_audit || [];
+    if (audit.length) {
+      auditEl.classList.remove("hidden");
+      auditEl.textContent =
+        "Uyarı: " + audit.length + " dosyada proje/dal eşlemesi beklenenden farklı (yeniden yükleme gerekebilir).";
+    } else {
+      auditEl.classList.add("hidden");
+      auditEl.textContent = "";
+    }
   }
 
   async function runQuery() {
