@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qs
 
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,27 @@ logger = logging.getLogger(__name__)
 _REFERRER_SKIP = frozenset({"", "(not set)", "(none)", "(direct)"})
 _MAX_REFERRERS = 20
 _MAX_CHANNELS = 15
+_MAX_BREAKDOWN = 12
+_MAX_LANDING_PARAMS = 15
+
+_TRACKING_KEYS = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+    "fbclid", "gclid", "gbraid", "wbraid", "msclkid", "dclid", "igshid",
+    "mc_cid", "ref", "source", "campaign",
+})
+
+_BREAKDOWN_FIELD_SPECS: list[tuple[str, str, bool]] = [
+    ("devices", "deviceCategory", False),
+    ("operating_systems", "operatingSystem", False),
+    ("browsers", "browser", False),
+    ("platforms", "platform", False),
+    ("source_medium", "sessionSourceMedium", False),
+    ("direct_devices", "deviceCategory", True),
+    ("direct_os", "operatingSystem", True),
+    ("direct_browsers", "browser", True),
+    ("direct_platforms", "platform", True),
+    ("direct_source_medium", "sessionSourceMedium", True),
+]
 
 
 def _host_hint(domain: str | None) -> str:
@@ -88,6 +110,250 @@ def normalize_channels(raw: list | None) -> list[dict[str, Any]]:
     return out
 
 
+def _path_base(path: str) -> str:
+    return (path or "").split("?", 1)[0] or path
+
+
+def extract_tracking_labels(path: str) -> list[str]:
+    """Landing URL query: utm_*, fbclid, gclid vb. etiketler."""
+    if "?" not in (path or ""):
+        return []
+    qs = path.split("?", 1)[1]
+    parsed = parse_qs(qs, keep_blank_values=False)
+    labels: list[str] = []
+    for key, vals in parsed.items():
+        kl = key.lower()
+        if kl.startswith("utm_") or kl in _TRACKING_KEYS:
+            for v in vals:
+                v = (v or "").strip()
+                if v:
+                    labels.append(f"{key}={v}"[:160])
+    return labels
+
+
+def coerce_labeled_item(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        label = (item.get("label") or item.get("channel") or "").strip()
+        return {"label": label, "users": int(item.get("users") or 0)}
+    if isinstance(item, str):
+        return {"label": item.strip(), "users": 0}
+    return {"label": "", "users": 0}
+
+
+def normalize_labeled_list(raw: list | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for item in raw or []:
+        coerced = coerce_labeled_item(item)
+        if coerced["label"] and coerced["label"].lower() not in _REFERRER_SKIP:
+            out.append(coerced)
+    return out
+
+
+def merge_labeled_items(
+    items: list[dict[str, Any]],
+    *,
+    max_items: int = _MAX_BREAKDOWN,
+) -> list[dict[str, Any]]:
+    by_label: dict[str, dict[str, Any]] = {}
+    for it in items:
+        label = (it.get("label") or "").strip()
+        if not label:
+            continue
+        if label not in by_label:
+            by_label[label] = {"label": label, "users": 0}
+        by_label[label]["users"] += int(it.get("users") or 0)
+    merged = sorted(by_label.values(), key=lambda x: x["users"], reverse=True)
+    return merged[:max_items]
+
+
+def _counts_to_labeled_list(counts: dict[str, int]) -> list[dict[str, Any]]:
+    return [
+        {"label": label, "users": users}
+        for label, users in sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    ][: _MAX_BREAKDOWN]
+
+
+def _empty_breakdown_fields() -> dict[str, list]:
+    return {field: [] for field, _, _ in _BREAKDOWN_FIELD_SPECS} | {"landing_params": []}
+
+
+def _attach_breakdown_by_base(
+    grouped: dict[str, dict],
+    page_path: str,
+    field: str,
+    items: list[dict[str, Any]],
+) -> None:
+    base = _path_base(page_path)
+    for key, row in grouped.items():
+        if _path_base(key) == base:
+            row[field] = items
+
+
+def _ga4_error_page_filter_list():
+    from google.analytics.data_v1beta.types import Filter, FilterExpression
+
+    return [
+        FilterExpression(filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="/404", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="404", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="bulunamadı", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="not found", case_sensitive=False,
+            ),
+        )),
+        FilterExpression(filter=Filter(
+            field_name="pageTitle",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value="sayfa bulunamadı", case_sensitive=False,
+            ),
+        )),
+    ]
+
+
+def _ga4_run_path_breakdown(
+    client: Any,
+    pid: str,
+    days: int,
+    row_limit: int,
+    error_filters: list,
+    secondary_dimension: str,
+    *,
+    direct_only: bool = False,
+) -> dict[str, dict[str, int]]:
+    from google.analytics.data_v1beta.types import (
+        DateRange, Dimension, Filter, FilterExpression,
+        FilterExpressionList, Metric, OrderBy, RunReportRequest,
+    )
+
+    expressions: list = [
+        FilterExpression(or_group=FilterExpressionList(expressions=error_filters)),
+    ]
+    if direct_only:
+        expressions.append(FilterExpression(filter=Filter(
+            field_name="sessionDefaultChannelGroup",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.EXACT,
+                value="Direct",
+            ),
+        )))
+    dim_filter = FilterExpression(and_group=FilterExpressionList(expressions=expressions))
+
+    req = RunReportRequest(
+        property=pid,
+        date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        dimensions=[
+            Dimension(name="pagePath"),
+            Dimension(name=secondary_dimension),
+        ],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=dim_filter,
+        order_bys=[OrderBy(
+            metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
+            desc=True,
+        )],
+        limit=row_limit,
+    )
+    out: dict[str, dict[str, int]] = {}
+    try:
+        resp = client.run_report(req)
+    except Exception as exc:
+        logger.debug(
+            "GA4 breakdown atlandı [dim=%s direct=%s]: %s",
+            secondary_dimension, direct_only, exc,
+        )
+        return out
+    for row in resp.rows:
+        dims = [dv.value for dv in row.dimension_values]
+        mets = [mv.value for mv in row.metric_values]
+        page_path = dims[0] if len(dims) > 0 else ""
+        label = (dims[1] if len(dims) > 1 else "").strip()
+        users = int(mets[0]) if len(mets) > 0 else 0
+        if not page_path or not label or users <= 0:
+            continue
+        if label.lower() in _REFERRER_SKIP:
+            continue
+        bucket = out.setdefault(page_path, {})
+        bucket[label] = bucket.get(label, 0) + users
+    return out
+
+
+def _fetch_landing_params_by_base(
+    client: Any,
+    pid: str,
+    days: int,
+    row_limit: int,
+    error_filters: list,
+) -> dict[str, dict[str, int]]:
+    from google.analytics.data_v1beta.types import (
+        DateRange, Dimension, Filter, FilterExpression,
+        FilterExpressionList, Metric, OrderBy, RunReportRequest,
+    )
+
+    query_filter = FilterExpression(filter=Filter(
+        field_name="pagePathPlusQueryString",
+        string_filter=Filter.StringFilter(
+            match_type=Filter.StringFilter.MatchType.CONTAINS,
+            value="?", case_sensitive=False,
+        ),
+    ))
+    dim_filter = FilterExpression(and_group=FilterExpressionList(expressions=[
+        FilterExpression(or_group=FilterExpressionList(expressions=error_filters)),
+        query_filter,
+    ]))
+
+    req = RunReportRequest(
+        property=pid,
+        date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        dimensions=[Dimension(name="pagePathPlusQueryString")],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=dim_filter,
+        order_bys=[OrderBy(
+            metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
+            desc=True,
+        )],
+        limit=row_limit,
+    )
+    agg: dict[str, dict[str, int]] = {}
+    try:
+        resp = client.run_report(req)
+    except Exception as exc:
+        logger.debug("GA4 landing param sorgusu atlandı: %s", exc)
+        return agg
+    for row in resp.rows:
+        dims = [dv.value for dv in row.dimension_values]
+        mets = [mv.value for mv in row.metric_values]
+        full_path = dims[0] if len(dims) > 0 else ""
+        users = int(mets[0]) if len(mets) > 0 else 0
+        if not full_path or users <= 0:
+            continue
+        base = _path_base(full_path)
+        for label in extract_tracking_labels(full_path):
+            bucket = agg.setdefault(base, {})
+            bucket[label] = bucket.get(label, 0) + users
+    return agg
+
+
 def merge_channel_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_ch: dict[str, dict[str, Any]] = {}
     for it in items:
@@ -130,44 +396,7 @@ def fetch_ga4_error_pages(
     if not pid.startswith("properties/"):
         pid = f"properties/{pid}"
 
-    # 404 sayfalarını yakala: path'te /404 VEYA title'da hata kelimeleri
-    error_filters = [
-        FilterExpression(filter=Filter(
-            field_name="pagePath",
-            string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value="/404", case_sensitive=False,
-            ),
-        )),
-        FilterExpression(filter=Filter(
-            field_name="pageTitle",
-            string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value="404", case_sensitive=False,
-            ),
-        )),
-        FilterExpression(filter=Filter(
-            field_name="pageTitle",
-            string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value="bulunamadı", case_sensitive=False,
-            ),
-        )),
-        FilterExpression(filter=Filter(
-            field_name="pageTitle",
-            string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value="not found", case_sensitive=False,
-            ),
-        )),
-        FilterExpression(filter=Filter(
-            field_name="pageTitle",
-            string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value="sayfa bulunamadı", case_sensitive=False,
-            ),
-        )),
-    ]
+    error_filters = _ga4_error_page_filter_list()
 
     # Sorgu 1: URL + başlık + kullanıcı sayısı
     req_main = RunReportRequest(
@@ -208,7 +437,7 @@ def fetch_ga4_error_pages(
         users      = int(mets[1]) if len(mets) > 1 else 0
         if not page_path:
             continue
-        grouped[page_path] = {
+        row_data = {
             "url":         page_path,
             "page_title":  page_title,
             "referrers":   [],
@@ -220,6 +449,8 @@ def fetch_ga4_error_pages(
             "source":      "ga4",
             "error_type":  "not_found",
         }
+        row_data.update(_empty_breakdown_fields())
+        grouped[page_path] = row_data
 
     site_host = _host_hint(site_domain)
 
@@ -324,6 +555,25 @@ def fetch_ga4_error_pages(
             for ch, u in sorted(counts.items(), key=lambda x: x[1], reverse=True)
         ][: _MAX_CHANNELS]
 
+    breakdown_limit = limit * 15
+    for field, ga4_dim, direct_only in _BREAKDOWN_FIELD_SPECS:
+        counts_by_path = _ga4_run_path_breakdown(
+            client, pid, days, breakdown_limit, error_filters, ga4_dim,
+            direct_only=direct_only,
+        )
+        for page_path, counts in counts_by_path.items():
+            items = _counts_to_labeled_list(counts)
+            if items:
+                _attach_breakdown_by_base(grouped, page_path, field, items)
+
+    landing_by_base = _fetch_landing_params_by_base(
+        client, pid, days, breakdown_limit, error_filters,
+    )
+    for base_path, counts in landing_by_base.items():
+        items = _counts_to_labeled_list(counts)[:_MAX_LANDING_PARAMS]
+        if items:
+            _attach_breakdown_by_base(grouped, base_path, "landing_params", items)
+
     results = sorted(grouped.values(), key=lambda x: x["users"], reverse=True)
     logger.info("GA4 hata sayfaları: property=%s, %d benzersiz URL", property_id, len(results))
     return results
@@ -373,12 +623,22 @@ def save_error_logs(
                 new_refs + normalize_referrers([e.get("referrer")])
             )
         new_channels = normalize_channels(e.get("channels") or [])
-        extra = json.dumps({
+        extra_obj: dict[str, Any] = {
             "page_title": e.get("page_title", ""),
             "referrers": merge_referrer_items(new_refs),
             "channels": merge_channel_items(new_channels),
             "referrer_unknown_users": int(e.get("referrer_unknown_users") or 0),
-        }, ensure_ascii=False)
+        }
+        for field, _, _ in _BREAKDOWN_FIELD_SPECS:
+            extra_obj[field] = merge_labeled_items(
+                normalize_labeled_list(e.get(field)),
+                max_items=_MAX_BREAKDOWN,
+            )
+        extra_obj["landing_params"] = merge_labeled_items(
+            normalize_labeled_list(e.get("landing_params")),
+            max_items=_MAX_LANDING_PARAMS,
+        )
+        extra = json.dumps(extra_obj, ensure_ascii=False)
         if existing:
             existing.hit_count = int(e.get("users", 1))  # GA4 artık date'siz, tam toplam
             existing.last_seen  = now
@@ -457,9 +717,44 @@ def format_error_sources_html(
         parts.append(
             f'<div style="font-size:10px;color:#94a3b8">+{unknown} kul. referrer ölçülmedi</div>'
         )
+
+    direct_dev = error.get("direct_devices") or []
+    if isinstance(direct_dev, list) and direct_dev and isinstance(direct_dev[0], str):
+        direct_dev = normalize_labeled_list(direct_dev)
+    for item in direct_dev[:2]:
+        label = item.get("label", "") if isinstance(item, dict) else str(item)
+        users = int(item.get("users") or 0) if isinstance(item, dict) else 0
+        if label:
+            parts.append(
+                f'<div style="font-size:10px;color:#64748b;margin-top:1px">'
+                f"Direct · {escape(label)} · {users} kul.</div>"
+            )
+    landing = error.get("landing_params") or []
+    if isinstance(landing, list) and landing and isinstance(landing[0], str):
+        landing = normalize_labeled_list(landing)
+    for item in landing[:2]:
+        label = item.get("label", "") if isinstance(item, dict) else str(item)
+        users = int(item.get("users") or 0) if isinstance(item, dict) else 0
+        if label:
+            parts.append(
+                f'<div style="font-size:10px;color:#0f766e;margin-top:1px">'
+                f"? {escape(label[:64])}{'…' if len(label) > 64 else ''} · {users} kul.</div>"
+            )
+
     if not parts:
         return ""
     return f'<div style="margin-top:2px">{"".join(parts)}</div>'
+
+
+def _breakdown_fields_from_extra(extra: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for field, _, _ in _BREAKDOWN_FIELD_SPECS:
+        out[field] = merge_labeled_items(normalize_labeled_list(extra.get(field)))
+    out["landing_params"] = merge_labeled_items(
+        normalize_labeled_list(extra.get("landing_params")),
+        max_items=_MAX_LANDING_PARAMS,
+    )
+    return out
 
 
 def _ga4_source_key(days: int) -> str:
@@ -535,6 +830,7 @@ def get_error_summary(
                 normalize_channels(extra.get("channels"))
             ),
             "referrer_unknown_users": int(extra.get("referrer_unknown_users") or 0),
+            **_breakdown_fields_from_extra(extra),
         })
 
     return {

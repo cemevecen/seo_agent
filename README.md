@@ -648,7 +648,9 @@ GA4 Analytics Data API — iki ayrı sorgu:
 
 1. **Ana sorgu:** `pagePathPlusQueryString` + `pageTitle` + `screenPageViews` + `totalUsers`
 2. **Referrer sorgusu:** Aynı filtre + `pageReferrer` + `totalUsers` (referrer başına kullanıcı, max 20)
-3. **Kanal sorgusu:** `sessionDefaultChannelGroup` + `totalUsers` (referrer boş trafik için, max 15)
+3. **Kanal sorgusu:** `sessionDefaultChannelGroup` + `totalUsers` (max 15)
+4. **Kırılım sorguları:** `pagePath` + cihaz/OS/tarayıcı/platform/`sessionSourceMedium` (tüm trafik + Direct filtresi)
+5. **Landing query:** `pagePathPlusQueryString` içinde `?` + `utm_*` / `fbclid` / `gclid` vb.
 
 Filtreler:
 - Path'te `/404` geçen

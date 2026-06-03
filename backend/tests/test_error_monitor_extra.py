@@ -1,5 +1,7 @@
 from backend.services.error_monitor import (
+    extract_tracking_labels,
     merge_channel_items,
+    merge_labeled_items,
     merge_referrer_items,
     normalize_channels,
     normalize_referrers,
@@ -30,3 +32,19 @@ def test_normalize_and_merge_channels():
     merged = merge_channel_items(normalize_channels(raw))
     assert merged[0]["channel"] == "Direct"
     assert merged[0]["users"] == 40
+
+
+def test_extract_tracking_labels():
+    labels = extract_tracking_labels("/yorum?utm_source=newsletter&utm_medium=email&fbclid=abc")
+    assert "utm_source=newsletter" in labels
+    assert "utm_medium=email" in labels
+    assert "fbclid=abc" in labels
+
+
+def test_merge_labeled_items():
+    merged = merge_labeled_items([
+        {"label": "mobile", "users": 10},
+        {"label": "mobile", "users": 5},
+    ])
+    assert merged[0]["label"] == "mobile"
+    assert merged[0]["users"] == 15

@@ -184,32 +184,44 @@ function _renderSummary(d) {
                : srcRaw === 'sc'        ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
                : 'bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500';
     var urlPath = (e.url || '').split('?')[0];
+    var urlQuery = (e.url || '').indexOf('?') >= 0 ? (e.url || '').split('?')[1] : '';
     var allRefs = (e.referrers || []).map(_normRefItem).filter(function(x) { return x.ref; });
     var allCh = (e.channels || []).map(_normChItem).filter(function(x) { return x.channel; });
     var unknown = e.referrer_unknown_users || 0;
     var compactRefs = allRefs.slice(0, 3).map(function(it) { return _renderRefLine(it, true); }).join('');
     var compactCh = (!allRefs.length && allCh.length) ? allCh.slice(0, 2).map(_renderChLine).join('') : '';
+    var directDev = (e.direct_devices || []).map(_normLabelItem).filter(function(x) { return x.label; })[0];
+    var directDevHint = directDev
+      ? '<span class="block text-[10px] text-slate-400 dark:text-zinc-500">Direct · '+_esc(directDev.label)+' ('+directDev.users+')</span>' : '';
+    var landingTop = (e.landing_params || []).map(_normLabelItem).filter(function(x) { return x.label; })[0];
+    var landingHint = landingTop
+      ? '<span class="block text-[10px] text-teal-600 dark:text-teal-500 truncate" title="'+_esc(landingTop.label)+'">? '+_esc(landingTop.label)+' ('+landingTop.users+')</span>' : '';
     var unknownHint = unknown && !allRefs.length
       ? '<span class="block text-[10px] text-slate-400 dark:text-zinc-500">Referrer yok: '+unknown+' kul.</span>' : '';
     var unknownTail = unknown && allRefs.length
       ? '<span class="block text-[10px] text-slate-400 dark:text-zinc-500">+'+unknown+' ölçülmedi</span>' : '';
-    var hasDetail = allRefs.length > 3 || allCh.length > 0 || unknown > 0;
+    var hasBreakdown = _errHasBreakdown(e);
+    var hasDetail = allRefs.length > 3 || allCh.length > 0 || unknown > 0 || hasBreakdown;
     var detailBtn = hasDetail
       ? '<button type="button" class="mt-1 text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-500" onclick="toggleErrDetail(this)" aria-expanded="false">Detay</button>' : '';
-    var srcCell = compactRefs || compactCh || unknownHint
-      ? compactRefs + compactCh + unknownHint + unknownTail + detailBtn
+    var srcCell = compactRefs || compactCh || unknownHint || directDevHint || landingHint
+      ? compactRefs + compactCh + unknownHint + directDevHint + landingHint + unknownTail + detailBtn
       : '<span class="text-xs text-slate-300 dark:text-zinc-600">—</span>';
     var detailRefs = allRefs.map(function(it) { return _renderRefLine(it, false); }).join('');
     var detailCh = allCh.map(_renderChLine).join('');
     var detailMeta = unknown
-      ? '<p class="text-[10px] text-slate-400 dark:text-zinc-500 mb-1">GA4 referrer boş: '+unknown+' kullanıcı</p>' : '';
+      ? '<p class="text-[10px] text-slate-400 dark:text-zinc-500 mb-2">GA4 referrer boş: '+unknown+' kullanıcı — Direct kırılımı aşağıda</p>' : '';
+    var queryBadge = urlQuery
+      ? '<p class="text-[10px] font-mono text-teal-700 dark:text-teal-400 mb-2 truncate" title="'+_esc(urlQuery)+'">Landing query: '+_esc(urlQuery.length > 80 ? urlQuery.slice(0,80)+'…' : urlQuery)+'</p>' : '';
+    var detailBlocks = _errDetailBreakdownHtml(e);
     var detailRow = hasDetail
       ? '<tr class="err-detail-row hidden bg-slate-50/80 dark:bg-zinc-800/40" data-url="'+_esc((e.url||'').toLowerCase())+'">'
-        +'<td colspan="5" class="px-4 py-2 border-t border-slate-100 dark:border-zinc-800/50">'
-        +detailMeta
-        +'<div class="grid gap-3 sm:grid-cols-2 max-w-3xl">'
+        +'<td colspan="5" class="px-4 py-3 border-t border-slate-100 dark:border-zinc-800/50">'
+        +detailMeta + queryBadge
+        +'<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-5xl">'
         +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Referrer</p>'+(detailRefs || '<span class="text-xs text-slate-400">—</span>')+'</div>'
         +'<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">Oturum kanalı</p>'+(detailCh || '<span class="text-xs text-slate-400">—</span>')+'</div>'
+        +detailBlocks
         +'</div></td></tr>' : '';
     var lastSeen = (e.last_seen || '—').slice(0,10);
     var title = e.page_title && !['Sayfa Bulunamadı','Sayfa Bulunamadı - Sinemalar.com'].includes(e.page_title)
@@ -271,6 +283,53 @@ function _renderChLine(item) {
   if (!item.channel) return '';
   var users = item.users ? ' (' + item.users + ')' : '';
   return '<span class="block truncate text-xs text-slate-500 dark:text-zinc-400 leading-5">◎ '+_esc(item.channel)+_esc(users)+'</span>';
+}
+
+function _normLabelItem(x) {
+  if (!x) return { label: '', users: 0 };
+  if (typeof x === 'string') return { label: x, users: 0 };
+  return { label: x.label || x.channel || '', users: x.users || 0 };
+}
+
+function _renderLabelLine(item) {
+  if (!item.label) return '';
+  return '<span class="block truncate text-xs text-slate-500 dark:text-zinc-400 leading-5">'+_esc(item.label)+' <span class="text-slate-400 dark:text-zinc-500">('+item.users+')</span></span>';
+}
+
+function _errBreakdownSection(title, items) {
+  var list = (items || []).map(_normLabelItem).filter(function(x) { return x.label; });
+  if (!list.length) return '';
+  return '<div><p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-1">'+_esc(title)+'</p>'
+    + list.map(_renderLabelLine).join('') + '</div>';
+}
+
+var _ERR_BREAKDOWN_KEYS = [
+  ['direct_devices', 'Direct · cihaz'],
+  ['direct_os', 'Direct · işletim sistemi'],
+  ['direct_browsers', 'Direct · tarayıcı'],
+  ['direct_platforms', 'Direct · platform'],
+  ['direct_source_medium', 'Direct · kaynak / medya'],
+  ['devices', 'Tüm trafik · cihaz'],
+  ['operating_systems', 'Tüm trafik · OS'],
+  ['browsers', 'Tüm trafik · tarayıcı'],
+  ['platforms', 'Tüm trafik · platform'],
+  ['source_medium', 'Tüm trafik · kaynak / medya'],
+  ['landing_params', 'Landing query (utm, fbclid…)']
+];
+
+function _errHasBreakdown(e) {
+  for (var i = 0; i < _ERR_BREAKDOWN_KEYS.length; i++) {
+    if ((e[_ERR_BREAKDOWN_KEYS[i][0]] || []).length) return true;
+  }
+  return false;
+}
+
+function _errDetailBreakdownHtml(e) {
+  var html = '';
+  for (var i = 0; i < _ERR_BREAKDOWN_KEYS.length; i++) {
+    html += _errBreakdownSection(_ERR_BREAKDOWN_KEYS[i][1], e[_ERR_BREAKDOWN_KEYS[i][0]]);
+  }
+  return html;
 }
 
 function toggleErrDetail(btn) {
