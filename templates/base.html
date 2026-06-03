@@ -7,7 +7,7 @@
   {# favicon_v: önbellek kırma; ikon güncellenince artır #}
   {% set favicon_v = "12" %}
   {# app_css_v: Tailwind build değişince artır (npm run build:css) #}
-  {% set app_css_v = "14" %}
+  {% set app_css_v = "15" %}
   <link rel="icon" href="/static/favicon.png?v={{ favicon_v }}" sizes="any" type="image/png" />
   <link rel="shortcut icon" href="/static/favicon.png?v={{ favicon_v }}" />
   <link rel="icon" href="/static/favicon-32.png?v={{ favicon_v }}" sizes="32x32" type="image/png" />
@@ -558,32 +558,28 @@
     }
   </style>
   <style id="seo-ad-page-layout">
-    /* /ad — page_head bloğundan bağımsız; prod önbellek / eksik block olsa da düzen görünsün */
+    /* /ad — Tailwind xl grid sınıfları yüklenmese de 12 sütun düzeni */
     .ad-page #ad-body-grid {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 1rem;
       width: 100%;
       min-width: 0;
-      min-height: 20rem;
-      align-items: stretch;
     }
     @media (min-width: 1280px) {
       .ad-page #ad-body-grid {
-        flex-direction: row;
-        align-items: flex-start;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
       }
       .ad-page #ad-sidebar {
-        flex: 0 0 320px;
-        width: 320px;
-        max-width: 100%;
+        grid-column: span 3 / span 3;
         position: sticky;
         top: 1rem;
         max-height: calc(100vh - 2rem);
         overflow-y: auto;
+        align-self: start;
       }
       .ad-page #ad-main {
-        flex: 1 1 480px;
+        grid-column: span 9 / span 9;
         min-width: 0;
       }
     }
