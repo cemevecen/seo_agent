@@ -1528,14 +1528,9 @@ def query_table(
 
     metrics = [
         func.sum(sub.c.ad_request).label("ad_request"),
-        func.sum(sub.c.matched_request).label("matched_request"),
         func.sum(sub.c.impression).label("impression"),
         func.sum(sub.c.click).label("click"),
         func.sum(sub.c.net_revenue).label("net_revenue"),
-        func.avg(sub.c.ad_impression_ecpm).label("ad_impression_ecpm"),
-        func.avg(sub.c.ctr).label("ctr"),
-        func.avg(sub.c.coverage).label("coverage"),
-        func.avg(sub.c.viewability).label("viewability"),
     ]
     q = select(*select_cols, *metrics).group_by(*group_by_cols)
     if "report_date" in [c.name for c in group_by_cols]:
@@ -1571,19 +1566,11 @@ def query_table(
         rev = float(m["net_revenue"] or 0)
         item.update({
             "ad_request": int(m["ad_request"] or 0),
-            "matched_request": int(m["matched_request"] or 0),
             "impression": int(impr),
             "click": int(m["click"] or 0),
             "net_revenue": round(rev, 2),
-            "ad_impression_ecpm": round(float(m["ad_impression_ecpm"] or 0), 3),
-            "ctr": round(float(m["ctr"] or 0) * (100 if float(m["ctr"] or 0) <= 1 else 1), 3),
-            "coverage": round(float(m["coverage"] or 0) * (100 if float(m["coverage"] or 0) <= 1 else 1), 2),
-            "viewability": round(float(m["viewability"] or 0) * (100 if float(m["viewability"] or 0) <= 1 else 1), 2),
+            "computed_ecpm": round(rev / impr * 1000, 3) if impr > 0 else 0.0,
         })
-        if impr > 0:
-            item["computed_ecpm"] = round(rev / impr * 1000, 3)
-        else:
-            item["computed_ecpm"] = 0.0
         out_rows.append(item)
 
     result: dict[str, Any] = {
@@ -1639,14 +1626,9 @@ def _merge_table_rows(
 ) -> list[dict[str, Any]]:
     numeric_metrics = (
         "ad_request",
-        "matched_request",
         "impression",
         "click",
         "net_revenue",
-        "ad_impression_ecpm",
-        "ctr",
-        "coverage",
-        "viewability",
         "computed_ecpm",
     )
     cmap = {_table_dimension_key(r, dim_fields): r for r in compare_rows}

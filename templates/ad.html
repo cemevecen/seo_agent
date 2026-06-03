@@ -351,6 +351,44 @@
     return parts.length ? parts.join(",") : "date,ad_unit,income_type";
   }
 
+  var TABLE_DIM_LABELS = {
+    date: "Tarih",
+    month: "Ay",
+    ad_unit: "Ad unit",
+    income_type: "Gelir tipi",
+    platform: "Platform",
+    channel: "Kanal",
+    surface: "Yüzey",
+  };
+  var TABLE_METRICS = [
+    { key: "net_revenue", label: "Net gelir (TL)", dec: 2 },
+    { key: "impression", label: "Impression", dec: 0 },
+    { key: "click", label: "Click", dec: 0 },
+    { key: "ad_request", label: "Ad request", dec: 0 },
+    { key: "computed_ecpm", label: "eCPM (TL)", dec: 3 },
+  ];
+
+  function tableColumns(data) {
+    var breakdown = data.breakdown || [];
+    var hasCmp = !!data.compare_range;
+    var cols = [];
+    breakdown.forEach(function (dim) {
+      cols.push({ key: dim, label: TABLE_DIM_LABELS[dim] || dim, kind: "dim" });
+    });
+    TABLE_METRICS.forEach(function (m) {
+      cols.push({ key: m.key, label: m.label, dec: m.dec, kind: "metric", deltaKey: m.key + "_delta_pct" });
+      if (hasCmp) {
+        cols.push({
+          key: m.key + "_compare",
+          label: m.label + " (karş.)",
+          dec: m.dec,
+          kind: "metric_cmp",
+        });
+      }
+    });
+    return cols;
+  }
+
   function plotFont() {
     return { color: isDarkTheme() ? "#a1a1aa" : "#475569", size: 11 };
   }
@@ -607,31 +645,37 @@
   function renderTable(data) {
     var rows = data.rows || [];
     var cmpRange = data.compare_range;
+    var breakdown = data.breakdown || [];
+    var cols = tableColumns(data);
     var meta = rows.length + " satır (toplam " + (data.total || 0) + ")";
+    if (breakdown.length) {
+      meta += " · kırılım: " + breakdown.map(function (d) { return TABLE_DIM_LABELS[d] || d; }).join(", ");
+    }
     if (cmpRange) meta += " · karşılaştırma: " + cmpRange.start + " — " + cmpRange.end;
     document.getElementById("ad-table-meta").textContent = meta;
-    var keys = [];
-    if (rows.length) {
-      keys = Object.keys(rows[0]).filter(function (k) {
-        return !/_delta_pct$/.test(k);
-      });
-    }
+
     var head = document.getElementById("ad-table-head");
-    head.innerHTML = "<tr>" + keys.map(function (k) {
-      var label = k.replace(/_compare$/, " (karş.)");
-      return "<th class=\"px-2 py-2 font-bold text-slate-600 dark:text-slate-300\">" + label + "</th>";
+    head.innerHTML = "<tr>" + cols.map(function (c) {
+      return "<th class=\"px-2 py-2 font-bold text-slate-600 dark:text-slate-300\">" + c.label + "</th>";
     }).join("") + "</tr>";
+
     var body = document.getElementById("ad-table-body");
+    if (!rows.length) {
+      body.innerHTML = "<tr><td class=\"px-2 py-4 text-slate-500\" colspan=\"" + cols.length + "\">Bu kırılım için satır yok.</td></tr>";
+      return;
+    }
     body.innerHTML = rows.map(function (r) {
-      return "<tr>" + keys.map(function (k) {
-        var v = r[k];
-        if (typeof v === "number") {
-          v = fmt(v, k.indexOf("ecpm") >= 0 ? 3 : (k.indexOf("ctr") >= 0 || k.indexOf("coverage") >= 0 ? 2 : 0));
+      return "<tr>" + cols.map(function (c) {
+        var v = r[c.key];
+        if (typeof v === "number" && c.dec != null) {
+          v = fmt(v, c.dec);
         }
-        var deltaKey = k + "_delta_pct";
-        var extra = (r[deltaKey] != null && !/_compare$/.test(k))
-          ? " " + fmtDeltaPct(r[deltaKey]) : "";
-        return "<td class=\"px-2 py-1.5 text-slate-700 dark:text-slate-300\">" + (v == null ? "" : v) + extra + "</td>";
+        var extra = "";
+        if (c.kind === "metric" && c.deltaKey && r[c.deltaKey] != null && cmpRange) {
+          extra = " " + fmtDeltaPct(r[c.deltaKey]);
+        }
+        var cls = c.kind === "metric_cmp" ? "text-slate-500 dark:text-zinc-400" : "";
+        return "<td class=\"px-2 py-1.5 text-slate-700 dark:text-slate-300 " + cls + "\">" + (v == null ? "" : v) + extra + "</td>";
       }).join("") + "</tr>";
     }).join("");
   }
