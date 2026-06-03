@@ -557,37 +557,37 @@
       min-width: max-content;
     }
   </style>
-  <style id="seo-ad-page-layout">
+  <style id="seo-mz-page-layout">
     /* /ad düzeni — prod app.css purge/çakışması ya da grid quirk'i olsa bile içerik
        KESİN görünür. !important app.css'i ezer; kırılgan parçalar (12 sütun span-math,
        sticky+overflow+max-height, arbitrary sınıflar) kaldırıldı.
        Mobil: block (her zaman görünür). Masaüstü: basit 300px + 1fr 2 sütun. */
-    .ad-page #ad-body-grid {
+    .mz-page #mz-body-grid {
       display: block !important;
       width: 100% !important;
       min-width: 0;
     }
-    .ad-page #ad-sidebar,
-    .ad-page #ad-main {
+    .mz-page #mz-sidebar,
+    .mz-page #mz-main {
       display: block !important;
       width: 100% !important;
       min-width: 0;
       box-sizing: border-box;
     }
-    .ad-page #ad-sidebar {
+    .mz-page #mz-sidebar {
       margin-bottom: 1rem;
     }
-    .ad-page #ad-main {
+    .mz-page #mz-main {
       min-height: 24rem;
     }
     @media (min-width: 1280px) {
-      .ad-page #ad-body-grid {
+      .mz-page #mz-body-grid {
         display: grid !important;
         grid-template-columns: 300px minmax(0, 1fr) !important;
         gap: 1rem;
         align-items: start;
       }
-      .ad-page #ad-sidebar {
+      .mz-page #mz-sidebar {
         grid-column: 1 !important;
         width: auto !important;
         margin-bottom: 0;
@@ -595,20 +595,20 @@
         top: 1rem;
         align-self: start;
       }
-      .ad-page #ad-main {
+      .mz-page #mz-main {
         grid-column: 2 !important;
         width: auto !important;
       }
     }
-    .ad-page .ad-chart-plot {
+    .mz-page .mz-chart-plot {
       width: 100%;
       min-width: 0;
     }
-    .ad-page .ad-stream-tabs {
+    .mz-page .mz-stream-tabs {
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
     }
-    html.midnight .ad-page #ad-loading {
+    html.midnight .mz-page #mz-loading {
       background: rgba(0, 0, 0, 0.55);
     }
   </style>

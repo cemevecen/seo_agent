@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.services import ad_analytics_store as store
 
-router = APIRouter(tags=["ad-analytics"])
+router = APIRouter(tags=["mz-analytics"])
 
 _MAX_BULK_BYTES = 120 * 1024 * 1024  # 12 dosya × ~10 MB
 
@@ -40,12 +40,12 @@ def _filter_kwargs(
     }
 
 
-@router.get("/ad-analytics/facets")
+@router.get("/mz-analytics/facets")
 def get_ad_analytics_facets(db: Session = Depends(get_db)):
     return store.facets(db)
 
 
-@router.get("/ad-analytics/summary")
+@router.get("/mz-analytics/summary")
 def get_ad_analytics_summary(
     db: Session = Depends(get_db),
     start: str | None = Query(None),
@@ -87,7 +87,7 @@ def get_ad_analytics_summary(
     )
 
 
-@router.get("/ad-analytics/table")
+@router.get("/mz-analytics/table")
 def get_ad_analytics_table(
     db: Session = Depends(get_db),
     start: str | None = Query(None),
@@ -132,7 +132,7 @@ def get_ad_analytics_table(
     )
 
 
-@router.post("/ad-analytics/upload")
+@router.post("/mz-analytics/upload")
 async def post_ad_analytics_upload(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -157,7 +157,7 @@ async def post_ad_analytics_upload(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/ad-analytics/upload-bulk")
+@router.post("/mz-analytics/upload-bulk")
 async def post_ad_analytics_upload_bulk(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
@@ -202,7 +202,7 @@ async def post_ad_analytics_upload_bulk(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/ad-analytics/reset")
+@router.post("/mz-analytics/reset")
 def post_ad_analytics_reset(db: Session = Depends(get_db)):
     try:
         return store.reset_all(db)
