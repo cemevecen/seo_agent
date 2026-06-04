@@ -250,16 +250,21 @@
           <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı ayrı; trend grafiğinde Gün / Hafta / Ay seçin. Soldaki arama metni filtreler; sağdaki liste tam birim seçer — ikisi de tabloyu ve grafiği günceller.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
-        <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-          <label class="flex min-w-0 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+        <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+          <label class="relative flex min-w-0 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
             Mx birimi ara
             <input
               id="mz-detail-unit-search"
               type="text"
               autocomplete="off"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="mz-detail-unit-ac"
+              aria-autocomplete="list"
               placeholder="sticky, masthead…"
               class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
             />
+            <ul id="mz-detail-unit-ac" class="mz-detail-unit-ac hidden" role="listbox"></ul>
           </label>
           <label class="flex min-w-0 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
             Mx birimi seç
@@ -270,9 +275,21 @@
               <option value="">Tüm birimler</option>
             </select>
           </label>
+          <button
+            id="mz-detail-unit-fav"
+            type="button"
+            title="Seçili birimi favorilere ekle / çıkar"
+            aria-label="Favori"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-lg leading-none text-amber-600 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/70 sm:mb-0"
+            disabled
+          >☆</button>
           <button id="mz-detail-unit-clear" type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900 sm:mb-0">
             Temizle
           </button>
+        </div>
+        <div id="mz-detail-favorites-wrap" class="mb-3 hidden">
+          <p class="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Favori Mx birimleri</p>
+          <div id="mz-detail-favorites" class="flex flex-wrap gap-1.5"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div class="flex flex-wrap items-center gap-2">
@@ -454,6 +471,11 @@
     detailTableFilter: "",
     detailSelectedUnit: "",
     detailAdUnitCatalog: [],
+    detailUnitFullTable: null,
+    detailUnitFullFor: "",
+    detailUnitFullLoading: false,
+    detailFavorites: [],
+    detailUnitAcIndex: -1,
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1115,6 +1137,259 @@
       .replace(/</g, "&lt;");
   }
 
+  var MZ_DETAIL_FAV_PREFIX = "mz_detail_unit_favorites:";
+
+  function detailFavoritesStorageKey() {
+    var parts = [];
+    if (state.activeStream) {
+      parts.push(state.activeStream.project || "");
+      parts.push(state.activeStream.branch || "");
+    }
+    return MZ_DETAIL_FAV_PREFIX + (parts.join(":") || "default");
+  }
+
+  function loadDetailFavorites() {
+    try {
+      var raw = localStorage.getItem(detailFavoritesStorageKey());
+      var list = raw ? JSON.parse(raw) : [];
+      state.detailFavorites = Array.isArray(list) ? list.filter(Boolean) : [];
+    } catch (_) {
+      state.detailFavorites = [];
+    }
+  }
+
+  function saveDetailFavorites() {
+    try {
+      localStorage.setItem(detailFavoritesStorageKey(), JSON.stringify(state.detailFavorites || []));
+    } catch (_) { /* depolama dolu / gizli mod */ }
+  }
+
+  function isDetailFavorite(unit) {
+    return (state.detailFavorites || []).indexOf(unit) >= 0;
+  }
+
+  function toggleDetailFavorite(unit) {
+    if (!unit) return;
+    var list = state.detailFavorites || [];
+    var i = list.indexOf(unit);
+    if (i >= 0) list.splice(i, 1);
+    else list.unshift(unit);
+    state.detailFavorites = list;
+    saveDetailFavorites();
+    renderDetailFavorites();
+    refreshDetailUnitSelect();
+    updateDetailFavoriteButton();
+  }
+
+  function renderDetailFavorites() {
+    var wrap = document.getElementById("mz-detail-favorites-wrap");
+    var el = document.getElementById("mz-detail-favorites");
+    if (!wrap || !el) return;
+    var favs = state.detailFavorites || [];
+    if (!favs.length) {
+      wrap.classList.add("hidden");
+      el.innerHTML = "";
+      return;
+    }
+    wrap.classList.remove("hidden");
+    el.innerHTML = favs.map(function (u) {
+      var active = state.detailSelectedUnit === u;
+      return (
+        "<button type=\"button\" class=\"mz-fav-chip max-w-full truncate rounded-full border px-2.5 py-1 text-[11px] font-semibold " +
+        (active
+          ? "border-indigo-300 bg-indigo-100 text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200"
+          : "border-amber-200/90 bg-amber-50/80 text-amber-900 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50") +
+        "\" data-unit=\"" + detailAdUnitAttrEsc(u) + "\" title=\"" + detailAdUnitAttrEsc(u) + "\">★ " +
+        detailAdUnitAttrEsc(u) + "</button>"
+      );
+    }).join("");
+    el.querySelectorAll("[data-unit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        chooseDetailAdUnit(btn.getAttribute("data-unit") || "", true);
+      });
+    });
+  }
+
+  function updateDetailFavoriteButton() {
+    var btn = document.getElementById("mz-detail-unit-fav");
+    if (!btn) return;
+    var unit = (state.detailSelectedUnit || "").trim();
+    if (!unit) {
+      btn.disabled = true;
+      btn.textContent = "☆";
+      btn.classList.remove("is-fav");
+      btn.title = "Önce bir Mx birimi seçin";
+      return;
+    }
+    btn.disabled = false;
+    if (isDetailFavorite(unit)) {
+      btn.textContent = "★";
+      btn.classList.add("is-fav");
+      btn.title = "Favorilerden çıkar";
+    } else {
+      btn.textContent = "☆";
+      btn.classList.remove("is-fav");
+      btn.title = "Favorilere ekle";
+    }
+  }
+
+  function clearDetailUnitFullTable() {
+    state.detailUnitFullTable = null;
+    state.detailUnitFullFor = "";
+    state.detailUnitFullLoading = false;
+  }
+
+  async function fetchDetailUnitFullTable(unit) {
+    if (!unit || !state.breakdowns.detail) return;
+    state.detailUnitFullLoading = true;
+    if (state.lastTable) renderTable(state.lastTable);
+    try {
+      var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
+      state.detailUnitFullTable = data;
+      state.detailUnitFullFor = unit;
+      state.tableExpanded = true;
+    } catch (err) {
+      showPageError((err && err.message) || "Mx birimi verisi yüklenemedi");
+    } finally {
+      state.detailUnitFullLoading = false;
+      if (state.lastTable) renderTable(state.lastTable);
+      if ((state.detailSelectedUnit || "") === unit) renderTableDrillChart();
+    }
+  }
+
+  function chooseDetailAdUnit(unit, syncSearch) {
+    var u = (unit || "").trim();
+    if (!u) return;
+    if (state.detailUnitFullFor && state.detailUnitFullFor !== u) clearDetailUnitFullTable();
+    state.tableExpanded = false;
+    state._drillUserPicked = true;
+    state._drillMetricUserPicked = false;
+    state._drillTableHighlightKey = null;
+    state.drillSlice = { ad_unit: u };
+    state._drillRowKey = JSON.stringify({ ad_unit: u });
+    setDetailUnitSelectValue(u, syncSearch);
+    updateDetailFavoriteButton();
+    updateDrillSubtitle();
+    hideDetailUnitAutocomplete();
+    if (state.lastTable) renderTable(state.lastTable);
+    fetchDetailUnitFullTable(u);
+    renderTableDrillChart();
+  }
+
+  function scoreAdUnitMatch(unit, q) {
+    var ul = String(unit).toLowerCase();
+    if (ul === q) return 100;
+    if (ul.indexOf(q) === 0) return 40;
+    return 10;
+  }
+
+  function suggestDetailUnitsFromCatalog(query, limit) {
+    var q = (query || "").trim().toLowerCase();
+    if (!q) return [];
+    var seen = {};
+    var matches = [];
+    (state.detailAdUnitCatalog || []).forEach(function (u) {
+      if (!u || seen[u]) return;
+      var ul = String(u).toLowerCase();
+      if (ul.indexOf(q) < 0) return;
+      seen[u] = true;
+      matches.push({ unit: u, score: scoreAdUnitMatch(u, q) });
+    });
+    matches.sort(function (a, b) {
+      return b.score - a.score || String(a.unit).localeCompare(String(b.unit), "tr");
+    });
+    return matches.slice(0, limit || 12).map(function (m) { return m.unit; });
+  }
+
+  function hideDetailUnitAutocomplete() {
+    var list = document.getElementById("mz-detail-unit-ac");
+    var inp = document.getElementById("mz-detail-unit-search");
+    if (list) {
+      list.classList.add("hidden");
+      list.innerHTML = "";
+    }
+    if (inp) inp.setAttribute("aria-expanded", "false");
+    state.detailUnitAcIndex = -1;
+  }
+
+  function renderDetailUnitAutocomplete(items) {
+    var list = document.getElementById("mz-detail-unit-ac");
+    var inp = document.getElementById("mz-detail-unit-search");
+    if (!list || !inp) return;
+    if (!items || !items.length) {
+      hideDetailUnitAutocomplete();
+      return;
+    }
+    list.innerHTML = items.map(function (u, i) {
+      return (
+        "<li role=\"option\"><button type=\"button\" data-ac-index=\"" + i + "\" data-unit=\"" +
+        detailAdUnitAttrEsc(u) + "\">" + detailAdUnitAttrEsc(u) + "</button></li>"
+      );
+    }).join("");
+    list.classList.remove("hidden");
+    inp.setAttribute("aria-expanded", "true");
+    list.querySelectorAll("button[data-unit]").forEach(function (btn) {
+      btn.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        chooseDetailAdUnit(btn.getAttribute("data-unit") || "", true);
+      });
+    });
+    highlightDetailUnitAcItem(state.detailUnitAcIndex);
+  }
+
+  function highlightDetailUnitAcItem(idx) {
+    var list = document.getElementById("mz-detail-unit-ac");
+    if (!list || list.classList.contains("hidden")) return;
+    var buttons = list.querySelectorAll("button[data-ac-index]");
+    buttons.forEach(function (b, i) {
+      b.classList.toggle("is-active", i === idx);
+    });
+    if (idx >= 0 && buttons[idx]) buttons[idx].scrollIntoView({ block: "nearest" });
+  }
+
+  var detailUnitAcFetchTimer = null;
+  function refreshDetailUnitAutocomplete() {
+    var inp = document.getElementById("mz-detail-unit-search");
+    if (!inp) return;
+    var q = inp.value.trim();
+    if (q.length < 2) {
+      hideDetailUnitAutocomplete();
+      return;
+    }
+    var ql = q.toLowerCase();
+    var items = suggestDetailUnitsFromCatalog(q, 12);
+    if (items.length) {
+      renderDetailUnitAutocomplete(items);
+      return;
+    }
+    clearTimeout(detailUnitAcFetchTimer);
+    detailUnitAcFetchTimer = setTimeout(function () {
+      var p = qs();
+      p.set("search", q);
+      p.set("breakdown", "ad_unit");
+      p.set("limit", "15");
+      fetch("/api/mz-analytics/table?" + p.toString())
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var seen = {};
+          var fromApi = [];
+          (data.rows || []).forEach(function (r) {
+            var u = r.ad_unit;
+            if (!u || seen[u]) return;
+            var ul = String(u).toLowerCase();
+            if (ul.indexOf(ql) < 0) return;
+            seen[u] = true;
+            fromApi.push({ unit: u, score: scoreAdUnitMatch(u, ql) });
+          });
+          fromApi.sort(function (a, b) {
+            return b.score - a.score || String(a.unit).localeCompare(String(b.unit), "tr");
+          });
+          renderDetailUnitAutocomplete(fromApi.slice(0, 12).map(function (x) { return x.unit; }));
+        })
+        .catch(function () { hideDetailUnitAutocomplete(); });
+    }, 280);
+  }
+
   function collectAdUnitsFromRows(rows, intoSeen, outList) {
     (rows || []).forEach(function (r) {
       var u = r.ad_unit;
@@ -1144,19 +1419,36 @@
     var sel = document.getElementById("mz-detail-unit-select");
     if (!sel) return;
     var units = getDetailAdUnitsList();
+    var favSet = {};
+    (state.detailFavorites || []).forEach(function (u) { if (u) favSet[u] = true; });
+    var favUnits = (state.detailFavorites || []).filter(function (u) { return u; });
+    var rest = units.filter(function (u) { return !favSet[u]; });
     var prev = state.detailSelectedUnit || sel.value || "";
     var html = "<option value=\"\">Tüm birimler</option>";
-    units.forEach(function (u) {
-      html += "<option value=\"" + detailAdUnitAttrEsc(u) + "\">" + detailAdUnitAttrEsc(u) + "</option>";
-    });
-    sel.innerHTML = html;
-    if (prev && units.indexOf(prev) >= 0) {
-      sel.value = prev;
-      state.detailSelectedUnit = prev;
-    } else if (prev) {
-      sel.value = "";
-      state.detailSelectedUnit = "";
+    if (favUnits.length) {
+      html += "<optgroup label=\"★ Favoriler\">";
+      favUnits.forEach(function (u) {
+        html += "<option value=\"" + detailAdUnitAttrEsc(u) + "\">" + detailAdUnitAttrEsc(u) + "</option>";
+      });
+      html += "</optgroup>";
     }
+    if (rest.length) {
+      html += "<optgroup label=\"Tüm birimler\">";
+      rest.forEach(function (u) {
+        html += "<option value=\"" + detailAdUnitAttrEsc(u) + "\">" + detailAdUnitAttrEsc(u) + "</option>";
+      });
+      html += "</optgroup>";
+    }
+    if (!favUnits.length && !rest.length) {
+      units.forEach(function (u) {
+        html += "<option value=\"" + detailAdUnitAttrEsc(u) + "\">" + detailAdUnitAttrEsc(u) + "</option>";
+      });
+    }
+    sel.innerHTML = html;
+    if (prev) {
+      setDetailUnitSelectValue(prev, false);
+    }
+    updateDetailFavoriteButton();
   }
 
   async function refreshDetailAdUnitCatalog() {
@@ -1179,10 +1471,13 @@
   function clearDetailUnitFilters() {
     state.detailTableFilter = "";
     state.detailSelectedUnit = "";
+    clearDetailUnitFullTable();
+    hideDetailUnitAutocomplete();
     var inp = document.getElementById("mz-detail-unit-search");
     var sel = document.getElementById("mz-detail-unit-select");
     if (inp) inp.value = "";
     if (sel) sel.value = "";
+    updateDetailFavoriteButton();
   }
 
   function setDetailUnitSelectValue(unit, syncSearch) {
@@ -1206,8 +1501,12 @@
 
   function detailTableViewData(data) {
     if (!data) return data;
-    var rows = data.rows || [];
+    var base = data;
     var sel = (state.detailSelectedUnit || "").trim();
+    if (sel && state.detailUnitFullFor === sel && state.detailUnitFullTable) {
+      base = state.detailUnitFullTable;
+    }
+    var rows = base.rows || [];
     var q = (state.detailTableFilter || "").trim().toLowerCase();
     if (sel) {
       rows = rows.filter(function (r) {
@@ -1219,12 +1518,13 @@
         return r.ad_unit && String(r.ad_unit).toLowerCase().indexOf(q) >= 0;
       });
     }
-    if (!sel && !q) return data;
+    if (!sel && !q) return base;
     return {
       rows: rows,
       total: rows.length,
-      breakdown: data.breakdown,
-      compare_range: data.compare_range,
+      breakdown: base.breakdown,
+      compare_range: base.compare_range,
+      _partialUnit: sel && state.detailUnitFullFor !== sel,
     };
   }
 
@@ -1274,24 +1574,37 @@
   function applyDetailUnitFilters() {
     var inp = document.getElementById("mz-detail-unit-search");
     state.detailTableFilter = inp ? inp.value.trim() : "";
+    refreshDetailUnitAutocomplete();
     if (!state.lastTable) return;
-    renderTable(state.lastTable);
     var sel = (state.detailSelectedUnit || "").trim();
-    if (sel) {
+    var q = state.detailTableFilter;
+    if (sel && (!q || String(sel).toLowerCase().indexOf(q.toLowerCase()) >= 0)) {
+      renderTable(state.lastTable);
       setDrillForAdUnit(sel, true);
       return;
     }
-    var q = state.detailTableFilter;
+    if (sel && q) {
+      state.detailSelectedUnit = "";
+      clearDetailUnitFullTable();
+      var selEl = document.getElementById("mz-detail-unit-select");
+      if (selEl) selEl.value = "";
+      updateDetailFavoriteButton();
+    }
+    renderTable(state.lastTable);
     if (!q) {
       renderTableDrillChart();
       return;
     }
-    var unit = resolveAdUnitFromSearch(q, state.lastTable.rows || []);
+    var catalogMatch = suggestDetailUnitsFromCatalog(q, 1)[0];
+    var unit =
+      catalogMatch ||
+      resolveAdUnitFromSearch(q, state.lastTable.rows || []) ||
+      resolveAdUnitFromSearch(q, (state.detailUnitFullTable && state.detailUnitFullTable.rows) || []);
     if (!unit) {
       renderTableDrillChart();
       return;
     }
-    setDrillForAdUnit(unit, true);
+    chooseDetailAdUnit(unit, false);
   }
 
   function pickDefaultDrillRow(rows) {
@@ -1335,8 +1648,14 @@
     var data = await fetchTableForScope("detail", 800);
     state.lastTable = data;
     state.tableExpanded = false;
+    if (state.detailSelectedUnit && state.detailUnitFullFor === state.detailSelectedUnit) {
+      await fetchDetailUnitFullTable(state.detailSelectedUnit);
+    } else {
+      clearDetailUnitFullTable();
+    }
     refreshDetailUnitSelect();
     refreshDetailAdUnitCatalog();
+    renderDetailFavorites();
     renderTable(data);
     if (state._drillUserPicked && state.drillSlice && Object.keys(state.drillSlice).length) {
       updateDrillSubtitle();
@@ -2653,7 +2972,7 @@
   }
 
   function exportTableCsv() {
-    var data = state.lastTable;
+    var data = detailTableViewData(state.lastTable);
     if (!data || !data.rows || !data.rows.length) return;
     var cols = tableColumns(data);
     var lines = [cols.map(function (c) { return c.label; }).join(";")];
@@ -2673,6 +2992,12 @@
   }
 
   function applyTableRowFilter(row) {
+    if (!row) return;
+    var slice = drillSliceForRow(row);
+    if (slice.ad_unit && Object.keys(slice).length === 1) {
+      chooseDetailAdUnit(slice.ad_unit, true);
+      return;
+    }
     setDrillSliceFromRow(row, true);
   }
 
@@ -2807,6 +3132,7 @@
       meta += " · kırılım: " + breakdown.map(function (d) { return TABLE_DIM_LABELS[d] || d; }).join(", ");
     }
     if (cmpRange) meta += " · karşılaştırma: " + cmpRange.start + " — " + cmpRange.end;
+    if (data._partialUnit) meta += " · kısmi liste";
     var expanded = useExpand && state.tableExpanded;
     if (rows.length > preview && useExpand && !expanded) {
       meta += " · tabloda ilk " + preview + " gösteriliyor";
@@ -2832,25 +3158,38 @@
     }
     var cap = useExpand ? (expanded ? rows.length : preview) : Math.min(rows.length, opts.maxRows || rows.length);
     var visibleRows = rows.slice(0, cap);
-    if (expandWrap && useExpand) {
-      if (rows.length > preview) {
+    var rerender = opts.rerender || function () {
+      if (opts.tableScope === "detail" && state.lastTable) renderTable(state.lastTable);
+      else if (state.lastTable) renderDataTable(detailTableViewData(state.lastTable), opts);
+    };
+    if (expandWrap && (useExpand || opts.expandLoadFull)) {
+      if (opts.expandLoadFull) {
+        expandWrap.classList.remove("hidden");
+        expandBtn.textContent = "Tüm tarih aralığını yükle";
+        expandBtn.onclick = function () {
+          var u = (state.detailSelectedUnit || "").trim();
+          if (u) fetchDetailUnitFullTable(u);
+        };
+      } else if (rows.length > preview) {
         expandWrap.classList.remove("hidden");
         if (expanded) {
           expandBtn.textContent = "İlk " + preview + " satırı göster";
           expandBtn.onclick = function () {
             state.tableExpanded = false;
-            renderDataTable(state.lastTable, { expandable: true });
+            rerender();
           };
         } else {
           expandBtn.textContent = "Tümünü gör (" + rows.length + " satır)";
           expandBtn.onclick = function () {
             state.tableExpanded = true;
-            renderDataTable(state.lastTable, { expandable: true });
+            rerender();
           };
         }
       } else {
         expandWrap.classList.add("hidden");
       }
+    } else if (expandWrap) {
+      expandWrap.classList.add("hidden");
     }
     var tableScope = opts.tableScope || (bodyId === "mz-summary-body" ? "summary" : bodyId === "mz-table-body" ? "detail" : "");
     var clickable = tableScope === "summary" || tableScope === "detail";
@@ -2910,12 +3249,34 @@
   }
 
   function renderTable(data) {
-    renderDataTable(detailTableViewData(data), {
+    var view = detailTableViewData(data);
+    var sel = (state.detailSelectedUnit || "").trim();
+    var preview = MZ_TABLE_PREVIEW;
+    var expandable = true;
+    var expandLoadFull = false;
+    if (sel) {
+      if (state.detailUnitFullFor === sel && state.detailUnitFullTable) {
+        preview = Math.max((view.rows || []).length, 1);
+        expandable = false;
+      } else {
+        expandable = false;
+        expandLoadFull = !state.detailUnitFullLoading;
+      }
+    }
+    renderDataTable(view, {
       headId: "mz-table-head",
       bodyId: "mz-table-body",
       metaId: "mz-table-meta",
-      expandable: true,
+      expandable: expandable,
+      preview: preview,
+      expandLoadFull: expandLoadFull,
+      rerender: function () { renderTable(data); },
+      tableScope: "detail",
     });
+    if (state.detailUnitFullLoading) {
+      var metaEl = document.getElementById("mz-table-meta");
+      if (metaEl) metaEl.textContent = (metaEl.textContent || "") + " · tüm tarihler yükleniyor…";
+    }
   }
 
   function pruneFacetSet(set, allowed) {
@@ -3019,6 +3380,8 @@
         }
         document.getElementById("mz-preset").value = "1y";
         applyPreset();
+        loadDetailFavorites();
+        renderDetailFavorites();
         runQuery({ resetTableDrills: true });
       });
       wrap.appendChild(btn);
@@ -3200,22 +3563,56 @@
     detailUnitSearchTimer = setTimeout(applyDetailUnitFilters, 320);
   });
   on("mz-detail-unit-search", "keydown", function (ev) {
+    var list = document.getElementById("mz-detail-unit-ac");
+    var open = list && !list.classList.contains("hidden");
+    var buttons = open ? list.querySelectorAll("button[data-unit]") : [];
+    if (ev.key === "ArrowDown" && buttons.length) {
+      ev.preventDefault();
+      state.detailUnitAcIndex = Math.min(state.detailUnitAcIndex + 1, buttons.length - 1);
+      highlightDetailUnitAcItem(state.detailUnitAcIndex);
+      return;
+    }
+    if (ev.key === "ArrowUp" && buttons.length) {
+      ev.preventDefault();
+      state.detailUnitAcIndex = Math.max(state.detailUnitAcIndex - 1, 0);
+      highlightDetailUnitAcItem(state.detailUnitAcIndex);
+      return;
+    }
+    if (ev.key === "Escape") {
+      hideDetailUnitAutocomplete();
+      return;
+    }
     if (ev.key === "Enter") {
       ev.preventDefault();
       clearTimeout(detailUnitSearchTimer);
+      if (open && state.detailUnitAcIndex >= 0 && buttons[state.detailUnitAcIndex]) {
+        chooseDetailAdUnit(buttons[state.detailUnitAcIndex].getAttribute("data-unit") || "", true);
+        return;
+      }
       applyDetailUnitFilters();
     }
   });
   on("mz-detail-unit-select", "change", function () {
     var sel = document.getElementById("mz-detail-unit-select");
-    state.detailSelectedUnit = sel ? sel.value : "";
-    if (!state.lastTable) return;
-    renderTable(state.lastTable);
-    if (state.detailSelectedUnit) {
-      setDrillForAdUnit(state.detailSelectedUnit, true);
-    } else {
-      applyDetailUnitFilters();
+    var unit = sel ? sel.value : "";
+    if (!state.lastTable) {
+      state.detailSelectedUnit = unit;
+      updateDetailFavoriteButton();
+      return;
     }
+    if (!unit) {
+      clearDetailUnitFullTable();
+      state.detailSelectedUnit = "";
+      updateDetailFavoriteButton();
+      renderTable(state.lastTable);
+      applyDetailUnitFilters();
+      return;
+    }
+    chooseDetailAdUnit(unit, true);
+  });
+  on("mz-detail-unit-fav", "click", function () {
+    var unit = (state.detailSelectedUnit || "").trim();
+    if (unit) toggleDetailFavorite(unit);
   });
   on("mz-detail-unit-clear", "click", function () {
     state._drillUserPicked = false;
@@ -3225,6 +3622,13 @@
       renderTable(state.lastTable);
       applyDefaultDrillSelection();
     }
+  });
+  document.addEventListener("click", function (ev) {
+    var inp = document.getElementById("mz-detail-unit-search");
+    var list = document.getElementById("mz-detail-unit-ac");
+    if (!inp || !list || list.classList.contains("hidden")) return;
+    if (inp.contains(ev.target) || list.contains(ev.target)) return;
+    hideDetailUnitAutocomplete();
   });
   var resizeTimer = null;
   window.addEventListener("resize", function () {
@@ -3529,6 +3933,8 @@
   initSummaryDrillControls();
   updateDrillSubtitle();
   updateSummaryDrillSubtitle();
+  loadDetailFavorites();
+  renderDetailFavorites();
 
   loadFacets().then(function () { runQuery({ resetTableDrills: true }); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");

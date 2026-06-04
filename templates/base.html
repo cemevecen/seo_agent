@@ -810,6 +810,56 @@
       color: rgb(161 161 170);
       border-color: rgb(39 39 42);
     }
+    .mz-page .mz-detail-unit-ac {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 2px);
+      z-index: 30;
+      max-height: 14rem;
+      overflow-y: auto;
+      margin: 0;
+      padding: 0.25rem 0;
+      list-style: none;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255);
+      box-shadow: 0 8px 24px rgb(15 23 42 / 0.12);
+    }
+    .mz-page .mz-detail-unit-ac li button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.4rem 0.65rem;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.35;
+      color: rgb(30 41 59);
+    }
+    .mz-page .mz-detail-unit-ac li button:hover,
+    .mz-page .mz-detail-unit-ac li button.is-active {
+      background: rgb(238 242 255);
+      color: rgb(49 46 129);
+    }
+    html.dark .mz-page .mz-detail-unit-ac {
+      border-color: rgb(63 63 70);
+      background: rgb(9 9 11);
+      box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+    }
+    html.dark .mz-page .mz-detail-unit-ac li button {
+      color: rgb(212 212 216);
+    }
+    html.dark .mz-page .mz-detail-unit-ac li button:hover,
+    html.dark .mz-page .mz-detail-unit-ac li button.is-active {
+      background: rgb(39 39 42);
+      color: rgb(199 210 254);
+    }
+    .mz-page #mz-detail-favorites .mz-fav-chip {
+      max-width: 100%;
+    }
+    .mz-page #mz-detail-unit-fav.is-fav {
+      color: rgb(217 119 6);
+    }
     html.dark .mz-page #mz-compare-panels-wrap table thead th {
       background: rgb(9 9 11) !important;
       color: rgb(113 113 122) !important;
