@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import delete, extract, func, select
+from sqlalchemy import Integer, cast, delete, extract, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -1188,9 +1188,28 @@ _TABLE_BREAKDOWN_ALLOWED = frozenset({
 _PERIOD_MONTHS = {"period_3": 3, "period_6": 6, "period_9": 9, "period_12": 12}
 
 
-def _ym_index_expr(col):
-    from sqlalchemy import Integer, cast
+def _format_period_bucket_label(bucket_val: Any, span: int) -> str:
+    try:
+        b = int(float(bucket_val))
+    except (TypeError, ValueError):
+        return str(bucket_val)
+    start_ym = b * span
+    y = start_ym // 12
+    mo = start_ym % 12 + 1
+    end_ym = start_ym + span - 1
+    ey = end_ym // 12
+    emo = end_ym % 12 + 1
+    return f"{y:04d}-{mo:02d} — {ey:04d}-{emo:02d}"
 
+
+def _period_bucket_expr(col, span: int):
+    ym = _ym_index_expr(col)
+    if _IS_PG:
+        return (ym // span).label("period_bucket")
+    return func.floor(cast(ym, Integer) / span).label("period_bucket")
+
+
+def _ym_index_expr(col):
     if _IS_PG:
         return extract("year", col) * 12 + extract("month", col) - 1
     return cast(func.strftime("%Y", col), Integer) * 12 + cast(func.strftime("%m", col), Integer) - 1
@@ -2155,7 +2174,7 @@ def query_table(
         order_clause = sub.c.month_key.desc()
     if period_col:
         span = _PERIOD_MONTHS[period_col]
-        bucket = (_ym_index_expr(sub.c.report_date) // span).label("period_bucket")
+        bucket = _period_bucket_expr(sub.c.report_date, span)
         select_cols.append(bucket)
         group_by_cols.append(bucket)
         order_clause = bucket.desc()
@@ -2219,7 +2238,9 @@ def query_table(
         if "month_key" in m:
             item["month"] = m["month_key"]
         if period_col and "period_bucket" in m and m["period_bucket"] is not None:
-            item[period_col] = str(m["period_bucket"])
+            span = _PERIOD_MONTHS[period_col]
+            item[period_col] = _format_period_bucket_label(m["period_bucket"], span)
+            item[period_col + "_bucket"] = int(float(m["period_bucket"]))
         if "area" in m:
             item["area"] = m["area"]
         if "project" in m:

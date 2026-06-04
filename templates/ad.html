@@ -247,7 +247,7 @@
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Varsayılan: bir Mx birimi seçili ve alttaki trend grafiği açık. Başka satıra tıklayarak dilimi değiştirin.</p>
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Trend grafiği için Zaman’dan bir seçenek gerekir (Gün önerilir). Mx birimi araması veya satır seçimi grafiği günceller.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-3 flex flex-wrap items-end gap-2">
@@ -302,7 +302,6 @@
                   <option value="bar">Çubuk</option>
                 </select>
               </label>
-              <button id="mz-drill-refresh" type="button" class="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-200">Yenile</button>
             </div>
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
@@ -317,7 +316,7 @@
           <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman: tek seçim (gün/hafta/ay…). Alan: tek seçim (Web·mweb… veya Kapalı). Ek sütunlar: birden fazla seçilebilir — tabloya sütun ekler.</p>
+          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman tek seçim (Gün | Hafta | Ay veya 3–12 ay dönem). Gelir tipi satırı → alttaki trend. Uyarı metni grafik çizilemezse nedeni söyler.</p>
           <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="summary" data-bd-mode="full"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
@@ -347,7 +346,6 @@
                   <option value="bar">Çubuk</option>
                 </select>
               </label>
-              <button id="mz-summary-drill-refresh" type="button" class="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-200">Yenile</button>
             </div>
           </div>
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
@@ -861,7 +859,21 @@
         });
       } else if (mode === "full") {
         row("Zaman", function (el) {
-          mountBdPills(el, cfg, BD_TIME_OPTS, "time", function (v) {
+          var cal = BD_TIME_OPTS.filter(function (o) {
+            return ["date", "week", "month"].indexOf(o.v) >= 0;
+          });
+          var per = BD_TIME_OPTS.filter(function (o) {
+            return o.v.indexOf("period_") === 0;
+          });
+          mountBdPills(el, cfg, cal, "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+          var sep = document.createElement("span");
+          sep.className = "mx-0.5 text-[10px] text-slate-300 dark:text-zinc-600";
+          sep.textContent = "|";
+          el.appendChild(sep);
+          mountBdPills(el, cfg, per, "time", function (v) {
             cfg.bdTime = v;
             refreshWidget(scope);
           });
@@ -1369,9 +1381,48 @@
     return cfg.bdTime || "date";
   }
 
+  function isCalendarDrillTimeKey(timeKey) {
+    return timeKey === "date";
+  }
+
   function drillTimeValue(row, timeKey) {
     if (timeKey === "date") return row.date || row.report_date;
-    return row[timeKey];
+    if (timeKey && timeKey.indexOf("period_") === 0 && row[timeKey] != null) return row[timeKey];
+    if (timeKey && row[timeKey] != null) return row[timeKey];
+    return null;
+  }
+
+  function drillSeriesSortKey(label, timeKey) {
+    var s = String(label || "");
+    if (timeKey === "date" || timeKey === "week") return s.slice(0, 10);
+    if (timeKey === "month") return s.slice(0, 7);
+    var m = s.match(/^(\d{4})-(\d{2})/);
+    if (m) return parseInt(m[1], 10) * 12 + parseInt(m[2], 10);
+    return s;
+  }
+
+  function formatDrillTimeLabel(raw, timeKey) {
+    if (raw == null || raw === "") return "";
+    if (timeKey === "date") return String(raw).slice(0, 10);
+    if (timeKey === "month") return String(raw).slice(0, 7);
+    return String(raw);
+  }
+
+  function drillChartWarnMessage(timeKey, breakdown, filteredCount, seriesLen) {
+    if (!breakdown || breakdown.indexOf(timeKey) < 0) {
+      return "Trend için Zaman satırından bir seçenek işaretli olmalı (Gün, Hafta, Ay veya 3–12 ay). Tablo kırılımında \"" +
+        (TABLE_DIM_LABELS[timeKey] || timeKey) + "\" sütunu yok.";
+    }
+    if (!filteredCount) {
+      return "Seçili dilim için tabloda eşleşen satır yok. Satıra tıklayın veya aramayı kontrol edin.";
+    }
+    if (!seriesLen) {
+      if (isCalendarDrillTimeKey(timeKey)) {
+        return "Seçili tarih aralığında bu dilim için günlük nokta yok. Sol paneldeki başlangıç/bitiş tarihlerini genişletin.";
+      }
+      return "Bu zaman kırılımı için nokta üretilemedi. Farklı bir Zaman seçeneği deneyin (ör. Gün veya Ay).";
+    }
+    return "";
   }
 
   function aggregateDrillSeries(rows, timeKey, metricKey) {
@@ -1379,7 +1430,8 @@
     rows.forEach(function (r) {
       var raw = drillTimeValue(r, timeKey);
       if (raw == null || raw === "") return;
-      var k = String(raw).slice(0, 10);
+      var k = formatDrillTimeLabel(raw, timeKey);
+      if (!k) return;
       if (!map[k]) {
         map[k] = {
           t: k,
@@ -1403,15 +1455,23 @@
       if (r.viewability_pct != null && im > 0) b.view_w += (Number(r.viewability_pct) / 100.0) * im;
       else b.view_w += (Number(r.view_w) || 0);
     });
-    return Object.keys(map).sort().map(function (k) {
-      var b = map[k];
-      var y;
-      if (metricKey === "coverage_pct") y = b.ad_request > 0 ? (b.cov_w / b.ad_request * 100.0) : 0;
-      else if (metricKey === "viewability_pct") y = b.impression > 0 ? (b.view_w / b.impression * 100.0) : 0;
-      else if (metricKey === "computed_ecpm") y = b.impression > 0 ? (b.net_revenue / b.impression * 1000.0) : 0;
-      else y = b[metricKey] != null ? b[metricKey] : 0;
-      return { x: b.t, y: y };
-    });
+    return Object.keys(map)
+      .sort(function (a, b) {
+        var ka = drillSeriesSortKey(a, timeKey);
+        var kb = drillSeriesSortKey(b, timeKey);
+        if (ka < kb) return -1;
+        if (ka > kb) return 1;
+        return 0;
+      })
+      .map(function (k) {
+        var b = map[k];
+        var y;
+        if (metricKey === "coverage_pct") y = b.ad_request > 0 ? (b.cov_w / b.ad_request * 100.0) : 0;
+        else if (metricKey === "viewability_pct") y = b.impression > 0 ? (b.view_w / b.impression * 100.0) : 0;
+        else if (metricKey === "computed_ecpm") y = b.impression > 0 ? (b.net_revenue / b.impression * 1000.0) : 0;
+        else y = b[metricKey] != null ? b[metricKey] : 0;
+        return { x: b.t, y: y };
+      });
   }
 
   function updateDrillSubtitle() {
@@ -1442,7 +1502,6 @@
       renderTableDrillChart();
     });
     on("mz-drill-chart-type", "change", function () { renderTableDrillChart(); });
-    on("mz-drill-refresh", "click", function () { renderTableDrillChart(); });
   }
 
   function initSummaryDrillControls() {
@@ -1461,7 +1520,6 @@
       renderSummaryDrillChart();
     });
     on("mz-summary-drill-chart-type", "change", function () { renderSummaryDrillChart(); });
-    on("mz-summary-drill-refresh", "click", function () { renderSummaryDrillChart(); });
   }
 
   function rowMatchesDrillSliceForScope(row, slice) {
@@ -1503,23 +1561,32 @@
       var filtered = (data.rows || []).filter(function (r) {
         return rowMatchesDrillSliceForScope(r, slice);
       });
+      var breakdown = data.breakdown || [];
       var series = aggregateDrillSeries(filtered, timeKey, metricKey);
-      var r = selectedDateRange();
-      if (r.start || r.end) {
-        series = series.filter(function (pt) {
-          if (r.start && pt.x < r.start) return false;
-          if (r.end && pt.x > r.end) return false;
-          return true;
-        });
+      if (isCalendarDrillTimeKey(timeKey)) {
+        var r = selectedDateRange();
+        if (r.start || r.end) {
+          series = series.filter(function (pt) {
+            if (r.start && pt.x < r.start) return false;
+            if (r.end && pt.x > r.end) return false;
+            return true;
+          });
+        }
       }
       if (!series.length) {
         chartEl.innerHTML = "";
         if (statusEl) {
-          statusEl.textContent =
-            "Bu dilim için seçili aralıkta nokta yok. Zaman = Gün ve tabloda tarih sütunu olmalı.";
+          statusEl.textContent = drillChartWarnMessage(
+            timeKey,
+            breakdown,
+            filtered.length,
+            series.length
+          );
+          statusEl.classList.add("text-amber-700", "dark:text-amber-400");
         }
         return;
       }
+      if (statusEl) statusEl.classList.remove("text-amber-700", "dark:text-amber-400");
       var xs = series.map(function (p) { return p.x; });
       var ys = series.map(function (p) { return p.y; });
       var lineColor = isSummary
