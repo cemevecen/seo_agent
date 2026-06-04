@@ -1456,35 +1456,73 @@ def _merge_breakdown(
     return merged
 
 
+def _shift_date_by_years(iso: str, years: int) -> str:
+    d = date.fromisoformat(str(iso)[:10])
+    try:
+        return d.replace(year=d.year + years).isoformat()
+    except ValueError:
+        return (d + timedelta(days=365 * years)).isoformat()
+
+
+def _compare_date_for_primary_day(
+    primary_date: str,
+    *,
+    mode: str,
+    primary_start: str | None,
+    compare_start: str | None,
+) -> str | None:
+    pd = str(primary_date)[:10]
+    if mode == "previous_year":
+        return _shift_date_by_years(pd, -1)
+    if mode in ("previous_period", "custom") and primary_start and compare_start:
+        ps = date.fromisoformat(str(primary_start)[:10])
+        cs = date.fromisoformat(str(compare_start)[:10])
+        offset = (date.fromisoformat(pd) - ps).days
+        return (cs + timedelta(days=offset)).isoformat()
+    return None
+
+
 def align_by_date_series(
     primary: list[dict[str, Any]],
     compare: list[dict[str, Any]],
     kpi_key: str,
+    *,
+    mode: str = "previous_year",
+    primary_start: str | None = None,
+    compare_start: str | None = None,
 ) -> list[dict[str, Any]]:
-    """İki dönemin günlük serisini gün indeksi ile hizalar (tarih bazlı trend karşılaştırması)."""
+    """İki dönemin günlük serisini takvim günü ile hizalar (trend karşılaştırması)."""
     primary = sorted(
         [p for p in (primary or []) if p.get("date")],
         key=lambda x: str(x["date"]),
     )
-    compare = sorted(
-        [c for c in (compare or []) if c.get("date")],
-        key=lambda x: str(x["date"]),
-    )
-    n = max(len(primary), len(compare))
+    compare_map: dict[str, dict[str, Any]] = {}
+    for c in compare or []:
+        if not c.get("date"):
+            continue
+        compare_map[str(c["date"])[:10]] = c
+
     aligned: list[dict[str, Any]] = []
-    for i in range(n):
-        p = primary[i] if i < len(primary) else {}
-        c = compare[i] if i < len(compare) else {}
+    for i, p in enumerate(primary):
+        pd = str(p["date"])[:10]
+        cd = _compare_date_for_primary_day(
+            pd,
+            mode=mode,
+            primary_start=primary_start,
+            compare_start=compare_start,
+        )
+        crow = compare_map.get(cd) if cd else None
         pv = float(p.get(kpi_key) or 0)
-        cv = float(c.get(kpi_key) or 0)
+        cv = float(crow.get(kpi_key) or 0) if crow else None
+        delta = _kpi_delta(pv, cv)["pct"] if cv is not None else None
         aligned.append(
             {
                 "day_index": i + 1,
-                "primary_date": p.get("date"),
-                "compare_date": c.get("date"),
+                "primary_date": pd,
+                "compare_date": cd,
                 "primary": round(pv, 6),
-                "compare": round(cv, 6),
-                "delta_pct": _kpi_delta(pv, cv)["pct"],
+                "compare": round(cv, 6) if cv is not None else None,
+                "delta_pct": delta,
             }
         )
     return aligned
@@ -1530,6 +1568,7 @@ def _attach_compare_block(
     range_start: str,
     range_end: str,
     mode: str,
+    primary_start: str | None = None,
 ) -> dict[str, Any]:
     pk = primary.get("kpis") or {}
     ck = compare.get("kpis") or {}
@@ -1545,7 +1584,14 @@ def _attach_compare_block(
         "deltas": compute_kpi_deltas(pk, ck),
         "by_date": compare.get("by_date") or [],
         "by_date_aligned": {
-            k: align_by_date_series(primary.get("by_date") or [], compare.get("by_date") or [], k)
+            k: align_by_date_series(
+                primary.get("by_date") or [],
+                compare.get("by_date") or [],
+                k,
+                mode=mode,
+                primary_start=primary_start,
+                compare_start=range_start,
+            )
             for k in KPI_METRIC_KEYS
         },
         "by_income_type": _merge_breakdown(
@@ -2111,6 +2157,7 @@ def query_summary(
             range_start=cmp_start,
             range_end=cmp_end,
             mode=compare_mode,
+            primary_start=start,
         )
 
     return payload

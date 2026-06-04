@@ -83,6 +83,35 @@ def test_resolve_compare_range_custom():
     assert end == "2025-06-30"
 
 
+def test_align_by_date_series_calendar_not_index():
+    """Karşı dönem daha az satır içerse indeks hizalaması sıfıra düşürür; takvim eşlemesi korur."""
+    primary = [
+        {"date": "2025-06-01", "net_revenue": 10},
+        {"date": "2025-06-02", "net_revenue": 20},
+        {"date": "2025-06-03", "net_revenue": 30},
+        {"date": "2025-06-04", "net_revenue": 40},
+    ]
+    compare = [
+        {"date": "2024-06-01", "net_revenue": 1},
+        {"date": "2024-06-02", "net_revenue": 2},
+    ]
+    aligned = store.align_by_date_series(
+        primary,
+        compare,
+        "net_revenue",
+        mode="previous_year",
+        primary_start="2025-06-01",
+        compare_start="2024-06-01",
+    )
+    assert len(aligned) == 4
+    assert aligned[0]["compare"] == 1.0
+    assert aligned[1]["compare"] == 2.0
+    assert aligned[2]["compare"] is None
+    assert aligned[3]["compare"] is None
+    assert aligned[2]["compare_date"] == "2024-06-03"
+    assert aligned[3]["compare_date"] == "2024-06-04"
+
+
 def test_compute_kpi_deltas():
     deltas = store.compute_kpi_deltas(
         {"net_revenue": 150.0, "impression": 1000},

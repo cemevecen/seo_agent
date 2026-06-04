@@ -1017,6 +1017,11 @@
     });
   }
 
+  function alignedCompareValue(row) {
+    if (!row || row.compare == null) return null;
+    return row.compare;
+  }
+
   function makeCompareLineTraces(aligned, opts) {
     opts = opts || {};
     var colors = compareColors();
@@ -1036,10 +1041,11 @@
       },
       {
         x: x,
-        y: aligned.map(function (r) { return r.compare; }),
+        y: aligned.map(function (r) { return alignedCompareValue(r); }),
         type: "scatter",
         mode: opts.mode || "lines",
         name: opts.compareName || periodLabels.compare,
+        connectgaps: false,
         line: {
           color: opts.compareColor || colors.compare,
           width: 2,
@@ -2833,10 +2839,11 @@
       if (revAligned && revAligned.length) {
         stackTraces.push({
           x: xAxis,
-          y: revAligned.map(function (r) { return r.compare; }),
+          y: revAligned.map(function (r) { return alignedCompareValue(r); }),
           name: compareMetricPeriodLabel("Toplam gelir", "compare", state.lastSummary),
           type: "scatter",
           mode: "lines",
+          connectgaps: false,
           line: { color: compareColors().compare, width: 2.5, dash: "dot" },
         });
       }
@@ -4269,11 +4276,12 @@
         },
         {
           x: dx,
-          y: revAligned.map(function (r) { return r.compare; }),
+          y: revAligned.map(function (r) { return alignedCompareValue(r); }),
           type: "scatter",
           mode: "lines",
           name: compareMetricPeriodLabel("Net gelir", "compare", sum),
           yaxis: "y",
+          connectgaps: false,
           line: { color: colors.revCmp, width: 2, dash: "dot" },
         },
         {
@@ -4287,11 +4295,12 @@
         },
         {
           x: dx,
-          y: impAligned.map(function (r) { return r.compare; }),
+          y: impAligned.map(function (r) { return alignedCompareValue(r); }),
           type: "scatter",
           mode: "lines",
           name: compareMetricPeriodLabel("Gösterim", "compare", sum),
           yaxis: "y2",
+          connectgaps: false,
           line: { color: colors.impCmp, width: 2, dash: "dot" },
         },
       ];
@@ -4347,10 +4356,11 @@
         });
         qualityTraces.push({
           x: qx,
-          y: qAligned.map(function (r) { return r.compare; }),
+          y: qAligned.map(function (r) { return alignedCompareValue(r); }),
           name: compareMetricPeriodLabel(q.label, "compare", sum),
           type: "scatter",
           mode: "lines",
+          connectgaps: false,
           line: { color: qualityPalette[q.idx], width: 2, dash: "dot" },
         });
       });
