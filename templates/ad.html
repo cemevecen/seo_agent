@@ -313,7 +313,7 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yalnızca bu tablonun satır gruplaması; sol paneldeki tarih ve filtreler aynı kalır.</p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Gelir tipi satırına tıklayınca bu kartın altında o tipin trend grafiği çizilir.</p>
           <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
@@ -328,6 +328,30 @@
             <thead id="mz-summary-head"></thead>
             <tbody id="mz-summary-body"></tbody>
           </table>
+        </div>
+        <div id="mz-summary-drill-wrap" class="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili gelir tipi — zaman içi trend</h3>
+              <p id="mz-summary-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Özet tabloda bir satıra tıklayın (gelir tipi).</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                Metrik
+                <select id="mz-summary-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
+              </label>
+              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                Grafik
+                <select id="mz-summary-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
+                  <option value="line">Çizgi</option>
+                  <option value="bar">Çubuk</option>
+                </select>
+              </label>
+              <button id="mz-summary-drill-refresh" type="button" class="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-200">Yenile</button>
+            </div>
+          </div>
+          <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
+          <div id="mz-summary-drill-chart" class="min-h-[220px] w-full"></div>
         </div>
       </div>
     </div>
@@ -406,6 +430,9 @@
     drillLoading: false,
     _drillUserPicked: false,
     detailTableFilter: "",
+    summaryDrillSlice: null,
+    summaryDrillMetric: "net_revenue",
+    _summaryDrillUserPicked: false,
     bdTime: "date",
     bdArea: "",
     bdDims: null,
@@ -871,15 +898,74 @@
     return r.json();
   }
 
-  async function refreshSummaryTable() {
-    var data = await fetchTableForScope("summary", 120);
-    state.lastSummaryTable = data;
+  function pickDefaultSummaryIncomeType(rows) {
+    if (!rows || !rows.length) return null;
+    var by = {};
+    rows.forEach(function (r) {
+      var it = r.income_type;
+      if (!it) return;
+      if (!by[it]) by[it] = 0;
+      by[it] += Number(r.net_revenue) || 0;
+    });
+    var keys = Object.keys(by);
+    if (!keys.length) return rows[0] && rows[0].income_type ? rows[0].income_type : null;
+    keys.sort(function (a, b) { return by[b] - by[a]; });
+    return keys[0];
+  }
+
+  function setSummaryDrillIncomeType(incomeType, userPicked) {
+    if (!incomeType) return;
+    if (userPicked) state._summaryDrillUserPicked = true;
+    state.summaryDrillSlice = { income_type: incomeType };
+    state._summaryDrillRowKey = JSON.stringify(state.summaryDrillSlice);
+    updateSummaryDrillSubtitle();
+    if (state.lastSummaryTable) renderSummaryTable(state.lastSummaryTable);
+    renderSummaryDrillChart();
+  }
+
+  function applyDefaultSummaryDrillSelection() {
+    if (state._summaryDrillUserPicked || !state.lastSummaryTable) return;
+    var it = pickDefaultSummaryIncomeType(state.lastSummaryTable.rows || []);
+    if (it) setSummaryDrillIncomeType(it, false);
+  }
+
+  function applySummaryRowFilter(row) {
+    if (!row || !row.income_type) return;
+    setSummaryDrillIncomeType(row.income_type, true);
+  }
+
+  function updateSummaryDrillSubtitle() {
+    var sub = document.getElementById("mz-summary-drill-subtitle");
+    if (!sub) return;
+    var r = selectedDateRange();
+    var rangeTxt = (r.start || "…") + " — " + (r.end || "…");
+    if (!state.summaryDrillSlice || !state.summaryDrillSlice.income_type) {
+      sub.textContent = "Özet tabloda bir gelir tipi satırına tıklayın. Grafik tarih aralığı: " + rangeTxt + ".";
+      return;
+    }
+    sub.textContent =
+      "Gelir tipi: " + state.summaryDrillSlice.income_type + " · " + rangeTxt;
+  }
+
+  function renderSummaryTable(data) {
     renderDataTable(data, {
       headId: "mz-summary-head",
       bodyId: "mz-summary-body",
       metaId: "mz-summary-meta",
       maxRows: MZ_SUMMARY_MAX,
+      tableScope: "summary",
     });
+  }
+
+  async function refreshSummaryTable() {
+    var data = await fetchTableForScope("summary", 120);
+    state.lastSummaryTable = data;
+    renderSummaryTable(data);
+    if (state._summaryDrillUserPicked && state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+      renderSummaryDrillChart();
+    } else {
+      applyDefaultSummaryDrillSelection();
+    }
   }
 
   function resolveAdUnitFromSearch(query, rows) {
@@ -1359,36 +1445,63 @@
     on("mz-drill-refresh", "click", function () { renderTableDrillChart(); });
   }
 
-  async function renderTableDrillChart() {
-    var chartEl = document.getElementById("mz-drill-chart");
-    var statusEl = document.getElementById("mz-drill-status");
+  function initSummaryDrillControls() {
+    var sel = document.getElementById("mz-summary-drill-metric");
+    if (sel && !sel.options.length) {
+      DRILL_METRICS.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m.key;
+        o.textContent = m.label;
+        sel.appendChild(o);
+      });
+      sel.value = state.summaryDrillMetric || "net_revenue";
+    }
+    on("mz-summary-drill-metric", "change", function () {
+      state.summaryDrillMetric = document.getElementById("mz-summary-drill-metric").value;
+      renderSummaryDrillChart();
+    });
+    on("mz-summary-drill-chart-type", "change", function () { renderSummaryDrillChart(); });
+    on("mz-summary-drill-refresh", "click", function () { renderSummaryDrillChart(); });
+  }
+
+  function rowMatchesDrillSliceForScope(row, slice) {
+    return rowMatchesDrillSlice(row, slice);
+  }
+
+  async function renderScopeDrillChart(scope) {
+    var isSummary = scope === "summary";
+    var chartEl = document.getElementById(isSummary ? "mz-summary-drill-chart" : "mz-drill-chart");
+    var statusEl = document.getElementById(isSummary ? "mz-summary-drill-status" : "mz-drill-status");
+    var slice = isSummary ? state.summaryDrillSlice : state.drillSlice;
+    var cfg = state.breakdowns[isSummary ? "summary" : "detail"];
+    if (isSummary) updateSummaryDrillSubtitle();
+    else updateDrillSubtitle();
     if (!chartEl) return;
-    updateDrillSubtitle();
-    if (!state.drillSlice || !Object.keys(state.drillSlice).length) {
+    if (!slice || !Object.keys(slice).length) {
       if (statusEl) statusEl.textContent = "";
-      chartEl.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Trend için detay tabloda bir satır seçin.</p>";
+      chartEl.innerHTML =
+        "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">" +
+        (isSummary ? "Trend için özet tabloda bir gelir tipi seçin." : "Trend için detay tabloda bir satır seçin.") +
+        "</p>";
       return;
     }
     if (!window.Plotly) {
       if (statusEl) statusEl.textContent = "Grafik kütüphanesi yükleniyor…";
       return;
     }
-    var cfg = state.breakdowns.detail;
     var timeKey = drillTimeKeyFromCfg(cfg);
-    var metricKey = document.getElementById("mz-drill-metric")
-      ? document.getElementById("mz-drill-metric").value
-      : state.drillMetric;
-    state.drillMetric = metricKey;
-    var chartType = document.getElementById("mz-drill-chart-type")
-      ? document.getElementById("mz-drill-chart-type").value
-      : "line";
+    var metricSel = document.getElementById(isSummary ? "mz-summary-drill-metric" : "mz-drill-metric");
+    var chartTypeSel = document.getElementById(isSummary ? "mz-summary-drill-chart-type" : "mz-drill-chart-type");
+    var metricKey = metricSel ? metricSel.value : (isSummary ? state.summaryDrillMetric : state.drillMetric);
+    if (isSummary) state.summaryDrillMetric = metricKey;
+    else state.drillMetric = metricKey;
+    var chartType = chartTypeSel ? chartTypeSel.value : "line";
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
-    state.drillLoading = true;
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
-      var data = await fetchTableForScope("detail", 2000);
+      var data = await fetchTableForScope(scope, 2000);
       var filtered = (data.rows || []).filter(function (r) {
-        return rowMatchesDrillSlice(r, state.drillSlice);
+        return rowMatchesDrillSliceForScope(r, slice);
       });
       var series = aggregateDrillSeries(filtered, timeKey, metricKey);
       var r = selectedDateRange();
@@ -1403,25 +1516,39 @@
         chartEl.innerHTML = "";
         if (statusEl) {
           statusEl.textContent =
-            "Bu dilim için seçili aralıkta nokta yok. Zaman = Gün olduğundan emin olun; kırılımda tarih sütunu görünmeli.";
+            "Bu dilim için seçili aralıkta nokta yok. Zaman = Gün ve tabloda tarih sütunu olmalı.";
         }
         return;
       }
       var xs = series.map(function (p) { return p.x; });
       var ys = series.map(function (p) { return p.y; });
+      var lineColor = isSummary
+        ? (isDarkTheme() ? "#34d399" : "#059669")
+        : (isDarkTheme() ? "#818cf8" : "#4f46e5");
       var trace = chartType === "bar"
-        ? { type: "bar", x: xs, y: ys, marker: { color: isDarkTheme() ? "#818cf8" : "#4f46e5" } }
-        : { type: "scatter", mode: "lines+markers", x: xs, y: ys, line: { color: isDarkTheme() ? "#818cf8" : "#4f46e5", width: 2 }, marker: { size: 5 } };
+        ? { type: "bar", x: xs, y: ys, marker: { color: lineColor } }
+        : { type: "scatter", mode: "lines+markers", x: xs, y: ys, line: { color: lineColor, width: 2 }, marker: { size: 5 } };
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
       await Plotly.react(chartEl, [trace], layout, plotlyCfg());
       if (statusEl) {
         statusEl.textContent =
-          series.length + " dönem · " + bdTimeLabel(timeKey) + " · " + drillSliceLabel(state.drillSlice);
+          series.length + " dönem · " + bdTimeLabel(timeKey) + " · " + drillSliceLabel(slice);
       }
     } catch (e) {
       chartEl.innerHTML = "";
       if (statusEl) statusEl.textContent = "Trend yüklenemedi: " + (e.message || e);
+    }
+  }
+
+  function renderSummaryDrillChart() {
+    return renderScopeDrillChart("summary");
+  }
+
+  async function renderTableDrillChart() {
+    state.drillLoading = true;
+    try {
+      await renderScopeDrillChart("detail");
     } finally {
       state.drillLoading = false;
     }
@@ -1900,24 +2027,10 @@
       renderCharts(state.lastSummary);
       finalizeMzTrendAndSparks(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
-      if (state.lastSummaryTable) {
-        renderDataTable(state.lastSummaryTable, {
-          headId: "mz-summary-head",
-          bodyId: "mz-summary-body",
-          metaId: "mz-summary-meta",
-          maxRows: MZ_SUMMARY_MAX,
-        });
-      }
+      if (state.lastSummaryTable) renderSummaryTable(state.lastSummaryTable);
       renderLeadersLosers(state.lastSummary);
     }
-    if (state.lastSummaryTable) {
-      renderDataTable(state.lastSummaryTable, {
-        headId: "mz-summary-head",
-        bodyId: "mz-summary-body",
-        metaId: "mz-summary-meta",
-        maxRows: MZ_SUMMARY_MAX,
-      });
-    }
+    if (state.lastSummaryTable) renderSummaryTable(state.lastSummaryTable);
     if (state.lastTable) renderTable(state.lastTable);
   }
 
@@ -2026,9 +2139,10 @@
         expandWrap.classList.add("hidden");
       }
     }
-    var isDetailBody = bodyId === "mz-table-body";
+    var tableScope = opts.tableScope || (bodyId === "mz-summary-body" ? "summary" : bodyId === "mz-table-body" ? "detail" : "");
+    var clickable = tableScope === "summary" || tableScope === "detail";
     function rowIsDrillSelected(r) {
-      if (!isDetailBody || !state._drillRowKey) return false;
+      if (tableScope !== "detail" || !state._drillRowKey) return false;
       var slice;
       try {
         slice = JSON.parse(state._drillRowKey);
@@ -2040,9 +2154,22 @@
       }
       return JSON.stringify(sliceFromTableRow(r)) === state._drillRowKey;
     }
+    function rowIsSummaryDrillSelected(r) {
+      if (tableScope !== "summary" || !state._summaryDrillRowKey) return false;
+      var slice;
+      try {
+        slice = JSON.parse(state._summaryDrillRowKey);
+      } catch (e) {
+        return false;
+      }
+      if (slice.income_type && Object.keys(slice).length === 1) {
+        return String(r.income_type || "") === String(slice.income_type);
+      }
+      return JSON.stringify(sliceFromTableRow(r)) === state._summaryDrillRowKey;
+    }
     body.innerHTML = visibleRows.map(function (r, ri) {
-      var sel = rowIsDrillSelected(r);
-      return "<tr class=\"cursor-pointer" + (sel ? " mz-drill-row-selected" : "") + "\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
+      var sel = tableScope === "summary" ? rowIsSummaryDrillSelected(r) : rowIsDrillSelected(r);
+      return "<tr class=\"" + (clickable ? "cursor-pointer" : "") + (sel ? " mz-drill-row-selected" : "") + "\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
         var v = r[c.key];
         if (typeof v === "number" && c.dec != null) v = fmt(v, c.dec);
         var extra = "";
@@ -2054,10 +2181,13 @@
       }).join("") + "</tr>";
     }).join("");
     body.querySelectorAll("tr[data-row-index]").forEach(function (tr) {
+      if (!clickable) return;
       tr.addEventListener("click", function () {
         var idx = parseInt(tr.getAttribute("data-row-index"), 10);
         var row = visibleRows[idx];
-        if (row) applyTableRowFilter(row);
+        if (!row) return;
+        if (tableScope === "summary") applySummaryRowFilter(row);
+        else if (tableScope === "detail") applyTableRowFilter(row);
       });
     });
   }
@@ -2282,6 +2412,7 @@
   async function runQuery() {
     applyPreset();
     state._drillUserPicked = false;
+    state._summaryDrillUserPicked = false;
     state.detailTableFilter = "";
     syncDetailUnitSearchInput("");
     setLoading(true);
@@ -2660,7 +2791,9 @@
 
   initBreakdownToolbars();
   initDrillControls();
+  initSummaryDrillControls();
   updateDrillSubtitle();
+  updateSummaryDrillSubtitle();
 
   loadFacets().then(function () { runQuery(); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
