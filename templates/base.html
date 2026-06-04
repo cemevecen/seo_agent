@@ -600,9 +600,56 @@
         width: auto !important;
       }
     }
+    .mz-page .mz-chart-card {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .mz-page .mz-charts-row-4 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    @media (min-width: 640px) {
+      .mz-page .mz-charts-row-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1280px) {
+      .mz-page .mz-charts-row-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
     .mz-page .mz-chart-plot {
       width: 100%;
       min-width: 0;
+      flex: 1 1 auto;
+      min-height: 12rem;
+      height: clamp(12rem, 28vw, 20rem);
+      overflow: hidden;
+      position: relative;
+    }
+    .mz-page .mz-chart-plot.mz-chart-plot--tile {
+      height: clamp(13rem, 32vw, 18rem);
+      min-height: 13rem;
+    }
+    .mz-page .mz-chart-plot .js-plotly-plot,
+    .mz-page .mz-chart-plot .plot-container.plotly {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100%;
+    }
+    .mz-page .mz-chart-plot .main-svg {
+      max-width: 100%;
+    }
+    .mz-page .mz-chart-plot .legend,
+    .mz-page .mz-chart-plot .legendscroll {
+      overflow: visible !important;
+    }
+    .mz-page .mz-chart-plot .legend .scrollbar {
+      display: none !important;
     }
     .mz-page .mz-stream-tabs {
       -webkit-overflow-scrolling: touch;

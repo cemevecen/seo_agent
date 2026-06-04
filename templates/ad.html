@@ -185,23 +185,23 @@
         <div id="mz-chart-stacked-income" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="mz-charts-row-4">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
-          <p class="mb-1 text-[10px] text-slate-500 dark:text-zinc-400">İstek → eşleşme → gösterim hunisi; tıklama ve CTR altta özetlenir.</p>
-          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
+          <h2 class="mb-1 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
+          <p class="mb-2 shrink-0 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">İstek → eşleşme → gösterim; CTR altta.</p>
+          <div id="mz-chart-funnel" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
-          <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+          <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
+          <div id="mz-chart-heatmap" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
-          <div id="mz-chart-pie-income" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+          <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
+          <div id="mz-chart-pie-income" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
-          <div id="mz-chart-pie-surface" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+          <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
+          <div id="mz-chart-pie-surface" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
         </div>
       </div>
 
@@ -647,16 +647,17 @@
         fmtCompact(mr) + " · " + matchPct.toFixed(1) + "% istek",
         fmtCompact(im) + " · " + fillPct.toFixed(1) + "% eşleşen",
       ],
-      textposition: "outside",
-      textfont: { color: textColor, size: 11 },
+      textposition: "inside",
+      textfont: { color: "#ffffff", size: 10 },
       connector: { line: { color: dark ? "#52525b" : "#cbd5e1", width: 1 } },
       marker: { color: funnelColors, line: { color: dark ? "#18181b" : "#fff", width: 1 } },
       hovertemplate:
         "<b>%{y}</b><br>%{text}<br>Ham: %{x:,.0f}<extra></extra>",
     };
-    var layout = plotTheme({ margin: { l: 8, r: 88, t: 16, b: 72 } });
+    var layout = plotTheme({ margin: { l: 6, r: 6, t: 20, b: 64 } });
     layout.showlegend = false;
     layout.funnelmode = "stack";
+    layout.funnelgap = 0.12;
     layout.annotations = [
       {
         x: 0.5,
@@ -684,7 +685,7 @@
         font: { size: 9, color: dark ? "#a1a1aa" : "#64748b" },
       },
     ];
-    Plotly.newPlot(el, [trace], layout, plotlyCfg());
+    plotChart(el, [trace], layout, { minHeight: 208 });
   }
 
   function qs() {
@@ -2168,22 +2169,30 @@
     if (dim === "income_type" && !cfg.bdArea) {
       var inc = (cmp && cmp.by_income_type && cmp.by_income_type.length) ? cmp.by_income_type : (state.lastSummary.by_income_type || []);
       groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
-      Plotly.newPlot("mz-chart-pie-income", [{
-        labels: inc.map(function (x) { return x.income_type; }),
-        values: inc.map(function (x) { return x.net_revenue; }),
-        type: "pie", hole: 0.35, textfont: plotFont(),
-      }], plotTheme(), plotlyCfg());
+      plotChart(
+        "mz-chart-pie-income",
+        [pieTrace(
+          inc.map(function (x) { return x.income_type; }),
+          inc.map(function (x) { return x.net_revenue; })
+        )],
+        plotThemePie(),
+        { minHeight: 208 }
+      );
       return;
     }
     try {
       var data = await fetchTableForScope("chartIncome", 40);
       var rows = rowsForChartDim(data.rows, dim);
       groupedBarPlot("mz-chart-bar-income", rows, dim, !!data.compare_range);
-      Plotly.newPlot("mz-chart-pie-income", [{
-        labels: rows.map(function (x) { return x[dim]; }),
-        values: rows.map(function (x) { return x.net_revenue; }),
-        type: "pie", hole: 0.35, textfont: plotFont(),
-      }], plotTheme(), plotlyCfg());
+      plotChart(
+        "mz-chart-pie-income",
+        [pieTrace(
+          rows.map(function (x) { return x[dim]; }),
+          rows.map(function (x) { return x.net_revenue; })
+        )],
+        plotThemePie(),
+        { minHeight: 208 }
+      );
     } catch (e) { /* ignore */ }
   }
 
@@ -3106,7 +3115,100 @@
   }
 
   function plotlyCfg() {
-    return { responsive: true, displayModeBar: false };
+    return { responsive: true, displayModeBar: false, autosizable: true };
+  }
+
+  function chartPlotHeight(el, fallback) {
+    if (!el) return fallback || 240;
+    var rect = el.getBoundingClientRect();
+    var h = rect.height || el.offsetHeight || el.clientHeight || 0;
+    if (h < 48 && el.parentElement) {
+      var pr = el.parentElement.getBoundingClientRect();
+      if (pr.height > 56) h = pr.height - 8;
+    }
+    if (h < 48) h = fallback || 240;
+    return Math.round(h);
+  }
+
+  function plotChart(elOrId, traces, layout, opts) {
+    opts = opts || {};
+    var el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
+    if (!el || !window.Plotly) return Promise.resolve();
+    var minH = opts.minHeight || 200;
+    function draw() {
+      var h = chartPlotHeight(el, minH);
+      el.style.minHeight = minH + "px";
+      el.style.height = h + "px";
+      var lay = Object.assign(
+        {
+          autosize: true,
+          height: h,
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+        },
+        layout || {}
+      );
+      try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      el.innerHTML = "";
+      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
+        return Plotly.Plots.resize(el);
+      });
+    }
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          draw().then(resolve).catch(resolve);
+        });
+      });
+    });
+  }
+
+  function plotThemePie(extra) {
+    extra = extra || {};
+    var dark = isDarkTheme();
+    var lay = plotTheme(extra);
+    lay.margin = Object.assign({ l: 8, r: 8, t: 12, b: 56 }, extra.margin || {});
+    lay.legend = Object.assign({
+      orientation: "h",
+      yanchor: "bottom",
+      y: 1.02,
+      xanchor: "center",
+      x: 0.5,
+      font: plotFont(),
+      bgcolor: "rgba(0,0,0,0)",
+      traceorder: "normal",
+    }, extra.legend || {});
+    lay.uniformtext = { mode: "hide", minsize: 8 };
+    return lay;
+  }
+
+  function pieTrace(labels, values, opts) {
+    opts = opts || {};
+    return {
+      labels: labels,
+      values: values,
+      type: "pie",
+      hole: opts.hole != null ? opts.hole : 0.42,
+      textinfo: opts.textinfo || "percent",
+      textposition: "inside",
+      insidetextorientation: "radial",
+      textfont: plotFont(),
+      hovertemplate: "%{label}<br>%{value:,.2f} TL<br>%{percent}<extra></extra>",
+      automargin: true,
+    };
+  }
+
+  var mzChartResizeTimer = null;
+  function scheduleMzChartsResize() {
+    clearTimeout(mzChartResizeTimer);
+    mzChartResizeTimer = setTimeout(function () {
+      mzChartResizeTimer = null;
+      if (!window.Plotly) return;
+      document.querySelectorAll(".mz-page .mz-chart-plot").forEach(function (el) {
+        if (!el.querySelector(".js-plotly-plot")) return;
+        try { Plotly.Plots.resize(el); } catch (_) { /* ignore */ }
+      });
+    }, 100);
   }
 
   function plotDrillChartEl(chartEl, traces, layout) {
@@ -3226,7 +3328,7 @@
         marker: { color: isDarkTheme() ? "#fb7185" : "#f97316" },
       });
     }
-    Plotly.newPlot(elId, traces, plotTheme({ yTitle: "TL", barmode: cmp ? "group" : "relative" }), plotlyCfg());
+    plotChart(elId, traces, plotTheme({ yTitle: "TL", barmode: cmp ? "group" : "relative" }), { minHeight: 220 });
   }
 
   function last7DayRange() {
@@ -3353,16 +3455,21 @@
     state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
-    Plotly.newPlot("mz-chart-pie-surface", [{
-      labels: surf.map(function (x) { return x.surface; }),
-      values: surf.map(function (x) { return x.net_revenue; }),
-      type: "pie", hole: 0.35, textfont: plotFont(),
-    }], plotTheme(), plotlyCfg());
-    renderExtendedCharts(sum);
+    plotChart(
+      "mz-chart-pie-surface",
+      [pieTrace(
+        surf.map(function (x) { return x.surface; }),
+        surf.map(function (x) { return x.net_revenue; })
+      )],
+      plotThemePie(),
+      { minHeight: 208 }
+    );
+    renderExtendedCharts(sum).then(scheduleMzChartsResize);
     renderLeadersLosers(sum);
     refreshChartMonth();
     refreshChartIncomeBar();
     refreshChartStacked();
+    scheduleMzChartsResize();
   }
 
   function renderKpiSparkline(elId, byDate, key) {
@@ -3432,13 +3539,13 @@
   }
 
   function renderExtendedCharts(sum) {
-    if (!window.Plotly) return;
+    if (!window.Plotly) return Promise.resolve();
     var cmp = compareBlock(sum);
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var dates = byDate.map(function (d) { return d.date; });
 
     var darkCharts = isDarkTheme();
-    Plotly.newPlot("mz-chart-dual", [
+    plotChart("mz-chart-dual", [
       {
         x: dates,
         y: byDate.map(function (d) { return d.net_revenue; }),
@@ -3462,12 +3569,12 @@
     ], plotTheme({
       yaxis: { title: "TL" },
       yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
-    }), plotlyCfg());
+    }), { minHeight: 220 });
 
     var qualityColors = darkCharts
       ? ["#38bdf8", "#f472b6", "#a78bfa"]
       : ["#0284c7", "#db2777", "#7c3aed"];
-    Plotly.newPlot("mz-chart-quality", [
+    plotChart("mz-chart-quality", [
       {
         x: dates,
         y: byDate.map(function (d) { return d.viewability_pct; }),
@@ -3495,7 +3602,7 @@
         line: { color: qualityColors[2], width: 2 },
         marker: { color: qualityColors[2], size: 4 },
       },
-    ], plotTheme({ yTitle: "%" }), plotlyCfg());
+    ], plotTheme({ yTitle: "%" }), { minHeight: 220 });
 
     var hm = sum.heatmap_calendar || [];
     if (hm.length) {
@@ -3511,18 +3618,29 @@
         var wi = weeks.indexOf(wk);
         if (wi >= 0) z[wi][h.dow] += h.net_revenue;
       });
-      Plotly.newPlot("mz-chart-heatmap", [{
+      plotChart("mz-chart-heatmap", [{
         z: z,
         x: ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"],
         y: weeks,
         type: "heatmap",
         colorscale: isDarkTheme() ? "Viridis" : "YlGnBu",
-      }], plotTheme(), plotlyCfg());
+        colorbar: { len: 0.85, thickness: 12, tickfont: plotFont() },
+        hovertemplate: "%{y} %{x}<br>%{z:,.0f} TL<extra></extra>",
+      }], plotTheme({
+        margin: { l: 52, r: 16, t: 8, b: 36 },
+        xaxis: { side: "bottom", tickfont: plotFont() },
+        yaxis: { automargin: true, tickfont: plotFont() },
+      }), { minHeight: 208 });
     } else {
-      Plotly.purge("mz-chart-heatmap");
+      var hmEl = document.getElementById("mz-chart-heatmap");
+      if (hmEl) {
+        try { Plotly.purge(hmEl); } catch (_) { /* ignore */ }
+        hmEl.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500\">Isı haritası verisi yok.</p>";
+      }
     }
 
     renderFunnelChart(sum);
+    return Promise.resolve();
 
     var deltaWrap = document.getElementById("mz-chart-delta-wrap");
     if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
@@ -4708,6 +4826,8 @@
   updateSummaryDrillSubtitle();
   loadDetailFavorites();
   renderDetailFavorites();
+
+  window.addEventListener("resize", scheduleMzChartsResize);
 
   loadFacets().then(function () { runQuery({ resetTableDrills: true }); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
