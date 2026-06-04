@@ -46,8 +46,8 @@
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
-        <option value="1y">Son 1 yıl</option>
-        <option value="all" selected>Tüm veri</option>
+        <option value="1y" selected>Son 1 yıl</option>
+        <option value="all">Tüm veri</option>
       </select>
 
       <div class="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
@@ -100,7 +100,7 @@
         </div>
       </div>
 
-      <p class="pt-2 text-xs text-slate-500 dark:text-zinc-400">Tablo kırılımları ana alanda (zaman, alan, gelir, format).</p>
+      <p class="pt-2 text-xs text-slate-500 dark:text-zinc-400">Kırılımlar her tablo, grafik ve liste kartının üstünde ayrıdır.</p>
 
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
     </aside>
@@ -157,7 +157,10 @@
       </details>
 
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 id="mz-chart-line-title" class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
+        <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
+          <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
+        </div>
         <div id="mz-chart-line" class="mz-chart-plot min-h-[220px] sm:min-h-[300px]"></div>
       </div>
 
@@ -173,18 +176,30 @@
       </div>
 
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi — zaman (yığılmış alan)</h2>
+        <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi — zaman (yığılmış alan)</h2>
+          <div id="mz-bd-toolbar-stacked" class="mz-bd-toolbar" data-bd-scope="chartStacked" data-bd-mode="stacked"></div>
+        </div>
         <div id="mz-chart-stacked-income" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
       </div>
 
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
-        <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-      </div>
-
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
-        <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
+          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
+          <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
+          <div id="mz-chart-pie-income" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
+          <div id="mz-chart-pie-surface" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+        </div>
       </div>
 
       <div id="mz-chart-delta-wrap" class="hidden mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -194,72 +209,48 @@
 
       <div id="mz-leaders-wrap" class="hidden grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <h2 class="mb-2 text-sm font-bold text-emerald-900 dark:text-emerald-200">Liderler (gelir artışı %)</h2>
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-bold text-emerald-900 dark:text-emerald-200">Liderler</h2>
+            <div id="mz-bd-toolbar-leaders" class="mz-bd-toolbar" data-bd-scope="listLeaders" data-bd-mode="list"></div>
+          </div>
           <ul id="mz-leaders-gainers" class="space-y-1 text-xs text-emerald-950 dark:text-emerald-100"></ul>
         </div>
         <div class="rounded-2xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/20">
-          <h2 class="mb-2 text-sm font-bold text-rose-900 dark:text-rose-200">Kaybedenler (gelir düşüşü %)</h2>
+          <h2 class="mb-2 text-sm font-bold text-rose-900 dark:text-rose-200">Kaybedenler</h2>
           <ul id="mz-leaders-losers" class="space-y-1 text-xs text-rose-950 dark:text-rose-100"></ul>
         </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipine göre (sütun)</h2>
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipine göre (sütun)</h2>
+            <div id="mz-bd-toolbar-income-bar" class="mz-bd-toolbar" data-bd-scope="chartIncome" data-bd-mode="dim"></div>
+          </div>
           <div id="mz-chart-bar-income" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
-          <div id="mz-chart-pie-income" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
-      </div>
-
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
-        <div id="mz-chart-pie-surface" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-      </div>
-
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Aylık gelir (çubuk)</h2>
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Aylık gelir (çubuk)</h2>
+            <div id="mz-bd-toolbar-month" class="mz-bd-toolbar" data-bd-scope="chartMonth" data-bd-mode="time"></div>
+          </div>
           <div id="mz-chart-bar-month" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
         </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Top Mx birimi — gelir (çubuk)</h2>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black lg:col-span-2">
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Top Mx birimi — gelir (çubuk)</h2>
+            <div id="mz-bd-toolbar-unit" class="mz-bd-toolbar" data-bd-scope="chartUnit" data-bd-mode="unit"></div>
+          </div>
           <div id="mz-chart-bar-unit" class="mz-chart-plot min-h-[260px] sm:min-h-[320px]"></div>
-        </div>
-      </div>
-
-      <div id="mz-breakdown-panel" class="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-white p-4 shadow-sm dark:border-indigo-900/50 dark:from-indigo-950/40 dark:to-zinc-900 midnight:border-indigo-950 midnight:from-black midnight:to-zinc-950">
-        <p class="text-xs font-bold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Tablo kırılımı</p>
-        <p class="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">Zaman tek seçim; diğer gruplarda birden fazla chip. Karşılaştırma açıkken tüm tablolarda Δ% görünür.</p>
-        <div class="mt-3 space-y-3">
-          <div>
-            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Zaman</p>
-            <div id="mz-bd-time" class="flex flex-wrap gap-1.5" data-bd-group="time"></div>
-          </div>
-          <div>
-            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Alan (web · mweb · iOS · Android)</p>
-            <div id="mz-bd-area" class="flex flex-wrap gap-1.5" data-bd-group="area"></div>
-          </div>
-          <div>
-            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Gelir tipi</p>
-            <div id="mz-bd-income" class="flex flex-wrap gap-1.5" data-bd-group="income"></div>
-          </div>
-          <div>
-            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Reklam formatı (birim adından)</p>
-            <div id="mz-bd-format" class="flex flex-wrap gap-1.5" data-bd-group="format"></div>
-          </div>
-          <div>
-            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Ek boyut</p>
-            <div id="mz-bd-extra" class="flex flex-wrap gap-1.5" data-bd-group="extra"></div>
-          </div>
         </div>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
+          <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full" data-bd-scope="summary" data-bd-mode="full"></div>
+        </div>
+        <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <span id="mz-summary-meta" class="text-xs text-slate-500"></span>
         </div>
         <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-700">
@@ -273,6 +264,9 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
+          <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full" data-bd-scope="detail" data-bd-mode="full"></div>
+        </div>
+        <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div class="flex flex-wrap items-center gap-2">
             <span id="mz-table-meta" class="text-xs text-slate-500"></span>
             <button id="mz-table-csv" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">CSV indir</button>
@@ -534,7 +528,25 @@
     by_month: "month",
   };
 
-  state.bdDims = state.bdDims || new Set(["income_type"]);
+  function defaultBdCfg(overrides) {
+    return {
+      bdTime: "date",
+      bdArea: "",
+      bdDims: new Set(["income_type"]),
+      listMetric: "net_revenue_delta_pct",
+      stackedDim: "income_type",
+    };
+  }
+  state.breakdowns = {
+    summary: defaultBdCfg({ bdDims: new Set(["income_type"]) }),
+    detail: defaultBdCfg({ bdDims: new Set(["income_type", "ad_unit"]) }),
+    chartLine: defaultBdCfg({ bdTime: "date", bdDims: new Set() }),
+    chartMonth: defaultBdCfg({ bdTime: "month", bdDims: new Set() }),
+    chartUnit: defaultBdCfg({ bdTime: "", bdDims: new Set(["ad_unit"]) }),
+    chartIncome: defaultBdCfg({ bdTime: "", bdDims: new Set(["income_type"]) }),
+    chartStacked: defaultBdCfg({ bdTime: "date", bdDims: new Set(["income_type"]), stackedDim: "income_type" }),
+    listLeaders: defaultBdCfg({ listMetric: "net_revenue_delta_pct" }),
+  };
 
   var BD_TIME_OPTS = [
     { v: "date", l: "Gün" },
@@ -558,69 +570,396 @@
     { v: "surface", l: "Yüzey (ham)" },
   ];
 
-  function breakdownStr() {
-    var parts = [state.bdTime || "date"];
-    if (state.bdArea) parts.push(state.bdArea);
-    state.bdDims.forEach(function (d) {
+  function breakdownStrFrom(cfg) {
+    var parts = [];
+    if (cfg.bdTime) parts.push(cfg.bdTime);
+    if (cfg.bdArea) parts.push(cfg.bdArea);
+    cfg.bdDims.forEach(function (d) {
       if (parts.indexOf(d) < 0) parts.push(d);
     });
+    if (!parts.length) parts.push("date");
     return parts.join(",");
   }
 
-  function initBreakdownPills() {
-    function paintTime() {
-      document.querySelectorAll("#mz-bd-time .mz-bd-pill").forEach(function (btn) {
-        btn.classList.toggle("is-active", btn.getAttribute("data-v") === state.bdTime);
+  var BD_TIME_CHART = BD_TIME_OPTS.filter(function (o) {
+    return ["date", "week", "month"].indexOf(o.v) >= 0;
+  });
+  var BD_TIME_MONTH = [
+    { v: "month", l: "Ay" },
+    { v: "week", l: "Hafta" },
+    { v: "period_3", l: "3 ay" },
+    { v: "period_6", l: "6 ay" },
+  ];
+  var BD_UNIT_DIM_OPTS = [
+    { v: "ad_unit", l: "Mx birimi" },
+    { v: "ad_format", l: "Format" },
+    { v: "area", l: "Alan" },
+  ];
+  var BD_INCOME_DIM_OPTS = [
+    { v: "income_type", l: "Gelir tipi" },
+    { v: "area", l: "Alan" },
+    { v: "channel", l: "Kanal" },
+  ];
+  var BD_STACKED_DIM_OPTS = [
+    { v: "income_type", l: "Gelir tipi" },
+    { v: "ad_format", l: "Format" },
+    { v: "area", l: "Alan" },
+  ];
+  var BD_LIST_METRIC_OPTS = [
+    { v: "net_revenue_delta_pct", l: "Gelir %" },
+    { v: "impression_delta_pct", l: "Gösterim %" },
+  ];
+
+  function mountBdPills(container, cfg, opts, singleKey, onPick) {
+    if (!container) return;
+    container.innerHTML = "";
+    opts.forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "mz-bd-pill";
+      b.setAttribute("data-v", o.v);
+      b.textContent = o.l;
+      var active = false;
+      if (singleKey === "time") active = cfg.bdTime === o.v;
+      else if (singleKey === "area") active = (cfg.bdArea || "") === o.v;
+      else if (singleKey === "stackedDim") active = cfg.stackedDim === o.v;
+      else if (singleKey === "listMetric") active = cfg.listMetric === o.v;
+      else if (singleKey === "unitDim") active = cfg.bdDims.has(o.v);
+      else if (singleKey === "dimSingle") active = cfg.bdDims.has(o.v) && cfg.bdDims.size === 1;
+      else active = cfg.bdDims.has(o.v);
+      if (active) b.classList.add("is-active");
+      b.addEventListener("click", function () {
+        onPick(o.v);
+        mountBdPills(container, cfg, opts, singleKey, onPick);
       });
-    }
-    function paintArea() {
-      document.querySelectorAll("#mz-bd-area .mz-bd-pill").forEach(function (btn) {
-        btn.classList.toggle("is-active", btn.getAttribute("data-v") === (state.bdArea || ""));
-      });
-    }
-    function paintDims(selector, dim) {
-      document.querySelectorAll(selector + " .mz-bd-pill").forEach(function (btn) {
-        var v = btn.getAttribute("data-v");
-        btn.classList.toggle("is-active", state.bdDims.has(v));
-      });
-    }
-    function mount(containerId, opts, onClick) {
-      var el = document.getElementById(containerId);
-      if (!el) return;
-      el.innerHTML = "";
-      opts.forEach(function (o) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "mz-bd-pill";
-        b.setAttribute("data-v", o.v);
-        b.textContent = o.l;
-        b.addEventListener("click", function () {
-          onClick(o.v, b);
-          paintTime();
-          paintArea();
-          paintDims("#mz-bd-income", "income");
-          paintDims("#mz-bd-format", "format");
-          paintDims("#mz-bd-extra", "extra");
-          debouncedRun();
+      container.appendChild(b);
+    });
+  }
+
+  function initBreakdownToolbars() {
+    document.querySelectorAll(".mz-bd-toolbar[data-bd-scope]").forEach(function (toolbar) {
+      var scope = toolbar.getAttribute("data-bd-scope");
+      var mode = toolbar.getAttribute("data-bd-mode") || "full";
+      var cfg = state.breakdowns[scope];
+      if (!cfg) return;
+      toolbar.innerHTML = "";
+      function row(label, mountFn) {
+        var wrap = document.createElement("div");
+        wrap.className = "flex flex-wrap items-center gap-1";
+        if (label) {
+          var sp = document.createElement("span");
+          sp.className = "mz-bd-toolbar-label";
+          sp.textContent = label;
+          wrap.appendChild(sp);
+        }
+        var inner = document.createElement("div");
+        inner.className = "flex flex-wrap gap-1";
+        mountFn(inner);
+        wrap.appendChild(inner);
+        toolbar.appendChild(wrap);
+      }
+      if (mode === "time") {
+        row("", function (el) {
+          mountBdPills(el, cfg, BD_TIME_CHART, "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
         });
-        el.appendChild(b);
+      } else if (mode === "month") {
+        row("", function (el) {
+          mountBdPills(el, cfg, BD_TIME_MONTH, "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "unit") {
+        row("", function (el) {
+          mountBdPills(el, cfg, BD_UNIT_DIM_OPTS, "unitDim", function (v) {
+            cfg.bdDims = new Set([v]);
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "dim") {
+        row("", function (el) {
+          mountBdPills(el, cfg, BD_INCOME_DIM_OPTS, "dimSingle", function (v) {
+            cfg.bdDims = new Set([v]);
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "stacked") {
+        row("Zaman", function (el) {
+          mountBdPills(el, cfg, BD_TIME_CHART, "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        });
+        row("Seri", function (el) {
+          mountBdPills(el, cfg, BD_STACKED_DIM_OPTS, "stackedDim", function (v) {
+            cfg.stackedDim = v;
+            if (!cfg.bdDims.has(v)) cfg.bdDims.add(v);
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "list") {
+        row("Sırala", function (el) {
+          mountBdPills(el, cfg, BD_LIST_METRIC_OPTS, "listMetric", function (v) {
+            cfg.listMetric = v;
+            if (state.lastSummary) renderLeadersLosers(state.lastSummary);
+          });
+        });
+      } else if (mode === "full") {
+        row("Zaman", function (el) {
+          mountBdPills(el, cfg, BD_TIME_OPTS, "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        });
+        row("Alan", function (el) {
+          mountBdPills(el, cfg, BD_AREA_OPTS, "area", function (v) {
+            cfg.bdArea = v;
+            refreshWidget(scope);
+          });
+        });
+        row("", function (el) {
+          var dimOpts = BD_INCOME_OPTS.concat(BD_FORMAT_OPTS).concat(BD_EXTRA_OPTS);
+          mountBdPills(el, cfg, dimOpts, "multi", function (v) {
+            if (cfg.bdDims.has(v)) cfg.bdDims.delete(v);
+            else cfg.bdDims.add(v);
+            if (!cfg.bdDims.size) cfg.bdDims.add("income_type");
+            refreshWidget(scope);
+          });
+        });
+      }
+    });
+  }
+
+  async function fetchTableForScope(scope, limit) {
+    var cfg = state.breakdowns[scope];
+    if (!cfg) return null;
+    var base = qs().toString();
+    var tb = breakdownStrFrom(cfg);
+    var r = await fetch(
+      "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + (limit || 200)
+    );
+    if (!r.ok) throw new Error("Tablo verisi alınamadı");
+    return r.json();
+  }
+
+  async function refreshSummaryTable() {
+    var data = await fetchTableForScope("summary", 120);
+    state.lastSummaryTable = data;
+    renderDataTable(data, {
+      headId: "mz-summary-head",
+      bodyId: "mz-summary-body",
+      metaId: "mz-summary-meta",
+      maxRows: MZ_SUMMARY_MAX,
+    });
+  }
+
+  async function refreshDetailTable() {
+    var data = await fetchTableForScope("detail", 800);
+    state.lastTable = data;
+    state.tableExpanded = false;
+    renderTable(data);
+  }
+
+  function rowsForChartDim(rows, dimKey) {
+    var labelKey = dimKey;
+    return (rows || []).map(function (r) {
+      var o = {};
+      o[labelKey] = r[labelKey] != null ? String(r[labelKey]) : "—";
+      o.net_revenue = r.net_revenue || 0;
+      o.impression = r.impression || 0;
+      o.net_revenue_compare = r.net_revenue_compare;
+      return o;
+    }).sort(function (a, b) { return b.net_revenue - a.net_revenue; });
+  }
+
+  async function refreshChartLine() {
+    if (!window.Plotly || !state.lastSummary) return;
+    var cfg = state.breakdowns.chartLine;
+    var cmp = compareBlock(state.lastSummary);
+    if (cfg.bdTime === "date" && !cfg.bdArea && !cfg.bdDims.size) {
+      renderLineChart(state.lastSummary.by_date || [], state.activeKpiKey, cmp);
+      return;
+    }
+    try {
+      var data = await fetchTableForScope("chartLine", 500);
+      var dim = cfg.bdTime || "date";
+      var pseudo = (data.rows || []).map(function (r) {
+        var o = { date: String(r[dim] != null ? r[dim] : "").slice(0, 10) };
+        TABLE_METRICS.forEach(function (m) {
+          o[m.key] = r[m.key];
+        });
+        o.net_revenue = r.net_revenue;
+        o.impression = r.impression;
+        return o;
+      }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+      renderLineChart(pseudo, state.activeKpiKey, null);
+    } catch (e) {
+      renderLineChart(state.lastSummary.by_date || [], state.activeKpiKey, cmp);
+    }
+  }
+
+  async function refreshChartMonth() {
+    if (!window.Plotly || !state.lastSummary) return;
+    var cfg = state.breakdowns.chartMonth;
+    var cmp = compareBlock(state.lastSummary);
+    if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size) {
+      var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (state.lastSummary.by_month || []);
+      groupedBarPlot("mz-chart-bar-month", mo, "month", cmp);
+      return;
+    }
+    try {
+      var data = await fetchTableForScope("chartMonth", 80);
+      var dim = cfg.bdTime || "month";
+      var rows = rowsForChartDim(data.rows, dim).slice(0, 36);
+      groupedBarPlot("mz-chart-bar-month", rows, dim, !!data.compare_range);
+    } catch (e) {
+      groupedBarPlot("mz-chart-bar-month", state.lastSummary.by_month || [], "month", cmp);
+    }
+  }
+
+  async function refreshChartUnit() {
+    if (!window.Plotly || !state.lastSummary) return;
+    var cfg = state.breakdowns.chartUnit;
+    var cmp = compareBlock(state.lastSummary);
+    var dim = Array.from(cfg.bdDims)[0] || "ad_unit";
+    if (dim === "ad_unit" && !cfg.bdTime && !cfg.bdArea) {
+      var units = ((cmp && cmp.by_ad_unit) ? cmp.by_ad_unit : (state.lastSummary.by_ad_unit || [])).slice(0, 15);
+      var marginL = window.innerWidth < 640 ? 120 : 180;
+      if (cmp) {
+        Plotly.newPlot("mz-chart-bar-unit", [
+          { x: units.map(function (x) { return x.net_revenue; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", name: "Seçili", marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" } },
+          { x: units.map(function (x) { return x.net_revenue_compare || 0; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", name: "Karşılaştırma", marker: { color: isDarkTheme() ? "#fb7185" : "#f97316" } },
+        ], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL", barmode: "group" }), plotlyCfg());
+      } else {
+        Plotly.newPlot("mz-chart-bar-unit", [{ x: units.map(function (x) { return x.net_revenue; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" } }], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
+      }
+      return;
+    }
+    try {
+      var data = await fetchTableForScope("chartUnit", 40);
+      var rows = rowsForChartDim(data.rows, dim).slice(0, 15);
+      var marginL2 = window.innerWidth < 640 ? 120 : 180;
+      Plotly.newPlot("mz-chart-bar-unit", [{
+        x: rows.map(function (x) { return x.net_revenue; }),
+        y: rows.map(function (x) { return x[dim]; }),
+        type: "bar", orientation: "h",
+        marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" },
+      }], plotTheme({ margin: { l: marginL2, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
+    } catch (e) { /* keep previous plot */ }
+  }
+
+  async function refreshChartIncomeBar() {
+    if (!window.Plotly || !state.lastSummary) return;
+    var cfg = state.breakdowns.chartIncome;
+    var cmp = compareBlock(state.lastSummary);
+    var dim = Array.from(cfg.bdDims)[0] || "income_type";
+    if (dim === "income_type" && !cfg.bdArea) {
+      var inc = (cmp && cmp.by_income_type && cmp.by_income_type.length) ? cmp.by_income_type : (state.lastSummary.by_income_type || []);
+      groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
+      Plotly.newPlot("mz-chart-pie-income", [{
+        labels: inc.map(function (x) { return x.income_type; }),
+        values: inc.map(function (x) { return x.net_revenue; }),
+        type: "pie", hole: 0.35, textfont: plotFont(),
+      }], plotTheme(), plotlyCfg());
+      return;
+    }
+    try {
+      var data = await fetchTableForScope("chartIncome", 40);
+      var rows = rowsForChartDim(data.rows, dim);
+      groupedBarPlot("mz-chart-bar-income", rows, dim, !!data.compare_range);
+      Plotly.newPlot("mz-chart-pie-income", [{
+        labels: rows.map(function (x) { return x[dim]; }),
+        values: rows.map(function (x) { return x.net_revenue; }),
+        type: "pie", hole: 0.35, textfont: plotFont(),
+      }], plotTheme(), plotlyCfg());
+    } catch (e) { /* ignore */ }
+  }
+
+  async function refreshChartStacked() {
+    if (!window.Plotly || !state.lastSummary) return;
+    var cfg = state.breakdowns.chartStacked;
+    var seriesKey = cfg.stackedDim || "income_type";
+    var timeKey = cfg.bdTime || "date";
+    if (timeKey === "date" && seriesKey === "income_type" && !cfg.bdArea) {
+      var sum = state.lastSummary;
+      var byDate = sum.by_date || [];
+      var dates = byDate.map(function (d) { return d.date; });
+      var stackRows = sum.by_date_income_type || [];
+      var incomeTypes = [];
+      stackRows.forEach(function (r) {
+        if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
       });
+      var stackTraces = incomeTypes.map(function (it) {
+        return {
+          x: dates,
+          y: dates.map(function (dt) {
+            var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
+            return hit ? hit.net_revenue : 0;
+          }),
+          name: it,
+          type: "scatter",
+          mode: "lines",
+          stackgroup: "one",
+        };
+      });
+      Plotly.newPlot("mz-chart-stacked-income", stackTraces, plotTheme({ yTitle: "TL" }), plotlyCfg());
+      return;
     }
-    mount("mz-bd-time", BD_TIME_OPTS, function (v) { state.bdTime = v; });
-    mount("mz-bd-area", BD_AREA_OPTS, function (v) { state.bdArea = v; });
-    function toggleBdDim(v) {
-      if (state.bdDims.has(v)) state.bdDims.delete(v);
-      else state.bdDims.add(v);
-      if (!state.bdDims.size) state.bdDims.add("income_type");
+    try {
+      var tb = breakdownStrFrom({ bdTime: timeKey, bdArea: cfg.bdArea, bdDims: new Set([seriesKey]) });
+      var base = qs().toString();
+      var r = await fetch("/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800");
+      if (!r.ok) throw new Error("stacked");
+      var data = await r.json();
+      var dates = [];
+      (data.rows || []).forEach(function (row) {
+        var d = String(row[timeKey] != null ? row[timeKey] : "");
+        if (dates.indexOf(d) < 0) dates.push(d);
+      });
+      dates.sort();
+      var types = [];
+      (data.rows || []).forEach(function (row) {
+        var t = row[seriesKey] || "—";
+        if (types.indexOf(t) < 0) types.push(t);
+      });
+      var stackTraces = types.map(function (it) {
+        return {
+          x: dates,
+          y: dates.map(function (dt) {
+            var hit = (data.rows || []).find(function (r) {
+              return String(r[timeKey]) === dt && (r[seriesKey] || "—") === it;
+            });
+            return hit ? hit.net_revenue : 0;
+          }),
+          name: it,
+          type: "scatter",
+          mode: "lines",
+          stackgroup: "one",
+        };
+      });
+      Plotly.newPlot("mz-chart-stacked-income", stackTraces, plotTheme({ yTitle: "TL" }), plotlyCfg());
+    } catch (e) {
+      /* önceki grafik kalır */
     }
-    mount("mz-bd-income", BD_INCOME_OPTS, toggleBdDim);
-    mount("mz-bd-format", BD_FORMAT_OPTS, toggleBdDim);
-    mount("mz-bd-extra", BD_EXTRA_OPTS, toggleBdDim);
-    paintTime();
-    paintArea();
-    paintDims("#mz-bd-income", "income");
-    paintDims("#mz-bd-format", "format");
-    paintDims("#mz-bd-extra", "extra");
+  }
+
+  function refreshWidget(scope) {
+    if (scope === "summary") {
+      refreshSummaryTable().catch(function (err) { showPageError(err.message); });
+      return;
+    }
+    if (scope === "detail") {
+      refreshDetailTable().catch(function (err) { showPageError(err.message); });
+      return;
+    }
+    if (scope === "chartLine") refreshChartLine();
+    else if (scope === "chartMonth") refreshChartMonth();
+    else if (scope === "chartUnit") refreshChartUnit();
+    else if (scope === "chartIncome") refreshChartIncomeBar();
+    else if (scope === "chartStacked") refreshChartStacked();
   }
 
   var TABLE_DIM_LABELS = {
@@ -769,57 +1108,21 @@
 
   function renderCharts(sum) {
     if (!window.Plotly) return;
-    var cmp = compareBlock(sum);
     state.lastByDate = sum.by_date || [];
-    renderLineChart(state.lastByDate, state.activeKpiKey, cmp);
-
-    var inc = (cmp && cmp.by_income_type && cmp.by_income_type.length)
-      ? cmp.by_income_type : (sum.by_income_type || []);
-    groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
-
-    Plotly.newPlot("mz-chart-pie-income", [{
-      labels: inc.map(function (x) { return x.income_type; }),
-      values: inc.map(function (x) { return x.net_revenue; }),
-      type: "pie", hole: 0.35, textfont: plotFont(),
-    }], plotTheme(), plotlyCfg());
-
-    var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (sum.by_month || []);
-    groupedBarPlot("mz-chart-bar-month", mo, "month", cmp);
-
-    var units = ((cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) ? cmp.by_ad_unit : (sum.by_ad_unit || [])).slice(0, 15);
-    var marginL = window.innerWidth < 640 ? 120 : 180;
-    if (cmp) {
-      Plotly.newPlot("mz-chart-bar-unit", [
-        {
-          x: units.map(function (x) { return x.net_revenue; }),
-          y: units.map(function (x) { return x.ad_unit; }),
-          type: "bar", orientation: "h", name: "Seçili",
-          marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" },
-        },
-        {
-          x: units.map(function (x) { return x.net_revenue_compare || 0; }),
-          y: units.map(function (x) { return x.ad_unit; }),
-          type: "bar", orientation: "h", name: "Karşılaştırma",
-          marker: { color: isDarkTheme() ? "#fb7185" : "#f97316" },
-        },
-      ], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL", barmode: "group" }), plotlyCfg());
-    } else {
-      Plotly.newPlot("mz-chart-bar-unit", [{
-        x: units.map(function (x) { return x.net_revenue; }),
-        y: units.map(function (x) { return x.ad_unit; }),
-        type: "bar", orientation: "h", marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" },
-      }], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
-    }
-
+    var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
     Plotly.newPlot("mz-chart-pie-surface", [{
       labels: surf.map(function (x) { return x.surface; }),
       values: surf.map(function (x) { return x.net_revenue; }),
       type: "pie", hole: 0.35, textfont: plotFont(),
     }], plotTheme(), plotlyCfg());
-
     renderExtendedCharts(sum);
     renderLeadersLosers(sum);
+    refreshChartLine();
+    refreshChartMonth();
+    refreshChartUnit();
+    refreshChartIncomeBar();
+    refreshChartStacked();
   }
 
   function renderKpiSparkline(elId, byDate, key) {
@@ -879,26 +1182,6 @@
       { x: dates, y: byDate.map(function (d) { return d.ctr_pct; }), name: "CTR %", type: "scatter", mode: "lines" },
       { x: dates, y: byDate.map(function (d) { return d.coverage_pct; }), name: "Coverage %", type: "scatter", mode: "lines" },
     ], plotTheme({ yTitle: "%" }), plotlyCfg());
-
-    var stackRows = sum.by_date_income_type || [];
-    var incomeTypes = [];
-    stackRows.forEach(function (r) {
-      if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
-    });
-    var stackTraces = incomeTypes.map(function (it) {
-      return {
-        x: dates,
-        y: dates.map(function (dt) {
-          var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
-          return hit ? hit.net_revenue : 0;
-        }),
-        name: it,
-        type: "scatter",
-        mode: "lines",
-        stackgroup: "one",
-      };
-    });
-    Plotly.newPlot("mz-chart-stacked-income", stackTraces, plotTheme({ yTitle: "TL" }), plotlyCfg());
 
     var hm = sum.heatmap_calendar || [];
     if (hm.length) {
@@ -970,14 +1253,19 @@
     }
     wrap.classList.remove("hidden");
     var ll = cmp.leaders_losers;
-    gEl.innerHTML = (ll.gainers || []).map(function (r) {
+    var metricKey = (state.breakdowns.listLeaders && state.breakdowns.listLeaders.listMetric) || "net_revenue_delta_pct";
+    function rowHtml(r) {
       return "<li><span class=\"font-semibold\">" + (r.ad_unit || "") + "</span> · " +
-        fmt(r.net_revenue, 2) + " TL · " + fmtDeltaPct(r.net_revenue_delta_pct) + "</li>";
-    }).join("") || "<li class=\"text-slate-500\">—</li>";
-    lEl.innerHTML = (ll.losers || []).map(function (r) {
-      return "<li><span class=\"font-semibold\">" + (r.ad_unit || "") + "</span> · " +
-        fmt(r.net_revenue, 2) + " TL · " + fmtDeltaPct(r.net_revenue_delta_pct) + "</li>";
-    }).join("") || "<li class=\"text-slate-500\">—</li>";
+        fmt(r.net_revenue, 2) + " TL · " + fmtDeltaPct(r[metricKey]) + "</li>";
+    }
+    var gainers = (ll.gainers || []).slice().sort(function (a, b) {
+      return (b[metricKey] || 0) - (a[metricKey] || 0);
+    });
+    var losers = (ll.losers || []).slice().sort(function (a, b) {
+      return (a[metricKey] || 0) - (b[metricKey] || 0);
+    });
+    gEl.innerHTML = gainers.map(rowHtml).join("") || "<li class=\"text-slate-500\">—</li>";
+    lEl.innerHTML = losers.map(rowHtml).join("") || "<li class=\"text-slate-500\">—</li>";
   }
 
   var mzSearchPreviewTimer = null;
@@ -1173,7 +1461,7 @@
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
         renderKpis(k, sum || state.lastSummary);
-        renderLineChart(state.lastByDate, state.activeKpiKey, cmp);
+        refreshChartLine();
       });
       grid.appendChild(card);
       renderKpiSparkline(sparkId, state.lastByDate || (sum && sum.by_date) || [], def.key);
@@ -1371,10 +1659,11 @@
         renderStreamTabs();
         updateScopeUi();
         if (st.min_date) {
-          document.getElementById("mz-start").value = st.min_date;
-          document.getElementById("mz-end").value = st.max_date || st.min_date;
+          document.getElementById("mz-start").setAttribute("data-min", st.min_date);
+          document.getElementById("mz-end").setAttribute("data-max", st.max_date || st.min_date);
         }
-        document.getElementById("mz-preset").value = "all";
+        document.getElementById("mz-preset").value = "1y";
+        applyPreset();
         runQuery();
       });
       wrap.appendChild(btn);
@@ -1398,15 +1687,13 @@
       if (statusEl) statusEl.textContent = "DB: " + (f.total_rows || 0).toLocaleString("tr-TR") + " satır";
       if (state.activeStream && state.activeStream.min_date) {
         document.getElementById("mz-start").setAttribute("data-min", state.activeStream.min_date);
-        document.getElementById("mz-start").value = state.activeStream.min_date;
         document.getElementById("mz-end").setAttribute("data-max", state.activeStream.max_date);
-        document.getElementById("mz-end").value = state.activeStream.max_date;
       } else if (f.min_date) {
         document.getElementById("mz-start").setAttribute("data-min", f.min_date);
-        document.getElementById("mz-start").value = f.min_date;
         document.getElementById("mz-end").setAttribute("data-max", f.max_date);
-        document.getElementById("mz-end").value = f.max_date;
       }
+      document.getElementById("mz-preset").value = "1y";
+      applyPreset();
       var incomeList = f.income_types || [];
       state._mzIncomeFacetList = incomeList;
       if (!state._mzFacetsLoaded) {
@@ -1486,26 +1773,8 @@
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
-      var tb = breakdownStr();
-      var sumTabR = await fetch(
-        "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=120"
-      );
-      if (!sumTabR.ok) throw new Error("Özet tablo alınamadı");
-      state.lastSummaryTable = await sumTabR.json();
-      renderDataTable(state.lastSummaryTable, {
-        headId: "mz-summary-head",
-        bodyId: "mz-summary-body",
-        metaId: "mz-summary-meta",
-        maxRows: MZ_SUMMARY_MAX,
-      });
-      var tabR = await fetch(
-        "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800"
-      );
-      if (!tabR.ok) throw new Error("Detay tablo alınamadı");
-      var tab = await tabR.json();
-      state.lastTable = tab;
-      state.tableExpanded = false;
-      renderTable(tab);
+      await refreshSummaryTable();
+      await refreshDetailTable();
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
       document.getElementById("mz-status").textContent = msg;
@@ -1842,7 +2111,7 @@
     await runQuery();
   });
 
-  initBreakdownPills();
+  initBreakdownToolbars();
 
   loadFacets().then(function () { runQuery(); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
