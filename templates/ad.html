@@ -65,12 +65,7 @@
           <input id="mz-compare-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black" disabled />
           <input id="mz-compare-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black" disabled />
         </div>
-        <p id="mz-compare-hint" class="mt-1.5 hidden text-[10px] leading-snug text-indigo-700 dark:text-indigo-300"></p>
       </div>
-
-      <p id="mz-scope-hint" class="hidden rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1.5 text-[11px] text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">
-        Dal sekmesi seçili — kanal/yüzey/platform filtreleri bu dal için devre dışı.
-      </p>
 
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
       <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
@@ -586,14 +581,11 @@
   }
 
   function updateScopeUi() {
-    var hint = document.getElementById("mz-scope-hint");
     var cross = document.getElementById("mz-cross-filters");
-    if (!hint || !cross) return;
+    if (!cross) return;
     if (state.activeStream) {
-      hint.classList.remove("hidden");
       cross.classList.add("pointer-events-none", "opacity-40");
     } else {
-      hint.classList.add("hidden");
       cross.classList.remove("pointer-events-none", "opacity-40");
     }
   }
@@ -694,21 +686,6 @@
     ce.disabled = !on;
     var isCustom = on && modeEl.value === "custom";
     custom.classList.toggle("hidden", !isCustom);
-    updateCompareHint();
-  }
-
-  function updateCompareHint() {
-    var hint = document.getElementById("mz-compare-hint");
-    var presetEl = document.getElementById("mz-preset");
-    if (!hint || !presetEl) return;
-    if (presetEl.value === "ytd") {
-      hint.textContent =
-        "Bu yıl (1 Ocak — bugün) için YoY: «Tarih karşılaştırması» açın, «Geçen yıl (aynı tarihler)» seçin, ardından veriyi yenileyin.";
-      hint.classList.remove("hidden");
-      return;
-    }
-    hint.classList.add("hidden");
-    hint.textContent = "";
   }
 
   function fmtDeltaPct(pct) {
@@ -4192,7 +4169,6 @@
     } else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
     start.value = s.toISOString().slice(0, 10);
     end.value = d.toISOString().slice(0, 10);
-    updateCompareHint();
   }
 
   function renderStreamTabs() {
