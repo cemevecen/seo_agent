@@ -631,9 +631,24 @@
       color: rgb(67 56 202);
       box-shadow: 0 0 0 1px rgb(199 210 254);
     }
-    html.midnight .mz-page .mz-bd-pill.is-active {
-      background: rgb(30 27 75);
-      color: rgb(199 210 254);
+    html.dark .mz-page .mz-bd-pill {
+      background: rgb(24 24 27);
+      border-color: rgb(63 63 70);
+      color: rgb(161 161 170);
+    }
+    html.dark .mz-page .mz-bd-pill:hover {
+      background: rgb(39 39 42);
+      border-color: rgb(82 82 91);
+      color: rgb(212 212 216);
+    }
+    html.dark .mz-page .mz-bd-pill.is-active {
+      background: rgb(39 39 42);
+      border-color: rgb(113 113 122);
+      color: rgb(212 212 216);
+      box-shadow: none;
+    }
+    html.dark .mz-page .mz-bd-toolbar-label {
+      color: rgb(113 113 122);
     }
     .mz-page .mz-bd-toolbar {
       display: flex;
@@ -673,14 +688,54 @@
     .mz-page table.mz-data-table tbody tr:hover td {
       background: rgb(224 231 255 / 0.35);
     }
-    html.midnight .mz-page table.mz-data-table thead th {
+    html.dark .mz-page table.mz-data-table {
+      background: rgb(0 0 0);
+    }
+    html.dark .mz-page table.mz-data-table thead th {
+      background: rgb(9 9 11);
+      color: rgb(113 113 122);
+      border-color: rgb(39 39 42);
+    }
+    html.dark .mz-page table.mz-data-table tbody td {
+      color: rgb(161 161 170);
+      border-color: rgb(39 39 42);
+    }
+    html.dark .mz-page table.mz-data-table tbody tr:nth-child(odd) td {
+      background: rgb(0 0 0);
+    }
+    html.dark .mz-page table.mz-data-table tbody tr:nth-child(even) td {
+      background: rgb(24 24 27);
+    }
+    html.dark .mz-page table.mz-data-table tbody tr:hover td {
+      background: rgb(39 39 42);
+      color: rgb(212 212 216);
+    }
+    html.dark .mz-page #mz-search-preview-wrap table thead th,
+    html.dark .mz-page #mz-search-preview-wrap table tbody td {
       background: rgb(9 9 11);
       color: rgb(161 161 170);
       border-color: rgb(39 39 42);
     }
-    html.midnight .mz-page table.mz-data-table tbody td {
-      color: rgb(228 228 231);
-      border-color: rgb(39 39 42);
+    html.dark .mz-page #mz-compare-panels-wrap table thead th {
+      background: rgb(9 9 11) !important;
+      color: rgb(113 113 122) !important;
+      border-color: rgb(39 39 42) !important;
+    }
+    html.dark .mz-page #mz-compare-panels-wrap table tbody td {
+      color: rgb(161 161 170) !important;
+      border-color: rgb(39 39 42) !important;
+    }
+    html.dark .mz-page #mz-compare-panels-wrap table tbody tr:nth-child(odd) td {
+      background: rgb(0 0 0) !important;
+    }
+    html.dark .mz-page #mz-compare-panels-wrap table tbody tr:nth-child(even) td {
+      background: rgb(24 24 27) !important;
+    }
+    html.dark .mz-page #mz-compare-panels-wrap table tbody tr:hover td {
+      background: rgb(39 39 42) !important;
+    }
+    html.dark .mz-page #mz-leaders-wrap ul {
+      color: rgb(161 161 170);
     }
   </style>
   <style id="seo-header-pill-nav">
