@@ -1021,21 +1021,21 @@
     return Object.keys(areas);
   }
 
-  /** Tek alanlı Mx biriminde trend için yalnızca zaman kırılımı (günlük seri). */
+  /** Trend API kırılımı: tek alanlı birimde günlük; satır tıklanınca alan dahil. */
   function drillChartFetchCfg(cfg, chartTimeKey, slice) {
     var out = {
       bdTime: chartTimeKey,
       bdArea: cfg.bdArea,
       bdDims: cfg.bdDims ? new Set(cfg.bdDims) : new Set(),
     };
+    if (slice && slice.area) {
+      return { bdTime: chartTimeKey, bdArea: "area", bdDims: new Set() };
+    }
     if (slice && slice.ad_unit && !slice.area) {
       var areas = detailChartAreasForUnit(slice.ad_unit);
       if (areas.length === 1) {
         return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set() };
       }
-    }
-    if (slice && slice.ad_unit && slice.area) {
-      return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set() };
     }
     return out;
   }
@@ -2045,9 +2045,10 @@
   }
 
   /** Detay tablo ile uyum: birim seçiliyken tablodaki alan(lar)la sınırla (tek alan + günlük kırılımda atla). */
-  function drillRowsForChart(scope, rows, slice) {
+  function drillRowsForChart(scope, rows, slice, breakdown) {
+    var bd = breakdown || [];
     var filtered = (rows || []).filter(function (r) {
-      return rowMatchesDrillSlice(r, slice);
+      return rowMatchesDrillSlice(r, slice, bd);
     });
     if (scope !== "detail" || !slice || !slice.ad_unit || slice.area) return filtered;
     var areas = detailChartAreasForUnit(slice.ad_unit);
@@ -2136,11 +2137,15 @@
     return warns;
   }
 
-  function rowMatchesDrillSlice(row, slice) {
+  function rowMatchesDrillSlice(row, slice, breakdown) {
     if (!slice) return false;
     var keys = Object.keys(slice);
     if (!keys.length) return false;
+    var bd = breakdown || [];
     return keys.every(function (k) {
+      if (bd.length && bd.indexOf(k) < 0) {
+        return true;
+      }
       return String(row[k] != null ? row[k] : "") === String(slice[k]);
     });
   }
@@ -2518,8 +2523,8 @@
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
       var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
-      var filtered = drillRowsForChart(scope, data.rows || [], slice);
       var breakdown = data.breakdown || [];
+      var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
       var multiAreaTable = false;
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
