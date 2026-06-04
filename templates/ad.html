@@ -247,7 +247,7 @@
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı ayrı; trend grafiğinde Gün / Hafta / Ay seçin. Soldaki arama metni filtreler; sağdaki liste tam birim seçer — ikisi de tabloyu ve grafiği günceller.</p>
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı (Zaman/Alan) tüm birimler listesi içindir. Bir Mx birimi seçildiğinde tablo ve trend <strong class="font-semibold">sol paneldeki tarih aralığında günlük</strong> yüklenir; trend grafiğinde Gün / Hafta / Ay ayrıca seçilebilir.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
@@ -766,6 +766,11 @@
       listMetric: cfg.listMetric,
       stackedDim: cfg.stackedDim,
     };
+  }
+
+  /** Mx birimi seçiliyken tablo/trend: sol panel tarih aralığında günlük + alan + birim. */
+  function detailUnitHistoryBdCfg() {
+    return { bdTime: "date", bdArea: "area", bdDims: new Set(["ad_unit"]) };
   }
 
   function breakdownStrFrom(cfg) {
@@ -1417,11 +1422,11 @@
   }
 
   async function fetchDetailUnitFullTable(unit) {
-    if (!unit || !state.breakdowns.detail) return;
+    if (!unit) return;
     state.detailUnitFullLoading = true;
     if (state.lastTable) renderTable(state.lastTable);
     try {
-      var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
+      var data = await fetchTableWithBreakdownCfg("detail", 2000, detailUnitHistoryBdCfg(), { ad_unit: unit });
       state.detailUnitFullTable = data;
       state.detailUnitFullFor = unit;
       storeDetailUnitAreasCache(unit, data.rows || []);
@@ -1451,6 +1456,7 @@
     updateDetailFavoriteButton();
     updateDrillSubtitle();
     hideDetailUnitAutocomplete();
+    state.detailUnitFullLoading = true;
     if (state.lastTable) renderTable(state.lastTable);
     scheduleDetailDrillChart();
     cacheDetailUnitAreas(u);
@@ -1700,13 +1706,23 @@
       });
     }
     if (!sel && !q) return base;
+    if (sel && state.detailUnitFullFor !== sel) {
+      return {
+        rows: [],
+        total: 0,
+        breakdown: ["date", "area", "ad_unit"],
+        compare_range: base.compare_range,
+        _partialUnit: true,
+        _unitLoading: !!state.detailUnitFullLoading,
+      };
+    }
     rows = sortDetailRowsChronoDesc(rows);
     return {
       rows: rows,
-      total: rows.length,
+      total: base.total != null ? base.total : rows.length,
       breakdown: base.breakdown,
       compare_range: base.compare_range,
-      _partialUnit: sel && state.detailUnitFullFor !== sel,
+      _partialUnit: false,
       _unitFullLoaded: !!(sel && state.detailUnitFullFor === sel && state.detailUnitFullTable),
     };
   }
@@ -3445,7 +3461,8 @@
       meta += " · kırılım: " + breakdown.map(function (d) { return TABLE_DIM_LABELS[d] || d; }).join(", ");
     }
     if (cmpRange) meta += " · karşılaştırma: " + cmpRange.start + " — " + cmpRange.end;
-    if (data._partialUnit) meta += " · kısmi liste";
+    if (data._partialUnit && !data._unitLoading) meta += " · kısmi liste";
+    if (data._unitFullLoaded) meta += " · sol panel aralığında günlük";
     var expanded = opts.expandUnitDays
       ? state.detailUnitRowsExpanded
       : useExpand && state.tableExpanded;
@@ -3469,7 +3486,10 @@
     var body = document.getElementById(bodyId);
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = "<tr><td colspan=\"" + cols.length + "\" class=\"py-4 text-center text-slate-500 dark:text-zinc-500\">Bu kırılım için satır yok.</td></tr>";
+      var emptyMsg = data._unitLoading
+        ? "Mx birimi için günlük veri yükleniyor… (sol paneldeki tarih aralığı)"
+        : "Bu kırılım için satır yok.";
+      body.innerHTML = "<tr><td colspan=\"" + cols.length + "\" class=\"py-4 text-center text-slate-500 dark:text-zinc-500\">" + emptyMsg + "</td></tr>";
       if (expandWrap && useExpand) expandWrap.classList.add("hidden");
       return;
     }
