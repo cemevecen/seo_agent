@@ -661,13 +661,26 @@
     var narrow = typeof window !== "undefined" && window.innerWidth < 640;
     function label(range) {
       if (!range || !range.start || !range.end) return "—";
-      var sep = narrow ? "\n" : " – ";
-      return fmtDateShortTr(range.start, narrow) + sep + fmtDateShortTr(range.end, narrow);
+      return fmtDateShortTr(range.start, narrow) + " – " + fmtDateShortTr(range.end, narrow);
     }
     return {
       primary: label(primary),
       compare: cmpRange ? label(cmpRange) : "Karşı dönem",
     };
+  }
+
+  function compareMetricPeriodLabel(metricLabel, period, sum) {
+    var ranges = comparePeriodChartLabels(sum);
+    var rangeTxt = period === "compare" ? ranges.compare : ranges.primary;
+    return metricLabel ? metricLabel + " · " + rangeTxt : rangeTxt;
+  }
+
+  function alignedXAxisLabels(aligned) {
+    return aligned.map(function (row, i) {
+      var pd = String(row.primary_date || "").slice(0, 10);
+      if (pd && pd.length >= 10) return fmtDateTr(pd);
+      return String(i + 1);
+    });
   }
 
   function isoDateLocal(d) {
@@ -786,14 +799,15 @@
     opts = opts || {};
     var colors = compareColors();
     if (!aligned || !aligned.length) return { traces: [], x: [] };
-    var x = alignedCategoryLabels(aligned);
+    var periodLabels = comparePeriodChartLabels(opts.sum);
+    var x = alignedXAxisLabels(aligned);
     var traces = [
       {
         x: x,
         y: aligned.map(function (r) { return r.primary; }),
         type: "scatter",
         mode: opts.mode || "lines",
-        name: opts.primaryName || "Seçili dönem",
+        name: opts.primaryName || periodLabels.primary,
         line: { color: opts.primaryColor || colors.primary, width: 2 },
         marker: { color: opts.primaryColor || colors.primary, size: 4 },
         yaxis: opts.yaxis || "y",
@@ -803,7 +817,7 @@
         y: aligned.map(function (r) { return r.compare; }),
         type: "scatter",
         mode: opts.mode || "lines",
-        name: opts.compareName || "Karşı dönem",
+        name: opts.compareName || periodLabels.compare,
         line: {
           color: opts.compareColor || colors.compare,
           width: 2,
@@ -817,20 +831,40 @@
   }
 
   function compareLayoutExtra(pointCount) {
+    var dense = pointCount > 36;
     return {
+      margin: { t: 52, b: dense ? 56 : 44 },
       xaxis: {
         type: "category",
-        tickangle: pointCount > 36 ? -45 : pointCount > 18 ? -25 : 0,
+        tickangle: dense ? -45 : pointCount > 18 ? -25 : 0,
       },
       legend: {
         orientation: "h",
         yanchor: "bottom",
-        y: 1.02,
-        xanchor: "center",
-        x: 0.5,
+        y: 1.14,
+        xanchor: "left",
+        x: 0,
         font: plotFont(),
+        bgcolor: "rgba(0,0,0,0)",
+        tracegroupgap: 12,
       },
     };
+  }
+
+  function applyCompareLayout(target, pointCount, opts) {
+    opts = opts || {};
+    var extra = compareLayoutExtra(pointCount);
+    if (opts.legendY != null) {
+      extra.legend = Object.assign({}, extra.legend, { y: opts.legendY });
+    }
+    if (opts.marginT != null) {
+      extra.margin = Object.assign({}, extra.margin, { t: opts.marginT });
+    }
+    var out = Object.assign({}, target || {});
+    out.margin = Object.assign({}, (target && target.margin) || {}, extra.margin);
+    out.legend = Object.assign({}, (target && target.legend) || {}, extra.legend);
+    out.xaxis = Object.assign({}, (target && target.xaxis) || {}, extra.xaxis);
+    return out;
   }
 
   function rowTimeValue(row, timeKey) {
@@ -977,11 +1011,7 @@
       var px = p ? String(p.x) : "";
       var cx = c ? String(c.x) : "";
       if (chartTimeKey === "date") {
-        x.push(
-          (px ? fmtDateTr(px.slice(0, 10)) : "") +
-          (px && cx ? " / " : "") +
-          (cx ? fmtDateTr(cx.slice(0, 10)) : "")
-        );
+        x.push(px ? fmtDateTr(px.slice(0, 10)) : ("G" + (i + 1)));
       } else {
         x.push(px || cx || ("G" + (i + 1)));
       }
@@ -2590,10 +2620,11 @@
       if (cmp) {
         var revAligned = alignedDateSeries(cmp, "net_revenue");
         if (revAligned) {
+          var cmpLabels = comparePeriodChartLabels(state.lastSummary);
           stackTraces.push({
-            x: revAligned.map(function (r) { return String(r.primary_date || "").slice(0, 10); }),
+            x: alignedXAxisLabels(revAligned),
             y: revAligned.map(function (r) { return r.compare; }),
-            name: "Karşı dönem (toplam gelir)",
+            name: compareMetricPeriodLabel("Toplam gelir", "compare", state.lastSummary),
             type: "scatter",
             mode: "lines",
             line: { color: compareColors().compare, width: 2.5, dash: "dot" },
@@ -2602,7 +2633,7 @@
       }
       var stackedLayout = plotTheme({ yTitle: "TL" });
       if (cmp && alignedDateSeries(cmp, "net_revenue")) {
-        stackedLayout = Object.assign({}, stackedLayout, compareLayoutExtra(dates.length));
+        stackedLayout = applyCompareLayout(stackedLayout, dates.length);
       }
       plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
       return;
@@ -3321,17 +3352,18 @@
       if (comparePair && comparePair.x.length) {
         dense = comparePair.x.length > 96;
         traceMode = dense ? "lines" : "lines+markers";
+        var drillPeriodLabels = comparePeriodChartLabels(state.lastSummary);
         if (chartType === "bar") {
           traces.push({
             type: "bar",
-            name: "Seçili dönem",
+            name: drillPeriodLabels.primary,
             x: comparePair.x,
             y: comparePair.primaryY,
             marker: { color: lineColor },
           });
           traces.push({
             type: "bar",
-            name: "Karşı dönem",
+            name: drillPeriodLabels.compare,
             x: comparePair.x,
             y: comparePair.compareY,
             marker: { color: cmpLineColor },
@@ -3341,7 +3373,7 @@
           traces.push({
             type: "scatter",
             mode: traceMode,
-            name: "Seçili dönem",
+            name: drillPeriodLabels.primary,
             x: comparePair.x,
             y: comparePair.primaryY,
             connectgaps: true,
@@ -3353,7 +3385,7 @@
           traces.push({
             type: "scatter",
             mode: traceMode,
-            name: "Karşı dönem",
+            name: drillPeriodLabels.compare,
             x: comparePair.x,
             y: comparePair.compareY,
             connectgaps: true,
@@ -3363,7 +3395,7 @@
             traces[traces.length - 1].marker = { color: cmpLineColor, size: markerSize, line: { width: 0 } };
           }
         }
-        layout = Object.assign({}, layout, compareLayoutExtra(comparePair.x.length));
+        layout = applyCompareLayout(layout, comparePair.x.length);
       } else {
         var xs = series.map(function (p) { return p.x; });
         var ys = series.map(function (p) {
@@ -3565,6 +3597,9 @@
       layout.yaxis2 = Object.assign({}, plotAxis(extra.yaxis2.title || ""), extra.yaxis2);
     }
     if (extra.xaxis) layout.xaxis = Object.assign({}, layout.xaxis, extra.xaxis);
+    if (extra.legend) layout.legend = Object.assign({}, layout.legend, extra.legend);
+    if (extra.margin) layout.margin = Object.assign({}, layout.margin, extra.margin);
+    if (extra.barmode) layout.barmode = extra.barmode;
     if (extra.title) layout.title = Object.assign({ font: plotFont(), x: 0 }, extra.title);
     if (extra.annotations) layout.annotations = extra.annotations;
     return layout;
@@ -3716,11 +3751,13 @@
         mode: aligned.length > 120 ? "lines" : "lines+markers",
         primaryColor: colors.primary,
         compareColor: colors.compare,
+        sum: sum,
       });
       traces = built.traces;
-      layoutExtra = Object.assign({}, layoutExtra, compareLayoutExtra(aligned.length));
+      layoutExtra = applyCompareLayout(layoutExtra, aligned.length);
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def) + " (hizalı)";
     } else if (periodPair) {
+      var periodLabels = comparePeriodChartLabels(sum);
       var mode = Math.max(periodPair.primaryY.length, periodPair.compareY.length) > 120 ? "lines" : "lines+markers";
       traces = [
         {
@@ -3728,7 +3765,7 @@
           y: periodPair.primaryY,
           type: "scatter",
           mode: mode,
-          name: "Seçili dönem",
+          name: periodLabels.primary,
           line: { color: colors.primary, width: 2 },
           marker: { color: colors.primary, size: 4 },
         },
@@ -3737,12 +3774,12 @@
           y: periodPair.compareY,
           type: "scatter",
           mode: mode,
-          name: "Karşı dönem",
+          name: periodLabels.compare,
           line: { color: colors.compare, width: 2, dash: "dot" },
           marker: { color: colors.compare, size: 4 },
         },
       ];
-      layoutExtra = Object.assign({}, layoutExtra, compareLayoutExtra(periodPair.x.length));
+      layoutExtra = applyCompareLayout(layoutExtra, periodPair.x.length);
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def) + " (hizalı)";
     } else {
       var series = filterSeriesBySelectedRange(byDate, timeKey);
@@ -3768,11 +3805,12 @@
   function groupedBarPlot(elId, rows, labelKey, cmp) {
     var colors = compareColors();
     var labels = rows.map(function (x) { return x[labelKey]; });
+    var periodLabels = comparePeriodChartLabels(state.lastSummary);
     var traces = [{
       x: labels,
       y: rows.map(function (x) { return x.net_revenue; }),
       type: "bar",
-      name: "Seçili dönem",
+      name: periodLabels.primary,
       marker: { color: colors.barPrimary },
     }];
     if (cmp) {
@@ -3780,11 +3818,13 @@
         x: labels,
         y: rows.map(function (x) { return x.net_revenue_compare || 0; }),
         type: "bar",
-        name: "Karşı dönem",
+        name: periodLabels.compare,
         marker: { color: colors.barCompare },
       });
     }
-    plotChart(elId, traces, plotTheme({ yTitle: "TL", barmode: cmp ? "group" : "relative" }), { minHeight: 220 });
+    var barLayout = { yTitle: "TL", barmode: cmp ? "group" : "relative" };
+    if (cmp) barLayout = applyCompareLayout(barLayout, labels.length);
+    plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220 });
   }
 
   function last7DayRange() {
@@ -4001,14 +4041,15 @@
     };
 
     if (revAligned && impAligned) {
-      var dx = alignedCategoryLabels(revAligned);
+      var dx = alignedXAxisLabels(revAligned);
+      var periodLabels = comparePeriodChartLabels(sum);
       dualTraces = [
         {
           x: dx,
           y: revAligned.map(function (r) { return r.primary; }),
           type: "scatter",
           mode: "lines",
-          name: "Net gelir (seçili)",
+          name: compareMetricPeriodLabel("Net gelir", "primary", sum),
           yaxis: "y",
           line: { color: colors.rev, width: 2 },
         },
@@ -4017,7 +4058,7 @@
           y: revAligned.map(function (r) { return r.compare; }),
           type: "scatter",
           mode: "lines",
-          name: "Net gelir (karş.)",
+          name: compareMetricPeriodLabel("Net gelir", "compare", sum),
           yaxis: "y",
           line: { color: colors.revCmp, width: 2, dash: "dot" },
         },
@@ -4026,7 +4067,7 @@
           y: impAligned.map(function (r) { return r.primary; }),
           type: "scatter",
           mode: "lines",
-          name: "Gösterim (seçili)",
+          name: compareMetricPeriodLabel("Gösterim", "primary", sum),
           yaxis: "y2",
           line: { color: colors.imp, width: 2 },
         },
@@ -4035,12 +4076,12 @@
           y: impAligned.map(function (r) { return r.compare; }),
           type: "scatter",
           mode: "lines",
-          name: "Gösterim (karş.)",
+          name: compareMetricPeriodLabel("Gösterim", "compare", sum),
           yaxis: "y2",
           line: { color: colors.impCmp, width: 2, dash: "dot" },
         },
       ];
-      dualLayoutExtra = Object.assign({}, dualLayoutExtra, compareLayoutExtra(dx.length));
+      dualLayoutExtra = applyCompareLayout(dualLayoutExtra, dx.length, { legendY: 1.18, marginT: 64 });
     } else {
       dualTraces = [
         {
@@ -4078,14 +4119,14 @@
     var qualityAligned = cmp ? alignedDateSeries(cmp, "viewability_pct") : null;
 
     if (qualityAligned) {
-      var qx = alignedCategoryLabels(qualityAligned);
+      var qx = alignedXAxisLabels(qualityAligned);
       qualityKeys.forEach(function (q) {
         var qAligned = alignedDateSeries(cmp, q.key);
         if (!qAligned) return;
         qualityTraces.push({
           x: qx,
           y: qAligned.map(function (r) { return r.primary; }),
-          name: q.label + " (seçili)",
+          name: compareMetricPeriodLabel(q.label, "primary", sum),
           type: "scatter",
           mode: "lines",
           line: { color: qualityPalette[q.idx], width: 2 },
@@ -4093,13 +4134,13 @@
         qualityTraces.push({
           x: qx,
           y: qAligned.map(function (r) { return r.compare; }),
-          name: q.label + " (karş.)",
+          name: compareMetricPeriodLabel(q.label, "compare", sum),
           type: "scatter",
           mode: "lines",
           line: { color: qualityPalette[q.idx], width: 2, dash: "dot" },
         });
       });
-      qualityLayoutExtra = Object.assign({}, qualityLayoutExtra, compareLayoutExtra(qx.length));
+      qualityLayoutExtra = applyCompareLayout(qualityLayoutExtra, qx.length, { legendY: 1.22, marginT: 72 });
     } else {
       qualityKeys.forEach(function (q) {
         qualityTraces.push({
