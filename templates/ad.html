@@ -251,18 +251,40 @@
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-3 flex flex-wrap items-end gap-2">
-          <label class="flex min-w-[14rem] flex-1 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
-            Mx birimi ara
-            <input
-              id="mz-detail-unit-search"
-              type="search"
-              list="mz-detail-unit-list"
-              autocomplete="off"
-              placeholder="sticky, masthead…"
-              class="w-full max-w-lg rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
-            />
-          </label>
-          <datalist id="mz-detail-unit-list"></datalist>
+          <div id="mz-detail-unit-combo" class="relative flex min-w-[14rem] flex-1 flex-col gap-1 max-w-lg">
+            <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Mx birimi ara</span>
+            <div class="flex min-w-0">
+              <input
+                id="mz-detail-unit-search"
+                type="search"
+                list="mz-detail-unit-list"
+                autocomplete="off"
+                placeholder="sticky, masthead…"
+                aria-autocomplete="list"
+                aria-controls="mz-detail-unit-menu"
+                aria-expanded="false"
+                class="min-w-0 flex-1 rounded-l-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
+              />
+              <button
+                id="mz-detail-unit-toggle"
+                type="button"
+                title="Tüm birimler"
+                aria-label="Birim listesini aç"
+                aria-expanded="false"
+                aria-controls="mz-detail-unit-menu"
+                class="shrink-0 rounded-r-lg border border-l-0 border-slate-300 bg-slate-50 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <span aria-hidden="true" class="text-xs leading-none">▾</span>
+              </button>
+            </div>
+            <datalist id="mz-detail-unit-list"></datalist>
+            <div
+              id="mz-detail-unit-menu"
+              class="mz-detail-unit-menu absolute left-0 right-0 top-full z-50 mt-1 hidden max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+              role="listbox"
+              hidden
+            ></div>
+          </div>
           <button id="mz-detail-unit-clear" type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900">
             Temizle
           </button>
@@ -440,6 +462,8 @@
     drillLoading: false,
     _drillUserPicked: false,
     detailTableFilter: "",
+    detailAdUnitCatalog: [],
+    _detailUnitMenuOpen: false,
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1091,21 +1115,143 @@
     return matches[0].unit;
   }
 
-  function refreshDetailUnitDatalist() {
-    var dl = document.getElementById("mz-detail-unit-list");
-    if (!dl || !state.lastTable) return;
+  function detailAdUnitAttrEsc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+  }
+
+  function collectAdUnitsFromRows(rows, intoSeen, outList) {
+    (rows || []).forEach(function (r) {
+      var u = r.ad_unit;
+      if (!u || intoSeen[u]) return;
+      intoSeen[u] = true;
+      outList.push(u);
+    });
+  }
+
+  function getDetailAdUnitsList() {
     var seen = {};
     var units = [];
-    (state.lastTable.rows || []).forEach(function (r) {
-      if (r.ad_unit && !seen[r.ad_unit]) {
-        seen[r.ad_unit] = true;
-        units.push(r.ad_unit);
+    (state.detailAdUnitCatalog || []).forEach(function (u) {
+      if (u && !seen[u]) {
+        seen[u] = true;
+        units.push(u);
       }
     });
+    if (state.lastTable && state.lastTable.rows) {
+      collectAdUnitsFromRows(state.lastTable.rows, seen, units);
+    }
     units.sort(function (a, b) { return String(a).localeCompare(String(b), "tr"); });
+    return units;
+  }
+
+  function refreshDetailUnitDatalist() {
+    var dl = document.getElementById("mz-detail-unit-list");
+    if (!dl) return;
+    var units = getDetailAdUnitsList();
     dl.innerHTML = units.map(function (u) {
-      return "<option value=\"" + String(u).replace(/"/g, "&quot;") + "\"></option>";
+      return "<option value=\"" + detailAdUnitAttrEsc(u) + "\"></option>";
     }).join("");
+  }
+
+  async function refreshDetailAdUnitCatalog() {
+    try {
+      var base = qs().toString();
+      var r = await fetch(
+        "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent("ad_unit") + "&limit=2000"
+      );
+      if (!r.ok) return;
+      var data = await r.json();
+      var seen = {};
+      var units = [];
+      collectAdUnitsFromRows(data.rows || [], seen, units);
+      units.sort(function (a, b) { return String(a).localeCompare(String(b), "tr"); });
+      state.detailAdUnitCatalog = units;
+      refreshDetailUnitDatalist();
+      if (state._detailUnitMenuOpen) renderDetailUnitDropdown();
+    } catch (_) { /* katalog isteğe bağlı */ }
+  }
+
+  function detailUnitMenuQuery() {
+    var inp = document.getElementById("mz-detail-unit-search");
+    return (inp && inp.value ? inp.value : state.detailTableFilter || "").trim().toLowerCase();
+  }
+
+  function renderDetailUnitDropdown() {
+    var menu = document.getElementById("mz-detail-unit-menu");
+    if (!menu) return;
+    var q = detailUnitMenuQuery();
+    var units = getDetailAdUnitsList();
+    var filtered = q
+      ? units.filter(function (u) { return String(u).toLowerCase().indexOf(q) >= 0; })
+      : units;
+    if (!filtered.length) {
+      menu.innerHTML =
+        "<p class=\"px-2.5 py-2 text-xs text-slate-500 dark:text-zinc-400\">Eşleşen birim yok</p>";
+      return;
+    }
+    var cap = 250;
+    var slice = filtered.slice(0, cap);
+    menu.innerHTML = slice
+      .map(function (u) {
+        return (
+          "<button type=\"button\" role=\"option\" class=\"mz-detail-unit-opt\" data-unit=\"" +
+          detailAdUnitAttrEsc(u) +
+          "\">" +
+          detailAdUnitAttrEsc(u) +
+          "</button>"
+        );
+      })
+      .join("");
+    if (filtered.length > cap) {
+      menu.innerHTML +=
+        "<p class=\"border-t border-slate-100 px-2.5 py-1.5 text-[10px] text-slate-500 dark:border-zinc-800 dark:text-zinc-500\">+" +
+        (filtered.length - cap) +
+        " birim — aramayı daraltın</p>";
+    }
+  }
+
+  function setDetailUnitMenuOpen(open) {
+    var menu = document.getElementById("mz-detail-unit-menu");
+    var inp = document.getElementById("mz-detail-unit-search");
+    var toggle = document.getElementById("mz-detail-unit-toggle");
+    state._detailUnitMenuOpen = !!open;
+    if (!menu) return;
+    if (open) {
+      menu.classList.remove("hidden");
+      menu.removeAttribute("hidden");
+      renderDetailUnitDropdown();
+    } else {
+      menu.classList.add("hidden");
+      menu.setAttribute("hidden", "");
+    }
+    if (inp) inp.setAttribute("aria-expanded", open ? "true" : "false");
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeDetailUnitDropdown() {
+    setDetailUnitMenuOpen(false);
+  }
+
+  function openDetailUnitDropdown() {
+    if (!state.detailAdUnitCatalog || !state.detailAdUnitCatalog.length) {
+      refreshDetailAdUnitCatalog();
+    }
+    setDetailUnitMenuOpen(true);
+  }
+
+  function toggleDetailUnitDropdown() {
+    if (state._detailUnitMenuOpen) closeDetailUnitDropdown();
+    else openDetailUnitDropdown();
+  }
+
+  function selectDetailAdUnit(unit) {
+    if (!unit) return;
+    closeDetailUnitDropdown();
+    syncDetailUnitSearchInput(unit);
+    setDrillForAdUnit(unit, true);
   }
 
   function syncDetailUnitSearchInput(unit) {
@@ -1220,6 +1366,7 @@
     state.lastTable = data;
     state.tableExpanded = false;
     refreshDetailUnitDatalist();
+    refreshDetailAdUnitCatalog();
     renderTable(data);
     if (state._drillUserPicked && state.drillSlice && Object.keys(state.drillSlice).length) {
       updateDrillSubtitle();
@@ -2696,20 +2843,47 @@
   });
   on("mz-table-csv", "click", exportTableCsv);
   on("mz-detail-unit-search", "input", function () {
+    openDetailUnitDropdown();
     clearTimeout(detailUnitSearchTimer);
     detailUnitSearchTimer = setTimeout(applyDetailUnitSearch, 320);
   });
+  on("mz-detail-unit-search", "focus", function () {
+    openDetailUnitDropdown();
+  });
   on("mz-detail-unit-search", "change", applyDetailUnitSearch);
   on("mz-detail-unit-search", "keydown", function (ev) {
+    if (ev.key === "Escape") {
+      closeDetailUnitDropdown();
+      return;
+    }
     if (ev.key === "Enter") {
       ev.preventDefault();
       clearTimeout(detailUnitSearchTimer);
+      closeDetailUnitDropdown();
       applyDetailUnitSearch();
     }
+  });
+  on("mz-detail-unit-toggle", "click", function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleDetailUnitDropdown();
+  });
+  on("mz-detail-unit-menu", "click", function (ev) {
+    var btn = ev.target.closest(".mz-detail-unit-opt");
+    if (!btn) return;
+    var unit = btn.getAttribute("data-unit");
+    if (unit) selectDetailAdUnit(unit);
+  });
+  document.addEventListener("click", function (ev) {
+    var combo = document.getElementById("mz-detail-unit-combo");
+    if (!combo || !state._detailUnitMenuOpen) return;
+    if (combo.contains(ev.target)) return;
+    closeDetailUnitDropdown();
   });
   on("mz-detail-unit-clear", "click", function () {
     state._drillUserPicked = false;
     state.detailTableFilter = "";
+    closeDetailUnitDropdown();
     syncDetailUnitSearchInput("");
     if (state.lastTable) {
       renderTable(state.lastTable);
