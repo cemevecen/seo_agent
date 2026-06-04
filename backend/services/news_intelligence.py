@@ -121,37 +121,33 @@ def cleanup_old_news_items(db: Session, *, hours: int = RETENTION_HOURS) -> int:
 #   - ekonomim.com/rss
 #   - techcrunch.com/feed/
 #   - theverge.com/rss/index.xml
-# Bunlar tekrar denenmemeli; çöp veri üretiyorlardı.
+#   - aa.com.tr/tr/rss/default?cat=guncel ve cat=dunya (sık HTTP 502)
+#   - ensonhaber.com/rss/gundem.xml (HTTP 403 — bot engeli)
+#   - internethaber.com/rss (HTTP 403)
+#   - haberturk.com/rss (Railway ortamında SSL doğrulama hatası)
+# Bunlar tekrar denenmemeli; log gürültüsü ve boş tarama.
 # Atom namespace (NTV vb.)
 _ATOM = "{http://www.w3.org/2005/Atom}"
 
 CATEGORY_SOURCES = {
     "Türkiye": [
-        # Ajanslar
-        "https://www.aa.com.tr/tr/rss/default?cat=guncel",
         # Gazeteler — hızlı / son dakika odaklı
         "https://www.cnnturk.com/feed/rss/all/news",
-        "https://www.ensonhaber.com/rss/gundem.xml",
         "https://www.ahaber.com.tr/rss/gundem.xml",
         "https://www.sozcu.com.tr/feeds-rss-category-gundem",
-        "https://www.internethaber.com/rss",
         "https://www.ntv.com.tr/gundem.rss",
         "https://www.mynet.com/haber/rss/guncel",
         "https://www.sabah.com.tr/rss/anasayfa.xml",
         "https://www.hurriyet.com.tr/rss/anasayfa",
         "https://www.milliyet.com.tr/rss/rssNew/gundem.xml",
-        "https://www.haberturk.com/rss",
         # Google News
         "https://news.google.com/rss/search?q=türkiye+gündem+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=ankara+siyaset+meclis+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=erdoğan+hükümet+when:3h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Genel": [
-        "https://www.aa.com.tr/tr/rss/default?cat=guncel",
         "https://www.cnnturk.com/feed/rss/all/news",
-        "https://www.ensonhaber.com/rss/gundem.xml",
         "https://www.ahaber.com.tr/rss/gundem.xml",
-        "https://www.internethaber.com/rss",
         "https://www.ntv.com.tr/gundem.rss",
         "https://www.bloomberght.com/rss",
         # Google News
@@ -179,7 +175,6 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=fed+ecb+para+politikası+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
-        "https://www.aa.com.tr/tr/rss/default?cat=dunya",
         "https://www.cnnturk.com/feed/rss/all/news",
         # Uluslararası
         "https://feeds.bbci.co.uk/news/world/rss.xml",
@@ -375,7 +370,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
         try:
             resp = requests.get(url, headers=hdrs, timeout=15)
             if resp.status_code != 200:
-                logger.error("RSS HTTP %d: %s", resp.status_code, url[:80])
+                logger.debug("RSS HTTP %d: %s", resp.status_code, url[:80])
                 return None
             ct = resp.headers.get("Content-Type", "")
             # Google bazen HTML döndürüyor (bot tespiti / consent sayfası)
@@ -402,7 +397,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                 return None
             return raw
         except requests.RequestException as exc:
-            logger.warning("RSS fetch hatası: %s — %s", url[:80], exc)
+            logger.debug("RSS fetch hatası: %s — %s", url[:80], exc)
             return None
 
     retention_cutoff = _utc_naive_now() - timedelta(hours=RETENTION_HOURS)
