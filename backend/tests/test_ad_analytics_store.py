@@ -204,3 +204,19 @@ def test_parse_csv_and_import():
         assert len(summ["by_income_type"]) >= 2
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()
+
+
+def test_build_upload_batch_summary():
+    per_file = [
+        {"filename": "a.xlsx", "parsed": 100, "inserted": 100, "stream_key": "doviz:web"},
+        {"filename": "b.xlsx", "error": "bozuk"},
+        {"filename": "c.xlsx", "parsed": 0, "parse_error": "başlık yok"},
+        {"filename": "d.xlsx", "parsed": 50, "warning": "dal?", "stream_key": None},
+    ]
+    s = store.build_upload_batch_summary(per_file)
+    assert s["file_count"] == 4
+    assert s["ok_count"] == 2
+    assert s["failed_count"] == 1
+    assert s["empty_count"] == 1
+    assert s["has_errors"] is True
+    assert s["integrated_rows"] == 150
