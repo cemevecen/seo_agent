@@ -118,43 +118,45 @@
       <p id="mz-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
       <p id="mz-compare-range-label" class="hidden text-xs font-semibold text-indigo-700 dark:text-indigo-300"></p>
 
-      <section id="mz-compare-matrix-wrap" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-900 dark:bg-indigo-950/20 midnight:border-indigo-950">
-        <h2 class="text-sm font-bold text-indigo-900 dark:text-indigo-200">KPI karşılaştırma özeti (tüm metrikler)</h2>
-        <div class="mt-2 overflow-x-auto">
-          <table class="min-w-full text-left text-xs">
-            <thead class="border-b border-indigo-200 dark:border-indigo-800">
-              <tr>
-                <th class="px-2 py-1.5 font-bold">Metrik</th>
-                <th class="px-2 py-1.5 font-bold">Seçili dönem</th>
-                <th class="px-2 py-1.5 font-bold">Karşılaştırma</th>
-                <th class="px-2 py-1.5 font-bold">Fark</th>
-                <th class="px-2 py-1.5 font-bold">%</th>
-              </tr>
-            </thead>
-            <tbody id="mz-compare-matrix-body" class="divide-y divide-indigo-100 dark:divide-indigo-900"></tbody>
-          </table>
-        </div>
-      </section>
+      <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <section id="mz-compare-matrix-wrap" class="min-w-0 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-900 dark:bg-indigo-950/20 midnight:border-indigo-950">
+          <h2 class="text-sm font-bold text-indigo-900 dark:text-indigo-200">KPI karşılaştırma özeti (tüm metrikler)</h2>
+          <div class="mt-2 max-h-[min(420px,50vh)] overflow-auto">
+            <table class="min-w-full text-left text-xs">
+              <thead class="sticky top-0 z-[1] border-b border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/90">
+                <tr>
+                  <th class="px-2 py-1.5 font-bold">Metrik</th>
+                  <th class="px-2 py-1.5 font-bold">Seçili</th>
+                  <th class="px-2 py-1.5 font-bold">Karş.</th>
+                  <th class="px-2 py-1.5 font-bold">Fark</th>
+                  <th class="px-2 py-1.5 font-bold">%</th>
+                </tr>
+              </thead>
+              <tbody id="mz-compare-matrix-body" class="divide-y divide-indigo-100 dark:divide-indigo-900"></tbody>
+            </table>
+          </div>
+        </section>
 
-      <section id="mz-compare-dim-wrap" class="hidden rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Kırılım karşılaştırması (detay)</h2>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <select id="mz-compare-dim" class="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
-            <option value="by_income_type">Gelir tipi</option>
-            <option value="by_area">Alan (web·mweb·ios·android)</option>
-            <option value="by_channel">Kanal</option>
-            <option value="by_surface">Yüzey</option>
-            <option value="by_ad_unit">Mx birimi</option>
-            <option value="by_month">Ay</option>
-          </select>
-        </div>
-        <div class="mt-2 overflow-x-auto">
-          <table class="min-w-full text-left text-xs">
-            <thead id="mz-compare-dim-head" class="border-b border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-950"></thead>
-            <tbody id="mz-compare-dim-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-          </table>
-        </div>
-      </section>
+        <section id="mz-compare-dim-wrap" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Kırılım karşılaştırması (detay)</h2>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <select id="mz-compare-dim" class="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+              <option value="by_income_type">Gelir tipi</option>
+              <option value="by_area">Alan (web·mweb·ios·android)</option>
+              <option value="by_channel">Kanal</option>
+              <option value="by_surface">Yüzey</option>
+              <option value="by_ad_unit">Mx birimi</option>
+              <option value="by_month">Ay</option>
+            </select>
+          </div>
+          <div class="mt-2 max-h-[min(420px,50vh)] overflow-auto">
+            <table class="min-w-full text-left text-xs">
+              <thead id="mz-compare-dim-head" class="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-950"></thead>
+              <tbody id="mz-compare-dim-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
 
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -1319,16 +1321,15 @@
 
   function renderCompareMatrix(sum) {
     var cmp = compareBlock(sum);
-    var wrap = document.getElementById("mz-compare-matrix-wrap");
+    var panels = document.getElementById("mz-compare-panels-wrap");
     var body = document.getElementById("mz-compare-matrix-body");
     var rangeLbl = document.getElementById("mz-compare-range-label");
-    if (!cmp || !wrap || !body) {
-      if (wrap) wrap.classList.add("hidden");
+    if (!cmp || !panels || !body) {
+      if (panels) panels.classList.add("hidden");
       if (rangeLbl) rangeLbl.classList.add("hidden");
       return;
     }
-    wrap.classList.remove("hidden");
-    document.getElementById("mz-compare-dim-wrap").classList.remove("hidden");
+    panels.classList.remove("hidden");
     if (rangeLbl) {
       rangeLbl.classList.remove("hidden");
       rangeLbl.textContent = "Karşılaştırma: " + cmp.range.start + " — " + cmp.range.end;
