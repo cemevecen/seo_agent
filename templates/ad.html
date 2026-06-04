@@ -1127,9 +1127,11 @@
 
   function renderKpiSparkline(elId, byDate, key) {
     if (!window.Plotly || !byDate || byDate.length < 2) return;
+    var el = typeof elId === "string" ? document.getElementById(elId) : elId;
+    if (!el || !el.isConnected) return;
     var slice = byDate.slice(-14);
     var color = isDarkTheme() ? "#a5b4fc" : "#6366f1";
-    Plotly.newPlot(elId, [{
+    Plotly.newPlot(el, [{
       x: slice.map(function (d) { return d.date; }),
       y: slice.map(function (d) { return d[key] != null ? d[key] : 0; }),
       type: "scatter",
@@ -1145,6 +1147,28 @@
       yaxis: { visible: false },
       showlegend: false,
     }, { responsive: true, displayModeBar: false, staticPlot: true });
+  }
+
+  function refreshAllKpiSparklines(sum) {
+    if (!window.Plotly) return;
+    var s = sum || state.lastSummary;
+    if (!s) return;
+    var byDate = state.lastByDate || s.by_date || [];
+    if (byDate.length < 2) return;
+    activeKpiDefs(s).forEach(function (def) {
+      var node = document.getElementById("mz-spark-" + def.key);
+      if (node) renderKpiSparkline(node, byDate, def.key);
+    });
+  }
+
+  function scheduleKpiSparklines(sum) {
+    if (state._mzSparkTimer) clearTimeout(state._mzSparkTimer);
+    state._mzSparkTimer = setTimeout(function () {
+      state._mzSparkTimer = null;
+      requestAnimationFrame(function () {
+        refreshAllKpiSparklines(sum);
+      });
+    }, 50);
   }
 
   function renderExtendedCharts(sum) {
@@ -1407,6 +1431,7 @@
     if (state.lastSummary) {
       renderKpis(state.lastSummary.kpis || {}, state.lastSummary);
       renderCharts(state.lastSummary);
+      scheduleKpiSparklines(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
       if (state.lastSummaryTable) {
         renderDataTable(state.lastSummaryTable, {
@@ -1464,8 +1489,8 @@
         refreshChartLine();
       });
       grid.appendChild(card);
-      renderKpiSparkline(sparkId, state.lastByDate || (sum && sum.by_date) || [], def.key);
     });
+    scheduleKpiSparklines(sum);
   }
 
   var MZ_TABLE_PREVIEW = 20;
@@ -1769,12 +1794,14 @@
       if (!sumR.ok) throw new Error("Özet alınamadı");
       var sum = await sumR.json();
       state.lastSummary = sum;
+      state.lastByDate = sum.by_date || [];
       state.kpiAvailable = sum.kpi_available || [];
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
       await refreshSummaryTable();
       await refreshDetailTable();
+      scheduleKpiSparklines(sum);
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
       document.getElementById("mz-status").textContent = msg;
