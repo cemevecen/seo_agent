@@ -1534,6 +1534,11 @@ def _attach_compare_block(
             compare.get("by_surface") or [],
             "surface",
         ),
+        "by_area": _merge_breakdown(
+            primary.get("by_area") or [],
+            compare.get("by_area") or [],
+            "area",
+        ),
         "by_channel": _merge_breakdown(
             primary.get("by_channel") or [],
             compare.get("by_channel") or [],
@@ -1866,6 +1871,17 @@ def query_summary(
         .order_by(func.sum(sub.c.net_revenue).desc())
     ).all()
 
+    area_lbl = _area_label_expr(sub.c.branch, sub.c.surface).label("area")
+    by_area = db.execute(
+        select(
+            area_lbl,
+            func.sum(sub.c.net_revenue),
+            func.sum(sub.c.impression),
+        )
+        .group_by(area_lbl)
+        .order_by(func.sum(sub.c.net_revenue).desc())
+    ).all()
+
     by_channel = db.execute(
         select(
             sub.c.channel,
@@ -1983,6 +1999,14 @@ def query_summary(
                 "impression": int(r[2] or 0),
             }
             for r in by_surface
+        ],
+        "by_area": [
+            {
+                "area": r[0] or "—",
+                "net_revenue": round(float(r[1] or 0), 2),
+                "impression": int(r[2] or 0),
+            }
+            for r in by_area
         ],
         "by_channel": [
             {

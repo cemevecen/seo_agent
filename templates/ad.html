@@ -141,6 +141,7 @@
         <div class="mt-2 flex flex-wrap gap-2">
           <select id="mz-compare-dim" class="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
             <option value="by_income_type">Gelir tipi</option>
+            <option value="by_area">Alan (web·mweb·ios·android)</option>
             <option value="by_channel">Kanal</option>
             <option value="by_surface">Yüzey</option>
             <option value="by_ad_unit">Mx birimi</option>
@@ -518,6 +519,7 @@
 
   var DIM_LABELS = {
     by_income_type: "Gelir tipi",
+    by_area: "Alan",
     by_channel: "Kanal",
     by_surface: "Yüzey",
     by_ad_unit: "Mx birimi",
@@ -525,6 +527,7 @@
   };
   var DIM_KEYS = {
     by_income_type: "income_type",
+    by_area: "area",
     by_channel: "channel",
     by_surface: "surface",
     by_ad_unit: "ad_unit",
@@ -605,15 +608,14 @@
     }
     mount("mz-bd-time", BD_TIME_OPTS, function (v) { state.bdTime = v; });
     mount("mz-bd-area", BD_AREA_OPTS, function (v) { state.bdArea = v; });
-    mount("mz-bd-income", BD_INCOME_OPTS, function (v) {
-      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
-    });
-    mount("mz-bd-format", BD_FORMAT_OPTS, function (v) {
-      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
-    });
-    mount("mz-bd-extra", BD_EXTRA_OPTS, function (v) {
-      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
-    });
+    function toggleBdDim(v) {
+      if (state.bdDims.has(v)) state.bdDims.delete(v);
+      else state.bdDims.add(v);
+      if (!state.bdDims.size) state.bdDims.add("income_type");
+    }
+    mount("mz-bd-income", BD_INCOME_OPTS, toggleBdDim);
+    mount("mz-bd-format", BD_FORMAT_OPTS, toggleBdDim);
+    mount("mz-bd-extra", BD_EXTRA_OPTS, toggleBdDim);
     paintTime();
     paintArea();
     paintDims("#mz-bd-income", "income");
@@ -1045,10 +1047,11 @@
       document.getElementById("mz-preset").value = "";
     }
     if (row.ad_unit) document.getElementById("mz-search").value = row.ad_unit;
-    if (row.income_type && state.income.size === 0) {
+    if (row.income_type) {
       state.income = new Set([row.income_type]);
-      loadFacets().then(debouncedRun);
-      return;
+      if (state._mzIncomeFacetList && state._mzIncomeFacetList.length) {
+        filterBox("mz-filter-income", state._mzIncomeFacetList, state.income);
+      }
     }
     debouncedRun();
   }
@@ -1272,6 +1275,14 @@
     });
   }
 
+  function pruneFacetSet(set, allowed) {
+    if (!set || !allowed || !allowed.length) return;
+    Array.from(set).forEach(function (name) {
+      if (allowed.indexOf(name) < 0) set.delete(name);
+    });
+    if (!set.size) allowed.forEach(function (n) { set.add(n); });
+  }
+
   function filterBox(containerId, items, set) {
     var el = document.getElementById(containerId);
     if (!el) return;
@@ -1396,12 +1407,23 @@
         document.getElementById("mz-end").setAttribute("data-max", f.max_date);
         document.getElementById("mz-end").value = f.max_date;
       }
-      state.income = new Set(f.income_types || []);
-      state.platform = new Set(f.platforms || []);
-      state.channel = new Set(f.channels || []);
-      state.surface = new Set(f.surfaces || []);
-      state.source = new Set(f.source_files || []);
-      filterBox("mz-filter-income", f.income_types || [], state.income);
+      var incomeList = f.income_types || [];
+      state._mzIncomeFacetList = incomeList;
+      if (!state._mzFacetsLoaded) {
+        state.income = new Set(incomeList);
+        state.platform = new Set(f.platforms || []);
+        state.channel = new Set(f.channels || []);
+        state.surface = new Set(f.surfaces || []);
+        state.source = new Set(f.source_files || []);
+        state._mzFacetsLoaded = true;
+      } else {
+        pruneFacetSet(state.income, incomeList);
+        pruneFacetSet(state.platform, f.platforms || []);
+        pruneFacetSet(state.channel, f.channels || []);
+        pruneFacetSet(state.surface, f.surfaces || []);
+        pruneFacetSet(state.source, f.source_files || []);
+      }
+      filterBox("mz-filter-income", incomeList, state.income);
       filterChips("mz-filter-channel", f.channels || [], state.channel);
       filterChips("mz-filter-surface", f.surfaces || [], state.surface);
       filterChips("mz-filter-platform", f.platforms || [], state.platform);
@@ -1522,9 +1544,6 @@
     mzSearchPreviewTimer = setTimeout(fetchSearchPreview, 450);
   });
   on("mz-table-csv", "click", exportTableCsv);
-  document.querySelectorAll(".mz-bd").forEach(function (el) {
-    el.addEventListener("change", debouncedRun);
-  });
   var resizeTimer = null;
   window.addEventListener("resize", function () {
     if (!state.lastSummary) return;

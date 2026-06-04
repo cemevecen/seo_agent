@@ -32,6 +32,7 @@ def test_summary_extensions_present_and_filtered():
         assert full["funnel"]["impression"] > 0
         assert len(full["by_ad_unit_scatter"]) >= 1
         assert len(full["by_month"]) >= 1
+        assert len(full["by_area"]) >= 1
 
         med = store.query_summary(db, income_types="Mediation")
         assert full["kpis"]["net_revenue"] > med["kpis"]["net_revenue"]
@@ -71,6 +72,7 @@ def test_compare_leaders_platform_coordinated():
         assert "leaders_losers" in cmp
         assert "gainers" in cmp["leaders_losers"]
         assert "by_platform" in cmp
+        assert "by_area" in cmp
         assert cmp["deltas"]["net_revenue"]["current"] >= 0
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()
