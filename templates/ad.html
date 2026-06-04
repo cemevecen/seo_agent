@@ -587,7 +587,10 @@
       var raw = d[key] != null ? d[key] : d.date;
       if (raw == null) return false;
       var s = String(raw);
-      if (key === "month" || (s.length === 7 && s.indexOf("-") === 4)) {
+      if (key === "week" || /^(\d{4})-W\d/i.test(s)) {
+      return true;
+    }
+    if (key === "month" || (s.length === 7 && s.indexOf("-") === 4)) {
         var m = s.slice(0, 7);
         if (r.start && m < r.start.slice(0, 7)) return false;
         if (r.end && m > r.end.slice(0, 7)) return false;
@@ -1352,23 +1355,73 @@
     }).sort(function (a, b) { return b.net_revenue - a.net_revenue; });
   }
 
-  var TABLE_SUM_KEYS = ["net_revenue", "impression", "click", "ad_request"];
+  var TABLE_SUM_ADD_KEYS = [
+    "net_revenue",
+    "impression",
+    "click",
+    "ad_request",
+    "matched_request",
+    "empower_pageview",
+    "empower_unique_visitor",
+  ];
 
   function aggregateTableRowsByDim(rows, dimKey) {
     var map = {};
     (rows || []).forEach(function (r) {
-      var k = String(r[dimKey] != null ? r[dimKey] : r.date || "");
+      var k = String(r[dimKey] != null ? r[dimKey] : "");
+      if (!k && dimKey === "date" && r.date) k = String(r.date).slice(0, 10);
       if (!k) return;
       if (!map[k]) {
-        map[k] = { date: k.length >= 10 ? k.slice(0, 10) : k };
-        TABLE_SUM_KEYS.forEach(function (key) { map[k][key] = 0; });
+        map[k] = { date: k, week: dimKey === "week" ? k : undefined, month: dimKey === "month" ? k : undefined };
+        TABLE_SUM_ADD_KEYS.forEach(function (key) { map[k][key] = 0; });
+        map[k]._cov_w = 0;
+        map[k]._view_w = 0;
       }
-      TABLE_SUM_KEYS.forEach(function (key) {
+      var b = map[k];
+      TABLE_SUM_ADD_KEYS.forEach(function (key) {
         var v = Number(r[key]);
-        if (!isNaN(v)) map[k][key] += v;
+        if (!isNaN(v)) b[key] += v;
       });
+      var ar = Number(r.ad_request) || 0;
+      var im = Number(r.impression) || 0;
+      if (r.coverage_pct != null && ar > 0) {
+        b._cov_w += (Number(r.coverage_pct) / 100.0) * ar;
+      } else if (r.cov_w != null) {
+        b._cov_w += Number(r.cov_w) || 0;
+      }
+      if (r.viewability_pct != null && im > 0) {
+        b._view_w += (Number(r.viewability_pct) / 100.0) * im;
+      } else if (r.view_w != null) {
+        b._view_w += Number(r.view_w) || 0;
+      }
     });
-    return Object.keys(map).sort().map(function (k) { return map[k]; });
+    return Object.keys(map)
+      .sort(function (a, b) {
+        var ka = drillSeriesSortKey(a, dimKey);
+        var kb = drillSeriesSortKey(b, dimKey);
+        if (ka < kb) return -1;
+        if (ka > kb) return 1;
+        return 0;
+      })
+      .map(function (k) {
+        var b = map[k];
+        var ar = b.ad_request || 0;
+        var im = b.impression || 0;
+        var rev = b.net_revenue || 0;
+        b.coverage_pct = ar > 0 ? (b._cov_w / ar) * 100.0 : 0;
+        b.viewability_pct = im > 0 ? (b._view_w / im) * 100.0 : 0;
+        b.ctr_pct = im > 0 ? ((b.click || 0) / im) * 100.0 : 0;
+        b.computed_ecpm = b.ad_ecpm = im > 0 ? (rev / im) * 1000.0 : 0;
+        b.ad_request_ecpm = ar > 0 ? (rev / ar) * 1000.0 : 0;
+        return b;
+      });
+  }
+
+  function seriesTimeLabel(row, timeKey) {
+    if (!row) return "";
+    if (timeKey === "week") return row.week != null ? String(row.week) : String(row.date || "");
+    if (timeKey === "month") return row.month != null ? String(row.month) : String(row.date || "").slice(0, 7);
+    return String(row.date || "");
   }
 
   async function refreshChartLine() {
@@ -1381,25 +1434,17 @@
       "date"
     );
     if (dim === "date" && !cfg.bdArea && !cfg.bdDims.size) {
-      renderLineChart(byDate, state.activeKpiKey, cmp);
+      renderLineChart(byDate, state.activeKpiKey, cmp, "date");
       return;
     }
     try {
-      var data = await fetchTableForScope("chartLine", 500);
+      var fetchLimit = dim === "date" ? 800 : 2000;
+      var data = await fetchTableForScope("chartLine", fetchLimit);
       var pseudo = aggregateTableRowsByDim(data.rows, dim);
-      if (dim === "month") {
-        pseudo = filterSeriesBySelectedRange(
-          pseudo.map(function (row) {
-            return { month: row.date, date: row.date };
-          }),
-          "month"
-        );
-      } else if (dim === "date") {
-        pseudo = filterSeriesBySelectedRange(pseudo, "date");
-      }
-      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, null);
+      pseudo = filterSeriesBySelectedRange(pseudo, dim);
+      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, null, dim);
     } catch (e) {
-      renderLineChart(byDate, state.activeKpiKey, cmp);
+      renderLineChart(byDate, state.activeKpiKey, cmp, "date");
     }
   }
 
@@ -2112,15 +2157,16 @@
     return { responsive: true, displayModeBar: false };
   }
 
-  function renderLineChart(byDate, kpiKey, cmp) {
+  function renderLineChart(byDate, kpiKey, cmp, timeKey) {
     if (!window.Plotly) return;
+    timeKey = timeKey || "date";
     var def = KPI_DEFS.find(function (d) { return d.key === kpiKey; }) || KPI_DEFS[6];
     var lineColor = isDarkTheme() ? "#818cf8" : "#4f46e5";
     var cmpColor = isDarkTheme() ? "#fb7185" : "#e11d48";
     var traces = [];
     var layoutExtra = { yTitle: def.axis || "" };
 
-    if (cmp && cmp.by_date_aligned && cmp.by_date_aligned[kpiKey]) {
+    if (cmp && timeKey === "date" && cmp.by_date_aligned && cmp.by_date_aligned[kpiKey]) {
       var aligned = cmp.by_date_aligned[kpiKey];
       var range = selectedDateRange();
       if (range.start || range.end) {
@@ -2154,12 +2200,20 @@
       document.getElementById("mz-chart-line-title").textContent =
         chartLineTrendTitle(def) + " (hizalı)";
     } else {
-      var series = filterSeriesBySelectedRange(byDate, "date");
-      var dates = series.map(function (x) { return x.date; });
-      var vals = series.map(function (x) { return x[kpiKey] != null ? x[kpiKey] : 0; });
+      var series = filterSeriesBySelectedRange(byDate, timeKey);
+      var labels = series.map(function (x) { return seriesTimeLabel(x, timeKey); });
+      var vals = series.map(function (x) {
+        var v = x[kpiKey];
+        return v != null && !isNaN(v) ? Number(v) : 0;
+      });
+      var mode = series.length > 120 ? "lines" : "lines+markers";
       traces.push({
-        x: dates, y: vals, type: "scatter", mode: "lines+markers",
-        line: { color: lineColor, width: 2 }, marker: { size: 4, color: lineColor },
+        x: labels,
+        y: vals,
+        type: "scatter",
+        mode: mode,
+        line: { color: lineColor, width: 2 },
+        marker: { size: 4, color: lineColor },
         name: def.label,
       });
       document.getElementById("mz-chart-line-title").textContent = chartLineTrendTitle(def);
