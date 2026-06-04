@@ -240,6 +240,22 @@
         </div>
       </div>
 
+      <div id="mz-top-units-wrap" class="mz-chart-card rounded-2xl border border-amber-200/90 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20 midnight:border-amber-900/40">
+        <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h2 class="text-sm font-bold text-amber-950 dark:text-amber-100">Son 7 gün — en çok kazandıran Mx birimleri</h2>
+            <p id="mz-top-units-range" class="mt-0.5 text-[10px] text-amber-900/80 dark:text-amber-200/90">Son 7 gün hesaplanıyor…</p>
+            <p class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Çubuğa veya chip’e tıklayın: detay tabloda seçilir, trend ve favori güncellenir.</p>
+          </div>
+          <button id="mz-top-units-refresh" type="button" class="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-black dark:text-amber-200 dark:hover:bg-amber-950/60">
+            Yenile
+          </button>
+        </div>
+        <div id="mz-top-units-chart" class="mz-chart-plot min-h-[260px] w-full sm:min-h-[300px]"></div>
+        <p id="mz-top-units-status" class="mt-1 text-[10px] text-slate-600 dark:text-zinc-400"></p>
+        <div id="mz-top-units-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
+      </div>
+
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
@@ -489,6 +505,13 @@
     bdArea: "",
     bdDims: null,
     lastSummaryTable: null,
+    detailTableSort: null,
+    summaryTableSort: null,
+    _drillChartGenDetail: 0,
+    _drillChartGenSummary: 0,
+    _drillFetchAbortDetail: null,
+    _drillFetchAbortSummary: null,
+    _topUnitsRows: [],
     loading: false,
     kpiUnion: [],
     kpiAvailable: [],
@@ -990,22 +1013,72 @@
     return p;
   }
 
-  async function fetchTableWithBreakdownCfg(scope, limit, cfg, slice) {
+  function sleepMs(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function isFetchNetworkError(err) {
+    if (!err) return false;
+    if (err.name === "AbortError") return false;
+    var msg = String(err.message || err).toLowerCase();
+    return (
+      msg.indexOf("networkerror") >= 0 ||
+      msg.indexOf("failed to fetch") >= 0 ||
+      msg.indexOf("load failed") >= 0 ||
+      msg.indexOf("network request failed") >= 0 ||
+      (err.name === "TypeError" && msg.indexOf("fetch") >= 0)
+    );
+  }
+
+  function friendlyFetchError(err) {
+    if (!err) return "Bilinmeyen hata";
+    if (err.name === "AbortError") return "İstek iptal edildi";
+    if (isFetchNetworkError(err)) {
+      return "Ağ bağlantısı kesildi veya sunucu yanıt vermedi. Birkaç saniye sonra tekrar deneyin.";
+    }
+    return err.message || String(err);
+  }
+
+  async function fetchJsonWithRetry(url, opts, retryOpts) {
+    opts = opts || {};
+    retryOpts = retryOpts || {};
+    var tries = retryOpts.tries != null ? retryOpts.tries : 3;
+    var baseDelay = retryOpts.delayMs != null ? retryOpts.delayMs : 450;
+    var lastErr;
+    for (var attempt = 0; attempt < tries; attempt++) {
+      if (opts.signal && opts.signal.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      try {
+        var r = await fetch(url, opts);
+        if (!r.ok) {
+          var errMsg = "İstek başarısız (" + r.status + ")";
+          try {
+            var errBody = await r.json();
+            if (errBody && errBody.detail) errMsg = String(errBody.detail);
+          } catch (_) { /* ignore */ }
+          throw new Error(errMsg);
+        }
+        return r.json();
+      } catch (e) {
+        lastErr = e;
+        if (e.name === "AbortError") throw e;
+        if (!isFetchNetworkError(e) || attempt >= tries - 1) throw e;
+        await sleepMs(baseDelay * (attempt + 1));
+      }
+    }
+    throw lastErr;
+  }
+
+  async function fetchTableWithBreakdownCfg(scope, limit, cfg, slice, signal) {
     var safeCfg = ensureBdCfg(cfg);
     var base = qsForDrillSlice(slice || null).toString();
     var tb = breakdownStrFrom(safeCfg);
-    var r = await fetch(
-      "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + (limit || 200)
-    );
-    if (!r.ok) {
-      var errMsg = "Tablo verisi alınamadı";
-      try {
-        var errBody = await r.json();
-        if (errBody && errBody.detail) errMsg = String(errBody.detail);
-      } catch (_) { /* ignore */ }
-      throw new Error(errMsg);
-    }
-    return r.json();
+    var url =
+      "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + (limit || 200);
+    return fetchJsonWithRetry(url, { signal: signal }, { tries: 3, delayMs: 400 });
   }
 
   async function fetchTableForScope(scope, limit) {
@@ -1142,13 +1215,14 @@
     return list;
   }
 
-  async function fetchDrillChartData(scope, chartTimeKey, cfg, slice) {
+  async function fetchDrillChartData(scope, chartTimeKey, cfg, slice, signal) {
     var limit = drillChartFetchLimit(chartTimeKey);
     var attempts = drillChartFetchAttempts(scope, cfg, chartTimeKey, slice);
     var last = null;
     for (var i = 0; i < attempts.length; i++) {
+      if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
       var chartCfg = attempts[i];
-      var data = await fetchTableWithBreakdownCfg(scope, limit, chartCfg, slice);
+      var data = await fetchTableWithBreakdownCfg(scope, limit, chartCfg, slice, signal);
       if (!data) continue;
       var breakdown = data.breakdown || [];
       var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
@@ -1338,6 +1412,7 @@
     renderDetailFavorites();
     refreshDetailUnitSelect();
     updateDetailFavoriteButton();
+    if (state._topUnitsRows && state._topUnitsRows.length) renderTopUnitsChips(state._topUnitsRows);
   }
 
   function renderDetailFavorites() {
@@ -1418,7 +1493,7 @@
     detailDrillChartTimer = setTimeout(function () {
       detailDrillChartTimer = null;
       renderTableDrillChart();
-    }, 50);
+    }, 180);
   }
 
   async function fetchDetailUnitFullTable(unit) {
@@ -2659,12 +2734,27 @@
     else state.drillMetric = metricKey;
     var chartType = chartTypeSel ? chartTypeSel.value : "line";
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
+    var genKey = isSummary ? "_drillChartGenSummary" : "_drillChartGenDetail";
+    var abortKey = isSummary ? "_drillFetchAbortSummary" : "_drillFetchAbortDetail";
+    state[genKey] = (state[genKey] || 0) + 1;
+    var myGen = state[genKey];
+    if (state[abortKey]) {
+      try { state[abortKey].abort(); } catch (_) { /* ignore */ }
+    }
+    state[abortKey] = new AbortController();
+    var drillSignal = state[abortKey].signal;
+    function drillStale() {
+      return myGen !== state[genKey];
+    }
+
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         await cacheDetailUnitAreas(slice.ad_unit);
+        if (drillStale()) return;
       }
-      var drillData = await fetchDrillChartData(scope, chartTimeKey, cfg, slice);
+      var drillData = await fetchDrillChartData(scope, chartTimeKey, cfg, slice, drillSignal);
+      if (drillStale()) return;
       var data = drillData.data;
       var breakdown = drillData.breakdown || [];
       var filtered = drillData.filtered || [];
@@ -2786,7 +2876,9 @@
         });
         if (plotAnnots.length) layout.annotations = plotAnnots;
       }
+      if (drillStale()) return;
       await plotDrillChartEl(chartEl, [trace], layout);
+      if (drillStale()) return;
       renderDrillSeriesInsights(
         isSummary ? "mz-summary-drill-insights" : "mz-drill-insights",
         analysis,
@@ -2812,13 +2904,26 @@
           series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote;
       }
     } catch (e) {
+      if (e && e.name === "AbortError") return;
+      if (drillStale()) return;
+      var errTxt = friendlyFetchError(e);
       try { if (window.Plotly) Plotly.purge(chartEl); } catch (_) { /* ignore */ }
       chartEl.innerHTML =
         "<p class=\"py-6 text-center text-xs text-rose-600 dark:text-rose-400\">Trend yüklenemedi: " +
-        (e && e.message ? e.message : String(e)) +
+        errTxt +
+        (isFetchNetworkError(e)
+          ? " <button type=\"button\" class=\"ml-1 underline font-semibold\" data-mz-drill-retry>Tekrar dene</button>"
+          : "") +
         "</p>";
+      var retryBtn = chartEl.querySelector("[data-mz-drill-retry]");
+      if (retryBtn) {
+        retryBtn.addEventListener("click", function () {
+          if (isSummary) renderSummaryDrillChart();
+          else renderTableDrillChart();
+        });
+      }
       renderDrillSeriesInsights(isSummary ? "mz-summary-drill-insights" : "mz-drill-insights", null, metricKey, null);
-      if (statusEl) statusEl.textContent = "Trend yüklenemedi: " + (e.message || e);
+      if (statusEl) statusEl.textContent = "Trend yüklenemedi: " + errTxt;
     }
   }
 
@@ -3026,6 +3131,125 @@
       });
     }
     Plotly.newPlot(elId, traces, plotTheme({ yTitle: "TL", barmode: cmp ? "group" : "relative" }), plotlyCfg());
+  }
+
+  function last7DayRange() {
+    var endInp = document.getElementById("mz-end");
+    var endStr = (endInp && endInp.value) ? endInp.value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    var end = new Date(endStr + "T12:00:00");
+    if (isNaN(end.getTime())) {
+      end = new Date();
+      endStr = end.toISOString().slice(0, 10);
+    }
+    var start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    return { start: start.toISOString().slice(0, 10), end: endStr };
+  }
+
+  function renderTopUnitsChips(rows) {
+    var el = document.getElementById("mz-top-units-chips");
+    if (!el) return;
+    var list = (rows || []).slice(0, 12);
+    if (!list.length) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = list.map(function (r) {
+      var u = r.ad_unit || "";
+      var fav = isDetailFavorite(u);
+      return (
+        "<button type=\"button\" class=\"mz-fav-chip max-w-[14rem] truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold " +
+        (fav
+          ? "border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200") +
+        "\" data-top-unit=\"" + detailAdUnitAttrEsc(u) + "\" title=\"" + detailAdUnitAttrEsc(u) + "\">" +
+        (fav ? "★ " : "") + detailAdUnitAttrEsc(u) +
+        " · " + fmt(r.net_revenue, 0) + " TL</button>"
+      );
+    }).join("");
+    el.querySelectorAll("[data-top-unit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var u = btn.getAttribute("data-top-unit") || "";
+        chooseDetailAdUnit(u, true);
+        var det = document.getElementById("mz-table-head");
+        if (det) det.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  }
+
+  async function renderTopMxUnitsWeek() {
+    var chartEl = document.getElementById("mz-top-units-chart");
+    var statusEl = document.getElementById("mz-top-units-status");
+    var rangeEl = document.getElementById("mz-top-units-range");
+    if (!chartEl || !window.Plotly) return;
+    var r7 = last7DayRange();
+    if (rangeEl) rangeEl.textContent = r7.start + " — " + r7.end + " (son 7 gün)";
+    if (statusEl) statusEl.textContent = "Yükleniyor…";
+    try {
+      var p = qs();
+      p.set("start", r7.start);
+      p.set("end", r7.end);
+      p.set("breakdown", "ad_unit");
+      var data = await fetchJsonWithRetry(
+        "/api/mz-analytics/table?" + p.toString() + "&limit=24",
+        {},
+        { tries: 3, delayMs: 400 }
+      );
+      var rows = (data.rows || []).slice().sort(function (a, b) {
+        return (Number(b.net_revenue) || 0) - (Number(a.net_revenue) || 0);
+      });
+      state._topUnitsRows = rows;
+      renderTopUnitsChips(rows);
+      if (!rows.length) {
+        try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+        chartEl.innerHTML = "<p class=\"py-10 text-center text-xs text-slate-500 dark:text-zinc-500\">Son 7 günde Mx birimi verisi yok.</p>";
+        if (statusEl) statusEl.textContent = "";
+        return;
+      }
+      var labels = rows.map(function (x) { return x.ad_unit || "—"; });
+      var revs = rows.map(function (x) { return Number(x.net_revenue) || 0; });
+      var colors = rows.map(function (_, i) {
+        return isDarkTheme()
+          ? (i === 0 ? "#fbbf24" : "#818cf8")
+          : (i === 0 ? "#d97706" : "#4f46e5");
+      });
+      try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+      chartEl.innerHTML = "";
+      var gd = await Plotly.newPlot(
+        chartEl,
+        [{
+          type: "bar",
+          x: labels,
+          y: revs,
+          marker: { color: colors },
+          hovertemplate: "%{x}<br>%{y:,.2f} TL<extra></extra>",
+        }],
+        plotTheme({
+          yTitle: "Net Revenue (TL)",
+          margin: { l: 56, r: 12, t: 20, b: 120 },
+          xaxis: { tickangle: -35 },
+        }),
+        plotlyCfg()
+      );
+      (gd || chartEl).on("plotly_click", function (ev) {
+        var pt = ev && ev.points && ev.points[0];
+        if (!pt || pt.x == null) return;
+        chooseDetailAdUnit(String(pt.x), true);
+        var det = document.getElementById("mz-table-head");
+        if (det) det.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      if (statusEl) {
+        statusEl.textContent =
+          rows.length + " birim · en yüksek: " + (rows[0].ad_unit || "—") + " (" + fmt(rows[0].net_revenue, 2) + " TL)";
+      }
+    } catch (e) {
+      try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+      chartEl.innerHTML =
+        "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">" +
+        friendlyFetchError(e) + "</p>";
+      if (statusEl) statusEl.textContent = "";
+      renderTopUnitsChips([]);
+    }
   }
 
   function renderCharts(sum) {
@@ -3304,8 +3528,9 @@
     var data = detailTableViewData(state.lastTable);
     if (!data || !data.rows || !data.rows.length) return;
     var cols = tableColumns(data);
+    var rows = sortTableRows(data.rows, cols, getTableSort("detail"));
     var lines = [cols.map(function (c) { return c.label; }).join(";")];
-    data.rows.forEach(function (r) {
+    rows.forEach(function (r) {
       lines.push(cols.map(function (c) {
         var v = r[c.key];
         if (v == null) return "";
@@ -3399,6 +3624,7 @@
     }
     if (state.lastSummaryTable) renderSummaryTable(state.lastSummaryTable);
     if (state.lastTable) renderTable(state.lastTable);
+    renderTopMxUnitsWeek();
   }
 
   function renderKpis(k, sum) {
@@ -3444,6 +3670,60 @@
   var MZ_TABLE_PREVIEW = 20;
   var MZ_SUMMARY_MAX = 48;
 
+  function tableSortStorageKey(tableScope) {
+    return tableScope === "summary" ? "summaryTableSort" : "detailTableSort";
+  }
+
+  function getTableSort(tableScope) {
+    return state[tableSortStorageKey(tableScope)] || null;
+  }
+
+  function toggleTableSort(tableScope, col) {
+    var key = tableSortStorageKey(tableScope);
+    var cur = state[key];
+    if (cur && cur.key === col.key) {
+      state[key] = { key: col.key, dir: cur.dir === "asc" ? "desc" : "asc", kind: col.kind };
+    } else {
+      state[key] = {
+        key: col.key,
+        dir: col.kind === "metric" || col.kind === "metric_cmp" ? "desc" : "asc",
+        kind: col.kind,
+      };
+    }
+  }
+
+  function sortIndicator(sort, col) {
+    if (!sort || sort.key !== col.key) return "↕";
+    return sort.dir === "asc" ? "▲" : "▼";
+  }
+
+  function sortTableRows(rows, cols, sort) {
+    if (!sort || !sort.key || !rows.length) return rows;
+    var key = sort.key;
+    var dir = sort.dir === "asc" ? 1 : -1;
+    var col = cols.find(function (c) { return c.key === key; });
+    var isNum = col && (col.kind === "metric" || col.kind === "metric_cmp");
+    return rows.slice().sort(function (a, b) {
+      var va = a[key];
+      var vb = b[key];
+      if (isNum) {
+        var na = va == null || va === "" ? NaN : Number(va);
+        var nb = vb == null || vb === "" ? NaN : Number(vb);
+        var aNa = isNaN(na);
+        var bNa = isNaN(nb);
+        if (aNa && bNa) return 0;
+        if (aNa) return 1;
+        if (bNa) return -1;
+        if (na < nb) return -1 * dir;
+        if (na > nb) return 1 * dir;
+        return 0;
+      }
+      var sa = String(va != null ? va : "");
+      var sb = String(vb != null ? vb : "");
+      return sa.localeCompare(sb, "tr") * dir;
+    });
+  }
+
   function renderDataTable(data, opts) {
     opts = opts || {};
     var headId = opts.headId || "mz-table-head";
@@ -3456,6 +3736,9 @@
     var cmpRange = data.compare_range;
     var breakdown = data.breakdown || [];
     var cols = tableColumns(data);
+    var tableScope = opts.tableScope || (bodyId === "mz-summary-body" ? "summary" : bodyId === "mz-table-body" ? "detail" : "");
+    var tableSort = getTableSort(tableScope);
+    rows = sortTableRows(rows, cols, tableSort);
     var meta = rows.length + " satır (toplam " + (data.total || 0) + ")";
     if (breakdown.length) {
       meta += " · kırılım: " + breakdown.map(function (d) { return TABLE_DIM_LABELS[d] || d; }).join(", ");
@@ -3477,8 +3760,23 @@
     var head = document.getElementById(headId);
     if (head) {
       head.innerHTML = "<tr>" + cols.map(function (c) {
-        return "<th>" + c.label + "</th>";
+        var sorted = tableSort && tableSort.key === c.key;
+        return (
+          "<th><button type=\"button\" class=\"mz-th-sort-btn" + (sorted ? " is-sorted" : "") +
+          "\" data-sort-key=\"" + c.key + "\" data-sort-kind=\"" + (c.kind || "dim") + "\" title=\"Sırala\">" +
+          c.label + " <span class=\"mz-sort-ind\">" + sortIndicator(tableSort, c) + "</span></button></th>"
+        );
       }).join("") + "</tr>";
+      head.querySelectorAll("[data-sort-key]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var colKey = btn.getAttribute("data-sort-key");
+          var colKind = btn.getAttribute("data-sort-kind") || "dim";
+          var col = cols.find(function (x) { return x.key === colKey; }) || { key: colKey, kind: colKind };
+          toggleTableSort(tableScope, col);
+          var rerender = opts.rerender || function () {};
+          rerender();
+        });
+      });
     }
 
     var expandWrap = document.getElementById("mz-table-expand-wrap");
@@ -3553,7 +3851,6 @@
     } else if (expandWrap) {
       expandWrap.classList.add("hidden");
     }
-    var tableScope = opts.tableScope || (bodyId === "mz-summary-body" ? "summary" : bodyId === "mz-table-body" ? "detail" : "");
     var clickable = tableScope === "summary" || tableScope === "detail";
     function rowIsDrillSelected(r) {
       if (tableScope !== "detail" || !state._drillRowKey) return false;
@@ -3887,6 +4184,7 @@
       renderCompareMatrix(sum);
       await refreshDetailTable();
       await refreshSummaryTable();
+      await renderTopMxUnitsWeek();
       finalizeMzTrendAndSparks(sum);
       if (state.drillSlice && Object.keys(state.drillSlice).length) {
         scheduleDetailDrillChart();
@@ -4293,6 +4591,10 @@
       document.getElementById("mz-status").textContent = (err && err.message) || "Yükleme başarısız";
       btn.disabled = false;
     }
+  });
+
+  on("mz-top-units-refresh", "click", function () {
+    renderTopMxUnitsWeek();
   });
 
   on("mz-reset", "click", async function () {

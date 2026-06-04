@@ -752,6 +752,38 @@
     .mz-page tr.mz-drill-row-selected td:first-child {
       box-shadow: inset 3px 0 0 rgb(79 70 229);
     }
+    .mz-page .mz-th-sort-btn {
+      display: inline-flex;
+      max-width: 100%;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-weight: 700;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+    .mz-page .mz-th-sort-btn:hover {
+      color: #4f46e5;
+    }
+    html.dark .mz-page .mz-th-sort-btn:hover {
+      color: #a5b4fc;
+    }
+    .mz-page .mz-sort-ind {
+      font-size: 0.65rem;
+      opacity: 0.45;
+      line-height: 1;
+    }
+    .mz-page .mz-th-sort-btn.is-sorted .mz-sort-ind {
+      opacity: 1;
+      color: #4f46e5;
+    }
+    html.dark .mz-page .mz-th-sort-btn.is-sorted .mz-sort-ind {
+      color: #a5b4fc;
+    }
     html.dark .mz-page tr.mz-drill-row-selected td {
       background: rgb(39 39 42) !important;
     }
