@@ -448,6 +448,8 @@
     drillMetric: "coverage_pct",
     drillLoading: false,
     _drillUserPicked: false,
+    _drillMetricUserPicked: false,
+    _summaryDrillMetricUserPicked: false,
     _drillTableHighlightKey: null,
     detailTableFilter: "",
     detailSelectedUnit: "",
@@ -1241,7 +1243,10 @@
   function setDrillSliceFromRow(row, userPicked) {
     var slice = drillSliceForRow(row);
     if (!Object.keys(slice).length) return;
-    if (userPicked) state._drillUserPicked = true;
+    if (userPicked) {
+      state._drillUserPicked = true;
+      state._drillMetricUserPicked = false;
+    }
     state.drillSlice = slice;
     state._drillRowKey = JSON.stringify(slice);
     if (userPicked) {
@@ -1258,7 +1263,10 @@
 
   function setDrillForAdUnit(unit, userPicked) {
     if (!unit) return;
-    if (userPicked) state._drillTableHighlightKey = null;
+    if (userPicked) {
+      state._drillTableHighlightKey = null;
+      state._drillMetricUserPicked = false;
+    }
     setDrillSliceFromRow({ ad_unit: unit }, userPicked);
   }
 
@@ -1673,6 +1681,49 @@
     });
   }
 
+  function drillSeriesForMetric(filtered, chartTimeKey, metricKey) {
+    return filterDrillSeriesByRange(
+      aggregateDrillSeries(filtered, chartTimeKey, metricKey),
+      chartTimeKey
+    );
+  }
+
+  function isDrillSeriesUninformative(series, metricKey) {
+    if (!series || series.length < 2) return true;
+    var ys = series.map(function (p) { return Number(p.y); }).filter(function (y) { return !isNaN(y); });
+    if (ys.length < 2) return true;
+    var max = Math.max.apply(null, ys);
+    var min = Math.min.apply(null, ys);
+    var span = max - min;
+    if (max === 0 && min === 0) return true;
+    if (isRateMetricKey(metricKey)) {
+      if (span < 0.5) return true;
+      if (ys.every(function (y) { return Math.abs(y - 100) < 0.05; })) return true;
+      if (ys.every(function (y) { return Math.abs(y) < 0.05; })) return true;
+    } else {
+      if (span <= 0) return true;
+      var med = seriesMedian(ys);
+      if (med > 0 && span / med < 0.015) return true;
+    }
+    return false;
+  }
+
+  function resolveAutoDrillMetricKey(filtered, chartTimeKey, scope, requestedKey) {
+    var userPicked = scope === "summary" ? state._summaryDrillMetricUserPicked : state._drillMetricUserPicked;
+    if (userPicked) return requestedKey || "net_revenue";
+    var order = [];
+    if (requestedKey) order.push(requestedKey);
+    DRILL_METRICS.forEach(function (m) {
+      if (order.indexOf(m.key) < 0) order.push(m.key);
+    });
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      var ser = drillSeriesForMetric(filtered, chartTimeKey, key);
+      if (!isDrillSeriesUninformative(ser, key)) return key;
+    }
+    return "net_revenue";
+  }
+
   function detectChartSeriesQuality(series, metricKey, opts) {
     opts = opts || {};
     var warns = [];
@@ -2015,6 +2066,7 @@
       sel.value = state.drillMetric || "coverage_pct";
     }
     on("mz-drill-metric", "change", function () {
+      state._drillMetricUserPicked = true;
       state.drillMetric = document.getElementById("mz-drill-metric").value;
       renderTableDrillChart();
     });
@@ -2034,6 +2086,7 @@
       sel.value = state.summaryDrillMetric || "net_revenue";
     }
     on("mz-summary-drill-metric", "change", function () {
+      state._summaryDrillMetricUserPicked = true;
       state.summaryDrillMetric = document.getElementById("mz-summary-drill-metric").value;
       renderSummaryDrillChart();
     });
@@ -2094,8 +2147,17 @@
         multiAreaTable = Object.keys(areaSet).length > 1;
       }
       var breakdown = data.breakdown || [];
-      var series = aggregateDrillSeries(filtered, chartTimeKey, metricKey);
-      series = filterDrillSeriesByRange(series, chartTimeKey);
+      var requestedMetric = metricKey;
+      var autoMetric = resolveAutoDrillMetricKey(filtered, chartTimeKey, scope, requestedMetric);
+      var metricAutoSwitched = autoMetric !== requestedMetric;
+      if (metricAutoSwitched) {
+        metricKey = autoMetric;
+        if (metricSel) metricSel.value = autoMetric;
+        if (isSummary) state.summaryDrillMetric = autoMetric;
+        else state.drillMetric = autoMetric;
+        mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
+      }
+      var series = drillSeriesForMetric(filtered, chartTimeKey, metricKey);
       if (!series.length) {
         chartEl.innerHTML = "";
         renderDrillSeriesInsights(isSummary ? "mz-summary-drill-insights" : "mz-drill-insights", null, metricKey, mDef);
@@ -2180,8 +2242,11 @@
         if (analysis.spikes_down.length || analysis.valleys.length) {
           extra = " · " + (analysis.spikes_down.length + analysis.valleys.length) + " olağandışı düşüş";
         }
+        var autoNote = metricAutoSwitched
+          ? " · metrik otomatik: " + mDef.label + " (" + (DRILL_METRICS.find(function (d) { return d.key === requestedMetric; }) || {}).label + " düz/boş)"
+          : "";
         statusEl.textContent =
-          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + extra;
+          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + extra + autoNote;
       }
     } catch (e) {
       chartEl.innerHTML = "";
@@ -3067,6 +3132,8 @@
     if (opts.resetTableDrills) {
       state._drillUserPicked = false;
       state._summaryDrillUserPicked = false;
+      state._drillMetricUserPicked = false;
+      state._summaryDrillMetricUserPicked = false;
       state.drillSlice = null;
       state.summaryDrillSlice = null;
       state._drillRowKey = null;
