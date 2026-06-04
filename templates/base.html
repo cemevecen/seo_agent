@@ -858,22 +858,18 @@
       max-width: 100%;
     }
     .mz-page .mz-detail-unit-fav-btn {
-      position: absolute;
-      right: 0.3rem;
-      bottom: 0.28rem;
-      z-index: 2;
       display: flex;
-      height: 1.5rem;
-      width: 1.5rem;
+      width: 2rem;
+      min-width: 2rem;
       align-items: center;
       justify-content: center;
-      border: none;
-      background: transparent;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(253 230 138);
+      background: rgb(255 251 235);
       padding: 0;
-      font-size: 0.95rem;
+      font-size: 1rem;
       line-height: 1;
       color: rgb(217 119 6);
-      opacity: 0.85;
       cursor: pointer;
     }
     .mz-page .mz-detail-unit-fav-btn:hover:not(:disabled) {
@@ -889,8 +885,42 @@
       color: rgb(245 158 11);
       opacity: 1;
     }
+    html.dark .mz-page .mz-detail-unit-fav-btn {
+      border-color: rgb(113 63 18);
+      background: rgb(28 25 23);
+      color: rgb(245 158 11);
+    }
     html.dark .mz-page .mz-detail-unit-fav-btn:disabled {
+      border-color: rgb(63 63 70);
+      background: rgb(9 9 11);
       color: rgb(113 113 122);
+    }
+    html.midnight .mz-page .mz-detail-unit-fav-btn {
+      border-color: rgb(68 64 60);
+      background: rgb(12 10 9);
+    }
+    .mz-page .mz-drill-insights-panel {
+      border-color: rgb(226 232 240);
+      background-color: rgb(248 250 252);
+      color: rgb(71 85 105);
+    }
+    html.dark .mz-page .mz-drill-insights-panel {
+      border-color: rgb(63 63 70) !important;
+      background-color: rgb(24 24 27) !important;
+      color: rgb(212 212 216) !important;
+    }
+    html.midnight .mz-page .mz-drill-insights-panel {
+      border-color: rgb(39 39 42) !important;
+      background-color: rgb(9 9 11) !important;
+      color: rgb(161 161 170) !important;
+    }
+    html.dark .mz-page .mz-drill-insights-panel p,
+    html.midnight .mz-page .mz-drill-insights-panel p {
+      color: inherit !important;
+    }
+    html.dark .mz-page .mz-drill-insights-panel .font-semibold,
+    html.midnight .mz-page .mz-drill-insights-panel .font-semibold {
+      color: rgb(228 228 231) !important;
     }
     html.dark .mz-page .mz-chart-plot .plotly .modebar,
     html.midnight .mz-page .mz-chart-plot .plotly .modebar {
