@@ -669,6 +669,19 @@
     };
   }
 
+  function comparePeriodPieLabels(sum) {
+    var primary = selectedDateRange();
+    var cmpRange = getActiveCompareRange(sum);
+    function label(range) {
+      if (!range || !range.start || !range.end) return "—";
+      return fmtDateShortTr(range.start, true) + "<br>" + fmtDateShortTr(range.end, true);
+    }
+    return {
+      primary: label(primary),
+      compare: cmpRange ? label(cmpRange) : "—",
+    };
+  }
+
   function compareMetricPeriodLabel(metricLabel, period, sum) {
     var ranges = comparePeriodChartLabels(sum);
     var rangeTxt = period === "compare" ? ranges.compare : ranges.primary;
@@ -1032,42 +1045,46 @@
       );
       return;
     }
-    var periodLabels = comparePeriodChartLabels(sum || state.lastSummary);
-    var narrow = typeof window !== "undefined" && window.innerWidth < 640;
-    var annFont = Object.assign({}, plotFont(), { size: narrow ? 8 : 9 });
+    var periodLabels = comparePeriodPieLabels(sum || state.lastSummary);
+    var annFont = Object.assign({}, plotFont(), { size: 8 });
     plotChart(
       elId,
       [
         Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue; })), {
-          domain: { x: [0, 0.46], y: [0, 1] },
+          domain: { x: [0.02, 0.46], y: [0, 0.88] },
           name: periodLabels.primary,
           showlegend: false,
         }),
         Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue_compare || 0; })), {
-          domain: { x: [0.54, 1], y: [0, 1] },
+          domain: { x: [0.54, 0.98], y: [0, 0.88] },
           name: periodLabels.compare,
           showlegend: false,
         }),
       ],
       plotThemePie({
-        margin: { l: 4, r: 4, t: narrow ? 44 : 40, b: 48 },
+        showlegend: false,
+        margin: { l: 2, r: 2, t: 8, b: 44 },
         annotations: [
           {
             text: periodLabels.primary,
-            x: 0.23,
-            y: 1.08,
+            x: 0.24,
+            y: 1.0,
             xref: "paper",
             yref: "paper",
+            xanchor: "center",
+            yanchor: "bottom",
             showarrow: false,
             font: annFont,
             align: "center",
           },
           {
             text: periodLabels.compare,
-            x: 0.77,
-            y: 1.08,
+            x: 0.76,
+            y: 1.0,
             xref: "paper",
             yref: "paper",
+            xanchor: "center",
+            yanchor: "bottom",
             showarrow: false,
             font: annFont,
             align: "center",
@@ -3600,6 +3617,7 @@
     if (extra.legend) layout.legend = Object.assign({}, layout.legend, extra.legend);
     if (extra.margin) layout.margin = Object.assign({}, layout.margin, extra.margin);
     if (extra.barmode) layout.barmode = extra.barmode;
+    if (extra.showlegend != null) layout.showlegend = extra.showlegend;
     if (extra.title) layout.title = Object.assign({ font: plotFont(), x: 0 }, extra.title);
     if (extra.annotations) layout.annotations = extra.annotations;
     return layout;
@@ -3659,16 +3677,20 @@
     var dark = isDarkTheme();
     var lay = plotTheme(extra);
     lay.margin = Object.assign({ l: 8, r: 8, t: 12, b: 56 }, extra.margin || {});
-    lay.legend = Object.assign({
-      orientation: "h",
-      yanchor: "bottom",
-      y: 1.02,
-      xanchor: "center",
-      x: 0.5,
-      font: plotFont(),
-      bgcolor: "rgba(0,0,0,0)",
-      traceorder: "normal",
-    }, extra.legend || {});
+    if (extra.showlegend === false || (extra.annotations && extra.annotations.length)) {
+      lay.showlegend = false;
+    } else {
+      lay.legend = Object.assign({
+        orientation: "h",
+        yanchor: "bottom",
+        y: 1.02,
+        xanchor: "center",
+        x: 0.5,
+        font: plotFont(),
+        bgcolor: "rgba(0,0,0,0)",
+        traceorder: "normal",
+      }, extra.legend || {});
+    }
     lay.uniformtext = { mode: "hide", minsize: 8 };
     return lay;
   }
