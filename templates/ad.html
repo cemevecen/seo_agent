@@ -188,7 +188,8 @@
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
-          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[200px] sm:min-h-[240px]"></div>
+          <p class="mb-1 text-[10px] text-slate-500 dark:text-zinc-400">Üstte hacim; altta Click kendi ölçeğinde (CTR ile).</p>
+          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
@@ -597,6 +598,92 @@
   function fmt(n, dec) {
     if (n == null || isNaN(n)) return "0";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: dec == null ? 2 : dec });
+  }
+
+  function fmtCompact(n) {
+    var v = Math.abs(Number(n) || 0);
+    if (v >= 1e9) return (v / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.?0+$/, "") + "K";
+    return fmt(v, 0);
+  }
+
+  function renderFunnelChart(sum) {
+    var el = document.getElementById("mz-chart-funnel");
+    if (!el || !window.Plotly) return;
+    var funnel = (sum && sum.funnel) || {};
+    var ar = Number(funnel.ad_request) || 0;
+    var mr = Number(funnel.matched_request) || 0;
+    var im = Number(funnel.impression) || 0;
+    var cl = Number(funnel.click) || 0;
+    var ctr = im > 0 ? (cl / im) * 100 : 0;
+    var matchPct = ar > 0 ? (mr / ar) * 100 : 0;
+    var fillPct = mr > 0 ? (im / mr) * 100 : 0;
+    var funnelColor = isDarkTheme() ? "#38bdf8" : "#0ea5e9";
+    var clickColor = isDarkTheme() ? "#fbbf24" : "#d97706";
+    try { Plotly.purge(el); } catch (_) { /* ignore */ }
+    el.innerHTML = "";
+    if (!ar && !mr && !im && !cl) {
+      el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Funnel verisi yok.</p>";
+      return;
+    }
+    var traces = [
+      {
+        type: "funnel",
+        name: "Hacim",
+        y: ["Ad Request", "Matched Request", "Impression"],
+        x: [ar, mr, im],
+        text: [
+          fmtCompact(ar),
+          fmtCompact(mr) + " (" + matchPct.toFixed(1) + "%)",
+          fmtCompact(im) + " (" + fillPct.toFixed(1) + "%)",
+        ],
+        textposition: "inside",
+        textfont: plotFont(),
+        marker: { color: funnelColor },
+        hovertemplate: "%{y}<br>%{text}<extra></extra>",
+        domain: { x: [0, 1], y: [0.3, 1] },
+      },
+      {
+        type: "bar",
+        orientation: "h",
+        name: "Click",
+        y: ["Click"],
+        x: [Math.max(cl, 1)],
+        text: [fmtCompact(cl) + " · CTR " + ctr.toFixed(3) + "%"],
+        textposition: "outside",
+        textfont: plotFont(),
+        marker: { color: clickColor },
+        hovertemplate: "Click: " + fmt(cl, 0) + "<br>CTR: " + ctr.toFixed(3) + "%<extra></extra>",
+        xaxis: "x2",
+        yaxis: "y2",
+      },
+    ];
+    var layout = plotTheme({ margin: { l: 112, r: 20, t: 12, b: 4 } });
+    layout.showlegend = false;
+    layout.xaxis2 = Object.assign({}, plotAxis(""), {
+      domain: [0.02, 0.98],
+      anchor: "y2",
+      tickformat: ",.0f",
+      rangemode: "tozero",
+    });
+    layout.yaxis2 = Object.assign({}, plotAxis(""), {
+      domain: [0, 0.24],
+      anchor: "x2",
+      automargin: true,
+      showticklabels: true,
+    });
+    layout.annotations = [{
+      x: 0,
+      y: 0.26,
+      xref: "paper",
+      yref: "paper",
+      text: "Click (ayrı ölçek — impression’a göre çok küçük)",
+      showarrow: false,
+      font: { size: 9, color: isDarkTheme() ? "#a1a1aa" : "#64748b" },
+      xanchor: "left",
+    }];
+    Plotly.newPlot(el, traces, layout, plotlyCfg());
   }
 
   function qs() {
@@ -3426,17 +3513,7 @@
       Plotly.purge("mz-chart-heatmap");
     }
 
-    var funnel = sum.funnel || {};
-    Plotly.newPlot("mz-chart-funnel", [{
-      type: "funnel",
-      y: ["Ad Request", "Matched Request", "Impression", "Click"],
-      x: [
-        funnel.ad_request || 0,
-        funnel.matched_request || 0,
-        funnel.impression || 0,
-        funnel.click || 0,
-      ],
-    }], plotTheme(), plotlyCfg());
+    renderFunnelChart(sum);
 
     var deltaWrap = document.getElementById("mz-chart-delta-wrap");
     if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
