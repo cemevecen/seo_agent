@@ -188,8 +188,8 @@
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
-          <p class="mb-1 text-[10px] text-slate-500 dark:text-zinc-400">Üstte hacim; altta Click kendi ölçeğinde (CTR ile).</p>
-          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+          <p class="mb-1 text-[10px] text-slate-500 dark:text-zinc-400">İstek → eşleşme → gösterim hunisi; tıklama ve CTR altta özetlenir.</p>
+          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
@@ -625,71 +625,66 @@
     var ctr = im > 0 ? (cl / im) * 100 : 0;
     var matchPct = ar > 0 ? (mr / ar) * 100 : 0;
     var fillPct = mr > 0 ? (im / mr) * 100 : 0;
-    var funnelColor = isDarkTheme() ? "#38bdf8" : "#0ea5e9";
-    var clickColor = isDarkTheme() ? "#fbbf24" : "#d97706";
+    var dark = isDarkTheme();
+    var textColor = dark ? "#e4e4e7" : "#1e293b";
+    var funnelColors = dark
+      ? ["#0ea5e9", "#38bdf8", "#6366f1"]
+      : ["#0284c7", "#0ea5e9", "#4f46e5"];
+    var clickColor = dark ? "#fbbf24" : "#d97706";
+    var annotBg = dark ? "rgba(24,24,27,0.92)" : "rgba(255,255,255,0.94)";
     try { Plotly.purge(el); } catch (_) { /* ignore */ }
     el.innerHTML = "";
     if (!ar && !mr && !im && !cl) {
       el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Funnel verisi yok.</p>";
       return;
     }
-    var traces = [
+    var trace = {
+      type: "funnel",
+      y: ["Ad Request", "Matched Request", "Impression"],
+      x: [ar, mr, im],
+      text: [
+        fmtCompact(ar),
+        fmtCompact(mr) + " · " + matchPct.toFixed(1) + "% istek",
+        fmtCompact(im) + " · " + fillPct.toFixed(1) + "% eşleşen",
+      ],
+      textposition: "outside",
+      textfont: { color: textColor, size: 11 },
+      connector: { line: { color: dark ? "#52525b" : "#cbd5e1", width: 1 } },
+      marker: { color: funnelColors, line: { color: dark ? "#18181b" : "#fff", width: 1 } },
+      hovertemplate:
+        "<b>%{y}</b><br>%{text}<br>Ham: %{x:,.0f}<extra></extra>",
+    };
+    var layout = plotTheme({ margin: { l: 8, r: 88, t: 16, b: 72 } });
+    layout.showlegend = false;
+    layout.funnelmode = "stack";
+    layout.annotations = [
       {
-        type: "funnel",
-        name: "Hacim",
-        y: ["Ad Request", "Matched Request", "Impression"],
-        x: [ar, mr, im],
-        text: [
-          fmtCompact(ar),
-          fmtCompact(mr) + " (" + matchPct.toFixed(1) + "%)",
-          fmtCompact(im) + " (" + fillPct.toFixed(1) + "%)",
-        ],
-        textposition: "inside",
-        textfont: plotFont(),
-        marker: { color: funnelColor },
-        hovertemplate: "%{y}<br>%{text}<extra></extra>",
-        domain: { x: [0, 1], y: [0.3, 1] },
+        x: 0.5,
+        y: 0.06,
+        xref: "paper",
+        yref: "paper",
+        text:
+          "<b>Click</b>  " + fmtCompact(cl) + "  (" + fmt(cl, 0) + ")  ·  <b>CTR</b> " + ctr.toFixed(2) + "%",
+        showarrow: false,
+        xanchor: "center",
+        font: { size: 12, color: clickColor },
+        bgcolor: annotBg,
+        bordercolor: clickColor,
+        borderwidth: 1,
+        borderpad: 8,
       },
       {
-        type: "bar",
-        orientation: "h",
-        name: "Click",
-        y: ["Click"],
-        x: [Math.max(cl, 1)],
-        text: [fmtCompact(cl) + " · CTR " + ctr.toFixed(3) + "%"],
-        textposition: "outside",
-        textfont: plotFont(),
-        marker: { color: clickColor },
-        hovertemplate: "Click: " + fmt(cl, 0) + "<br>CTR: " + ctr.toFixed(3) + "%<extra></extra>",
-        xaxis: "x2",
-        yaxis: "y2",
+        x: 0.5,
+        y: 0.01,
+        xref: "paper",
+        yref: "paper",
+        text: "Tıklama gösterimden " + (im > 0 ? (cl / im * 100).toFixed(2) : "0") + "% · hacim hunisinde ölçeklenmez",
+        showarrow: false,
+        xanchor: "center",
+        font: { size: 9, color: dark ? "#a1a1aa" : "#64748b" },
       },
     ];
-    var layout = plotTheme({ margin: { l: 112, r: 20, t: 12, b: 4 } });
-    layout.showlegend = false;
-    layout.xaxis2 = Object.assign({}, plotAxis(""), {
-      domain: [0.02, 0.98],
-      anchor: "y2",
-      tickformat: ",.0f",
-      rangemode: "tozero",
-    });
-    layout.yaxis2 = Object.assign({}, plotAxis(""), {
-      domain: [0, 0.24],
-      anchor: "x2",
-      automargin: true,
-      showticklabels: true,
-    });
-    layout.annotations = [{
-      x: 0,
-      y: 0.26,
-      xref: "paper",
-      yref: "paper",
-      text: "Click (ayrı ölçek — impression’a göre çok küçük)",
-      showarrow: false,
-      font: { size: 9, color: isDarkTheme() ? "#a1a1aa" : "#64748b" },
-      xanchor: "left",
-    }];
-    Plotly.newPlot(el, traces, layout, plotlyCfg());
+    Plotly.newPlot(el, [trace], layout, plotlyCfg());
   }
 
   function qs() {
