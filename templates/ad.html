@@ -800,12 +800,13 @@
       var cfg = state.breakdowns[scope];
       if (!cfg) return;
       toolbar.innerHTML = "";
-      function row(label, mountFn) {
+      function row(label, mountFn, labelKind) {
         var wrap = document.createElement("div");
-        wrap.className = "flex flex-wrap items-center gap-1";
+        wrap.className = "flex flex-wrap items-center gap-1.5";
         if (label) {
           var sp = document.createElement("span");
           sp.className = "mz-bd-toolbar-label";
+          if (labelKind) sp.classList.add("mz-bd-label-" + labelKind);
           sp.textContent = label;
           wrap.appendChild(sp);
         }
@@ -842,21 +843,21 @@
             cfg.bdTime = v;
             refreshWidget(scope);
           });
-        });
+        }, "time");
         row("Seri", function (el) {
           mountBdPills(el, cfg, BD_STACKED_DIM_OPTS, "stackedDim", function (v) {
             cfg.stackedDim = v;
             if (!cfg.bdDims.has(v)) cfg.bdDims.add(v);
             refreshWidget(scope);
           });
-        });
+        }, "seri");
       } else if (mode === "list") {
         row("Sırala", function (el) {
           mountBdPills(el, cfg, BD_LIST_METRIC_OPTS, "listMetric", function (v) {
             cfg.listMetric = v;
             if (state.lastSummary) renderLeadersLosers(state.lastSummary);
           });
-        });
+        }, "sort");
       } else if (mode === "full") {
         row("Zaman", function (el) {
           var cal = BD_TIME_OPTS.filter(function (o) {
@@ -877,13 +878,13 @@
             cfg.bdTime = v;
             refreshWidget(scope);
           });
-        });
+        }, "time");
         row("Alan", function (el) {
           mountBdPills(el, cfg, BD_AREA_OPTS, "area", function (v) {
             cfg.bdArea = v;
             refreshWidget(scope);
           });
-        });
+        }, "area");
         row("Ek sütunlar", function (el) {
           var dimOpts = BD_INCOME_OPTS.concat(BD_FORMAT_OPTS).concat(BD_EXTRA_OPTS);
           mountBdPills(el, cfg, dimOpts, "multi", function (v) {
@@ -892,7 +893,7 @@
             if (!cfg.bdDims.size) cfg.bdDims.add("income_type");
             refreshWidget(scope);
           });
-        });
+        }, "dims");
       }
     });
     updateAllBdActiveHints();
