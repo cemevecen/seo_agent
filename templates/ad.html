@@ -247,7 +247,7 @@
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Trend grafiği için Zaman’dan bir seçenek gerekir (Gün önerilir). Mx birimi araması veya satır seçimi grafiği günceller.</p>
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tabloda 3–12 ay dönem seçiliyken trend grafiği otomatik aylık çizilir. Mx birimi araması veya satır seçimi grafiği günceller.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-3 flex flex-wrap items-end gap-2">
@@ -899,8 +899,7 @@
     updateAllBdActiveHints();
   }
 
-  async function fetchTableForScope(scope, limit) {
-    var cfg = state.breakdowns[scope];
+  async function fetchTableWithBreakdownCfg(scope, limit, cfg) {
     if (!cfg) return null;
     var base = qs().toString();
     var tb = breakdownStrFrom(cfg);
@@ -909,6 +908,28 @@
     );
     if (!r.ok) throw new Error("Tablo verisi alınamadı");
     return r.json();
+  }
+
+  async function fetchTableForScope(scope, limit) {
+    var cfg = state.breakdowns[scope];
+    return fetchTableWithBreakdownCfg(scope, limit, cfg);
+  }
+
+  /** Tablo period_* iken trend grafiği aylık (month) veri çeker; tablo kırılımı değişmez. */
+  function drillChartTimeKey(tableTimeKey) {
+    if (tableTimeKey && tableTimeKey.indexOf("period_") === 0) return "month";
+    return tableTimeKey || "date";
+  }
+
+  function drillChartFetchCfg(cfg) {
+    var tableTime = drillTimeKeyFromCfg(cfg);
+    var chartTime = drillChartTimeKey(tableTime);
+    if (chartTime === tableTime) return cfg;
+    return {
+      bdTime: chartTime,
+      bdArea: cfg.bdArea,
+      bdDims: cfg.bdDims,
+    };
   }
 
   function pickDefaultSummaryIncomeType(rows) {
@@ -1424,21 +1445,46 @@
     return String(raw);
   }
 
-  function drillChartWarnMessage(timeKey, breakdown, filteredCount, seriesLen) {
-    if (!breakdown || breakdown.indexOf(timeKey) < 0) {
-      return "Trend için Zaman satırından bir seçenek işaretli olmalı (Gün, Hafta, Ay veya 3–12 ay). Tablo kırılımında \"" +
-        (TABLE_DIM_LABELS[timeKey] || timeKey) + "\" sütunu yok.";
+  function drillChartWarnMessage(chartTimeKey, breakdown, filteredCount, seriesLen, tableTimeKey) {
+    if (!breakdown || breakdown.indexOf(chartTimeKey) < 0) {
+      return "Trend verisi için \"" + (TABLE_DIM_LABELS[chartTimeKey] || chartTimeKey) +
+        "\" kırılımı gerekli. Zaman seçimini kontrol edin.";
     }
     if (!filteredCount) {
-      return "Seçili dilim için tabloda eşleşen satır yok. Satıra tıklayın veya aramayı kontrol edin.";
+      return "Seçili dilim için eşleşen satır yok. Satıra tıklayın veya Mx birimi aramasını kontrol edin.";
     }
     if (!seriesLen) {
-      if (isCalendarDrillTimeKey(timeKey)) {
+      if (chartTimeKey === "date") {
         return "Seçili tarih aralığında bu dilim için günlük nokta yok. Sol paneldeki başlangıç/bitiş tarihlerini genişletin.";
       }
-      return "Bu zaman kırılımı için nokta üretilemedi. Farklı bir Zaman seçeneği deneyin (ör. Gün veya Ay).";
+      if (chartTimeKey === "month") {
+        return "Seçili aralıkta bu dilim için aylık nokta yok. Tarih aralığını genişletin veya başka birim deneyin.";
+      }
+      return "Bu dilim için trend noktası yok (tablo: " + bdTimeLabel(tableTimeKey) + ").";
     }
     return "";
+  }
+
+  function filterDrillSeriesByRange(series, chartTimeKey) {
+    var r = selectedDateRange();
+    if (!r.start && !r.end) return series;
+    if (chartTimeKey === "date") {
+      return series.filter(function (pt) {
+        if (r.start && pt.x < r.start) return false;
+        if (r.end && pt.x > r.end) return false;
+        return true;
+      });
+    }
+    if (chartTimeKey === "month") {
+      var rs = r.start ? r.start.slice(0, 7) : "";
+      var re = r.end ? r.end.slice(0, 7) : "";
+      return series.filter(function (pt) {
+        if (rs && pt.x < rs) return false;
+        if (re && pt.x > re) return false;
+        return true;
+      });
+    }
+    return series;
   }
 
   function aggregateDrillSeries(rows, timeKey, metricKey) {
@@ -1563,7 +1609,9 @@
       if (statusEl) statusEl.textContent = "Grafik kütüphanesi yükleniyor…";
       return;
     }
-    var timeKey = drillTimeKeyFromCfg(cfg);
+    var tableTimeKey = drillTimeKeyFromCfg(cfg);
+    var chartTimeKey = drillChartTimeKey(tableTimeKey);
+    var chartCfg = drillChartFetchCfg(cfg);
     var metricSel = document.getElementById(isSummary ? "mz-summary-drill-metric" : "mz-drill-metric");
     var chartTypeSel = document.getElementById(isSummary ? "mz-summary-drill-chart-type" : "mz-drill-chart-type");
     var metricKey = metricSel ? metricSel.value : (isSummary ? state.summaryDrillMetric : state.drillMetric);
@@ -1573,30 +1621,22 @@
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
-      var data = await fetchTableForScope(scope, 2000);
+      var data = await fetchTableWithBreakdownCfg(scope, 2000, chartCfg);
       var filtered = (data.rows || []).filter(function (r) {
         return rowMatchesDrillSliceForScope(r, slice);
       });
       var breakdown = data.breakdown || [];
-      var series = aggregateDrillSeries(filtered, timeKey, metricKey);
-      if (isCalendarDrillTimeKey(timeKey)) {
-        var r = selectedDateRange();
-        if (r.start || r.end) {
-          series = series.filter(function (pt) {
-            if (r.start && pt.x < r.start) return false;
-            if (r.end && pt.x > r.end) return false;
-            return true;
-          });
-        }
-      }
+      var series = aggregateDrillSeries(filtered, chartTimeKey, metricKey);
+      series = filterDrillSeriesByRange(series, chartTimeKey);
       if (!series.length) {
         chartEl.innerHTML = "";
         if (statusEl) {
           statusEl.textContent = drillChartWarnMessage(
-            timeKey,
+            chartTimeKey,
             breakdown,
             filtered.length,
-            series.length
+            series.length,
+            tableTimeKey
           );
           statusEl.classList.add("text-amber-700", "dark:text-amber-400");
         }
@@ -1608,15 +1648,19 @@
       var lineColor = isSummary
         ? (isDarkTheme() ? "#34d399" : "#059669")
         : (isDarkTheme() ? "#818cf8" : "#4f46e5");
+      var traceMode = series.length < 2 ? "markers" : "lines+markers";
       var trace = chartType === "bar"
         ? { type: "bar", x: xs, y: ys, marker: { color: lineColor } }
-        : { type: "scatter", mode: "lines+markers", x: xs, y: ys, line: { color: lineColor, width: 2 }, marker: { size: 5 } };
+        : { type: "scatter", mode: traceMode, x: xs, y: ys, line: { color: lineColor, width: 2 }, marker: { size: 6 } };
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
       await Plotly.react(chartEl, [trace], layout, plotlyCfg());
       if (statusEl) {
+        var timeNote = chartTimeKey !== tableTimeKey
+          ? "grafik: " + bdTimeLabel(chartTimeKey) + " · tablo: " + bdTimeLabel(tableTimeKey)
+          : bdTimeLabel(tableTimeKey);
         statusEl.textContent =
-          series.length + " dönem · " + bdTimeLabel(timeKey) + " · " + drillSliceLabel(slice);
+          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice);
       }
     } catch (e) {
       chartEl.innerHTML = "";
