@@ -4227,24 +4227,64 @@
     scheduleMzChartsResize();
   }
 
-  function renderKpiSparkline(elId, byDate, key) {
-    if (!window.Plotly || !byDate || byDate.length < 2) return;
+  function renderKpiSparkline(elId, byDate, key, cmp) {
+    if (!window.Plotly) return;
     var el = typeof elId === "string" ? document.getElementById(elId) : elId;
     if (!el || !el.isConnected) return;
-    var slice = byDate.slice(-14);
-    var ys = slice.map(function (d) { return d[key] != null ? d[key] : 0; });
-    if (!ys.some(function (v) { return v !== 0; })) return;
-    var color = isDarkTheme() ? "#a5b4fc" : "#6366f1";
+    var colors = compareColors();
+    var dark = isDarkTheme();
+    var aligned = cmp ? alignedDateSeries(cmp, key) : null;
+    var traces = [];
+    var xs;
+
+    if (aligned && aligned.length >= 2) {
+      var slice = aligned.slice(-14);
+      xs = slice.map(function (_, i) { return i; });
+      var primaryYs = slice.map(function (r) { return r.primary != null ? r.primary : 0; });
+      var compareYs = slice.map(function (r) { return alignedCompareValue(r); });
+      if (!primaryYs.some(function (v) { return v !== 0; }) &&
+          !compareYs.some(function (v) { return v != null && v !== 0; })) {
+        return;
+      }
+      traces.push({
+        x: xs,
+        y: primaryYs,
+        type: "scatter",
+        mode: "lines",
+        line: { width: 1.5, color: colors.primary },
+        fill: "tozeroy",
+        fillcolor: dark ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
+      });
+      if (compareYs.some(function (v) { return v != null && v !== 0; })) {
+        traces.push({
+          x: xs,
+          y: compareYs,
+          type: "scatter",
+          mode: "lines",
+          line: { width: 1.25, color: colors.compare, dash: "dot" },
+          connectgaps: false,
+        });
+      }
+    } else {
+      if (!byDate || byDate.length < 2) return;
+      var plainSlice = byDate.slice(-14);
+      xs = plainSlice.map(function (d) { return d.date; });
+      var ys = plainSlice.map(function (d) { return d[key] != null ? d[key] : 0; });
+      if (!ys.some(function (v) { return v !== 0; })) return;
+      var color = dark ? "#a5b4fc" : "#6366f1";
+      traces.push({
+        x: xs,
+        y: ys,
+        type: "scatter",
+        mode: "lines",
+        line: { width: 1.5, color: color },
+        fill: "tozeroy",
+        fillcolor: dark ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
+      });
+    }
+
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
-    Plotly.newPlot(el, [{
-      x: slice.map(function (d) { return d.date; }),
-      y: ys,
-      type: "scatter",
-      mode: "lines",
-      line: { width: 1.5, color: color },
-      fill: "tozeroy",
-      fillcolor: isDarkTheme() ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
-    }], {
+    Plotly.newPlot(el, traces, {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       margin: { l: 4, r: 4, t: 2, b: 2 },
@@ -4259,7 +4299,8 @@
     var s = sum || state.lastSummary;
     if (!s) return;
     var byDate = filterSeriesBySelectedRange(state.lastByDate || s.by_date || [], "date");
-    if (byDate.length < 2) return;
+    if (byDate.length < 2 && !(compareEnabled() && compareBlock(s))) return;
+    var cmp = compareEnabled() ? compareBlock(s) : null;
     var defs = activeKpiDefs(s);
     var i = 0;
     function step() {
@@ -4268,7 +4309,7 @@
       }
       var def = defs[i++];
       var node = document.getElementById("mz-spark-" + def.key);
-      if (node) renderKpiSparkline(node, byDate, def.key);
+      if (node) renderKpiSparkline(node, byDate, def.key, cmp);
       setTimeout(step, 12);
     }
     step();
