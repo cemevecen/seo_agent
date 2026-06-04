@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, extract, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -1167,6 +1167,71 @@ def _parse_filter_list(raw: str | None) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
 
+_TABLE_BREAKDOWN_ALLOWED = frozenset({
+    "date",
+    "week",
+    "month",
+    "period_3",
+    "period_6",
+    "period_9",
+    "period_12",
+    "ad_unit",
+    "income_type",
+    "platform",
+    "channel",
+    "surface",
+    "area",
+    "project",
+    "ad_format",
+})
+
+_PERIOD_MONTHS = {"period_3": 3, "period_6": 6, "period_9": 9, "period_12": 12}
+
+
+def _ym_index_expr(col):
+    from sqlalchemy import Integer, cast
+
+    if _IS_PG:
+        return extract("year", col) * 12 + extract("month", col) - 1
+    return cast(func.strftime("%Y", col), Integer) * 12 + cast(func.strftime("%m", col), Integer) - 1
+
+
+def _week_key_expr(col):
+    if _IS_PG:
+        return func.concat(func.to_char(col, "IYYY"), "-W", func.to_char(col, "IW"))
+    return func.strftime("%Y-W%W", col)
+
+
+def _area_label_expr(col_branch, col_surface):
+    from sqlalchemy import case
+
+    return case(
+        (col_branch == "android", "android"),
+        (col_branch == "ios", "ios"),
+        (
+            func.lower(col_surface).in_(["mweb", "mobile_web", "m_web"]),
+            "mweb",
+        ),
+        else_="web",
+    )
+
+
+def _ad_format_label_expr(col_ad_unit):
+    from sqlalchemy import case
+
+    low = func.lower(col_ad_unit)
+    return case(
+        (low.like("%sticky%"), "sticky"),
+        (low.like("%fullscreen%"), "fullscreen"),
+        (low.like("%interstitial%"), "interstitial"),
+        (low.like("%masthead%"), "masthead"),
+        (low.like("%banner%"), "banner"),
+        (low.like("%native%"), "native"),
+        (low.like("%reward%"), "rewarded"),
+        else_="other",
+    )
+
+
 def _apply_filters(
     q,
     *,
@@ -2023,9 +2088,9 @@ def query_table(
     su = _parse_filter_list(surfaces)
     sf = _parse_filter_list(sources)
     parts = [p.strip() for p in (breakdown or "").split(",") if p.strip()]
-    allowed = {"date", "month", "ad_unit", "income_type", "platform", "channel", "surface"}
-    group_cols = [p for p in parts if p in allowed] or ["date", "ad_unit", "income_type"]
+    group_cols = [p for p in parts if p in _TABLE_BREAKDOWN_ALLOWED] or ["date", "income_type"]
     dim_fields = [c for c in group_cols]
+    period_col = next((p for p in group_cols if p in _PERIOD_MONTHS), None)
 
     sub = select(AdReportRow)
     sub = _apply_filters(
@@ -2046,15 +2111,40 @@ def query_table(
 
     select_cols = []
     group_by_cols = []
+    order_clause = None
     if "date" in group_cols:
         select_cols.append(sub.c.report_date.label("report_date"))
         group_by_cols.append(sub.c.report_date)
+        order_clause = sub.c.report_date.desc()
+    if "week" in group_cols:
+        wk = _week_key_expr(sub.c.report_date).label("week_key")
+        select_cols.append(wk)
+        group_by_cols.append(wk)
+        order_clause = wk.desc()
     if "month" in group_cols:
         select_cols.append(sub.c.month_key.label("month_key"))
         group_by_cols.append(sub.c.month_key)
+        order_clause = sub.c.month_key.desc()
+    if period_col:
+        span = _PERIOD_MONTHS[period_col]
+        bucket = (_ym_index_expr(sub.c.report_date) // span).label("period_bucket")
+        select_cols.append(bucket)
+        group_by_cols.append(bucket)
+        order_clause = bucket.desc()
+    if "area" in group_cols:
+        area = _area_label_expr(sub.c.branch, sub.c.surface).label("area")
+        select_cols.append(area)
+        group_by_cols.append(area)
+    if "project" in group_cols:
+        select_cols.append(sub.c.project.label("project"))
+        group_by_cols.append(sub.c.project)
     if "ad_unit" in group_cols:
         select_cols.append(sub.c.ad_unit.label("ad_unit"))
         group_by_cols.append(sub.c.ad_unit)
+    if "ad_format" in group_cols:
+        fmt = _ad_format_label_expr(sub.c.ad_unit).label("ad_format")
+        select_cols.append(fmt)
+        group_by_cols.append(fmt)
     if "income_type" in group_cols:
         select_cols.append(sub.c.income_type.label("income_type"))
         group_by_cols.append(sub.c.income_type)
@@ -2075,8 +2165,8 @@ def query_table(
         func.sum(sub.c.net_revenue).label("net_revenue"),
     ]
     q = select(*select_cols, *metrics).group_by(*group_by_cols)
-    if "report_date" in [c.name for c in group_by_cols]:
-        q = q.order_by(sub.c.report_date.desc())
+    if order_clause is not None:
+        q = q.order_by(order_clause)
     else:
         q = q.order_by(func.sum(sub.c.net_revenue).desc())
 
@@ -2092,8 +2182,18 @@ def query_table(
         item: dict[str, Any] = {}
         if "report_date" in m and m["report_date"] is not None:
             item["date"] = m["report_date"].isoformat()
+        if "week_key" in m and m["week_key"] is not None:
+            item["week"] = str(m["week_key"])
         if "month_key" in m:
             item["month"] = m["month_key"]
+        if period_col and "period_bucket" in m and m["period_bucket"] is not None:
+            item[period_col] = str(m["period_bucket"])
+        if "area" in m:
+            item["area"] = m["area"]
+        if "project" in m:
+            item["project"] = m["project"]
+        if "ad_format" in m:
+            item["ad_format"] = m["ad_format"]
         if "ad_unit" in m:
             item["ad_unit"] = m["ad_unit"]
         if "income_type" in m:
@@ -2154,10 +2254,7 @@ def query_table(
 def _table_dimension_key(row: dict[str, Any], dim_fields: list[str]) -> str:
     parts: list[str] = []
     for field in dim_fields:
-        if field == "date":
-            parts.append(str(row.get("date") or ""))
-        else:
-            parts.append(str(row.get(field) or ""))
+        parts.append(str(row.get(field) or ""))
     return "|".join(parts)
 
 
@@ -2189,10 +2286,7 @@ def _merge_table_rows(
         crow = cmap.get(key, {})
         item: dict[str, Any] = {}
         for field in dim_fields:
-            if field == "date":
-                item["date"] = prow.get("date") or crow.get("date")
-            else:
-                item[field] = prow.get(field) or crow.get(field)
+            item[field] = prow.get(field) or crow.get(field)
         for metric in numeric_metrics:
             pv = float(prow.get(metric) or 0)
             cv = float(crow.get(metric) or 0)

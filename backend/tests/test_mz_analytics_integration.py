@@ -93,5 +93,8 @@ def test_table_breakdown_sort_with_filters():
         tab2 = store.query_table(db, breakdown="date", limit=10)
         dates = [r.get("date") for r in tab2["rows"] if r.get("date")]
         assert dates == sorted(dates, reverse=True)
+        tab3 = store.query_table(db, breakdown="week,area,income_type", limit=20)
+        assert "week" in tab3["breakdown"]
+        assert "area" in tab3["breakdown"]
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()

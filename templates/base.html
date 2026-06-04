@@ -611,6 +611,63 @@
     html.midnight .mz-page #mz-loading {
       background: rgba(0, 0, 0, 0.55);
     }
+    .mz-page .mz-bd-pill {
+      border-radius: 9999px;
+      border: 1px solid rgb(203 213 225);
+      padding: 0.25rem 0.65rem;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgb(51 65 85);
+      background: white;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .mz-page .mz-bd-pill:hover {
+      border-color: rgb(129 140 248);
+      color: rgb(67 56 202);
+    }
+    .mz-page .mz-bd-pill.is-active {
+      border-color: rgb(79 70 229);
+      background: rgb(238 242 255);
+      color: rgb(67 56 202);
+      box-shadow: 0 0 0 1px rgb(199 210 254);
+    }
+    html.midnight .mz-page .mz-bd-pill.is-active {
+      background: rgb(30 27 75);
+      color: rgb(199 210 254);
+    }
+    .mz-page table.mz-data-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgb(248 250 252);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgb(71 85 105);
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid rgb(226 232 240);
+    }
+    .mz-page table.mz-data-table tbody td {
+      padding: 0.5rem 0.75rem;
+      color: rgb(30 41 59);
+      border-bottom: 1px solid rgb(241 245 249);
+    }
+    .mz-page table.mz-data-table tbody tr:nth-child(even) td {
+      background: rgb(248 250 252 / 0.65);
+    }
+    .mz-page table.mz-data-table tbody tr:hover td {
+      background: rgb(224 231 255 / 0.35);
+    }
+    html.midnight .mz-page table.mz-data-table thead th {
+      background: rgb(9 9 11);
+      color: rgb(161 161 170);
+      border-color: rgb(39 39 42);
+    }
+    html.midnight .mz-page table.mz-data-table tbody td {
+      color: rgb(228 228 231);
+      border-color: rgb(39 39 42);
+    }
   </style>
   <style id="seo-header-pill-nav">
     /* Mobil: üst satır başlık + tema, alt satır yatay kaydırmalı menü */

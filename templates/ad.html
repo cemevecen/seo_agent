@@ -100,14 +100,7 @@
         </div>
       </div>
 
-      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Tablo kırılımı</p>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="date" checked /> Tarih</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="month" /> Ay</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="ad_unit" checked /> Mx birimi</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="income_type" checked /> Gelir tipi</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="platform" /> Platform</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="channel" /> Kanal</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="surface" /> Yüzey</label>
+      <p class="pt-2 text-xs text-slate-500 dark:text-zinc-400">Tablo kırılımları ana alanda (zaman, alan, gelir, format).</p>
 
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
     </aside>
@@ -183,26 +176,14 @@
         <div id="mz-chart-stacked-income" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
-          <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Platform — yatay çubuk</h2>
-          <div id="mz-chart-platform" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
+      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
+        <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Mx birimi — gelir / eCPM (scatter)</h2>
-          <div id="mz-chart-scatter" class="mz-chart-plot min-h-[260px] sm:min-h-[300px]"></div>
-        </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Huni — talep → eşleşen → gösterim → tıklama</h2>
-          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
+      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
+        <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
       </div>
 
       <div id="mz-chart-delta-wrap" class="hidden mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -232,15 +213,9 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
-          <div id="mz-chart-pie-surface" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Kanal (dovizcom / android …) — sütun</h2>
-          <div id="mz-chart-bar-channel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
+      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
+        <div id="mz-chart-pie-surface" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -254,33 +229,59 @@
         </div>
       </div>
 
-      <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Aylık özet tablo</h2>
+      <div id="mz-breakdown-panel" class="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-white p-4 shadow-sm dark:border-indigo-900/50 dark:from-indigo-950/40 dark:to-zinc-900 midnight:border-indigo-950 midnight:from-black midnight:to-zinc-950">
+        <p class="text-xs font-bold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Tablo kırılımı</p>
+        <p class="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">Zaman tek seçim; diğer gruplarda birden fazla chip. Karşılaştırma açıkken tüm tablolarda Δ% görünür.</p>
+        <div class="mt-3 space-y-3">
+          <div>
+            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Zaman</p>
+            <div id="mz-bd-time" class="flex flex-wrap gap-1.5" data-bd-group="time"></div>
+          </div>
+          <div>
+            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Alan (web · mweb · iOS · Android)</p>
+            <div id="mz-bd-area" class="flex flex-wrap gap-1.5" data-bd-group="area"></div>
+          </div>
+          <div>
+            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Gelir tipi</p>
+            <div id="mz-bd-income" class="flex flex-wrap gap-1.5" data-bd-group="income"></div>
+          </div>
+          <div>
+            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Reklam formatı (birim adından)</p>
+            <div id="mz-bd-format" class="flex flex-wrap gap-1.5" data-bd-group="format"></div>
+          </div>
+          <div>
+            <p class="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">Ek boyut</p>
+            <div id="mz-bd-extra" class="flex flex-wrap gap-1.5" data-bd-group="extra"></div>
+          </div>
         </div>
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-left text-xs">
-            <thead class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
-              <tr><th class="px-2 py-2 font-bold">Ay</th><th class="px-2 py-2 font-bold">Net gelir</th><th class="px-2 py-2 font-bold">Gösterim</th><th class="px-2 py-2 font-bold">eCPM</th></tr>
-            </thead>
-            <tbody id="mz-month-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
+          <span id="mz-summary-meta" class="text-xs text-slate-500"></span>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-700">
+          <table class="mz-data-table min-w-full text-left text-xs">
+            <thead id="mz-summary-head"></thead>
+            <tbody id="mz-summary-body"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Detay tablo</h2>
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
           <div class="flex flex-wrap items-center gap-2">
             <span id="mz-table-meta" class="text-xs text-slate-500"></span>
-            <button id="mz-table-csv" type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200">CSV indir</button>
+            <button id="mz-table-csv" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">CSV indir</button>
           </div>
         </div>
-        <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Satıra tıklayın: tarih veya Mx birimi filtreye eklenir.</p>
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-left text-xs">
-            <thead id="mz-table-head" class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"></thead>
-            <tbody id="mz-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+        <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Satıra tıklayınca ilgili filtre uygulanır (tarih, birim, format…).</p>
+        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-700">
+          <table class="mz-data-table min-w-full text-left text-xs">
+            <thead id="mz-table-head"></thead>
+            <tbody id="mz-table-body"></tbody>
           </table>
         </div>
         <div id="mz-table-expand-wrap" class="mt-2 hidden border-t border-slate-100 pt-2 text-center dark:border-zinc-800">
@@ -360,6 +361,10 @@
     lastSummary: null,
     lastTable: null,
     tableExpanded: false,
+    bdTime: "date",
+    bdArea: "",
+    bdDims: null,
+    lastSummaryTable: null,
     loading: false,
     kpiUnion: [],
     kpiAvailable: [],
@@ -526,17 +531,109 @@
     by_month: "month",
   };
 
+  state.bdDims = state.bdDims || new Set(["income_type"]);
+
+  var BD_TIME_OPTS = [
+    { v: "date", l: "Gün" },
+    { v: "week", l: "Hafta" },
+    { v: "month", l: "Ay" },
+    { v: "period_3", l: "3 ay" },
+    { v: "period_6", l: "6 ay" },
+    { v: "period_9", l: "9 ay" },
+    { v: "period_12", l: "12 ay" },
+  ];
+  var BD_AREA_OPTS = [
+    { v: "", l: "Kapalı" },
+    { v: "area", l: "Web · mweb · iOS · Android" },
+    { v: "project", l: "Proje" },
+    { v: "channel", l: "Kanal" },
+  ];
+  var BD_INCOME_OPTS = [{ v: "income_type", l: "Gelir tipi kırılımı" }];
+  var BD_FORMAT_OPTS = [{ v: "ad_format", l: "Format (sticky, fullscreen…)" }];
+  var BD_EXTRA_OPTS = [
+    { v: "ad_unit", l: "Mx birimi" },
+    { v: "surface", l: "Yüzey (ham)" },
+  ];
+
   function breakdownStr() {
-    var parts = [];
-    document.querySelectorAll(".mz-bd:checked").forEach(function (el) { parts.push(el.value); });
-    return parts.length ? parts.join(",") : "date,ad_unit,income_type";
+    var parts = [state.bdTime || "date"];
+    if (state.bdArea) parts.push(state.bdArea);
+    state.bdDims.forEach(function (d) {
+      if (parts.indexOf(d) < 0) parts.push(d);
+    });
+    return parts.join(",");
+  }
+
+  function initBreakdownPills() {
+    function paintTime() {
+      document.querySelectorAll("#mz-bd-time .mz-bd-pill").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-v") === state.bdTime);
+      });
+    }
+    function paintArea() {
+      document.querySelectorAll("#mz-bd-area .mz-bd-pill").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-v") === (state.bdArea || ""));
+      });
+    }
+    function paintDims(selector, dim) {
+      document.querySelectorAll(selector + " .mz-bd-pill").forEach(function (btn) {
+        var v = btn.getAttribute("data-v");
+        btn.classList.toggle("is-active", state.bdDims.has(v));
+      });
+    }
+    function mount(containerId, opts, onClick) {
+      var el = document.getElementById(containerId);
+      if (!el) return;
+      el.innerHTML = "";
+      opts.forEach(function (o) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "mz-bd-pill";
+        b.setAttribute("data-v", o.v);
+        b.textContent = o.l;
+        b.addEventListener("click", function () {
+          onClick(o.v, b);
+          paintTime();
+          paintArea();
+          paintDims("#mz-bd-income", "income");
+          paintDims("#mz-bd-format", "format");
+          paintDims("#mz-bd-extra", "extra");
+          debouncedRun();
+        });
+        el.appendChild(b);
+      });
+    }
+    mount("mz-bd-time", BD_TIME_OPTS, function (v) { state.bdTime = v; });
+    mount("mz-bd-area", BD_AREA_OPTS, function (v) { state.bdArea = v; });
+    mount("mz-bd-income", BD_INCOME_OPTS, function (v) {
+      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
+    });
+    mount("mz-bd-format", BD_FORMAT_OPTS, function (v) {
+      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
+    });
+    mount("mz-bd-extra", BD_EXTRA_OPTS, function (v) {
+      if (state.bdDims.has(v)) state.bdDims.delete(v); else state.bdDims.add(v);
+    });
+    paintTime();
+    paintArea();
+    paintDims("#mz-bd-income", "income");
+    paintDims("#mz-bd-format", "format");
+    paintDims("#mz-bd-extra", "extra");
   }
 
   var TABLE_DIM_LABELS = {
     date: "Tarih",
+    week: "Hafta",
     month: "Ay",
+    period_3: "3 aylık dönem",
+    period_6: "6 aylık dönem",
+    period_9: "9 aylık dönem",
+    period_12: "12 aylık dönem",
     ad_unit: "Mx birimi",
     income_type: "Gelir tipi",
+    ad_format: "Reklam formatı",
+    area: "Alan",
+    project: "Proje",
     platform: "Platform",
     channel: "Kanal",
     surface: "Yüzey",
@@ -719,10 +816,7 @@
       type: "pie", hole: 0.35, textfont: plotFont(),
     }], plotTheme(), plotlyCfg());
 
-    var ch = (cmp && cmp.by_channel && cmp.by_channel.length) ? cmp.by_channel : (sum.by_channel || []);
-    groupedBarPlot("mz-chart-bar-channel", ch, "channel", cmp);
     renderExtendedCharts(sum);
-    renderMonthTable(sum);
     renderLeadersLosers(sum);
   }
 
@@ -829,33 +923,10 @@
       Plotly.purge("mz-chart-heatmap");
     }
 
-    var plat = (cmp && cmp.by_platform && cmp.by_platform.length) ? cmp.by_platform : (sum.by_platform || []);
-    Plotly.newPlot("mz-chart-platform", [{
-      x: plat.map(function (x) { return x.net_revenue; }),
-      y: plat.map(function (x) { return x.platform; }),
-      type: "bar",
-      orientation: "h",
-      marker: { color: isDarkTheme() ? "#c084fc" : "#7c3aed" },
-    }], plotTheme({ margin: { l: 80, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
-
-    var scatter = sum.by_ad_unit_scatter || [];
-    Plotly.newPlot("mz-chart-scatter", [{
-      x: scatter.map(function (x) { return x.net_revenue; }),
-      y: scatter.map(function (x) { return x.ad_ecpm; }),
-      text: scatter.map(function (x) { return x.ad_unit; }),
-      mode: "markers",
-      type: "scatter",
-      marker: {
-        size: scatter.map(function (x) { return Math.min(28, 6 + Math.sqrt(x.impression || 0) / 40); }),
-        color: isDarkTheme() ? "#fbbf24" : "#d97706",
-        opacity: 0.75,
-      },
-    }], plotTheme({ xTitle: "Net gelir (TL)", yTitle: "Birim eCPM" }), plotlyCfg());
-
     var funnel = sum.funnel || {};
     Plotly.newPlot("mz-chart-funnel", [{
       type: "funnel",
-      y: ["Talep", "Eşleşen", "Gösterim", "Tıklama"],
+      y: ["Ad Request", "Matched Request", "Impression", "Click"],
       x: [
         funnel.ad_request || 0,
         funnel.matched_request || 0,
@@ -884,23 +955,6 @@
     } else if (deltaWrap) {
       deltaWrap.classList.add("hidden");
     }
-  }
-
-  function renderMonthTable(sum) {
-    var body = document.getElementById("mz-month-table-body");
-    if (!body) return;
-    var rows = sum.by_month || [];
-    if (!rows.length) {
-      body.innerHTML = "<tr><td colspan=\"4\" class=\"px-2 py-3 text-slate-500\">Veri yok</td></tr>";
-      return;
-    }
-    body.innerHTML = rows.map(function (r) {
-      var ecpm = r.impression > 0 ? (r.net_revenue / r.impression * 1000) : 0;
-      return "<tr><td class=\"px-2 py-1.5\">" + (r.month || "") + "</td>" +
-        "<td class=\"px-2 py-1.5\">" + fmt(r.net_revenue, 2) + "</td>" +
-        "<td class=\"px-2 py-1.5\">" + fmt(r.impression, 0) + "</td>" +
-        "<td class=\"px-2 py-1.5\">" + fmt(ecpm, 3) + "</td></tr>";
-    }).join("");
   }
 
   function renderLeadersLosers(sum) {
@@ -982,7 +1036,7 @@
     URL.revokeObjectURL(a.href);
   }
 
-  function applyTableRowFilter(row, breakdown) {
+  function applyTableRowFilter(row) {
     var rawDate = row.date || row.report_date;
     if (rawDate) {
       var d = String(rawDate).slice(0, 10);
@@ -990,8 +1044,11 @@
       document.getElementById("mz-end").value = d;
       document.getElementById("mz-preset").value = "";
     }
-    if (row.ad_unit) {
-      document.getElementById("mz-search").value = row.ad_unit;
+    if (row.ad_unit) document.getElementById("mz-search").value = row.ad_unit;
+    if (row.income_type && state.income.size === 0) {
+      state.income = new Set([row.income_type]);
+      loadFacets().then(debouncedRun);
+      return;
     }
     debouncedRun();
   }
@@ -1060,8 +1117,23 @@
       renderKpis(state.lastSummary.kpis || {}, state.lastSummary);
       renderCharts(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
-      renderMonthTable(state.lastSummary);
+      if (state.lastSummaryTable) {
+        renderDataTable(state.lastSummaryTable, {
+          headId: "mz-summary-head",
+          bodyId: "mz-summary-body",
+          metaId: "mz-summary-meta",
+          maxRows: MZ_SUMMARY_MAX,
+        });
+      }
       renderLeadersLosers(state.lastSummary);
+    }
+    if (state.lastSummaryTable) {
+      renderDataTable(state.lastSummaryTable, {
+        headId: "mz-summary-head",
+        bodyId: "mz-summary-body",
+        metaId: "mz-summary-meta",
+        maxRows: MZ_SUMMARY_MAX,
+      });
     }
     if (state.lastTable) renderTable(state.lastTable);
   }
@@ -1106,8 +1178,16 @@
   }
 
   var MZ_TABLE_PREVIEW = 20;
+  var MZ_SUMMARY_MAX = 48;
 
-  function renderTable(data) {
+  function renderDataTable(data, opts) {
+    opts = opts || {};
+    var headId = opts.headId || "mz-table-head";
+    var bodyId = opts.bodyId || "mz-table-body";
+    var metaId = opts.metaId || "mz-table-meta";
+    var preview = opts.preview != null ? opts.preview : MZ_TABLE_PREVIEW;
+    var useExpand = !!opts.expandable;
+
     var rows = data.rows || [];
     var cmpRange = data.compare_range;
     var breakdown = data.breakdown || [];
@@ -1117,63 +1197,78 @@
       meta += " · kırılım: " + breakdown.map(function (d) { return TABLE_DIM_LABELS[d] || d; }).join(", ");
     }
     if (cmpRange) meta += " · karşılaştırma: " + cmpRange.start + " — " + cmpRange.end;
-    if (rows.length > MZ_TABLE_PREVIEW && !state.tableExpanded) {
-      meta += " · tabloda ilk " + MZ_TABLE_PREVIEW + " gösteriliyor";
+    var expanded = useExpand && state.tableExpanded;
+    if (rows.length > preview && useExpand && !expanded) {
+      meta += " · tabloda ilk " + preview + " gösteriliyor";
     }
-    document.getElementById("mz-table-meta").textContent = meta;
+    var metaEl = document.getElementById(metaId);
+    if (metaEl) metaEl.textContent = meta;
 
-    var head = document.getElementById("mz-table-head");
-    head.innerHTML = "<tr>" + cols.map(function (c) {
-      return "<th class=\"px-2 py-2 font-bold text-slate-600 dark:text-slate-300\">" + c.label + "</th>";
-    }).join("") + "</tr>";
+    var head = document.getElementById(headId);
+    if (head) {
+      head.innerHTML = "<tr>" + cols.map(function (c) {
+        return "<th>" + c.label + "</th>";
+      }).join("") + "</tr>";
+    }
 
     var expandWrap = document.getElementById("mz-table-expand-wrap");
     var expandBtn = document.getElementById("mz-table-expand");
-    var body = document.getElementById("mz-table-body");
+    var body = document.getElementById(bodyId);
+    if (!body) return;
     if (!rows.length) {
-      body.innerHTML = "<tr><td class=\"px-2 py-4 text-slate-500\" colspan=\"" + cols.length + "\">Bu kırılım için satır yok.</td></tr>";
-      expandWrap.classList.add("hidden");
+      body.innerHTML = "<tr><td colspan=\"" + cols.length + "\" class=\"py-4 text-center text-slate-500\">Bu kırılım için satır yok.</td></tr>";
+      if (expandWrap && useExpand) expandWrap.classList.add("hidden");
       return;
     }
-    var visibleRows = state.tableExpanded ? rows : rows.slice(0, MZ_TABLE_PREVIEW);
-    if (rows.length > MZ_TABLE_PREVIEW) {
-      expandWrap.classList.remove("hidden");
-      if (state.tableExpanded) {
-        expandBtn.textContent = "İlk " + MZ_TABLE_PREVIEW + " satırı göster";
-        expandBtn.onclick = function () {
-          state.tableExpanded = false;
-          renderTable(state.lastTable);
-        };
+    var cap = useExpand ? (expanded ? rows.length : preview) : Math.min(rows.length, opts.maxRows || rows.length);
+    var visibleRows = rows.slice(0, cap);
+    if (expandWrap && useExpand) {
+      if (rows.length > preview) {
+        expandWrap.classList.remove("hidden");
+        if (expanded) {
+          expandBtn.textContent = "İlk " + preview + " satırı göster";
+          expandBtn.onclick = function () {
+            state.tableExpanded = false;
+            renderDataTable(state.lastTable, { expandable: true });
+          };
+        } else {
+          expandBtn.textContent = "Tümünü gör (" + rows.length + " satır)";
+          expandBtn.onclick = function () {
+            state.tableExpanded = true;
+            renderDataTable(state.lastTable, { expandable: true });
+          };
+        }
       } else {
-        expandBtn.textContent = "Tümünü gör (" + rows.length + " satır)";
-        expandBtn.onclick = function () {
-          state.tableExpanded = true;
-          renderTable(state.lastTable);
-        };
+        expandWrap.classList.add("hidden");
       }
-    } else {
-      expandWrap.classList.add("hidden");
     }
     body.innerHTML = visibleRows.map(function (r, ri) {
-      return "<tr class=\"cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/80\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
+      return "<tr class=\"cursor-pointer\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
         var v = r[c.key];
-        if (typeof v === "number" && c.dec != null) {
-          v = fmt(v, c.dec);
-        }
+        if (typeof v === "number" && c.dec != null) v = fmt(v, c.dec);
         var extra = "";
         if (c.kind === "metric" && c.deltaKey && r[c.deltaKey] != null && cmpRange) {
-          extra = " " + fmtDeltaPct(r[c.deltaKey]);
+          extra = " <span class=\"ml-1\">" + fmtDeltaPct(r[c.deltaKey]) + "</span>";
         }
-        var cls = c.kind === "metric_cmp" ? "text-slate-500 dark:text-zinc-400" : "";
-        return "<td class=\"px-2 py-1.5 text-slate-700 dark:text-slate-300 " + cls + "\">" + (v == null ? "" : v) + extra + "</td>";
+        var cls = c.kind === "metric_cmp" ? "text-slate-500 dark:text-zinc-400 text-[10px]" : "";
+        return "<td class=\"" + cls + "\">" + (v == null ? "" : v) + extra + "</td>";
       }).join("") + "</tr>";
     }).join("");
     body.querySelectorAll("tr[data-row-index]").forEach(function (tr) {
       tr.addEventListener("click", function () {
         var idx = parseInt(tr.getAttribute("data-row-index"), 10);
         var row = visibleRows[idx];
-        if (row) applyTableRowFilter(row, breakdown);
+        if (row) applyTableRowFilter(row);
       });
+    });
+  }
+
+  function renderTable(data) {
+    renderDataTable(data, {
+      headId: "mz-table-head",
+      bodyId: "mz-table-body",
+      metaId: "mz-table-meta",
+      expandable: true,
     });
   }
 
@@ -1370,8 +1465,21 @@
       renderCharts(sum);
       renderCompareMatrix(sum);
       var tb = breakdownStr();
-      var tabR = await fetch("/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800");
-      if (!tabR.ok) throw new Error("Tablo alınamadı");
+      var sumTabR = await fetch(
+        "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=120"
+      );
+      if (!sumTabR.ok) throw new Error("Özet tablo alınamadı");
+      state.lastSummaryTable = await sumTabR.json();
+      renderDataTable(state.lastSummaryTable, {
+        headId: "mz-summary-head",
+        bodyId: "mz-summary-body",
+        metaId: "mz-summary-meta",
+        maxRows: MZ_SUMMARY_MAX,
+      });
+      var tabR = await fetch(
+        "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800"
+      );
+      if (!tabR.ok) throw new Error("Detay tablo alınamadı");
       var tab = await tabR.json();
       state.lastTable = tab;
       state.tableExpanded = false;
@@ -1714,6 +1822,8 @@
     await loadFacets();
     await runQuery();
   });
+
+  initBreakdownPills();
 
   loadFacets().then(function () { runQuery(); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
