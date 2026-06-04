@@ -20,7 +20,19 @@
     <aside id="mz-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
-      <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500">Yükle ve birleştir</button>
+      <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
+      <div id="mz-upload-progress" class="hidden space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 p-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+        <div class="flex items-center justify-between gap-2 text-[11px] font-semibold text-indigo-900 dark:text-indigo-200">
+          <span id="mz-upload-progress-title">Yükleniyor</span>
+          <span id="mz-upload-progress-pct">0%</span>
+        </div>
+        <div class="h-2.5 w-full overflow-hidden rounded-full bg-white/80 dark:bg-zinc-900" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mz-upload-progress-bar-wrap">
+          <div id="mz-upload-progress-bar" class="h-full rounded-full bg-indigo-600 transition-[width] duration-200 ease-out" style="width:0%"></div>
+        </div>
+        <p id="mz-upload-progress-detail" class="text-[11px] leading-snug text-indigo-800/90 dark:text-indigo-200/90"></p>
+        <ul id="mz-upload-progress-summary" class="hidden max-h-40 list-disc space-y-0.5 overflow-y-auto pl-4 text-[11px] leading-snug text-indigo-900 dark:text-indigo-100"></ul>
+        <p id="mz-upload-progress-reload" class="hidden text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+      </div>
       <button id="mz-reset" type="button" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400">Tüm veriyi sıfırla</button>
       <p id="mz-status" class="min-h-[1.25rem] text-xs text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></p>
 
@@ -1014,8 +1026,191 @@
   });
   adThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
+  function setUploadProgressVisible(on) {
+    var box = document.getElementById("mz-upload-progress");
+    if (on) box.classList.remove("hidden");
+    else box.classList.add("hidden");
+  }
+
+  function setUploadProgress(pct, title, detail) {
+    var p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    document.getElementById("mz-upload-progress-pct").textContent = p + "%";
+    document.getElementById("mz-upload-progress-bar").style.width = p + "%";
+    var wrap = document.getElementById("mz-upload-progress-bar-wrap");
+    if (wrap) wrap.setAttribute("aria-valuenow", String(p));
+    if (title) document.getElementById("mz-upload-progress-title").textContent = title;
+    if (detail != null) document.getElementById("mz-upload-progress-detail").textContent = detail;
+  }
+
+  function buildUploadSummaryLines(done) {
+    var lines = [];
+    var s = done && done.summary;
+    var fc = (done && done.file_count) || (s && s.file_count) || 0;
+    if (done && done.phase === "batch_error") {
+      lines.push("Toplu yükleme hatası: " + (done.error || "bilinmeyen"));
+      return lines;
+    }
+    if (!s) {
+      lines.push(fc + " dosya işlendi · " + fmt(done.parsed) + " satır · DB: " + fmt(done.total));
+      return lines;
+    }
+    if (s.all_ok) {
+      lines.push("Hata yok — tüm dosyalar entegre edildi.");
+    } else if (s.has_errors) {
+      lines.push("Bazı dosyalarda hata veya eksik veri var (aşağıda).");
+    } else {
+      lines.push("Yükleme tamamlandı.");
+    }
+    lines.push(
+      fc + " dosya · " + fmt(s.integrated_rows || done.parsed) + " satır işlendi · DB toplam: " + fmt(done.total)
+    );
+    if (s.ok_count) lines.push("Başarılı: " + s.ok_count + " dosya");
+    if (s.failed_count) {
+      lines.push("Yüklenemedi / hata: " + s.failed_count + " dosya");
+      (s.failed || []).slice(0, 8).forEach(function (x) {
+        lines.push("  · " + x.filename + " — " + (x.reason || "").slice(0, 120));
+      });
+    }
+    if (s.empty_count) {
+      lines.push("Eksik veya boş içerik: " + s.empty_count + " dosya");
+      (s.empty || []).slice(0, 8).forEach(function (x) {
+        lines.push("  · " + x.filename + " — " + (x.reason || "").slice(0, 100));
+      });
+    }
+    if (s.unknown_count) {
+      lines.push("Dal tanınmayan: " + s.unknown_count + " dosya — " + (s.unknown_files || []).join(", "));
+    }
+    if (s.duplicate_filenames && s.duplicate_filenames.length) {
+      lines.push("Aynı dosya adı tekrarlandı: " + s.duplicate_filenames.join(", "));
+    }
+    if (s.duplicate_period_notes && s.duplicate_period_notes.length) {
+      s.duplicate_period_notes.slice(0, 6).forEach(function (n) { lines.push(n); });
+    }
+    if (s.total_skipped > 0) {
+      lines.push("Atlanan satır (duplike): " + fmt(s.total_skipped));
+    }
+    return lines;
+  }
+
+  function showUploadFinalSummary(done) {
+    setUploadProgress(100, "Özet", "");
+    var ul = document.getElementById("mz-upload-progress-summary");
+    var lines = buildUploadSummaryLines(done);
+    ul.innerHTML = "";
+    lines.forEach(function (t) {
+      var li = document.createElement("li");
+      li.textContent = t;
+      ul.appendChild(li);
+    });
+    ul.classList.remove("hidden");
+    document.getElementById("mz-status").textContent = lines[0] || "Yükleme bitti";
+  }
+
+  function scheduleReloadAfterUploadSummary(seconds) {
+    var left = seconds;
+    var el = document.getElementById("mz-upload-progress-reload");
+    el.classList.remove("hidden");
+    function tick() {
+      el.textContent = "Sayfa " + left + " sn içinde yenileniyor…";
+      if (left <= 0) {
+        window.location.reload();
+        return;
+      }
+      left -= 1;
+      setTimeout(tick, 1000);
+    }
+    tick();
+  }
+
+  function phaseLabel(ev) {
+    if (!ev) return "";
+    if (ev.phase === "upload") {
+      return "Dosyalar sunucuya gönderiliyor… " + fmt(ev.loaded) + " / " + fmt(ev.total) + " bayt";
+    }
+    if (ev.phase === "batch_start") return ev.total_files + " dosya işlenecek";
+    if (ev.phase === "file_start") {
+      return "Dosya " + ev.file_index + "/" + ev.total_files + ": " + (ev.filename || "");
+    }
+    if (ev.phase === "parsing" || ev.phase === "parse_start" || ev.phase === "db_flush") {
+      var bit = "Satırlar işleniyor: " + fmt(ev.parsed);
+      if (ev.row_estimate) bit += " / ~" + fmt(ev.row_estimate);
+      if (ev.inserted) bit += " · DB " + fmt(ev.inserted);
+      return bit;
+    }
+    if (ev.phase === "file_done") {
+      return "Bitti: " + (ev.filename || "") + " · " + fmt(ev.parsed) + " satır";
+    }
+    if (ev.phase === "file_error") return "Hata: " + (ev.filename || "") + " — " + (ev.error || "");
+    if (ev.phase === "batch_done") {
+      return "Tamamlandı · " + fmt(ev.parsed) + " satır · DB: " + fmt(ev.total);
+    }
+    if (ev.phase === "batch_error") return ev.error || "Toplu yükleme hatası";
+    return ev.phase || "";
+  }
+
+  function uploadWithRealtimeProgress(fd, url) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      var lastLen = 0;
+      var ndjsonBuf = "";
+      var finalEvent = null;
+
+      function handleLine(line) {
+        line = (line || "").trim();
+        if (!line) return;
+        try {
+          var ev = JSON.parse(line);
+          if (ev.phase === "batch_done" || ev.phase === "batch_error") finalEvent = ev;
+          var pct = ev.pct;
+          if (ev.phase === "upload" && ev.total) pct = Math.round((ev.loaded / ev.total) * 12);
+          else if (pct == null && ev.phase === "file_start" && ev.total_files) {
+            pct = Math.round(100 * (ev.file_index - 1) / ev.total_files);
+          }
+          setUploadProgress(pct != null ? pct : 0, "Yükleniyor", phaseLabel(ev));
+        } catch (e) { /* partial json */ }
+      }
+
+      xhr.upload.addEventListener("progress", function (e) {
+        if (!e.lengthComputable) return;
+        handleLine(JSON.stringify({
+          phase: "upload",
+          loaded: e.loaded,
+          total: e.total,
+          pct: Math.min(12, Math.round((e.loaded / e.total) * 12)),
+        }));
+      });
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState >= 3 && xhr.responseText) {
+          var chunk = xhr.responseText.substring(lastLen);
+          lastLen = xhr.responseText.length;
+          ndjsonBuf += chunk;
+          var parts = ndjsonBuf.split("\n");
+          ndjsonBuf = parts.pop() || "";
+          parts.forEach(handleLine);
+        }
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(finalEvent || {});
+          } else {
+            var msg = xhr.responseText || ("HTTP " + xhr.status);
+            try {
+              var errJson = JSON.parse(xhr.responseText);
+              if (errJson.detail) msg = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+            } catch (e2) { /* */ }
+            reject(new Error(msg));
+          }
+        }
+      };
+      xhr.onerror = function () { reject(new Error("Ağ hatası")); };
+      xhr.open("POST", url);
+      xhr.send(fd);
+    });
+  }
+
   on("mz-upload", "click", async function () {
     var inp = document.getElementById("mz-file");
+    var btn = document.getElementById("mz-upload");
     if (!inp.files || !inp.files.length) {
       document.getElementById("mz-status").textContent = "Dosya seçin (.xlsx)";
       return;
@@ -1025,38 +1220,23 @@
     for (i = 0; i < inp.files.length; i++) {
       fd.append("files", inp.files[i]);
     }
-    var url = inp.files.length > 1 ? "/api/mz-analytics/upload-bulk" : "/api/mz-analytics/upload";
-    if (inp.files.length === 1) {
-      fd = new FormData();
-      fd.append("file", inp.files[0]);
-    }
-    document.getElementById("mz-status").textContent =
-      "Yükleniyor… (" + inp.files.length + " dosya; 1–5 dk sürebilir, sayfayı kapatmayın)";
-    var r;
+    var url = "/api/mz-analytics/upload-bulk-stream";
+    btn.disabled = true;
+    setUploadProgressVisible(true);
+    document.getElementById("mz-upload-progress-summary").classList.add("hidden");
+    document.getElementById("mz-upload-progress-summary").innerHTML = "";
+    document.getElementById("mz-upload-progress-reload").classList.add("hidden");
+    setUploadProgress(0, "Hazırlanıyor", inp.files.length + " dosya seçildi");
+    document.getElementById("mz-status").textContent = "";
     try {
-      r = await fetch(url, { method: "POST", body: fd });
+      var done = await uploadWithRealtimeProgress(fd, url);
+      showUploadFinalSummary(done);
+      scheduleReloadAfterUploadSummary(3);
     } catch (err) {
-      document.getElementById("mz-status").textContent =
-        "Ağ hatası veya zaman aşımı — dosya sayısını azaltıp tekrar deneyin.";
-      return;
+      setUploadProgress(0, "Hata", (err && err.message) || "Yükleme başarısız");
+      document.getElementById("mz-status").textContent = (err && err.message) || "Yükleme başarısız";
+      btn.disabled = false;
     }
-    var j = await r.json();
-    if (!r.ok) {
-      document.getElementById("mz-status").textContent =
-        (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) || "Hata";
-      return;
-    }
-    if (inp.files.length > 1) {
-      var unk = (j.unknown_files || []).length;
-      document.getElementById("mz-status").textContent =
-        j.file_count + " dosya · işlenen: " + j.parsed + " satır · DB: " + j.total +
-        (unk ? " · tanınmayan: " + unk : "");
-    } else {
-      document.getElementById("mz-status").textContent =
-        (j.stream_key || j.channel || "") + " · " + j.parsed + " satır · DB: " + j.total;
-    }
-    await loadFacets();
-    await runQuery();
   });
 
   on("mz-reset", "click", async function () {

@@ -11,7 +11,10 @@ import re
 import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from collections.abc import Callable
 from typing import Any, Iterable, Iterator
+
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
 from sqlalchemy import delete, func, select
@@ -613,26 +616,56 @@ def _flush_batch(db: Session, batch: list[dict[str, Any]]) -> tuple[int, int]:
     return affected, 0
 
 
-def import_rows(db: Session, rows: Iterable[dict[str, Any]], *, commit: bool = True) -> dict[str, int]:
+def import_rows(
+    db: Session,
+    rows: Iterable[dict[str, Any]],
+    *,
+    commit: bool = True,
+    progress_cb: ProgressCallback | None = None,
+    progress_every: int = 800,
+    row_estimate: int | None = None,
+) -> dict[str, int]:
     inserted = 0
     skipped = 0
     parsed = 0
     batch: list[dict[str, Any]] = []
+
+    def _emit(phase: str, **extra: Any) -> None:
+        if not progress_cb:
+            return
+        payload: dict[str, Any] = {
+            "phase": phase,
+            "parsed": parsed,
+            "inserted": inserted,
+            "skipped": skipped,
+        }
+        if row_estimate and row_estimate > 0:
+            payload["row_estimate"] = row_estimate
+            payload["pct"] = min(99, int(100 * parsed / row_estimate))
+        payload.update(extra)
+        progress_cb(payload)
+
     try:
+        _emit("parse_start")
         for r in rows:
             parsed += 1
             batch.append(r)
+            if progress_every > 0 and parsed % progress_every == 0:
+                _emit("parsing")
             if len(batch) >= _IMPORT_BATCH_SIZE:
                 ins, sk = _flush_batch(db, batch)
                 inserted += ins
                 skipped += sk
                 batch.clear()
+                _emit("db_flush")
         if batch:
             ins, sk = _flush_batch(db, batch)
             inserted += ins
             skipped += sk
+            _emit("db_flush")
         if commit:
             db.commit()
+        _emit("parse_done")
     except Exception:
         db.rollback()
         raise
@@ -644,12 +677,25 @@ def import_rows(db: Session, rows: Iterable[dict[str, Any]], *, commit: bool = T
     }
 
 
+def _estimate_xlsx_data_rows(data: bytes) -> int:
+    try:
+        wb = _load_workbook_bytes(data)
+        try:
+            n = int(wb.active.max_row or 0)
+            return max(0, n - 1)
+        finally:
+            wb.close()
+    except Exception:
+        return 0
+
+
 def import_upload_file(
     db: Session,
     data: bytes,
     *,
     filename: str,
     commit: bool = True,
+    progress_cb: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     low = filename.lower()
     stream = detect_stream(filename)
@@ -670,7 +716,14 @@ def import_upload_file(
                     ][:20]
             finally:
                 wb.close()
-            result = import_rows(db, iter_xlsx_rows(data, filename=filename), commit=False)
+            row_est = _estimate_xlsx_data_rows(data)
+            result = import_rows(
+                db,
+                iter_xlsx_rows(data, filename=filename),
+                commit=False,
+                progress_cb=progress_cb,
+                row_estimate=row_est or None,
+            )
             if not result.get("parsed"):
                 result["parse_error"] = (
                     "Excel başlığı okunamadı (ilk satırda veya sonraki 30 satırda "
@@ -690,7 +743,13 @@ def import_upload_file(
             if lines:
                 delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
                 columns = [c.strip() for c in lines[0].split(delim)]
-            result = import_rows(db, parse_csv_text(text, filename=filename), commit=False)
+            result = import_rows(
+                db,
+                parse_csv_text(text, filename=filename),
+                commit=False,
+                progress_cb=progress_cb,
+                row_estimate=max(0, len(lines) - 1) if lines else None,
+            )
         else:
             raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
         _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0), stream=stream)
@@ -711,6 +770,181 @@ def import_upload_file(
         result["stream_key"] = None
         result["warning"] = "Dosya adından dal tanınamadı"
     return result
+
+
+def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]:
+    """Yükleme sonrası özet: başarılı, hatalı, boş, çakışan dönem, tanınmayan dal."""
+    ok_files: list[str] = []
+    failed: list[dict[str, str]] = []
+    empty: list[dict[str, str]] = []
+    unknown_files: list[str] = []
+    warnings: list[str] = []
+    total_skipped = 0
+    stream_period_files: dict[tuple[str, str], list[str]] = {}
+    name_counts: dict[str, int] = {}
+
+    for item in per_file:
+        fn = (item.get("filename") or "?").strip()
+        name_counts[fn] = name_counts.get(fn, 0) + 1
+        if item.get("error"):
+            failed.append({"filename": fn, "reason": str(item["error"])})
+            continue
+        parsed = int(item.get("parsed") or 0)
+        skipped = int(item.get("skipped") or 0)
+        total_skipped += skipped
+        if item.get("warning"):
+            unknown_files.append(fn)
+            warnings.append(f"{fn}: dal/proje dosya adından çıkarılamadı")
+        if item.get("parse_error"):
+            empty.append({"filename": fn, "reason": str(item["parse_error"])})
+        elif parsed <= 0:
+            empty.append({"filename": fn, "reason": "Dosyadan satır okunamadı (eksik veya hatalı içerik)"})
+        else:
+            ok_files.append(fn)
+        sk = item.get("stream_key")
+        period = str(item.get("period") or "")
+        if sk:
+            stream_period_files.setdefault((str(sk), period), []).append(fn)
+
+    duplicate_names = [n for n, c in name_counts.items() if c > 1]
+    overlapping_periods = [
+        {"stream_key": k[0], "period": k[1], "files": v}
+        for k, v in stream_period_files.items()
+        if len(v) > 1
+    ]
+    duplicate_period_notes: list[str] = []
+    for ov in overlapping_periods:
+        duplicate_period_notes.append(
+            f"Aynı dal/dönem için birden fazla dosya (veri üst üste birleşir): {', '.join(ov['files'])}"
+        )
+
+    file_count = len(per_file)
+    integrated_rows = sum(int(x.get("parsed") or 0) for x in per_file if not x.get("error"))
+    inserted_rows = sum(int(x.get("inserted") or 0) for x in per_file if not x.get("error"))
+    has_errors = bool(failed) or bool(empty)
+
+    return {
+        "file_count": file_count,
+        "ok_count": len(ok_files),
+        "failed_count": len(failed),
+        "empty_count": len(empty),
+        "unknown_count": len(unknown_files),
+        "ok_files": ok_files,
+        "failed": failed,
+        "empty": empty,
+        "unknown_files": unknown_files,
+        "warnings": warnings,
+        "duplicate_filenames": duplicate_names,
+        "overlapping_periods": overlapping_periods,
+        "duplicate_period_notes": duplicate_period_notes,
+        "total_skipped": total_skipped,
+        "integrated_rows": integrated_rows,
+        "inserted_rows": inserted_rows,
+        "has_errors": has_errors,
+        "all_ok": not has_errors and file_count > 0 and len(ok_files) == file_count,
+    }
+
+
+def iter_bulk_import_events(
+    files: list[tuple[bytes, str]],
+) -> Iterator[dict[str, Any]]:
+    """Gerçek içe aktarma aşamaları — NDJSON stream için."""
+    ordered = sorted(files, key=_bulk_sort_key)
+    total_files = len(ordered)
+    yield {
+        "phase": "batch_start",
+        "total_files": total_files,
+        "pct": 0,
+    }
+    per_file: list[dict[str, Any]] = []
+    unknown: list[str] = []
+    total_inserted = 0
+    total_parsed = 0
+    for idx, (data, name) in enumerate(ordered, start=1):
+        if not data:
+            per_file.append({"filename": name, "error": "boş dosya"})
+            yield {
+                "phase": "file_error",
+                "file_index": idx,
+                "total_files": total_files,
+                "filename": name,
+                "error": "boş dosya",
+                "pct": int(100 * (idx - 1) / max(total_files, 1)),
+            }
+            continue
+        yield {
+            "phase": "file_start",
+            "file_index": idx,
+            "total_files": total_files,
+            "filename": name,
+            "bytes": len(data),
+            "pct": int(100 * (idx - 1) / max(total_files, 1)),
+        }
+        pending: list[dict[str, Any]] = []
+
+        def _file_progress(ev: dict[str, Any]) -> None:
+            ev = dict(ev)
+            ev["file_index"] = idx
+            ev["total_files"] = total_files
+            ev["filename"] = name
+            if total_files:
+                base = int(100 * (idx - 1) / total_files)
+                span = int(100 / total_files)
+                inner = int(ev.get("pct") or 0)
+                ev["pct"] = min(99, base + int(span * inner / 100))
+            pending.append(ev)
+
+        with SessionLocal() as db:
+            try:
+                out = import_upload_file(
+                    db,
+                    data,
+                    filename=name,
+                    commit=True,
+                    progress_cb=_file_progress,
+                )
+                for ev in pending:
+                    yield ev
+                per_file.append(out)
+                total_inserted += int(out.get("inserted") or 0)
+                total_parsed += int(out.get("parsed") or 0)
+                if not out.get("stream_key"):
+                    unknown.append(name)
+                yield {
+                    "phase": "file_done",
+                    "file_index": idx,
+                    "total_files": total_files,
+                    "filename": name,
+                    "parsed": out.get("parsed", 0),
+                    "inserted": out.get("inserted", 0),
+                    "stream_key": out.get("stream_key"),
+                    "pct": int(100 * idx / max(total_files, 1)),
+                }
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                per_file.append({"filename": name, "error": str(exc)})
+                yield {
+                    "phase": "file_error",
+                    "file_index": idx,
+                    "total_files": total_files,
+                    "filename": name,
+                    "error": str(exc),
+                    "pct": int(100 * idx / max(total_files, 1)),
+                }
+    with SessionLocal() as db:
+        total_rows = count_rows(db)
+    summary = build_upload_batch_summary(per_file)
+    yield {
+        "phase": "batch_done",
+        "pct": 100,
+        "file_count": total_files,
+        "parsed": total_parsed,
+        "inserted": total_inserted,
+        "total": total_rows,
+        "unknown_files": unknown,
+        "files": per_file,
+        "summary": summary,
+    }
 
 
 def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
@@ -750,6 +984,7 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
         total_parsed,
         total_rows,
     )
+    summary = build_upload_batch_summary(per_file)
     return {
         "files": per_file,
         "file_count": len(ordered),
@@ -757,6 +992,7 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
         "parsed": total_parsed,
         "total": total_rows,
         "unknown_files": unknown,
+        "summary": summary,
     }
 
 

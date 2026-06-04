@@ -1,6 +1,9 @@
 """Reklam analitiği API — Excel/CSV yükleme ve filtreli özet."""
 
+import json
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -200,6 +203,40 @@ async def post_ad_analytics_upload_bulk(
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/mz-analytics/upload-bulk-stream")
+async def post_ad_analytics_upload_bulk_stream(
+    files: list[UploadFile] = File(...),
+):
+    """Çoklu dosya: yanıt gövdesi NDJSON — satır/satır gerçek ilerleme."""
+    if not files:
+        raise HTTPException(status_code=400, detail="Dosya seçilmedi")
+    payload: list[tuple[bytes, str]] = []
+    total_bytes = 0
+    for uf in files:
+        name = (uf.filename or "upload.xlsx").strip()
+        low = name.lower()
+        if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
+            raise HTTPException(status_code=400, detail=f"Desteklenmeyen format: {name}")
+        raw = await uf.read()
+        total_bytes += len(raw)
+        if total_bytes > _MAX_BULK_BYTES:
+            raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
+        payload.append((raw, name))
+
+    def _ndjson_stream():
+        try:
+            for event in store.iter_bulk_import_events(payload):
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+        except Exception as exc:  # noqa: BLE001
+            yield json.dumps({"phase": "batch_error", "error": str(exc), "pct": 0}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(
+        _ndjson_stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/mz-analytics/reset")
