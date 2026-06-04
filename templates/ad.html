@@ -674,12 +674,35 @@
     var cmpRange = getActiveCompareRange(sum);
     function label(range) {
       if (!range || !range.start || !range.end) return "—";
-      return fmtDateShortTr(range.start, true) + "<br>" + fmtDateShortTr(range.end, true);
+      return fmtDateShortTr(range.start, false) + " – " + fmtDateShortTr(range.end, false);
     }
     return {
       primary: label(primary),
       compare: cmpRange ? label(cmpRange) : "—",
     };
+  }
+
+  function setPieCompareCaptions(elId, sum, visible) {
+    var plotEl = document.getElementById(elId);
+    if (!plotEl) return;
+    var capId = elId + "-captions";
+    var existing = document.getElementById(capId);
+    if (!visible) {
+      if (existing) existing.remove();
+      return;
+    }
+    var labels = comparePeriodPieLabels(sum || state.lastSummary);
+    var cap = existing;
+    if (!cap) {
+      cap = document.createElement("div");
+      cap.id = capId;
+      cap.className = "mz-pie-compare-captions";
+      cap.setAttribute("aria-hidden", "true");
+      plotEl.insertAdjacentElement("afterend", cap);
+    }
+    cap.innerHTML =
+      "<span class=\"mz-pie-compare-caption\">" + labels.primary + "</span>" +
+      "<span class=\"mz-pie-compare-caption\">" + labels.compare + "</span>";
   }
 
   function compareMetricPeriodLabel(metricLabel, period, sum) {
@@ -1036,6 +1059,7 @@
 
   function renderBreakdownPiePair(elId, rows, labelKey, cmp, sum) {
     var labels = rows.map(function (x) { return x[labelKey]; });
+    setPieCompareCaptions(elId, null, false);
     if (!cmp || !compareEnabled()) {
       plotChart(
         elId,
@@ -1045,54 +1069,26 @@
       );
       return;
     }
-    var periodLabels = comparePeriodPieLabels(sum || state.lastSummary);
-    var annFont = Object.assign({}, plotFont(), { size: 8 });
     plotChart(
       elId,
       [
         Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue; })), {
-          domain: { x: [0.02, 0.46], y: [0, 0.88] },
-          name: periodLabels.primary,
+          domain: { x: [0, 0.46], y: [0, 1] },
           showlegend: false,
         }),
         Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue_compare || 0; })), {
-          domain: { x: [0.54, 0.98], y: [0, 0.88] },
-          name: periodLabels.compare,
+          domain: { x: [0.54, 1], y: [0, 1] },
           showlegend: false,
         }),
       ],
       plotThemePie({
         showlegend: false,
-        margin: { l: 2, r: 2, t: 8, b: 44 },
-        annotations: [
-          {
-            text: periodLabels.primary,
-            x: 0.24,
-            y: 1.0,
-            xref: "paper",
-            yref: "paper",
-            xanchor: "center",
-            yanchor: "bottom",
-            showarrow: false,
-            font: annFont,
-            align: "center",
-          },
-          {
-            text: periodLabels.compare,
-            x: 0.76,
-            y: 1.0,
-            xref: "paper",
-            yref: "paper",
-            xanchor: "center",
-            yanchor: "bottom",
-            showarrow: false,
-            font: annFont,
-            align: "center",
-          },
-        ],
+        margin: { l: 4, r: 4, t: 8, b: 28 },
       }),
       { minHeight: 208 }
-    );
+    ).then(function () {
+      setPieCompareCaptions(elId, sum, true);
+    });
   }
 
   /** Sidebar’daki seçili aralık; özet by_date tam yıl kalsa bile grafikte yalnızca bu dilim. */

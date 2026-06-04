@@ -644,6 +644,25 @@
       height: clamp(13rem, 32vw, 18rem);
       min-height: 13rem;
     }
+    .mz-page .mz-pie-compare-captions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+      margin-top: 0.2rem;
+      padding: 0 0.2rem 0.15rem;
+      text-align: center;
+      font-size: 0.68rem;
+      line-height: 1.35;
+      font-weight: 600;
+      color: #475569;
+    }
+    html.dark .mz-page .mz-pie-compare-captions,
+    html.midnight .mz-page .mz-pie-compare-captions {
+      color: #a1a1aa;
+    }
+    .mz-page .mz-pie-compare-caption {
+      min-width: 0;
+    }
     .mz-page .mz-chart-plot .js-plotly-plot,
     .mz-page .mz-chart-plot .plot-container.plotly {
       width: 100% !important;
