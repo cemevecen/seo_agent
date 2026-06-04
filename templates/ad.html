@@ -185,12 +185,7 @@
         <div id="mz-chart-stacked-income" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
       </div>
 
-      <div class="mz-charts-row-4">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-1 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Funnel</h2>
-          <p class="mb-2 shrink-0 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">İstek → eşleşme → gösterim; CTR altta.</p>
-          <div id="mz-chart-funnel" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
-        </div>
+      <div class="mz-charts-row-3">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
           <div id="mz-chart-heatmap" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
@@ -604,88 +599,6 @@
   function fmt(n, dec) {
     if (n == null || isNaN(n)) return "0";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: dec == null ? 2 : dec });
-  }
-
-  function fmtCompact(n) {
-    var v = Math.abs(Number(n) || 0);
-    if (v >= 1e9) return (v / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
-    if (v >= 1e6) return (v / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
-    if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.?0+$/, "") + "K";
-    return fmt(v, 0);
-  }
-
-  function renderFunnelChart(sum) {
-    var el = document.getElementById("mz-chart-funnel");
-    if (!el || !window.Plotly) return;
-    var funnel = (sum && sum.funnel) || {};
-    var ar = Number(funnel.ad_request) || 0;
-    var mr = Number(funnel.matched_request) || 0;
-    var im = Number(funnel.impression) || 0;
-    var cl = Number(funnel.click) || 0;
-    var ctr = im > 0 ? (cl / im) * 100 : 0;
-    var matchPct = ar > 0 ? (mr / ar) * 100 : 0;
-    var fillPct = mr > 0 ? (im / mr) * 100 : 0;
-    var dark = isDarkTheme();
-    var textColor = dark ? "#e4e4e7" : "#1e293b";
-    var funnelColors = dark
-      ? ["#0ea5e9", "#38bdf8", "#6366f1"]
-      : ["#0284c7", "#0ea5e9", "#4f46e5"];
-    var clickColor = dark ? "#fbbf24" : "#d97706";
-    var annotBg = dark ? "rgba(24,24,27,0.92)" : "rgba(255,255,255,0.94)";
-    try { Plotly.purge(el); } catch (_) { /* ignore */ }
-    el.innerHTML = "";
-    if (!ar && !mr && !im && !cl) {
-      el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Funnel verisi yok.</p>";
-      return;
-    }
-    var trace = {
-      type: "funnel",
-      y: ["Ad Request", "Matched Request", "Impression"],
-      x: [ar, mr, im],
-      text: [
-        fmtCompact(ar),
-        fmtCompact(mr) + " · " + matchPct.toFixed(1) + "% istek",
-        fmtCompact(im) + " · " + fillPct.toFixed(1) + "% eşleşen",
-      ],
-      textposition: "inside",
-      textfont: { color: "#ffffff", size: 10 },
-      connector: { line: { color: dark ? "#52525b" : "#cbd5e1", width: 1 } },
-      marker: { color: funnelColors, line: { color: dark ? "#18181b" : "#fff", width: 1 } },
-      hovertemplate:
-        "<b>%{y}</b><br>%{text}<br>Ham: %{x:,.0f}<extra></extra>",
-    };
-    var layout = plotTheme({ margin: { l: 6, r: 6, t: 20, b: 64 } });
-    layout.showlegend = false;
-    layout.funnelmode = "stack";
-    layout.funnelgap = 0.12;
-    layout.annotations = [
-      {
-        x: 0.5,
-        y: 0.06,
-        xref: "paper",
-        yref: "paper",
-        text:
-          "<b>Click</b>  " + fmtCompact(cl) + "  (" + fmt(cl, 0) + ")  ·  <b>CTR</b> " + ctr.toFixed(2) + "%",
-        showarrow: false,
-        xanchor: "center",
-        font: { size: 12, color: clickColor },
-        bgcolor: annotBg,
-        bordercolor: clickColor,
-        borderwidth: 1,
-        borderpad: 8,
-      },
-      {
-        x: 0.5,
-        y: 0.01,
-        xref: "paper",
-        yref: "paper",
-        text: "Tıklama gösterimden " + (im > 0 ? (cl / im * 100).toFixed(2) : "0") + "% · hacim hunisinde ölçeklenmez",
-        showarrow: false,
-        xanchor: "center",
-        font: { size: 9, color: dark ? "#a1a1aa" : "#64748b" },
-      },
-    ];
-    plotChart(el, [trace], layout, { minHeight: 208 });
   }
 
   function qs() {
@@ -3638,8 +3551,6 @@
         hmEl.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500\">Isı haritası verisi yok.</p>";
       }
     }
-
-    renderFunnelChart(sum);
 
     var deltaWrap = document.getElementById("mz-chart-delta-wrap");
     if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
