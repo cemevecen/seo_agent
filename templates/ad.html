@@ -959,13 +959,13 @@
     if (!cmpRange || !compareEnabled()) return null;
     var primaryRange = selectedDateRange();
     var primaryRows = filtered.filter(function (r) {
-      return rowInIsoRange(r, chartTimeKey, primaryRange.start, primaryRange.end);
+      return rowInPeriodRange(r, chartTimeKey, primaryRange);
     });
     var compareRows = filtered.filter(function (r) {
-      return rowInIsoRange(r, chartTimeKey, cmpRange.start, cmpRange.end);
+      return rowInPeriodRange(r, chartTimeKey, cmpRange);
     });
-    var primarySeries = aggregateDrillSeries(primaryRows, chartTimeKey, metricKey);
-    var compareSeries = aggregateDrillSeries(compareRows, chartTimeKey, metricKey);
+    var primarySeries = aggregateDrillSeries(primaryRows, chartTimeKey, metricKey, "primary");
+    var compareSeries = aggregateDrillSeries(compareRows, chartTimeKey, metricKey, "compare");
     if (!primarySeries.length && !compareSeries.length) return null;
     var n = Math.max(primarySeries.length, compareSeries.length);
     var x = [];
@@ -3075,7 +3075,28 @@
     return series;
   }
 
-  function aggregateDrillSeries(rows, timeKey, metricKey) {
+  function drillRowNumeric(row, field, period) {
+    if (!row) return 0;
+    if (period === "compare") {
+      var cv = row[field + "_compare"];
+      if (cv != null && !isNaN(Number(cv))) return Number(cv);
+      return 0;
+    }
+    return Number(row[field]) || 0;
+  }
+
+  function drillRowRatePct(row, field, period) {
+    if (!row) return null;
+    if (period === "compare") {
+      var cv = row[field + "_compare"];
+      if (cv != null && !isNaN(Number(cv))) return Number(cv);
+    }
+    var v = row[field];
+    return v != null && !isNaN(Number(v)) ? Number(v) : null;
+  }
+
+  function aggregateDrillSeries(rows, timeKey, metricKey, period) {
+    period = period || "primary";
     var map = {};
     rows.forEach(function (r) {
       var raw = drillTimeValue(r, timeKey);
@@ -3094,18 +3115,20 @@
         };
       }
       var b = map[k];
-      var ar = Number(r.ad_request) || 0;
-      var im = Number(r.impression) || 0;
+      var ar = drillRowNumeric(r, "ad_request", period);
+      var im = drillRowNumeric(r, "impression", period);
       b.ad_request += ar;
       b.impression += im;
-      b.net_revenue += Number(r.net_revenue) || 0;
-      b.click += Number(r.click) || 0;
-      var covF = normRatePctToFraction(r.coverage_pct);
+      b.net_revenue += drillRowNumeric(r, "net_revenue", period);
+      b.click += drillRowNumeric(r, "click", period);
+      var covF = normRatePctToFraction(drillRowRatePct(r, "coverage_pct", period));
       if (covF != null && ar > 0) b.cov_w += covF * ar;
-      else b.cov_w += Number(r.cov_w) || 0;
-      var viewF = normRatePctToFraction(r.viewability_pct);
+      else if (period === "compare" && r.cov_w_compare != null) b.cov_w += Number(r.cov_w_compare) || 0;
+      else if (period !== "compare" && r.cov_w != null) b.cov_w += Number(r.cov_w) || 0;
+      var viewF = normRatePctToFraction(drillRowRatePct(r, "viewability_pct", period));
       if (viewF != null && im > 0) b.view_w += viewF * im;
-      else b.view_w += Number(r.view_w) || 0;
+      else if (period === "compare" && r.view_w_compare != null) b.view_w += Number(r.view_w_compare) || 0;
+      else if (period !== "compare" && r.view_w != null) b.view_w += Number(r.view_w) || 0;
     });
     return Object.keys(map)
       .sort(function (a, b) {
