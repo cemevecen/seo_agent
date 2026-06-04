@@ -749,11 +749,31 @@
     { v: "surface", l: "Yüzey (ham)" },
   ];
 
+  /** Tablo API kırılımı; cfg.bdDims eksik/null ise patlamaz. */
+  function ensureBdCfg(cfg) {
+    if (!cfg || typeof cfg !== "object") {
+      return { bdTime: "date", bdArea: "", bdDims: new Set() };
+    }
+    var dims = cfg.bdDims;
+    if (!(dims instanceof Set)) {
+      if (Array.isArray(dims)) dims = new Set(dims);
+      else dims = new Set();
+    }
+    return {
+      bdTime: cfg.bdTime || "date",
+      bdArea: cfg.bdArea != null ? cfg.bdArea : "",
+      bdDims: dims,
+      listMetric: cfg.listMetric,
+      stackedDim: cfg.stackedDim,
+    };
+  }
+
   function breakdownStrFrom(cfg) {
+    var c = ensureBdCfg(cfg);
     var parts = [];
-    if (cfg.bdTime) parts.push(cfg.bdTime);
-    if (cfg.bdArea) parts.push(cfg.bdArea);
-    cfg.bdDims.forEach(function (d) {
+    if (c.bdTime) parts.push(c.bdTime);
+    if (c.bdArea) parts.push(c.bdArea);
+    c.bdDims.forEach(function (d) {
       if (parts.indexOf(d) < 0) parts.push(d);
     });
     if (!parts.length) parts.push("date");
@@ -855,8 +875,8 @@
     document.querySelectorAll(".mz-bd-toolbar[data-bd-scope]").forEach(function (toolbar) {
       var scope = toolbar.getAttribute("data-bd-scope");
       var mode = toolbar.getAttribute("data-bd-mode") || "full";
-      var cfg = state.breakdowns[scope];
-      if (!cfg) return;
+      var cfg = ensureBdCfg(state.breakdowns[scope]);
+      state.breakdowns[scope] = cfg;
       toolbar.innerHTML = "";
       function row(label, mountFn, labelKind) {
         var wrap = document.createElement("div");
@@ -966,13 +986,20 @@
   }
 
   async function fetchTableWithBreakdownCfg(scope, limit, cfg, slice) {
-    if (!cfg) return null;
+    var safeCfg = ensureBdCfg(cfg);
     var base = qsForDrillSlice(slice || null).toString();
-    var tb = breakdownStrFrom(cfg);
+    var tb = breakdownStrFrom(safeCfg);
     var r = await fetch(
       "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + (limit || 200)
     );
-    if (!r.ok) throw new Error("Tablo verisi alınamadı");
+    if (!r.ok) {
+      var errMsg = "Tablo verisi alınamadı";
+      try {
+        var errBody = await r.json();
+        if (errBody && errBody.detail) errMsg = String(errBody.detail);
+      } catch (_) { /* ignore */ }
+      throw new Error(errMsg);
+    }
     return r.json();
   }
 
@@ -1056,13 +1083,14 @@
 
   /** Trend API kırılımı: tek alanlı birimde günlük; satır tıklanınca alan dahil. */
   function drillChartFetchCfg(cfg, chartTimeKey, slice) {
+    cfg = ensureBdCfg(cfg);
     if (slice && slice.income_type && !slice.ad_unit && !slice.area) {
       return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set(["income_type"]) };
     }
     var out = {
       bdTime: chartTimeKey,
       bdArea: cfg.bdArea,
-      bdDims: cfg.bdDims ? new Set(cfg.bdDims) : new Set(),
+      bdDims: new Set(cfg.bdDims),
     };
     if (slice && slice.area) {
       var areaDims = new Set(["ad_unit"]);
@@ -2583,7 +2611,9 @@
     var chartEl = document.getElementById(isSummary ? "mz-summary-drill-chart" : "mz-drill-chart");
     var statusEl = document.getElementById(isSummary ? "mz-summary-drill-status" : "mz-drill-status");
     var slice = isSummary ? state.summaryDrillSlice : state.drillSlice;
-    var cfg = state.breakdowns[isSummary ? "summary" : "detail"];
+    var bdScope = isSummary ? "summary" : "detail";
+    var cfg = ensureBdCfg(state.breakdowns[bdScope]);
+    state.breakdowns[bdScope] = cfg;
     if (isSummary) updateSummaryDrillSubtitle();
     else updateDrillSubtitle();
     if (!chartEl) return;
@@ -2674,21 +2704,22 @@
       var markerSize = dense ? 0 : dailyPoints ? (series.length > 120 ? 4 : 6) : 7;
       var lineW = dense ? 2 : dailyPoints && series.length > 120 ? 1.5 : 2;
       var traceType = chartType === "bar" ? "bar" : "scatter";
-      var trace = chartType === "bar"
-        ? { type: "bar", x: xs, y: ys, marker: { color: lineColor } }
-        : {
+      var trace;
+      if (chartType === "bar") {
+        trace = { type: "bar", x: xs, y: ys, marker: { color: lineColor } };
+      } else {
+        trace = {
           type: traceType,
           mode: traceMode,
           x: xs,
           y: ys,
           connectgaps: true,
-          line: chartType !== "bar"
-            ? { color: lineColor, width: lineW }
-            : undefined,
-          marker: markerSize
-            ? { color: lineColor, size: markerSize, line: { width: 0 } }
-            : undefined,
+          line: { color: lineColor, width: lineW },
         };
+        if (markerSize) {
+          trace.marker = { color: lineColor, size: markerSize, line: { width: 0 } };
+        }
+      }
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
       if (chartTimeKey === "date") {
         layout.xaxis = Object.assign({}, layout.xaxis, {
