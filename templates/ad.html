@@ -465,6 +465,42 @@
     return p;
   }
 
+  function selectedDateRange() {
+    return {
+      start: (document.getElementById("mz-start").value || "").slice(0, 10),
+      end: (document.getElementById("mz-end").value || "").slice(0, 10),
+    };
+  }
+
+  /** Sidebar’daki seçili aralık; özet by_date tam yıl kalsa bile grafikte yalnızca bu dilim. */
+  function filterSeriesBySelectedRange(series, timeKey) {
+    var r = selectedDateRange();
+    if (!r.start && !r.end) return series || [];
+    var key = timeKey || "date";
+    return (series || []).filter(function (d) {
+      var raw = d[key] != null ? d[key] : d.date;
+      if (raw == null) return false;
+      var s = String(raw);
+      if (key === "month" || (s.length === 7 && s.indexOf("-") === 4)) {
+        var m = s.slice(0, 7);
+        if (r.start && m < r.start.slice(0, 7)) return false;
+        if (r.end && m > r.end.slice(0, 7)) return false;
+        return true;
+      }
+      var dt = s.slice(0, 10);
+      if (dt.length < 10) return true;
+      if (r.start && dt < r.start) return false;
+      if (r.end && dt > r.end) return false;
+      return true;
+    });
+  }
+
+  function chartLineTrendTitle(def) {
+    var t = (state.breakdowns.chartLine && state.breakdowns.chartLine.bdTime) || "date";
+    var prefix = t === "week" ? "Haftalık trend" : t === "month" ? "Aylık trend" : "Günlük trend";
+    return prefix + " — " + (def ? def.label : "");
+  }
+
   function compareEnabled() {
     var el = document.getElementById("mz-compare-enabled");
     return !!(el && el.checked);
@@ -791,15 +827,28 @@
     if (!window.Plotly || !state.lastSummary) return;
     var cfg = state.breakdowns.chartLine;
     var cmp = compareBlock(state.lastSummary);
-    var byDate = state.lastByDate || state.lastSummary.by_date || [];
-    if (cfg.bdTime === "date" && !cfg.bdArea && !cfg.bdDims.size) {
+    var dim = cfg.bdTime || "date";
+    var byDate = filterSeriesBySelectedRange(
+      state.lastByDate || state.lastSummary.by_date || [],
+      "date"
+    );
+    if (dim === "date" && !cfg.bdArea && !cfg.bdDims.size) {
       renderLineChart(byDate, state.activeKpiKey, cmp);
       return;
     }
     try {
       var data = await fetchTableForScope("chartLine", 500);
-      var dim = cfg.bdTime || "date";
       var pseudo = aggregateTableRowsByDim(data.rows, dim);
+      if (dim === "month") {
+        pseudo = filterSeriesBySelectedRange(
+          pseudo.map(function (row) {
+            return { month: row.date, date: row.date };
+          }),
+          "month"
+        );
+      } else if (dim === "date") {
+        pseudo = filterSeriesBySelectedRange(pseudo, "date");
+      }
       renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, null);
     } catch (e) {
       renderLineChart(byDate, state.activeKpiKey, cmp);
@@ -1024,6 +1073,16 @@
 
     if (cmp && cmp.by_date_aligned && cmp.by_date_aligned[kpiKey]) {
       var aligned = cmp.by_date_aligned[kpiKey];
+      var range = selectedDateRange();
+      if (range.start || range.end) {
+        aligned = aligned.filter(function (row) {
+          var pd = String(row.primary_date || "").slice(0, 10);
+          if (!pd || pd.length < 10) return true;
+          if (range.start && pd < range.start) return false;
+          if (range.end && pd > range.end) return false;
+          return true;
+        });
+      }
       var xLabels = aligned.map(function (row) {
         var p = row.primary_date || ("G" + row.day_index);
         var c = row.compare_date || "";
@@ -1044,16 +1103,17 @@
         name: "Karşılaştırma",
       });
       document.getElementById("mz-chart-line-title").textContent =
-        "Günlük trend (hizalı) — " + def.label;
+        chartLineTrendTitle(def) + " (hizalı)";
     } else {
-      var dates = (byDate || []).map(function (x) { return x.date; });
-      var vals = (byDate || []).map(function (x) { return x[kpiKey] != null ? x[kpiKey] : 0; });
+      var series = filterSeriesBySelectedRange(byDate, "date");
+      var dates = series.map(function (x) { return x.date; });
+      var vals = series.map(function (x) { return x[kpiKey] != null ? x[kpiKey] : 0; });
       traces.push({
         x: dates, y: vals, type: "scatter", mode: "lines+markers",
         line: { color: lineColor, width: 2 }, marker: { size: 4, color: lineColor },
         name: def.label,
       });
-      document.getElementById("mz-chart-line-title").textContent = "Günlük trend — " + def.label;
+      document.getElementById("mz-chart-line-title").textContent = chartLineTrendTitle(def);
     }
     var lineEl = document.getElementById("mz-chart-line");
     if (!lineEl) return;
@@ -1084,7 +1144,7 @@
 
   function renderCharts(sum) {
     if (!window.Plotly) return;
-    state.lastByDate = sum.by_date || [];
+    state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
     Plotly.newPlot("mz-chart-pie-surface", [{
@@ -1130,7 +1190,7 @@
     if (!window.Plotly) return;
     var s = sum || state.lastSummary;
     if (!s) return;
-    var byDate = state.lastByDate || s.by_date || [];
+    var byDate = filterSeriesBySelectedRange(state.lastByDate || s.by_date || [], "date");
     if (byDate.length < 2) return;
     var defs = activeKpiDefs(s);
     var i = 0;
@@ -1168,7 +1228,7 @@
   function renderExtendedCharts(sum) {
     if (!window.Plotly) return;
     var cmp = compareBlock(sum);
-    var byDate = sum.by_date || [];
+    var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var dates = byDate.map(function (d) { return d.date; });
 
     Plotly.newPlot("mz-chart-dual", [
@@ -1778,6 +1838,18 @@
     }
   }
 
+  function updateRangeLabel() {
+    var rangeLbl = document.getElementById("mz-range-label");
+    if (!rangeLbl) return;
+    var parts = [];
+    var sel = selectedDateRange();
+    if (sel.start && sel.end) parts.push(sel.start + " — " + sel.end);
+    if (state.activeStream) {
+      parts.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
+    }
+    rangeLbl.textContent = parts.join(" · ");
+  }
+
   async function runQuery() {
     applyPreset();
     setLoading(true);
@@ -1790,6 +1862,7 @@
       state.lastSummary = sum;
       state.lastByDate = sum.by_date || [];
       state.kpiAvailable = sum.kpi_available || [];
+      updateRangeLabel();
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
