@@ -243,12 +243,29 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Kırılım seçenekleri yalnızca bu tabloyu etkiler. Satıra tıklayınca seçili dilim için aşağıdaki trend grafiği güncellenir (sol panel tarih aralığı korunur).</p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mx birimi araması veya satır seçimi → alttaki trend grafiği (sol panel tarih aralığı aynı).</p>
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
           <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Varsayılan: bir Mx birimi seçili ve alttaki trend grafiği açık. Başka satıra tıklayarak dilimi değiştirin.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
+        </div>
+        <div class="mb-3 flex flex-wrap items-end gap-2">
+          <label class="flex min-w-[14rem] flex-1 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+            Mx birimi ara
+            <input
+              id="mz-detail-unit-search"
+              type="search"
+              list="mz-detail-unit-list"
+              autocomplete="off"
+              placeholder="sticky, masthead…"
+              class="w-full max-w-lg rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
+            />
+          </label>
+          <datalist id="mz-detail-unit-list"></datalist>
+          <button id="mz-detail-unit-clear" type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900">
+            Temizle
+          </button>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div class="flex flex-wrap items-center gap-2">
@@ -388,6 +405,7 @@
     drillMetric: "coverage_pct",
     drillLoading: false,
     _drillUserPicked: false,
+    detailTableFilter: "",
     bdTime: "date",
     bdArea: "",
     bdDims: null,
@@ -864,6 +882,100 @@
     });
   }
 
+  function resolveAdUnitFromSearch(query, rows) {
+    var q = (query || "").trim().toLowerCase();
+    if (!q || !rows || !rows.length) return null;
+    var matches = [];
+    var seen = {};
+    rows.forEach(function (r) {
+      var u = r.ad_unit;
+      if (!u || seen[u]) return;
+      var ul = String(u).toLowerCase();
+      if (ul.indexOf(q) < 0) return;
+      seen[u] = true;
+      var score = 0;
+      if (ul === q) score += 100;
+      else if (ul.indexOf(q) === 0) score += 40;
+      else score += 10;
+      if (ul.indexOf("sticky") >= 0) score += 5;
+      matches.push({ unit: u, score: score });
+    });
+    if (!matches.length) return null;
+    matches.sort(function (a, b) {
+      return b.score - a.score || String(a.unit).localeCompare(String(b.unit), "tr");
+    });
+    return matches[0].unit;
+  }
+
+  function refreshDetailUnitDatalist() {
+    var dl = document.getElementById("mz-detail-unit-list");
+    if (!dl || !state.lastTable) return;
+    var seen = {};
+    var units = [];
+    (state.lastTable.rows || []).forEach(function (r) {
+      if (r.ad_unit && !seen[r.ad_unit]) {
+        seen[r.ad_unit] = true;
+        units.push(r.ad_unit);
+      }
+    });
+    units.sort(function (a, b) { return String(a).localeCompare(String(b), "tr"); });
+    dl.innerHTML = units.map(function (u) {
+      return "<option value=\"" + String(u).replace(/"/g, "&quot;") + "\"></option>";
+    }).join("");
+  }
+
+  function syncDetailUnitSearchInput(unit) {
+    var inp = document.getElementById("mz-detail-unit-search");
+    if (!inp) return;
+    inp.value = unit || "";
+    state.detailTableFilter = unit || "";
+  }
+
+  function detailTableViewData(data) {
+    if (!data) return data;
+    var q = (state.detailTableFilter || "").trim().toLowerCase();
+    if (!q) return data;
+    var rows = (data.rows || []).filter(function (r) {
+      return r.ad_unit && String(r.ad_unit).toLowerCase().indexOf(q) >= 0;
+    });
+    return {
+      rows: rows,
+      total: rows.length,
+      breakdown: data.breakdown,
+      compare_range: data.compare_range,
+    };
+  }
+
+  function setDrillForAdUnit(unit, userPicked) {
+    if (!unit) return;
+    if (userPicked) state._drillUserPicked = true;
+    state.drillSlice = { ad_unit: unit };
+    state._drillRowKey = JSON.stringify(state.drillSlice);
+    syncDetailUnitSearchInput(unit);
+    updateDrillSubtitle();
+    if (state.lastTable) renderTable(state.lastTable);
+    renderTableDrillChart();
+  }
+
+  var detailUnitSearchTimer = null;
+  function applyDetailUnitSearch() {
+    var inp = document.getElementById("mz-detail-unit-search");
+    var q = inp ? inp.value.trim() : "";
+    state.detailTableFilter = q;
+    if (!state.lastTable) return;
+    if (!q) {
+      renderTable(state.lastTable);
+      return;
+    }
+    var unit = resolveAdUnitFromSearch(q, state.lastTable.rows || []);
+    if (!unit) {
+      renderTable(state.lastTable);
+      renderTableDrillChart();
+      return;
+    }
+    setDrillForAdUnit(unit, true);
+  }
+
   function pickDefaultDrillRow(rows) {
     if (!rows || !rows.length) return null;
     function score(r) {
@@ -891,17 +1003,21 @@
     if (state._drillUserPicked || !state.lastTable) return;
     var row = pickDefaultDrillRow(state.lastTable.rows || []);
     if (!row) return;
-    state.drillSlice = sliceFromTableRow(row);
-    state._drillRowKey = JSON.stringify(state.drillSlice);
-    updateDrillSubtitle();
-    renderTable(state.lastTable);
-    renderTableDrillChart();
+    if (row.ad_unit) setDrillForAdUnit(row.ad_unit, false);
+    else {
+      state.drillSlice = sliceFromTableRow(row);
+      state._drillRowKey = JSON.stringify(state.drillSlice);
+      updateDrillSubtitle();
+      renderTable(state.lastTable);
+      renderTableDrillChart();
+    }
   }
 
   async function refreshDetailTable() {
     var data = await fetchTableForScope("detail", 800);
     state.lastTable = data;
     state.tableExpanded = false;
+    refreshDetailUnitDatalist();
     renderTable(data);
     applyDefaultDrillSelection();
   }
@@ -1708,8 +1824,13 @@
 
   function applyTableRowFilter(row) {
     state._drillUserPicked = true;
+    if (row.ad_unit) {
+      setDrillForAdUnit(row.ad_unit, true);
+      return;
+    }
     state.drillSlice = sliceFromTableRow(row);
     state._drillRowKey = JSON.stringify(state.drillSlice);
+    syncDetailUnitSearchInput("");
     updateDrillSubtitle();
     renderTableDrillChart();
     if (state.lastTable) renderTable(state.lastTable);
@@ -1906,11 +2027,21 @@
       }
     }
     var isDetailBody = bodyId === "mz-table-body";
+    function rowIsDrillSelected(r) {
+      if (!isDetailBody || !state._drillRowKey) return false;
+      var slice;
+      try {
+        slice = JSON.parse(state._drillRowKey);
+      } catch (e) {
+        return false;
+      }
+      if (slice.ad_unit && Object.keys(slice).length === 1) {
+        return String(r.ad_unit || "") === String(slice.ad_unit);
+      }
+      return JSON.stringify(sliceFromTableRow(r)) === state._drillRowKey;
+    }
     body.innerHTML = visibleRows.map(function (r, ri) {
-      var sel =
-        isDetailBody &&
-        state._drillRowKey &&
-        JSON.stringify(sliceFromTableRow(r)) === state._drillRowKey;
+      var sel = rowIsDrillSelected(r);
       return "<tr class=\"cursor-pointer" + (sel ? " mz-drill-row-selected" : "") + "\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
         var v = r[c.key];
         if (typeof v === "number" && c.dec != null) v = fmt(v, c.dec);
@@ -1932,7 +2063,7 @@
   }
 
   function renderTable(data) {
-    renderDataTable(data, {
+    renderDataTable(detailTableViewData(data), {
       headId: "mz-table-head",
       bodyId: "mz-table-body",
       metaId: "mz-table-meta",
@@ -2151,6 +2282,8 @@
   async function runQuery() {
     applyPreset();
     state._drillUserPicked = false;
+    state.detailTableFilter = "";
+    syncDetailUnitSearchInput("");
     setLoading(true);
     showPageError("");
     try {
@@ -2206,6 +2339,27 @@
     mzSearchPreviewTimer = setTimeout(fetchSearchPreview, 450);
   });
   on("mz-table-csv", "click", exportTableCsv);
+  on("mz-detail-unit-search", "input", function () {
+    clearTimeout(detailUnitSearchTimer);
+    detailUnitSearchTimer = setTimeout(applyDetailUnitSearch, 320);
+  });
+  on("mz-detail-unit-search", "change", applyDetailUnitSearch);
+  on("mz-detail-unit-search", "keydown", function (ev) {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      clearTimeout(detailUnitSearchTimer);
+      applyDetailUnitSearch();
+    }
+  });
+  on("mz-detail-unit-clear", "click", function () {
+    state._drillUserPicked = false;
+    state.detailTableFilter = "";
+    syncDetailUnitSearchInput("");
+    if (state.lastTable) {
+      renderTable(state.lastTable);
+      applyDefaultDrillSelection();
+    }
+  });
   var resizeTimer = null;
   window.addEventListener("resize", function () {
     if (!state.lastSummary) return;
