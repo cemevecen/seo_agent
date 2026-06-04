@@ -3640,15 +3640,14 @@
     }
 
     renderFunnelChart(sum);
-    return Promise.resolve();
 
     var deltaWrap = document.getElementById("mz-chart-delta-wrap");
     if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
-      deltaWrap.classList.remove("hidden");
+      if (deltaWrap) deltaWrap.classList.remove("hidden");
       var sorted = cmp.by_ad_unit.slice().sort(function (a, b) {
         return (b.net_revenue_delta_pct || 0) - (a.net_revenue_delta_pct || 0);
       }).slice(0, 12);
-      Plotly.newPlot("mz-chart-delta-units", [{
+      plotChart("mz-chart-delta-units", [{
         x: sorted.map(function (x) { return x.net_revenue_delta_pct || 0; }),
         y: sorted.map(function (x) { return x.ad_unit; }),
         type: "bar",
@@ -3658,10 +3657,14 @@
             return (x.net_revenue_delta_pct || 0) >= 0 ? "#10b981" : "#f43f5e";
           }),
         },
-      }], plotTheme({ margin: { l: 180, r: 16, t: 24, b: 40 }, xTitle: "Gelir % fark" }), plotlyCfg());
+        hovertemplate: "%{y}<br>%{x:.2f}%<extra></extra>",
+      }], plotTheme({ margin: { l: 180, r: 16, t: 24, b: 40 }, xTitle: "Gelir % fark" }), { minHeight: 280 });
     } else if (deltaWrap) {
       deltaWrap.classList.add("hidden");
+      try { Plotly.purge(document.getElementById("mz-chart-delta-units")); } catch (_) { /* ignore */ }
     }
+
+    return Promise.resolve();
   }
 
   function renderLeadersLosers(sum) {
