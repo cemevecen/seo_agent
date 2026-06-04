@@ -2621,36 +2621,43 @@
       stackRows.forEach(function (r) {
         if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
       });
+      var revAligned = cmp ? alignedDateSeries(cmp, "net_revenue") : null;
+      var xAxis = dates;
+      if (revAligned && revAligned.length) {
+        xAxis = alignedXAxisLabels(revAligned);
+      }
       var stackTraces = incomeTypes.map(function (it) {
         return {
-          x: dates,
-          y: dates.map(function (dt) {
-            var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
-            return hit ? hit.net_revenue : 0;
-          }),
+          x: xAxis,
+          y: revAligned && revAligned.length
+            ? revAligned.map(function (row) {
+              var pd = String(row.primary_date || "").slice(0, 10);
+              var hit = stackRows.find(function (r) { return r.date === pd && r.income_type === it; });
+              return hit ? hit.net_revenue : 0;
+            })
+            : dates.map(function (dt) {
+              var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
+              return hit ? hit.net_revenue : 0;
+            }),
           name: it,
           type: "scatter",
           mode: "lines",
           stackgroup: "one",
         };
       });
-      if (cmp) {
-        var revAligned = alignedDateSeries(cmp, "net_revenue");
-        if (revAligned) {
-          var cmpLabels = comparePeriodChartLabels(state.lastSummary);
-          stackTraces.push({
-            x: alignedXAxisLabels(revAligned),
-            y: revAligned.map(function (r) { return r.compare; }),
-            name: compareMetricPeriodLabel("Toplam gelir", "compare", state.lastSummary),
-            type: "scatter",
-            mode: "lines",
-            line: { color: compareColors().compare, width: 2.5, dash: "dot" },
-          });
-        }
+      if (revAligned && revAligned.length) {
+        stackTraces.push({
+          x: xAxis,
+          y: revAligned.map(function (r) { return r.compare; }),
+          name: compareMetricPeriodLabel("Toplam gelir", "compare", state.lastSummary),
+          type: "scatter",
+          mode: "lines",
+          line: { color: compareColors().compare, width: 2.5, dash: "dot" },
+        });
       }
       var stackedLayout = plotTheme({ yTitle: "TL" });
-      if (cmp && alignedDateSeries(cmp, "net_revenue")) {
-        stackedLayout = applyCompareLayout(stackedLayout, dates.length);
+      if (revAligned && revAligned.length) {
+        stackedLayout = applyCompareLayout(stackedLayout, xAxis.length);
       }
       plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
       return;
