@@ -570,6 +570,7 @@
   }
 
   var runTimer = null;
+  var urlSyncTimer = null;
   var mzUrlState = parseMzUrlState(typeof window !== "undefined" ? window.location.search : "");
   var mzUrlBootPending = mzUrlStateHasFilters(mzUrlState);
   var mzShareStatusTimer = null;
@@ -579,9 +580,33 @@
     runTimer = setTimeout(function () { runQuery({ resetTableDrills: false }); }, ms == null ? 400 : ms);
   }
 
+  function debouncedSyncUrl(ms) {
+    if (urlSyncTimer) clearTimeout(urlSyncTimer);
+    urlSyncTimer = setTimeout(function () {
+      urlSyncTimer = null;
+      updateBrowserUrl();
+    }, ms == null ? 120 : ms);
+  }
+
+  function syncUrlNow() {
+    if (urlSyncTimer) clearTimeout(urlSyncTimer);
+    urlSyncTimer = null;
+    updateBrowserUrl();
+  }
+
+  function appendFacetParam(p, key, selectedSet, allItems) {
+    if (!p || !selectedSet || !selectedSet.size || !allItems || !allItems.length) return;
+    if (selectedSet.size >= allItems.length) {
+      var allOn = allItems.every(function (x) { return selectedSet.has(x); });
+      if (allOn) return;
+    }
+    p.set(key, Array.from(selectedSet).join(","));
+  }
+
   function parseMzUrlState(search) {
     var sp = new URLSearchParams(search || "");
     return {
+      stream: sp.get("stream") || "",
       project: sp.get("project") || "",
       branch: sp.get("branch") || "",
       start: (sp.get("start") || "").slice(0, 10),
@@ -608,7 +633,7 @@
     return !!(
       u.start || u.end || u.preset || u.income_types || u.platforms || u.channels ||
       u.surfaces || u.sources || u.search || u.compare || u.compare_mode ||
-      u.ad_unit || u.drill_income_type || u.project
+      u.ad_unit || u.drill_income_type || u.project || u.stream
     );
   }
 
@@ -621,7 +646,7 @@
     state._mzApplyingUrl = true;
     if (u.start) document.getElementById("mz-start").value = u.start;
     if (u.end) document.getElementById("mz-end").value = u.end;
-    if (u.start || u.end) document.getElementById("mz-preset").value = u.preset || "";
+    if (u.start || u.end) document.getElementById("mz-preset").value = "";
     else if (u.preset) document.getElementById("mz-preset").value = u.preset;
     if (u.search) document.getElementById("mz-search").value = u.search;
     if (u.compare) document.getElementById("mz-compare-enabled").checked = true;
@@ -661,10 +686,16 @@
   }
 
   function syncActiveStreamFromUrl(u) {
-    if (!u || !u.project || !state.streams || !state.streams.length) return;
-    var hit = state.streams.find(function (s) {
-      return String(s.project || "") === u.project && String(s.branch || "") === (u.branch || "");
-    });
+    if (!u || !state.streams || !state.streams.length) return;
+    var hit = null;
+    if (u.stream) {
+      hit = state.streams.find(function (s) { return String(s.key || "") === u.stream; });
+    }
+    if (!hit && u.project) {
+      hit = state.streams.find(function (s) {
+        return String(s.project || "") === u.project && String(s.branch || "") === (u.branch || "");
+      });
+    }
     if (hit) state.activeStream = hit;
   }
 
@@ -749,19 +780,19 @@
     if (state.activeStream) {
       p.set("project", state.activeStream.project);
       p.set("branch", state.activeStream.branch);
+      if (state.activeStream.key) p.set("stream", state.activeStream.key);
     }
     var s = document.getElementById("mz-start").value;
     var e = document.getElementById("mz-end").value;
     if (s) p.set("start", s);
     if (e) p.set("end", e);
-    if (state.income.size) p.set("income_types", Array.from(state.income).join(","));
-    // Dal sekmesi aktifken kanal/yüzey filtresi gönderme (android/sinemalar kapalıyken 0 KPI hatası)
+    appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
     if (!state.activeStream) {
-      if (state.platform.size) p.set("platforms", Array.from(state.platform).join(","));
-      if (state.channel.size) p.set("channels", Array.from(state.channel).join(","));
-      if (state.surface.size) p.set("surfaces", Array.from(state.surface).join(","));
+      appendFacetParam(p, "platforms", state.platform, state._mzPlatformFacetList || []);
+      appendFacetParam(p, "channels", state.channel, state._mzChannelFacetList || []);
+      appendFacetParam(p, "surfaces", state.surface, state._mzSurfaceFacetList || []);
     }
-    if (state.source.size) p.set("sources", Array.from(state.source).join(","));
+    appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     var q = document.getElementById("mz-search").value.trim();
     if (q) p.set("search", q);
     if (state.drillSlice && state.drillSlice.ad_unit) {
@@ -1913,6 +1944,7 @@
     updateSummaryDrillSubtitle();
     if (state.lastSummaryTable) renderSummaryTable(state.lastSummaryTable);
     renderSummaryDrillChart();
+    debouncedSyncUrl();
   }
 
   function applyDefaultSummaryDrillSelection() {
@@ -2185,6 +2217,7 @@
     scheduleDetailDrillChart();
     cacheDetailUnitAreas(u);
     fetchDetailUnitFullTable(u);
+    debouncedSyncUrl();
   }
 
   function scoreAdUnitMatch(unit, q) {
@@ -2485,6 +2518,7 @@
     updateDrillSubtitle();
     if (state.lastTable) renderTable(state.lastTable);
     renderTableDrillChart();
+    debouncedSyncUrl();
   }
 
   function setDrillForAdUnit(unit, userPicked) {
@@ -4920,6 +4954,7 @@
       cb.addEventListener("change", function () {
         if (cb.checked) set.add(name); else set.delete(name);
         debouncedRun();
+        debouncedSyncUrl();
       });
       lab.appendChild(cb);
       var span = document.createElement("span");
@@ -4948,6 +4983,7 @@
         if (set.has(name)) set.delete(name); else set.add(name);
         filterChips(containerId, items, set);
         debouncedRun();
+        debouncedSyncUrl();
       });
       el.appendChild(btn);
     });
@@ -5004,6 +5040,7 @@
         applyPreset();
         loadDetailFavorites();
         renderDetailFavorites();
+        syncUrlNow();
         runQuery({ resetTableDrills: true });
       });
       wrap.appendChild(btn);
@@ -5041,6 +5078,10 @@
       }
       var incomeList = f.income_types || [];
       state._mzIncomeFacetList = incomeList;
+      state._mzPlatformFacetList = f.platforms || [];
+      state._mzChannelFacetList = f.channels || [];
+      state._mzSurfaceFacetList = f.surfaces || [];
+      state._mzSourceFacetList = f.source_files || [];
       if (!state._mzFacetsLoaded) {
         state.income = new Set(incomeList);
         state.platform = new Set(f.platforms || []);
@@ -5131,6 +5172,7 @@
       state._drillRowKey = null;
       state._summaryDrillRowKey = null;
       clearDetailUnitFilters();
+      debouncedSyncUrl();
     }
     setLoading(true);
     showPageError("");
@@ -5172,27 +5214,48 @@
   on("mz-compare-enabled", "change", function () {
     updateCompareControls();
     debouncedRun();
+    debouncedSyncUrl();
   });
   on("mz-compare-mode", "change", function () {
     updateCompareControls();
     debouncedRun();
+    debouncedSyncUrl();
   });
-  on("mz-compare-start", "change", debouncedRun);
-  on("mz-compare-end", "change", debouncedRun);
+  on("mz-compare-start", "change", function () {
+    debouncedRun();
+    debouncedSyncUrl();
+  });
+  on("mz-compare-end", "change", function () {
+    debouncedRun();
+    debouncedSyncUrl();
+  });
   on("mz-compare-dim", "change", function () {
     if (state.lastSummary) renderCompareDim(state.lastSummary);
   });
   updateCompareControls();
 
-  on("mz-run", "click", function () { runQuery({ resetTableDrills: true }); });
+  on("mz-run", "click", function () {
+    runQuery({ resetTableDrills: true });
+    debouncedSyncUrl();
+  });
   on("mz-preset", "change", function () {
     applyPreset();
     debouncedRun();
+    debouncedSyncUrl();
   });
-  on("mz-start", "change", debouncedRun);
-  on("mz-end", "change", debouncedRun);
+  on("mz-start", "change", function () {
+    document.getElementById("mz-preset").value = "";
+    debouncedRun();
+    debouncedSyncUrl();
+  });
+  on("mz-end", "change", function () {
+    document.getElementById("mz-preset").value = "";
+    debouncedRun();
+    debouncedSyncUrl();
+  });
   on("mz-search", "input", function () {
     debouncedRun();
+    debouncedSyncUrl(300);
     clearTimeout(mzSearchPreviewTimer);
     mzSearchPreviewTimer = setTimeout(fetchSearchPreview, 450);
   });
