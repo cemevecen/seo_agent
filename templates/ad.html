@@ -494,6 +494,7 @@
     detailUnitFullTable: null,
     detailUnitFullFor: "",
     detailUnitFullLoading: false,
+    _detailUnitFetchSeq: 0,
     detailUnitRowsExpanded: false,
     detailFavorites: [],
     detailUnitAcIndex: -1,
@@ -1480,8 +1481,10 @@
   function clearDetailUnitFullTable() {
     state.detailUnitFullTable = null;
     state.detailUnitFullFor = "";
-    state.detailUnitFullLoading = false;
     state.detailUnitRowsExpanded = false;
+    if (!state.detailUnitFullLoading) {
+      state._detailUnitFetchSeq = (state._detailUnitFetchSeq || 0) + 1;
+    }
   }
 
   var MZ_DETAIL_UNIT_PREVIEW_DAYS = 5;
@@ -1508,21 +1511,29 @@
 
   async function fetchDetailUnitFullTable(unit) {
     if (!unit) return;
+    var seq = (state._detailUnitFetchSeq || 0) + 1;
+    state._detailUnitFetchSeq = seq;
     state.detailUnitFullLoading = true;
     if (state.lastTable) renderTable(state.lastTable);
     try {
       var data = await fetchTableWithBreakdownCfg("detail", 2000, detailUnitHistoryBdCfg(), { ad_unit: unit });
+      if (state._detailUnitFetchSeq !== seq) return;
+      if ((state.detailSelectedUnit || "").trim() !== unit) return;
       state.detailUnitFullTable = data;
       state.detailUnitFullFor = unit;
       storeDetailUnitAreasCache(unit, data.rows || []);
       state.detailUnitRowsExpanded = false;
       state.tableExpanded = false;
     } catch (err) {
-      showPageError((err && err.message) || "Mx birimi verisi yüklenemedi");
+      if (state._detailUnitFetchSeq !== seq) return;
+      if ((state.detailSelectedUnit || "").trim() === unit) {
+        showPageError((err && err.message) || "Mx birimi verisi yüklenemedi");
+      }
     } finally {
+      if (state._detailUnitFetchSeq !== seq) return;
       state.detailUnitFullLoading = false;
       if (state.lastTable) renderTable(state.lastTable);
-      if ((state.detailSelectedUnit || "") === unit) scheduleDetailDrillChart();
+      if ((state.detailSelectedUnit || "").trim() === unit) scheduleDetailDrillChart();
     }
   }
 
@@ -1792,10 +1803,13 @@
     }
     if (!sel && !q) return base;
     if (sel && state.detailUnitFullFor !== sel) {
+      var previewRows = rows.filter(function (r) {
+        return String(r.ad_unit || "") === sel;
+      });
       return {
-        rows: [],
-        total: 0,
-        breakdown: ["date", "area", "ad_unit"],
+        rows: previewRows,
+        total: previewRows.length,
+        breakdown: base.breakdown || ["date", "area", "ad_unit"],
         compare_range: base.compare_range,
         _partialUnit: true,
         _unitLoading: !!state.detailUnitFullLoading,
@@ -1932,9 +1946,11 @@
     var data = await fetchTableForScope("detail", 800);
     state.lastTable = data;
     state.tableExpanded = false;
-    if (state.detailSelectedUnit && state.detailUnitFullFor === state.detailSelectedUnit) {
-      await fetchDetailUnitFullTable(state.detailSelectedUnit);
+    var sel = (state.detailSelectedUnit || "").trim();
+    if (sel) {
+      await fetchDetailUnitFullTable(sel);
     } else {
+      state.detailUnitFullLoading = false;
       clearDetailUnitFullTable();
     }
     refreshDetailUnitSelect();
@@ -3909,9 +3925,20 @@
     if (!rows.length) {
       var emptyMsg = data._unitLoading
         ? "Mx birimi için günlük veri yükleniyor… (sol paneldeki tarih aralığı)"
-        : "Bu kırılım için satır yok.";
+        : data._partialUnit && (state.detailSelectedUnit || "").trim()
+          ? "Bu birim için tablo satırı bulunamadı. Tarih aralığını veya birim adını kontrol edin."
+          : "Bu kırılım için satır yok.";
       body.innerHTML = "<tr><td colspan=\"" + cols.length + "\" class=\"py-4 text-center text-slate-500 dark:text-zinc-500\">" + emptyMsg + "</td></tr>";
-      if (expandWrap && useExpand) expandWrap.classList.add("hidden");
+      if (expandWrap && opts.expandLoadFull && !data._unitLoading) {
+        expandWrap.classList.remove("hidden");
+        expandBtn.textContent = "Tüm tarih aralığını yükle";
+        expandBtn.onclick = function () {
+          var u = (state.detailSelectedUnit || "").trim();
+          if (u) fetchDetailUnitFullTable(u);
+        };
+      } else if (expandWrap) {
+        expandWrap.classList.add("hidden");
+      }
       return;
     }
     var cap;
