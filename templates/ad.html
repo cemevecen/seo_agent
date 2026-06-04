@@ -108,11 +108,15 @@
       <p id="mz-boot-hint" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">KPI ve grafikler yükleniyor…</p>
       <p id="mz-import-audit" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"></p>
       <p id="mz-page-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+      <div id="mz-compare-period-banner" class="hidden rounded-xl border border-indigo-300/90 bg-indigo-50/90 px-3 py-2.5 dark:border-indigo-800 dark:bg-indigo-950/50 midnight:border-indigo-900 midnight:bg-indigo-950/30">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-800 dark:text-indigo-300">Tarih karşılaştırması — veri aralıkları</p>
+        <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
+        <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
+      </div>
       <div id="mz-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
-      <p id="mz-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
-      <p id="mz-compare-range-label" class="hidden text-xs font-semibold text-indigo-700 dark:text-indigo-300"></p>
+      <p id="mz-range-label" class="text-xs text-slate-500 dark:text-zinc-400"></p>
 
       <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <section id="mz-compare-matrix-wrap" class="min-w-0 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
@@ -626,6 +630,85 @@
     };
   }
 
+  var COMPARE_MODE_LABELS = {
+    previous_period: "Önceki dönem (aynı uzunluk)",
+    previous_year: "Geçen yıl (aynı tarihler)",
+    custom: "Özel karşılaştırma aralığı",
+  };
+
+  function fmtDateTr(iso) {
+    if (!iso) return "—";
+    var s = String(iso).slice(0, 10);
+    var p = s.split("-");
+    if (p.length !== 3) return s;
+    return p[2] + "." + p[1] + "." + p[0];
+  }
+
+  function isoDateLocal(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  function resolveCompareRangeClient(primaryStart, primaryEnd, mode) {
+    if (!primaryStart || !primaryEnd || !mode) return null;
+    var ps = new Date(primaryStart + "T12:00:00");
+    var pe = new Date(primaryEnd + "T12:00:00");
+    if (isNaN(ps.getTime()) || isNaN(pe.getTime())) return null;
+    if (mode === "custom") {
+      var cs = document.getElementById("mz-compare-start").value;
+      var ce = document.getElementById("mz-compare-end").value;
+      return cs && ce ? { start: cs, end: ce } : null;
+    }
+    var spanDays = Math.round((pe - ps) / 86400000) + 1;
+    if (mode === "previous_period") {
+      var cmpEnd = new Date(ps);
+      cmpEnd.setDate(cmpEnd.getDate() - 1);
+      var cmpStart = new Date(cmpEnd);
+      cmpStart.setDate(cmpStart.getDate() - (spanDays - 1));
+      return { start: isoDateLocal(cmpStart), end: isoDateLocal(cmpEnd) };
+    }
+    if (mode === "previous_year") {
+      var ys = new Date(ps);
+      var ye = new Date(pe);
+      ys.setFullYear(ys.getFullYear() - 1);
+      ye.setFullYear(ye.getFullYear() - 1);
+      return { start: isoDateLocal(ys), end: isoDateLocal(ye) };
+    }
+    return null;
+  }
+
+  function updateComparePeriodBanner(sum) {
+    var banner = document.getElementById("mz-compare-period-banner");
+    var linesEl = document.getElementById("mz-compare-period-lines");
+    var modeEl = document.getElementById("mz-compare-period-mode");
+    if (!banner || !linesEl) return;
+    if (!compareEnabled()) {
+      banner.classList.add("hidden");
+      linesEl.textContent = "";
+      if (modeEl) modeEl.textContent = "";
+      return;
+    }
+    var primary = selectedDateRange();
+    var mode = document.getElementById("mz-compare-mode").value;
+    var cmp = sum && compareBlock(sum);
+    var compareRange = (cmp && cmp.range) ? cmp.range : resolveCompareRangeClient(primary.start, primary.end, mode);
+    if (!primary.start || !primary.end || !compareRange || !compareRange.start || !compareRange.end) {
+      banner.classList.remove("hidden");
+      linesEl.textContent = "Karşılaştırma için geçerli bir tarih aralığı seçin.";
+      if (modeEl) modeEl.textContent = COMPARE_MODE_LABELS[mode] || "";
+      return;
+    }
+    banner.classList.remove("hidden");
+    linesEl.innerHTML =
+      "<span class=\"font-semibold text-indigo-900 dark:text-indigo-200\">Seçili dönem:</span> " +
+      fmtDateTr(primary.start) + " — " + fmtDateTr(primary.end) +
+      " <span class=\"mx-1 text-slate-400\">·</span> " +
+      "<span class=\"font-semibold text-slate-600 dark:text-zinc-300\">Karşı dönem:</span> " +
+      fmtDateTr(compareRange.start) + " — " + fmtDateTr(compareRange.end);
+    if (modeEl) {
+      modeEl.textContent = "Mod: " + (COMPARE_MODE_LABELS[mode] || mode);
+    }
+  }
+
   /** Sidebar’daki seçili aralık; özet by_date tam yıl kalsa bile grafikte yalnızca bu dilim. */
   function filterSeriesBySelectedRange(series, timeKey) {
     var r = selectedDateRange();
@@ -686,6 +769,7 @@
     ce.disabled = !on;
     var isCustom = on && modeEl.value === "custom";
     custom.classList.toggle("hidden", !isCustom);
+    updateComparePeriodBanner(state.lastSummary);
   }
 
   function fmtDeltaPct(pct) {
@@ -3686,17 +3770,12 @@
     var cmp = compareBlock(sum);
     var panels = document.getElementById("mz-compare-panels-wrap");
     var body = document.getElementById("mz-compare-matrix-body");
-    var rangeLbl = document.getElementById("mz-compare-range-label");
+    updateComparePeriodBanner(sum);
     if (!cmp || !panels || !body) {
       if (panels) panels.classList.add("hidden");
-      if (rangeLbl) rangeLbl.classList.add("hidden");
       return;
     }
     panels.classList.remove("hidden");
-    if (rangeLbl) {
-      rangeLbl.classList.remove("hidden");
-      rangeLbl.textContent = "Karşılaştırma: " + cmp.range.start + " — " + cmp.range.end;
-    }
     body.innerHTML = activeKpiDefs(sum).map(function (def) {
       var d = (cmp.deltas || {})[def.key] || {};
       return "<tr>" +
@@ -4169,6 +4248,7 @@
     } else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
     start.value = s.toISOString().slice(0, 10);
     end.value = d.toISOString().slice(0, 10);
+    updateComparePeriodBanner(state.lastSummary);
   }
 
   function renderStreamTabs() {
@@ -4303,6 +4383,7 @@
       parts.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
     }
     rangeLbl.textContent = parts.join(" · ");
+    updateComparePeriodBanner(state.lastSummary);
   }
 
   async function runQuery(opts) {
