@@ -1298,29 +1298,6 @@
     }, 50);
   }
 
-  function drillChartRowsFromDetailTable(slice) {
-    if (!slice || !slice.ad_unit || !state.lastTable) return null;
-    var view = detailTableViewData(state.lastTable);
-    var rows = sortDetailRowsChronoDesc(view.rows || []);
-    if (!rows.length) return null;
-    rows = rows.filter(function (r) {
-      return rowMatchesDrillSlice(r, slice);
-    });
-    return rows.length ? rows : null;
-  }
-
-  function inferBreakdownFromRows(rows) {
-    if (!rows || !rows.length) return ["date"];
-    var r = rows[0];
-    var parts = [];
-    if (r.date) parts.push("date");
-    else if (r.week) parts.push("week");
-    else if (r.month) parts.push("month");
-    if (r.area) parts.push("area");
-    if (r.ad_unit) parts.push("ad_unit");
-    return parts.length ? parts : ["date"];
-  }
-
   async function fetchDetailUnitFullTable(unit) {
     if (!unit || !state.breakdowns.detail) return;
     state.detailUnitFullLoading = true;
@@ -1355,10 +1332,8 @@
     updateDetailFavoriteButton();
     updateDrillSubtitle();
     hideDetailUnitAutocomplete();
-    if (state.lastTable) {
-      renderTable(state.lastTable);
-      scheduleDetailDrillChart();
-    }
+    if (state.lastTable) renderTable(state.lastTable);
+    scheduleDetailDrillChart();
     fetchDetailUnitFullTable(u);
   }
 
@@ -2542,22 +2517,9 @@
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
-      var filtered = [];
-      var breakdown = [];
-      var fromTable = false;
-      if (!isSummary && slice && slice.ad_unit) {
-        var tableRows = drillChartRowsFromDetailTable(slice);
-        if (tableRows && tableRows.length >= 1) {
-          filtered = drillRowsForChart(scope, tableRows, slice);
-          breakdown = inferBreakdownFromRows(tableRows);
-          fromTable = true;
-        }
-      }
-      if (!filtered.length) {
-        var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
-        filtered = drillRowsForChart(scope, data.rows || [], slice);
-        breakdown = data.breakdown || [];
-      }
+      var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
+      var filtered = drillRowsForChart(scope, data.rows || [], slice);
+      var breakdown = data.breakdown || [];
       var multiAreaTable = false;
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
@@ -2691,9 +2653,13 @@
         var autoNote = metricAutoSwitched
           ? " · metrik otomatik: " + mDef.label + " (" + (DRILL_METRICS.find(function (d) { return d.key === requestedMetric; }) || {}).label + " düz/boş)"
           : "";
-        var srcNote = fromTable ? " · tablo verisi" : "";
+        var rangeLbl = selectedDateRange();
+        var rangeNote =
+          (rangeLbl.start || rangeLbl.end)
+            ? " · " + (rangeLbl.start || "…") + " — " + (rangeLbl.end || "…")
+            : "";
         statusEl.textContent =
-          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + srcNote + extra + autoNote;
+          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote;
       }
     } catch (e) {
       try { if (window.Plotly) Plotly.purge(chartEl); } catch (_) { /* ignore */ }
@@ -3525,9 +3491,6 @@
       var metaEl = document.getElementById("mz-table-meta");
       if (metaEl) metaEl.textContent = (metaEl.textContent || "") + " · tüm tarihler yükleniyor…";
     }
-    if (sel && state.drillSlice && state.drillSlice.ad_unit === sel) {
-      scheduleDetailDrillChart();
-    }
   }
 
   function pruneFacetSet(set, allowed) {
@@ -3771,6 +3734,12 @@
       await refreshDetailTable();
       await refreshSummaryTable();
       finalizeMzTrendAndSparks(sum);
+      if (state.drillSlice && Object.keys(state.drillSlice).length) {
+        scheduleDetailDrillChart();
+      }
+      if (state.summaryDrillSlice && Object.keys(state.summaryDrillSlice).length) {
+        renderSummaryDrillChart();
+      }
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
       document.getElementById("mz-status").textContent = msg;
