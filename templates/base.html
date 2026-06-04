@@ -609,6 +609,12 @@
     .mz-page .mz-chart-card.hidden {
       display: none !important;
     }
+    .mz-page.compare-active .compare-dual-quality-row {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .mz-page.compare-active .compare-dual-quality-row .mz-chart-plot {
+      min-height: clamp(18rem, 36vw, 24rem);
+    }
     .mz-page .mz-charts-row-3 {
       display: grid;
       grid-template-columns: minmax(0, 1fr);

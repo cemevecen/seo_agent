@@ -2336,6 +2336,15 @@ def _merge_table_rows(
         "click",
         "net_revenue",
         "computed_ecpm",
+        "matched_request",
+        "empower_pageview",
+        "empower_unique_visitor",
+    )
+    rate_metrics = (
+        "coverage_pct",
+        "viewability_pct",
+        "ctr_pct",
+        "above_the_fold_ratio_pct",
     )
     cmap = {_table_dimension_key(r, dim_fields): r for r in compare_rows}
     keys: list[str] = []
@@ -2355,6 +2364,12 @@ def _merge_table_rows(
         for field in dim_fields:
             item[field] = prow.get(field) or crow.get(field)
         for metric in numeric_metrics:
+            pv = float(prow.get(metric) or 0)
+            cv = float(crow.get(metric) or 0)
+            item[metric] = prow.get(metric, 0) if prow else 0
+            item[f"{metric}_compare"] = crow.get(metric, 0) if crow else 0
+            item[f"{metric}_delta_pct"] = _kpi_delta(pv, cv)["pct"]
+        for metric in rate_metrics:
             pv = float(prow.get(metric) or 0)
             cv = float(crow.get(metric) or 0)
             item[metric] = prow.get(metric, 0) if prow else 0
