@@ -2562,7 +2562,6 @@
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
       }
-      var breakdown = data.breakdown || [];
       var requestedMetric = metricKey;
       var autoMetric = resolveAutoDrillMetricKey(filtered, chartTimeKey, scope, requestedMetric);
       var metricAutoSwitched = autoMetric !== requestedMetric;
