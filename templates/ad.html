@@ -479,8 +479,6 @@
     detailUnitRowsExpanded: false,
     detailFavorites: [],
     detailUnitAcIndex: -1,
-    _drillChartGen: 0,
-    _summaryDrillChartGen: 0,
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1291,15 +1289,41 @@
     });
   }
 
+  var detailDrillChartTimer = null;
+  function scheduleDetailDrillChart() {
+    clearTimeout(detailDrillChartTimer);
+    detailDrillChartTimer = setTimeout(function () {
+      detailDrillChartTimer = null;
+      renderTableDrillChart();
+    }, 50);
+  }
+
+  function drillChartRowsFromDetailTable(slice) {
+    if (!slice || !slice.ad_unit || !state.lastTable) return null;
+    var view = detailTableViewData(state.lastTable);
+    var rows = sortDetailRowsChronoDesc(view.rows || []);
+    if (!rows.length) return null;
+    rows = rows.filter(function (r) {
+      return rowMatchesDrillSlice(r, slice);
+    });
+    return rows.length ? rows : null;
+  }
+
+  function inferBreakdownFromRows(rows) {
+    if (!rows || !rows.length) return ["date"];
+    var r = rows[0];
+    var parts = [];
+    if (r.date) parts.push("date");
+    else if (r.week) parts.push("week");
+    else if (r.month) parts.push("month");
+    if (r.area) parts.push("area");
+    if (r.ad_unit) parts.push("ad_unit");
+    return parts.length ? parts : ["date"];
+  }
+
   async function fetchDetailUnitFullTable(unit) {
     if (!unit || !state.breakdowns.detail) return;
     state.detailUnitFullLoading = true;
-    var chartEl = document.getElementById("mz-drill-chart");
-    if (chartEl && (state.detailSelectedUnit || "") === unit) {
-      try { if (window.Plotly) Plotly.purge(chartEl); } catch (_) { /* ignore */ }
-      chartEl.innerHTML =
-        "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Grafik yükleniyor…</p>";
-    }
     if (state.lastTable) renderTable(state.lastTable);
     try {
       var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
@@ -1312,7 +1336,7 @@
     } finally {
       state.detailUnitFullLoading = false;
       if (state.lastTable) renderTable(state.lastTable);
-      if ((state.detailSelectedUnit || "") === unit) renderTableDrillChart();
+      if ((state.detailSelectedUnit || "") === unit) scheduleDetailDrillChart();
     }
   }
 
@@ -1331,7 +1355,10 @@
     updateDetailFavoriteButton();
     updateDrillSubtitle();
     hideDetailUnitAutocomplete();
-    if (state.lastTable) renderTable(state.lastTable);
+    if (state.lastTable) {
+      renderTable(state.lastTable);
+      scheduleDetailDrillChart();
+    }
     fetchDetailUnitFullTable(u);
   }
 
@@ -2480,9 +2507,6 @@
 
   async function renderScopeDrillChart(scope) {
     var isSummary = scope === "summary";
-    var genKey = isSummary ? "_summaryDrillChartGen" : "_drillChartGen";
-    var gen = (state[genKey] || 0) + 1;
-    state[genKey] = gen;
     var chartEl = document.getElementById(isSummary ? "mz-summary-drill-chart" : "mz-drill-chart");
     var statusEl = document.getElementById(isSummary ? "mz-summary-drill-status" : "mz-drill-status");
     var slice = isSummary ? state.summaryDrillSlice : state.drillSlice;
@@ -2518,8 +2542,22 @@
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
-      var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
-      var filtered = drillRowsForChart(scope, data.rows || [], slice);
+      var filtered = [];
+      var breakdown = [];
+      var fromTable = false;
+      if (!isSummary && slice && slice.ad_unit) {
+        var tableRows = drillChartRowsFromDetailTable(slice);
+        if (tableRows && tableRows.length >= 1) {
+          filtered = drillRowsForChart(scope, tableRows, slice);
+          breakdown = inferBreakdownFromRows(tableRows);
+          fromTable = true;
+        }
+      }
+      if (!filtered.length) {
+        var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
+        filtered = drillRowsForChart(scope, data.rows || [], slice);
+        breakdown = data.breakdown || [];
+      }
       var multiAreaTable = false;
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
@@ -2560,7 +2598,6 @@
       var lineColor = isSummary
         ? (isDarkTheme() ? "#34d399" : "#059669")
         : (isDarkTheme() ? "#818cf8" : "#4f46e5");
-      if (gen !== state[genKey]) return;
       var dailyPoints = chartTimeKey === "date" && series.length > 1;
       var dense = series.length > 96;
       var traceMode = chartType === "bar"
@@ -2581,7 +2618,7 @@
           x: xs,
           y: ys,
           connectgaps: true,
-          line: chartType === "line" && traceMode.indexOf("lines") >= 0
+          line: chartType !== "bar"
             ? { color: lineColor, width: lineW }
             : undefined,
           marker: markerSize
@@ -2638,9 +2675,7 @@
         });
         if (plotAnnots.length) layout.annotations = plotAnnots;
       }
-      if (gen !== state[genKey]) return;
       await plotDrillChartEl(chartEl, [trace], layout);
-      if (gen !== state[genKey]) return;
       renderDrillSeriesInsights(
         isSummary ? "mz-summary-drill-insights" : "mz-drill-insights",
         analysis,
@@ -2657,11 +2692,16 @@
         var autoNote = metricAutoSwitched
           ? " · metrik otomatik: " + mDef.label + " (" + (DRILL_METRICS.find(function (d) { return d.key === requestedMetric; }) || {}).label + " düz/boş)"
           : "";
+        var srcNote = fromTable ? " · tablo verisi" : "";
         statusEl.textContent =
-          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + extra + autoNote;
+          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + srcNote + extra + autoNote;
       }
     } catch (e) {
-      chartEl.innerHTML = "";
+      try { if (window.Plotly) Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+      chartEl.innerHTML =
+        "<p class=\"py-6 text-center text-xs text-rose-600 dark:text-rose-400\">Trend yüklenemedi: " +
+        (e && e.message ? e.message : String(e)) +
+        "</p>";
       renderDrillSeriesInsights(isSummary ? "mz-summary-drill-insights" : "mz-drill-insights", null, metricKey, null);
       if (statusEl) statusEl.textContent = "Trend yüklenemedi: " + (e.message || e);
     }
@@ -2754,14 +2794,35 @@
   }
 
   function plotDrillChartEl(chartEl, traces, layout) {
-    if (!chartEl || !window.Plotly) return Promise.resolve();
-    var h = chartEl.clientHeight || 0;
-    if (h < 48) h = 220;
-    var lay = Object.assign({ autosize: true, height: h }, layout || {});
+    if (!chartEl || !window.Plotly) {
+      return Promise.reject(new Error("Plotly yüklenmedi"));
+    }
+    var h = 220;
+    chartEl.style.minHeight = h + "px";
+    chartEl.style.height = h + "px";
+    var dark = isDarkTheme();
+    var lay = Object.assign(
+      {
+        autosize: true,
+        height: h,
+        paper_bgcolor: dark ? "rgb(9,9,11)" : "rgb(255,255,255)",
+        plot_bgcolor: dark ? "rgb(9,9,11)" : "rgb(248,250,252)",
+      },
+      layout || {}
+    );
     try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
-    return Plotly.newPlot(chartEl, traces, lay, plotlyCfg()).then(function () {
-      return Plotly.Plots.resize(chartEl);
-    });
+    chartEl.innerHTML = "";
+    return Plotly.newPlot(chartEl, traces, lay, plotlyCfg())
+      .then(function () {
+        return Plotly.Plots.resize(chartEl);
+      })
+      .catch(function (err) {
+        chartEl.innerHTML =
+          "<p class=\"py-6 text-center text-xs text-rose-600 dark:text-rose-400\">Grafik çizilemedi: " +
+          (err && err.message ? err.message : String(err)) +
+          "</p>";
+        throw err;
+      });
   }
 
   function renderLineChart(byDate, kpiKey, cmp, timeKey) {
@@ -3464,6 +3525,9 @@
     if (state.detailUnitFullLoading) {
       var metaEl = document.getElementById("mz-table-meta");
       if (metaEl) metaEl.textContent = (metaEl.textContent || "") + " · tüm tarihler yükleniyor…";
+    }
+    if (sel && state.drillSlice && state.drillSlice.ad_unit === sel) {
+      scheduleDetailDrillChart();
     }
   }
 
