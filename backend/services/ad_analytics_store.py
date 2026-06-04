@@ -1462,6 +1462,14 @@ def align_by_date_series(
     kpi_key: str,
 ) -> list[dict[str, Any]]:
     """İki dönemin günlük serisini gün indeksi ile hizalar (tarih bazlı trend karşılaştırması)."""
+    primary = sorted(
+        [p for p in (primary or []) if p.get("date")],
+        key=lambda x: str(x["date"]),
+    )
+    compare = sorted(
+        [c for c in (compare or []) if c.get("date")],
+        key=lambda x: str(x["date"]),
+    )
     n = max(len(primary), len(compare))
     aligned: list[dict[str, Any]] = []
     for i in range(n):
@@ -1572,6 +1580,7 @@ def _attach_compare_block(
             compare.get("by_platform") or [],
             "platform",
         ),
+        "by_date_income_type": compare.get("by_date_income_type") or [],
     }
 
 

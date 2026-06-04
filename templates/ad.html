@@ -709,6 +709,208 @@
     }
   }
 
+  function compareColors() {
+    var dark = isDarkTheme();
+    return {
+      primary: dark ? "#818cf8" : "#4f46e5",
+      compare: dark ? "#fb7185" : "#e11d48",
+      rev: dark ? "#34d399" : "#059669",
+      revCmp: dark ? "#fbbf24" : "#d97706",
+      imp: dark ? "#38bdf8" : "#0284c7",
+      impCmp: dark ? "#67e8f9" : "#0369a1",
+      barPrimary: dark ? "#38bdf8" : "#0ea5e9",
+      barCompare: dark ? "#fb7185" : "#f97316",
+    };
+  }
+
+  function getActiveCompareRange(sum) {
+    if (!compareEnabled()) return null;
+    var cmp = sum && compareBlock(sum);
+    if (cmp && cmp.range && cmp.range.start && cmp.range.end) return cmp.range;
+    var primary = selectedDateRange();
+    var mode = document.getElementById("mz-compare-mode").value;
+    return resolveCompareRangeClient(primary.start, primary.end, mode);
+  }
+
+  function alignedDateSeries(cmp, kpiKey) {
+    if (!cmp || !cmp.by_date_aligned || !cmp.by_date_aligned[kpiKey]) return null;
+    var aligned = cmp.by_date_aligned[kpiKey];
+    var range = selectedDateRange();
+    aligned = aligned.filter(function (row) {
+      var pd = String(row.primary_date || "").slice(0, 10);
+      if (!pd || pd.length < 10) return false;
+      if (range.start && pd < range.start) return false;
+      if (range.end && pd > range.end) return false;
+      return true;
+    });
+    return aligned.length ? aligned : null;
+  }
+
+  function alignedCategoryLabels(aligned) {
+    return aligned.map(function (row, i) {
+      var pd = String(row.primary_date || "").slice(0, 10);
+      var cd = String(row.compare_date || "").slice(0, 10);
+      if (pd && cd) return fmtDateTr(pd) + " / " + fmtDateTr(cd);
+      if (pd) return fmtDateTr(pd);
+      return "G" + (i + 1);
+    });
+  }
+
+  function makeCompareLineTraces(aligned, opts) {
+    opts = opts || {};
+    var colors = compareColors();
+    if (!aligned || !aligned.length) return { traces: [], x: [] };
+    var x = alignedCategoryLabels(aligned);
+    var traces = [
+      {
+        x: x,
+        y: aligned.map(function (r) { return r.primary; }),
+        type: "scatter",
+        mode: opts.mode || "lines",
+        name: opts.primaryName || "Seçili dönem",
+        line: { color: opts.primaryColor || colors.primary, width: 2 },
+        marker: { color: opts.primaryColor || colors.primary, size: 4 },
+        yaxis: opts.yaxis || "y",
+      },
+      {
+        x: x,
+        y: aligned.map(function (r) { return r.compare; }),
+        type: "scatter",
+        mode: opts.mode || "lines",
+        name: opts.compareName || "Karşı dönem",
+        line: {
+          color: opts.compareColor || colors.compare,
+          width: 2,
+          dash: opts.compareDash || "dot",
+        },
+        marker: { color: opts.compareColor || colors.compare, size: 4 },
+        yaxis: opts.yaxis || "y",
+      },
+    ];
+    return { traces: traces, x: x };
+  }
+
+  function compareLayoutExtra(pointCount) {
+    return {
+      xaxis: {
+        type: "category",
+        tickangle: pointCount > 36 ? -45 : pointCount > 18 ? -25 : 0,
+      },
+      legend: {
+        orientation: "h",
+        yanchor: "bottom",
+        y: 1.02,
+        xanchor: "center",
+        x: 0.5,
+        font: plotFont(),
+      },
+    };
+  }
+
+  function rowTimeValue(row, timeKey) {
+    if (!row) return "";
+    if (timeKey === "week") return String(row.week || "");
+    if (timeKey === "month") return String(row.month || "").slice(0, 7);
+    return String(row.date || "").slice(0, 10);
+  }
+
+  function rowInIsoRange(row, timeKey, start, end) {
+    var val = rowTimeValue(row, timeKey);
+    if (!val) return false;
+    if (start && val < start) return false;
+    if (end && val > end) return false;
+    return true;
+  }
+
+  function drillCompareAlignedPair(filtered, chartTimeKey, metricKey, sum) {
+    var cmpRange = getActiveCompareRange(sum);
+    if (!cmpRange || !compareEnabled()) return null;
+    var primaryRange = selectedDateRange();
+    var primaryRows = filtered.filter(function (r) {
+      return rowInIsoRange(r, chartTimeKey, primaryRange.start, primaryRange.end);
+    });
+    var compareRows = filtered.filter(function (r) {
+      return rowInIsoRange(r, chartTimeKey, cmpRange.start, cmpRange.end);
+    });
+    var primarySeries = aggregateDrillSeries(primaryRows, chartTimeKey, metricKey);
+    var compareSeries = aggregateDrillSeries(compareRows, chartTimeKey, metricKey);
+    if (!primarySeries.length && !compareSeries.length) return null;
+    var n = Math.max(primarySeries.length, compareSeries.length);
+    var x = [];
+    var py = [];
+    var cy = [];
+    for (var i = 0; i < n; i++) {
+      var p = primarySeries[i];
+      var c = compareSeries[i];
+      var px = p ? String(p.x) : "";
+      var cx = c ? String(c.x) : "";
+      if (chartTimeKey === "date") {
+        x.push(
+          (px ? fmtDateTr(px.slice(0, 10)) : "") +
+          (px && cx ? " / " : "") +
+          (cx ? fmtDateTr(cx.slice(0, 10)) : "")
+        );
+      } else {
+        x.push(px || cx || ("G" + (i + 1)));
+      }
+      py.push(p ? Number(p.y) : null);
+      cy.push(c ? Number(c.y) : null);
+    }
+    return { x: x, primaryY: py, compareY: cy };
+  }
+
+  function renderBreakdownPiePair(elId, rows, labelKey, cmp) {
+    var labels = rows.map(function (x) { return x[labelKey]; });
+    if (!cmp || !compareEnabled()) {
+      plotChart(
+        elId,
+        [pieTrace(labels, rows.map(function (x) { return x.net_revenue; }))],
+        plotThemePie(),
+        { minHeight: 208 }
+      );
+      return;
+    }
+    plotChart(
+      elId,
+      [
+        Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue; })), {
+          domain: { x: [0, 0.46], y: [0, 1] },
+          name: "Seçili dönem",
+          showlegend: false,
+        }),
+        Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue_compare || 0; })), {
+          domain: { x: [0.54, 1], y: [0, 1] },
+          name: "Karşı dönem",
+          showlegend: false,
+        }),
+      ],
+      plotThemePie({
+        margin: { l: 4, r: 4, t: 36, b: 48 },
+        annotations: [
+          {
+            text: "Seçili dönem",
+            x: 0.23,
+            y: 1.06,
+            xref: "paper",
+            yref: "paper",
+            showarrow: false,
+            font: Object.assign({}, plotFont(), { size: 10 }),
+          },
+          {
+            text: "Karşı dönem",
+            x: 0.77,
+            y: 1.06,
+            xref: "paper",
+            yref: "paper",
+            showarrow: false,
+            font: Object.assign({}, plotFont(), { size: 10 }),
+          },
+        ],
+      }),
+      { minHeight: 208 }
+    );
+  }
+
   /** Sidebar’daki seçili aralık; özet by_date tam yıl kalsa bile grafikte yalnızca bu dilim. */
   function filterSeriesBySelectedRange(series, timeKey) {
     var r = selectedDateRange();
@@ -2142,7 +2344,7 @@
       var data = await fetchTableForScope("chartLine", fetchLimit);
       var pseudo = aggregateTableRowsByDim(data.rows, dim);
       pseudo = filterSeriesBySelectedRange(pseudo, dim);
-      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, null, dim);
+      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, cmp, dim);
     } catch (e) {
       renderLineChart(byDate, state.activeKpiKey, cmp, "date");
     }
@@ -2175,30 +2377,14 @@
     if (dim === "income_type" && !cfg.bdArea) {
       var inc = (cmp && cmp.by_income_type && cmp.by_income_type.length) ? cmp.by_income_type : (state.lastSummary.by_income_type || []);
       groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
-      plotChart(
-        "mz-chart-pie-income",
-        [pieTrace(
-          inc.map(function (x) { return x.income_type; }),
-          inc.map(function (x) { return x.net_revenue; })
-        )],
-        plotThemePie(),
-        { minHeight: 208 }
-      );
+      renderBreakdownPiePair("mz-chart-pie-income", inc, "income_type", cmp);
       return;
     }
     try {
       var data = await fetchTableForScope("chartIncome", 40);
       var rows = rowsForChartDim(data.rows, dim);
       groupedBarPlot("mz-chart-bar-income", rows, dim, !!data.compare_range);
-      plotChart(
-        "mz-chart-pie-income",
-        [pieTrace(
-          rows.map(function (x) { return x[dim]; }),
-          rows.map(function (x) { return x.net_revenue; })
-        )],
-        plotThemePie(),
-        { minHeight: 208 }
-      );
+      renderBreakdownPiePair("mz-chart-pie-income", rows, dim, data.compare_range ? state.lastSummary && compareBlock(state.lastSummary) : null);
     } catch (e) { /* ignore */ }
   }
 
@@ -2209,9 +2395,12 @@
     var timeKey = cfg.bdTime || "date";
     if (timeKey === "date" && seriesKey === "income_type" && !cfg.bdArea) {
       var sum = state.lastSummary;
-      var byDate = sum.by_date || [];
+      var cmp = compareBlock(sum);
+      var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
       var dates = byDate.map(function (d) { return d.date; });
-      var stackRows = sum.by_date_income_type || [];
+      var stackRows = (sum.by_date_income_type || []).filter(function (r) {
+        return dates.indexOf(r.date) >= 0;
+      });
       var incomeTypes = [];
       stackRows.forEach(function (r) {
         if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
@@ -2229,7 +2418,24 @@
           stackgroup: "one",
         };
       });
-      Plotly.newPlot("mz-chart-stacked-income", stackTraces, plotTheme({ yTitle: "TL" }), plotlyCfg());
+      if (cmp) {
+        var revAligned = alignedDateSeries(cmp, "net_revenue");
+        if (revAligned) {
+          stackTraces.push({
+            x: revAligned.map(function (r) { return String(r.primary_date || "").slice(0, 10); }),
+            y: revAligned.map(function (r) { return r.compare; }),
+            name: "Karşı dönem (toplam gelir)",
+            type: "scatter",
+            mode: "lines",
+            line: { color: compareColors().compare, width: 2.5, dash: "dot" },
+          });
+        }
+      }
+      var stackedLayout = plotTheme({ yTitle: "TL" });
+      if (cmp && alignedDateSeries(cmp, "net_revenue")) {
+        stackedLayout = Object.assign({}, stackedLayout, compareLayoutExtra(dates.length));
+      }
+      plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
       return;
     }
     try {
@@ -2901,49 +3107,101 @@
         return;
       }
       if (statusEl) statusEl.classList.remove("text-amber-700", "dark:text-amber-400");
-      var xs = series.map(function (p) { return p.x; });
-      var ys = series.map(function (p) {
-        var y = Number(p.y);
-        return isNaN(y) ? 0 : y;
-      });
-      var lineColor = isSummary
-        ? (isDarkTheme() ? "#34d399" : "#059669")
-        : (isDarkTheme() ? "#818cf8" : "#4f46e5");
-      var dailyPoints = chartTimeKey === "date" && series.length > 1;
+      var colors = compareColors();
+      var comparePair = compareEnabled()
+        ? drillCompareAlignedPair(filtered, chartTimeKey, metricKey, state.lastSummary)
+        : null;
+      var traces = [];
+      var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
       var dense = series.length > 96;
       var traceMode = chartType === "bar"
         ? ""
-        : dailyPoints
+        : chartTimeKey === "date" && series.length > 1
           ? (dense ? "lines" : "lines+markers")
           : series.length >= 2
             ? "lines+markers"
             : "markers";
-      var markerSize = dense ? 0 : dailyPoints ? (series.length > 120 ? 4 : 6) : 7;
-      var lineW = dense ? 2 : dailyPoints && series.length > 120 ? 1.5 : 2;
-      var traceType = chartType === "bar" ? "bar" : "scatter";
-      var trace;
-      if (chartType === "bar") {
-        trace = { type: "bar", x: xs, y: ys, marker: { color: lineColor } };
-      } else {
-        trace = {
-          type: traceType,
-          mode: traceMode,
-          x: xs,
-          y: ys,
-          connectgaps: true,
-          line: { color: lineColor, width: lineW },
-        };
-        if (markerSize) {
-          trace.marker = { color: lineColor, size: markerSize, line: { width: 0 } };
+      var markerSize = dense ? 0 : chartTimeKey === "date" && series.length > 1 ? (series.length > 120 ? 4 : 6) : 7;
+      var lineW = dense ? 2 : chartTimeKey === "date" && series.length > 120 ? 1.5 : 2;
+      var lineColor = isSummary ? colors.rev : colors.primary;
+      var cmpLineColor = isSummary ? colors.revCmp : colors.compare;
+
+      if (comparePair && comparePair.x.length) {
+        dense = comparePair.x.length > 96;
+        traceMode = dense ? "lines" : "lines+markers";
+        if (chartType === "bar") {
+          traces.push({
+            type: "bar",
+            name: "Seçili dönem",
+            x: comparePair.x,
+            y: comparePair.primaryY,
+            marker: { color: lineColor },
+          });
+          traces.push({
+            type: "bar",
+            name: "Karşı dönem",
+            x: comparePair.x,
+            y: comparePair.compareY,
+            marker: { color: cmpLineColor },
+          });
+          layout.barmode = "group";
+        } else {
+          traces.push({
+            type: "scatter",
+            mode: traceMode,
+            name: "Seçili dönem",
+            x: comparePair.x,
+            y: comparePair.primaryY,
+            connectgaps: true,
+            line: { color: lineColor, width: lineW },
+          });
+          if (markerSize) {
+            traces[traces.length - 1].marker = { color: lineColor, size: markerSize, line: { width: 0 } };
+          }
+          traces.push({
+            type: "scatter",
+            mode: traceMode,
+            name: "Karşı dönem",
+            x: comparePair.x,
+            y: comparePair.compareY,
+            connectgaps: true,
+            line: { color: cmpLineColor, width: lineW, dash: "dot" },
+          });
+          if (markerSize) {
+            traces[traces.length - 1].marker = { color: cmpLineColor, size: markerSize, line: { width: 0 } };
+          }
         }
-      }
-      var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
-      if (chartTimeKey === "date") {
-        layout.xaxis = Object.assign({}, layout.xaxis, {
-          type: "date",
-          tickformat: "%d.%m.%y",
-          tickangle: dense ? -45 : 0,
+        layout = Object.assign({}, layout, compareLayoutExtra(comparePair.x.length));
+      } else {
+        var xs = series.map(function (p) { return p.x; });
+        var ys = series.map(function (p) {
+          var y = Number(p.y);
+          return isNaN(y) ? 0 : y;
         });
+        if (chartType === "bar") {
+          traces.push({ type: "bar", x: xs, y: ys, name: mDef.label, marker: { color: lineColor } });
+        } else {
+          var trace = {
+            type: "scatter",
+            mode: traceMode,
+            x: xs,
+            y: ys,
+            name: mDef.label,
+            connectgaps: true,
+            line: { color: lineColor, width: lineW },
+          };
+          if (markerSize) {
+            trace.marker = { color: lineColor, size: markerSize, line: { width: 0 } };
+          }
+          traces.push(trace);
+        }
+        if (chartTimeKey === "date") {
+          layout.xaxis = Object.assign({}, layout.xaxis, {
+            type: "date",
+            tickformat: "%d.%m.%y",
+            tickangle: dense ? -45 : 0,
+          });
+        }
       }
       if (isRateMetricKey(metricKey)) {
         layout.yaxis = Object.assign({}, layout.yaxis, { range: [0, 100] });
@@ -2951,7 +3209,7 @@
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
       var qualityWarns = detectChartSeriesQuality(series, metricKey, { multiAreaTable: multiAreaTable });
       var analysis = analyzeDrillSeriesPoints(series, metricKey);
-      if (!dense) {
+      if (!dense && !comparePair) {
         var plotAnnots = [];
         var annotBg = isDarkTheme() ? "rgba(24,24,27,0.94)" : "rgba(255,255,255,0.92)";
         var annotBorder = isDarkTheme() ? "#52525b" : "#e2e8f0";
@@ -2988,7 +3246,7 @@
         if (plotAnnots.length) layout.annotations = plotAnnots;
       }
       if (drillStale()) return;
-      await plotDrillChartEl(chartEl, [trace], layout);
+      await plotDrillChartEl(chartEl, traces, layout);
       if (drillStale()) return;
       renderDrillSeriesInsights(
         isSummary ? "mz-summary-drill-insights" : "mz-drill-insights",
@@ -3253,44 +3511,21 @@
     if (!window.Plotly) return;
     timeKey = timeKey || "date";
     var def = KPI_DEFS.find(function (d) { return d.key === kpiKey; }) || KPI_DEFS[6];
-    var lineColor = isDarkTheme() ? "#818cf8" : "#4f46e5";
-    var cmpColor = isDarkTheme() ? "#fb7185" : "#e11d48";
+    var colors = compareColors();
     var traces = [];
     var layoutExtra = { yTitle: def.axis || "" };
+    var titleEl = document.getElementById("mz-chart-line-title");
+    var aligned = cmp && timeKey === "date" ? alignedDateSeries(cmp, kpiKey) : null;
 
-    if (cmp && timeKey === "date" && cmp.by_date_aligned && cmp.by_date_aligned[kpiKey]) {
-      var aligned = cmp.by_date_aligned[kpiKey];
-      var range = selectedDateRange();
-      if (range.start || range.end) {
-        aligned = aligned.filter(function (row) {
-          var pd = String(row.primary_date || "").slice(0, 10);
-          if (!pd || pd.length < 10) return true;
-          if (range.start && pd < range.start) return false;
-          if (range.end && pd > range.end) return false;
-          return true;
-        });
-      }
-      var xLabels = aligned.map(function (row) {
-        var p = row.primary_date || ("G" + row.day_index);
-        var c = row.compare_date || "";
-        return p + (c ? " / " + c : "");
+    if (aligned) {
+      var built = makeCompareLineTraces(aligned, {
+        mode: aligned.length > 120 ? "lines" : "lines+markers",
+        primaryColor: colors.primary,
+        compareColor: colors.compare,
       });
-      traces.push({
-        x: xLabels,
-        y: aligned.map(function (r) { return r.primary; }),
-        type: "scatter", mode: "lines+markers",
-        line: { color: lineColor, width: 2 }, marker: { size: 4, color: lineColor },
-        name: "Seçili dönem",
-      });
-      traces.push({
-        x: xLabels,
-        y: aligned.map(function (r) { return r.compare; }),
-        type: "scatter", mode: "lines+markers",
-        line: { color: cmpColor, width: 2, dash: "dot" }, marker: { size: 4, color: cmpColor },
-        name: "Karşılaştırma",
-      });
-      document.getElementById("mz-chart-line-title").textContent =
-        chartLineTrendTitle(def) + " (hizalı)";
+      traces = built.traces;
+      layoutExtra = Object.assign({}, layoutExtra, compareLayoutExtra(aligned.length));
+      if (titleEl) titleEl.textContent = chartLineTrendTitle(def) + " (hizalı)";
     } else {
       var series = filterSeriesBySelectedRange(byDate, timeKey);
       var labels = series.map(function (x) { return seriesTimeLabel(x, timeKey); });
@@ -3298,40 +3533,37 @@
         var v = x[kpiKey];
         return v != null && !isNaN(v) ? Number(v) : 0;
       });
-      var mode = series.length > 120 ? "lines" : "lines+markers";
       traces.push({
         x: labels,
         y: vals,
         type: "scatter",
-        mode: mode,
-        line: { color: lineColor, width: 2 },
-        marker: { size: 4, color: lineColor },
+        mode: series.length > 120 ? "lines" : "lines+markers",
+        line: { color: colors.primary, width: 2 },
+        marker: { color: colors.primary, size: 4 },
         name: def.label,
       });
-      document.getElementById("mz-chart-line-title").textContent = chartLineTrendTitle(def);
+      if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
-    var lineEl = document.getElementById("mz-chart-line");
-    if (!lineEl) return;
-    try { Plotly.purge(lineEl); } catch (e) { /* ignore */ }
-    Plotly.newPlot(lineEl, traces, plotTheme(layoutExtra), plotlyCfg());
+    plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
   }
 
   function groupedBarPlot(elId, rows, labelKey, cmp) {
+    var colors = compareColors();
     var labels = rows.map(function (x) { return x[labelKey]; });
     var traces = [{
       x: labels,
       y: rows.map(function (x) { return x.net_revenue; }),
       type: "bar",
       name: "Seçili dönem",
-      marker: { color: isDarkTheme() ? "#38bdf8" : "#0ea5e9" },
+      marker: { color: colors.barPrimary },
     }];
     if (cmp) {
       traces.push({
         x: labels,
         y: rows.map(function (x) { return x.net_revenue_compare || 0; }),
         type: "bar",
-        name: "Karşılaştırma",
-        marker: { color: isDarkTheme() ? "#fb7185" : "#f97316" },
+        name: "Karşı dönem",
+        marker: { color: colors.barCompare },
       });
     }
     plotChart(elId, traces, plotTheme({ yTitle: "TL", barmode: cmp ? "group" : "relative" }), { minHeight: 220 });
@@ -3461,15 +3693,7 @@
     state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
-    plotChart(
-      "mz-chart-pie-surface",
-      [pieTrace(
-        surf.map(function (x) { return x.surface; }),
-        surf.map(function (x) { return x.net_revenue; })
-      )],
-      plotThemePie(),
-      { minHeight: 208 }
-    );
+    renderBreakdownPiePair("mz-chart-pie-surface", surf, "surface", cmp);
     renderExtendedCharts(sum).then(scheduleMzChartsResize);
     renderLeadersLosers(sum);
     refreshChartMonth();
@@ -3547,68 +3771,130 @@
   function renderExtendedCharts(sum) {
     if (!window.Plotly) return Promise.resolve();
     var cmp = compareBlock(sum);
+    var colors = compareColors();
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var dates = byDate.map(function (d) { return d.date; });
-
-    var darkCharts = isDarkTheme();
-    plotChart("mz-chart-dual", [
-      {
-        x: dates,
-        y: byDate.map(function (d) { return d.net_revenue; }),
-        type: "scatter",
-        mode: "lines",
-        name: "Net gelir",
-        yaxis: "y",
-        line: { color: darkCharts ? "#34d399" : "#059669", width: 2 },
-        marker: { color: darkCharts ? "#34d399" : "#059669", size: 4 },
-      },
-      {
-        x: dates,
-        y: byDate.map(function (d) { return d.impression; }),
-        type: "scatter",
-        mode: "lines",
-        name: "Gösterim",
-        yaxis: "y2",
-        line: { color: darkCharts ? "#38bdf8" : "#0284c7", width: 2, dash: "dot" },
-        marker: { color: darkCharts ? "#38bdf8" : "#0284c7", size: 4 },
-      },
-    ], plotTheme({
+    var revAligned = cmp ? alignedDateSeries(cmp, "net_revenue") : null;
+    var impAligned = cmp ? alignedDateSeries(cmp, "impression") : null;
+    var dualTraces;
+    var dualLayoutExtra = {
       yaxis: { title: "TL" },
       yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
-    }), { minHeight: 220 });
+    };
 
-    var qualityColors = darkCharts
+    if (revAligned && impAligned) {
+      var dx = alignedCategoryLabels(revAligned);
+      dualTraces = [
+        {
+          x: dx,
+          y: revAligned.map(function (r) { return r.primary; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Net gelir (seçili)",
+          yaxis: "y",
+          line: { color: colors.rev, width: 2 },
+        },
+        {
+          x: dx,
+          y: revAligned.map(function (r) { return r.compare; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Net gelir (karş.)",
+          yaxis: "y",
+          line: { color: colors.revCmp, width: 2, dash: "dot" },
+        },
+        {
+          x: dx,
+          y: impAligned.map(function (r) { return r.primary; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Gösterim (seçili)",
+          yaxis: "y2",
+          line: { color: colors.imp, width: 2 },
+        },
+        {
+          x: dx,
+          y: impAligned.map(function (r) { return r.compare; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Gösterim (karş.)",
+          yaxis: "y2",
+          line: { color: colors.impCmp, width: 2, dash: "dot" },
+        },
+      ];
+      dualLayoutExtra = Object.assign({}, dualLayoutExtra, compareLayoutExtra(dx.length));
+    } else {
+      dualTraces = [
+        {
+          x: dates,
+          y: byDate.map(function (d) { return d.net_revenue; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Net gelir",
+          yaxis: "y",
+          line: { color: colors.rev, width: 2 },
+        },
+        {
+          x: dates,
+          y: byDate.map(function (d) { return d.impression; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Gösterim",
+          yaxis: "y2",
+          line: { color: colors.imp, width: 2, dash: "dot" },
+        },
+      ];
+    }
+    plotChart("mz-chart-dual", dualTraces, plotTheme(dualLayoutExtra), { minHeight: 220 });
+
+    var qualityKeys = [
+      { key: "viewability_pct", label: "Viewability %", idx: 0 },
+      { key: "ctr_pct", label: "CTR %", idx: 1 },
+      { key: "coverage_pct", label: "Coverage %", idx: 2 },
+    ];
+    var qualityPalette = isDarkTheme()
       ? ["#38bdf8", "#f472b6", "#a78bfa"]
       : ["#0284c7", "#db2777", "#7c3aed"];
-    plotChart("mz-chart-quality", [
-      {
-        x: dates,
-        y: byDate.map(function (d) { return d.viewability_pct; }),
-        name: "Viewability %",
-        type: "scatter",
-        mode: "lines",
-        line: { color: qualityColors[0], width: 2 },
-        marker: { color: qualityColors[0], size: 4 },
-      },
-      {
-        x: dates,
-        y: byDate.map(function (d) { return d.ctr_pct; }),
-        name: "CTR %",
-        type: "scatter",
-        mode: "lines",
-        line: { color: qualityColors[1], width: 2 },
-        marker: { color: qualityColors[1], size: 4 },
-      },
-      {
-        x: dates,
-        y: byDate.map(function (d) { return d.coverage_pct; }),
-        name: "Coverage %",
-        type: "scatter",
-        mode: "lines",
-        line: { color: qualityColors[2], width: 2 },
-        marker: { color: qualityColors[2], size: 4 },
-      },
-    ], plotTheme({ yTitle: "%" }), { minHeight: 220 });
+    var qualityTraces = [];
+    var qualityLayoutExtra = { yTitle: "%" };
+    var qualityAligned = cmp ? alignedDateSeries(cmp, "viewability_pct") : null;
+
+    if (qualityAligned) {
+      var qx = alignedCategoryLabels(qualityAligned);
+      qualityKeys.forEach(function (q) {
+        var qAligned = alignedDateSeries(cmp, q.key);
+        if (!qAligned) return;
+        qualityTraces.push({
+          x: qx,
+          y: qAligned.map(function (r) { return r.primary; }),
+          name: q.label + " (seçili)",
+          type: "scatter",
+          mode: "lines",
+          line: { color: qualityPalette[q.idx], width: 2 },
+        });
+        qualityTraces.push({
+          x: qx,
+          y: qAligned.map(function (r) { return r.compare; }),
+          name: q.label + " (karş.)",
+          type: "scatter",
+          mode: "lines",
+          line: { color: qualityPalette[q.idx], width: 2, dash: "dot" },
+        });
+      });
+      qualityLayoutExtra = Object.assign({}, qualityLayoutExtra, compareLayoutExtra(qx.length));
+    } else {
+      qualityKeys.forEach(function (q) {
+        qualityTraces.push({
+          x: dates,
+          y: byDate.map(function (d) { return d[q.key]; }),
+          name: q.label,
+          type: "scatter",
+          mode: "lines",
+          line: { color: qualityPalette[q.idx], width: 2 },
+        });
+      });
+    }
+    plotChart("mz-chart-quality", qualityTraces, plotTheme(qualityLayoutExtra), { minHeight: 220 });
 
     var hm = sum.heatmap_calendar || [];
     if (hm.length) {
