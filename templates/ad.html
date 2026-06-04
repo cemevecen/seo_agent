@@ -280,7 +280,7 @@
             <datalist id="mz-detail-unit-list"></datalist>
             <div
               id="mz-detail-unit-menu"
-              class="mz-detail-unit-menu absolute left-0 right-0 top-full z-50 mt-1 hidden max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+              class="mz-detail-unit-menu absolute left-0 right-0 top-full z-[80] mt-1 hidden max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
               role="listbox"
               hidden
             ></div>
@@ -467,6 +467,8 @@
     detailTableFilter: "",
     detailAdUnitCatalog: [],
     _detailUnitMenuOpen: false,
+    _detailUnitBlurTimer: null,
+    _detailUnitSuppressCloseUntil: 0,
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1236,6 +1238,51 @@
 
   function closeDetailUnitDropdown() {
     setDetailUnitMenuOpen(false);
+  }
+
+  function scheduleDetailUnitDropdownClose() {
+    if (state._detailUnitBlurTimer) clearTimeout(state._detailUnitBlurTimer);
+    state._detailUnitBlurTimer = setTimeout(function () {
+      state._detailUnitBlurTimer = null;
+      var combo = document.getElementById("mz-detail-unit-combo");
+      var active = document.activeElement;
+      if (combo && active && combo.contains(active)) return;
+      closeDetailUnitDropdown();
+    }, 180);
+  }
+
+  function cancelDetailUnitDropdownClose() {
+    if (state._detailUnitBlurTimer) {
+      clearTimeout(state._detailUnitBlurTimer);
+      state._detailUnitBlurTimer = null;
+    }
+  }
+
+  function detailUnitComboContainsTarget(target) {
+    var combo = document.getElementById("mz-detail-unit-combo");
+    return !!(combo && target && combo.contains(target));
+  }
+
+  function initDetailUnitComboInteraction() {
+    var combo = document.getElementById("mz-detail-unit-combo");
+    var menu = document.getElementById("mz-detail-unit-menu");
+    if (!combo || combo.getAttribute("data-mz-combo-bound") === "1") return;
+    combo.setAttribute("data-mz-combo-bound", "1");
+    combo.addEventListener("mousedown", function (ev) {
+      state._detailUnitSuppressCloseUntil = Date.now() + 320;
+      ev.stopPropagation();
+      cancelDetailUnitDropdownClose();
+    });
+    combo.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+    });
+    if (menu) {
+      menu.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        cancelDetailUnitDropdownClose();
+      });
+    }
   }
 
   function openDetailUnitDropdown() {
@@ -3026,12 +3073,28 @@
     mzSearchPreviewTimer = setTimeout(fetchSearchPreview, 450);
   });
   on("mz-table-csv", "click", exportTableCsv);
+  initDetailUnitComboInteraction();
   on("mz-detail-unit-search", "input", function () {
+    cancelDetailUnitDropdownClose();
     openDetailUnitDropdown();
     clearTimeout(detailUnitSearchTimer);
     detailUnitSearchTimer = setTimeout(applyDetailUnitSearch, 320);
   });
   on("mz-detail-unit-search", "focus", function () {
+    cancelDetailUnitDropdownClose();
+    openDetailUnitDropdown();
+  });
+  on("mz-detail-unit-search", "blur", function () {
+    scheduleDetailUnitDropdownClose();
+  });
+  on("mz-detail-unit-search", "mousedown", function (ev) {
+    state._detailUnitSuppressCloseUntil = Date.now() + 320;
+    ev.stopPropagation();
+    cancelDetailUnitDropdownClose();
+  });
+  on("mz-detail-unit-search", "click", function (ev) {
+    ev.stopPropagation();
+    cancelDetailUnitDropdownClose();
     openDetailUnitDropdown();
   });
   on("mz-detail-unit-search", "change", applyDetailUnitSearch);
@@ -3043,9 +3106,13 @@
     if (ev.key === "Enter") {
       ev.preventDefault();
       clearTimeout(detailUnitSearchTimer);
-      closeDetailUnitDropdown();
       applyDetailUnitSearch();
     }
+  });
+  on("mz-detail-unit-toggle", "mousedown", function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    cancelDetailUnitDropdownClose();
   });
   on("mz-detail-unit-toggle", "click", function (ev) {
     ev.preventDefault();
@@ -3053,17 +3120,22 @@
     toggleDetailUnitDropdown();
   });
   on("mz-detail-unit-menu", "click", function (ev) {
+    ev.stopPropagation();
     var btn = ev.target.closest(".mz-detail-unit-opt");
     if (!btn) return;
     var unit = btn.getAttribute("data-unit");
     if (unit) selectDetailAdUnit(unit);
   });
-  document.addEventListener("click", function (ev) {
-    var combo = document.getElementById("mz-detail-unit-combo");
-    if (!combo || !state._detailUnitMenuOpen) return;
-    if (combo.contains(ev.target)) return;
-    closeDetailUnitDropdown();
-  });
+  document.addEventListener(
+    "mousedown",
+    function (ev) {
+      if (!state._detailUnitMenuOpen) return;
+      if (Date.now() < state._detailUnitSuppressCloseUntil) return;
+      if (detailUnitComboContainsTarget(ev.target)) return;
+      closeDetailUnitDropdown();
+    },
+    true
+  );
   on("mz-detail-unit-clear", "click", function () {
     state._drillUserPicked = false;
     state._drillTableHighlightKey = null;
