@@ -99,6 +99,8 @@
       <p class="pt-2 text-xs text-slate-500 dark:text-zinc-400">Kırılımlar her tablo, grafik ve liste kartının üstünde ayrıdır.</p>
 
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
+      <button id="mz-share-link" type="button" class="mt-2 w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
+      <p id="mz-share-status" class="hidden min-h-[1rem] text-center text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
     </aside>
 
     <div id="mz-main" class="relative min-h-[24rem] space-y-4 xl:col-span-9">
@@ -568,9 +570,152 @@
   }
 
   var runTimer = null;
+  var mzUrlState = parseMzUrlState(typeof window !== "undefined" ? window.location.search : "");
+  var mzUrlBootPending = mzUrlStateHasFilters(mzUrlState);
+  var mzShareStatusTimer = null;
+
   function debouncedRun(ms) {
     if (runTimer) clearTimeout(runTimer);
     runTimer = setTimeout(function () { runQuery({ resetTableDrills: false }); }, ms == null ? 400 : ms);
+  }
+
+  function parseMzUrlState(search) {
+    var sp = new URLSearchParams(search || "");
+    return {
+      project: sp.get("project") || "",
+      branch: sp.get("branch") || "",
+      start: (sp.get("start") || "").slice(0, 10),
+      end: (sp.get("end") || "").slice(0, 10),
+      preset: sp.get("preset") || "",
+      income_types: sp.get("income_types") || "",
+      platforms: sp.get("platforms") || "",
+      channels: sp.get("channels") || "",
+      surfaces: sp.get("surfaces") || "",
+      sources: sp.get("sources") || "",
+      search: sp.get("search") || "",
+      compare: sp.get("compare") === "1" || !!sp.get("compare_mode"),
+      compare_mode: sp.get("compare_mode") || "",
+      compare_start: (sp.get("compare_start") || "").slice(0, 10),
+      compare_end: (sp.get("compare_end") || "").slice(0, 10),
+      ad_unit: sp.get("ad_unit") || sp.get("ad_units") || "",
+      area: sp.get("area") || "",
+      drill_income_type: sp.get("drill_income_type") || "",
+    };
+  }
+
+  function mzUrlStateHasFilters(u) {
+    if (!u) return false;
+    return !!(
+      u.start || u.end || u.preset || u.income_types || u.platforms || u.channels ||
+      u.surfaces || u.sources || u.search || u.compare || u.compare_mode ||
+      u.ad_unit || u.drill_income_type || u.project
+    );
+  }
+
+  function splitCsvParam(val) {
+    return String(val || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function applyMzUrlStateToForm(u) {
+    if (!u || !mzUrlStateHasFilters(u)) return;
+    state._mzApplyingUrl = true;
+    if (u.start) document.getElementById("mz-start").value = u.start;
+    if (u.end) document.getElementById("mz-end").value = u.end;
+    if (u.start || u.end) document.getElementById("mz-preset").value = u.preset || "";
+    else if (u.preset) document.getElementById("mz-preset").value = u.preset;
+    if (u.search) document.getElementById("mz-search").value = u.search;
+    if (u.compare) document.getElementById("mz-compare-enabled").checked = true;
+    if (u.compare_mode) document.getElementById("mz-compare-mode").value = u.compare_mode;
+    if (u.compare_start) document.getElementById("mz-compare-start").value = u.compare_start;
+    if (u.compare_end) document.getElementById("mz-compare-end").value = u.compare_end;
+    updateCompareControls();
+    state._mzApplyingUrl = false;
+  }
+
+  function applyMzUrlFacetFilters(u) {
+    if (!u) return;
+    if (u.income_types) state.income = new Set(splitCsvParam(u.income_types));
+    if (u.platforms) state.platform = new Set(splitCsvParam(u.platforms));
+    if (u.channels) state.channel = new Set(splitCsvParam(u.channels));
+    if (u.surfaces) state.surface = new Set(splitCsvParam(u.surfaces));
+    if (u.sources) state.source = new Set(splitCsvParam(u.sources));
+  }
+
+  function applyMzUrlDrillState(u) {
+    if (!u) return false;
+    var applied = false;
+    if (u.drill_income_type) {
+      setSummaryDrillIncomeType(u.drill_income_type, true);
+      applied = true;
+    }
+    if (u.ad_unit) {
+      state._drillUserPicked = true;
+      state.drillSlice = { ad_unit: u.ad_unit };
+      if (u.area) state.drillSlice.area = u.area;
+      state._drillRowKey = JSON.stringify(state.drillSlice);
+      chooseDetailAdUnit(u.ad_unit, true);
+      updateDrillSubtitle();
+      applied = true;
+    }
+    return applied;
+  }
+
+  function syncActiveStreamFromUrl(u) {
+    if (!u || !u.project || !state.streams || !state.streams.length) return;
+    var hit = state.streams.find(function (s) {
+      return String(s.project || "") === u.project && String(s.branch || "") === (u.branch || "");
+    });
+    if (hit) state.activeStream = hit;
+  }
+
+  function updateBrowserUrl() {
+    if (state._mzApplyingUrl) return;
+    var q = qs().toString();
+    var path = window.location.pathname || "/ad";
+    var next = q ? path + "?" + q : path;
+    var cur = window.location.pathname + window.location.search;
+    if (cur !== next) {
+      history.replaceState(null, "", next);
+    }
+  }
+
+  function flashShareStatus(msg, ok) {
+    var el = document.getElementById("mz-share-status");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden", "text-rose-600", "dark:text-rose-400", "text-indigo-700", "dark:text-indigo-300");
+    el.classList.add(ok ? "text-indigo-700" : "text-rose-600", ok ? "dark:text-indigo-300" : "dark:text-rose-400");
+    if (mzShareStatusTimer) clearTimeout(mzShareStatusTimer);
+    mzShareStatusTimer = setTimeout(function () {
+      el.classList.add("hidden");
+      el.textContent = "";
+    }, 3200);
+  }
+
+  async function copyShareLink() {
+    updateBrowserUrl();
+    var url = window.location.href;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        flashShareStatus("Link panoya kopyalandı.", true);
+        return;
+      }
+    } catch (_) { /* fallback below */ }
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = url;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      flashShareStatus("Link panoya kopyalandı.", true);
+    } catch (err) {
+      flashShareStatus("Kopyalanamadı — adres çubuğundaki URL'yi paylaşın.", false);
+    }
   }
 
   function isDarkTheme() {
@@ -619,7 +764,17 @@
     if (state.source.size) p.set("sources", Array.from(state.source).join(","));
     var q = document.getElementById("mz-search").value.trim();
     if (q) p.set("search", q);
+    if (state.drillSlice && state.drillSlice.ad_unit) {
+      p.set("ad_unit", state.drillSlice.ad_unit);
+      if (state.drillSlice.area) p.set("area", state.drillSlice.area);
+    }
+    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+      p.set("drill_income_type", state.summaryDrillSlice.income_type);
+    }
+    var preset = document.getElementById("mz-preset").value;
+    if (preset) p.set("preset", preset);
     appendCompareQs(p);
+    if (compareEnabled()) p.set("compare", "1");
     return p;
   }
 
@@ -4803,11 +4958,12 @@
     var end = document.getElementById("mz-end");
     var start = document.getElementById("mz-start");
     var max = end.getAttribute("data-max") || end.value;
-    if (!v || v === "all") {
+    if (v === "all") {
       start.value = document.getElementById("mz-start").getAttribute("data-min") || "";
       end.value = max || "";
       return;
     }
+    if (!v) return;
     var d = max ? new Date(max) : new Date();
     var s = new Date(d);
     if (v === "7d") s.setDate(s.getDate() - 7);
@@ -4865,6 +5021,7 @@
       if (!state.activeStream && state.streams.length) {
         state.activeStream = state.streams.find(function (s) { return s.has_data; }) || state.streams[0];
       }
+      syncActiveStreamFromUrl(mzUrlState);
       renderStreamTabs();
       updateScopeUi();
       var statusEl = document.getElementById("mz-status");
@@ -4876,8 +5033,12 @@
         document.getElementById("mz-start").setAttribute("data-min", f.min_date);
         document.getElementById("mz-end").setAttribute("data-max", f.max_date);
       }
-      document.getElementById("mz-preset").value = "1y";
-      applyPreset();
+      if (mzUrlBootPending) {
+        applyMzUrlStateToForm(mzUrlState);
+      } else {
+        document.getElementById("mz-preset").value = "1y";
+        applyPreset();
+      }
       var incomeList = f.income_types || [];
       state._mzIncomeFacetList = incomeList;
       if (!state._mzFacetsLoaded) {
@@ -4887,6 +5048,7 @@
         state.surface = new Set(f.surfaces || []);
         state.source = new Set(f.source_files || []);
         state._mzFacetsLoaded = true;
+        if (mzUrlBootPending) applyMzUrlFacetFilters(mzUrlState);
       } else {
         pruneFacetSet(state.income, incomeList);
         pruneFacetSet(state.platform, f.platforms || []);
@@ -4958,7 +5120,7 @@
 
   async function runQuery(opts) {
     opts = opts || {};
-    applyPreset();
+    if (document.getElementById("mz-preset").value) applyPreset();
     if (opts.resetTableDrills) {
       state._drillUserPicked = false;
       state._summaryDrillUserPicked = false;
@@ -5001,8 +5163,11 @@
     } finally {
       setLoading(false);
       hideBootHint();
+      updateBrowserUrl();
     }
   }
+
+  on("mz-share-link", "click", copyShareLink);
 
   on("mz-compare-enabled", "change", function () {
     updateCompareControls();
@@ -5416,7 +5581,11 @@
 
   window.addEventListener("resize", scheduleMzChartsResize);
 
-  loadFacets().then(function () { runQuery({ resetTableDrills: true }); }).catch(function (err) {
+  loadFacets().then(function () {
+    var keepDrills = applyMzUrlDrillState(mzUrlState);
+    mzUrlBootPending = false;
+    return runQuery({ resetTableDrills: !keepDrills });
+  }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
   });
 })();
