@@ -1384,16 +1384,12 @@
       });
       var ar = Number(r.ad_request) || 0;
       var im = Number(r.impression) || 0;
-      if (r.coverage_pct != null && ar > 0) {
-        b._cov_w += (Number(r.coverage_pct) / 100.0) * ar;
-      } else if (r.cov_w != null) {
-        b._cov_w += Number(r.cov_w) || 0;
-      }
-      if (r.viewability_pct != null && im > 0) {
-        b._view_w += (Number(r.viewability_pct) / 100.0) * im;
-      } else if (r.view_w != null) {
-        b._view_w += Number(r.view_w) || 0;
-      }
+      var covFrac = normRatePctToFraction(r.coverage_pct);
+      if (covFrac != null && ar > 0) b._cov_w += covFrac * ar;
+      else if (r.cov_w != null) b._cov_w += Number(r.cov_w) || 0;
+      var viewFrac = normRatePctToFraction(r.viewability_pct);
+      if (viewFrac != null && im > 0) b._view_w += viewFrac * im;
+      else if (r.view_w != null) b._view_w += Number(r.view_w) || 0;
     });
     return Object.keys(map)
       .sort(function (a, b) {
@@ -1633,6 +1629,80 @@
     }).join(" · ");
   }
 
+  /** Backend _norm_ratio_sql ile uyumlu: >1 ise yüzde, değilse 0–1 oran. */
+  function normRatePctToFraction(v) {
+    if (v == null || v === "") return null;
+    var n = Number(v);
+    if (isNaN(n)) return null;
+    if (n < 0) return 0;
+    if (n > 1) return Math.min(n / 100, 1);
+    return Math.min(n, 1);
+  }
+
+  function isRateMetricKey(metricKey) {
+    return (
+      metricKey === "coverage_pct" ||
+      metricKey === "viewability_pct" ||
+      metricKey === "ctr_pct" ||
+      metricKey === "above_the_fold_ratio_pct" ||
+      (metricKey && metricKey.indexOf("_pct") >= 0)
+    );
+  }
+
+  function clampRatePct(y) {
+    if (y == null || isNaN(y)) return 0;
+    return Math.min(100, Math.max(0, Number(y)));
+  }
+
+  /** Detay tablo ile uyum: yalnızca birim seçiliyken tablodaki alan(lar)la sınırla. */
+  function drillRowsForChart(scope, rows, slice) {
+    var filtered = (rows || []).filter(function (r) {
+      return rowMatchesDrillSlice(r, slice);
+    });
+    if (scope !== "detail" || !slice || !slice.ad_unit || slice.area) return filtered;
+    if (!state.lastTable || !state.lastTable.rows) return filtered;
+    var view = detailTableViewData(state.lastTable);
+    var areas = {};
+    (view.rows || []).forEach(function (r) {
+      if (r.area) areas[String(r.area)] = true;
+    });
+    var keys = Object.keys(areas);
+    if (!keys.length) return filtered;
+    return filtered.filter(function (r) {
+      return areas[String(r.area != null ? r.area : "")];
+    });
+  }
+
+  function detectChartSeriesQuality(series, metricKey, opts) {
+    opts = opts || {};
+    var warns = [];
+    if (!isRateMetricKey(metricKey) || !series || series.length < 6) return warns;
+    if (opts.multiAreaTable) {
+      warns.push({
+        text:
+          "Tabloda birden fazla alan (web/mweb/…) var; trend bu alanların ağırlıklı birleşimi. Tek alan için ilgili satıra tıklayın.",
+      });
+    }
+    var ys = series.map(function (p) { return Number(p.y); }).filter(function (y) { return !isNaN(y); });
+    if (ys.length < 6) return warns;
+    var max = Math.max.apply(null, ys);
+    var min = Math.min.apply(null, ys);
+    var span = max - min;
+    var nearTop = ys.filter(function (y) { return y >= 97; }).length;
+    if (nearTop >= ys.length * 0.7 && span > 20) {
+      warns.push({
+        text:
+          "Grafik uzun süre ~%100 görünüp sonra düşüyor. Ham raporda coverage böyle olabilir; tablo satırları farklıysa gelir tipi / alan kırılımına bakın veya satıra tıklayarak dilimi daraltın.",
+      });
+    }
+    if (max > 100.5 || min < -0.5) {
+      warns.push({
+        text: "Oran değerleri 0–100 dışına taştı; gösterim 0–100 aralığına kırpıldı. Kaynak dosyadaki coverage/viewability sütununu kontrol edin.",
+      });
+    }
+    return warns;
+  }
+
   function rowMatchesDrillSlice(row, slice) {
     if (!slice) return false;
     var keys = Object.keys(slice);
@@ -1768,16 +1838,31 @@
     return (Math.round(v * 100) / 100).toLocaleString("tr-TR");
   }
 
-  function renderDrillSeriesInsights(insightsElId, analysis, metricKey, mDef) {
+  function renderDrillSeriesInsights(insightsElId, analysis, metricKey, mDef, qualityWarns) {
     var el = document.getElementById(insightsElId);
     if (!el) return;
+    var parts = [];
+    (qualityWarns || []).forEach(function (w) {
+      parts.push(
+        "<p class=\"rounded-md border border-amber-200/90 bg-amber-50/90 px-2 py-1 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200\">" +
+        w.text +
+        "</p>"
+      );
+    });
     if (!analysis || (!analysis.peaks.length && !analysis.valleys.length &&
         !analysis.spikes_up.length && !analysis.spikes_down.length)) {
-      el.classList.add("hidden");
-      el.innerHTML = "";
+      if (!parts.length) {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+        return;
+      }
+      el.innerHTML =
+        "<p class=\"mb-1 font-bold uppercase tracking-wide text-[9px] text-slate-500 dark:text-zinc-500\">" +
+        (mDef ? mDef.label : "Metrik") + " — veri notu</p>" +
+        parts.join("");
+      el.classList.remove("hidden");
       return;
     }
-    var parts = [];
     if (analysis.range_min && analysis.range_max) {
       parts.push(
         "<span class=\"font-semibold text-slate-700 dark:text-zinc-200\">Aralık:</span> " +
@@ -1879,10 +1964,12 @@
       b.impression += im;
       b.net_revenue += Number(r.net_revenue) || 0;
       b.click += Number(r.click) || 0;
-      if (r.coverage_pct != null && ar > 0) b.cov_w += (Number(r.coverage_pct) / 100.0) * ar;
-      else b.cov_w += (Number(r.cov_w) || 0);
-      if (r.viewability_pct != null && im > 0) b.view_w += (Number(r.viewability_pct) / 100.0) * im;
-      else b.view_w += (Number(r.view_w) || 0);
+      var covF = normRatePctToFraction(r.coverage_pct);
+      if (covF != null && ar > 0) b.cov_w += covF * ar;
+      else b.cov_w += Number(r.cov_w) || 0;
+      var viewF = normRatePctToFraction(r.viewability_pct);
+      if (viewF != null && im > 0) b.view_w += viewF * im;
+      else b.view_w += Number(r.view_w) || 0;
     });
     return Object.keys(map)
       .sort(function (a, b) {
@@ -1899,6 +1986,7 @@
         else if (metricKey === "viewability_pct") y = b.impression > 0 ? (b.view_w / b.impression * 100.0) : 0;
         else if (metricKey === "computed_ecpm") y = b.impression > 0 ? (b.net_revenue / b.impression * 1000.0) : 0;
         else y = b[metricKey] != null ? b[metricKey] : 0;
+        if (isRateMetricKey(metricKey)) y = clampRatePct(y);
         return { x: b.t, y: y };
       });
   }
@@ -1995,9 +2083,16 @@
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
       var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
-      var filtered = (data.rows || []).filter(function (r) {
-        return rowMatchesDrillSliceForScope(r, slice);
-      });
+      var filtered = drillRowsForChart(scope, data.rows || [], slice);
+      var multiAreaTable = false;
+      if (scope === "detail" && slice && slice.ad_unit && !slice.area && state.lastTable) {
+        var viewRows = detailTableViewData(state.lastTable).rows || [];
+        var areaSet = {};
+        viewRows.forEach(function (r) {
+          if (r.area) areaSet[String(r.area)] = true;
+        });
+        multiAreaTable = Object.keys(areaSet).length > 1;
+      }
       var breakdown = data.breakdown || [];
       var series = aggregateDrillSeries(filtered, chartTimeKey, metricKey);
       series = filterDrillSeriesByRange(series, chartTimeKey);
@@ -2039,7 +2134,11 @@
           marker: { color: lineColor, size: markerSize, line: { width: 0 } },
         };
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
+      if (isRateMetricKey(metricKey)) {
+        layout.yaxis.range = [0, 100];
+      }
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
+      var qualityWarns = detectChartSeriesQuality(series, metricKey, { multiAreaTable: multiAreaTable });
       var analysis = analyzeDrillSeriesPoints(series, metricKey);
       var plotAnnots = [];
       analysis.valleys.slice(0, 4).forEach(function (v) {
@@ -2072,7 +2171,8 @@
         isSummary ? "mz-summary-drill-insights" : "mz-drill-insights",
         analysis,
         metricKey,
-        mDef
+        mDef,
+        qualityWarns
       );
       if (statusEl) {
         var timeNote = "grafik: " + bdTimeLabel(chartTimeKey) + " · tablo: " + bdTimeLabel(tableTimeKey);
