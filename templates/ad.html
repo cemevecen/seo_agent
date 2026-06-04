@@ -242,33 +242,12 @@
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
-          <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yalnızca bu tablonun satır gruplaması; sol paneldeki tarih ve filtreler aynı kalır.</p>
-          <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
-        </div>
-        <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman: tek seçim (gün/hafta/ay…). Alan: tek seçim (Web·mweb… veya Kapalı). Ek sütunlar: birden fazla seçilebilir — tabloya sütun ekler.</p>
-          <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="summary" data-bd-mode="full"></div>
-        </div>
-        <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
-          <span id="mz-summary-meta" class="text-xs text-slate-500 dark:text-zinc-500"></span>
-        </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
-          <table class="mz-data-table min-w-full text-left text-xs">
-            <thead id="mz-summary-head"></thead>
-            <tbody id="mz-summary-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
           <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Kırılım seçenekleri yalnızca bu tabloyu etkiler. Satıra tıklayınca seçili dilim için aşağıdaki trend grafiği güncellenir (sol panel tarih aralığı korunur).</p>
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Örnek: Alan = Web·mweb… + Format → mweb + sticky satırına tıklayın; grafikte Coverage veya gelir seyrini görün.</p>
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Varsayılan: bir Mx birimi seçili ve alttaki trend grafiği açık. Başka satıra tıklayarak dilimi değiştirin.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
@@ -292,7 +271,7 @@
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili dilim — zaman içi trend</h3>
-              <p id="mz-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Detay tabloda bir satıra tıklayın (ör. mweb + sticky).</p>
+              <p id="mz-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Seçili reklam biriminin zaman içi seyri.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
@@ -311,6 +290,27 @@
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-drill-chart" class="min-h-[220px] w-full"></div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div class="mb-2">
+          <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yalnızca bu tablonun satır gruplaması; sol paneldeki tarih ve filtreler aynı kalır.</p>
+          <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+        </div>
+        <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
+          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman: tek seçim (gün/hafta/ay…). Alan: tek seçim (Web·mweb… veya Kapalı). Ek sütunlar: birden fazla seçilebilir — tabloya sütun ekler.</p>
+          <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="summary" data-bd-mode="full"></div>
+        </div>
+        <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
+          <span id="mz-summary-meta" class="text-xs text-slate-500 dark:text-zinc-500"></span>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+          <table class="mz-data-table min-w-full text-left text-xs">
+            <thead id="mz-summary-head"></thead>
+            <tbody id="mz-summary-body"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -387,6 +387,7 @@
     drillSlice: null,
     drillMetric: "coverage_pct",
     drillLoading: false,
+    _drillUserPicked: false,
     bdTime: "date",
     bdArea: "",
     bdDims: null,
@@ -617,7 +618,7 @@
   }
   state.breakdowns = {
     summary: defaultBdCfg({ bdDims: new Set(["income_type"]) }),
-    detail: defaultBdCfg({ bdArea: "area", bdDims: new Set(["ad_format"]) }),
+    detail: defaultBdCfg({ bdArea: "area", bdDims: new Set(["ad_unit"]) }),
     chartLine: defaultBdCfg({ bdTime: "date", bdDims: new Set() }),
     chartMonth: defaultBdCfg({ bdTime: "month", bdDims: new Set() }),
     chartIncome: defaultBdCfg({ bdTime: "", bdDims: new Set(["income_type"]) }),
@@ -863,11 +864,46 @@
     });
   }
 
+  function pickDefaultDrillRow(rows) {
+    if (!rows || !rows.length) return null;
+    function score(r) {
+      var s = 0;
+      if (r.ad_unit) s += 10;
+      var u = String(r.ad_unit || "").toLowerCase();
+      var f = String(r.ad_format || "").toLowerCase();
+      if (u.indexOf("sticky") >= 0 || f === "sticky") s += 5;
+      if (String(r.area || "").toLowerCase() === "mweb") s += 3;
+      return s;
+    }
+    var best = rows[0];
+    var bestSc = score(best);
+    for (var i = 1; i < rows.length; i++) {
+      var sc = score(rows[i]);
+      if (sc > bestSc) {
+        best = rows[i];
+        bestSc = sc;
+      }
+    }
+    return bestSc > 0 ? best : rows[0];
+  }
+
+  function applyDefaultDrillSelection() {
+    if (state._drillUserPicked || !state.lastTable) return;
+    var row = pickDefaultDrillRow(state.lastTable.rows || []);
+    if (!row) return;
+    state.drillSlice = sliceFromTableRow(row);
+    state._drillRowKey = JSON.stringify(state.drillSlice);
+    updateDrillSubtitle();
+    renderTable(state.lastTable);
+    renderTableDrillChart();
+  }
+
   async function refreshDetailTable() {
     var data = await fetchTableForScope("detail", 800);
     state.lastTable = data;
     state.tableExpanded = false;
     renderTable(data);
+    applyDefaultDrillSelection();
   }
 
   function rowsForChartDim(rows, dimKey) {
@@ -1055,11 +1091,7 @@
     }
     if (scope === "detail") {
       updateBdActiveHint(scope);
-      refreshDetailTable()
-        .then(function () {
-          if (state.drillSlice) renderTableDrillChart();
-        })
-        .catch(function (err) { showPageError(err.message); });
+      refreshDetailTable().catch(function (err) { showPageError(err.message); });
       return;
     }
     if (scope === "chartLine") refreshChartLine();
@@ -1675,12 +1707,11 @@
   }
 
   function applyTableRowFilter(row) {
+    state._drillUserPicked = true;
     state.drillSlice = sliceFromTableRow(row);
     state._drillRowKey = JSON.stringify(state.drillSlice);
     updateDrillSubtitle();
     renderTableDrillChart();
-    var wrap = document.getElementById("mz-drill-wrap");
-    if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
     if (state.lastTable) renderTable(state.lastTable);
   }
 
@@ -2119,6 +2150,7 @@
 
   async function runQuery() {
     applyPreset();
+    state._drillUserPicked = false;
     setLoading(true);
     showPageError("");
     try {
@@ -2133,8 +2165,8 @@
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
-      await refreshSummaryTable();
       await refreshDetailTable();
+      await refreshSummaryTable();
       finalizeMzTrendAndSparks(sum);
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
