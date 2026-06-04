@@ -1022,6 +1022,52 @@
     return row.compare;
   }
 
+  function unitDeltaPct(row) {
+    if (!row) return null;
+    var pct = row.net_revenue_delta_pct;
+    return pct == null || isNaN(pct) ? null : pct;
+  }
+
+  function renderUnitDeltaChart(cmp) {
+    var deltaWrap = document.getElementById("mz-chart-delta-wrap");
+    var deltaEl = document.getElementById("mz-chart-delta-units");
+    if (!deltaWrap || !deltaEl) return;
+    if (!cmp || !cmp.by_ad_unit || !cmp.by_ad_unit.length) {
+      deltaWrap.classList.add("hidden");
+      try { Plotly.purge(deltaEl); } catch (_) { /* ignore */ }
+      return;
+    }
+    var chartRows = cmp.by_ad_unit.slice().filter(function (r) {
+      return unitDeltaPct(r) != null;
+    }).sort(function (a, b) {
+      return unitDeltaPct(b) - unitDeltaPct(a);
+    }).slice(0, 12);
+    if (!chartRows.length) {
+      deltaWrap.classList.remove("hidden");
+      try { Plotly.purge(deltaEl); } catch (_) { /* ignore */ }
+      deltaEl.innerHTML = "<p class=\"py-10 text-center text-xs text-slate-500 dark:text-zinc-500\">Bu birimler için karşı dönemde gelir yok veya % fark hesaplanamıyor (yeni birim / isim değişimi).</p>";
+      return;
+    }
+    deltaWrap.classList.remove("hidden");
+    deltaEl.innerHTML = "";
+    plotChart("mz-chart-delta-units", [{
+      x: chartRows.map(function (r) { return unitDeltaPct(r); }),
+      y: chartRows.map(function (r) { return r.ad_unit; }),
+      type: "bar",
+      orientation: "h",
+      marker: {
+        color: chartRows.map(function (r) {
+          return unitDeltaPct(r) >= 0 ? "#10b981" : "#f43f5e";
+        }),
+      },
+      hovertemplate: "%{y}<br>%{x:.1f}%<extra></extra>",
+    }], plotTheme({
+      margin: { l: 180, r: 16, t: 24, b: 40 },
+      xTitle: "Gelir % fark",
+      yaxis: { automargin: true },
+    }), { minHeight: 280 });
+  }
+
   function makeCompareLineTraces(aligned, opts) {
     opts = opts || {};
     var colors = compareColors();
@@ -4414,28 +4460,7 @@
       }
     }
 
-    var deltaWrap = document.getElementById("mz-chart-delta-wrap");
-    if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
-      if (deltaWrap) deltaWrap.classList.remove("hidden");
-      var sorted = cmp.by_ad_unit.slice().sort(function (a, b) {
-        return (b.net_revenue_delta_pct || 0) - (a.net_revenue_delta_pct || 0);
-      }).slice(0, 12);
-      plotChart("mz-chart-delta-units", [{
-        x: sorted.map(function (x) { return x.net_revenue_delta_pct || 0; }),
-        y: sorted.map(function (x) { return x.ad_unit; }),
-        type: "bar",
-        orientation: "h",
-        marker: {
-          color: sorted.map(function (x) {
-            return (x.net_revenue_delta_pct || 0) >= 0 ? "#10b981" : "#f43f5e";
-          }),
-        },
-        hovertemplate: "%{y}<br>%{x:.2f}%<extra></extra>",
-      }], plotTheme({ margin: { l: 180, r: 16, t: 24, b: 40 }, xTitle: "Gelir % fark" }), { minHeight: 280 });
-    } else if (deltaWrap) {
-      deltaWrap.classList.add("hidden");
-      try { Plotly.purge(document.getElementById("mz-chart-delta-units")); } catch (_) { /* ignore */ }
-    }
+    renderUnitDeltaChart(cmp);
 
     return Promise.resolve();
   }

@@ -129,6 +129,21 @@ def _excel_serial(d: date) -> int:
     return (d - date(1899, 12, 30)).days
 
 
+def test_compare_ad_units_param_uses_primary_top_units():
+    primary = [{"ad_unit": "unit_a"}, {"ad_unit": "unit_b"}]
+    assert store._compare_ad_units_param(primary, None) == "unit_a,unit_b"
+    assert store._compare_ad_units_param(primary, "unit_x") == "unit_x"
+
+
+def test_merge_breakdown_str_keys_and_delta_abs():
+    primary = [{"ad_unit": "unit_a", "net_revenue": 100.0, "impression": 10}]
+    compare = [{"ad_unit": "unit_a", "net_revenue": 50.0, "impression": 5}]
+    merged = store._merge_breakdown(primary, compare, "ad_unit")
+    assert merged[0]["net_revenue_compare"] == 50.0
+    assert merged[0]["net_revenue_delta_pct"] == 100.0
+    assert merged[0]["net_revenue_delta_abs"] == 50.0
+
+
 def test_query_summary_with_compare():
     init_db()
     text = (

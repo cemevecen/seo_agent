@@ -1167,6 +1167,27 @@ def _parse_filter_list(raw: str | None) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
 
+def _join_filter_list(items: list[str]) -> str | None:
+    cleaned = [x.strip() for x in items if x and str(x).strip()]
+    return ",".join(cleaned) if cleaned else None
+
+
+def _compare_ad_units_param(
+    primary_by_ad_unit: list[dict[str, Any]],
+    ad_units: str | None,
+) -> str | None:
+    """Karşı dönem sorgusu: kullanıcı filtresi yoksa primary top birimleri kullan."""
+    user_list = _parse_filter_list(ad_units)
+    if user_list:
+        return _join_filter_list(user_list)
+    primary_keys = [
+        str(u.get("ad_unit"))
+        for u in (primary_by_ad_unit or [])
+        if u.get("ad_unit") is not None and str(u.get("ad_unit")).strip()
+    ]
+    return _join_filter_list(primary_keys)
+
+
 _TABLE_BREAKDOWN_ALLOWED = frozenset({
     "date",
     "week",
@@ -1423,15 +1444,22 @@ def _merge_breakdown(
     key_field: str,
     metrics: tuple[str, ...] = ("net_revenue", "impression"),
 ) -> list[dict[str, Any]]:
-    cmap = {r.get(key_field): r for r in compare_rows if r.get(key_field) is not None}
+    cmap = {
+        str(r.get(key_field)): r
+        for r in compare_rows
+        if r.get(key_field) is not None and str(r.get(key_field)).strip()
+    }
     keys: list[str] = []
     seen: set[str] = set()
     for row in primary_rows + compare_rows:
         k = row.get(key_field)
-        if k is None or k in seen:
+        if k is None:
             continue
-        seen.add(str(k))
-        keys.append(str(k))
+        sk = str(k)
+        if sk in seen:
+            continue
+        seen.add(sk)
+        keys.append(sk)
 
     def _fmt_metric(name: str, val: float) -> float | int:
         if name == "net_revenue":
@@ -1448,9 +1476,11 @@ def _merge_breakdown(
         for metric in metrics:
             pv = float(prow.get(metric) or 0)
             cv = float(crow.get(metric) or 0)
+            delta = _kpi_delta(pv, cv)
             item[metric] = _fmt_metric(metric, pv)
             item[f"{metric}_compare"] = _fmt_metric(metric, cv)
-            item[f"{metric}_delta_pct"] = _kpi_delta(pv, cv)["pct"]
+            item[f"{metric}_delta_pct"] = delta["pct"]
+            item[f"{metric}_delta_abs"] = delta["abs"]
         merged.append(item)
     merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
     return merged
@@ -2136,12 +2166,13 @@ def query_summary(
         start, end, compare_mode, compare_start, compare_end
     )
     if cmp_start and cmp_end and compare_mode in COMPARE_MODES:
+        cmp_ad_units = _compare_ad_units_param(payload.get("by_ad_unit") or [], ad_units)
         compare_payload = query_summary(
             db,
             start=cmp_start,
             end=cmp_end,
             income_types=income_types,
-            ad_units=ad_units,
+            ad_units=cmp_ad_units,
             platforms=platforms,
             channels=channels,
             surfaces=surfaces,
