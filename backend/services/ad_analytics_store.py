@@ -2186,11 +2186,15 @@ def query_table(
         select_cols.append(sub.c.surface.label("surface"))
         group_by_cols.append(sub.c.surface)
 
+    norm_view = _norm_ratio_sql(sub.c.viewability)
+    norm_cov = _norm_ratio_sql(sub.c.coverage)
     metrics = [
         func.sum(sub.c.ad_request).label("ad_request"),
         func.sum(sub.c.impression).label("impression"),
         func.sum(sub.c.click).label("click"),
         func.sum(sub.c.net_revenue).label("net_revenue"),
+        func.coalesce(func.sum(norm_cov * sub.c.ad_request), 0).label("cov_w"),
+        func.coalesce(func.sum(norm_view * sub.c.impression), 0).label("view_w"),
     ]
     q = select(*select_cols, *metrics).group_by(*group_by_cols)
     if order_clause is not None:
@@ -2234,12 +2238,17 @@ def query_table(
             item["surface"] = m["surface"]
         impr = float(m["impression"] or 0)
         rev = float(m["net_revenue"] or 0)
+        ad_req = int(m["ad_request"] or 0)
+        cov_w = float(m.get("cov_w") or 0)
+        view_w = float(m.get("view_w") or 0)
         item.update({
-            "ad_request": int(m["ad_request"] or 0),
+            "ad_request": ad_req,
             "impression": int(impr),
             "click": int(m["click"] or 0),
             "net_revenue": round(rev, 2),
             "computed_ecpm": round(rev / impr * 1000, 3) if impr > 0 else 0.0,
+            "coverage_pct": round(cov_w / ad_req * 100.0, 3) if ad_req > 0 else 0.0,
+            "viewability_pct": round(view_w / impr * 100.0, 3) if impr > 0 else 0.0,
         })
         out_rows.append(item)
 

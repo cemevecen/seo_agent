@@ -241,9 +241,14 @@
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
-          <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full" data-bd-scope="summary" data-bd-mode="full"></div>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yalnızca bu tablonun satır gruplaması; sol paneldeki tarih ve filtreler aynı kalır.</p>
+          <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+        </div>
+        <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
+          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman: tek seçim (gün/hafta/ay…). Alan: tek seçim (Web·mweb… veya Kapalı). Ek sütunlar: birden fazla seçilebilir — tabloya sütun ekler.</p>
+          <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="summary" data-bd-mode="full"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <span id="mz-summary-meta" class="text-xs text-slate-500 dark:text-zinc-500"></span>
@@ -257,9 +262,14 @@
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
-          <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full" data-bd-scope="detail" data-bd-mode="full"></div>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Kırılım seçenekleri yalnızca bu tabloyu etkiler. Satıra tıklayınca seçili dilim için aşağıdaki trend grafiği güncellenir (sol panel tarih aralığı korunur).</p>
+          <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+        </div>
+        <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Örnek: Alan = Web·mweb… + Format → mweb + sticky satırına tıklayın; grafikte Coverage veya gelir seyrini görün.</p>
+          <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div class="flex flex-wrap items-center gap-2">
@@ -267,7 +277,6 @@
             <button id="mz-table-csv" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">CSV indir</button>
           </div>
         </div>
-        <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Satıra tıklayınca ilgili filtre uygulanır (tarih, birim, format…).</p>
         <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
           <table class="mz-data-table min-w-full text-left text-xs">
             <thead id="mz-table-head"></thead>
@@ -278,6 +287,30 @@
           <button id="mz-table-expand" type="button" class="rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40">
             Tümünü gör
           </button>
+        </div>
+        <div id="mz-drill-wrap" class="mt-4 rounded-xl border border-indigo-200/80 bg-indigo-50/30 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili dilim — zaman içi trend</h3>
+              <p id="mz-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Detay tabloda bir satıra tıklayın (ör. mweb + sticky).</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                Metrik
+                <select id="mz-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
+              </label>
+              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                Grafik
+                <select id="mz-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
+                  <option value="line">Çizgi</option>
+                  <option value="bar">Çubuk</option>
+                </select>
+              </label>
+              <button id="mz-drill-refresh" type="button" class="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-200">Yenile</button>
+            </div>
+          </div>
+          <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
+          <div id="mz-drill-chart" class="min-h-[220px] w-full"></div>
         </div>
       </div>
     </div>
@@ -351,6 +384,9 @@
     lastSummary: null,
     lastTable: null,
     tableExpanded: false,
+    drillSlice: null,
+    drillMetric: "coverage_pct",
+    drillLoading: false,
     bdTime: "date",
     bdArea: "",
     bdDims: null,
@@ -581,7 +617,7 @@
   }
   state.breakdowns = {
     summary: defaultBdCfg({ bdDims: new Set(["income_type"]) }),
-    detail: defaultBdCfg({ bdDims: new Set(["income_type", "ad_unit"]) }),
+    detail: defaultBdCfg({ bdArea: "area", bdDims: new Set(["ad_format"]) }),
     chartLine: defaultBdCfg({ bdTime: "date", bdDims: new Set() }),
     chartMonth: defaultBdCfg({ bdTime: "month", bdDims: new Set() }),
     chartIncome: defaultBdCfg({ bdTime: "", bdDims: new Set(["income_type"]) }),
@@ -620,6 +656,47 @@
     });
     if (!parts.length) parts.push("date");
     return parts.join(",");
+  }
+
+  var BD_DIM_LABELS = {
+    income_type: "Gelir tipi",
+    ad_format: "Format",
+    ad_unit: "Mx birimi",
+    surface: "Yüzey",
+  };
+
+  function bdTimeLabel(v) {
+    var o = BD_TIME_OPTS.find(function (x) { return x.v === v; });
+    return o ? o.l : (v || "—");
+  }
+
+  function bdAreaLabel(v) {
+    if (!v) return "Kapalı";
+    var o = BD_AREA_OPTS.find(function (x) { return x.v === v; });
+    return o ? o.l : v;
+  }
+
+  function describeBreakdownCfg(cfg) {
+    var extras = [];
+    (cfg.bdDims ? Array.from(cfg.bdDims) : []).forEach(function (d) {
+      extras.push(BD_DIM_LABELS[d] || TABLE_DIM_LABELS[d] || d);
+    });
+    var s = "Zaman: " + bdTimeLabel(cfg.bdTime) + " · Alan: " + bdAreaLabel(cfg.bdArea);
+    if (extras.length) s += " · Ek sütunlar: " + extras.join(", ");
+    else s += " · Ek sütun yok";
+    return s;
+  }
+
+  function updateBdActiveHint(scope) {
+    var cfg = state.breakdowns[scope];
+    if (!cfg) return;
+    var el = document.getElementById("mz-bd-active-" + scope);
+    if (el) el.textContent = "Aktif kırılım: " + describeBreakdownCfg(cfg);
+  }
+
+  function updateAllBdActiveHints() {
+    updateBdActiveHint("summary");
+    updateBdActiveHint("detail");
   }
 
   var BD_TIME_CHART = BD_TIME_OPTS.filter(function (o) {
@@ -749,7 +826,7 @@
             refreshWidget(scope);
           });
         });
-        row("", function (el) {
+        row("Ek sütunlar", function (el) {
           var dimOpts = BD_INCOME_OPTS.concat(BD_FORMAT_OPTS).concat(BD_EXTRA_OPTS);
           mountBdPills(el, cfg, dimOpts, "multi", function (v) {
             if (cfg.bdDims.has(v)) cfg.bdDims.delete(v);
@@ -760,6 +837,7 @@
         });
       }
     });
+    updateAllBdActiveHints();
   }
 
   async function fetchTableForScope(scope, limit) {
@@ -971,11 +1049,17 @@
 
   function refreshWidget(scope) {
     if (scope === "summary") {
+      updateBdActiveHint(scope);
       refreshSummaryTable().catch(function (err) { showPageError(err.message); });
       return;
     }
     if (scope === "detail") {
-      refreshDetailTable().catch(function (err) { showPageError(err.message); });
+      updateBdActiveHint(scope);
+      refreshDetailTable()
+        .then(function () {
+          if (state.drillSlice) renderTableDrillChart();
+        })
+        .catch(function (err) { showPageError(err.message); });
       return;
     }
     if (scope === "chartLine") refreshChartLine();
@@ -1007,7 +1091,193 @@
     { key: "click", label: "Click", dec: 0 },
     { key: "ad_request", label: "Ad Request", dec: 0 },
     { key: "computed_ecpm", label: "Ad Impression eCPM (TL)", dec: 3 },
+    { key: "coverage_pct", label: "Coverage (%)", dec: 3 },
+    { key: "viewability_pct", label: "Viewability (%)", dec: 3 },
   ];
+
+  var DRILL_METRICS = [
+    { key: "coverage_pct", label: "Coverage (%)", dec: 3, axis: "%" },
+    { key: "viewability_pct", label: "Viewability (%)", dec: 3, axis: "%" },
+    { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
+    { key: "impression", label: "Impression", dec: 0, axis: "" },
+    { key: "click", label: "Click", dec: 0, axis: "" },
+    { key: "ad_request", label: "Ad Request", dec: 0, axis: "" },
+    { key: "computed_ecpm", label: "Ad Impression eCPM (TL)", dec: 3, axis: "TL" },
+  ];
+
+  var DRILL_SLICE_KEYS = ["area", "ad_format", "ad_unit", "income_type", "channel", "surface", "project", "platform"];
+
+  function sliceFromTableRow(row) {
+    var slice = {};
+    DRILL_SLICE_KEYS.forEach(function (k) {
+      if (row[k] != null && String(row[k]).trim() !== "") slice[k] = row[k];
+    });
+    return slice;
+  }
+
+  function drillSliceLabel(slice) {
+    if (!slice || !Object.keys(slice).length) return "";
+    return Object.keys(slice).map(function (k) {
+      return (TABLE_DIM_LABELS[k] || k) + ": " + slice[k];
+    }).join(" · ");
+  }
+
+  function rowMatchesDrillSlice(row, slice) {
+    if (!slice) return false;
+    var keys = Object.keys(slice);
+    if (!keys.length) return false;
+    return keys.every(function (k) {
+      return String(row[k] != null ? row[k] : "") === String(slice[k]);
+    });
+  }
+
+  function drillTimeKeyFromCfg(cfg) {
+    return cfg.bdTime || "date";
+  }
+
+  function drillTimeValue(row, timeKey) {
+    if (timeKey === "date") return row.date || row.report_date;
+    return row[timeKey];
+  }
+
+  function aggregateDrillSeries(rows, timeKey, metricKey) {
+    var map = {};
+    rows.forEach(function (r) {
+      var raw = drillTimeValue(r, timeKey);
+      if (raw == null || raw === "") return;
+      var k = String(raw).slice(0, 10);
+      if (!map[k]) {
+        map[k] = {
+          t: k,
+          ad_request: 0,
+          impression: 0,
+          net_revenue: 0,
+          click: 0,
+          cov_w: 0,
+          view_w: 0,
+        };
+      }
+      var b = map[k];
+      var ar = Number(r.ad_request) || 0;
+      var im = Number(r.impression) || 0;
+      b.ad_request += ar;
+      b.impression += im;
+      b.net_revenue += Number(r.net_revenue) || 0;
+      b.click += Number(r.click) || 0;
+      if (r.coverage_pct != null && ar > 0) b.cov_w += (Number(r.coverage_pct) / 100.0) * ar;
+      else b.cov_w += (Number(r.cov_w) || 0);
+      if (r.viewability_pct != null && im > 0) b.view_w += (Number(r.viewability_pct) / 100.0) * im;
+      else b.view_w += (Number(r.view_w) || 0);
+    });
+    return Object.keys(map).sort().map(function (k) {
+      var b = map[k];
+      var y;
+      if (metricKey === "coverage_pct") y = b.ad_request > 0 ? (b.cov_w / b.ad_request * 100.0) : 0;
+      else if (metricKey === "viewability_pct") y = b.impression > 0 ? (b.view_w / b.impression * 100.0) : 0;
+      else if (metricKey === "computed_ecpm") y = b.impression > 0 ? (b.net_revenue / b.impression * 1000.0) : 0;
+      else y = b[metricKey] != null ? b[metricKey] : 0;
+      return { x: b.t, y: y };
+    });
+  }
+
+  function updateDrillSubtitle() {
+    var sub = document.getElementById("mz-drill-subtitle");
+    if (!sub) return;
+    var r = selectedDateRange();
+    var rangeTxt = (r.start || "…") + " — " + (r.end || "…");
+    if (!state.drillSlice || !Object.keys(state.drillSlice).length) {
+      sub.textContent = "Detay tabloda bir satıra tıklayın. Grafik sol paneldeki tarih aralığını kullanır (" + rangeTxt + ").";
+      return;
+    }
+    sub.textContent = drillSliceLabel(state.drillSlice) + " · " + rangeTxt;
+  }
+
+  function initDrillControls() {
+    var sel = document.getElementById("mz-drill-metric");
+    if (sel && !sel.options.length) {
+      DRILL_METRICS.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m.key;
+        o.textContent = m.label;
+        sel.appendChild(o);
+      });
+      sel.value = state.drillMetric || "coverage_pct";
+    }
+    on("mz-drill-metric", "change", function () {
+      state.drillMetric = document.getElementById("mz-drill-metric").value;
+      renderTableDrillChart();
+    });
+    on("mz-drill-chart-type", "change", function () { renderTableDrillChart(); });
+    on("mz-drill-refresh", "click", function () { renderTableDrillChart(); });
+  }
+
+  async function renderTableDrillChart() {
+    var chartEl = document.getElementById("mz-drill-chart");
+    var statusEl = document.getElementById("mz-drill-status");
+    if (!chartEl) return;
+    updateDrillSubtitle();
+    if (!state.drillSlice || !Object.keys(state.drillSlice).length) {
+      if (statusEl) statusEl.textContent = "";
+      chartEl.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Trend için detay tabloda bir satır seçin.</p>";
+      return;
+    }
+    if (!window.Plotly) {
+      if (statusEl) statusEl.textContent = "Grafik kütüphanesi yükleniyor…";
+      return;
+    }
+    var cfg = state.breakdowns.detail;
+    var timeKey = drillTimeKeyFromCfg(cfg);
+    var metricKey = document.getElementById("mz-drill-metric")
+      ? document.getElementById("mz-drill-metric").value
+      : state.drillMetric;
+    state.drillMetric = metricKey;
+    var chartType = document.getElementById("mz-drill-chart-type")
+      ? document.getElementById("mz-drill-chart-type").value
+      : "line";
+    var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
+    state.drillLoading = true;
+    if (statusEl) statusEl.textContent = "Veri yükleniyor…";
+    try {
+      var data = await fetchTableForScope("detail", 2000);
+      var filtered = (data.rows || []).filter(function (r) {
+        return rowMatchesDrillSlice(r, state.drillSlice);
+      });
+      var series = aggregateDrillSeries(filtered, timeKey, metricKey);
+      var r = selectedDateRange();
+      if (r.start || r.end) {
+        series = series.filter(function (pt) {
+          if (r.start && pt.x < r.start) return false;
+          if (r.end && pt.x > r.end) return false;
+          return true;
+        });
+      }
+      if (!series.length) {
+        chartEl.innerHTML = "";
+        if (statusEl) {
+          statusEl.textContent =
+            "Bu dilim için seçili aralıkta nokta yok. Zaman = Gün olduğundan emin olun; kırılımda tarih sütunu görünmeli.";
+        }
+        return;
+      }
+      var xs = series.map(function (p) { return p.x; });
+      var ys = series.map(function (p) { return p.y; });
+      var trace = chartType === "bar"
+        ? { type: "bar", x: xs, y: ys, marker: { color: isDarkTheme() ? "#818cf8" : "#4f46e5" } }
+        : { type: "scatter", mode: "lines+markers", x: xs, y: ys, line: { color: isDarkTheme() ? "#818cf8" : "#4f46e5", width: 2 }, marker: { size: 5 } };
+      var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
+      layout.title = { text: mDef.label, font: plotFont(), x: 0 };
+      await Plotly.react(chartEl, [trace], layout, plotlyCfg());
+      if (statusEl) {
+        statusEl.textContent =
+          series.length + " dönem · " + bdTimeLabel(timeKey) + " · " + drillSliceLabel(state.drillSlice);
+      }
+    } catch (e) {
+      chartEl.innerHTML = "";
+      if (statusEl) statusEl.textContent = "Trend yüklenemedi: " + (e.message || e);
+    } finally {
+      state.drillLoading = false;
+    }
+  }
 
   function tableColumns(data) {
     var breakdown = data.breakdown || [];
@@ -1405,21 +1675,13 @@
   }
 
   function applyTableRowFilter(row) {
-    var rawDate = row.date || row.report_date;
-    if (rawDate) {
-      var d = String(rawDate).slice(0, 10);
-      document.getElementById("mz-start").value = d;
-      document.getElementById("mz-end").value = d;
-      document.getElementById("mz-preset").value = "";
-    }
-    if (row.ad_unit) document.getElementById("mz-search").value = row.ad_unit;
-    if (row.income_type) {
-      state.income = new Set([row.income_type]);
-      if (state._mzIncomeFacetList && state._mzIncomeFacetList.length) {
-        filterBox("mz-filter-income", state._mzIncomeFacetList, state.income);
-      }
-    }
-    debouncedRun();
+    state.drillSlice = sliceFromTableRow(row);
+    state._drillRowKey = JSON.stringify(state.drillSlice);
+    updateDrillSubtitle();
+    renderTableDrillChart();
+    var wrap = document.getElementById("mz-drill-wrap");
+    if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (state.lastTable) renderTable(state.lastTable);
   }
 
   function renderCompareMatrix(sum) {
@@ -1612,8 +1874,13 @@
         expandWrap.classList.add("hidden");
       }
     }
+    var isDetailBody = bodyId === "mz-table-body";
     body.innerHTML = visibleRows.map(function (r, ri) {
-      return "<tr class=\"cursor-pointer\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
+      var sel =
+        isDetailBody &&
+        state._drillRowKey &&
+        JSON.stringify(sliceFromTableRow(r)) === state._drillRowKey;
+      return "<tr class=\"cursor-pointer" + (sel ? " mz-drill-row-selected" : "") + "\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
         var v = r[c.key];
         if (typeof v === "number" && c.dec != null) v = fmt(v, c.dec);
         var extra = "";
@@ -2206,6 +2473,8 @@
   });
 
   initBreakdownToolbars();
+  initDrillControls();
+  updateDrillSubtitle();
 
   loadFacets().then(function () { runQuery(); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
