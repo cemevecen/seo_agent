@@ -479,6 +479,7 @@
     detailUnitRowsExpanded: false,
     detailFavorites: [],
     detailUnitAcIndex: -1,
+    _detailUnitAreasCache: {},
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1004,9 +1005,41 @@
     return defaultDrillChartTimeForTable(drillTimeKeyFromCfg(cfg));
   }
 
+  function storeDetailUnitAreasCache(unit, rows) {
+    var sel = (unit || "").trim();
+    if (!sel) return;
+    var areas = {};
+    (rows || []).forEach(function (r) {
+      if (String(r.ad_unit || "") !== sel) return;
+      if (r.area) areas[String(r.area)] = true;
+    });
+    state._detailUnitAreasCache = state._detailUnitAreasCache || {};
+    state._detailUnitAreasCache[sel] = Object.keys(areas);
+  }
+
+  async function cacheDetailUnitAreas(unit) {
+    var sel = (unit || "").trim();
+    if (!sel || (state._detailUnitAreasCache && state._detailUnitAreasCache[sel])) return;
+    try {
+      var data = await fetchTableWithBreakdownCfg(
+        "detail",
+        800,
+        { bdTime: "date", bdArea: "area", bdDims: new Set(["ad_unit"]) },
+        { ad_unit: sel }
+      );
+      storeDetailUnitAreasCache(sel, data.rows || []);
+    } catch (_) {
+      state._detailUnitAreasCache = state._detailUnitAreasCache || {};
+      if (!state._detailUnitAreasCache[sel]) state._detailUnitAreasCache[sel] = [];
+    }
+  }
+
   function detailChartAreasForUnit(unit) {
     var sel = (unit || "").trim();
     if (!sel) return [];
+    if (state._detailUnitAreasCache && state._detailUnitAreasCache[sel]) {
+      return state._detailUnitAreasCache[sel].slice();
+    }
     var rows = [];
     if (state.detailUnitFullFor === sel && state.detailUnitFullTable && state.detailUnitFullTable.rows) {
       rows = state.detailUnitFullTable.rows;
@@ -1023,21 +1056,78 @@
 
   /** Trend API kırılımı: tek alanlı birimde günlük; satır tıklanınca alan dahil. */
   function drillChartFetchCfg(cfg, chartTimeKey, slice) {
+    if (slice && slice.income_type && !slice.ad_unit && !slice.area) {
+      return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set(["income_type"]) };
+    }
     var out = {
       bdTime: chartTimeKey,
       bdArea: cfg.bdArea,
       bdDims: cfg.bdDims ? new Set(cfg.bdDims) : new Set(),
     };
     if (slice && slice.area) {
-      return { bdTime: chartTimeKey, bdArea: "area", bdDims: new Set() };
+      var areaDims = new Set(["ad_unit"]);
+      if (slice.income_type) areaDims.add("income_type");
+      if (slice.ad_format) areaDims.add("ad_format");
+      return { bdTime: chartTimeKey, bdArea: "area", bdDims: areaDims };
     }
     if (slice && slice.ad_unit && !slice.area) {
       var areas = detailChartAreasForUnit(slice.ad_unit);
       if (areas.length === 1) {
         return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set() };
       }
+      if (areas.length > 1) {
+        return { bdTime: chartTimeKey, bdArea: "area", bdDims: new Set(["ad_unit"]) };
+      }
     }
     return out;
+  }
+
+  function drillChartFetchAttempts(scope, cfg, chartTimeKey, slice) {
+    var seen = {};
+    var list = [];
+    function add(c) {
+      var k = breakdownStrFrom(c);
+      if (seen[k]) return;
+      seen[k] = true;
+      list.push(c);
+    }
+    add(drillChartFetchCfg(cfg, chartTimeKey, slice));
+    if (scope === "summary" && slice && slice.income_type) {
+      add({ bdTime: chartTimeKey, bdArea: "", bdDims: new Set(["income_type"]) });
+    }
+    if (scope === "detail" && slice && slice.ad_unit) {
+      add({ bdTime: chartTimeKey, bdArea: "", bdDims: new Set(["ad_unit"]) });
+      add({ bdTime: chartTimeKey, bdArea: "area", bdDims: new Set(["ad_unit"]) });
+      if (cfg) {
+        add({
+          bdTime: chartTimeKey,
+          bdArea: cfg.bdArea || "",
+          bdDims: cfg.bdDims ? new Set(cfg.bdDims) : new Set(["ad_unit"]),
+        });
+      }
+    }
+    return list;
+  }
+
+  async function fetchDrillChartData(scope, chartTimeKey, cfg, slice) {
+    var limit = drillChartFetchLimit(chartTimeKey);
+    var attempts = drillChartFetchAttempts(scope, cfg, chartTimeKey, slice);
+    var last = null;
+    for (var i = 0; i < attempts.length; i++) {
+      var chartCfg = attempts[i];
+      var data = await fetchTableWithBreakdownCfg(scope, limit, chartCfg, slice);
+      if (!data) continue;
+      var breakdown = data.breakdown || [];
+      var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
+      last = { data: data, filtered: filtered, breakdown: breakdown, chartCfg: chartCfg };
+      if (breakdown.indexOf(chartTimeKey) >= 0 && filtered.length) return last;
+    }
+    return last || {
+      data: { rows: [], breakdown: [] },
+      filtered: [],
+      breakdown: [],
+      chartCfg: attempts[0],
+    };
   }
 
   function mountDrillChartTimePills(containerId, scope) {
@@ -1306,6 +1396,7 @@
       var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
       state.detailUnitFullTable = data;
       state.detailUnitFullFor = unit;
+      storeDetailUnitAreasCache(unit, data.rows || []);
       state.detailUnitRowsExpanded = false;
       state.tableExpanded = false;
     } catch (err) {
@@ -1334,6 +1425,7 @@
     hideDetailUnitAutocomplete();
     if (state.lastTable) renderTable(state.lastTable);
     scheduleDetailDrillChart();
+    cacheDetailUnitAreas(u);
     fetchDetailUnitFullTable(u);
   }
 
@@ -2051,6 +2143,7 @@
       return rowMatchesDrillSlice(r, slice, bd);
     });
     if (scope !== "detail" || !slice || !slice.ad_unit || slice.area) return filtered;
+    if (!bd.length || bd.indexOf("area") < 0) return filtered;
     var areas = detailChartAreasForUnit(slice.ad_unit);
     if (!areas.length) return filtered;
     if (areas.length === 1) {
@@ -2522,9 +2615,14 @@
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
     try {
-      var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
-      var breakdown = data.breakdown || [];
-      var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
+      if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
+        await cacheDetailUnitAreas(slice.ad_unit);
+      }
+      var drillData = await fetchDrillChartData(scope, chartTimeKey, cfg, slice);
+      var data = drillData.data;
+      var breakdown = drillData.breakdown || [];
+      var filtered = drillData.filtered || [];
+      chartCfg = drillData.chartCfg || chartCfg;
       var multiAreaTable = false;
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
