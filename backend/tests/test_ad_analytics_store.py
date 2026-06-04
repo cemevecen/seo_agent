@@ -219,4 +219,5 @@ def test_build_upload_batch_summary():
     assert s["failed_count"] == 1
     assert s["empty_count"] == 1
     assert s["has_errors"] is True
+    assert s["has_warnings"] is True
     assert s["integrated_rows"] == 150

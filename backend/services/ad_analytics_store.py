@@ -822,6 +822,8 @@ def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]
     integrated_rows = sum(int(x.get("parsed") or 0) for x in per_file if not x.get("error"))
     inserted_rows = sum(int(x.get("inserted") or 0) for x in per_file if not x.get("error"))
     has_errors = bool(failed) or bool(empty)
+    has_warnings = bool(unknown_files) or bool(duplicate_names) or bool(duplicate_period_notes)
+    nothing_imported = file_count > 0 and integrated_rows <= 0
 
     return {
         "file_count": file_count,
@@ -841,7 +843,9 @@ def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]
         "integrated_rows": integrated_rows,
         "inserted_rows": inserted_rows,
         "has_errors": has_errors,
-        "all_ok": not has_errors and file_count > 0 and len(ok_files) == file_count,
+        "has_warnings": has_warnings,
+        "nothing_imported": nothing_imported,
+        "all_ok": file_count > 0 and not has_errors and len(ok_files) == file_count,
     }
 
 

@@ -21,7 +21,7 @@
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
-      <div id="mz-upload-progress" class="hidden space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 p-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+      <div id="mz-upload-progress" class="hidden space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 p-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/30" data-upload-theme="active">
         <div class="flex items-center justify-between gap-2 text-[11px] font-semibold text-indigo-900 dark:text-indigo-200">
           <span id="mz-upload-progress-title">Yükleniyor</span>
           <span id="mz-upload-progress-pct">0%</span>
@@ -1026,14 +1026,56 @@
   });
   adThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
+  var mzUploadLastPct = 0;
+
   function setUploadProgressVisible(on) {
     var box = document.getElementById("mz-upload-progress");
     if (on) box.classList.remove("hidden");
     else box.classList.add("hidden");
   }
 
-  function setUploadProgress(pct, title, detail) {
+  function setUploadProgressTheme(theme) {
+    var box = document.getElementById("mz-upload-progress");
+    var bar = document.getElementById("mz-upload-progress-bar");
+    box.setAttribute("data-upload-theme", theme || "active");
+    bar.className = "h-full rounded-full transition-[width] duration-200 ease-out ";
+    if (theme === "ok") bar.className += "bg-emerald-600";
+    else if (theme === "warn") bar.className += "bg-amber-500";
+    else if (theme === "err") bar.className += "bg-rose-600";
+    else bar.className += "bg-indigo-600";
+    box.classList.remove(
+      "border-indigo-200", "bg-indigo-50/80", "dark:border-indigo-900/60", "dark:bg-indigo-950/30",
+      "border-emerald-200", "bg-emerald-50/90", "dark:border-emerald-900/50", "dark:bg-emerald-950/30",
+      "border-amber-200", "bg-amber-50/90", "dark:border-amber-900/50", "dark:bg-amber-950/30",
+      "border-rose-200", "bg-rose-50/90", "dark:border-rose-900/50", "dark:bg-rose-950/30"
+    );
+    if (theme === "ok") {
+      box.classList.add("border-emerald-200", "bg-emerald-50/90", "dark:border-emerald-900/50", "dark:bg-emerald-950/30");
+    } else if (theme === "warn") {
+      box.classList.add("border-amber-200", "bg-amber-50/90", "dark:border-amber-900/50", "dark:bg-amber-950/30");
+    } else if (theme === "err") {
+      box.classList.add("border-rose-200", "bg-rose-50/90", "dark:border-rose-900/50", "dark:bg-rose-950/30");
+    } else {
+      box.classList.add("border-indigo-200", "bg-indigo-50/80", "dark:border-indigo-900/60", "dark:bg-indigo-950/30");
+    }
+  }
+
+  function mapUploadEventPct(ev) {
+    if (!ev) return 0;
+    if (ev.phase === "upload") {
+      if (!ev.total) return mzUploadLastPct;
+      return Math.min(10, Math.round((ev.loaded / ev.total) * 10));
+    }
+    if (ev.phase === "batch_ready") return ev.pct != null ? ev.pct : 12;
+    if (ev.pct != null) return Math.min(99, 10 + Math.round(Number(ev.pct) * 0.9));
+    return mzUploadLastPct;
+  }
+
+  function setUploadProgress(pct, title, detail, opts) {
+    opts = opts || {};
     var p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    if (!opts.allowDecrease) p = Math.max(mzUploadLastPct, p);
+    mzUploadLastPct = p;
     document.getElementById("mz-upload-progress-pct").textContent = p + "%";
     document.getElementById("mz-upload-progress-bar").style.width = p + "%";
     var wrap = document.getElementById("mz-upload-progress-bar-wrap");
@@ -1054,8 +1096,12 @@
       lines.push(fc + " dosya işlendi · " + fmt(done.parsed) + " satır · DB: " + fmt(done.total));
       return lines;
     }
-    if (s.all_ok) {
+    if (s.nothing_imported) {
+      lines.push("Hiçbir dosyadan satır entegre edilmedi — dosya formatını kontrol edin.");
+    } else if (s.all_ok && !s.has_warnings) {
       lines.push("Hata yok — tüm dosyalar entegre edildi.");
+    } else if (s.all_ok && s.has_warnings) {
+      lines.push("Entegrasyon tamam; uyarılar var (aşağıda).");
     } else if (s.has_errors) {
       lines.push("Bazı dosyalarda hata veya eksik veri var (aşağıda).");
     } else {
@@ -1093,7 +1139,13 @@
   }
 
   function showUploadFinalSummary(done) {
-    setUploadProgress(100, "Özet", "");
+    var s = done && done.summary;
+    var theme = "ok";
+    if (done && done.phase === "batch_error") theme = "err";
+    else if (s && (s.has_errors || s.nothing_imported)) theme = "err";
+    else if (s && s.has_warnings) theme = "warn";
+    setUploadProgressTheme(theme);
+    setUploadProgress(100, "Özet", "", { allowDecrease: true });
     var ul = document.getElementById("mz-upload-progress-summary");
     var lines = buildUploadSummaryLines(done);
     ul.innerHTML = "";
@@ -1107,25 +1159,28 @@
   }
 
   function scheduleReloadAfterUploadSummary(seconds) {
-    var left = seconds;
     var el = document.getElementById("mz-upload-progress-reload");
+    var sec = Math.max(1, seconds || 3);
     el.classList.remove("hidden");
-    function tick() {
-      el.textContent = "Sayfa " + left + " sn içinde yenileniyor…";
-      if (left <= 0) {
-        window.location.reload();
-        return;
-      }
+    el.textContent = "Sayfa " + sec + " sn içinde yenileniyor…";
+    var left = sec;
+    var iv = setInterval(function () {
       left -= 1;
-      setTimeout(tick, 1000);
-    }
-    tick();
+      if (left > 0) el.textContent = "Sayfa " + left + " sn içinde yenileniyor…";
+    }, 1000);
+    setTimeout(function () {
+      clearInterval(iv);
+      window.location.reload();
+    }, sec * 1000);
   }
 
   function phaseLabel(ev) {
     if (!ev) return "";
     if (ev.phase === "upload") {
       return "Dosyalar sunucuya gönderiliyor… " + fmt(ev.loaded) + " / " + fmt(ev.total) + " bayt";
+    }
+    if (ev.phase === "batch_ready") {
+      return (ev.file_count || "?") + " dosya alındı (" + fmt(ev.total_bytes) + " bayt) — satırlar işleniyor…";
     }
     if (ev.phase === "batch_start") return ev.total_files + " dosya işlenecek";
     if (ev.phase === "file_start") {
@@ -1154,6 +1209,8 @@
       var lastLen = 0;
       var ndjsonBuf = "";
       var finalEvent = null;
+      mzUploadLastPct = 0;
+      setUploadProgressTheme("active");
 
       function handleLine(line) {
         line = (line || "").trim();
@@ -1161,12 +1218,9 @@
         try {
           var ev = JSON.parse(line);
           if (ev.phase === "batch_done" || ev.phase === "batch_error") finalEvent = ev;
-          var pct = ev.pct;
-          if (ev.phase === "upload" && ev.total) pct = Math.round((ev.loaded / ev.total) * 12);
-          else if (pct == null && ev.phase === "file_start" && ev.total_files) {
-            pct = Math.round(100 * (ev.file_index - 1) / ev.total_files);
-          }
-          setUploadProgress(pct != null ? pct : 0, "Yükleniyor", phaseLabel(ev));
+          var pct = mapUploadEventPct(ev);
+          var title = ev.phase === "batch_done" || ev.phase === "batch_error" ? "Yükleniyor" : "Yükleniyor";
+          setUploadProgress(pct, title, phaseLabel(ev));
         } catch (e) { /* partial json */ }
       }
 
@@ -1176,8 +1230,14 @@
           phase: "upload",
           loaded: e.loaded,
           total: e.total,
-          pct: Math.min(12, Math.round((e.loaded / e.total) * 12)),
         }));
+      });
+      xhr.upload.addEventListener("load", function () {
+        setUploadProgress(
+          Math.max(mzUploadLastPct, 10),
+          "Yükleniyor",
+          "Dosyalar sunucuya iletildi; işleniyor…"
+        );
       });
 
       xhr.onreadystatechange = function () {
@@ -1190,6 +1250,7 @@
           parts.forEach(handleLine);
         }
         if (xhr.readyState === 4) {
+          if (ndjsonBuf.trim()) handleLine(ndjsonBuf);
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(finalEvent || {});
           } else {
@@ -1223,17 +1284,20 @@
     var url = "/api/mz-analytics/upload-bulk-stream";
     btn.disabled = true;
     setUploadProgressVisible(true);
+    setUploadProgressTheme("active");
     document.getElementById("mz-upload-progress-summary").classList.add("hidden");
     document.getElementById("mz-upload-progress-summary").innerHTML = "";
     document.getElementById("mz-upload-progress-reload").classList.add("hidden");
-    setUploadProgress(0, "Hazırlanıyor", inp.files.length + " dosya seçildi");
+    mzUploadLastPct = 0;
+    setUploadProgress(0, "Hazırlanıyor", inp.files.length + " dosya seçildi", { allowDecrease: true });
     document.getElementById("mz-status").textContent = "";
     try {
       var done = await uploadWithRealtimeProgress(fd, url);
       showUploadFinalSummary(done);
       scheduleReloadAfterUploadSummary(3);
     } catch (err) {
-      setUploadProgress(0, "Hata", (err && err.message) || "Yükleme başarısız");
+      setUploadProgressTheme("err");
+      setUploadProgress(0, "Hata", (err && err.message) || "Yükleme başarısız", { allowDecrease: true });
       document.getElementById("mz-status").textContent = (err && err.message) || "Yükleme başarısız";
       btn.disabled = false;
     }

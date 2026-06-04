@@ -227,6 +227,15 @@ async def post_ad_analytics_upload_bulk_stream(
 
     def _ndjson_stream():
         try:
+            yield json.dumps(
+                {
+                    "phase": "batch_ready",
+                    "file_count": len(payload),
+                    "total_bytes": total_bytes,
+                    "pct": 12,
+                },
+                ensure_ascii=False,
+            ) + "\n"
             for event in store.iter_bulk_import_events(payload):
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # noqa: BLE001
