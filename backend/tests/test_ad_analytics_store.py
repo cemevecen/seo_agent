@@ -221,3 +221,13 @@ def test_build_upload_batch_summary():
     assert s["has_errors"] is True
     assert s["has_warnings"] is True
     assert s["integrated_rows"] == 150
+
+
+def test_build_heatmap_calendar():
+    days = [
+        {"date": "2026-06-01", "net_revenue": 10.0},
+        {"date": "2026-06-02", "net_revenue": 20.0},
+    ]
+    hm = store._build_heatmap_calendar(days)
+    assert len(hm) == 2
+    assert hm[0]["dow_label"] in store._DOW_LABELS

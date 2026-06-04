@@ -1394,6 +1394,39 @@ def align_by_date_series(
     return aligned
 
 
+_DOW_LABELS = ("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
+
+
+def _build_heatmap_calendar(days: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for d in days:
+        raw = d.get("date")
+        if not raw:
+            continue
+        dt = date.fromisoformat(str(raw)[:10])
+        iso = dt.isocalendar()
+        out.append(
+            {
+                "date": str(raw)[:10],
+                "dow": dt.weekday(),
+                "dow_label": _DOW_LABELS[dt.weekday()],
+                "week": int(iso[1]),
+                "year": int(iso[0]),
+                "net_revenue": float(d.get("net_revenue") or 0),
+            }
+        )
+    return out
+
+
+def _build_leaders_losers(merged_units: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    rows = list(merged_units or [])
+    gainers = sorted(
+        rows, key=lambda x: float(x.get("net_revenue_delta_pct") or 0), reverse=True
+    )[:10]
+    losers = sorted(rows, key=lambda x: float(x.get("net_revenue_delta_pct") or 0))[:10]
+    return {"gainers": gainers, "losers": losers}
+
+
 def _attach_compare_block(
     primary: dict[str, Any],
     compare: dict[str, Any],
@@ -1404,6 +1437,11 @@ def _attach_compare_block(
 ) -> dict[str, Any]:
     pk = primary.get("kpis") or {}
     ck = compare.get("kpis") or {}
+    merged_units = _merge_breakdown(
+        primary.get("by_ad_unit") or [],
+        compare.get("by_ad_unit") or [],
+        "ad_unit",
+    )
     return {
         "mode": mode,
         "range": {"start": range_start, "end": range_end},
@@ -1419,11 +1457,8 @@ def _attach_compare_block(
             compare.get("by_income_type") or [],
             "income_type",
         ),
-        "by_ad_unit": _merge_breakdown(
-            primary.get("by_ad_unit") or [],
-            compare.get("by_ad_unit") or [],
-            "ad_unit",
-        ),
+        "by_ad_unit": merged_units,
+        "leaders_losers": _build_leaders_losers(merged_units),
         "by_month": _merge_breakdown(
             primary.get("by_month") or [],
             compare.get("by_month") or [],
@@ -1438,6 +1473,11 @@ def _attach_compare_block(
             primary.get("by_channel") or [],
             compare.get("by_channel") or [],
             "channel",
+        ),
+        "by_platform": _merge_breakdown(
+            primary.get("by_platform") or [],
+            compare.get("by_platform") or [],
+            "platform",
         ),
     }
 
@@ -1734,10 +1774,11 @@ def query_summary(
             sub.c.ad_unit,
             func.sum(sub.c.net_revenue),
             func.sum(sub.c.impression),
+            func.sum(sub.c.click),
         )
         .group_by(sub.c.ad_unit)
         .order_by(func.sum(sub.c.net_revenue).desc())
-        .limit(25)
+        .limit(40)
     ).all()
 
     by_month = db.execute(
@@ -1768,6 +1809,26 @@ def query_summary(
         )
         .group_by(sub.c.channel)
         .order_by(func.sum(sub.c.net_revenue).desc())
+    ).all()
+
+    by_platform = db.execute(
+        select(
+            sub.c.platform,
+            func.sum(sub.c.net_revenue),
+            func.sum(sub.c.impression),
+        )
+        .group_by(sub.c.platform)
+        .order_by(func.sum(sub.c.net_revenue).desc())
+    ).all()
+
+    by_date_income = db.execute(
+        select(
+            sub.c.report_date,
+            sub.c.income_type,
+            func.sum(sub.c.net_revenue),
+        )
+        .group_by(sub.c.report_date, sub.c.income_type)
+        .order_by(sub.c.report_date, sub.c.income_type)
     ).all()
 
     def _day_series(row: tuple) -> dict[str, Any]:
@@ -1865,6 +1926,42 @@ def query_summary(
                 "impression": int(r[2] or 0),
             }
             for r in by_channel
+        ],
+        "by_platform": [
+            {
+                "platform": r[0] or "—",
+                "net_revenue": round(float(r[1] or 0), 2),
+                "impression": int(r[2] or 0),
+            }
+            for r in by_platform
+        ],
+        "by_date_income_type": [
+            {
+                "date": r[0].isoformat(),
+                "income_type": r[1] or "—",
+                "net_revenue": round(float(r[2] or 0), 2),
+            }
+            for r in by_date_income
+        ],
+        "heatmap_calendar": _build_heatmap_calendar([_day_series(r) for r in by_date]),
+        "funnel": {
+            "ad_request": int(ad_req),
+            "matched_request": int(matched_req),
+            "impression": int(impr),
+            "click": int(clicks),
+        },
+        "by_ad_unit_scatter": [
+            {
+                "ad_unit": r[0],
+                "net_revenue": round(float(r[1] or 0), 2),
+                "impression": int(r[2] or 0),
+                "click": int(r[3] or 0),
+                "ad_ecpm": round(
+                    (float(r[1] or 0) / float(r[2] or 1) * 1000.0) if float(r[2] or 0) > 0 else 0.0,
+                    3,
+                ),
+            }
+            for r in by_unit
         ],
     }
 

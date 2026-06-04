@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <!-- mz-layout-v5 -->
-<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Reklam Analitiği">
+<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Monetizasyon (Mx)">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-    <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Reklam Analitiği</h1>
+    <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Monetizasyon Analitiği (Mx)</h1>
     <div id="mz-stream-tabs" class="mz-stream-tabs mt-3 flex gap-1.5 overflow-x-auto pb-1"></div>
     <details id="mz-imports-wrap" class="group mt-2 rounded-lg border border-slate-200 bg-slate-50/80 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-zinc-950/30">
       <summary class="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 marker:content-none dark:text-slate-300 [&::-webkit-details-marker]:hidden">
@@ -88,13 +88,22 @@
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kaynak dosya</p>
       <div id="mz-filter-source" class="max-h-24 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
 
-      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ad unit ara</p>
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Mx birimi ara</p>
       <input id="mz-search" type="search" placeholder="masthead, sticky…" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+      <div id="mz-search-preview-wrap" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50/90 dark:border-zinc-700 dark:bg-zinc-950/60">
+        <p class="px-2 pt-2 text-[10px] font-bold uppercase text-slate-500">Önizleme</p>
+        <div class="max-h-36 overflow-y-auto px-2 pb-2">
+          <table class="min-w-full text-left text-[10px]">
+            <thead><tr><th class="py-1 pr-2">Birim</th><th class="py-1 pr-2">Gelir</th><th class="py-1">Gösterim</th></tr></thead>
+            <tbody id="mz-search-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
 
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Tablo kırılımı</p>
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="date" checked /> Tarih</label>
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="month" /> Ay</label>
-      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="ad_unit" checked /> Ad unit</label>
+      <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="ad_unit" checked /> Mx birimi</label>
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="income_type" checked /> Gelir tipi</label>
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="platform" /> Platform</label>
       <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300"><input type="checkbox" class="mz-bd" value="channel" /> Kanal</label>
@@ -141,7 +150,7 @@
             <option value="by_income_type">Gelir tipi</option>
             <option value="by_channel">Kanal</option>
             <option value="by_surface">Yüzey</option>
-            <option value="by_ad_unit">Ad unit</option>
+            <option value="by_ad_unit">Mx birimi</option>
             <option value="by_month">Ay</option>
           </select>
         </div>
@@ -156,6 +165,60 @@
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <h2 id="mz-chart-line-title" class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
         <div id="mz-chart-line" class="mz-chart-plot min-h-[220px] sm:min-h-[300px]"></div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük — gelir ve gösterim (çift eksen)</h2>
+          <div id="mz-chart-dual" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Kalite metrikleri (günlük)</h2>
+          <div id="mz-chart-quality" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+        </div>
+      </div>
+
+      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi — zaman (yığılmış alan)</h2>
+        <div id="mz-chart-stacked-income" class="mz-chart-plot min-h-[240px] sm:min-h-[300px]"></div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
+          <div id="mz-chart-heatmap" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Platform — yatay çubuk</h2>
+          <div id="mz-chart-platform" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Mx birimi — gelir / eCPM (scatter)</h2>
+          <div id="mz-chart-scatter" class="mz-chart-plot min-h-[260px] sm:min-h-[300px]"></div>
+        </div>
+        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Huni — talep → eşleşen → gösterim → tıklama</h2>
+          <div id="mz-chart-funnel" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
+        </div>
+      </div>
+
+      <div id="mz-chart-delta-wrap" class="hidden mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Mx birimi — gelir değişimi (karşılaştırma)</h2>
+        <div id="mz-chart-delta-units" class="mz-chart-plot min-h-[280px] sm:min-h-[340px]"></div>
+      </div>
+
+      <div id="mz-leaders-wrap" class="hidden grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <h2 class="mb-2 text-sm font-bold text-emerald-900 dark:text-emerald-200">Liderler (gelir artışı %)</h2>
+          <ul id="mz-leaders-gainers" class="space-y-1 text-xs text-emerald-950 dark:text-emerald-100"></ul>
+        </div>
+        <div class="rounded-2xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/20">
+          <h2 class="mb-2 text-sm font-bold text-rose-900 dark:text-rose-200">Kaybedenler (gelir düşüşü %)</h2>
+          <ul id="mz-leaders-losers" class="space-y-1 text-xs text-rose-950 dark:text-rose-100"></ul>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -186,16 +249,34 @@
           <div id="mz-chart-bar-month" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Top ad unit — gelir (çubuk)</h2>
+          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Top Mx birimi — gelir (çubuk)</h2>
           <div id="mz-chart-bar-unit" class="mz-chart-plot min-h-[260px] sm:min-h-[320px]"></div>
         </div>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Detay tablo</h2>
-          <span id="mz-table-meta" class="text-xs text-slate-500"></span>
+          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Aylık özet tablo</h2>
         </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-xs">
+            <thead class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
+              <tr><th class="px-2 py-2 font-bold">Ay</th><th class="px-2 py-2 font-bold">Net gelir</th><th class="px-2 py-2 font-bold">Gösterim</th><th class="px-2 py-2 font-bold">eCPM</th></tr>
+            </thead>
+            <tbody id="mz-month-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Detay tablo</h2>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="mz-table-meta" class="text-xs text-slate-500"></span>
+            <button id="mz-table-csv" type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200">CSV indir</button>
+          </div>
+        </div>
+        <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Satıra tıklayın: tarih veya Mx birimi filtreye eklenir.</p>
         <div class="overflow-x-auto">
           <table class="min-w-full text-left text-xs">
             <thead id="mz-table-head" class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"></thead>
@@ -251,15 +332,15 @@
   var KPI_DEFS = [
     { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
     { key: "empower_unique_visitor", label: "Empower Unique Visitor", dec: 0, axis: "" },
-    { key: "ad_request", label: "Ad Request", dec: 0, axis: "" },
-    { key: "matched_request", label: "Matched Request", dec: 0, axis: "" },
-    { key: "impression", label: "Impression", dec: 0, axis: "" },
-    { key: "click", label: "Click", dec: 0, axis: "" },
-    { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
-    { key: "ad_request_ecpm", label: "Ad Request eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "ad_request", label: "Talep", dec: 0, axis: "" },
+    { key: "matched_request", label: "Eşleşen talep", dec: 0, axis: "" },
+    { key: "impression", label: "Gösterim", dec: 0, axis: "" },
+    { key: "click", label: "Tıklama", dec: 0, axis: "" },
+    { key: "net_revenue", label: "Net gelir (TL)", dec: 2, axis: "TL" },
+    { key: "ad_request_ecpm", label: "Talep eCPM (TL)", dec: 3, axis: "TL" },
     { key: "pageview_ecpm", label: "Pageview eCPM (TL)", dec: 3, axis: "TL" },
     { key: "unique_visitor_ecpm", label: "Unique Visitor eCPM (TL)", dec: 3, axis: "TL" },
-    { key: "ad_ecpm", label: "Ad eCPM (TL)", dec: 3, axis: "TL" },
+    { key: "ad_ecpm", label: "Birim eCPM (TL)", dec: 3, axis: "TL" },
     { key: "viewability_pct", label: "Viewability (%)", dec: 3, axis: "%" },
     { key: "above_the_fold_ratio_pct", label: "Above The Fold (%)", dec: 3, axis: "%" },
     { key: "ctr_pct", label: "CTR (%)", dec: 3, axis: "%" },
@@ -434,7 +515,7 @@
     by_income_type: "Gelir tipi",
     by_channel: "Kanal",
     by_surface: "Yüzey",
-    by_ad_unit: "Ad unit",
+    by_ad_unit: "Mx birimi",
     by_month: "Ay",
   };
   var DIM_KEYS = {
@@ -454,7 +535,7 @@
   var TABLE_DIM_LABELS = {
     date: "Tarih",
     month: "Ay",
-    ad_unit: "Ad unit",
+    ad_unit: "Mx birimi",
     income_type: "Gelir tipi",
     platform: "Platform",
     channel: "Kanal",
@@ -462,9 +543,9 @@
   };
   var TABLE_METRICS = [
     { key: "net_revenue", label: "Net gelir (TL)", dec: 2 },
-    { key: "impression", label: "Impression", dec: 0 },
-    { key: "click", label: "Click", dec: 0 },
-    { key: "ad_request", label: "Ad request", dec: 0 },
+    { key: "impression", label: "Gösterim", dec: 0 },
+    { key: "click", label: "Tıklama", dec: 0 },
+    { key: "ad_request", label: "Talep", dec: 0 },
     { key: "computed_ecpm", label: "eCPM (TL)", dec: 3 },
   ];
 
@@ -640,6 +721,278 @@
 
     var ch = (cmp && cmp.by_channel && cmp.by_channel.length) ? cmp.by_channel : (sum.by_channel || []);
     groupedBarPlot("mz-chart-bar-channel", ch, "channel", cmp);
+    renderExtendedCharts(sum);
+    renderMonthTable(sum);
+    renderLeadersLosers(sum);
+  }
+
+  function renderKpiSparkline(elId, byDate, key) {
+    if (!window.Plotly || !byDate || byDate.length < 2) return;
+    var slice = byDate.slice(-14);
+    var color = isDarkTheme() ? "#a5b4fc" : "#6366f1";
+    Plotly.newPlot(elId, [{
+      x: slice.map(function (d) { return d.date; }),
+      y: slice.map(function (d) { return d[key] != null ? d[key] : 0; }),
+      type: "scatter",
+      mode: "lines",
+      line: { width: 1.5, color: color },
+      fill: "tozeroy",
+      fillcolor: isDarkTheme() ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
+    }], {
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      margin: { l: 4, r: 4, t: 2, b: 2 },
+      xaxis: { visible: false },
+      yaxis: { visible: false },
+      showlegend: false,
+    }, { responsive: true, displayModeBar: false, staticPlot: true });
+  }
+
+  function renderExtendedCharts(sum) {
+    if (!window.Plotly) return;
+    var cmp = compareBlock(sum);
+    var byDate = sum.by_date || [];
+    var dates = byDate.map(function (d) { return d.date; });
+
+    Plotly.newPlot("mz-chart-dual", [
+      {
+        x: dates,
+        y: byDate.map(function (d) { return d.net_revenue; }),
+        type: "scatter",
+        mode: "lines",
+        name: "Net gelir",
+        yaxis: "y",
+        line: { color: isDarkTheme() ? "#34d399" : "#059669", width: 2 },
+      },
+      {
+        x: dates,
+        y: byDate.map(function (d) { return d.impression; }),
+        type: "scatter",
+        mode: "lines",
+        name: "Gösterim",
+        yaxis: "y2",
+        line: { color: isDarkTheme() ? "#38bdf8" : "#0284c7", width: 2, dash: "dot" },
+      },
+    ], plotTheme({
+      yaxis: { title: "TL" },
+      yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
+    }), plotlyCfg());
+
+    Plotly.newPlot("mz-chart-quality", [
+      { x: dates, y: byDate.map(function (d) { return d.viewability_pct; }), name: "Viewability %", type: "scatter", mode: "lines" },
+      { x: dates, y: byDate.map(function (d) { return d.ctr_pct; }), name: "CTR %", type: "scatter", mode: "lines" },
+      { x: dates, y: byDate.map(function (d) { return d.coverage_pct; }), name: "Coverage %", type: "scatter", mode: "lines" },
+    ], plotTheme({ yTitle: "%" }), plotlyCfg());
+
+    var stackRows = sum.by_date_income_type || [];
+    var incomeTypes = [];
+    stackRows.forEach(function (r) {
+      if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
+    });
+    var stackTraces = incomeTypes.map(function (it) {
+      return {
+        x: dates,
+        y: dates.map(function (dt) {
+          var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
+          return hit ? hit.net_revenue : 0;
+        }),
+        name: it,
+        type: "scatter",
+        mode: "lines",
+        stackgroup: "one",
+      };
+    });
+    Plotly.newPlot("mz-chart-stacked-income", stackTraces, plotTheme({ yTitle: "TL" }), plotlyCfg());
+
+    var hm = sum.heatmap_calendar || [];
+    if (hm.length) {
+      var weeks = [];
+      hm.forEach(function (h) {
+        var k = h.year + "-W" + h.week;
+        if (weeks.indexOf(k) < 0) weeks.push(k);
+      });
+      weeks.sort();
+      var z = weeks.map(function () { return [0, 0, 0, 0, 0, 0, 0]; });
+      hm.forEach(function (h) {
+        var wk = h.year + "-W" + h.week;
+        var wi = weeks.indexOf(wk);
+        if (wi >= 0) z[wi][h.dow] += h.net_revenue;
+      });
+      Plotly.newPlot("mz-chart-heatmap", [{
+        z: z,
+        x: ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"],
+        y: weeks,
+        type: "heatmap",
+        colorscale: isDarkTheme() ? "Viridis" : "YlGnBu",
+      }], plotTheme(), plotlyCfg());
+    } else {
+      Plotly.purge("mz-chart-heatmap");
+    }
+
+    var plat = (cmp && cmp.by_platform && cmp.by_platform.length) ? cmp.by_platform : (sum.by_platform || []);
+    Plotly.newPlot("mz-chart-platform", [{
+      x: plat.map(function (x) { return x.net_revenue; }),
+      y: plat.map(function (x) { return x.platform; }),
+      type: "bar",
+      orientation: "h",
+      marker: { color: isDarkTheme() ? "#c084fc" : "#7c3aed" },
+    }], plotTheme({ margin: { l: 80, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
+
+    var scatter = sum.by_ad_unit_scatter || [];
+    Plotly.newPlot("mz-chart-scatter", [{
+      x: scatter.map(function (x) { return x.net_revenue; }),
+      y: scatter.map(function (x) { return x.ad_ecpm; }),
+      text: scatter.map(function (x) { return x.ad_unit; }),
+      mode: "markers",
+      type: "scatter",
+      marker: {
+        size: scatter.map(function (x) { return Math.min(28, 6 + Math.sqrt(x.impression || 0) / 40); }),
+        color: isDarkTheme() ? "#fbbf24" : "#d97706",
+        opacity: 0.75,
+      },
+    }], plotTheme({ xTitle: "Net gelir (TL)", yTitle: "Birim eCPM" }), plotlyCfg());
+
+    var funnel = sum.funnel || {};
+    Plotly.newPlot("mz-chart-funnel", [{
+      type: "funnel",
+      y: ["Talep", "Eşleşen", "Gösterim", "Tıklama"],
+      x: [
+        funnel.ad_request || 0,
+        funnel.matched_request || 0,
+        funnel.impression || 0,
+        funnel.click || 0,
+      ],
+    }], plotTheme(), plotlyCfg());
+
+    var deltaWrap = document.getElementById("mz-chart-delta-wrap");
+    if (cmp && cmp.by_ad_unit && cmp.by_ad_unit.length) {
+      deltaWrap.classList.remove("hidden");
+      var sorted = cmp.by_ad_unit.slice().sort(function (a, b) {
+        return (b.net_revenue_delta_pct || 0) - (a.net_revenue_delta_pct || 0);
+      }).slice(0, 12);
+      Plotly.newPlot("mz-chart-delta-units", [{
+        x: sorted.map(function (x) { return x.net_revenue_delta_pct || 0; }),
+        y: sorted.map(function (x) { return x.ad_unit; }),
+        type: "bar",
+        orientation: "h",
+        marker: {
+          color: sorted.map(function (x) {
+            return (x.net_revenue_delta_pct || 0) >= 0 ? "#10b981" : "#f43f5e";
+          }),
+        },
+      }], plotTheme({ margin: { l: 180, r: 16, t: 24, b: 40 }, xTitle: "Gelir % fark" }), plotlyCfg());
+    } else if (deltaWrap) {
+      deltaWrap.classList.add("hidden");
+    }
+  }
+
+  function renderMonthTable(sum) {
+    var body = document.getElementById("mz-month-table-body");
+    if (!body) return;
+    var rows = sum.by_month || [];
+    if (!rows.length) {
+      body.innerHTML = "<tr><td colspan=\"4\" class=\"px-2 py-3 text-slate-500\">Veri yok</td></tr>";
+      return;
+    }
+    body.innerHTML = rows.map(function (r) {
+      var ecpm = r.impression > 0 ? (r.net_revenue / r.impression * 1000) : 0;
+      return "<tr><td class=\"px-2 py-1.5\">" + (r.month || "") + "</td>" +
+        "<td class=\"px-2 py-1.5\">" + fmt(r.net_revenue, 2) + "</td>" +
+        "<td class=\"px-2 py-1.5\">" + fmt(r.impression, 0) + "</td>" +
+        "<td class=\"px-2 py-1.5\">" + fmt(ecpm, 3) + "</td></tr>";
+    }).join("");
+  }
+
+  function renderLeadersLosers(sum) {
+    var cmp = compareBlock(sum);
+    var wrap = document.getElementById("mz-leaders-wrap");
+    var gEl = document.getElementById("mz-leaders-gainers");
+    var lEl = document.getElementById("mz-leaders-losers");
+    if (!cmp || !cmp.leaders_losers || !wrap) {
+      if (wrap) wrap.classList.add("hidden");
+      return;
+    }
+    wrap.classList.remove("hidden");
+    var ll = cmp.leaders_losers;
+    gEl.innerHTML = (ll.gainers || []).map(function (r) {
+      return "<li><span class=\"font-semibold\">" + (r.ad_unit || "") + "</span> · " +
+        fmt(r.net_revenue, 2) + " TL · " + fmtDeltaPct(r.net_revenue_delta_pct) + "</li>";
+    }).join("") || "<li class=\"text-slate-500\">—</li>";
+    lEl.innerHTML = (ll.losers || []).map(function (r) {
+      return "<li><span class=\"font-semibold\">" + (r.ad_unit || "") + "</span> · " +
+        fmt(r.net_revenue, 2) + " TL · " + fmtDeltaPct(r.net_revenue_delta_pct) + "</li>";
+    }).join("") || "<li class=\"text-slate-500\">—</li>";
+  }
+
+  var mzSearchPreviewTimer = null;
+  function fetchSearchPreview() {
+    var q = document.getElementById("mz-search").value.trim();
+    var wrap = document.getElementById("mz-search-preview-wrap");
+    var body = document.getElementById("mz-search-preview-body");
+    if (!q || q.length < 2) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    var p = qs();
+    p.set("breakdown", "ad_unit");
+    p.set("limit", "12");
+    fetch("/api/mz-analytics/table?" + p.toString())
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var rows = data.rows || [];
+        if (!rows.length) {
+          wrap.classList.add("hidden");
+          return;
+        }
+        wrap.classList.remove("hidden");
+        body.innerHTML = rows.map(function (r) {
+          return "<tr class=\"cursor-pointer hover:bg-white dark:hover:bg-zinc-800\" data-unit=\"" +
+            String(r.ad_unit || "").replace(/"/g, "&quot;") + "\">" +
+            "<td class=\"py-1 pr-2 max-w-[8rem] truncate\" title=\"" + (r.ad_unit || "") + "\">" + (r.ad_unit || "") + "</td>" +
+            "<td class=\"py-1 pr-2\">" + fmt(r.net_revenue, 2) + "</td>" +
+            "<td class=\"py-1\">" + fmt(r.impression, 0) + "</td></tr>";
+        }).join("");
+        body.querySelectorAll("tr[data-unit]").forEach(function (tr) {
+          tr.addEventListener("click", function () {
+            document.getElementById("mz-search").value = tr.getAttribute("data-unit") || "";
+            debouncedRun();
+          });
+        });
+      })
+      .catch(function () { wrap.classList.add("hidden"); });
+  }
+
+  function exportTableCsv() {
+    var data = state.lastTable;
+    if (!data || !data.rows || !data.rows.length) return;
+    var cols = tableColumns(data);
+    var lines = [cols.map(function (c) { return c.label; }).join(";")];
+    data.rows.forEach(function (r) {
+      lines.push(cols.map(function (c) {
+        var v = r[c.key];
+        if (v == null) return "";
+        return String(v).replace(/;/g, ",");
+      }).join(";"));
+    });
+    var blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mx-detay-" + (new Date().toISOString().slice(0, 10)) + ".csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function applyTableRowFilter(row, breakdown) {
+    if (row.report_date) {
+      var d = String(row.report_date).slice(0, 10);
+      document.getElementById("mz-start").value = d;
+      document.getElementById("mz-end").value = d;
+      document.getElementById("mz-preset").value = "";
+    }
+    if (row.ad_unit) {
+      document.getElementById("mz-search").value = row.ad_unit;
+    }
+    debouncedRun();
   }
 
   function renderCompareMatrix(sum) {
@@ -706,6 +1059,8 @@
       renderKpis(state.lastSummary.kpis || {}, state.lastSummary);
       renderCharts(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
+      renderMonthTable(state.lastSummary);
+      renderLeadersLosers(state.lastSummary);
     }
     if (state.lastTable) renderTable(state.lastTable);
   }
@@ -733,16 +1088,19 @@
           "<p class=\"mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400\">Karş: " + fmt(d.compare, def.dec) +
           " · " + fmtDeltaPct(d.pct) + "</p>";
       }
+      var sparkId = "mz-spark-" + def.key;
       card.innerHTML =
         "<p class=\"text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400\">" + def.label + "</p>" +
         "<p class=\"mt-1 text-base font-black text-slate-900 dark:text-zinc-100\">" +
-        fmt(k[def.key], def.dec) + "</p>" + deltaHtml;
+        fmt(k[def.key], def.dec) + "</p>" + deltaHtml +
+        "<div id=\"" + sparkId + "\" class=\"mt-2 h-9 w-full\"></div>";
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
         renderKpis(k, sum || state.lastSummary);
         renderLineChart(state.lastByDate, state.activeKpiKey, cmp);
       });
       grid.appendChild(card);
+      renderKpiSparkline(sparkId, state.lastByDate || (sum && sum.by_date) || [], def.key);
     });
   }
 
@@ -795,8 +1153,8 @@
     } else {
       expandWrap.classList.add("hidden");
     }
-    body.innerHTML = visibleRows.map(function (r) {
-      return "<tr>" + cols.map(function (c) {
+    body.innerHTML = visibleRows.map(function (r, ri) {
+      return "<tr class=\"cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/80\" data-row-index=\"" + ri + "\">" + cols.map(function (c) {
         var v = r[c.key];
         if (typeof v === "number" && c.dec != null) {
           v = fmt(v, c.dec);
@@ -809,6 +1167,13 @@
         return "<td class=\"px-2 py-1.5 text-slate-700 dark:text-slate-300 " + cls + "\">" + (v == null ? "" : v) + extra + "</td>";
       }).join("") + "</tr>";
     }).join("");
+    body.querySelectorAll("tr[data-row-index]").forEach(function (tr) {
+      tr.addEventListener("click", function () {
+        var idx = parseInt(tr.getAttribute("data-row-index"), 10);
+        var row = visibleRows[idx];
+        if (row) applyTableRowFilter(row, breakdown);
+      });
+    });
   }
 
   function filterBox(containerId, items, set) {
@@ -1042,7 +1407,12 @@
   });
   on("mz-start", "change", debouncedRun);
   on("mz-end", "change", debouncedRun);
-  on("mz-search", "input", debouncedRun);
+  on("mz-search", "input", function () {
+    debouncedRun();
+    clearTimeout(mzSearchPreviewTimer);
+    mzSearchPreviewTimer = setTimeout(fetchSearchPreview, 450);
+  });
+  on("mz-table-csv", "click", exportTableCsv);
   document.querySelectorAll(".mz-bd").forEach(function (el) {
     el.addEventListener("change", debouncedRun);
   });
