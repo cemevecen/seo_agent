@@ -243,7 +243,7 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Detay tablo</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mx birimi araması veya satır seçimi → alttaki trend grafiği (sol panel tarih aralığı aynı).</p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Detay kırılımı ve grafiği özet tablodan bağımsızdır; özet seçimleri bu tabloyu değiştirmez.</p>
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
@@ -312,7 +312,7 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2">
           <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">Özet tablo</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Gelir tipi satırına tıklayınca bu kartın altında o tipin trend grafiği çizilir.</p>
+          <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Bu tablo ve grafiği detay tablodan bağımsızdır; seçimler özeti etkilemez.</p>
           <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
@@ -490,7 +490,7 @@
   var runTimer = null;
   function debouncedRun(ms) {
     if (runTimer) clearTimeout(runTimer);
-    runTimer = setTimeout(runQuery, ms == null ? 400 : ms);
+    runTimer = setTimeout(function () { runQuery({ resetTableDrills: false }); }, ms == null ? 400 : ms);
   }
 
   function isDarkTheme() {
@@ -981,6 +981,11 @@
     }
   }
 
+  /** Özet kırılımı — yalnızca özet tablo + özet trend; detaya dokunmaz. */
+  function refreshSummaryOnly() {
+    refreshSummaryTable().catch(function (err) { showPageError(err.message); });
+  }
+
   function resolveAdUnitFromSearch(query, rows) {
     var q = (query || "").trim().toLowerCase();
     if (!q || !rows || !rows.length) return null;
@@ -1118,7 +1123,17 @@
     state.tableExpanded = false;
     refreshDetailUnitDatalist();
     renderTable(data);
-    applyDefaultDrillSelection();
+    if (state._drillUserPicked && state.drillSlice && Object.keys(state.drillSlice).length) {
+      updateDrillSubtitle();
+      renderTableDrillChart();
+    } else {
+      applyDefaultDrillSelection();
+    }
+  }
+
+  /** Detay kırılımı — yalnızca detay tablo + detay trend; özete dokunmaz. */
+  function refreshDetailOnly() {
+    refreshDetailTable().catch(function (err) { showPageError(err.message); });
   }
 
   function rowsForChartDim(rows, dimKey) {
@@ -1300,13 +1315,13 @@
 
   function refreshWidget(scope) {
     if (scope === "summary") {
-      updateBdActiveHint(scope);
-      refreshSummaryTable().catch(function (err) { showPageError(err.message); });
+      updateBdActiveHint("summary");
+      refreshSummaryOnly();
       return;
     }
     if (scope === "detail") {
-      updateBdActiveHint(scope);
-      refreshDetailTable().catch(function (err) { showPageError(err.message); });
+      updateBdActiveHint("detail");
+      refreshDetailOnly();
       return;
     }
     if (scope === "chartLine") refreshChartLine();
@@ -2370,7 +2385,7 @@
         }
         document.getElementById("mz-preset").value = "1y";
         applyPreset();
-        runQuery();
+        runQuery({ resetTableDrills: true });
       });
       wrap.appendChild(btn);
     });
@@ -2477,12 +2492,19 @@
     rangeLbl.textContent = parts.join(" · ");
   }
 
-  async function runQuery() {
+  async function runQuery(opts) {
+    opts = opts || {};
     applyPreset();
-    state._drillUserPicked = false;
-    state._summaryDrillUserPicked = false;
-    state.detailTableFilter = "";
-    syncDetailUnitSearchInput("");
+    if (opts.resetTableDrills) {
+      state._drillUserPicked = false;
+      state._summaryDrillUserPicked = false;
+      state.drillSlice = null;
+      state.summaryDrillSlice = null;
+      state._drillRowKey = null;
+      state._summaryDrillRowKey = null;
+      state.detailTableFilter = "";
+      syncDetailUnitSearchInput("");
+    }
     setLoading(true);
     showPageError("");
     try {
@@ -2525,7 +2547,7 @@
   });
   updateCompareControls();
 
-  on("mz-run", "click", runQuery);
+  on("mz-run", "click", function () { runQuery({ resetTableDrills: true }); });
   on("mz-preset", "change", function () {
     applyPreset();
     debouncedRun();
@@ -2854,7 +2876,7 @@
     if (!confirm("Tüm reklam verisi silinsin mi?")) return;
     await fetch("/api/mz-analytics/reset", { method: "POST" });
     await loadFacets();
-    await runQuery();
+    await runQuery({ resetTableDrills: true });
   });
 
   initBreakdownToolbars();
@@ -2863,7 +2885,7 @@
   updateDrillSubtitle();
   updateSummaryDrillSubtitle();
 
-  loadFacets().then(function () { runQuery(); }).catch(function (err) {
+  loadFacets().then(function () { runQuery({ resetTableDrills: true }); }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
   });
 })();
