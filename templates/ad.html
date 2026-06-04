@@ -337,7 +337,7 @@
             </div>
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
-          <div id="mz-drill-chart" class="min-h-[220px] w-full"></div>
+          <div id="mz-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
           <div id="mz-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
@@ -388,7 +388,7 @@
             </div>
           </div>
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
-          <div id="mz-summary-drill-chart" class="min-h-[220px] w-full"></div>
+          <div id="mz-summary-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
           <div id="mz-summary-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
@@ -479,6 +479,8 @@
     detailUnitRowsExpanded: false,
     detailFavorites: [],
     detailUnitAcIndex: -1,
+    _drillChartGen: 0,
+    _summaryDrillChartGen: 0,
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
@@ -1004,12 +1006,40 @@
     return defaultDrillChartTimeForTable(drillTimeKeyFromCfg(cfg));
   }
 
-  function drillChartFetchCfg(cfg, chartTimeKey) {
-    return {
+  function detailChartAreasForUnit(unit) {
+    var sel = (unit || "").trim();
+    if (!sel) return [];
+    var rows = [];
+    if (state.detailUnitFullFor === sel && state.detailUnitFullTable && state.detailUnitFullTable.rows) {
+      rows = state.detailUnitFullTable.rows;
+    } else if (state.lastTable) {
+      rows = detailTableViewData(state.lastTable).rows || [];
+    }
+    var areas = {};
+    rows.forEach(function (r) {
+      if (String(r.ad_unit || "") !== sel) return;
+      if (r.area) areas[String(r.area)] = true;
+    });
+    return Object.keys(areas);
+  }
+
+  /** Tek alanlı Mx biriminde trend için yalnızca zaman kırılımı (günlük seri). */
+  function drillChartFetchCfg(cfg, chartTimeKey, slice) {
+    var out = {
       bdTime: chartTimeKey,
       bdArea: cfg.bdArea,
-      bdDims: cfg.bdDims,
+      bdDims: cfg.bdDims ? new Set(cfg.bdDims) : new Set(),
     };
+    if (slice && slice.ad_unit && !slice.area) {
+      var areas = detailChartAreasForUnit(slice.ad_unit);
+      if (areas.length === 1) {
+        return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set() };
+      }
+    }
+    if (slice && slice.ad_unit && slice.area) {
+      return { bdTime: chartTimeKey, bdArea: "", bdDims: new Set() };
+    }
+    return out;
   }
 
   function mountDrillChartTimePills(containerId, scope) {
@@ -1264,6 +1294,12 @@
   async function fetchDetailUnitFullTable(unit) {
     if (!unit || !state.breakdowns.detail) return;
     state.detailUnitFullLoading = true;
+    var chartEl = document.getElementById("mz-drill-chart");
+    if (chartEl && (state.detailSelectedUnit || "") === unit) {
+      try { if (window.Plotly) Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+      chartEl.innerHTML =
+        "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">Grafik yükleniyor…</p>";
+    }
     if (state.lastTable) renderTable(state.lastTable);
     try {
       var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
@@ -1297,7 +1333,6 @@
     hideDetailUnitAutocomplete();
     if (state.lastTable) renderTable(state.lastTable);
     fetchDetailUnitFullTable(u);
-    renderTableDrillChart();
   }
 
   function scoreAdUnitMatch(unit, q) {
@@ -2007,22 +2042,22 @@
     return Math.min(100, Math.max(0, Number(y)));
   }
 
-  /** Detay tablo ile uyum: yalnızca birim seçiliyken tablodaki alan(lar)la sınırla. */
+  /** Detay tablo ile uyum: birim seçiliyken tablodaki alan(lar)la sınırla (tek alan + günlük kırılımda atla). */
   function drillRowsForChart(scope, rows, slice) {
     var filtered = (rows || []).filter(function (r) {
       return rowMatchesDrillSlice(r, slice);
     });
     if (scope !== "detail" || !slice || !slice.ad_unit || slice.area) return filtered;
-    if (!state.lastTable || !state.lastTable.rows) return filtered;
-    var view = detailTableViewData(state.lastTable);
-    var areas = {};
-    (view.rows || []).forEach(function (r) {
-      if (r.area) areas[String(r.area)] = true;
-    });
-    var keys = Object.keys(areas);
-    if (!keys.length) return filtered;
+    var areas = detailChartAreasForUnit(slice.ad_unit);
+    if (!areas.length) return filtered;
+    if (areas.length === 1) {
+      if (!filtered.length || filtered[0].area == null || filtered[0].area === "") return filtered;
+      return filtered.filter(function (r) {
+        return String(r.area || "") === areas[0];
+      });
+    }
     return filtered.filter(function (r) {
-      return areas[String(r.area != null ? r.area : "")];
+      return areas.indexOf(String(r.area != null ? r.area : "")) >= 0;
     });
   }
 
@@ -2445,6 +2480,9 @@
 
   async function renderScopeDrillChart(scope) {
     var isSummary = scope === "summary";
+    var genKey = isSummary ? "_summaryDrillChartGen" : "_drillChartGen";
+    var gen = (state[genKey] || 0) + 1;
+    state[genKey] = gen;
     var chartEl = document.getElementById(isSummary ? "mz-summary-drill-chart" : "mz-drill-chart");
     var statusEl = document.getElementById(isSummary ? "mz-summary-drill-status" : "mz-drill-status");
     var slice = isSummary ? state.summaryDrillSlice : state.drillSlice;
@@ -2470,7 +2508,7 @@
       isSummary ? "mz-summary-drill-chart-time" : "mz-drill-chart-time",
       scope
     );
-    var chartCfg = drillChartFetchCfg(cfg, chartTimeKey);
+    var chartCfg = drillChartFetchCfg(cfg, chartTimeKey, slice);
     var metricSel = document.getElementById(isSummary ? "mz-summary-drill-metric" : "mz-drill-metric");
     var chartTypeSel = document.getElementById(isSummary ? "mz-summary-drill-chart-type" : "mz-drill-chart-type");
     var metricKey = metricSel ? metricSel.value : (isSummary ? state.summaryDrillMetric : state.drillMetric);
@@ -2483,13 +2521,8 @@
       var data = await fetchTableWithBreakdownCfg(scope, drillChartFetchLimit(chartTimeKey), chartCfg, slice);
       var filtered = drillRowsForChart(scope, data.rows || [], slice);
       var multiAreaTable = false;
-      if (scope === "detail" && slice && slice.ad_unit && !slice.area && state.lastTable) {
-        var viewRows = detailTableViewData(state.lastTable).rows || [];
-        var areaSet = {};
-        viewRows.forEach(function (r) {
-          if (r.area) areaSet[String(r.area)] = true;
-        });
-        multiAreaTable = Object.keys(areaSet).length > 1;
+      if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
+        multiAreaTable = detailChartAreasForUnit(slice.ad_unit).length > 1;
       }
       var breakdown = data.breakdown || [];
       var requestedMetric = metricKey;
@@ -2520,68 +2553,94 @@
       }
       if (statusEl) statusEl.classList.remove("text-amber-700", "dark:text-amber-400");
       var xs = series.map(function (p) { return p.x; });
-      var ys = series.map(function (p) { return p.y; });
+      var ys = series.map(function (p) {
+        var y = Number(p.y);
+        return isNaN(y) ? 0 : y;
+      });
       var lineColor = isSummary
         ? (isDarkTheme() ? "#34d399" : "#059669")
         : (isDarkTheme() ? "#818cf8" : "#4f46e5");
+      if (gen !== state[genKey]) return;
       var dailyPoints = chartTimeKey === "date" && series.length > 1;
-      var traceMode = dailyPoints || series.length >= 2 ? "lines+markers" : "markers";
-      var markerSize = dailyPoints ? (series.length > 120 ? 4 : 6) : 7;
-      var lineW = dailyPoints && series.length > 120 ? 1.5 : 2;
+      var dense = series.length > 96;
+      var traceMode = chartType === "bar"
+        ? ""
+        : dailyPoints
+          ? (dense ? "lines" : "lines+markers")
+          : series.length >= 2
+            ? "lines+markers"
+            : "markers";
+      var markerSize = dense ? 0 : dailyPoints ? (series.length > 120 ? 4 : 6) : 7;
+      var lineW = dense ? 2 : dailyPoints && series.length > 120 ? 1.5 : 2;
+      var traceType = chartType === "bar" ? "bar" : "scatter";
       var trace = chartType === "bar"
         ? { type: "bar", x: xs, y: ys, marker: { color: lineColor } }
         : {
-          type: "scatter",
+          type: traceType,
           mode: traceMode,
           x: xs,
           y: ys,
+          connectgaps: true,
           line: chartType === "line" && traceMode.indexOf("lines") >= 0
             ? { color: lineColor, width: lineW }
             : undefined,
-          marker: { color: lineColor, size: markerSize, line: { width: 0 } },
+          marker: markerSize
+            ? { color: lineColor, size: markerSize, line: { width: 0 } }
+            : undefined,
         };
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
+      if (chartTimeKey === "date") {
+        layout.xaxis = Object.assign({}, layout.xaxis, {
+          type: "date",
+          tickformat: "%d.%m.%y",
+          tickangle: dense ? -45 : 0,
+        });
+      }
       if (isRateMetricKey(metricKey)) {
-        layout.yaxis.range = [0, 100];
+        layout.yaxis = Object.assign({}, layout.yaxis, { range: [0, 100] });
       }
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
       var qualityWarns = detectChartSeriesQuality(series, metricKey, { multiAreaTable: multiAreaTable });
       var analysis = analyzeDrillSeriesPoints(series, metricKey);
-      var plotAnnots = [];
-      var annotBg = isDarkTheme() ? "rgba(24,24,27,0.94)" : "rgba(255,255,255,0.92)";
-      var annotBorder = isDarkTheme() ? "#52525b" : "#e2e8f0";
-      analysis.valleys.slice(0, 4).forEach(function (v) {
-        plotAnnots.push({
-          x: v.label,
-          y: v.value,
-          text: "dip",
-          showarrow: true,
-          arrowhead: 2,
-          ax: 0,
-          ay: 28,
-          font: { size: 9, color: isDarkTheme() ? "#fb7185" : "#be123c" },
-          bgcolor: annotBg,
-          bordercolor: annotBorder,
-          borderwidth: 1,
+      if (!dense) {
+        var plotAnnots = [];
+        var annotBg = isDarkTheme() ? "rgba(24,24,27,0.94)" : "rgba(255,255,255,0.92)";
+        var annotBorder = isDarkTheme() ? "#52525b" : "#e2e8f0";
+        analysis.valleys.slice(0, 4).forEach(function (v) {
+          plotAnnots.push({
+            x: v.label,
+            y: v.value,
+            text: "dip",
+            showarrow: true,
+            arrowhead: 2,
+            ax: 0,
+            ay: 28,
+            font: { size: 9, color: isDarkTheme() ? "#fb7185" : "#be123c" },
+            bgcolor: annotBg,
+            bordercolor: annotBorder,
+            borderwidth: 1,
+          });
         });
-      });
-      analysis.peaks.slice(0, 3).forEach(function (p) {
-        plotAnnots.push({
-          x: p.label,
-          y: p.value,
-          text: "tepe",
-          showarrow: true,
-          arrowhead: 2,
-          ax: 0,
-          ay: -28,
-          font: { size: 9, color: isDarkTheme() ? "#a5b4fc" : "#4338ca" },
-          bgcolor: annotBg,
-          bordercolor: annotBorder,
-          borderwidth: 1,
+        analysis.peaks.slice(0, 3).forEach(function (p) {
+          plotAnnots.push({
+            x: p.label,
+            y: p.value,
+            text: "tepe",
+            showarrow: true,
+            arrowhead: 2,
+            ax: 0,
+            ay: -28,
+            font: { size: 9, color: isDarkTheme() ? "#a5b4fc" : "#4338ca" },
+            bgcolor: annotBg,
+            bordercolor: annotBorder,
+            borderwidth: 1,
+          });
         });
-      });
-      if (plotAnnots.length) layout.annotations = plotAnnots;
-      await Plotly.react(chartEl, [trace], layout, plotlyCfg());
+        if (plotAnnots.length) layout.annotations = plotAnnots;
+      }
+      if (gen !== state[genKey]) return;
+      await plotDrillChartEl(chartEl, [trace], layout);
+      if (gen !== state[genKey]) return;
       renderDrillSeriesInsights(
         isSummary ? "mz-summary-drill-insights" : "mz-drill-insights",
         analysis,
@@ -2692,6 +2751,17 @@
 
   function plotlyCfg() {
     return { responsive: true, displayModeBar: false };
+  }
+
+  function plotDrillChartEl(chartEl, traces, layout) {
+    if (!chartEl || !window.Plotly) return Promise.resolve();
+    var h = chartEl.clientHeight || 0;
+    if (h < 48) h = 220;
+    var lay = Object.assign({ autosize: true, height: h }, layout || {});
+    try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+    return Plotly.newPlot(chartEl, traces, lay, plotlyCfg()).then(function () {
+      return Plotly.Plots.resize(chartEl);
+    });
   }
 
   function renderLineChart(byDate, kpiKey, cmp, timeKey) {
