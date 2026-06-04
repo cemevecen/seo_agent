@@ -247,7 +247,7 @@
           <p id="mz-bd-active-detail" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tabloda 3–12 ay dönem seçiliyken trend grafiği otomatik aylık çizilir. Mx birimi araması veya satır seçimi grafiği günceller.</p>
+          <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı ayrı; trend grafiğinde Gün / Hafta / Ay seçin. Mx birimi araması veya satır seçimi grafiği günceller.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
         <div class="mb-3 flex flex-wrap items-end gap-2">
@@ -290,18 +290,24 @@
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili dilim — zaman içi trend</h3>
               <p id="mz-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Seçili reklam biriminin zaman içi seyri.</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
-                Metrik
-                <select id="mz-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
-              </label>
-              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
-                Grafik
-                <select id="mz-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
-                  <option value="line">Çizgi</option>
-                  <option value="bar">Çubuk</option>
-                </select>
-              </label>
+            <div class="flex flex-col items-end gap-1.5">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <span class="mz-bd-toolbar-label mz-bd-label-time" style="min-width: auto; padding-left: 0.35rem; padding-right: 0.35rem;">Grafik kırılımı</span>
+                <div id="mz-drill-chart-time" class="flex flex-wrap gap-1"></div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  Metrik
+                  <select id="mz-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
+                </label>
+                <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  Grafik
+                  <select id="mz-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
+                    <option value="line">Çizgi</option>
+                    <option value="bar">Çubuk</option>
+                  </select>
+                </label>
+              </div>
             </div>
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
@@ -316,7 +322,7 @@
           <p id="mz-bd-active-summary" class="mt-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
         </div>
         <div class="mz-bd-panel mb-3 rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Zaman tek seçim (Gün | Hafta | Ay veya 3–12 ay dönem). Gelir tipi satırı → alttaki trend. Uyarı metni grafik çizilemezse nedeni söyler.</p>
+          <p id="mz-bd-hint-summary" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı ayrı; trend grafiğinde Gün / Hafta / Ay seçin. Gelir tipi satırı grafiği günceller.</p>
           <div id="mz-bd-toolbar-summary" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="summary" data-bd-mode="full"></div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
@@ -334,18 +340,24 @@
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili gelir tipi — zaman içi trend</h3>
               <p id="mz-summary-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Özet tabloda bir satıra tıklayın (gelir tipi).</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
-                Metrik
-                <select id="mz-summary-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
-              </label>
-              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
-                Grafik
-                <select id="mz-summary-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
-                  <option value="line">Çizgi</option>
-                  <option value="bar">Çubuk</option>
-                </select>
-              </label>
+            <div class="flex flex-col items-end gap-1.5">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <span class="mz-bd-toolbar-label mz-bd-label-time" style="min-width: auto; padding-left: 0.35rem; padding-right: 0.35rem;">Grafik kırılımı</span>
+                <div id="mz-summary-drill-chart-time" class="flex flex-wrap gap-1"></div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  Metrik
+                  <select id="mz-summary-drill-metric" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black"></select>
+                </label>
+                <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  Grafik
+                  <select id="mz-summary-drill-chart-type" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-black">
+                    <option value="line">Çizgi</option>
+                    <option value="bar">Çubuk</option>
+                  </select>
+                </label>
+              </div>
             </div>
           </div>
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
@@ -431,6 +443,8 @@
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
+    drillChartTime: "month",
+    summaryDrillChartTime: "month",
     bdTime: "date",
     bdArea: "",
     bdDims: null,
@@ -915,21 +929,53 @@
     return fetchTableWithBreakdownCfg(scope, limit, cfg);
   }
 
-  /** Tablo period_* iken trend grafiği aylık (month) veri çeker; tablo kırılımı değişmez. */
-  function drillChartTimeKey(tableTimeKey) {
+  var DRILL_CHART_TIME_OPTS = [
+    { v: "date", l: "Gün" },
+    { v: "week", l: "Hafta" },
+    { v: "month", l: "Ay" },
+  ];
+
+  function defaultDrillChartTimeForTable(tableTimeKey) {
     if (tableTimeKey && tableTimeKey.indexOf("period_") === 0) return "month";
-    return tableTimeKey || "date";
+    if (tableTimeKey === "week") return "week";
+    if (tableTimeKey === "month") return "month";
+    return "date";
   }
 
-  function drillChartFetchCfg(cfg) {
-    var tableTime = drillTimeKeyFromCfg(cfg);
-    var chartTime = drillChartTimeKey(tableTime);
-    if (chartTime === tableTime) return cfg;
+  function getDrillChartTimeKey(scope, cfg) {
+    var stored = scope === "summary" ? state.summaryDrillChartTime : state.drillChartTime;
+    if (stored && DRILL_CHART_TIME_OPTS.some(function (o) { return o.v === stored; })) return stored;
+    return defaultDrillChartTimeForTable(drillTimeKeyFromCfg(cfg));
+  }
+
+  function drillChartFetchCfg(cfg, chartTimeKey) {
     return {
-      bdTime: chartTime,
+      bdTime: chartTimeKey,
       bdArea: cfg.bdArea,
       bdDims: cfg.bdDims,
     };
+  }
+
+  function mountDrillChartTimePills(containerId, scope) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var cfg = state.breakdowns[scope === "summary" ? "summary" : "detail"];
+    var active = getDrillChartTimeKey(scope, cfg);
+    el.innerHTML = "";
+    DRILL_CHART_TIME_OPTS.forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "mz-bd-pill" + (active === o.v ? " is-active" : "");
+      b.textContent = o.l;
+      b.addEventListener("click", function () {
+        if (scope === "summary") state.summaryDrillChartTime = o.v;
+        else state.drillChartTime = o.v;
+        mountDrillChartTimePills(containerId, scope);
+        if (scope === "summary") renderSummaryDrillChart();
+        else renderTableDrillChart();
+      });
+      el.appendChild(b);
+    });
   }
 
   function pickDefaultSummaryIncomeType(rows) {
@@ -1484,6 +1530,14 @@
         return true;
       });
     }
+    if (chartTimeKey === "week") {
+      return series.filter(function (pt) {
+        var wk = String(pt.x || "");
+        if (r.start && wk < r.start.slice(0, 4)) return false;
+        if (r.end && wk.slice(0, 4) > r.end.slice(0, 4)) return false;
+        return true;
+      });
+    }
     return series;
   }
 
@@ -1564,6 +1618,7 @@
       renderTableDrillChart();
     });
     on("mz-drill-chart-type", "change", function () { renderTableDrillChart(); });
+    mountDrillChartTimePills("mz-drill-chart-time", "detail");
   }
 
   function initSummaryDrillControls() {
@@ -1582,6 +1637,7 @@
       renderSummaryDrillChart();
     });
     on("mz-summary-drill-chart-type", "change", function () { renderSummaryDrillChart(); });
+    mountDrillChartTimePills("mz-summary-drill-chart-time", "summary");
   }
 
   function rowMatchesDrillSliceForScope(row, slice) {
@@ -1610,8 +1666,12 @@
       return;
     }
     var tableTimeKey = drillTimeKeyFromCfg(cfg);
-    var chartTimeKey = drillChartTimeKey(tableTimeKey);
-    var chartCfg = drillChartFetchCfg(cfg);
+    var chartTimeKey = getDrillChartTimeKey(scope, cfg);
+    mountDrillChartTimePills(
+      isSummary ? "mz-summary-drill-chart-time" : "mz-drill-chart-time",
+      scope
+    );
+    var chartCfg = drillChartFetchCfg(cfg, chartTimeKey);
     var metricSel = document.getElementById(isSummary ? "mz-summary-drill-metric" : "mz-drill-metric");
     var chartTypeSel = document.getElementById(isSummary ? "mz-summary-drill-chart-type" : "mz-drill-chart-type");
     var metricKey = metricSel ? metricSel.value : (isSummary ? state.summaryDrillMetric : state.drillMetric);
@@ -1656,9 +1716,7 @@
       layout.title = { text: mDef.label, font: plotFont(), x: 0 };
       await Plotly.react(chartEl, [trace], layout, plotlyCfg());
       if (statusEl) {
-        var timeNote = chartTimeKey !== tableTimeKey
-          ? "grafik: " + bdTimeLabel(chartTimeKey) + " · tablo: " + bdTimeLabel(tableTimeKey)
-          : bdTimeLabel(tableTimeKey);
+        var timeNote = "grafik: " + bdTimeLabel(chartTimeKey) + " · tablo: " + bdTimeLabel(tableTimeKey);
         statusEl.textContent =
           series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice);
       }
