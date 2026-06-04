@@ -857,8 +857,48 @@
     .mz-page #mz-detail-favorites .mz-fav-chip {
       max-width: 100%;
     }
-    .mz-page #mz-detail-unit-fav.is-fav {
+    .mz-page .mz-detail-unit-fav-btn {
+      position: absolute;
+      right: 0.3rem;
+      bottom: 0.28rem;
+      z-index: 2;
+      display: flex;
+      height: 1.5rem;
+      width: 1.5rem;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      padding: 0;
+      font-size: 0.95rem;
+      line-height: 1;
       color: rgb(217 119 6);
+      opacity: 0.85;
+      cursor: pointer;
+    }
+    .mz-page .mz-detail-unit-fav-btn:hover:not(:disabled) {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+    .mz-page .mz-detail-unit-fav-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.35;
+      color: rgb(161 161 170);
+    }
+    .mz-page .mz-detail-unit-fav-btn.is-fav {
+      color: rgb(245 158 11);
+      opacity: 1;
+    }
+    html.dark .mz-page .mz-detail-unit-fav-btn:disabled {
+      color: rgb(113 113 122);
+    }
+    html.dark .mz-page .mz-chart-plot .plotly .modebar,
+    html.midnight .mz-page .mz-chart-plot .plotly .modebar {
+      background: transparent !important;
+    }
+    html.dark .mz-page .mz-chart-plot .js-plotly-plot .plotly .bg,
+    html.midnight .mz-page .mz-chart-plot .js-plotly-plot .plotly .bg {
+      fill: transparent !important;
     }
     html.dark .mz-page #mz-compare-panels-wrap table thead th {
       background: rgb(9 9 11) !important;

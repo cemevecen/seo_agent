@@ -250,7 +250,7 @@
           <p id="mz-bd-hint-detail" class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">Tablo kırılımı ayrı; trend grafiğinde Gün / Hafta / Ay seçin. Soldaki arama metni filtreler; sağdaki liste tam birim seçer — ikisi de tabloyu ve grafiği günceller.</p>
           <div id="mz-bd-toolbar-detail" class="mz-bd-toolbar max-w-full justify-start" data-bd-scope="detail" data-bd-mode="full"></div>
         </div>
-        <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+        <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
           <label class="relative flex min-w-0 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
             Mx birimi ara
             <input
@@ -266,23 +266,23 @@
             />
             <ul id="mz-detail-unit-ac" class="mz-detail-unit-ac hidden" role="listbox"></ul>
           </label>
-          <label class="flex min-w-0 flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
-            Mx birimi seç
+          <div class="relative flex min-w-0 flex-col gap-1">
+            <label for="mz-detail-unit-select" class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Mx birimi seç</label>
             <select
               id="mz-detail-unit-select"
-              class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
+              class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-2 pr-8 text-sm font-normal normal-case tracking-normal text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
             >
               <option value="">Tüm birimler</option>
             </select>
-          </label>
-          <button
-            id="mz-detail-unit-fav"
-            type="button"
-            title="Seçili birimi favorilere ekle / çıkar"
-            aria-label="Favori"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-lg leading-none text-amber-600 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/70 sm:mb-0"
-            disabled
-          >☆</button>
+            <button
+              id="mz-detail-unit-fav"
+              type="button"
+              title="Seçili birimi favorilere ekle / çıkar"
+              aria-label="Favori"
+              class="mz-detail-unit-fav-btn"
+              disabled
+            >☆</button>
+          </div>
           <button id="mz-detail-unit-clear" type="button" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900 sm:mb-0">
             Temizle
           </button>
@@ -336,7 +336,7 @@
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-drill-chart" class="min-h-[220px] w-full"></div>
-          <div id="mz-drill-insights" class="mt-2 hidden rounded-lg border border-slate-200/90 bg-white/80 px-2.5 py-2 text-[10px] leading-relaxed text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-zinc-400"></div>
+          <div id="mz-drill-insights" class="mt-2 hidden rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 py-2 text-[10px] leading-relaxed text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/80 dark:text-zinc-300 midnight:border-zinc-800 midnight:bg-black/70 midnight:text-zinc-400"></div>
         </div>
       </div>
 
@@ -387,7 +387,7 @@
           </div>
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-summary-drill-chart" class="min-h-[220px] w-full"></div>
-          <div id="mz-summary-drill-insights" class="mt-2 hidden rounded-lg border border-slate-200/90 bg-white/80 px-2.5 py-2 text-[10px] leading-relaxed text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-zinc-400"></div>
+          <div id="mz-summary-drill-insights" class="mt-2 hidden rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 py-2 text-[10px] leading-relaxed text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/80 dark:text-zinc-300 midnight:border-zinc-800 midnight:bg-black/70 midnight:text-zinc-400"></div>
         </div>
       </div>
     </div>
@@ -474,6 +474,7 @@
     detailUnitFullTable: null,
     detailUnitFullFor: "",
     detailUnitFullLoading: false,
+    detailUnitRowsExpanded: false,
     detailFavorites: [],
     detailUnitAcIndex: -1,
     summaryDrillSlice: null,
@@ -544,7 +545,8 @@
   }
 
   function isDarkTheme() {
-    return document.documentElement.classList.contains("dark");
+    var root = document.documentElement;
+    return root.classList.contains("dark") || root.classList.contains("midnight");
   }
 
   function setLoading(on) {
@@ -1237,6 +1239,20 @@
     state.detailUnitFullTable = null;
     state.detailUnitFullFor = "";
     state.detailUnitFullLoading = false;
+    state.detailUnitRowsExpanded = false;
+  }
+
+  var MZ_DETAIL_UNIT_PREVIEW_DAYS = 5;
+
+  function detailRowTimeKey(row) {
+    if (!row) return "";
+    return String(row.date || row.week || row.month || row.period_12 || row.period_9 || row.period_6 || row.period_3 || "");
+  }
+
+  function sortDetailRowsChronoDesc(rows) {
+    return (rows || []).slice().sort(function (a, b) {
+      return detailRowTimeKey(b).localeCompare(detailRowTimeKey(a));
+    });
   }
 
   async function fetchDetailUnitFullTable(unit) {
@@ -1247,7 +1263,8 @@
       var data = await fetchTableWithBreakdownCfg("detail", 2000, state.breakdowns.detail, { ad_unit: unit });
       state.detailUnitFullTable = data;
       state.detailUnitFullFor = unit;
-      state.tableExpanded = true;
+      state.detailUnitRowsExpanded = false;
+      state.tableExpanded = false;
     } catch (err) {
       showPageError((err && err.message) || "Mx birimi verisi yüklenemedi");
     } finally {
@@ -1261,6 +1278,7 @@
     var u = (unit || "").trim();
     if (!u) return;
     if (state.detailUnitFullFor && state.detailUnitFullFor !== u) clearDetailUnitFullTable();
+    state.detailUnitRowsExpanded = false;
     state.tableExpanded = false;
     state._drillUserPicked = true;
     state._drillMetricUserPicked = false;
@@ -1519,12 +1537,14 @@
       });
     }
     if (!sel && !q) return base;
+    rows = sortDetailRowsChronoDesc(rows);
     return {
       rows: rows,
       total: rows.length,
       breakdown: base.breakdown,
       compare_range: base.compare_range,
       _partialUnit: sel && state.detailUnitFullFor !== sel,
+      _unitFullLoaded: !!(sel && state.detailUnitFullFor === sel && state.detailUnitFullTable),
     };
   }
 
@@ -2522,6 +2542,8 @@
       var qualityWarns = detectChartSeriesQuality(series, metricKey, { multiAreaTable: multiAreaTable });
       var analysis = analyzeDrillSeriesPoints(series, metricKey);
       var plotAnnots = [];
+      var annotBg = isDarkTheme() ? "rgba(24,24,27,0.94)" : "rgba(255,255,255,0.92)";
+      var annotBorder = isDarkTheme() ? "#52525b" : "#e2e8f0";
       analysis.valleys.slice(0, 4).forEach(function (v) {
         plotAnnots.push({
           x: v.label,
@@ -2532,6 +2554,9 @@
           ax: 0,
           ay: 28,
           font: { size: 9, color: isDarkTheme() ? "#fb7185" : "#be123c" },
+          bgcolor: annotBg,
+          bordercolor: annotBorder,
+          borderwidth: 1,
         });
       });
       analysis.peaks.slice(0, 3).forEach(function (p) {
@@ -2544,6 +2569,9 @@
           ax: 0,
           ay: -28,
           font: { size: 9, color: isDarkTheme() ? "#a5b4fc" : "#4338ca" },
+          bgcolor: annotBg,
+          bordercolor: annotBorder,
+          borderwidth: 1,
         });
       });
       if (plotAnnots.length) layout.annotations = plotAnnots;
@@ -2625,16 +2653,35 @@
   }
 
   function plotTheme(extra) {
+    extra = extra || {};
+    var dark = isDarkTheme();
     var layout = {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       font: plotFont(),
-      margin: { l: 48, r: 16, t: 24, b: 48 },
-      xaxis: plotAxis(""),
-      yaxis: plotAxis(extra && extra.yTitle ? extra.yTitle : ""),
-      legend: { font: plotFont(), orientation: "h" },
+      margin: extra.margin || { l: 48, r: 16, t: 24, b: 48 },
+      xaxis: plotAxis(extra.xTitle || ""),
+      yaxis: plotAxis(extra.yTitle || ""),
+      legend: {
+        font: plotFont(),
+        orientation: "h",
+        bgcolor: "rgba(0,0,0,0)",
+        bordercolor: dark ? "#3f3f46" : "#e2e8f0",
+      },
+      hoverlabel: {
+        bgcolor: dark ? "#18181b" : "#ffffff",
+        bordercolor: dark ? "#52525b" : "#e2e8f0",
+        font: { color: dark ? "#e4e4e7" : "#1e293b", size: 11 },
+      },
     };
-    return Object.assign(layout, extra || {});
+    if (extra.yaxis) layout.yaxis = Object.assign({}, layout.yaxis, extra.yaxis);
+    if (extra.yaxis2) {
+      layout.yaxis2 = Object.assign({}, plotAxis(extra.yaxis2.title || ""), extra.yaxis2);
+    }
+    if (extra.xaxis) layout.xaxis = Object.assign({}, layout.xaxis, extra.xaxis);
+    if (extra.title) layout.title = Object.assign({ font: plotFont(), x: 0 }, extra.title);
+    if (extra.annotations) layout.annotations = extra.annotations;
+    return layout;
   }
 
   function plotlyCfg() {
@@ -2818,6 +2865,7 @@
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var dates = byDate.map(function (d) { return d.date; });
 
+    var darkCharts = isDarkTheme();
     Plotly.newPlot("mz-chart-dual", [
       {
         x: dates,
@@ -2826,7 +2874,8 @@
         mode: "lines",
         name: "Net gelir",
         yaxis: "y",
-        line: { color: isDarkTheme() ? "#34d399" : "#059669", width: 2 },
+        line: { color: darkCharts ? "#34d399" : "#059669", width: 2 },
+        marker: { color: darkCharts ? "#34d399" : "#059669", size: 4 },
       },
       {
         x: dates,
@@ -2835,17 +2884,45 @@
         mode: "lines",
         name: "Gösterim",
         yaxis: "y2",
-        line: { color: isDarkTheme() ? "#38bdf8" : "#0284c7", width: 2, dash: "dot" },
+        line: { color: darkCharts ? "#38bdf8" : "#0284c7", width: 2, dash: "dot" },
+        marker: { color: darkCharts ? "#38bdf8" : "#0284c7", size: 4 },
       },
     ], plotTheme({
       yaxis: { title: "TL" },
       yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
     }), plotlyCfg());
 
+    var qualityColors = darkCharts
+      ? ["#38bdf8", "#f472b6", "#a78bfa"]
+      : ["#0284c7", "#db2777", "#7c3aed"];
     Plotly.newPlot("mz-chart-quality", [
-      { x: dates, y: byDate.map(function (d) { return d.viewability_pct; }), name: "Viewability %", type: "scatter", mode: "lines" },
-      { x: dates, y: byDate.map(function (d) { return d.ctr_pct; }), name: "CTR %", type: "scatter", mode: "lines" },
-      { x: dates, y: byDate.map(function (d) { return d.coverage_pct; }), name: "Coverage %", type: "scatter", mode: "lines" },
+      {
+        x: dates,
+        y: byDate.map(function (d) { return d.viewability_pct; }),
+        name: "Viewability %",
+        type: "scatter",
+        mode: "lines",
+        line: { color: qualityColors[0], width: 2 },
+        marker: { color: qualityColors[0], size: 4 },
+      },
+      {
+        x: dates,
+        y: byDate.map(function (d) { return d.ctr_pct; }),
+        name: "CTR %",
+        type: "scatter",
+        mode: "lines",
+        line: { color: qualityColors[1], width: 2 },
+        marker: { color: qualityColors[1], size: 4 },
+      },
+      {
+        x: dates,
+        y: byDate.map(function (d) { return d.coverage_pct; }),
+        name: "Coverage %",
+        type: "scatter",
+        mode: "lines",
+        line: { color: qualityColors[2], width: 2 },
+        marker: { color: qualityColors[2], size: 4 },
+      },
     ], plotTheme({ yTitle: "%" }), plotlyCfg());
 
     var hm = sum.heatmap_calendar || [];
@@ -3133,8 +3210,12 @@
     }
     if (cmpRange) meta += " · karşılaştırma: " + cmpRange.start + " — " + cmpRange.end;
     if (data._partialUnit) meta += " · kısmi liste";
-    var expanded = useExpand && state.tableExpanded;
-    if (rows.length > preview && useExpand && !expanded) {
+    var expanded = opts.expandUnitDays
+      ? state.detailUnitRowsExpanded
+      : useExpand && state.tableExpanded;
+    if (opts.expandUnitDays && rows.length > preview && !expanded) {
+      meta += " · son " + preview + " gün";
+    } else if (rows.length > preview && useExpand && !expanded) {
       meta += " · tabloda ilk " + preview + " gösteriliyor";
     }
     var metaEl = document.getElementById(metaId);
@@ -3162,7 +3243,7 @@
       if (opts.tableScope === "detail" && state.lastTable) renderTable(state.lastTable);
       else if (state.lastTable) renderDataTable(detailTableViewData(state.lastTable), opts);
     };
-    if (expandWrap && (useExpand || opts.expandLoadFull)) {
+    if (expandWrap && (useExpand || opts.expandLoadFull || opts.expandUnitDays)) {
       if (opts.expandLoadFull) {
         expandWrap.classList.remove("hidden");
         expandBtn.textContent = "Tüm tarih aralığını yükle";
@@ -3170,6 +3251,22 @@
           var u = (state.detailSelectedUnit || "").trim();
           if (u) fetchDetailUnitFullTable(u);
         };
+      } else if (opts.expandUnitDays && rows.length > preview) {
+        expandWrap.classList.remove("hidden");
+        if (expanded) {
+          expandBtn.textContent = "Son " + MZ_DETAIL_UNIT_PREVIEW_DAYS + " günü göster";
+          expandBtn.onclick = function () {
+            state.detailUnitRowsExpanded = false;
+            rerender();
+          };
+        } else {
+          var more = rows.length - preview;
+          expandBtn.textContent = "Genişlet (" + more + " satır daha)";
+          expandBtn.onclick = function () {
+            state.detailUnitRowsExpanded = true;
+            rerender();
+          };
+        }
       } else if (rows.length > preview) {
         expandWrap.classList.remove("hidden");
         if (expanded) {
@@ -3254,10 +3351,15 @@
     var preview = MZ_TABLE_PREVIEW;
     var expandable = true;
     var expandLoadFull = false;
+    var expandUnitDays = false;
     if (sel) {
       if (state.detailUnitFullFor === sel && state.detailUnitFullTable) {
-        preview = Math.max((view.rows || []).length, 1);
+        var unitRows = view.rows || [];
+        preview = state.detailUnitRowsExpanded
+          ? Math.max(unitRows.length, 1)
+          : Math.min(MZ_DETAIL_UNIT_PREVIEW_DAYS, unitRows.length);
         expandable = false;
+        expandUnitDays = unitRows.length > MZ_DETAIL_UNIT_PREVIEW_DAYS;
       } else {
         expandable = false;
         expandLoadFull = !state.detailUnitFullLoading;
@@ -3270,6 +3372,7 @@
       expandable: expandable,
       preview: preview,
       expandLoadFull: expandLoadFull,
+      expandUnitDays: expandUnitDays,
       rerender: function () { renderTable(data); },
       tableScope: "detail",
     });
