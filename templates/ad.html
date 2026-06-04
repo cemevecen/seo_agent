@@ -983,8 +983,9 @@
   }
 
   function applyTableRowFilter(row, breakdown) {
-    if (row.report_date) {
-      var d = String(row.report_date).slice(0, 10);
+    var rawDate = row.date || row.report_date;
+    if (rawDate) {
+      var d = String(rawDate).slice(0, 10);
       document.getElementById("mz-start").value = d;
       document.getElementById("mz-end").value = d;
       document.getElementById("mz-preset").value = "";
