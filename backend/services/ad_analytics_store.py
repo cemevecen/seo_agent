@@ -1375,14 +1375,18 @@ def resolve_compare_range(
 def _kpi_delta(current: float, previous: float) -> dict[str, Any]:
     abs_d = current - previous
     if previous == 0:
-        pct = 100.0 if current > 0 else (0.0 if current == 0 else -100.0)
+        if current == 0:
+            pct: float | None = 0.0
+        else:
+            # Karşı dönem 0 iken yüzde tanımsız; tabloda +100% göstermeyelim.
+            pct = None
     else:
         pct = (abs_d / abs(previous)) * 100.0
     return {
         "current": current,
         "compare": previous,
         "abs": round(abs_d, 6),
-        "pct": round(pct, 2),
+        "pct": round(pct, 2) if pct is not None else None,
     }
 
 

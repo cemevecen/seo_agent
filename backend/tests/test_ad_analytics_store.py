@@ -91,6 +91,10 @@ def test_compute_kpi_deltas():
     assert deltas["net_revenue"]["pct"] == 50.0
     assert deltas["impression"]["abs"] == 200
 
+    zero_base = store._kpi_delta(50.0, 0.0)
+    assert zero_base["pct"] is None
+    assert zero_base["abs"] == 50.0
+
 
 def _excel_serial(d: date) -> int:
     return (d - date(1899, 12, 30)).days

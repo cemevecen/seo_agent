@@ -118,8 +118,8 @@
       <p id="mz-range-label" class="text-xs text-slate-500 dark:text-slate-400"></p>
       <p id="mz-compare-range-label" class="hidden text-xs font-semibold text-indigo-700 dark:text-indigo-300"></p>
 
-      <details id="mz-compare-matrix-wrap" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-900 dark:bg-indigo-950/20 midnight:border-indigo-950">
-        <summary class="cursor-pointer text-sm font-bold text-indigo-900 dark:text-indigo-200">KPI karşılaştırma özeti (tüm metrikler)</summary>
+      <section id="mz-compare-matrix-wrap" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-900 dark:bg-indigo-950/20 midnight:border-indigo-950">
+        <h2 class="text-sm font-bold text-indigo-900 dark:text-indigo-200">KPI karşılaştırma özeti (tüm metrikler)</h2>
         <div class="mt-2 overflow-x-auto">
           <table class="min-w-full text-left text-xs">
             <thead class="border-b border-indigo-200 dark:border-indigo-800">
@@ -134,10 +134,10 @@
             <tbody id="mz-compare-matrix-body" class="divide-y divide-indigo-100 dark:divide-indigo-900"></tbody>
           </table>
         </div>
-      </details>
+      </section>
 
-      <details id="mz-compare-dim-wrap" class="hidden rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-zinc-100">Kırılım karşılaştırması (detay)</summary>
+      <section id="mz-compare-dim-wrap" class="hidden rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Kırılım karşılaştırması (detay)</h2>
         <div class="mt-2 flex flex-wrap gap-2">
           <select id="mz-compare-dim" class="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
             <option value="by_income_type">Gelir tipi</option>
@@ -154,7 +154,7 @@
             <tbody id="mz-compare-dim-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
           </table>
         </div>
-      </details>
+      </section>
 
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -235,13 +235,6 @@
             <div id="mz-bd-toolbar-month" class="mz-bd-toolbar" data-bd-scope="chartMonth" data-bd-mode="time"></div>
           </div>
           <div id="mz-chart-bar-month" class="mz-chart-plot min-h-[220px] sm:min-h-[280px]"></div>
-        </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black lg:col-span-2">
-          <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
-            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Top Mx birimi — gelir (çubuk)</h2>
-            <div id="mz-bd-toolbar-unit" class="mz-bd-toolbar" data-bd-scope="chartUnit" data-bd-mode="unit"></div>
-          </div>
-          <div id="mz-chart-bar-unit" class="mz-chart-plot min-h-[260px] sm:min-h-[320px]"></div>
         </div>
       </div>
 
@@ -501,7 +494,9 @@
   }
 
   function fmtDeltaPct(pct) {
-    if (pct == null || isNaN(pct)) return "";
+    if (pct == null || isNaN(pct)) {
+      return "<span class=\"text-[10px] font-medium text-slate-400 dark:text-zinc-500\">—</span>";
+    }
     var sign = pct >= 0 ? "+" : "";
     var cls = pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
     return "<span class=\"" + cls + " text-[10px] font-bold\">" + sign + Number(pct).toFixed(1) + "%</span>";
@@ -542,7 +537,6 @@
     detail: defaultBdCfg({ bdDims: new Set(["income_type", "ad_unit"]) }),
     chartLine: defaultBdCfg({ bdTime: "date", bdDims: new Set() }),
     chartMonth: defaultBdCfg({ bdTime: "month", bdDims: new Set() }),
-    chartUnit: defaultBdCfg({ bdTime: "", bdDims: new Set(["ad_unit"]) }),
     chartIncome: defaultBdCfg({ bdTime: "", bdDims: new Set(["income_type"]) }),
     chartStacked: defaultBdCfg({ bdTime: "date", bdDims: new Set(["income_type"]), stackedDim: "income_type" }),
     listLeaders: defaultBdCfg({ listMetric: "net_revenue_delta_pct" }),
@@ -589,11 +583,6 @@
     { v: "week", l: "Hafta" },
     { v: "period_3", l: "3 ay" },
     { v: "period_6", l: "6 ay" },
-  ];
-  var BD_UNIT_DIM_OPTS = [
-    { v: "ad_unit", l: "Mx birimi" },
-    { v: "ad_format", l: "Format" },
-    { v: "area", l: "Alan" },
   ];
   var BD_INCOME_DIM_OPTS = [
     { v: "income_type", l: "Gelir tipi" },
@@ -669,13 +658,6 @@
         row("", function (el) {
           mountBdPills(el, cfg, BD_TIME_MONTH, "time", function (v) {
             cfg.bdTime = v;
-            refreshWidget(scope);
-          });
-        });
-      } else if (mode === "unit") {
-        row("", function (el) {
-          mountBdPills(el, cfg, BD_UNIT_DIM_OPTS, "unitDim", function (v) {
-            cfg.bdDims = new Set([v]);
             refreshWidget(scope);
           });
         });
@@ -820,37 +802,6 @@
     }
   }
 
-  async function refreshChartUnit() {
-    if (!window.Plotly || !state.lastSummary) return;
-    var cfg = state.breakdowns.chartUnit;
-    var cmp = compareBlock(state.lastSummary);
-    var dim = Array.from(cfg.bdDims)[0] || "ad_unit";
-    if (dim === "ad_unit" && !cfg.bdTime && !cfg.bdArea) {
-      var units = ((cmp && cmp.by_ad_unit) ? cmp.by_ad_unit : (state.lastSummary.by_ad_unit || [])).slice(0, 15);
-      var marginL = window.innerWidth < 640 ? 120 : 180;
-      if (cmp) {
-        Plotly.newPlot("mz-chart-bar-unit", [
-          { x: units.map(function (x) { return x.net_revenue; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", name: "Seçili", marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" } },
-          { x: units.map(function (x) { return x.net_revenue_compare || 0; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", name: "Karşılaştırma", marker: { color: isDarkTheme() ? "#fb7185" : "#f97316" } },
-        ], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL", barmode: "group" }), plotlyCfg());
-      } else {
-        Plotly.newPlot("mz-chart-bar-unit", [{ x: units.map(function (x) { return x.net_revenue; }), y: units.map(function (x) { return x.ad_unit; }), type: "bar", orientation: "h", marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" } }], plotTheme({ margin: { l: marginL, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
-      }
-      return;
-    }
-    try {
-      var data = await fetchTableForScope("chartUnit", 40);
-      var rows = rowsForChartDim(data.rows, dim).slice(0, 15);
-      var marginL2 = window.innerWidth < 640 ? 120 : 180;
-      Plotly.newPlot("mz-chart-bar-unit", [{
-        x: rows.map(function (x) { return x.net_revenue; }),
-        y: rows.map(function (x) { return x[dim]; }),
-        type: "bar", orientation: "h",
-        marker: { color: isDarkTheme() ? "#fbbf24" : "#f59e0b" },
-      }], plotTheme({ margin: { l: marginL2, r: 16, t: 24, b: 40 }, yTitle: "TL" }), plotlyCfg());
-    } catch (e) { /* keep previous plot */ }
-  }
-
   async function refreshChartIncomeBar() {
     if (!window.Plotly || !state.lastSummary) return;
     var cfg = state.breakdowns.chartIncome;
@@ -957,7 +908,6 @@
     }
     if (scope === "chartLine") refreshChartLine();
     else if (scope === "chartMonth") refreshChartMonth();
-    else if (scope === "chartUnit") refreshChartUnit();
     else if (scope === "chartIncome") refreshChartIncomeBar();
     else if (scope === "chartStacked") refreshChartStacked();
   }
@@ -1120,7 +1070,6 @@
     renderLeadersLosers(sum);
     refreshChartLine();
     refreshChartMonth();
-    refreshChartUnit();
     refreshChartIncomeBar();
     refreshChartStacked();
   }
@@ -1473,9 +1422,10 @@
       var deltaHtml = "";
       if (cmp && cmp.deltas && cmp.deltas[def.key]) {
         var d = cmp.deltas[def.key];
+        var pctPart = d.pct != null ? " · " + fmtDeltaPct(d.pct) : "";
         deltaHtml =
           "<p class=\"mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400\">Karş: " + fmt(d.compare, def.dec) +
-          " · " + fmtDeltaPct(d.pct) + "</p>";
+          pctPart + "</p>";
       }
       var sparkId = "mz-spark-" + def.key;
       card.innerHTML =
