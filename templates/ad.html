@@ -526,12 +526,21 @@
   };
 
   function defaultBdCfg(overrides) {
+    overrides = overrides || {};
+    var bdDims;
+    if (overrides.bdDims instanceof Set) {
+      bdDims = overrides.bdDims;
+    } else if (Array.isArray(overrides.bdDims)) {
+      bdDims = new Set(overrides.bdDims);
+    } else {
+      bdDims = new Set(["income_type"]);
+    }
     return {
-      bdTime: "date",
-      bdArea: "",
-      bdDims: new Set(["income_type"]),
-      listMetric: "net_revenue_delta_pct",
-      stackedDim: "income_type",
+      bdTime: Object.prototype.hasOwnProperty.call(overrides, "bdTime") ? overrides.bdTime : "date",
+      bdArea: Object.prototype.hasOwnProperty.call(overrides, "bdArea") ? overrides.bdArea : "",
+      bdDims: bdDims,
+      listMetric: overrides.listMetric || "net_revenue_delta_pct",
+      stackedDim: overrides.stackedDim || "income_type",
     };
   }
   state.breakdowns = {
@@ -759,29 +768,41 @@
     }).sort(function (a, b) { return b.net_revenue - a.net_revenue; });
   }
 
+  var TABLE_SUM_KEYS = ["net_revenue", "impression", "click", "ad_request"];
+
+  function aggregateTableRowsByDim(rows, dimKey) {
+    var map = {};
+    (rows || []).forEach(function (r) {
+      var k = String(r[dimKey] != null ? r[dimKey] : r.date || "");
+      if (!k) return;
+      if (!map[k]) {
+        map[k] = { date: k.length >= 10 ? k.slice(0, 10) : k };
+        TABLE_SUM_KEYS.forEach(function (key) { map[k][key] = 0; });
+      }
+      TABLE_SUM_KEYS.forEach(function (key) {
+        var v = Number(r[key]);
+        if (!isNaN(v)) map[k][key] += v;
+      });
+    });
+    return Object.keys(map).sort().map(function (k) { return map[k]; });
+  }
+
   async function refreshChartLine() {
     if (!window.Plotly || !state.lastSummary) return;
     var cfg = state.breakdowns.chartLine;
     var cmp = compareBlock(state.lastSummary);
+    var byDate = state.lastByDate || state.lastSummary.by_date || [];
     if (cfg.bdTime === "date" && !cfg.bdArea && !cfg.bdDims.size) {
-      renderLineChart(state.lastSummary.by_date || [], state.activeKpiKey, cmp);
+      renderLineChart(byDate, state.activeKpiKey, cmp);
       return;
     }
     try {
       var data = await fetchTableForScope("chartLine", 500);
       var dim = cfg.bdTime || "date";
-      var pseudo = (data.rows || []).map(function (r) {
-        var o = { date: String(r[dim] != null ? r[dim] : "").slice(0, 10) };
-        TABLE_METRICS.forEach(function (m) {
-          o[m.key] = r[m.key];
-        });
-        o.net_revenue = r.net_revenue;
-        o.impression = r.impression;
-        return o;
-      }).sort(function (a, b) { return a.date.localeCompare(b.date); });
-      renderLineChart(pseudo, state.activeKpiKey, null);
+      var pseudo = aggregateTableRowsByDim(data.rows, dim);
+      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, null);
     } catch (e) {
-      renderLineChart(state.lastSummary.by_date || [], state.activeKpiKey, cmp);
+      renderLineChart(byDate, state.activeKpiKey, cmp);
     }
   }
 
@@ -1034,7 +1055,10 @@
       });
       document.getElementById("mz-chart-line-title").textContent = "Günlük trend — " + def.label;
     }
-    Plotly.newPlot("mz-chart-line", traces, plotTheme(layoutExtra), plotlyCfg());
+    var lineEl = document.getElementById("mz-chart-line");
+    if (!lineEl) return;
+    try { Plotly.purge(lineEl); } catch (e) { /* ignore */ }
+    Plotly.newPlot(lineEl, traces, plotTheme(layoutExtra), plotlyCfg());
   }
 
   function groupedBarPlot(elId, rows, labelKey, cmp) {
@@ -1070,7 +1094,6 @@
     }], plotTheme(), plotlyCfg());
     renderExtendedCharts(sum);
     renderLeadersLosers(sum);
-    refreshChartLine();
     refreshChartMonth();
     refreshChartIncomeBar();
     refreshChartStacked();
@@ -1081,10 +1104,13 @@
     var el = typeof elId === "string" ? document.getElementById(elId) : elId;
     if (!el || !el.isConnected) return;
     var slice = byDate.slice(-14);
+    var ys = slice.map(function (d) { return d[key] != null ? d[key] : 0; });
+    if (!ys.some(function (v) { return v !== 0; })) return;
     var color = isDarkTheme() ? "#a5b4fc" : "#6366f1";
+    try { Plotly.purge(el); } catch (e) { /* ignore */ }
     Plotly.newPlot(el, [{
       x: slice.map(function (d) { return d.date; }),
-      y: slice.map(function (d) { return d[key] != null ? d[key] : 0; }),
+      y: ys,
       type: "scatter",
       mode: "lines",
       line: { width: 1.5, color: color },
@@ -1106,10 +1132,25 @@
     if (!s) return;
     var byDate = state.lastByDate || s.by_date || [];
     if (byDate.length < 2) return;
-    activeKpiDefs(s).forEach(function (def) {
+    var defs = activeKpiDefs(s);
+    var i = 0;
+    function step() {
+      if (i >= defs.length) {
+        return;
+      }
+      var def = defs[i++];
       var node = document.getElementById("mz-spark-" + def.key);
       if (node) renderKpiSparkline(node, byDate, def.key);
-    });
+      setTimeout(step, 12);
+    }
+    step();
+  }
+
+  function finalizeMzTrendAndSparks(sum) {
+    scheduleKpiSparklines(sum);
+    setTimeout(function () {
+      refreshChartLine();
+    }, 180);
   }
 
   function scheduleKpiSparklines(sum) {
@@ -1117,9 +1158,11 @@
     state._mzSparkTimer = setTimeout(function () {
       state._mzSparkTimer = null;
       requestAnimationFrame(function () {
-        refreshAllKpiSparklines(sum);
+        requestAnimationFrame(function () {
+          refreshAllKpiSparklines(sum);
+        });
       });
-    }, 50);
+    }, 120);
   }
 
   function renderExtendedCharts(sum) {
@@ -1381,7 +1424,7 @@
     if (state.lastSummary) {
       renderKpis(state.lastSummary.kpis || {}, state.lastSummary);
       renderCharts(state.lastSummary);
-      scheduleKpiSparklines(state.lastSummary);
+      finalizeMzTrendAndSparks(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
       if (state.lastSummaryTable) {
         renderDataTable(state.lastSummaryTable, {
@@ -1437,7 +1480,7 @@
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
         renderKpis(k, sum || state.lastSummary);
-        refreshChartLine();
+        finalizeMzTrendAndSparks(sum || state.lastSummary);
       });
       grid.appendChild(card);
     });
@@ -1752,7 +1795,7 @@
       renderCompareMatrix(sum);
       await refreshSummaryTable();
       await refreshDetailTable();
-      scheduleKpiSparklines(sum);
+      finalizeMzTrendAndSparks(sum);
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
       document.getElementById("mz-status").textContent = msg;
