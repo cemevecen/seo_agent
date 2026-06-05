@@ -59,6 +59,71 @@ def test_channel_and_surface_from_filename_and_ad_unit():
     assert rows[1]["surface"] == "web"
 
 
+def test_mweb_stream_includes_m_units_from_desktop_export():
+    d = date(2025, 3, 5)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    rows = store.parse_csv_text(
+        header + f"m_doviz_sticky,1,{serial},Open Auction,10,10,100,1,0,0,0,0,0,1000\n"
+        + f"web_doviz_header,1,{serial},Open Auction,10,10,200,1,0,0,0,0,0,2000\n",
+        filename="dovizcom1_Report_2025.xlsx",
+    )
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        desktop = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="desktop",
+        )
+        assert mweb["kpis"]["net_revenue"] == 1000.0
+        assert desktop["kpis"]["net_revenue"] == 3000.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
+def test_mweb_stream_includes_mweb_file_without_m_prefix():
+    d = date(2026, 1, 15)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    rows = store.parse_csv_text(
+        header + f"Pubmatic OB doviz.com,1,{serial},Open Auction,10,10,500,1,0,0,0,0,0,5000\n",
+        filename="m.dovizcom1_Report_2026.xlsx",
+    )
+    assert rows[0]["branch"] == "mweb"
+    assert rows[0]["surface"] == "mweb"
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        assert mweb["kpis"]["net_revenue"] == 5000.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_doviz_all_stream_sums_every_branch():
     d = date(2026, 1, 10)
     serial = _excel_serial(d)

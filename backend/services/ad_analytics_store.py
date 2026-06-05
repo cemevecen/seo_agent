@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import Integer, cast, delete, extract, func, select
+from sqlalchemy import Integer, cast, delete, extract, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -447,6 +447,8 @@ def _row_from_values(
         channel = stream.channel
         surface = _detect_surface(ad_unit, channel)
         if surface == "unknown" and stream.default_surface:
+            surface = stream.default_surface
+        elif stream.branch == "mweb" and surface == "site":
             surface = stream.default_surface
     else:
         project, branch = "", ""
@@ -1082,37 +1084,18 @@ def facets(db: Session) -> dict[str, Any]:
             if slug not in seen_cols:
                 seen_cols.add(slug)
                 extra_columns.append(str(c))
-    stream_stats = db.execute(
-        select(
-            AdReportRow.project,
-            AdReportRow.branch,
-            func.min(AdReportRow.report_date),
-            func.max(AdReportRow.report_date),
-            func.count(),
-        )
-        .where(AdReportRow.project != "", AdReportRow.branch != "")
-        .group_by(AdReportRow.project, AdReportRow.branch)
-    ).all()
-    stats_map = {(r[0], r[1]): r for r in stream_stats}
-    project_stats = db.execute(
-        select(
-            AdReportRow.project,
-            func.min(AdReportRow.report_date),
-            func.max(AdReportRow.report_date),
-            func.count(),
-        )
-        .where(AdReportRow.project != "")
-        .group_by(AdReportRow.project)
-    ).all()
-    project_stats_map = {r[0]: r for r in project_stats}
     streams_out: list[dict[str, Any]] = []
     kpi_union: set[str] = set()
     for meta in AD_STREAMS:
-        if meta.branch == STREAM_ALL_BRANCH:
-            hit = project_stats_map.get(meta.project)
-            hit_row = (meta.project, None, hit[1], hit[2], hit[3]) if hit else None
-        else:
-            hit_row = stats_map.get((meta.project, meta.branch))
+        sq = select(
+            func.min(AdReportRow.report_date),
+            func.max(AdReportRow.report_date),
+            func.count(),
+        )
+        for cond in _stream_branch_filters(meta.project, meta.branch):
+            sq = sq.where(cond)
+        hit = db.execute(sq).one()
+        hit_row = (meta.project, meta.branch, hit[0], hit[1], hit[2]) if hit else None
         hit = hit_row
         stream_kpis: list[str] = []
         if hit and hit[4]:
@@ -1263,16 +1246,38 @@ def _week_key_expr(col):
     return func.strftime("%Y-W%W", col)
 
 
+_MWEB_SURFACE_VALUES = ("mweb", "mobile_web", "m_web")
+
+
+def _is_mweb_surface_expr(col_surface):
+    return func.lower(col_surface).in_(list(_MWEB_SURFACE_VALUES))
+
+
+def _stream_branch_filters(project: str | None, branch: str | None) -> list[Any]:
+    """Dal sekmesi — m.doviz.com: mweb dosyası + desktop export içindeki m_* birimleri."""
+    if not project:
+        return []
+    if not branch or branch == STREAM_ALL_BRANCH:
+        return [AdReportRow.project == project]
+    if branch == "mweb":
+        return [
+            AdReportRow.project == project,
+            or_(
+                AdReportRow.branch == "mweb",
+                _is_mweb_surface_expr(AdReportRow.surface),
+            ),
+        ]
+    return [AdReportRow.project == project, AdReportRow.branch == branch]
+
+
 def _area_label_expr(col_branch, col_surface):
     from sqlalchemy import case
 
     return case(
         (col_branch == "android", "android"),
         (col_branch == "ios", "ios"),
-        (
-            func.lower(col_surface).in_(["mweb", "mobile_web", "m_web"]),
-            "mweb",
-        ),
+        (_is_mweb_surface_expr(col_surface), "mweb"),
+        (col_branch == "mweb", "mweb"),
         else_="web",
     )
 
@@ -1308,10 +1313,8 @@ def _apply_filters(
     project: str | None = None,
     branch: str | None = None,
 ):
-    if project:
-        q = q.where(AdReportRow.project == project)
-    if branch and branch != STREAM_ALL_BRANCH:
-        q = q.where(AdReportRow.branch == branch)
+    for cond in _stream_branch_filters(project, branch):
+        q = q.where(cond)
     if start:
         try:
             q = q.where(AdReportRow.report_date >= date.fromisoformat(start[:10]))

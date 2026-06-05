@@ -792,11 +792,7 @@
     var e = document.getElementById("mz-end").value;
     if (s) p.set("start", s);
     if (e) p.set("end", e);
-    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
-      p.set("income_types", state.summaryDrillSlice.income_type);
-    } else {
-      appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
-    }
+    appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
     if (state.drillSlice && state.drillSlice.ad_unit) {
       p.set("ad_units", state.drillSlice.ad_unit);
     }
@@ -5292,7 +5288,9 @@
       }
     }
     if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
-      notes.push("Özet drill gelir tipi: " + state.summaryDrillSlice.income_type);
+      notes.push(
+        "Özet trend grafiği gelir tipi: " + state.summaryDrillSlice.income_type + " (KPI kartları sol panel gelir tipine göre)"
+      );
     }
     if (!state.activeStream) {
       var chList = state._mzChannelFacetList || [];
