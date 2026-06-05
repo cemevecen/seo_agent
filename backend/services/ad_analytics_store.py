@@ -251,7 +251,13 @@ def detect_stream(filename: str) -> AdStream | None:
         return _STREAM_BY_KEY["sinemalar:mweb"]
     if "sinemalar" in low and ("desktop" in low or low.startswith("sinemalardesktop")):
         return _STREAM_BY_KEY["sinemalar:desktop"]
-    if "m.doviz" in low or "m_doviz" in low or "mdovizcom" in low:
+    if (
+        "m.doviz" in low
+        or "m_doviz" in low
+        or "mdovizcom" in low
+        or "m-doviz" in low
+        or re.search(r"(^|[^a-z])m[^a-z0-9]*doviz", low)
+    ):
         return _STREAM_BY_KEY["doviz:mweb"]
     if "doviz_ios" in low or "doviz-ios" in low:
         return _STREAM_BY_KEY["doviz:ios"]
@@ -347,9 +353,13 @@ def _row_fingerprint(
     income_type: str,
     project: str,
     branch: str,
+    source_file: str,
 ) -> str:
-    """Dal içinde tekilleştirme — kaynak dosya dahil değil (güncelleme duplike etmez)."""
-    raw = f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
+    """Dal + kaynak dosya — farklı raporlar aynı gün/birimde birbirinin üstüne yazmaz."""
+    raw = (
+        f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}|"
+        f"{(source_file or '').strip().lower()}"
+    )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -380,6 +390,7 @@ def _dict_from_mapped(
         income_type=income_type,
         project=project,
         branch=branch,
+        source_file=source_file,
     )
     extras = dict(extra_metrics or {})
     for key in list(extras.keys()):
@@ -696,6 +707,15 @@ def _estimate_xlsx_data_rows(data: bytes) -> int:
         return 0
 
 
+def _purge_rows_for_source_file(db: Session, filename: str) -> int:
+    """Aynı dosyanın yeniden yüklemesinde eski satırları kaldır."""
+    if not (filename or "").strip():
+        return 0
+    res = db.execute(delete(AdReportRow).where(AdReportRow.source_file == filename))
+    rc = res.rowcount
+    return len(rc) if isinstance(rc, list) else int(rc or 0)
+
+
 def import_upload_file(
     db: Session,
     data: bytes,
@@ -708,6 +728,7 @@ def import_upload_file(
     stream = detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
     try:
+        purged = _purge_rows_for_source_file(db, filename)
         if low.endswith(".xlsx") or low.endswith(".xlsm"):
             columns: list[str] = []
             wb = _load_workbook_bytes(data)
@@ -765,6 +786,7 @@ def import_upload_file(
     except Exception:
         db.rollback()
         raise
+    result["purged_rows"] = purged
     result["filename"] = filename
     result["channel"] = channel
     result["columns"] = columns
@@ -1101,6 +1123,18 @@ def facets(db: Session) -> dict[str, Any]:
         if hit and hit[4]:
             # KPI uygunluğu facets'te ağır JSON taraması yapılmaz — query_summary döner.
             stream_kpis = []
+        rev_sum = 0.0
+        day_cnt = 0
+        if hit and hit[4]:
+            rev_q = select(
+                func.coalesce(func.sum(AdReportRow.net_revenue), 0),
+                func.count(func.distinct(AdReportRow.report_date)),
+            )
+            for cond in _stream_branch_filters(meta.project, meta.branch):
+                rev_q = rev_q.where(cond)
+            rev_row = db.execute(rev_q).one()
+            rev_sum = round(float(rev_row[0] or 0), 2)
+            day_cnt = int(rev_row[1] or 0)
         streams_out.append(
             {
                 "key": meta.key,
@@ -1112,6 +1146,8 @@ def facets(db: Session) -> dict[str, Any]:
                 "min_date": hit[2].isoformat() if hit and hit[2] else None,
                 "max_date": hit[3].isoformat() if hit and hit[3] else None,
                 "row_count": int(hit[4] or 0) if hit else 0,
+                "distinct_days": day_cnt,
+                "total_net_revenue": rev_sum,
                 "has_data": bool(hit and hit[4]),
                 "available_kpis": stream_kpis,
             }

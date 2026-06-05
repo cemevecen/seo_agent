@@ -412,3 +412,61 @@ def test_build_heatmap_calendar():
     hm = store._build_heatmap_calendar(days)
     assert len(hm) == 2
     assert hm[0]["dow_label"] in store._DOW_LABELS
+
+
+def test_two_report_files_same_key_both_contribute():
+    d = date(2025, 8, 1)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    row = f"sticky_m,1,{serial},Open Auction,1,1,100,0,0,0,0,0,0,1000\n"
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, store.parse_csv_text(header + row, filename="m.dovizcom1_Report_2025.xlsx"))
+        store.import_rows(db, store.parse_csv_text(header + row, filename="m.dovizcom2_Report_2026.xlsx"))
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        assert mweb["kpis"]["net_revenue"] == 2000.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
+def test_reimport_same_file_replaces_rows():
+    d = date(2025, 9, 1)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        name = "m.dovizcom1_Report_2025.csv"
+        store.import_upload_file(
+            db,
+            (header + f"sticky_m,1,{serial},Open Auction,1,1,10,0,0,0,0,0,0,50\n").encode(),
+            filename=name,
+        )
+        store.import_upload_file(
+            db,
+            (header + f"sticky_m,1,{serial},Open Auction,1,1,10,0,0,0,0,0,0,99\n").encode(),
+            filename=name,
+        )
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        assert mweb["kpis"]["net_revenue"] == 99.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()

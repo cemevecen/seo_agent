@@ -772,6 +772,9 @@
     (state._mzPlatformFacetList || []).forEach(function (n) { state.platform.add(n); });
     (state._mzIncomeFacetList || []).forEach(function (n) { state.income.add(n); });
     (state._mzSourceFacetList || []).forEach(function (n) { state.source.add(n); });
+    state.summaryDrillSlice = null;
+    state._summaryDrillRowKey = null;
+    state._summaryDrillUserPicked = false;
     filterChips("mz-filter-channel", state._mzChannelFacetList || [], state.channel);
     filterChips("mz-filter-surface", state._mzSurfaceFacetList || [], state.surface);
     filterChips("mz-filter-platform", state._mzPlatformFacetList || [], state.platform);
@@ -805,7 +808,9 @@
     var e = document.getElementById("mz-end").value;
     if (s) p.set("start", s);
     if (e) p.set("end", e);
-    appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
+    if (!state.activeStream) {
+      appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
+    }
     if (state.drillSlice && state.drillSlice.ad_unit) {
       p.set("ad_units", state.drillSlice.ad_unit);
     }
@@ -821,7 +826,7 @@
       p.set("ad_unit", state.drillSlice.ad_unit);
       if (state.drillSlice.area) p.set("area", state.drillSlice.area);
     }
-    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+    if (!state.activeStream && state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
       p.set("drill_income_type", state.summaryDrillSlice.income_type);
     }
     var preset = document.getElementById("mz-preset").value;
@@ -4117,6 +4122,13 @@
         marker: { color: colors.primary, size: 4 },
         name: def.label,
       });
+      if (timeKey === "date" && series.length) {
+        layoutExtra.xaxis = Object.assign({}, layoutExtra.xaxis || {}, {
+          type: "date",
+          tickformat: "%d.%m.%y",
+          tickangle: series.length > 45 ? -45 : 0,
+        });
+      }
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
     plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
@@ -5170,6 +5182,12 @@
             ? "border-slate-300 bg-white text-slate-700 hover:border-indigo-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 midnight:border-zinc-700 midnight:bg-zinc-950"
             : "border-slate-200 bg-slate-50 text-slate-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500");
       btn.textContent = st.label;
+      if (st.has_data && st.total_net_revenue != null) {
+        btn.title =
+          (st.row_count || 0).toLocaleString("tr-TR") + " satır · " +
+          (st.distinct_days || 0).toLocaleString("tr-TR") + " gün · " +
+          Number(st.total_net_revenue).toLocaleString("tr-TR", { maximumFractionDigits: 0 }) + " TL (tüm dönem)";
+      }
       btn.addEventListener("click", function () {
         state.activeStream = st;
         restoreFullCrossFacets();
@@ -5302,7 +5320,7 @@
         notes.push("Hariç gelir tipleri: " + excluded.join(", "));
       }
     }
-    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+    if (!state.activeStream && state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
       notes.push(
         "Özet trend grafiği gelir tipi: " + state.summaryDrillSlice.income_type + " (KPI kartları sol panel gelir tipine göre)"
       );
@@ -5317,9 +5335,11 @@
         notes.push("Yüzey: " + Array.from(state.surface).join(", "));
       }
     }
-    var srcList = state._mzSourceFacetList || [];
-    if (srcList.length && state.source.size > 0 && state.source.size < srcList.length) {
-      notes.push("Kaynak dosya: " + Array.from(state.source).join(", "));
+    if (!state.activeStream) {
+      var srcList = state._mzSourceFacetList || [];
+      if (srcList.length && state.source.size > 0 && state.source.size < srcList.length) {
+        notes.push("Kaynak dosya: " + Array.from(state.source).join(", "));
+      }
     }
     if (notes.length) {
       el.classList.remove("hidden");
