@@ -452,13 +452,13 @@
 
   window.__seoAdPageScriptRan = true;
   var KPI_DEFS = [
+    { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
     { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
     { key: "empower_unique_visitor", label: "Empower Unique Visitor", dec: 0, axis: "" },
     { key: "ad_request", label: "Ad Request", dec: 0, axis: "" },
     { key: "matched_request", label: "Matched Request", dec: 0, axis: "" },
     { key: "impression", label: "Impression", dec: 0, axis: "" },
     { key: "click", label: "Click", dec: 0, axis: "" },
-    { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
     { key: "ad_request_ecpm", label: "Ad Request eCPM (TL)", dec: 3, axis: "TL" },
     { key: "pageview_ecpm", label: "Pageview eCPM (TL)", dec: 3, axis: "TL" },
     { key: "unique_visitor_ecpm", label: "Unique Visitor eCPM (TL)", dec: 3, axis: "TL" },
@@ -4004,7 +4004,10 @@
   function renderLineChart(byDate, kpiKey, cmp, timeKey) {
     if (!window.Plotly) return;
     timeKey = timeKey || "date";
-    var def = KPI_DEFS.find(function (d) { return d.key === kpiKey; }) || KPI_DEFS[6];
+    var def =
+      KPI_DEFS.find(function (d) { return d.key === kpiKey; }) ||
+      KPI_DEFS.find(function (d) { return d.key === "net_revenue"; }) ||
+      KPI_DEFS[0];
     var colors = compareColors();
     var traces = [];
     var layoutExtra = { yTitle: def.axis || "" };
