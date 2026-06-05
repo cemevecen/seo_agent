@@ -414,7 +414,7 @@ def test_build_heatmap_calendar():
     assert hm[0]["dow_label"] in store._DOW_LABELS
 
 
-def test_two_report_files_same_key_both_contribute():
+def test_two_report_files_same_key_last_import_wins():
     d = date(2025, 8, 1)
     serial = _excel_serial(d)
     header = (
@@ -426,7 +426,13 @@ def test_two_report_files_same_key_both_contribute():
     with SessionLocal() as db:
         store.reset_all(db)
         store.import_rows(db, store.parse_csv_text(header + row, filename="m.dovizcom1_Report_2025.xlsx"))
-        store.import_rows(db, store.parse_csv_text(header + row, filename="m.dovizcom2_Report_2026.xlsx"))
+        store.import_rows(
+            db,
+            store.parse_csv_text(
+                header + f"sticky_m,1,{serial},Open Auction,1,1,100,0,0,0,0,0,0,2000\n",
+                filename="m.dovizcom2_Report_2026.xlsx",
+            ),
+        )
         mweb = store.query_summary(
             db,
             start=d.isoformat(),
@@ -437,6 +443,11 @@ def test_two_report_files_same_key_both_contribute():
         assert mweb["kpis"]["net_revenue"] == 2000.0
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()
+
+
+def test_detect_stream_doviz_android_and_ios_filenames():
+    assert store.detect_stream("dovizandroid_1_Report_2025.xlsx").key == "doviz:android"
+    assert store.detect_stream("Doviz iPhone App_1_Report.xlsx").key == "doviz:ios"
 
 
 def test_reimport_same_file_replaces_rows():

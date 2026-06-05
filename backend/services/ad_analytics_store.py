@@ -59,6 +59,7 @@ HEADERS_MAP = {
     "matchedrequest": "matched_request",
     "impression": "impression",
     "click": "click",
+    "clicks": "click",
     "adrequestecpm": "ad_request_ecpm",
     "adimpressionecpm": "ad_impression_ecpm",
     "adimpressionecpmtl": "ad_impression_ecpm",
@@ -259,10 +260,22 @@ def detect_stream(filename: str) -> AdStream | None:
         or re.search(r"(^|[^a-z])m[^a-z0-9]*doviz", low)
     ):
         return _STREAM_BY_KEY["doviz:mweb"]
-    if "doviz_ios" in low or "doviz-ios" in low:
-        return _STREAM_BY_KEY["doviz:ios"]
-    if "doviz_android" in low or "doviz-android" in low:
-        return _STREAM_BY_KEY["doviz:android"]
+    if "sinemalar" not in low:
+        if (
+            "doviz_ios" in low
+            or "doviz-ios" in low
+            or "dovizios" in low
+            or "iphone" in low
+            or ("ios" in low and "doviz" in low and "android" not in low)
+        ):
+            return _STREAM_BY_KEY["doviz:ios"]
+        if (
+            "doviz_android" in low
+            or "doviz-android" in low
+            or "dovizandroid" in low
+            or ("android" in low and "doviz" in low)
+        ):
+            return _STREAM_BY_KEY["doviz:android"]
     if "dovizcom" in low or "doviz.com" in low:
         return _STREAM_BY_KEY["doviz:desktop"]
     return None
@@ -353,13 +366,9 @@ def _row_fingerprint(
     income_type: str,
     project: str,
     branch: str,
-    source_file: str,
 ) -> str:
-    """Dal + kaynak dosya — farklı raporlar aynı gün/birimde birbirinin üstüne yazmaz."""
-    raw = (
-        f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}|"
-        f"{(source_file or '').strip().lower()}"
-    )
+    """Tekil iş anahtarı — aynı gün/birim/gelir için son yüklenen dosya upsert ile günceller."""
+    raw = f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -390,7 +399,6 @@ def _dict_from_mapped(
         income_type=income_type,
         project=project,
         branch=branch,
-        source_file=source_file,
     )
     extras = dict(extra_metrics or {})
     for key in list(extras.keys()):
@@ -844,7 +852,7 @@ def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]
     duplicate_period_notes: list[str] = []
     for ov in overlapping_periods:
         duplicate_period_notes.append(
-            f"Aynı dal/dönem için birden fazla dosya (veri üst üste birleşir): {', '.join(ov['files'])}"
+            f"Aynı dal/dönem için birden fazla dosya (aynı gün/birimde son yüklenen geçerli): {', '.join(ov['files'])}"
         )
 
     file_count = len(per_file)
@@ -965,8 +973,11 @@ def iter_bulk_import_events(
                     "pct": int(100 * idx / max(total_files, 1)),
                 }
     with SessionLocal() as db:
+        deduped = dedupe_ad_report_rows(db)
+        db.commit()
         total_rows = count_rows(db)
     summary = build_upload_batch_summary(per_file)
+    summary["deduped_rows"] = deduped
     yield {
         "phase": "batch_done",
         "pct": 100,
@@ -974,6 +985,7 @@ def iter_bulk_import_events(
         "parsed": total_parsed,
         "inserted": total_inserted,
         "total": total_rows,
+        "deduped": deduped,
         "unknown_files": unknown,
         "files": per_file,
         "summary": summary,
@@ -1010,14 +1022,18 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
                 LOGGER.warning("Ad bulk file failed: %s — %s", name, exc)
                 per_file.append({"filename": name, "error": str(exc)})
     with SessionLocal() as db:
+        deduped = dedupe_ad_report_rows(db)
+        db.commit()
         total_rows = count_rows(db)
     LOGGER.info(
-        "Ad bulk import done: files=%s parsed=%s total_rows=%s",
+        "Ad bulk import done: files=%s parsed=%s total_rows=%s deduped=%s",
         len(ordered),
         total_parsed,
         total_rows,
+        deduped,
     )
     summary = build_upload_batch_summary(per_file)
+    summary["deduped_rows"] = deduped
     return {
         "files": per_file,
         "file_count": len(ordered),
@@ -1031,6 +1047,51 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
 
 def count_rows(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(AdReportRow)) or 0)
+
+
+def dedupe_ad_report_rows(db: Session) -> int:
+    """
+    Aynı proje/dal/tarih/birim/gelir için tek satır bırak.
+    Öncelik: daha yüksek rapor dönemi (com2), sonra net gelir, sonra id.
+    """
+    from collections import defaultdict
+
+    rows = db.execute(
+        select(
+            AdReportRow.id,
+            AdReportRow.project,
+            AdReportRow.branch,
+            AdReportRow.report_date,
+            AdReportRow.ad_unit,
+            AdReportRow.income_type,
+            AdReportRow.source_file,
+            AdReportRow.net_revenue,
+        )
+    ).all()
+    groups: dict[tuple[Any, ...], list[Any]] = defaultdict(list)
+    for r in rows:
+        key = (r[1], r[2], r[3], r[4], r[5])
+        groups[key].append(r)
+    to_delete: list[int] = []
+    for items in groups.values():
+        if len(items) <= 1:
+            continue
+        items.sort(
+            key=lambda item: (
+                _report_period_rank(item[6] or ""),
+                float(item[7] or 0),
+                int(item[0]),
+            ),
+            reverse=True,
+        )
+        to_delete.extend(int(item[0]) for item in items[1:])
+    if not to_delete:
+        return 0
+    for i in range(0, len(to_delete), 4000):
+        chunk = to_delete[i : i + 4000]
+        db.execute(delete(AdReportRow).where(AdReportRow.id.in_(chunk)))
+    db.flush()
+    return len(to_delete)
 
 
 def reset_all(db: Session) -> dict[str, int]:
