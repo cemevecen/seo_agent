@@ -95,6 +95,35 @@ def test_mweb_stream_includes_m_units_from_desktop_export():
         db.commit()
 
 
+def test_mweb_stream_ignores_desktop_non_m_prefix_even_if_surface_mweb():
+    d = date(2025, 6, 1)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    rows = store.parse_csv_text(
+        header + f"Pubmatic OB doviz.com,1,{serial},Open Auction,1,1,999,0,0,0,0,0,0,9000\n",
+        filename="dovizcom1_Report_2025.xlsx",
+    )
+    assert rows[0]["branch"] == "desktop"
+    assert rows[0]["surface"] == "site"
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        assert mweb["kpis"]["net_revenue"] == 0.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_mweb_stream_includes_mweb_file_without_m_prefix():
     d = date(2026, 1, 15)
     serial = _excel_serial(d)

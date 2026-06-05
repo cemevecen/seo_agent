@@ -766,13 +766,22 @@
     if (el) el.classList.toggle("hidden", !on);
   }
 
+  function restoreFullCrossFacets() {
+    (state._mzChannelFacetList || []).forEach(function (n) { state.channel.add(n); });
+    (state._mzSurfaceFacetList || []).forEach(function (n) { state.surface.add(n); });
+    (state._mzPlatformFacetList || []).forEach(function (n) { state.platform.add(n); });
+    filterChips("mz-filter-channel", state._mzChannelFacetList || [], state.channel);
+    filterChips("mz-filter-surface", state._mzSurfaceFacetList || [], state.surface);
+    filterChips("mz-filter-platform", state._mzPlatformFacetList || [], state.platform);
+  }
+
   function updateScopeUi() {
     var cross = document.getElementById("mz-cross-filters");
     if (!cross) return;
     if (state.activeStream) {
-      cross.classList.add("pointer-events-none", "opacity-40");
+      cross.classList.add("hidden");
     } else {
-      cross.classList.remove("pointer-events-none", "opacity-40");
+      cross.classList.remove("hidden");
     }
   }
 
@@ -5159,6 +5168,7 @@
       btn.textContent = st.label;
       btn.addEventListener("click", function () {
         state.activeStream = st;
+        restoreFullCrossFacets();
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
@@ -5232,6 +5242,7 @@
       filterChips("mz-filter-surface", f.surfaces || [], state.surface);
       filterChips("mz-filter-platform", f.platforms || [], state.platform);
       filterBox("mz-filter-source", f.source_files || [], state.source);
+      if (state.activeStream) restoreFullCrossFacets();
       var imports = f.imports || [];
       var countEl = document.getElementById("mz-imports-count");
       if (countEl) countEl.textContent = String(imports.length);
@@ -5302,10 +5313,14 @@
         notes.push("Yüzey: " + Array.from(state.surface).join(", "));
       }
     }
+    var srcList = state._mzSourceFacetList || [];
+    if (srcList.length && state.source.size > 0 && state.source.size < srcList.length) {
+      notes.push("Kaynak dosya: " + Array.from(state.source).join(", "));
+    }
     if (notes.length) {
       el.classList.remove("hidden");
       el.textContent =
-        "KPI’lar filtrelenmiş veriye göre — gerçek panel toplamıyla kıyas için tüm gelir tiplerini seçin. " +
+        "KPI’lar filtrelenmiş veriye göre — Virgul paneliyle kıyas için tüm gelir tiplerini ve dosyaları seçin. " +
         notes.join(" · ");
     } else {
       el.classList.add("hidden");

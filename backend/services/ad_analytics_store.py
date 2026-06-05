@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import Integer, cast, delete, extract, func, or_, select
+from sqlalchemy import Integer, and_, cast, delete, extract, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -1253,8 +1253,13 @@ def _is_mweb_surface_expr(col_surface):
     return func.lower(col_surface).in_(list(_MWEB_SURFACE_VALUES))
 
 
+def _ad_unit_mweb_prefix_expr(col_ad_unit):
+    """``m_`` ön eki (LIKE'ta ``_`` joker olmasın diye escape)."""
+    return func.lower(col_ad_unit).like("m\\_%", escape="\\")
+
+
 def _stream_branch_filters(project: str | None, branch: str | None) -> list[Any]:
-    """Dal sekmesi — m.doviz.com: mweb dosyası + desktop export içindeki m_* birimleri."""
+    """Dal sekmesi — m.doviz.com: m.doviz dosyası + desktop export'taki ``m_`` birimleri."""
     if not project:
         return []
     if not branch or branch == STREAM_ALL_BRANCH:
@@ -1264,7 +1269,10 @@ def _stream_branch_filters(project: str | None, branch: str | None) -> list[Any]
             AdReportRow.project == project,
             or_(
                 AdReportRow.branch == "mweb",
-                _is_mweb_surface_expr(AdReportRow.surface),
+                and_(
+                    AdReportRow.branch == "desktop",
+                    _ad_unit_mweb_prefix_expr(AdReportRow.ad_unit),
+                ),
             ),
         ]
     return [AdReportRow.project == project, AdReportRow.branch == branch]
