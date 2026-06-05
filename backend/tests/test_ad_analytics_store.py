@@ -95,6 +95,34 @@ def test_mweb_stream_includes_m_units_from_desktop_export():
         db.commit()
 
 
+def test_mweb_stream_includes_mweb_file_without_m_prefix():
+    """m.doviz Excel: m_ olmayan birimler surface=site olsa da mobil web sekmesine girer."""
+    d = date(2026, 1, 15)
+    serial = _excel_serial(d)
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"Pubmatic OB doviz.com,1,{serial},Open Auction,10,10,500,1,0,0,0,0,0,5000\n"
+    )
+    rows = store.parse_csv_text(text, filename="m.dovizcom1_Report_2026.xlsx")
+    assert rows[0]["branch"] == "mweb"
+    assert rows[0]["surface"] == "mweb"
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        mweb = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="mweb",
+        )
+        assert mweb["kpis"]["net_revenue"] == 5000.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_resolve_compare_range_previous_period():
     start, end = store.resolve_compare_range("2026-01-10", "2026-01-16", "previous_period")
     assert start == "2026-01-03"

@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import Integer, cast, delete, extract, func, select
+from sqlalchemy import Integer, cast, delete, extract, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -442,6 +442,9 @@ def _row_from_values(
         channel = stream.channel
         surface = _detect_surface(ad_unit, channel)
         if surface == "unknown" and stream.default_surface:
+            surface = stream.default_surface
+        elif stream.branch == "mweb" and surface == "site":
+            # m.doviz export: Pubmatic / Taboola vb. m_ ön eki olmadan da mobil web.
             surface = stream.default_surface
     else:
         project, branch = "", ""
@@ -1254,8 +1257,8 @@ def _stream_meta(project: str | None, branch: str | None) -> AdStream | None:
 def _stream_scope_conditions(project: str | None, branch: str | None) -> list[Any]:
     """Sekme (dal) filtresi — gerçek panel ile uyum.
 
-    Mobil web: yalnızca ``branch=mweb`` dosyası değil, desktop export içindeki
-    ``m_*`` (surface=mweb) satırları da dahil. Desktop: desktop dalı, mweb yüzeyi hariç.
+    Mobil web: m.doviz dosyasındaki tüm satırlar (``branch=mweb``) + desktop export
+    içindeki ``m_*`` (surface=mweb). Desktop: desktop dalı, mweb yüzeyi hariç.
     """
     meta = _stream_meta(project, branch)
     if not meta:
@@ -1268,7 +1271,10 @@ def _stream_scope_conditions(project: str | None, branch: str | None) -> list[An
     if meta.branch == "mweb":
         return [
             AdReportRow.project == meta.project,
-            _is_mweb_surface_expr(AdReportRow.surface),
+            or_(
+                AdReportRow.branch == "mweb",
+                _is_mweb_surface_expr(AdReportRow.surface),
+            ),
         ]
     if meta.branch == "desktop":
         return [
@@ -1289,6 +1295,7 @@ def _area_label_expr(col_branch, col_surface):
         (col_branch == "android", "android"),
         (col_branch == "ios", "ios"),
         (_is_mweb_surface_expr(col_surface), "mweb"),
+        (col_branch == "mweb", "mweb"),
         else_="web",
     )
 
