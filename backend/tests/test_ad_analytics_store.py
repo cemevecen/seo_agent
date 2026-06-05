@@ -59,6 +59,45 @@ def test_channel_and_surface_from_filename_and_ad_unit():
     assert rows[1]["surface"] == "web"
 
 
+def test_doviz_all_stream_sums_every_branch():
+    d = date(2026, 1, 10)
+    serial = _excel_serial(d)
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    rows_desktop = store.parse_csv_text(
+        header + f"web_u,1,{serial},Open Auction,1,1,10,0,0,0,0,0,0,100\n",
+        filename="dovizcom1_Report_2026.xlsx",
+    )
+    rows_mweb = store.parse_csv_text(
+        header + f"m_doviz_u,1,{serial},Open Auction,1,1,10,0,0,0,0,0,0,200\n",
+        filename="m.dovizcom1_Report_2026.xlsx",
+    )
+    init_db()
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows_desktop + rows_mweb)
+        all_site = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch=store.STREAM_ALL_BRANCH,
+        )
+        desktop = store.query_summary(
+            db,
+            start=d.isoformat(),
+            end=d.isoformat(),
+            project="doviz",
+            branch="desktop",
+        )
+        assert all_site["kpis"]["net_revenue"] == 300.0
+        assert desktop["kpis"]["net_revenue"] == 100.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_resolve_compare_range_previous_period():
     start, end = store.resolve_compare_range("2026-01-10", "2026-01-16", "previous_period")
     assert start == "2026-01-03"

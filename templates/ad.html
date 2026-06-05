@@ -69,7 +69,10 @@
         </div>
       </div>
 
-      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
+      <div class="flex items-center justify-between gap-2 pt-2">
+        <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
+        <button type="button" id="mz-income-select-all" class="shrink-0 text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Tümünü seç</button>
+      </div>
       <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
 
       <div id="mz-cross-filters" class="space-y-2">
@@ -5282,14 +5285,11 @@
     if (!el) return;
     var notes = [];
     var incomeList = state._mzIncomeFacetList || [];
-    if (
-      incomeList.length &&
-      state.income.size > 0 &&
-      state.income.size < incomeList.length
-    ) {
-      notes.push(
-        "Gelir tipi (yalnızca seçili): " + Array.from(state.income).sort().join(", ")
-      );
+    if (incomeList.length && state.income.size < incomeList.length) {
+      var excluded = incomeList.filter(function (n) { return !state.income.has(n); });
+      if (excluded.length) {
+        notes.push("Hariç gelir tipleri: " + excluded.join(", "));
+      }
     }
     if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
       notes.push("Özet drill gelir tipi: " + state.summaryDrillSlice.income_type);
@@ -5406,6 +5406,14 @@
 
   on("mz-run", "click", function () {
     runQuery({ resetTableDrills: true });
+    debouncedSyncUrl();
+  });
+  on("mz-income-select-all", "click", function () {
+    (state._mzIncomeFacetList || []).forEach(function (n) {
+      state.income.add(n);
+    });
+    filterBox("mz-filter-income", state._mzIncomeFacetList || [], state.income);
+    debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-preset", "change", function () {

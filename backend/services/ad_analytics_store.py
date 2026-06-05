@@ -227,7 +227,12 @@ class AdStream:
     default_surface: str
 
 
+# Sekme: tek dal değil, proje geneli (Site Revenue ana sayfa ile kıyas).
+STREAM_ALL_BRANCH = "__all__"
+
+
 AD_STREAMS: tuple[AdStream, ...] = (
+    AdStream("doviz:all", "doviz", STREAM_ALL_BRANCH, "Döviz · Tüm site", "dovizcom", "site"),
     AdStream("doviz:desktop", "doviz", "desktop", "Döviz · Desktop", "dovizcom", "web"),
     AdStream("doviz:mweb", "doviz", "mweb", "Döviz · Mobil Web", "dovizcom", "mweb"),
     AdStream("doviz:ios", "doviz", "ios", "Döviz · iOS", "ios", "ios_app"),
@@ -1089,10 +1094,26 @@ def facets(db: Session) -> dict[str, Any]:
         .group_by(AdReportRow.project, AdReportRow.branch)
     ).all()
     stats_map = {(r[0], r[1]): r for r in stream_stats}
+    project_stats = db.execute(
+        select(
+            AdReportRow.project,
+            func.min(AdReportRow.report_date),
+            func.max(AdReportRow.report_date),
+            func.count(),
+        )
+        .where(AdReportRow.project != "")
+        .group_by(AdReportRow.project)
+    ).all()
+    project_stats_map = {r[0]: r for r in project_stats}
     streams_out: list[dict[str, Any]] = []
     kpi_union: set[str] = set()
     for meta in AD_STREAMS:
-        hit = stats_map.get((meta.project, meta.branch))
+        if meta.branch == STREAM_ALL_BRANCH:
+            hit = project_stats_map.get(meta.project)
+            hit_row = (meta.project, None, hit[1], hit[2], hit[3]) if hit else None
+        else:
+            hit_row = stats_map.get((meta.project, meta.branch))
+        hit = hit_row
         stream_kpis: list[str] = []
         if hit and hit[4]:
             # KPI uygunluğu facets'te ağır JSON taraması yapılmaz — query_summary döner.
@@ -1289,7 +1310,7 @@ def _apply_filters(
 ):
     if project:
         q = q.where(AdReportRow.project == project)
-    if branch:
+    if branch and branch != STREAM_ALL_BRANCH:
         q = q.where(AdReportRow.branch == branch)
     if start:
         try:
