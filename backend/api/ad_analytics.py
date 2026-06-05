@@ -48,6 +48,17 @@ def get_ad_analytics_facets(db: Session = Depends(get_db)):
     return store.facets(db)
 
 
+@router.get("/mz-analytics/daily-verify")
+def get_ad_analytics_daily_verify(
+    db: Session = Depends(get_db),
+    day: str = Query(..., description="YYYY-MM-DD"),
+    project: str = Query("doviz"),
+    branch: str = Query("mweb"),
+):
+    """Tek gün toplamları; m.doviz.com Virgul referansıyla yan yana."""
+    return store.query_daily_verify(db, day=day[:10], project=project, branch=branch)
+
+
 @router.get("/mz-analytics/summary")
 def get_ad_analytics_summary(
     db: Session = Depends(get_db),

@@ -89,7 +89,7 @@ def test_mweb_stream_includes_m_units_from_desktop_export():
             project="doviz",
             branch="desktop",
         )
-        assert mweb["kpis"]["net_revenue"] == 1000.0
+        assert mweb["kpis"]["net_revenue"] == 0.0
         assert desktop["kpis"]["net_revenue"] == 3000.0
         db.execute(__import__("sqlalchemy").delete(AdReportRow))
         db.commit()

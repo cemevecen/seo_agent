@@ -1259,22 +1259,11 @@ def _ad_unit_mweb_prefix_expr(col_ad_unit):
 
 
 def _stream_branch_filters(project: str | None, branch: str | None) -> list[Any]:
-    """Dal sekmesi — m.doviz.com: m.doviz dosyası + desktop export'taki ``m_`` birimleri."""
+    """Dal sekmesi — m.doviz.com (Virgul) = ``m.dovizcom`` yükleme dalı (branch=mweb)."""
     if not project:
         return []
     if not branch or branch == STREAM_ALL_BRANCH:
         return [AdReportRow.project == project]
-    if branch == "mweb":
-        return [
-            AdReportRow.project == project,
-            or_(
-                AdReportRow.branch == "mweb",
-                and_(
-                    AdReportRow.branch == "desktop",
-                    _ad_unit_mweb_prefix_expr(AdReportRow.ad_unit),
-                ),
-            ),
-        ]
     return [AdReportRow.project == project, AdReportRow.branch == branch]
 
 
@@ -2488,3 +2477,103 @@ def _merge_table_rows(
         merged.append(item)
     merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
     return merged
+
+
+# Virgul m.doviz.com günlük tablo (kullanıcı referansı) — dal=mweb doğrulama için.
+_VIRGUL_MWEB_DAILY_REFERENCE: dict[str, dict[str, float | int]] = {
+    "2025-12-31": {
+        "net_revenue": 86626.87,
+        "impression": 5912777,
+        "ad_request": 11698399,
+        "empower_pageview": 714381,
+    },
+    "2025-12-30": {
+        "net_revenue": 155868.45,
+        "impression": 9747107,
+        "ad_request": 15343578,
+        "empower_pageview": 1033451,
+    },
+}
+
+
+def query_daily_verify(
+    db: Session,
+    *,
+    day: str,
+    project: str = "doviz",
+    branch: str = "mweb",
+) -> dict[str, Any]:
+    """Tek gün özeti + kaynak dosya kırılımı; Virgul referansıyla karşılaştırma."""
+    summary = query_summary(
+        db,
+        start=day,
+        end=day,
+        project=project,
+        branch=branch,
+    )
+    day_row = next(
+        (d for d in (summary.get("by_date") or []) if d.get("date") == day),
+        None,
+    )
+    base = select(AdReportRow)
+    base = _apply_filters(
+        base,
+        start=day,
+        end=day,
+        income_types=[],
+        ad_units=[],
+        platforms=[],
+        channels=[],
+        surfaces=[],
+        sources=[],
+        search=None,
+        project=project,
+        branch=branch,
+    )
+    sub = base.subquery()
+    by_source = db.execute(
+        select(
+            sub.c.source_file,
+            func.count(),
+            func.sum(sub.c.net_revenue),
+            func.sum(sub.c.impression),
+        )
+        .group_by(sub.c.source_file)
+        .order_by(func.sum(sub.c.net_revenue).desc())
+    ).all()
+    ref = _VIRGUL_MWEB_DAILY_REFERENCE.get(day)
+    compare: dict[str, Any] | None = None
+    if ref and day_row:
+        compare = {}
+        for key, theirs in ref.items():
+            ours = day_row.get(key)
+            if ours is None:
+                ours = (summary.get("kpis") or {}).get(key)
+            if ours is None:
+                continue
+            delta = float(ours) - float(theirs)
+            tol = 0.02 if key == "net_revenue" else 1.0
+            compare[key] = {
+                "ours": ours,
+                "virgul": theirs,
+                "delta": round(delta, 2) if key == "net_revenue" else int(delta),
+                "match": abs(delta) < tol,
+            }
+    return {
+        "day": day,
+        "project": project,
+        "branch": branch,
+        "kpis": summary.get("kpis"),
+        "by_date": day_row,
+        "by_source_file": [
+            {
+                "source_file": r[0],
+                "rows": int(r[1] or 0),
+                "net_revenue": round(float(r[2] or 0), 2),
+                "impression": int(r[3] or 0),
+            }
+            for r in by_source
+        ],
+        "virgul_reference": ref,
+        "compare": compare,
+    }

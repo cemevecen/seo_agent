@@ -770,9 +770,13 @@
     (state._mzChannelFacetList || []).forEach(function (n) { state.channel.add(n); });
     (state._mzSurfaceFacetList || []).forEach(function (n) { state.surface.add(n); });
     (state._mzPlatformFacetList || []).forEach(function (n) { state.platform.add(n); });
+    (state._mzIncomeFacetList || []).forEach(function (n) { state.income.add(n); });
+    (state._mzSourceFacetList || []).forEach(function (n) { state.source.add(n); });
     filterChips("mz-filter-channel", state._mzChannelFacetList || [], state.channel);
     filterChips("mz-filter-surface", state._mzSurfaceFacetList || [], state.surface);
     filterChips("mz-filter-platform", state._mzPlatformFacetList || [], state.platform);
+    filterChips("mz-filter-income", state._mzIncomeFacetList || [], state.income);
+    filterChips("mz-filter-source", state._mzSourceFacetList || [], state.source);
   }
 
   function updateScopeUi() {
@@ -809,8 +813,8 @@
       appendFacetParam(p, "platforms", state.platform, state._mzPlatformFacetList || []);
       appendFacetParam(p, "channels", state.channel, state._mzChannelFacetList || []);
       appendFacetParam(p, "surfaces", state.surface, state._mzSurfaceFacetList || []);
+      appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     }
-    appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     var q = document.getElementById("mz-search").value.trim();
     if (q) p.set("search", q);
     if (state.drillSlice && state.drillSlice.ad_unit) {
