@@ -1077,19 +1077,26 @@ def facets(db: Session) -> dict[str, Any]:
             if slug not in seen_cols:
                 seen_cols.add(slug)
                 extra_columns.append(str(c))
-    streams_out: list[dict[str, Any]] = []
-    kpi_union: set[str] = set()
-    for meta in AD_STREAMS:
-        scope_q = select(
+    stream_stats = db.execute(
+        select(
+            AdReportRow.project,
+            AdReportRow.branch,
             func.min(AdReportRow.report_date),
             func.max(AdReportRow.report_date),
             func.count(),
         )
-        for cond in _stream_scope_conditions(meta.project, meta.branch):
-            scope_q = scope_q.where(cond)
-        hit = db.execute(scope_q).one()
-        row_cnt = int(hit[2] or 0) if hit else 0
+        .where(AdReportRow.project != "", AdReportRow.branch != "")
+        .group_by(AdReportRow.project, AdReportRow.branch)
+    ).all()
+    stats_map = {(r[0], r[1]): r for r in stream_stats}
+    streams_out: list[dict[str, Any]] = []
+    kpi_union: set[str] = set()
+    for meta in AD_STREAMS:
+        hit = stats_map.get((meta.project, meta.branch))
         stream_kpis: list[str] = []
+        if hit and hit[4]:
+            # KPI uygunluğu facets'te ağır JSON taraması yapılmaz — query_summary döner.
+            stream_kpis = []
         streams_out.append(
             {
                 "key": meta.key,
@@ -1098,10 +1105,10 @@ def facets(db: Session) -> dict[str, Any]:
                 "label": meta.label,
                 "channel": meta.channel,
                 "default_surface": meta.default_surface,
-                "min_date": hit[0].isoformat() if hit and hit[0] else None,
-                "max_date": hit[1].isoformat() if hit and hit[1] else None,
-                "row_count": row_cnt,
-                "has_data": bool(row_cnt),
+                "min_date": hit[2].isoformat() if hit and hit[2] else None,
+                "max_date": hit[3].isoformat() if hit and hit[3] else None,
+                "row_count": int(hit[4] or 0) if hit else 0,
+                "has_data": bool(hit and hit[4]),
                 "available_kpis": stream_kpis,
             }
         )
@@ -1235,60 +1242,16 @@ def _week_key_expr(col):
     return func.strftime("%Y-W%W", col)
 
 
-_MWEB_SURFACE_VALUES = ("mweb", "mobile_web", "m_web")
-
-
-def _is_mweb_surface_expr(col_surface):
-    return func.lower(col_surface).in_(list(_MWEB_SURFACE_VALUES))
-
-
-def _stream_meta(project: str | None, branch: str | None) -> AdStream | None:
-    if not project or not branch:
-        return None
-    for meta in AD_STREAMS:
-        if meta.project == project and meta.branch == branch:
-            return meta
-    return None
-
-
-def _stream_scope_conditions(project: str | None, branch: str | None) -> list[Any]:
-    """Sekme (dal) filtresi — gerçek panel ile uyum.
-
-    Mobil web: yalnızca ``branch=mweb`` dosyası değil, desktop export içindeki
-    ``m_*`` (surface=mweb) satırları da dahil. Desktop: desktop dalı, mweb yüzeyi hariç.
-    """
-    meta = _stream_meta(project, branch)
-    if not meta:
-        out: list[Any] = []
-        if project:
-            out.append(AdReportRow.project == project)
-        if branch:
-            out.append(AdReportRow.branch == branch)
-        return out
-    if meta.branch == "mweb":
-        return [
-            AdReportRow.project == meta.project,
-            _is_mweb_surface_expr(AdReportRow.surface),
-        ]
-    if meta.branch == "desktop":
-        return [
-            AdReportRow.project == meta.project,
-            AdReportRow.branch == "desktop",
-            ~_is_mweb_surface_expr(AdReportRow.surface),
-        ]
-    return [
-        AdReportRow.project == meta.project,
-        AdReportRow.branch == meta.branch,
-    ]
-
-
 def _area_label_expr(col_branch, col_surface):
     from sqlalchemy import case
 
     return case(
         (col_branch == "android", "android"),
         (col_branch == "ios", "ios"),
-        (_is_mweb_surface_expr(col_surface), "mweb"),
+        (
+            func.lower(col_surface).in_(["mweb", "mobile_web", "m_web"]),
+            "mweb",
+        ),
         else_="web",
     )
 
@@ -1324,8 +1287,10 @@ def _apply_filters(
     project: str | None = None,
     branch: str | None = None,
 ):
-    for cond in _stream_scope_conditions(project, branch):
-        q = q.where(cond)
+    if project:
+        q = q.where(AdReportRow.project == project)
+    if branch:
+        q = q.where(AdReportRow.branch == branch)
     if start:
         try:
             q = q.where(AdReportRow.report_date >= date.fromisoformat(start[:10]))
